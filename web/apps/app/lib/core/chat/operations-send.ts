@@ -16,8 +16,11 @@ import { buildProviderStreamOptions, buildStreamOptionsFromIntent, filterGenerat
 import { generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from './generation-parameter-settings';
 import { capabilityRuntimeIdentity, resolveCapabilityPreferences } from './capability-preference-settings';
 import { migrateDraftScopedModelControls } from './draft-scope-migration';
-import { CUSTOM_FRAGMENT_ERROR_KIND, customFragmentRejectionCopyKey } from './custom-fragment-rejection';
+import { customFragmentFailurePatch } from './custom-fragment-rejection';
+import { customFragmentAllowedPaths } from './custom-fragment-allowed-paths';
+import { additionalBodyFailurePatch } from './additional-body-rejection';
 import { forwardPortCustomFragmentsIfNeeded, resolveCustomFragments } from './custom-fragment-settings';
+import { withAdditionalBody } from './additional-body-settings';
 import { webPreferenceReachesTheWire } from './capability-control-presentation';
 import { getCapabilityRuntime } from '../metadata/metadata-client';
 import { resolveModelCapabilityEvidence } from './capability-evidence';
@@ -61,6 +64,7 @@ import {
 import { LibraryResearchCancelledError } from './library-agent-loop';
 import { libraryFailurePatch, type LibraryFailurePresentation } from './library-failure';
 import { telemetryToolName } from '../mcp/mcp-telemetry';
+import { flushPendingStreaming } from './stream-batcher';
 import {
   dedupeLibraryDocumentRefs,
   libraryDocumentRefsFromCitations,
@@ -116,6 +120,7 @@ function resolveMcpDelegation(params: Parameters<typeof sendMessage>[1]): SendMc
     ...(params.onFailed ? { onFailed: params.onFailed } : {}),
     ...(params.generationParameterDraftSessionId ? { generationParameterDraftSessionId: params.generationParameterDraftSessionId } : {}),
     ...(params.transientGenerationParameters ? { transientGenerationParameters: params.transientGenerationParameters } : {}),
+    ...(params.omitAdditionalBody ? { omitAdditionalBody: true } : {}),
   };
 }
 
@@ -169,6 +174,8 @@ export function sendMessage(
     capabilityPreferences?: CapabilityPreferenceInput;
     /** Explicit user-confirmed recovery only: keep saved custom fields, omit them for this new request. */
     excludeCustomFragments?: boolean;
+    /** "Retry without the additional body": omitted for this one send only, independent of omitting web search or reasoning. */
+    omitAdditionalBody?: boolean;
     /** Explicit resend only: omit the located custom source owner(s), not official recipes. */
     excludeCustomFragmentOwners?: Array<'web' | 'reasoning' | 'generation'>;
     /** Exact official recipe setting(s) omitted only for this confirmed resend. */
@@ -208,6 +215,7 @@ export function sendMessage(
     transientGenerationParameters,
     capabilityPreferences,
     excludeCustomFragments = false,
+    omitAdditionalBody = false,
     excludeCustomFragmentOwners = [],
     capabilityRecipeOmissions = [],
     capabilityRecipeResendOwners = [],
@@ -511,7 +519,11 @@ export function sendMessage(
             ...(capabilityRecipeResendOwners.length ? { capabilityRecipeResendOwners } : {}),
           }
         : streamOptions;
-      const relayStreamOptions = clientControlsAllowed ? buildProviderStreamOptions(provider, streamOptionsWithRecovery, model) : undefined;
+      // The additional body is not dropped for library-pinned documents or server-side retrieval: both legs of a library retrieval are attachment points.
+      const relayStreamOptions = withAdditionalBody(
+        clientControlsAllowed ? buildProviderStreamOptions(provider, streamOptionsWithRecovery, model) : undefined,
+        { provider, model, conversationId: finalConvId, omit: omitAdditionalBody },
+      );
 
       // Outbound fact taken after the final facade gate: web search counts as used only once the
       // configuration really made it into this request. The gate is the final outbound options,
@@ -759,6 +771,9 @@ export function sendMessage(
       // The partial generated before the failure is still in the store's streaming map
       // (clearStreamingForConversation only runs in finally), so read it out here into the failed
       // message instead of zeroing half-written content with text:''.
+      // Flush the tail still sitting in the rAF batch writer first (the error frame and the last
+      // piece of body text often arrive in the same frame), or it would be lost.
+      flushPendingStreaming(finalConvId);
       const partialState = store.getState();
       // Final-state guard (matching the guarded branch at the end of stream-runner's
       // runStreamPipeline): when an abort throws its way here, stop() has usually already marked
@@ -773,7 +788,12 @@ export function sendMessage(
       const partialText = partialState.streamingTexts[finalConvId] || guardMsg?.text || '';
       const partialReasoning = (partialState.streamingReasoningTexts[finalConvId] ?? '').trim();
       const errorKindKey = mapErrorKindKey(pe.kind);
-      const errorTitleKey = pe.source === 'provider' ? 'requestFailed' : errorKindKey;
+      const additionalBodyRetry = Boolean(err && typeof err === 'object'
+        && (err as { additionalBodyRetryEligible?: unknown }).additionalBodyRetryEligible === true);
+      // A 400 before the stream starts that names one panel parameter exactly: the error card says which one and the user decides whether to resend without it.
+      const generationParameterRejection = generationParameterRejectionOf(err);
+      const errorTitleKey = additionalBodyRetry ? 'additionalBodyRejected.upstreamTitle'
+        : pe.source === 'provider' ? 'requestFailed.title' : `${errorKindKey}.title`;
       // Custom request fields fail closed: the body becomes a localized sentence keyed by the
       // rejection reason (the same three-way split as the editor) rather than putting an internal
       // enum name such as `unknown_owned_path` in front of the user.
@@ -781,24 +801,33 @@ export function sendMessage(
       // free-form string passed through from `event.errorKind` (`moderation` is not in the union
       // either). Widening explicitly here is safer than adding a union member that only one
       // client can produce, which would ripple through the shared error mapping table.
-      const customFragmentReasonKey = (pe.kind as string) === CUSTOM_FRAGMENT_ERROR_KIND
-        ? customFragmentRejectionCopyKey(pe.detail || pe.message || '')
-        : undefined;
+      const customFragmentFailure = customFragmentFailurePatch(pe, te, (owner) => customFragmentAllowedPaths(model, owner));
       // Localized body only for a recognised library_* failure code; ordinary network or client
       // exceptions raised inside the same request have no fixed copy and keep their own detail.
       const libraryFailure = libraryFailurePatch(err, libraryFailurePresentation);
+      // A locally rejected additional body: the text is the reason plus "nothing was sent", and the
+      // technical detail is only the safe code (no retry affordance, see the bubble).
+      const additionalBodyFailure = additionalBodyFailurePatch(err, te);
       const failedAssistantMsg: ChatMessage = {
         ...assistantMsg, text: partialText, state: 'failed' as const,
         ...(partialReasoning ? { reasoningText: partialReasoning } : {}),
         // Errors the provider or relay already returned get a neutral title only; the body keeps
         // the redacted upstream text in full. kind is still stored for the recovery CTA but must
         // not take part in rewriting user-facing copy.
-        errorTitle: te(`${errorTitleKey}.title`),
-        errorDetail: customFragmentReasonKey
-          ? te(`${errorKindKey}.${customFragmentReasonKey}`)
+        errorTitle: te(errorTitleKey),
+        ...(additionalBodyRetry ? { additionalBodyRetryEligible: true } : {}),
+        ...(generationParameterRejection ? { generationParameterRejection } : {}),
+        errorDetail: additionalBodyFailure ? additionalBodyFailure.errorDetail : customFragmentFailure
+          ? customFragmentFailure.errorDetail
           : (pe.detail || pe.message),
         ...(typeof pe.kind === 'string' ? { errorKind: pe.kind } : {}),
         ...(typeof pe.source === 'string' ? { errorSource: pe.source } : {}),
+        ...(additionalBodyFailure ? { errorTechnicalDetail: additionalBodyFailure.errorTechnicalDetail }
+          : customFragmentFailure?.errorTechnicalDetail ? { errorTechnicalDetail: customFragmentFailure.errorTechnicalDetail }
+          // In-stream error frame: once classified, keep the upstream text (already redacted and truncated by the sender) as technical detail.
+          : pe.streamErrorFrame && pe.message ? { errorTechnicalDetail: pe.message }
+          // The card body now explains that this one setting was rejected; the upstream text stays in the technical detail.
+          : generationParameterRejection && (pe.detail || pe.message) ? { errorTechnicalDetail: pe.detail || pe.message } : {}),
         ...(libraryFailure ?? {}),
         ...(researchSteps ? { researchSteps } : {}),
         ...(err && typeof err === 'object' && (err as { capabilityCustomRetryEligible?: unknown }).capabilityCustomRetryEligible === true
@@ -972,4 +1001,12 @@ export function appendTextToLatestUserMessage(
     }
     return;
   }
+}
+
+function generationParameterRejectionOf(error: unknown): { parameterId: string } | undefined {
+  const value = error && typeof error === 'object'
+    ? (error as { generationParameterRejection?: unknown }).generationParameterRejection
+    : undefined;
+  const parameterId = value && typeof value === 'object' ? (value as { parameterId?: unknown }).parameterId : undefined;
+  return typeof parameterId === 'string' && parameterId ? { parameterId } : undefined;
 }

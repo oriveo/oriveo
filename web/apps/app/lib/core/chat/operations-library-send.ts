@@ -1,3 +1,5 @@
+import { withAdditionalBody } from './additional-body-settings';
+import { createAdditionalBodyRetryTap } from './additional-body-retry-tap';
 import type {
   AIModel,
   Attachment,
@@ -122,6 +124,8 @@ type SendLibraryMessageParams = {
   generationParameterDraftSessionId?: string;
   /** One-shot transient values, same as `transientGenerationParameters` in operations-send; no UI producer yet. */
   transientGenerationParameters?: GenerationParameterOverrides;
+  /** "Retry without the additional request body": omitted for this one send only, the stored record is unchanged. */
+  omitAdditionalBody?: boolean;
 } & LibraryMessagePresentation & LibraryRecoveryOptions;
 
 export function sendLibraryMessage(
@@ -282,6 +286,8 @@ export function sendLibraryMessage(
     });
   };
 
+  // The failure block reads send-path facts from the model leg, so this lives outside the try.
+  let additionalBodyRetryTap: ReturnType<typeof createAdditionalBodyRetryTap> | undefined;
   const done = (async () => {
     try {
       const sanitizedOutbound = sanitizeOutboundMessages(
@@ -361,11 +367,12 @@ export function sendLibraryMessage(
         filterGenerationParameterOverrides(params.provider, params.model, unresolvedGenerationParameters, preliminaryOptions),
         requestIntent.capabilityPreferences,
       ) : undefined;
-      const streamOptions = clientControlsAllowed ? buildProviderStreamOptions(
+      // The library agent leg carries the additional request body too (both legs of the library retrieval are covered).
+      const streamOptions = withAdditionalBody(clientControlsAllowed ? buildProviderStreamOptions(
         params.provider,
         rawOptions,
         params.model,
-      ) : undefined;
+      ) : undefined, { provider: params.provider, model: params.model, conversationId: finalConvId, omit: params.omitAdditionalBody });
       const libraryOutbound = await prepareAgentSubscriptionOutbound(
         store,
         params.provider,
@@ -389,6 +396,8 @@ export function sendLibraryMessage(
         ),
       };
       const toolsEnabled = !toolCallSupportIsRememberedFalse(toolCallIdentity);
+      const retryTap = createAdditionalBodyRetryTap(libraryOutbound.streamOptions);
+      additionalBodyRetryTap = retryTap;
       const config = getLibraryRuntimeConfig();
       // There is deliberately no pre-send cost confirmation here. Estimating with a fixed
       // estimatedTokensPerStep x maxSteps is unrelated to actual usage and would cross the
@@ -405,7 +414,7 @@ export function sendLibraryMessage(
             ?.contextLength,
         signal: controller.signal,
         runLeg: ({ messages, tools, toolChoice }) =>
-          sendLibraryAgentLeg(
+          retryTap.wrap(sendLibraryAgentLeg(
             params.provider.kind,
             libraryOutbound.apiKey,
             params.model.id,
@@ -414,7 +423,7 @@ export function sendLibraryMessage(
             params.provider.baseURLText,
             libraryOutbound.streamOptions,
             toolChoice,
-          ),
+          )),
         executeTool: (tool, args, toolCallId, signal) =>
           executeLibraryTool(tool, args, signal, {
             researchId: assistantMessage.id,
@@ -583,13 +592,21 @@ export function sendLibraryMessage(
       const rawErrorCode = error && typeof error === "object"
         ? (error as { code?: unknown }).code
         : undefined;
+      // Library tools only read and retrieve, so they are not side effects; the decision is the same as in operations-send (see additional-body-retry-tap).
+      const additionalBodyRetry = additionalBodyRetryTap?.resolve({ sideEffects: false });
       const failed: ChatMessage = {
         ...assistantMessage,
         text:
           store.getState().streamingTexts[finalConvId] ||
           (params.appendToAssistant ? assistantMessage.text : ""),
         state: "failed",
-        errorTitle: params.errorTitle,
+        errorTitle: additionalBodyRetry?.eligible
+          ? ctx.te("additionalBodyRejected.upstreamTitle")
+          : params.errorTitle,
+        ...(additionalBodyRetry?.eligible ? { additionalBodyRetryEligible: true } : {}),
+        ...(additionalBodyRetry?.eligible && additionalBodyRetry.technicalDetail
+          ? { errorTechnicalDetail: additionalBodyRetry.technicalDetail }
+          : {}),
         errorDetail: providerResponse && error instanceof Error
           ? error.message
           : readLibraryErrorDetail(error, params),
@@ -672,6 +689,7 @@ function buildFallbackSendParams(
     ...(params.transientGenerationParameters
       ? { transientGenerationParameters: params.transientGenerationParameters }
       : {}),
+    ...(params.omitAdditionalBody ? { omitAdditionalBody: true } : {}),
     libraryContextCancelledText: params.cancelledText,
     // Failures on the server-side retrieval path land in sendMessage's generic catch. Without
     // carrying this presentation over, the same library_* error code would be localized on the

@@ -15,6 +15,7 @@ import { countNotesReferencingConversation } from './notes/source-link';
 
 
 import { removeGenerationParameterScopes } from './chat/generation-parameter-settings';
+import { removeAdditionalBodyScopes } from './chat/additional-body-settings';
 import { deleteLocalConversationContinuation } from './chat/continuation-lifecycle';
 
 function computeConversationAgeHours(conv: Conversation | undefined): number {
@@ -36,6 +37,7 @@ export function deleteConversation(store: StoreApi<AppStore>, convId: string) {
   deleteConversationAttachments(conv);
   store.getState().removeConversation(convId);
   removeGenerationParameterScopes({ conversationId: convId });
+  removeAdditionalBodyScopes({ conversationId: convId });
   deleteLocalConversationContinuation(convId);
   // The delete intent is queued in IDB and replayed, and only cleared once acknowledged. Calling
   // didDeleteConversations directly silently dropped the delete whenever the adapter was null,
@@ -60,6 +62,7 @@ export function deleteConversations(store: StoreApi<AppStore>, ids: string[]) {
     if (hasStream(id)) flushAndInterruptStream(id);
     store.getState().removeConversation(id);
     removeGenerationParameterScopes({ conversationId: id });
+    removeAdditionalBodyScopes({ conversationId: id });
     deleteLocalConversationContinuation(id);
   }
   // Same as above: queue and replay, so a delete is not silently lost while the adapter is not ready (batch delete hit exactly this)

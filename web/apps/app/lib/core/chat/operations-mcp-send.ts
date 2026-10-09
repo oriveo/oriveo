@@ -37,6 +37,8 @@ import { normalizeModelFactsID, resolveCatalogModel } from '../metadata/metadata
 import { sendLibraryAgentLeg } from '../providers/proxy-client';
 import { trackEvent, telemetryModelID, telemetryProviderKind } from '../telemetry';
 import { relaySendTelemetryProperties } from '../telemetry/relay-properties';
+import { withAdditionalBody } from './additional-body-settings';
+import { createAdditionalBodyRetryTap } from './additional-body-retry-tap';
 import {
   appendText,
   completeRound,
@@ -68,6 +70,8 @@ import {
 } from './stream-options';
 
 export interface SendMcpToolMessageParams {
+  /** "Retry without the additional body": omitted for this one send only; the stored content is unchanged. */
+  omitAdditionalBody?: boolean;
   text: string;
   prevMessages: ChatMessage[];
   conversation: Conversation | undefined;
@@ -163,6 +167,8 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
   let retrievalCost = 0;
   const unhandled: ProxyToolCall[] = [];
 
+  // The failure block reads send-path facts from the model leg, so the tap lives outside the try.
+  let additionalBodyRetryTap: ReturnType<typeof createAdditionalBodyRetryTap> | undefined;
   const done = (async () => {
     try {
       const sanitizedOutbound = sanitizeOutboundMessages(
@@ -231,8 +237,14 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         filterGenerationParameterOverrides(params.provider, params.model, unresolvedGenerationParameters, preliminaryOptions),
         requestIntent.capabilityPreferences,
       );
-      const streamOptions = buildProviderStreamOptions(params.provider, rawOptions, params.model);
+      // The additional body is the last step of every chat request body, so every tool-call round of an MCP send carries it too.
+      const streamOptions = withAdditionalBody(
+        buildProviderStreamOptions(params.provider, rawOptions, params.model),
+        { provider: params.provider, model: params.model, conversationId: finalConvId, omit: params.omitAdditionalBody },
+      );
       const agentOutbound = await prepareAgentSubscriptionOutbound(store, params.provider, params.model, streamOptions);
+      const retryTap = createAdditionalBodyRetryTap(agentOutbound.streamOptions);
+      additionalBodyRetryTap = retryTap;
       const toolCallIdentity: ToolCallRecoveryIdentity = {
         accountId: sendingAccountId,
         connectionId: params.provider.id,
@@ -275,7 +287,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
       };
       const loopOptions = (mode: 'enabled' | 'disabled'): ToolCallLoopOptions => ({
         registry: mode === 'enabled' ? new ToolRegistry(session.entries) : ToolRegistry.empty,
-        runLeg: ({ messages, tools, toolChoice }) => sendLibraryAgentLeg(
+        runLeg: ({ messages, tools, toolChoice }) => retryTap.wrap(sendLibraryAgentLeg(
           params.provider.kind,
           agentOutbound.apiKey,
           params.model.id,
@@ -284,7 +296,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
           params.provider.baseURLText,
           agentOutbound.streamOptions,
           toolChoice,
-        ),
+        )),
         signal: controller.signal,
         limits: mcpLoopLimits(runtimeConfig),
         prompts: MCP_LOOP_PROMPTS,
@@ -397,11 +409,17 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
       }
       const failure = describeFailure(error);
       const titleKey = failure.source === 'provider' ? 'requestFailed' : mapErrorKindKey(failure.kind);
+      // A round whose tools already ran gets no retry affordance: resending would execute the tools twice.
+      const additionalBodyRetry = additionalBodyRetryTap?.resolve({ sideEffects: session.steps().length > 0 });
       patchAssistantMessage(store, finalConvId, assistantMessage.id, {
         ...assistantMessage,
         text: partialText,
         state: 'failed',
-        errorTitle: te(`${titleKey}.title`),
+        errorTitle: additionalBodyRetry?.eligible ? te('additionalBodyRejected.upstreamTitle') : te(`${titleKey}.title`),
+        ...(additionalBodyRetry?.eligible ? { additionalBodyRetryEligible: true } : {}),
+        ...(additionalBodyRetry?.eligible && additionalBodyRetry.technicalDetail
+          ? { errorTechnicalDetail: additionalBodyRetry.technicalDetail }
+          : {}),
         errorDetail: failure.detail,
         errorKind: failure.kind,
         ...(failure.source ? { errorSource: failure.source } : {}),

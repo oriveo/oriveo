@@ -254,3 +254,23 @@ describe('applyGrokSubscriptionTransport', () => {
     });
   });
 });
+
+describe('Grok subscription: additional body', () => {
+  it('still merges the additional body after the Responses branch rebuilds the body', async () => {
+    const { applyGrokSubscriptionTransport, resolveGrokSubscriptionConfig } = await loadModule();
+    const config = await resolveGrokSubscriptionConfig();
+    const applied = applyGrokSubscriptionTransport(
+      {
+        url: 'https://api.x.ai/v1/chat/completions',
+        headers: { Authorization: 'Bearer access-token' },
+        body: { model: 'grok-4.6', messages: [{ role: 'user', content: 'hi' }], stream: true } as Record<string, unknown>,
+      },
+      config,
+      { messages: [{ role: 'user', content: 'hi' }], additionalBody: { raw: '{"store": true, "reasoning": {"summary": "detailed"}}' } },
+    );
+    expect(applied.url).toBe('https://cli-chat-proxy.grok.com/v1/responses');
+    expect(applied.body.store).toBe(true);
+    expect(applied.body.reasoning).toEqual({ summary: 'detailed' });
+    expect(applied.body.input).toBeDefined();
+  });
+});

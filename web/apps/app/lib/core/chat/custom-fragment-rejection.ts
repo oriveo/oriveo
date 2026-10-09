@@ -69,3 +69,75 @@ export function customFragmentRejectionCopyKey(reason: string): 'reasonSyntax' |
   if (bucket === 'customRequestFieldsReasonLimit') return 'reasonLimit';
   return 'reasonNotAllowed';
 }
+
+export type CustomFragmentOwner = 'web' | 'reasoning' | 'generation';
+
+const CODE_PREFIX = 'custom_request_fields_rejected';
+const CODE_PATTERN = /^custom_request_fields_rejected:(web|reasoning|generation):([a-z_]+)(?:@(\d+))?$/;
+const SECTION_KEYS: Record<CustomFragmentOwner, string> = {
+  web: 'sectionWeb',
+  reasoning: 'sectionReasoning',
+  generation: 'sectionGeneration',
+};
+
+/**
+ * The safe code in the technical detail: `custom_request_fields_rejected:<owner>:<reason>[@line]`.
+ * All three parts are closed vocabularies or numbers and never contain key names or values written
+ * by the user; the list of allowed fields is not part of the code and is recomputed from the
+ * declaration when displayed.
+ */
+export function customFragmentRejectionCode(input: { owner: CustomFragmentOwner; reason: string; line?: number }): string {
+  return `${CODE_PREFIX}:${input.owner}:${input.reason}${input.line ? `@${input.line}` : ''}`;
+}
+
+/** When the value is not a safe code (an older route returned only a bare reason), owner is empty and the text is used as the reason as is. */
+export function parseCustomFragmentRejectionCode(value: string): { owner?: CustomFragmentOwner; reason: string; line?: number } {
+  const match = CODE_PATTERN.exec(value);
+  if (!match) return { reason: value };
+  return {
+    owner: match[1] as CustomFragmentOwner,
+    reason: match[2],
+    ...(match[3] ? { line: Number(match[3]) } : {}),
+  };
+}
+
+/**
+ * Error card body. `te` is the `errors` namespace. The section-name prefix is added only when the
+ * owner is known, and the line number only when the parser supplied one. For the "not allowed"
+ * bucket, the allowed set is listed when there is one (same sentence as the editor page); otherwise
+ * the conflict sentence is the fallback.
+ */
+export function customFragmentRejectionDetail(
+  value: string,
+  te: (key: string, values?: Record<string, string | number>) => string,
+  allowedPaths: readonly string[],
+): string {
+  const parsed = parseCustomFragmentRejectionCode(value);
+  const bucket = customFragmentRejectionCopyKey(parsed.reason);
+  const reason = bucket === 'reasonNotAllowed' && allowedPaths.length > 0
+    ? te('customRequestFieldsRejected.reasonNotAllowedFields', { fields: allowedPaths.join(' · ') })
+    : te(`customRequestFieldsRejected.${bucket}`);
+  if (!parsed.owner) return reason;
+  const section = te(`customRequestFieldsRejected.${SECTION_KEYS[parsed.owner]}`);
+  return parsed.line
+    ? te('customRequestFieldsRejected.inSectionLine', { section, line: parsed.line, reason })
+    : te('customRequestFieldsRejected.inSection', { section, reason });
+}
+
+/** Failure message patch: the body is built as above and the technical detail holds only the safe code (a legacy bare reason does not go into the technical detail). */
+export function customFragmentFailurePatch(
+  error: { kind?: unknown; detail?: unknown; message?: unknown },
+  te: (key: string, values?: Record<string, string | number>) => string,
+  allowedPathsFor: (owner: CustomFragmentOwner) => readonly string[],
+): { errorDetail: string; errorTechnicalDetail?: string } | undefined {
+  if (error.kind !== CUSTOM_FRAGMENT_ERROR_KIND) return undefined;
+  const value = typeof error.detail === 'string' && error.detail ? error.detail
+    : typeof error.message === 'string' ? error.message : '';
+  const parsed = parseCustomFragmentRejectionCode(value);
+  const allowed = parsed.owner && customFragmentRejectionCopyKey(parsed.reason) === 'reasonNotAllowed'
+    ? allowedPathsFor(parsed.owner) : [];
+  return {
+    errorDetail: customFragmentRejectionDetail(value, te, allowed),
+    ...(parsed.owner ? { errorTechnicalDetail: value } : {}),
+  };
+}

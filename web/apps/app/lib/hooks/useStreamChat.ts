@@ -386,6 +386,8 @@ export function useStreamChat({
   const retry = useCallback(
     async (messageId: string, options?: {
       excludeCustomFragments?: boolean;
+      omitAdditionalBody?: boolean;
+      omitGenerationParameters?: string[];
       excludeCustomFragmentOwners?: Array<'web' | 'reasoning' | 'generation'>;
       capabilityRecipeOmissions?: Array<{ recipeRef: string; locatedPointers: string[] }>;
       capabilityRecipeResendOwners?: Array<'web' | 'reasoning' | 'generation'>;
@@ -426,10 +428,13 @@ export function useStreamChat({
           ).retryLibraryMessage(ctx, {
             ...commonParams,
             ...libraryMessagePresentation(tLibrary),
+            ...(options?.omitAdditionalBody ? { omitAdditionalBody: true } : {}),
           })
         : (await loadChatOperations()).retryMessage(ctx, {
           ...commonParams,
           ...(options?.excludeCustomFragments ? { excludeCustomFragments: true } : {}),
+          ...(options?.omitAdditionalBody ? { omitAdditionalBody: true } : {}),
+          ...(options?.omitGenerationParameters?.length ? { omitGenerationParameters: options.omitGenerationParameters } : {}),
           ...(options?.excludeCustomFragmentOwners?.length ? { excludeCustomFragmentOwners: options.excludeCustomFragmentOwners } : {}),
           ...(options?.capabilityRecipeOmissions?.length ? { capabilityRecipeOmissions: options.capabilityRecipeOmissions } : {}),
           ...(options?.capabilityRecipeResendOwners?.length ? { capabilityRecipeResendOwners: options.capabilityRecipeResendOwners } : {}),

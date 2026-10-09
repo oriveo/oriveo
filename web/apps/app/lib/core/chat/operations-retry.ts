@@ -17,6 +17,7 @@ import { deriveConversationMetadata, computeConversationActivityAt } from '../co
 import { recalculateConversationCost } from './usage-tracking';
 import { libraryDocumentRefsFromCitations } from './library-direct-context';
 import type { LibraryFailurePresentation } from './library-failure';
+import { omitOnceOverrides } from './generation-parameter-rejection';
 
 export interface RetryMessageParams {
   messageId: string;
@@ -33,6 +34,9 @@ export interface RetryMessageParams {
   libraryFailurePresentation?: LibraryFailurePresentation;
   /** Explicit user-confirmed custom recovery; never the default retry path. */
   excludeCustomFragments?: boolean;
+  omitAdditionalBody?: boolean;
+  /** "Resend without this setting": panel parameters the upstream named in a rejection are left out of this one request only; the saved settings stay unchanged. */
+  omitGenerationParameters?: string[];
   excludeCustomFragmentOwners?: Array<'web' | 'reasoning' | 'generation'>;
   capabilityRecipeOmissions?: Array<{ recipeRef: string; locatedPointers: string[] }>;
   capabilityRecipeResendOwners?: Array<'web' | 'reasoning' | 'generation'>;
@@ -56,7 +60,7 @@ export function retryMessageWithSender(
   params: RetryMessageParams,
   send: RetrySendOperation,
 ): SendHandle | null {
-  const { messageId, conversation, messages, provider, model, reasoningMode, webSearchEnabled, onNewConversation, onFailed, libraryContextCancelledText, libraryFailurePresentation, excludeCustomFragments = false, excludeCustomFragmentOwners = [], capabilityRecipeOmissions = [], capabilityRecipeResendOwners = [], excludeCapabilityOwners = [] } = params;
+  const { messageId, conversation, messages, provider, model, reasoningMode, webSearchEnabled, onNewConversation, onFailed, libraryContextCancelledText, libraryFailurePresentation, excludeCustomFragments = false, omitAdditionalBody = false, omitGenerationParameters = [], excludeCustomFragmentOwners = [], capabilityRecipeOmissions = [], capabilityRecipeResendOwners = [], excludeCapabilityOwners = [] } = params;
   const explicitModelControlResend = excludeCustomFragmentOwners.length > 0
     || capabilityRecipeOmissions.length > 0
     || capabilityRecipeResendOwners.length > 0;
@@ -119,6 +123,9 @@ export function retryMessageWithSender(
         errorDetail: undefined,
         errorKind: undefined,
         errorSource: undefined,
+        errorTechnicalDetail: undefined,
+        additionalBodyRetryEligible: undefined,
+        generationParameterRejection: undefined,
         attachments: preservePartialAssistant ? messages[msgIndex].attachments : undefined,
         estimatedCost: preservePartialAssistant ? messages[msgIndex].estimatedCost : 0,
         providerID: provider.id,
@@ -144,6 +151,8 @@ export function retryMessageWithSender(
     libraryContextCancelledText,
     ...(libraryFailurePresentation ? { libraryFailurePresentation } : {}),
     ...(excludeCustomFragments ? { excludeCustomFragments: true } : {}),
+    ...(omitAdditionalBody ? { omitAdditionalBody: true } : {}),
+    ...(omitGenerationParameters.length ? { transientGenerationParameters: omitOnceOverrides(omitGenerationParameters) } : {}),
     ...(excludeCustomFragmentOwners.length ? { excludeCustomFragmentOwners } : {}),
     ...(capabilityRecipeOmissions.length ? { capabilityRecipeOmissions } : {}),
     ...(capabilityRecipeResendOwners.length ? { capabilityRecipeResendOwners } : {}),

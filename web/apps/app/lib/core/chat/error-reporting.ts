@@ -28,6 +28,8 @@ const NON_REPORTABLE_PROVIDER_ERROR_KINDS = new Set<string>([
   'rateLimited',
   // A user-supplied custom request field the server compiler rejected: fail-closed is by design and the way out is to fix the JSON.
   'customRequestFieldsRejected',
+  // The additional request body was rejected locally (before the browser sent it, or at the route's second check): no request went out, and the way out is to edit the content.
+  'additionalBodyRejected',
   // Upstream content moderation blocked the user's own prompt (OpenAI image generation's
   // moderation_blocked and the like). It is the provider's policy verdict on the user's content,
   // the error card already asks the user to rephrase and retry, and there is nothing to fix on the

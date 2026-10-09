@@ -19,6 +19,7 @@ import {
   replaceProviderModels,
 } from '../core/provider-model-ops';
 import { removeGenerationParameterScopes } from '../core/chat/generation-parameter-settings';
+import { removeAdditionalBodyScopes } from '../core/chat/additional-body-settings';
 import type { RelayConnectionSecurityMode } from '@oriveo/shared';
 import {
   hasRelayConnectedEvidence,
@@ -424,6 +425,7 @@ export function useProviderActions(provider: Provider) {
     if (isEnabled) {
       disableProviderModel(getVanillaStore(), provider, model.id);
       removeGenerationParameterScopes({ providerId, modelId: model.id });
+      removeAdditionalBodyScopes({ providerId, modelId: model.id });
       return;
     }
 
@@ -437,7 +439,10 @@ export function useProviderActions(provider: Provider) {
   }, [provider]);
 
   const disableAllModels = useCallback(() => {
-    provider.models.forEach((model) => removeGenerationParameterScopes({ providerId, modelId: model.id }));
+    provider.models.forEach((model) => {
+      removeGenerationParameterScopes({ providerId, modelId: model.id });
+      removeAdditionalBodyScopes({ providerId, modelId: model.id });
+    });
     replaceProviderModels(getVanillaStore(), provider, []);
   }, [provider, providerId]);
 
@@ -448,6 +453,7 @@ export function useProviderActions(provider: Provider) {
   const removeModel = useCallback((modelId: string) => {
     disableProviderModel(getVanillaStore(), provider, modelId);
     removeGenerationParameterScopes({ providerId, modelId });
+    removeAdditionalBodyScopes({ providerId, modelId });
   }, [provider, providerId]);
 
   const deleteProvider = useCallback(async () => {

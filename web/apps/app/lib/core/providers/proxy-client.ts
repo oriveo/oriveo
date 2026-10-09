@@ -19,7 +19,11 @@ import type { ProviderErrorSource } from '@oriveo/core/providers/errors';
 import { selfHealTelemetryTransport } from '@oriveo/core/providers/unsupported-param';
 import { refreshMetadata, resolveCatalogModel } from '../metadata/metadata-client';
 import { decodeCapabilityResultContext } from '../chat/capability-result-runtime';
-import { CUSTOM_FRAGMENT_ERROR_KIND } from '../chat/custom-fragment-rejection';
+import { CUSTOM_FRAGMENT_ERROR_KIND, parseCustomFragmentRejectionCode } from '../chat/custom-fragment-rejection';
+import { ADDITIONAL_BODY_ERROR_KIND, validateAdditionalBody } from '@oriveo/core/providers/request-builders/additional-body';
+import { additionalBodyRetryEligible } from '../chat/additional-body-retry';
+import { generationWriteFacts } from '@oriveo/core/providers/generation-rejection-facts';
+import { sanitizeUpstreamErrorText } from '@oriveo/core/providers/upstream-error-text';
 import {
   CAPABILITY_RECOVERY_HEADER,
   decodeCapabilityRecoveryDescriptor,
@@ -158,6 +162,11 @@ export function sendStreamProxy(
   let resolveCapabilityContextReady!: (value: unknown) => void;
   const capabilityResultContextReady = new Promise<unknown>((resolve) => { resolveCapabilityContextReady = resolve; });
   let capabilityCustomRetryEligible = false;
+  let additionalBodyRetry = false;
+  // "Actually sent" means the route-side merger will merge non-empty content: decided by the same pure function as the route, never by looking at storage.
+  const additionalBodyValidation = options?.additionalBody ? validateAdditionalBody(options.additionalBody.raw) : null;
+  const additionalBodyApplied = Boolean(additionalBodyValidation?.accepted && Object.keys(additionalBodyValidation.value ?? {}).length > 0);
+  const generationWrite = generationWriteFacts(options);
   let capabilityRecoveryDescriptor: CapabilityRecoveryDescriptor | null = null;
   let subscriptionVersionRejectionSkipReport = false;
   const endpoint = '/api/chat/stream';
@@ -201,7 +210,10 @@ export function sendStreamProxy(
       capabilityRecoveryDescriptor = decodeCapabilityRecoveryDescriptor(res.headers.get(CAPABILITY_RECOVERY_HEADER));
       capabilityCustomRetryEligible = capabilityRecoveryDescriptor?.source === 'custom';
       if (capabilityRecoveryDescriptor && options?.capabilityRecoveryIdentity) {
-        recordCapabilityRejection(options.capabilityRecoveryIdentity, capabilityRecoveryDescriptor);
+        // Include the thinking tier that was actually sent: only this tier was rejected, the others stay usable.
+        recordCapabilityRejection(options.capabilityRecoveryIdentity, capabilityRecoveryDescriptor, Date.now(), {
+          reasoningIntent: options.capabilityPreferences?.reasoningIntent ?? options.reasoning,
+        });
       }
 
       // 426 is the only early signal that xAI raised its minimum client version. The client
@@ -241,11 +253,22 @@ export function sendStreamProxy(
           ctrl.close();
           return;
         }
+        // A 400 that reaches this point is an upstream rejection (the request was really sent and no upstream event has arrived yet).
+        additionalBodyRetry = additionalBodyRetryEligible({
+          additionalBodyApplied, receivedUpstreamEvent: false, sideEffects: false, localRejection: false, httpStatus: 400,
+        });
       }
 
       if (!res.ok && res.status === 502) {
         const detail = await readErrorDetail(res, 'Failed to connect to provider');
         ctrl.enqueue({ type: 'error', error: detail, errorKind: 'network', source: 'network' });
+        const additionalBodyCode = await readAdditionalBodyRejection(res.clone());
+        if (additionalBodyCode) {
+          // Local rejection of the additional body: carries only the safe code and does not set capabilityCustomRetryEligible (a local rejection has no retry path).
+          ctrl.enqueue({ type: 'error', error: additionalBodyCode, errorKind: ADDITIONAL_BODY_ERROR_KIND, source: 'oriveo' });
+          ctrl.close();
+          return;
+        }
         ctrl.close();
         return;
       }
@@ -289,9 +312,13 @@ export function sendStreamProxy(
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          ctrl.enqueue(value.type === 'error' && subscriptionVersionRejectionSkipReport
-            ? { ...value, skipReport: true }
-            : value);
+          // An in-stream error frame is the upstream's raw text: scrub this request's key / subscription token (in subscription mode it is also sent via apiKey) and truncate to 2 KB.
+          const outgoing = value.type === 'error' && value.streamErrorFrame
+            ? { ...value, error: sanitizeUpstreamErrorText(value.error, [apiKey]) }
+            : value;
+          ctrl.enqueue(outgoing.type === 'error' && subscriptionVersionRejectionSkipReport
+            ? { ...outgoing, skipReport: true }
+            : outgoing);
         }
       } catch {
         // The inner stream has already handled the error
@@ -306,6 +333,9 @@ export function sendStreamProxy(
     getCapabilityResultContext: () => capabilityResultContext,
     capabilityResultContextReady,
     getCapabilityCustomRetryEligible: () => capabilityCustomRetryEligible,
+    getAdditionalBodyRetryEligible: () => additionalBodyRetry,
+    getAdditionalBodyApplied: () => additionalBodyApplied,
+    getGenerationWrite: () => generationWrite,
     getCapabilityRecoveryDescriptor: () => capabilityRecoveryDescriptor,
   };
 }
@@ -374,6 +404,13 @@ export function sendLibraryAgentLeg(
           signal: controller.signal,
         });
         if (!response.ok) {
+          // A route-side local rejection of the additional body: recognized the same way as on a normal send, and must not be treated as an upstream 400.
+          const additionalBodyCode = response.status === 400 ? await readAdditionalBodyRejection(response.clone()) : null;
+          if (additionalBodyCode) {
+            ctrl.enqueue({ type: 'error', error: additionalBodyCode, errorKind: ADDITIONAL_BODY_ERROR_KIND, source: 'oriveo' });
+            ctrl.close();
+            return;
+          }
           const payload = await readErrorPayload(response, 'Library model request failed');
           if (payload.structuredError !== undefined) {
             toolCallRejectionContext = {
@@ -456,6 +493,20 @@ async function readErrorPayload(
   }
 }
 
+async function readAdditionalBodyRejection(res: Response): Promise<string | null> {
+  const text = await res.text().catch(() => '');
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text) as { errorKind?: unknown; code?: unknown };
+    if (parsed.errorKind !== ADDITIONAL_BODY_ERROR_KIND) return null;
+    return typeof parsed.code === 'string' && parsed.code.startsWith('additional_body_rejected:')
+      ? parsed.code
+      : 'additional_body_rejected';
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Only the route's dedicated shape is accepted (`errorKind` plus a `reason` from a closed
  * vocabulary); nothing is inferred from the status code or the error text. 400 is shared by a
@@ -466,8 +517,10 @@ async function readCustomFragmentRejection(res: Response): Promise<{ reason: str
   const text = await res.text().catch(() => '');
   if (!text) return null;
   try {
-    const parsed = JSON.parse(text) as { errorKind?: unknown; reason?: unknown };
+    const parsed = JSON.parse(text) as { errorKind?: unknown; reason?: unknown; code?: unknown };
     if (parsed.errorKind !== CUSTOM_FRAGMENT_ERROR_KIND) return null;
+    // Use the safe code (with section name and line number) when present; a legacy response carries only a bare reason.
+    if (typeof parsed.code === 'string' && parseCustomFragmentRejectionCode(parsed.code).owner) return { reason: parsed.code };
     return { reason: typeof parsed.reason === 'string' ? parsed.reason : '' };
   } catch {
     return null;

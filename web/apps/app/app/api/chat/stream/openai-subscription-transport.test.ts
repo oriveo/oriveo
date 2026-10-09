@@ -195,3 +195,18 @@ describe('buildCodexSubscriptionRequest: tiers come only from the upstream decla
     expect(request.body.reasoning).toEqual({ effort: 'medium', summary: 'auto' });
   });
 });
+
+describe('Codex subscription: additional request body', () => {
+  it('merges onto the final request body and leaves the skeleton fields unchanged', async () => {
+    const request = await buildRequest({ additionalBody: { raw: '{"service_tier": "flex", "text": {"verbosity": "low"}}' } });
+    expect(request.body.service_tier).toBe('flex');
+    expect(request.body.text).toEqual({ verbosity: 'low' });
+    expect(request.body.model).toBe('gpt-5.6-sol');
+    expect(request.body.input).toBeDefined();
+  });
+
+  it('rejects protected fields locally', async () => {
+    await expect(buildRequest({ additionalBody: { raw: '{"instructions": "x"}' } }))
+      .rejects.toMatchObject({ code: 'additional_body_rejected:protected_field:instructions' });
+  });
+});

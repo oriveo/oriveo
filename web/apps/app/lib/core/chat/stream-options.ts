@@ -11,7 +11,8 @@ import {
 } from '@oriveo/core/providers/relay-runtime-support';
 import { restrictWireToDeclaredParameters } from '@oriveo/core/providers/request-builders/generation-parameters';
 import { resolveRelayRuntimeFields } from '../providers/relay-resolution';
-import { getDeclaredReasoningDefaultLevel } from '../metadata/metadata-client';
+import { isLocalEngine, localEngineGenerationProfile } from './local-engine-profiles';
+import { getDeclaredReasoningDefaultLevel, getDeclaredReasoningLevels } from '../metadata/metadata-client';
 import {
   capabilityLearningIdentity,
   relayCapabilityEvidenceIdentity,
@@ -25,7 +26,12 @@ import {
   generationSupportPresentation,
 } from './generation-support-presentation';
 import { capabilityRuntimeIdentity } from './capability-preference-settings';
-import { capabilityRecipeOmissions, capabilityRejectionIsDormant } from './capability-recovery-runtime';
+import {
+  capabilityRecipeOmissions,
+  capabilityRejectionIsDormant,
+  capabilityRejectionState,
+  nearestAcceptedReasoningTier,
+} from './capability-recovery-runtime';
 
 /**
  * Free and Managed are Server-owned products, not BYOK connections. Keeping
@@ -138,29 +144,62 @@ export function filterRequestCapabilityIntent(input: {
 
   // Levels always use the ReasoningMode vocabulary (low maps to fast): evidence keys exist only
   // in that form, so building a key from the typed intent vocabulary never finds a candidate.
-  const typedMode: ReasoningMode | undefined = typed?.reasoningIntent === 'off' ? undefined
+  const storedTypedMode: ReasoningMode | undefined = typed?.reasoningIntent === 'off' ? undefined
     : typed?.reasoningIntent === 'low' ? 'fast'
       : typed?.reasoningIntent;
+  // For a level the upstream has rejected: if the user's pick is among them, fall back to the
+  // nearest level that still works (same rule as the panel); with no level left, send this request
+  // without reasoning. An explicit resend does not take this detour and sends the level the user chose.
+  // The tiers come from the same place as the panel: the model's reasoning recipe if it declares
+  // tiers, otherwise the legacy profile's tier table. If the two read from different tables, the
+  // panel would show "switched back to some level" while this code computes "no level left" from
+  // another table and actually sends no reasoning.
+  const recipeTiers = evidenceModel.capabilityControls?.reasoning?.availableIntents;
+  const declaredTiers = (Array.isArray(recipeTiers) && recipeTiers.length > 0
+    ? recipeTiers
+    : getDeclaredReasoningLevels(evidenceModel.reasoningProfile)
+  ).map((level) => (level === 'fast' ? 'low' : level));
+  const reasoningRejection = rejectedIdentity && !resendOwners.has('reasoning')
+    // The level about to be sent counts as declared too: if it was not rejected it goes out as is,
+    // instead of the whole group going dormant because this metadata lists no tiers.
+    ? capabilityRejectionState(rejectedIdentity, 'reasoning', 'provider_recipe', [
+      ...declaredTiers,
+      ...(typed ? (storedTypedMode ? [storedTypedMode] : []) : [input.reasoningMode])
+        .map((level) => (level === 'fast' ? 'low' : level)),
+    ])
+    : { dormant: false, rejectedIntents: [] };
+  const withoutRejectedTier = (mode: ReasoningMode | undefined): ReasoningMode | undefined => {
+    const tier = mode === 'fast' ? 'low' : mode;
+    if (tier === undefined || !reasoningRejection.rejectedIntents.includes(tier)) return mode;
+    const fallback = nearestAcceptedReasoningTier(
+      tier,
+      declaredTiers.filter((level) => !reasoningRejection.rejectedIntents.includes(level)),
+    );
+    return fallback === 'low' ? 'fast' : fallback as ReasoningMode | undefined;
+  };
+  const typedMode = withoutRejectedTier(storedTypedMode);
+  const legacyMode = withoutRejectedTier(input.reasoningMode);
   // 'automatic' is not a user-picked level: the profile's defaultLevel decides which one is
   // injected, so it is queried as non-explicit; explicit pass-through needs a real choice.
   const requestedLevel = typed
     ? typedMode
-    : input.reasoningMode === 'automatic'
+    : legacyMode === 'automatic'
       ? getDeclaredReasoningDefaultLevel(evidenceModel.reasoningProfile)
-      : input.reasoningMode;
-  const reasoningExplicit = typed ? typedMode !== undefined : input.reasoningMode !== 'automatic';
-  const reasoningDormant = rejectedIdentity && !resendOwners.has('reasoning')
-    ? capabilityRejectionIsDormant(rejectedIdentity, 'reasoning', 'provider_recipe')
-    : false;
+      : legacyMode;
+  const reasoningExplicit = typed ? typedMode !== undefined : legacyMode !== undefined && legacyMode !== 'automatic';
+  const reasoningDormant = reasoningRejection.dormant;
   const reasoningAllowed = !reasoningDormant && requestedLevel !== undefined
     && permitsOutbound(`reasoning_level/${requestedLevel}`, reasoningExplicit);
-  const reasoning = reasoningAllowed ? (typed ? typedMode : input.reasoningMode) : undefined;
+  const reasoning = reasoningAllowed ? (typed ? typedMode : legacyMode) : undefined;
 
   if (!typed) return { ...(reasoning !== undefined ? { reasoning } : {}), supportsWebSearch };
   // A rejected intent must also be dropped from capabilityPreferences: the v2 dispatch compile
   // reads only that copy, so leaving it there is a back door around the outbound gate. Turning
   // reasoning off is an instruction rather than a capability request, so it always passes.
-  const { reasoningIntent, ...withoutReasoning } = typed;
+  const { reasoningIntent: storedReasoningIntent, ...withoutReasoning } = typed;
+  const reasoningIntent = storedReasoningIntent === 'off' || storedReasoningIntent === undefined
+    ? storedReasoningIntent
+    : typedMode === 'fast' ? 'low' : typedMode === 'automatic' ? undefined : typedMode;
   const keepReasoningIntent = reasoningIntent === 'off'
     || (reasoningIntent !== undefined && reasoningAllowed);
   return {
@@ -195,7 +234,8 @@ export function mergeRelayRuntime(
   // accepts it because spreads skip the excess property check). Relays that do not match the
   // official catalog -- a local engine, or a model id absent from the catalog, whose only
   // profile source is the local template -- would then inject nothing on the way out.
-  const resolvedGenerationProfile = options?.generationProfile
+  const resolvedGenerationProfile = localEngineProfileForProvider(provider, runtime.relayResolvedTransport)
+    ?? options?.generationProfile
     ?? relayGenerationProfile(provider, runtime.relayResolvedTransport);
   return {
     ...options,
@@ -235,48 +275,53 @@ export function mergeRelayRuntime(
 }
 
 /**
- * Pick the matching server metadata template only when the engine is declared; an unknown
- * engine or a missing template injects nothing.
+ * Local engines look up an in-app constant table; Open WebUI picks the generic chat template from
+ * server metadata; an unknown engine or a missing template injects nothing.
  *
- * The synthesized wire keeps only the parameter ids listed in the constant table inside this
- * function. A relay catalog comes from the user's own machine, so a key surfacing from an
- * upstream response must never become a write path.
+ * The synthesized wire keeps only the parameter ids listed in the constant tables; each path is
+ * hardened structurally. A relay catalog comes from the user's own machine, so a key surfacing from
+ * an upstream response must never become a write path.
  */
-export function engineGenerationProfile(engine: 'llamacpp' | 'ollama' | 'lmstudio' | 'vllm' | 'openwebui' | undefined) {
-  const template = engine === 'llamacpp'
-    ? 'llamacpp_native'
-    : engine === 'vllm'
-      ? 'vllm_extra_body'
-      : engine === 'openwebui'
-        ? 'openai_chat_completions'
-      : undefined;
-  const resolved = template ? resolveGenerationProfileRef({
-    template,
-    // An engine profile is a capability source the user chose explicitly but that has not been
-    // verified per model, so it is reported honestly as accepted_unverified.
-    parameters: engine === 'llamacpp'
-      ? ['max_output_tokens', 'stop', 'temperature', 'top_p', 'top_k', 'min_p', 'typical_p', 'repeat_penalty',
-        'repeat_last_n', 'mirostat', 'mirostat_tau', 'mirostat_eta', 'dry_multiplier', 'dry_base',
-        'dry_allowed_length', 'dry_penalty_last_n', 'xtc_probability', 'xtc_threshold', 'samplers',
-        'ignore_eos', 'top_n_sigma', 'dynatemp_range', 'dynatemp_exponent', 'min_keep', 'n_keep',
-        'n_indent', 't_max_predict_ms', 'n_probs', 'post_sampling_probs', 'seed', 'json_schema', 'logprobs']
-        .map((id) => ({ id, support: 'accepted_unverified', source: 'user_declared' }))
-      : engine === 'openwebui'
-        ? ['max_output_tokens', 'stop', 'temperature', 'top_p', 'frequency_penalty', 'presence_penalty',
-          'seed', 'response_format', 'json_schema', 'verbosity', 'logprobs', 'top_logprobs']
-          .map((id) => ({ id, support: 'accepted_unverified', source: 'user_declared' }))
-        : ['max_output_tokens', 'stop', 'temperature', 'top_p', 'top_k', 'min_p', 'typical_p',
-          'presence_penalty', 'frequency_penalty', 'repeat_penalty', 'seed', 'json_schema', 'logprobs', 'top_logprobs']
-          .map((id) => ({ id, support: 'accepted_unverified', source: 'user_declared' })),
+// An in-app synthesized local engine profile never goes through the server, so whether json_schema
+// carries `strict` is declared here (shared contract modelLevelFacts).
+// An engine profile is a capability source the user chose explicitly but that has not been
+// verified per model, so it is reported honestly as accepted_unverified.
+function engineParameterRef(id: string) {
+  return { id, support: 'accepted_unverified', source: 'user_declared', ...(id === 'json_schema' ? { strict: true } : {}) };
+}
+
+export function engineGenerationProfile(
+  engine: 'llamacpp' | 'ollama' | 'lmstudio' | 'vllm' | 'openwebui' | undefined,
+  transport?: string | null,
+) {
+  // The four engines that run models themselves are looked up by (engine, connection protocol) in
+  // the in-app constant table, not through a server template.
+  if (isLocalEngine(engine)) {
+    const local = localEngineGenerationProfile(engine, transport);
+    return local ? restrictWireToDeclaredParameters(local) : undefined;
+  }
+  // Open WebUI still uses the server's generic chat template.
+  const resolved = engine === 'openwebui' ? resolveGenerationProfileRef({
+    template: 'openai_chat_completions',
+    parameters: ['max_output_tokens', 'stop', 'temperature', 'top_p', 'frequency_penalty', 'presence_penalty',
+      'seed', 'response_format', 'json_schema', 'verbosity', 'logprobs', 'top_logprobs']
+      .map(engineParameterRef),
   }) : undefined;
   return resolved ? restrictWireToDeclaredParameters(resolved) : undefined;
 }
 
+/** For a local engine connection the parameter table comes only from the in-app constant table, overriding any profile persisted on the model or connection. */
+function localEngineProfileForProvider(provider: Provider, resolvedTransport?: Provider['relayResolvedTransport']) {
+  const engine = provider.relayRequested?.engineProfile;
+  if (provider.kind !== 'relay' || !isLocalEngine(engine)) return undefined;
+  return engineGenerationProfile(engine, provider.relayResolvedTransport ?? resolvedTransport ?? provider.relayRequested?.transport);
+}
+
 /** A plain relay with no capability evidence still shows every parameter the protocol can express, all marked unknown; only values the user fills in are sent. */
 export function relayGenerationProfile(provider: Provider, resolvedTransport?: Provider['relayResolvedTransport']) {
-  const engine = engineGenerationProfile(provider.relayRequested?.engineProfile);
-  if (engine) return engine;
   const template = provider.relayResolvedTransport ?? resolvedTransport ?? provider.relayRequested?.transport;
+  const engine = engineGenerationProfile(provider.relayRequested?.engineProfile, template);
+  if (engine) return engine;
   const ids = template === 'openai_chat_completions'
     ? ['max_output_tokens', 'stop', 'reasoning_effort', 'reasoning_budget', 'reasoning_mode', 'temperature', 'top_p', 'top_k', 'min_p', 'frequency_penalty', 'presence_penalty', 'repeat_penalty', 'seed', 'logprobs']
     : template === 'openai_responses'
@@ -297,6 +342,8 @@ export function relayGenerationProfile(provider: Provider, resolvedTransport?: P
 
 /** The provider page and the send path share one profile resolution, so the UI never shows a field that would not be sent. */
 export function resolveGenerationProfileForModel(provider: Provider, model: AIModel) {
+  const localEngineProfile = localEngineProfileForProvider(provider);
+  if (localEngineProfile) return localEngineProfile;
   const evidenceModel = currentCapabilityEvidenceModel(provider, model);
   const metadataProfile = resolveGenerationProfileRef(evidenceModel.generationProfile);
   if (metadataProfile) return metadataProfile;

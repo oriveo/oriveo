@@ -696,6 +696,7 @@ describe('Relay adapter - browser routing by address (public endpoints proxied, 
         { type: 'delta', content: 'partial answer' },
         {
           type: 'error',
+          streamErrorFrame: true,
           error: 'upstream stream failed',
           errorKind: 'upstream',
           source: 'provider',

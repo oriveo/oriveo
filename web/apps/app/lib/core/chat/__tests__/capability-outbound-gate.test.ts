@@ -220,4 +220,52 @@ describe('filterRequestCapabilityIntent: the outbound gate consumes requestPolic
     expect(result.capabilityPreferences?.reasoningIntent).toBe('off');
     expect(result.reasoning).toBeUndefined();
   });
+
+  it('a thinking tier rejected upstream: a normal send falls back to the nearest tier, tiers that were not rejected are sent as usual, and an explicit resend still sends the original tier', () => {
+    localStorage.clear();
+    const identity = {
+      connectionId: '00000000-0000-4000-8000-000000000001',
+      canonicalModelId: 'gpt-5.4',
+      finalTransport: 'openai_responses',
+      runtimeRevision: 'runtime-r7',
+    };
+    recordCapabilityRejection(identity, {
+      version: 1,
+      action: 'user_confirmed_resend_without_located_setting',
+      source: 'provider_recipe',
+      owners: ['reasoning'],
+      locatedPointers: ['/reasoning/effort'],
+      recipeRef: 'fixture.reasoning.v1',
+    }, Date.now(), { reasoningIntent: 'deep' });
+    const send = (reasoningIntent: 'low' | 'deep', extra: Record<string, unknown> = {}) => filterRequestCapabilityIntent({
+      provider: officialProvider(),
+      model: officialModel(),
+      reasoningMode: 'automatic',
+      webSearchEnabled: false,
+      streamOptions: { capabilityPreferences: { web: 'off', reasoningIntent }, capabilityRecoveryIdentity: identity, ...extra },
+    });
+    const fallback = send('deep');
+    expect(fallback.capabilityPreferences?.reasoningIntent).toBe('balanced');
+    expect(fallback.reasoning).toBe('balanced');
+    expect(send('low').capabilityPreferences?.reasoningIntent).toBe('low');
+    expect(send('deep', { capabilityRecipeResendOwners: ['reasoning'] }).capabilityPreferences?.reasoningIntent).toBe('deep');
+
+    // The tier table has the same source as the panel: when the recipe supplies tiers (balanced is absent here), fall back within them and ignore the legacy table.
+    // It used to fall back to balanced through the legacy table, a tier the panel does not even show.
+    const recipeModel = officialModel({
+      capabilityControls: { reasoning: { state: 'auto_available', availableIntents: ['low', 'deep', 'max'] } },
+    } as Partial<AIModel>);
+    const recipeFallback = filterRequestCapabilityIntent({
+      provider: officialProvider(), model: recipeModel, reasoningMode: 'automatic', webSearchEnabled: false,
+      streamOptions: { capabilityPreferences: { web: 'off', reasoningIntent: 'deep' }, capabilityRecoveryIdentity: identity },
+    });
+    expect(recipeFallback.capabilityPreferences?.reasoningIntent).toBe('low');
+
+    // The legacy branch (no typed preference) follows the same rule.
+    const legacy = filterRequestCapabilityIntent({
+      provider: officialProvider(), model: officialModel(), reasoningMode: 'deep', webSearchEnabled: false,
+      streamOptions: { capabilityRecoveryIdentity: identity },
+    });
+    expect(legacy.reasoning).toBe('balanced');
+  });
 });

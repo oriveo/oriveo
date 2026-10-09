@@ -351,6 +351,8 @@ export async function readStream(
           severity: event.severity,
           ...(event.skipReport ? { skipReport: true } : {}),
           traceId: event.traceId,
+          ...(event.streamErrorFrame ? { streamErrorFrame: true } : {}),
+          ...(event.errorFields ? { errorFields: event.errorFields } : {}),
         } as ProviderError;
       case 'done':
         break;
@@ -388,6 +390,8 @@ export function mapErrorKindKey(kind: string | undefined): string {
     // at compile time). Falling back to the upstream bucket would show "provider failure, try again",
     // and retrying a hundred times gives the same result while the real fix goes unmentioned.
     || k === 'customRequestFieldsRejected'
+    // A local rejection of the additional body: likewise the request was never sent, and the way out is to edit the content.
+    || k === 'additionalBodyRejected'
     // The four Grok subscription login failures need opposite user actions (adapt on our side, upgrade
     // the tier, re-authorize, or wait for the next cycle), so folding them into an existing kind points
     // users at the wrong fix.
@@ -413,7 +417,7 @@ export function mapErrorKindKey(kind: string | undefined): string {
 const RENDER_LOCALIZABLE_ERROR_KINDS = new Set<string>([
   'invalidKey', 'unauthorized', 'badRequest', 'quotaExceeded', 'rateLimited',
   'unavailable', 'network', 'upstream', 'emptyResponse', 'emptyModelCatalog',
-  'moderation', 'customRequestFieldsRejected',
+  'moderation', 'customRequestFieldsRejected', 'additionalBodyRejected',
   'grokSubscriptionUnavailable', 'grokSubscriptionIneligible',
   'grokSubscriptionExpired', 'grokSubscriptionQuotaExhausted',
   'openAISubscriptionUnavailable', 'openAISubscriptionIneligible',

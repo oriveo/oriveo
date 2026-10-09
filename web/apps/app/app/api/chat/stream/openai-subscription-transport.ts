@@ -13,6 +13,7 @@
  * It lives in its own file rather than in `route.ts` because a Next.js route module may
  * export only the conventional members, and one extra helper export fails the build.
  */
+import { applyAdditionalBodyOrThrow } from '@oriveo/core/providers/request-builders/additional-body';
 import {
   buildCodexResponsesBody,
   resolveOpenAISubscriptionAuth,
@@ -95,7 +96,8 @@ export function buildCodexSubscriptionRequest(
       // originator / version / OpenAI-Beta: required headers; /responses may reject the request if one is missing.
       ...config.requiredHeaders,
     },
-    body,
+    // Additional request body: this path builds its request independently and merges it onto the final body as well (a subscription login is a BYOK connection).
+    body: applyAdditionalBodyOrThrow(body, params.options?.additionalBody),
     // No fallback: the Codex backend only offers responses, and falling back to
     // chat/completions just yields another 404 with a more confusing message.
   };

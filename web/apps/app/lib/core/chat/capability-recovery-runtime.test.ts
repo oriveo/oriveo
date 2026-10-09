@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   capabilityRecoveryDescriptorIsCurrent,
   capabilityRejectionIsDormant,
+  capabilityRejectionState,
   capabilityRecipeOmissions,
   clearCapabilityRejectionsForConnection,
   decodeCapabilityRecoveryDescriptor,
@@ -229,5 +230,83 @@ describe('capability recovery runtime', () => {
       expect(capabilityRejectionIsDormant(variant, 'generation', 'custom', now + 1)).toBe(false);
     }
     expect(capabilityRejectionIsDormant({ ...identity, connectionId: 'connection-b' }, 'generation', 'custom', now + 1)).toBe(true);
+  });
+});
+
+describe('upstream rejection at the thinking tier level', () => {
+  beforeEach(() => memory.clear());
+
+  const reasoningDescriptor = {
+    version: 1 as const,
+    action: 'user_confirmed_resend_without_located_setting' as const,
+    source: 'provider_recipe' as const,
+    owners: ['reasoning' as const],
+    locatedPointers: ['/reasoning/effort'],
+    recipeRef: 'fixture.reasoning.v1',
+  };
+  const declared = ['automatic', 'off', 'low', 'balanced', 'deep', 'max'];
+
+  it('a record with a tier -> only that tier is rejected and the group does not go dormant; a further rejected tier under the same setting is merged in', () => {
+    recordCapabilityRejection(identity, reasoningDescriptor, 1_000, { reasoningIntent: 'max' });
+    expect(capabilityRejectionState(identity, 'reasoning', 'provider_recipe', declared, 1_001))
+      .toEqual({ dormant: false, rejectedIntents: ['max'] });
+    expect(capabilityRejectionIsDormant(identity, 'reasoning', 'provider_recipe', 1_001, declared)).toBe(false);
+    // Per-tier avoidance relies on falling back to the nearest tier, so the whole recipe field must not be omitted permanently; otherwise tiers that were never rejected could not be sent either.
+    expect(capabilityRecipeOmissions(identity, 1_001)).toEqual([]);
+    // The explicit resend card still recognizes this record.
+    expect(capabilityRecoveryDescriptorIsCurrent(identity, reasoningDescriptor, 1_001)).toBe(true);
+
+    recordCapabilityRejection(identity, reasoningDescriptor, 2_000, { reasoningIntent: 'deep' });
+    expect(capabilityRejectionState(identity, 'reasoning', 'provider_recipe', declared, 2_001))
+      .toEqual({ dormant: false, rejectedIntents: ['deep', 'max'] });
+  });
+
+  it('ReasoningMode fast and intent low are the same tier', () => {
+    recordCapabilityRejection(identity, reasoningDescriptor, 1_000, { reasoningIntent: 'fast' });
+    expect(capabilityRejectionState(identity, 'reasoning', 'provider_recipe', ['fast', 'balanced'], 1_001))
+      .toEqual({ dormant: false, rejectedIntents: ['low'] });
+  });
+
+  it('all declared tiers rejected -> the whole group goes dormant and is no longer offered per tier', () => {
+    for (const intent of ['low', 'deep']) {
+      recordCapabilityRejection(identity, reasoningDescriptor, 1_000, { reasoningIntent: intent });
+    }
+    expect(capabilityRejectionState(identity, 'reasoning', 'provider_recipe', ['automatic', 'off', 'low', 'deep'], 1_001))
+      .toEqual({ dormant: true, rejectedIntents: [] });
+    // Without knowing which tiers are declared there is no nearest tier to fall back to, so conservatively treat the whole group as dormant.
+    expect(capabilityRejectionIsDormant(identity, 'reasoning', 'provider_recipe', 1_001)).toBe(true);
+  });
+
+  it('no tier (auto / off / non-thinking) -> not tiered, the whole group goes dormant; a later record with a tier does not downgrade it to per-tier', () => {
+    recordCapabilityRejection(identity, reasoningDescriptor, 1_000);
+    expect(capabilityRejectionState(identity, 'reasoning', 'provider_recipe', declared, 1_001))
+      .toEqual({ dormant: true, rejectedIntents: [] });
+    recordCapabilityRejection(identity, reasoningDescriptor, 2_000, { reasoningIntent: 'max' });
+    expect(capabilityRejectionState(identity, 'reasoning', 'provider_recipe', declared, 2_001))
+      .toEqual({ dormant: true, rejectedIntents: [] });
+    expect(capabilityRecipeOmissions(identity, 2_001)).toHaveLength(1);
+
+    memory.clear();
+    recordCapabilityRejection(identity, { ...reasoningDescriptor, owners: ['web'] }, 1_000, { reasoningIntent: 'max' });
+    expect(capabilityRejectionState(identity, 'web', 'provider_recipe', undefined, 1_001))
+      .toEqual({ dormant: true, rejectedIntents: [] });
+  });
+
+  it('legacy entries (no tier field, or a malformed one) are read as untiered without crashing or being dropped', () => {
+    const legacy = {
+      ...identity, owner: 'reasoning', source: 'provider_recipe', recipeRef: 'fixture.reasoning.v1',
+      locatedPointers: ['/reasoning/effort'], rejectedAt: 1_000, expiresAt: 1_000 + 24 * 60 * 60 * 1_000,
+    };
+    for (const entry of [legacy, { ...legacy, rejectedIntents: 'max' }, { ...legacy, rejectedIntents: ['max', 7] }, { ...legacy, rejectedIntents: [] }]) {
+      memory.set('oriveo.capability-rejection-cache.v1', JSON.stringify([entry]));
+      expect(capabilityRejectionState(identity, 'reasoning', 'provider_recipe', declared, 1_001))
+        .toEqual({ dormant: true, rejectedIntents: [] });
+      expect(capabilityRejectionIsDormant(identity, 'reasoning', 'provider_recipe', 1_001)).toBe(true);
+      expect(capabilityRecipeOmissions(identity, 1_001)).toHaveLength(1);
+    }
+    // The legacy entry stays in the cache after other writes.
+    recordCapabilityRejection({ ...identity, canonicalModelId: 'model/b' }, reasoningDescriptor, 1_500, { reasoningIntent: 'max' });
+    expect(capabilityRejectionState(identity, 'reasoning', 'provider_recipe', declared, 1_501))
+      .toEqual({ dormant: true, rejectedIntents: [] });
   });
 });

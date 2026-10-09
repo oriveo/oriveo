@@ -2431,3 +2431,74 @@ describe("/api/chat/stream", () => {
     expect(response.status).toBe(403);
   });
 });
+
+describe("/api/chat/stream additional request body", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function stubFetch(onUpstream: (body: Record<string, unknown>) => Response) {
+    return vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url === METADATA_URL) {
+        return jsonResponse(buildMetadata({
+          profiles: { reasoning: {}, webSearch: {}, imageGen: {} },
+          providers: { openAI: { resolveMap: { "gpt-4.1": "gpt-4.1" }, models: { "gpt-4.1": { canonicalModelId: "gpt-4.1" } } } },
+        }));
+      }
+      if (url === "https://api.openai.com/v1/chat/completions") return onUpstream(JSON.parse(String(init?.body)));
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+  }
+
+  it("the official path merges the additional body as the last step on the route side", async () => {
+    let upstreamBody: Record<string, unknown> | undefined;
+    stubFetch((body) => {
+      upstreamBody = body;
+      return sseResponse('data: {"choices":[{"delta":{"content":"hi"}}]}\n\ndata: [DONE]\n\n');
+    });
+    const { POST } = await loadRoute();
+    const response = await POST(buildRequest({
+      providerKind: "openAI", apiKey: "sk_test", modelID: "gpt-4.1",
+      messages: [{ role: "user", content: "hello" }],
+      options: { additionalBody: { raw: '{"service_tier": "flex", "metadata": {"k": "v"}}' } },
+    }) as never);
+    expect(response.status).toBe(200);
+    expect(upstreamBody).toMatchObject({ model: "gpt-4.1", service_tier: "flex", metadata: { k: "v" } });
+  });
+
+  it("protected fields: 400 + errorKind additionalBodyRejected, source oriveo, and no request is sent upstream", async () => {
+    let upstreamCalls = 0;
+    stubFetch(() => {
+      upstreamCalls += 1;
+      return jsonResponse({});
+    });
+    const { POST } = await loadRoute();
+    const response = await POST(buildRequest({
+      providerKind: "openAI", apiKey: "sk_test", modelID: "gpt-4.1",
+      messages: [{ role: "user", content: "hello" }],
+      options: { additionalBody: { raw: '{"tools": [], "secret_key_name": 1}' } },
+    }) as never);
+    expect(response.status).toBe(400);
+    expect(response.headers.get("X-Oriveo-Error-Source")).toBe("oriveo");
+    const payload = await response.json();
+    expect(payload).toEqual({
+      error: "additionalBodyRejected",
+      errorKind: "additionalBodyRejected",
+      code: "additional_body_rejected:protected_field:tools",
+    });
+    expect(JSON.stringify(payload)).not.toContain("secret_key_name");
+    expect(upstreamCalls).toBe(0);
+  });
+
+  it("an additionalBody with the wrong shape is rejected with 400 right away", async () => {
+    stubFetch(() => jsonResponse({}));
+    const { POST } = await loadRoute();
+    const response = await POST(buildRequest({
+      providerKind: "openAI", apiKey: "sk_test", modelID: "gpt-4.1",
+      messages: [{ role: "user", content: "hello" }],
+      options: { additionalBody: { raw: 1 } },
+    }) as never);
+    expect(response.status).toBe(400);
+  });
+});

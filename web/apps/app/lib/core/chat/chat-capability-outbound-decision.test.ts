@@ -34,4 +34,23 @@ describe('ChatCapabilityOutboundDecision', () => {
       hasActiveCapabilitySelection: false,
     });
   });
+
+  it('selected tier rejected by upstream -> falls back to the nearest usable tier; nothing is sent when no tier is left', () => {
+    const base = {
+      webRequested: false, webControl: available, webDormant: false,
+      reasoningModeRequested: 'automatic' as const, reasoningControl: available, reasoningDormant: false,
+    };
+    expect(resolveChatCapabilityOutboundDecision({
+      ...base, reasoningIntentRequested: 'max', reasoningRejectedIntents: ['max'],
+    })).toMatchObject({ reasoningIntent: 'deep', reasoningMode: 'deep', hasReasoningSelection: true });
+    expect(resolveChatCapabilityOutboundDecision({
+      ...base, reasoningIntentRequested: 'balanced', reasoningRejectedIntents: ['max'],
+    })).toMatchObject({ reasoningIntent: 'balanced' });
+    const none = resolveChatCapabilityOutboundDecision({
+      ...base, reasoningIntentRequested: 'deep', reasoningRejectedIntents: ['deep'],
+      reasoningControl: { ...available, availableIntents: ['off', 'deep'] },
+    });
+    expect(none.reasoningIntent).toBeUndefined();
+    expect(none.hasReasoningSelection).toBe(false);
+  });
 });

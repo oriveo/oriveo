@@ -21,6 +21,8 @@ import type {
 } from "@oriveo/core/metadata/types";
 import type { GenerationParameterProfile, GenerationParameterValue } from '@oriveo/core/providers/request-builders/types';
 import type { CapabilityRuntimeEnvelope } from '@oriveo/core/providers/request-builders/capability-execution';
+import type { RuntimeMetadataResponse } from '@oriveo/core/providers/request-builders/runtime';
+import { recordWireRejectionOnce, wireRejectionReason } from '@oriveo/core/providers/request-builders/generation-parameters';
 import type { CapabilityControl } from '@oriveo/core/providers/request-preference/capability-runtime';
 import {
   resolveGrokSubscriptionAuth,
@@ -1691,6 +1693,11 @@ export function resolveGenerationProfileRef(
       support?: string;
       source?: string;
       enumValues?: Array<string | number>;
+      // Model-level parameter facts: absent values fall back to the platform-level definition.
+      wire?: unknown;
+      strict?: unknown;
+      range?: unknown;
+      conflictsWith?: unknown;
     }>;
   } | null | undefined,
 ): GenerationParameterProfile | undefined {
@@ -1699,19 +1706,38 @@ export function resolveGenerationProfileRef(
   const template = templateName ? generation?.templates?.[templateName] : undefined;
   if (!templateName || !template?.wire) return undefined;
   const revision = normalizeOpaqueGenerationRevision(ref?.revision);
+  const wire: Record<string, string> = { ...template.wire };
+  for (const entry of ref?.parameters ?? []) {
+    if (!entry.id || entry.wire === undefined) continue;
+    // A model-level wire replaces only this one parameter for this one model. When it is invalid
+    // there is no write path at all; it never falls back to the template.
+    const rejection = typeof entry.wire === "string" ? wireRejectionReason(entry.wire) : "invalid_segment";
+    if (rejection) {
+      recordWireRejectionOnce(entry.id, String(entry.wire), rejection);
+      delete wire[entry.id];
+      continue;
+    }
+    wire[entry.id] = entry.wire as string;
+  }
   return {
     template: templateName,
     ...(revision ? { revision } : {}),
-    wire: { ...template.wire },
+    wire,
     parameters: (ref?.parameters ?? []).flatMap((entry) => {
       if (!entry.id) return [];
+      const modelRange = isGenerationRange(entry.range) ? entry.range : undefined;
+      const modelConflicts = Array.isArray(entry.conflictsWith)
+        && entry.conflictsWith.every((item) => typeof item === "string")
+        ? entry.conflictsWith as string[]
+        : undefined;
       return [{
         id: entry.id,
         support: entry.support ?? 'unknown',
         source: entry.source ?? 'unknown',
         group: generation?.parameters?.[entry.id]?.group,
         valueSchema: generation?.parameters?.[entry.id]?.valueSchema,
-        range: generation?.parameters?.[entry.id]?.range,
+        // A model-level range / conflictsWith replaces the platform-level one as a whole; keys are not merged.
+        range: modelRange ?? generation?.parameters?.[entry.id]?.range,
         // Model-level enumValues override the shared platform schema, narrowing reasoning levels to
         // the assigned profile. Falling back to the global value keeps older payloads that omit the
         // field working.
@@ -1719,7 +1745,9 @@ export function resolveGenerationProfileRef(
         fixedValue: generation?.parameters?.[entry.id]?.fixedValue,
         defaultDescription: generation?.parameters?.[entry.id]?.defaultDescription,
         interactionGroup: generation?.parameters?.[entry.id]?.interactionGroup,
-        conflictsWith: generation?.parameters?.[entry.id]?.conflictsWith,
+        conflictsWith: modelConflicts ?? generation?.parameters?.[entry.id]?.conflictsWith,
+        // The server only ever sends true; by default no strict key is written into the structured-output object.
+        ...(entry.strict === true ? { strict: true } : {}),
        requires: generation?.parameters?.[entry.id]?.requires,
         constraints: generation?.parameters?.[entry.id]?.constraints,
         portability: generation?.parameters?.[entry.id]?.portability,
@@ -1727,6 +1755,11 @@ export function resolveGenerationProfileRef(
       }];
     }),
   };
+}
+
+function isGenerationRange(value: unknown): value is NonNullable<GenerationParameterProfile["parameters"][number]["range"]> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return Object.values(value as Record<string, unknown>).every((bound) => typeof bound === "number" && Number.isFinite(bound));
 }
 
 /** Returns the full webSearch profile definition, including mergeParams and streamShape. */
@@ -2398,6 +2431,16 @@ function projectMetadataSnapshot(source: MetadataResponse): {
 /** Exact v2 recipe envelope for client presentation; missing means no automatic configuration. */
 export function getCapabilityRuntime(): CapabilityRuntimeEnvelope | null {
   return cached?.capabilityRuntime ?? null;
+}
+
+/**
+ * Browser-side `MetadataProvider`: reads the same /api/metadata payload as the route builder's
+ * `getRuntimeMetadata` (index plus this provider's catalog, including capabilityRuntime), so the UI
+ * can run the same builder to preview what goes out. Returns null when nothing is loaded.
+ */
+export async function browserOfficialMetadata(providerKind: string): Promise<RuntimeMetadataResponse | null> {
+  await ensureProviderCatalogs([providerKind]);
+  return (cached as unknown as RuntimeMetadataResponse | null) ?? null;
 }
 
 export function listProviderModelIds(

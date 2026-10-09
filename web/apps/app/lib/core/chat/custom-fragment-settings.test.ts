@@ -65,10 +65,14 @@ describe('owner-scoped custom fragment local boundary', () => {
   // control will fail to send, so a silent downgrade would make that a lie, and it would quietly
   // change the user's configuration at the send boundary - a decision they never made.
   it('hands an empty custom selection to the compiler to fail closed without rewriting storage at the send boundary', () => {
-    const scope = customFragmentScope(relay, model, 'transport-a', 'generation');
+    // Generation custom fields now live in the additional body and legacy fragments are no longer sent, so fail-closed uses the reasoning owner lock.
+    const scope = customFragmentScope(relay, model, 'transport-a', 'reasoning');
     saveCustomFragmentSettings(scope, { configurationMode: 'custom', raw: '' });
     expect(resolveCustomFragments({ provider: relay, model, transportIdentity: 'transport-a', allow: true, runtime }))
-      .toEqual({ generation: { raw: '' } });
+      .toEqual({ reasoning: { raw: '' } });
+    saveCustomFragmentSettings(customFragmentScope(relay, model, 'transport-a', 'generation'), { configurationMode: 'custom', raw: '{"max_output_tokens":1}' });
+    expect(resolveCustomFragments({ provider: relay, model, transportIdentity: 'transport-a', allow: true, runtime }))
+      .toEqual({ reasoning: { raw: '' } });
     expect(loadCustomFragmentSettings(scope).configurationMode).toBe('custom');
   });
 

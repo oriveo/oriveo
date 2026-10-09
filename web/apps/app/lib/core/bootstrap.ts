@@ -23,6 +23,7 @@ import { migrateToPartitionedStorage } from '../infra/storage/migration';
 import { detectStorageHealth, reportStorageHealth } from './storage-health';
 import { reportSilentError } from '../sentry/report-silent';
 import { collapseProvidersToDeterministicIds } from './provider-id-migration';
+import { migrateLlamacppConnectionsToChatChannelIfNeeded } from './providers/llamacpp-channel-migration';
 import {
   ensureProviderCatalogs,
   getMetadataContractVersion,
@@ -254,6 +255,8 @@ async function hydrateMetadataAndReconcileProviders(store: Store): Promise<void>
   }
 
   await collapseProvidersToDeterministicIds(store);
+  // One-time switch of existing llama.cpp native-channel connections to the chat channel (the marker is partitioned per uid and runs only once).
+  await migrateLlamacppConnectionsToChatChannelIfNeeded(store);
 }
 
 function arraysShallowEqualByMetadataFields(

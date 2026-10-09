@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { validateChatStreamRequest } from "./validate";
 import { checkRateLimit, getClientIp, buildRateLimitHeaders } from "./rate-limit";
 import { buildProviderRequest } from "./request-builders/dispatch";
+import { ADDITIONAL_BODY_ERROR_KIND, isAdditionalBodyRejectedError } from "@oriveo/core/providers/request-builders/additional-body";
 import { applyToolCallWireAdapter } from '@oriveo/core/providers/request-builders/tool-call-wire-adapter';
 import {
   executeProviderRequest,
@@ -28,8 +29,9 @@ import {
 import { assertUrlNotSsrf, SsrfBlockedError } from "../../_shared/ssrf-guard";
 import { buildCapabilityResultContext, encodeCapabilityResultContext } from '../../../../lib/core/chat/capability-result-runtime';
 // errorKind shares one constant with the client: a literal written on each side drifts silently the moment one is changed.
-import { CUSTOM_FRAGMENT_ERROR_KIND } from '../../../../lib/core/chat/custom-fragment-rejection';
+import { CUSTOM_FRAGMENT_ERROR_KIND, customFragmentRejectionCode } from '../../../../lib/core/chat/custom-fragment-rejection';
 import { subscriptionVersionRejectionHeaders } from './subscription-version-rejection-response';
+import { SafeCustomFragmentRejectedError } from '@oriveo/core/providers/request-builders/safe-custom-fragment';
 import { mergeExecutionResponse } from './execution-response';
 import { capabilityRecoveryHeaders } from './capability-recovery-response';
 
@@ -135,6 +137,7 @@ export async function POST(request: NextRequest) {
             ? { defaultLevel: options.upstreamDefaultReasoningLevel } : {}),
           ...(options?.upstreamApiBackend ? { apiBackend: options.upstreamApiBackend } : {}),
           supportsWebSearch: options?.grokSubscriptionWebSearchDeclared === true,
+          ...(options?.additionalBody ? { additionalBody: options.additionalBody } : {}),
           messages },
       );
     // Subscription adapters rebuild the entire request after core dispatch. Re-run the canonical
@@ -257,7 +260,17 @@ export async function POST(request: NextRequest) {
           error: CUSTOM_FRAGMENT_ERROR_KIND,
           errorKind: CUSTOM_FRAGMENT_ERROR_KIND,
           reason: customFragmentReason,
+          ...(error instanceof SafeCustomFragmentRejectedError
+            ? { code: customFragmentRejectionCode({ owner: error.owner, reason: error.reason, line: error.line }) }
+            : {}),
         }),
+        { status: 400, headers: { ...JSON_HEADERS, ...rateLimitHeaders, [ERROR_SOURCE_HEADER]: "oriveo" } },
+      );
+    }
+    // Local rejection of the additional body (the second check; the browser already validated it before sending): likewise no request went out, and only the safe code is returned.
+    if (isAdditionalBodyRejectedError(error)) {
+      return new Response(
+        JSON.stringify({ error: ADDITIONAL_BODY_ERROR_KIND, errorKind: ADDITIONAL_BODY_ERROR_KIND, code: error.code }),
         { status: 400, headers: { ...JSON_HEADERS, ...rateLimitHeaders, [ERROR_SOURCE_HEADER]: "oriveo" } },
       );
     }

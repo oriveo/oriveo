@@ -178,7 +178,8 @@ describe('relay panel values still go out without a metadata profile', () => {
     expect(body).toMatchObject({ temperature: 0.25, max_tokens: 512 });
   });
 
-  it('local engine (vLLM): the engine template extra_body wire reaches the body as well', async () => {
+  // The vLLM parameter table is an in-app constant table: extension parameters are flat at the top level, with no extra_body.
+  it('local engine (vLLM): extension parameters from the in-app constant table reach the body flat at the top level', async () => {
     const provider = makeRelayProvider({
       relayRequested: { transport: 'openai_chat_completions', engineProfile: 'vllm' },
     } as Partial<Provider>);
@@ -189,7 +190,8 @@ describe('relay panel values still go out without a metadata profile', () => {
 
     expect(options?.generationProfile?.template).toBe('vllm_extra_body');
     const body = await outboundBody(provider, options, model.id);
-    expect(body).toMatchObject({ extra_body: { top_k: 40 } });
+    expect(body).toMatchObject({ top_k: 40 });
+    expect(body).not.toHaveProperty('extra_body');
   });
 
   it('local engine (Open WebUI): on a bearer connection the parameters still enter the chat body through the local engine profile', async () => {

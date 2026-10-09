@@ -40,6 +40,7 @@ import {
 } from './sync-port';
 import { serializeProviderSyncMutation } from './providers/provider-sync-serial';
 import { removeGenerationParameterScopes } from './chat/generation-parameter-settings';
+import { removeAdditionalBodyScopes } from './chat/additional-body-settings';
 import { deleteAllCapabilityPreferencesForConnection } from './chat/capability-preference-settings';
 import {
   clearCapabilityRejectionsForConnection,
@@ -691,6 +692,7 @@ export async function deleteProvider(store: StoreApi<AppStore>, providerId: stri
   if (!committed || getActiveUIDSync() !== uid) return false;
   tombstoneCapabilityEvidenceIdentity(uid, providerId);
   removeGenerationParameterScopes({ providerId });
+  removeAdditionalBodyScopes({ providerId });
   deleteAllCapabilityPreferencesForConnection(providerId);
   clearCapabilityRejectionsForConnection(providerId);
   clearToolCallMemoryForConnection(uid, providerId);

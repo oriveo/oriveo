@@ -2,13 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   clampModelControlWebPreference,
   modelControlBadge,
-  modelControlAdvancedSettingsBadgeClassification,
   modelControlBadgeClassification,
   modelControlCardBadgeClassification,
   modelControlFooterEntries,
-  modelControlReasoningLayout,
-  modelControlShowsSupportedModelsAction,
-  modelControlStatusIsConfigurable,
   modelControlTransportLabel,
   modelControlWebLayout,
   modelControlWebReachesTheWire,
@@ -16,14 +12,13 @@ import {
   resolveModelControlStatus,
   resolveModelControlsEditability,
   resolveModelControlsIdentityGap,
-  MODEL_CONTROL_REASONING_TIER_ORDER,
   type ModelControlStatus,
 } from './model-control-capability-layout';
 
 /**
  * Layout rules for the model options panel.
  *
- * Checked one by one: web W1-W20, thinking R1-R18, footer F1-F15. Written into JSX these rules
+ * Checked one by one: web W1-W20, footer F1-F15. Written into JSX these rules
  * could only be verified by looking at a browser, and the number of combinations is far past what
  * the eye can track -- so they are pure functions, and this is the only place they are asserted.
  */
@@ -58,19 +53,9 @@ describe('server control state -> panel presentation', () => {
   /**
    * `forceUnsupported` is a state the panel path cannot produce -- it belongs to the
    * `forceRequested` subdivision used by one specific caller. The branch exists only to keep the
-   * nine-state shape table strictly isomorphic across clients.
-   *
-   * Why pin it explicitly: W1 does not use the status sentence
-   * `capabilityControlForceUnavailable` ("Every time requires an official recipe for this
-   * connection.") precisely because this state cannot reach F5 --
-   * `modelControlStatusIsConfigurable(forceUnsupported) === true`, and F5 says that sentence only
-   * when `!isConfigurable`. That reasoning rests on two premises, and changing either one lets
-   * the default branch of `modelControlStatusTextKey` quietly turn "the force tier has no
-   * official recipe" into "no automatic configuration yet" -- a completely different statement
-   * that nobody would notice. Both premises are pinned here: anyone who wants this state to be
-   * reachable has to restore that copy first.
+   * nine-state shape table complete.
    */
-  it('forceUnsupported cannot be produced, and would not reach the F5 status sentence even if it were', () => {
+  it('forceUnsupported cannot be produced', () => {
     const states = ['auto_available', 'managed_only', 'custom_only', 'unavailable', 'unknown'] as const;
     const reasonCodes = [undefined, 'external_connector_only',
       'endpoint_route_pending', 'model_route_pending', 'official_source_insufficient',
@@ -81,7 +66,6 @@ describe('server control state -> panel presentation', () => {
           .not.toBe('forceUnsupported');
       }
     }
-    expect(modelControlStatusIsConfigurable('forceUnsupported')).toBe(true);
   });
 });
 
@@ -174,87 +158,6 @@ describe('modelControlWebLayout', () => {
   });
 });
 
-describe('modelControlReasoningLayout', () => {
-  const layout = (overrides: Partial<Parameters<typeof modelControlReasoningLayout>[0]> = {}) =>
-    modelControlReasoningLayout({
-      status: 'automaticAvailable', intents: ['off', 'low', 'balanced', 'deep', 'max'], isEditable: true, ...overrides,
-    });
-
-  it('R1 the tier order is frozen to the five tiers in the shared contract', () => {
-    expect(MODEL_CONTROL_REASONING_TIER_ORDER).toEqual(['off', 'low', 'balanced', 'deep', 'max']);
-  });
-
-  it('R2-R5 each non-configurable state has its own status line and way out', () => {
-    expect(layout({ status: 'fixedByConnection' }).statusTextKey).toBe('common.capabilityControlFixedByConnection');
-    expect(layout({ status: 'fixedByConnection' }).escape).toBe('none');
-    expect(layout({ status: 'unsupported' }).explanationKey).toBe('common.capabilityControlUnavailableForConnection');
-    expect(layout({ status: 'unsupported' }).escape).toBe('supportedModels');
-    expect(layout({ status: 'customOnly', hasCustomSchema: false }).escape).toBe('supportedModels');
-    const pending = layout({ status: 'pending' });
-    expect(pending.form).toBe('statusRow');
-    expect(pending.statusTextKey).toBe('common.capabilityControlCannotAdjustYet');
-    expect(pending.explanationKey).toBe('common.capabilityControlReasoningNoOfficialConfig');
-    expect(pending.escape).toBe('supportedModels');
-    // Thinking's unknown has neither an "automatic" single line nor a switch: with no recipe there is no outbound field to compile.
-    expect(pending.options).toEqual([]);
-  });
-
-  it('R6 read-only shows the current tier name in the status line', () => {
-    expect(layout({ isEditable: false, selectedIntent: 'deep' }).statusTextKey).toBe('pages.chat.reasoning.deep');
-    expect(layout({ isEditable: false }).statusTextKey).toBe('pages.chat.reasoning.supplierDefault');
-  });
-
-  it('R7 a single fixed tier is one whole sentence and is deliberately not clickable', () => {
-    const result = layout({ intents: [] });
-    expect(result.form).toBe('statusRow');
-    expect(result.statusTextKey).toBe('common.capabilityControlReasoningFixedLevel');
-    expect(result.explanationKey).toBeUndefined();
-    expect(result.escape).toBe('none');
-  });
-
-  it('only the tiers the recipe actually sends are rendered; "automatic" is always present and sits after off', () => {
-    expect(layout({ intents: ['off', 'low', 'deep'] }).options.map((option) => option.id))
-      .toEqual(['off', 'automatic', 'low', 'deep']);
-    expect(layout({ intents: ['balanced'] }).options.map((option) => option.id))
-      .toEqual(['automatic', 'balanced']);
-    // A missing tier is not rendered at all rather than greyed out: a row of dead grey pills cannot answer whether switching models would help.
-    expect(layout({ intents: ['balanced'] }).options.some((option) => option.id === 'max')).toBe(false);
-  });
-
-  it('R10/R11 "automatic" is the default selection; a stored tier missing from the recipe falls back rather than leaving nothing highlighted', () => {
-    expect(layout({ intents: ['low'] }).selection).toBe('automatic');
-    expect(layout({ intents: ['low'], selectedIntent: 'low' }).selection).toBe('low');
-    expect(layout({ intents: ['low'], selectedIntent: 'max' }).selection).toBe('automatic');
-  });
-
-  it('R12/R13 the annotation follows the effective selection, one distinct sentence per tier', () => {
-    expect(layout({ selectedIntent: 'low' }).selectedAnnotationKey)
-      .toBe('common.capabilityControlReasoningNoteFast');
-    expect(layout({ selectedIntent: 'max' }).selectedAnnotationKey)
-      .toBe('common.capabilityControlReasoningNoteMax');
-    // The annotation has to fall back with the selection, or the UI describes a tier that is not selected.
-    expect(layout({ intents: ['low'], selectedIntent: 'max' }).selectedAnnotationKey)
-      .toBe('common.capabilityControlReasoningNoteAutomatic');
-    const notes = new Set(['off', 'automatic', 'low', 'balanced', 'deep', 'max']
-      .map((intent) => layout({ selectedIntent: intent }).selectedAnnotationKey));
-    expect(notes.size).toBe(6);
-  });
-
-  it('R15 "thinking cannot be turned off" is permanent when the recipe has no off, and absent when it has one', () => {
-    expect(layout({ intents: ['low', 'deep'] }).footnoteKey)
-      .toBe('common.capabilityControlReasoningOffUnavailable');
-    expect(layout({ intents: ['off', 'low'] }).footnoteKey).toBeUndefined();
-  });
-
-  it('R17 the panel does not render "higher tiers are slower and cost more", which has no consumer', () => {
-    const rendered = ALL_STATUSES.flatMap((status) => {
-      const result = layout({ status });
-      return [result.footnoteKey, result.selectedAnnotationKey, result.statusTextKey, result.explanationKey];
-    });
-    expect(rendered).not.toContain('common.capabilityControlTierCostNote');
-  });
-});
-
 describe('modelControlFooterEntries', () => {
   it('F13 the normal state (writable, configurable, no risk) is an empty array in both contexts', () => {
     for (const context of ['panelCard', 'behaviorPageHeader'] as const) {
@@ -311,13 +214,6 @@ describe('modelControlFooterEntries', () => {
       showsSupportedModelsAction: true, hasSupportedModelCandidates: true, statusRowEscape: 'advancedSettings',
     })).toEqual([{ kind: 'supportedModelsLink' }]);
   });
-
-  it('F14 the state set where "view supported models" applies, customOnly included', () => {
-    const shows = ALL_STATUSES.filter(modelControlShowsSupportedModelsAction);
-    expect(shows.sort()).toEqual(
-      ['customOnly', 'externalConnectorOnly', 'pending', 'unknown', 'unsupported'].sort(),
-    );
-  });
 });
 
 describe('badges', () => {
@@ -346,45 +242,6 @@ describe('badges', () => {
     // A custom takeover wins over everything: it says the preference chosen above will not be sent.
     expect(modelControlBadge(modelControlCardBadgeClassification('automaticAvailable'), true)?.textKey)
       .toBe('common.capabilityControlBadgeCustom');
-  });
-
-  /**
-   * Request parameter editing on the advanced settings row goes through the generation profile
-   * and reads no recipe at all. Relay (capabilityControls always empty) and official models with
-   * no generation control sent both land on `unknown`, which would otherwise leave a permanent
-   * "not ready" badge on a row whose parameters are in fact adjustable and which says "N
-   * adjusted" right next to it.
-   */
-  it('the advanced settings row does not hang a "not ready" badge on pending / unknown', () => {
-    for (const status of ['pending', 'unknown'] as const) {
-      // Counter-check: the rule itself is untouched; only this card's projection of it changes.
-      expect(modelControlBadgeClassification(status)).toBe('notReady');
-      expect(modelControlAdvancedSettingsBadgeClassification(status)).toBe('none');
-      expect(modelControlBadge(modelControlAdvancedSettingsBadgeClassification(status), false)).toBeNull();
-    }
-  });
-
-  it('only notReady is suppressed: unavailable / fixed by connection / needs manual setup / custom still show on the advanced settings row', () => {
-    // "Unavailable" is the server stating it cannot be done, and this row has no status line to
-    // say so on its behalf: the two projections suppress different tiers.
-    for (const status of ['unsupported', 'externalConnectorOnly'] as const) {
-      expect(modelControlAdvancedSettingsBadgeClassification(status)).toBe('unavailable');
-      expect(modelControlBadge(modelControlAdvancedSettingsBadgeClassification(status), false)?.textKey)
-        .toBe('pages.chat.reasoning.unavailable');
-    }
-    expect(modelControlBadge(modelControlAdvancedSettingsBadgeClassification('fixedByConnection'), false)?.textKey)
-      .toBe('common.capabilityControlFixedByConnection');
-    expect(modelControlBadge(modelControlAdvancedSettingsBadgeClassification('customOnly'), false)?.textKey)
-      .toBe('common.capabilityControlBadgeManual');
-    expect(modelControlBadge(modelControlAdvancedSettingsBadgeClassification('automaticAvailable'), true)?.textKey)
-      .toBe('common.capabilityControlBadgeCustom');
-  });
-
-  it('the two projections suppress different tiers and must not be written as one function', () => {
-    expect(modelControlCardBadgeClassification('unsupported')).toBe('none');
-    expect(modelControlAdvancedSettingsBadgeClassification('unsupported')).toBe('unavailable');
-    expect(modelControlCardBadgeClassification('pending')).toBe('notReady');
-    expect(modelControlAdvancedSettingsBadgeClassification('pending')).toBe('none');
   });
 });
 
@@ -447,9 +304,7 @@ describe('W3 - CapabilityWebPreferenceLiveness LV1-LV3', () => {
     }
   });
 
-  it('LV3 forceUnsupported is unlit too -- it is not the same set as isConfigurable', () => {
+  it('LV3 forceUnsupported is unlit too', () => {
     expect(modelControlWebReachesTheWire({ status: 'forceUnsupported', customIsActive: false })).toBe(false);
-    // Control group: the same state is configurable when the question is whether an intent can be expressed.
-    expect(modelControlStatusIsConfigurable('forceUnsupported')).toBe(true);
   });
 });

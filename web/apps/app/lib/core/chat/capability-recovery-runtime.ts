@@ -55,8 +55,28 @@ type CacheEntry = CapabilityRecoveryIdentity & {
   source: RecoverySource;
   recipeRef?: string;
   locatedPointers: string[];
+  /**
+   * Only the official thinking recipe has tiers: upstream rejected these tiers, other tiers can still be sent.
+   * Absent = not tiered (the whole setting is rejected); legacy entries, web search, generation parameters and custom fragments are all this kind.
+   */
+  rejectedIntents?: string[];
   rejectedAt: number;
   expiresAt: number;
+};
+
+/** Thinking tiers that can be rejected individually. Automatic and off are not tiers: rejecting them means the whole setting is rejected. */
+const REJECTABLE_REASONING_TIERS = ['low', 'balanced', 'deep', 'max'] as const;
+
+export type CapabilityRejectionContext = {
+  /** The thinking tier this request actually sent (intent or ReasoningMode vocabulary are both accepted, fast = low). */
+  reasoningIntent?: string;
+};
+
+export type CapabilityRejectionState = {
+  /** The whole group is dormant: a non-tiered rejection, or every declared tier has been rejected. */
+  dormant: boolean;
+  /** When the group is not dormant, the rejected tiers (low to high). */
+  rejectedIntents: string[];
 };
 
 export interface ToolCallRecoveryIdentity {
@@ -193,11 +213,13 @@ export function recordCapabilityRejection(
   identity: CapabilityRecoveryIdentity,
   descriptor: CapabilityRecoveryDescriptor,
   now = Date.now(),
+  context: CapabilityRejectionContext = {},
 ): void {
   if (!validIdentity(identity) || typeof localStorage === 'undefined') return;
   const current = readCache(now);
+  const tier = reasoningTier(context.reasoningIntent);
   for (const owner of descriptor.owners) {
-    const entry: CacheEntry = {
+    const base: CacheEntry = {
       ...identity,
       owner,
       source: descriptor.source,
@@ -206,25 +228,75 @@ export function recordCapabilityRejection(
       rejectedAt: now,
       expiresAt: now + TTL_MS,
     };
-    current.set(cacheKey(entry), entry);
+    const key = cacheKey(base);
+    const previous = current.get(key);
+    // If the same setting already has a non-tiered record, keep it non-tiered: that record says the whole setting was rejected, and a tier-level rejection cannot override it.
+    const tiered = tier && owner === 'reasoning' && descriptor.source === 'provider_recipe'
+      && (!previous || previous.rejectedIntents);
+    current.set(key, tiered
+      ? { ...base, rejectedIntents: sortedTiers([...(previous?.rejectedIntents ?? []), tier]) }
+      : base);
   }
   const newest = [...current.values()].sort((left, right) => right.rejectedAt - left.rejectedAt).slice(0, MAX_ENTRIES);
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(newest)); } catch { /* quota is non-fatal */ }
 }
 
+/**
+ * `declaredIntents` = the thinking tiers this model declares. Without it we cannot tell whether every tier was rejected
+ * or pick the nearest fallback tier, so tiered records are conservatively treated as the whole group being dormant.
+ */
 export function capabilityRejectionIsDormant(
   identity: CapabilityRecoveryIdentity,
   owner: RecoveryOwner,
   source: RecoverySource,
   now = Date.now(),
+  declaredIntents?: readonly string[],
 ): boolean {
-  if (!validIdentity(identity)) return false;
-  return [...readCache(now).values()].some((entry) => entry.connectionId === identity.connectionId
+  return capabilityRejectionState(identity, owner, source, declaredIntents, now).dormant;
+}
+
+/**
+ * How far upstream rejected this setting: the whole group dormant, or only some tiers rejected.
+ * Non-tiered record, or every declared tier rejected -> whole group dormant; otherwise the rejected tiers are listed.
+ */
+export function capabilityRejectionState(
+  identity: CapabilityRecoveryIdentity,
+  owner: RecoveryOwner,
+  source: RecoverySource,
+  declaredIntents?: readonly string[],
+  now = Date.now(),
+): CapabilityRejectionState {
+  if (!validIdentity(identity)) return { dormant: false, rejectedIntents: [] };
+  const entries = [...readCache(now).values()].filter((entry) => entry.connectionId === identity.connectionId
     && entry.canonicalModelId === identity.canonicalModelId
     && entry.finalTransport === identity.finalTransport
     && entry.runtimeRevision === identity.runtimeRevision
     && entry.owner === owner
     && entry.source === source);
+  if (entries.length === 0) return { dormant: false, rejectedIntents: [] };
+  if (entries.some((entry) => !entry.rejectedIntents)) return { dormant: true, rejectedIntents: [] };
+  const rejectedIntents = sortedTiers(entries.flatMap((entry) => entry.rejectedIntents ?? []));
+  const declaredTiers = sortedTiers((declaredIntents ?? []).flatMap((intent) => reasoningTier(intent) ?? []));
+  if (declaredTiers.length === 0 || declaredTiers.every((tier) => rejectedIntents.includes(tier))) {
+    return { dormant: true, rejectedIntents: [] };
+  }
+  return { dormant: false, rejectedIntents };
+}
+
+/**
+ * Nearest fallback for a rejected tier: look downward for the closest tier first, then upward; `undefined` when no tier is left.
+ * The "switched back to which tier" shown in the panel and the tier actually sent outbound both go through this one function.
+ */
+export function nearestAcceptedReasoningTier(
+  rejected: string,
+  candidates: readonly string[],
+): string | undefined {
+  const order: readonly string[] = REJECTABLE_REASONING_TIERS;
+  const index = order.indexOf(rejected);
+  const remaining = order.filter((tier) => candidates.includes(tier));
+  const lower = remaining.filter((tier) => order.indexOf(tier) < index);
+  if (lower.length > 0) return lower[lower.length - 1];
+  return remaining.find((tier) => order.indexOf(tier) > index);
 }
 
 /**
@@ -277,6 +349,9 @@ export function capabilityRecipeOmissions(
   if (!validIdentity(identity)) return [];
   const unique = new Map<string, CapabilityRecipeOmission>();
   for (const entry of readCache(now).values()) {
+    // A tier-level rejection is avoided by falling back to the nearest tier at send time; always omitting the recipe field would also stop non-rejected tiers from being sent.
+    // When every tier is rejected the outbound gate makes the whole group dormant, so the recipe is never compiled anyway.
+    if (entry.rejectedIntents) continue;
     if (entry.source !== 'provider_recipe' || typeof entry.recipeRef !== 'string' || entry.locatedPointers.length === 0
       || entry.connectionId !== identity.connectionId || entry.canonicalModelId !== identity.canonicalModelId
       || entry.finalTransport !== identity.finalTransport || entry.runtimeRevision !== identity.runtimeRevision) continue;
@@ -417,7 +492,15 @@ function readCache(now: number): Map<string, CacheEntry> {
     if (!Array.isArray(raw)) return output;
     for (const value of raw) {
       if (!isCacheEntry(value) || value.expiresAt <= now) continue;
-      output.set(cacheKey(value), value);
+      // A malformed tier field (including legacy entries that never had one) is always read as non-tiered: the entry is kept and the whole setting stays dormant.
+      const { rejectedIntents: rawTiers, ...untiered } = value as CacheEntry & { rejectedIntents?: unknown };
+      const tiers = Array.isArray(rawTiers) && rawTiers.length > 0 && rawTiers.every((tier) => reasoningTier(tier) === tier)
+        ? sortedTiers(rawTiers as string[])
+        : undefined;
+      const entry: CacheEntry = tiers && value.owner === 'reasoning' && value.source === 'provider_recipe'
+        ? { ...untiered, rejectedIntents: tiers }
+        : untiered;
+      output.set(cacheKey(entry), entry);
     }
   } catch { /* malformed local state is dormant/ignored */ }
   return output;
@@ -431,6 +514,15 @@ function validDescriptor(value: CapabilityRecoveryDescriptor): boolean {
   return value.source === 'provider_recipe'
     ? typeof value.recipeRef === 'string' && value.recipeRef.length > 0
     : value.recipeRef === undefined;
+}
+
+function reasoningTier(value: unknown): string | undefined {
+  const intent = value === 'fast' ? 'low' : value;
+  return (REJECTABLE_REASONING_TIERS as readonly unknown[]).includes(intent) ? intent as string : undefined;
+}
+
+function sortedTiers(values: readonly string[]): string[] {
+  return REJECTABLE_REASONING_TIERS.filter((tier) => values.includes(tier));
 }
 
 function canonicalPointers(values: readonly string[]): string {

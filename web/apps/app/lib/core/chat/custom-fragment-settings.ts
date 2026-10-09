@@ -169,6 +169,24 @@ function disarmLegacyBareCustomFragments(): void {
 // precede the first outbound decision. Under SSR `window` is absent and the function bails.
 migrateRetiredCustomFragmentDeveloperGate();
 
+/**
+ * Intake for the additional body migration: takes all generation owner records (in write order, the last written last) and deletes them from this table.
+ * Generation custom fields are now carried by the additional body (`additional-body-settings.ts`); this only hands over the raw text,
+ * and `web` / `reasoning` records are left untouched. Nothing is written to disk when there are no generation records.
+ */
+export function takeLegacyGenerationFragments(): Array<{ providerId: string; modelId: string } & CustomFragmentSettings> {
+  const settings = read();
+  const taken: Array<{ providerId: string; modelId: string } & CustomFragmentSettings> = [];
+  for (const [key, value] of Object.entries(settings)) {
+    const parts = key.split(CUSTOM_FRAGMENT_KEY_SEPARATOR);
+    if (parts.length !== 4 || parts[3] !== 'generation') continue;
+    taken.push({ providerId: parts[0] ?? '', modelId: parts[1] ?? '', ...value });
+    delete settings[key];
+  }
+  if (taken.length > 0) write(settings);
+  return taken;
+}
+
 export function loadCustomFragmentSettings(scope: CustomFragmentScope): CustomFragmentSettings {
   return read()[storageKey(scope)] ?? { configurationMode: 'auto', raw: '' };
 }
@@ -460,6 +478,8 @@ export function resolveCustomFragments(input: {
   const fragments: Partial<Record<CustomFragmentOwner, { raw: string }>> = {};
   const recoveryIdentity = capabilityRuntimeIdentity(input.provider, input.model);
   for (const owner of CUSTOM_FRAGMENT_OWNERS) {
+    // Generation custom fields have moved into the additional body (sent with `additionalBody`), so the legacy fragment is no longer sent.
+    if (owner === 'generation') continue;
     if (recoveryIdentity && capabilityRejectionIsDormant({
       connectionId: recoveryIdentity.providerId,
       canonicalModelId: recoveryIdentity.canonicalModelId,
@@ -472,9 +492,7 @@ export function resolveCustomFragments(input: {
       input.runtime.controlDefinitions,
       input.runtime.sourceIndex,
     ).length > 0);
-    const relayExactGenerationAvailable = input.provider.kind === 'relay' && owner === 'generation'
-      && Boolean(input.model.generationProfile);
-    if (!serverRefAvailable && !relayExactGenerationAvailable) continue;
+    if (!serverRefAvailable) continue;
     const scope = customFragmentScope(input.provider, input.model, input.transportIdentity, owner);
     const settings = loadCustomFragmentSettings(scope);
     if (settings.configurationMode !== 'custom') continue;

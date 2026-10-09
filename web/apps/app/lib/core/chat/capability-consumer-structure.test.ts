@@ -94,7 +94,7 @@ describe('H6 Web capability consumer structure', () => {
     // presentation class. The model picker's "supports this parameter" filter asks the same
     // function - writing it twice produces models that pass the filter but open greyed out.
     const panel = source('components/generation/GenerationParameterPanel.tsx');
-    expect(panel).toContain('generationParameterAdjustable(profile?.wire[id], parameter.support, evidence)');
+    expect(panel).toContain('generationParameterAdjustable(profile.wire[id], parameter.support, evidence)');
     expect(panel).not.toMatch(/const\s+editableByEvidence\s*=\s*evidence\./);
     expect(panel).not.toContain('isCapabilityEvidenceEditable(');
 

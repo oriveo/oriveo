@@ -107,43 +107,7 @@ export function modelControlWebReachesTheWire(input: {
   return input.status === 'automaticAvailable' || input.customIsActive;
 }
 
-/**
- * Whether the user can express an intent here at all. `forceUnsupported` counts as configurable:
- * only the force tier is unavailable, off/automatic are still real requests.
- */
-export function modelControlStatusIsConfigurable(status: ModelControlStatus): boolean {
-  return status === 'automaticAvailable' || status === 'forceUnsupported' || status === 'unknown';
-}
-
-/**
- * When "view supported models" is a real way forward.
- *
- * `customOnly` counts too: the custom field editor for that connection lives in advanced
- * settings, while switching to a model that works automatically is the route most users can
- * actually take, so both are offered.
- */
-export function modelControlShowsSupportedModelsAction(status: ModelControlStatus): boolean {
-  switch (status) {
-    case 'unsupported': case 'unknown': case 'pending': case 'externalConnectorOnly': case 'customOnly':
-      return true;
-    default:
-      return false;
-  }
-}
-
-/** Status text for the footer when `!isConfigurable`; only the advanced settings context uses it. */
-export function modelControlStatusTextKey(status: ModelControlStatus): ModelControlMessageKey {
-  switch (status) {
-    case 'fixedByConnection': return 'common.capabilityControlFixedByConnection';
-    case 'customOnly': return 'common.capabilityControlCustomOnlyReason';
-    case 'pending': return 'common.capabilityControlReasonPending';
-    case 'externalConnectorOnly': return 'common.capabilityControlReasonExternalConnector';
-    case 'unsupported': return 'common.capabilityControlUnavailableForConnection';
-    default: return 'common.capabilityControlReasonUnknown';
-  }
-}
-
-// MARK: -  
+// MARK: - Badges
 
 export type ModelControlBadgeClassification = 'none' | 'fixedByConnection' | 'manual' | 'notReady' | 'unavailable';
 
@@ -171,30 +135,6 @@ export function modelControlCardBadgeClassification(status: ModelControlStatus):
   return classification === 'unavailable' ? 'none' : classification;
 }
 
-/**
- * Badge projection for the advanced settings row (request parameters): `notReady` is flattened
- * to no badge.
- *
- * Consuming `modelControlBadgeClassification` directly here was wrong: relay connections (whose
- * `capabilityControls` is always empty) and official models without
- * `capabilityControls.generation` all fell to `unknown` and permanently showed a "not ready"
- * badge. The request-parameter editor behind this row does not read recipes at all; the editable
- * set comes from the generation profile (`resolveGenerationProfileForModel`: relay uses the local
- * engine/transport profile, official providers use the catalog model's generationProfile), so the
- * parameters really are adjustable and really do reach the wire. The row would state a wrong
- * status right next to its own "N adjusted" summary.
- *
- * Only `notReady` is flattened. `unsupported` / `externalConnectorOnly` mean the server says it
- * cannot be done and there is no status row to say so, so that badge stays. `fixedByConnection` /
- * `manual` describe ownership and who is overriding, which "N adjusted" cannot express.
- */
-export function modelControlAdvancedSettingsBadgeClassification(
-  status: ModelControlStatus,
-): ModelControlBadgeClassification {
-  const classification = modelControlBadgeClassification(status);
-  return classification === 'notReady' ? 'none' : classification;
-}
-
 export type ModelControlBadge = {
   tone: 'manual' | 'unavailable';
   textKey: ModelControlMessageKey;
@@ -214,190 +154,9 @@ export function modelControlBadge(
   }
 }
 
-// MARK: -  
+// MARK: - Web search
 
 export type ModelControlIntentOption = { id: string; labelKey: ModelControlMessageKey };
-
-/** Pseudo-intent for "automatic" in the tier list; selecting it injects no tier (storage holds undefined). */
-export const MODEL_CONTROL_AUTOMATIC_INTENT = 'automatic';
-/**
- * Render order of the server tiers: "off" first, then increasing effort. "automatic" is not in
- * this table; the layout always inserts it right after `off`, where it is the default selection.
- */
-export const MODEL_CONTROL_REASONING_TIER_ORDER = ['off', 'low', 'balanced', 'deep', 'max'] as const;
-
-const REASONING_TIER_LABEL_KEYS: Record<string, ModelControlMessageKey> = {
-  off: 'pages.chat.reasoning.off',
-  [MODEL_CONTROL_AUTOMATIC_INTENT]: 'pages.chat.reasoning.supplierDefault',
-  low: 'pages.chat.reasoning.fast',
-  balanced: 'pages.chat.reasoning.balanced',
-  deep: 'pages.chat.reasoning.deep',
-  max: 'pages.chat.reasoning.max',
-};
-
-/**
- * Tier annotations, phrased around what the user gets rather than the protocol effort value.
- * Only the selected tier's note is shown: a pill has room for one noun, so this sentence is what
- * distinguishes e.g. fast from balanced.
- */
-const REASONING_TIER_NOTE_KEYS: Record<string, ModelControlMessageKey> = {
-  off: 'common.capabilityControlReasoningNoteOff',
-  [MODEL_CONTROL_AUTOMATIC_INTENT]: 'common.capabilityControlReasoningNoteAutomatic',
-  low: 'common.capabilityControlReasoningNoteFast',
-  balanced: 'common.capabilityControlReasoningNoteBalanced',
-  deep: 'common.capabilityControlReasoningNoteDeep',
-  max: 'common.capabilityControlReasoningNoteMax',
-};
-
-export function modelControlReasoningTierLabelKey(intent: string): ModelControlMessageKey | undefined {
-  return REASONING_TIER_LABEL_KEYS[intent];
-}
-
-export type ModelControlReasoningLayout = {
-  form: 'pillRow' | 'statusRow';
-  /**
-   * Only tiers the recipe actually declares are rendered, plus "automatic", which always exists.
-   * Every pill is tappable; there are no greyed-out options here.
-   */
-  options: ModelControlIntentOption[];
-  selection: string;
-  /**
-   * One plain sentence annotating the selected tier, following the selection rather than laying
-   * out all six at once.
-   */
-  selectedAnnotationKey?: ModelControlMessageKey;
-  /** Footnote below the pill row; currently only the "this model cannot turn reasoning off" line. */
-  footnoteKey?: ModelControlMessageKey;
-  /** Text of the row when `form === 'statusRow'`. */
-  statusTextKey?: ModelControlMessageKey;
-  /** Reason shown when the status row is tapped. Absent means the reason is already stated elsewhere in the panel. */
-  explanationKey?: ModelControlMessageKey;
-  escape: ModelControlEscape;
-};
-
-/**
- * Reasoning card: a wrapping row of pills plus one note for the selected tier.
- *
- * There is no separate reasoning toggle, because it expressed the same thing as the tier row
- * (`off` is already a tier). Two controls for one meaning meant that turning the toggle off
- * greyed out the whole row while the previously selected tier stayed highlighted. "Off" belongs
- * where it started: the first pill in the row.
- *
- * @param isEditable Panel is writable and this owner is not overridden by a custom field. When
- *   false the card degrades to a read-only status row; the reason is carried by the banner at the
- *   top of the page or by the note inside the card, and is not repeated here.
- * @param hasCustomSchema This connection really declares an editable custom field schema for the
- *   current transport. The escape route for `customOnly` depends on it: with no schema, sending
- *   the user to advanced settings only shows that the model does not support it, and a route that
- *   leads nowhere is worse than no route.
- */
-export function modelControlReasoningLayout(input: {
-  status: ModelControlStatus;
-  intents: readonly string[];
-  selectedIntent?: string;
-  isEditable: boolean;
-  hasCustomSchema?: boolean;
-}): ModelControlReasoningLayout {
-  const { status, intents, isEditable } = input;
-  const hasCustomSchema = input.hasCustomSchema ?? true;
-  const selection = input.selectedIntent ?? MODEL_CONTROL_AUTOMATIC_INTENT;
-  switch (status) {
-    case 'fixedByConnection':
-      // The value is decided by the connection itself: say so, and offer no control the client
-      // would not be able to apply.
-      return reasoningStatusRow('common.capabilityControlFixedByConnection', undefined, 'none', selection);
-    case 'unsupported':
-    case 'externalConnectorOnly':
-      return reasoningStatusRow(
-        'common.capabilityControlNotSupportedByModel',
-        'common.capabilityControlUnavailableForConnection',
-        'supportedModels',
-        selection,
-      );
-    case 'customOnly':
-      return reasoningStatusRow(
-        'common.capabilityControlCustomOnlyReason',
-        'common.capabilityControlCustomOnlyReason',
-        hasCustomSchema ? 'advancedSettings' : 'supportedModels',
-        selection,
-      );
-    case 'pending':
-    case 'unknown':
-      // Unlike web search there is no escape hatch here. A web-search toggle has a meaningful
-      // "just try it" semantic, but with no recipe no reasoning field can be compiled at all.
-      return reasoningStatusRow(
-        'common.capabilityControlCannotAdjustYet',
-        'common.capabilityControlReasoningNoOfficialConfig',
-        'supportedModels',
-        selection,
-      );
-    case 'automaticAvailable':
-    case 'forceUnsupported': {
-      if (!isEditable) {
-        return reasoningStatusRow(
-          REASONING_TIER_LABEL_KEYS[selection] ?? REASONING_TIER_LABEL_KEYS[MODEL_CONTROL_AUTOMATIC_INTENT]!,
-          undefined, 'none', selection,
-        );
-      }
-      if (intents.length === 0) {
-        // Automatic configuration exists but yields no selectable tier (observed with
-        // `openAI/gpt-5-pro`, which only accepts high). The row is already a complete sentence.
-        return reasoningStatusRow('common.capabilityControlReasoningFixedLevel', undefined, 'none', selection);
-      }
-      return reasoningPillRow(intents, selection);
-    }
-  }
-}
-
-function reasoningPillRow(intents: readonly string[], selection: string): ModelControlReasoningLayout {
-  const available = new Set(intents);
-  const options: ModelControlIntentOption[] = [];
-  // "Off" comes first: it means "do not think", which is a different dimension from the tiers
-  // that follow in increasing order of effort.
-  if (available.has('off')) options.push(reasoningOption('off'));
-  // "Automatic" always exists and is the default: injecting no tier is the real factory state.
-  options.push(reasoningOption(MODEL_CONTROL_AUTOMATIC_INTENT));
-  for (const id of MODEL_CONTROL_REASONING_TIER_ORDER) {
-    if (id !== 'off' && available.has(id)) options.push(reasoningOption(id));
-  }
-  // A stored tier can be absent from the recipe (transport change, recipe revision). Keeping
-  // the old value would leave no pill highlighted, so it falls back to automatic, matching the
-  // outbound rule of injecting nothing that cannot be compiled.
-  const effective = options.some((option) => option.id === selection)
-    ? selection
-    : MODEL_CONTROL_AUTOMATIC_INTENT;
-  return {
-    form: 'pillRow',
-    options,
-    selection: effective,
-    selectedAnnotationKey: REASONING_TIER_NOTE_KEYS[effective],
-    // Footnote is permanent when the recipe has no off tier; this is the only place that sentence lives.
-    ...(available.has('off') ? {} : { footnoteKey: 'common.capabilityControlReasoningOffUnavailable' as const }),
-    escape: 'none',
-  };
-}
-
-function reasoningOption(intent: string): ModelControlIntentOption {
-  return { id: intent, labelKey: REASONING_TIER_LABEL_KEYS[intent]! };
-}
-
-function reasoningStatusRow(
-  statusTextKey: ModelControlMessageKey,
-  explanationKey: ModelControlMessageKey | undefined,
-  escape: ModelControlEscape,
-  selection: string,
-): ModelControlReasoningLayout {
-  return {
-    form: 'statusRow',
-    options: [],
-    selection,
-    statusTextKey,
-    ...(explanationKey ? { explanationKey } : {}),
-    escape,
-  };
-}
-
-// MARK: -  
 
 const WEB_PREFERENCE_LABEL_KEYS: Record<CapabilityWebPreference, ModelControlMessageKey> = {
   off: 'pages.chat.reasoning.off',
@@ -548,7 +307,7 @@ function webStatusRow(
   };
 }
 
-// MARK: -  
+// MARK: - Capability footer
 
 /**
  * Which of the shared "status note + risk warning + secondary entry" items the three owners show.
@@ -721,7 +480,7 @@ export function modelControlsIdentityGapReasonKey(gap: ModelControlsIdentityGap)
   }
 }
 
-// MARK: - transport  
+// MARK: - Transport presentation
 
 /**
  * Human-readable transport label: printing a wire name like `openai_responses` to the user means

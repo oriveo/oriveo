@@ -12,7 +12,9 @@ import type { ContentPart } from '../providers/types';
 import type { GenerationParameterOverrides } from '@oriveo/core/providers/request-builders/types';
 import { buildChatHistory, mapErrorKindKey, sanitizeOutboundMessages } from '../../utils/chat-stream-utils';
 import { processImageAttachments, backfillStorageRefs } from '../../utils/stream-image-utils';
-import { CUSTOM_FRAGMENT_ERROR_KIND, customFragmentRejectionCopyKey } from './custom-fragment-rejection';
+import { customFragmentFailurePatch } from './custom-fragment-rejection';
+import { customFragmentAllowedPaths } from './custom-fragment-allowed-paths';
+import { additionalBodyFailurePatch } from './additional-body-rejection';
 import { getSyncAdapter } from '../sync-port';
 import { deriveConversationMetadata, computeConversationActivityAt } from '../conversation-metadata';
 import { withErrorReporting } from '../../sentry/report-silent';
@@ -20,6 +22,7 @@ import { buildProviderStreamOptions, buildStreamOptionsFromIntent, filterGenerat
 import { generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from './generation-parameter-settings';
 import { capabilityRuntimeIdentity, resolveCapabilityPreferences } from './capability-preference-settings';
 import { forwardPortCustomFragmentsIfNeeded, resolveCustomFragments } from './custom-fragment-settings';
+import { withAdditionalBody } from './additional-body-settings';
 import { webPreferenceReachesTheWire } from './capability-control-presentation';
 import { getCapabilityRuntime } from '../metadata/metadata-client';
 import { resolveModelCapabilityEvidence } from './capability-evidence';
@@ -298,7 +301,10 @@ export function continueAnswering(
         requestIntent.capabilityPreferences,
         continueCustomFragments,
       ) : undefined;
-      const providerStreamOptions = clientControlsAllowed ? buildProviderStreamOptions(provider, streamOptions, model) : undefined;
+      const providerStreamOptions = withAdditionalBody(
+        clientControlsAllowed ? buildProviderStreamOptions(provider, streamOptions, model) : undefined,
+        { provider, model, conversationId: conversation.id },
+      );
 
       // Continuation is a real outbound request and uses the same gate as sendMessage: web search
       // counts as used only when the web configuration actually made it into this request. The
@@ -468,18 +474,22 @@ export function continueAnswering(
       // snapshot, so concurrent writes during the continuation are not overwritten.
       const failedBase = store.getState().conversations.find((c) => c.id === conversation.id)?.messages ?? messages;
       const errorKindKey = mapErrorKindKey(pe.kind);
+      // Same check as operations-send: stream-runner already attached the verdict to the error. Retrying reuses retryMessage.
+      const additionalBodyRetry = Boolean(err && typeof err === 'object'
+        && (err as { additionalBodyRetryEligible?: unknown }).additionalBodyRetryEligible === true);
       const errorTitleKey = pe.source === 'provider' ? 'requestFailed' : errorKindKey;
       // Custom request fields fail closed: the body copy is localized per rejection reason, the
       // same way operations-send and the edit page do it. `ProviderErrorKind` is a closed union
       // in core, while the proxy layer's kind is the free-form string passed through from
       // `event.errorKind` (`moderation` is not in the union either). Widening it explicitly here
       // is safer than adding a member that only this path can produce to the shared error map.
-      const customFragmentReasonKey = (pe.kind as string) === CUSTOM_FRAGMENT_ERROR_KIND
-        ? customFragmentRejectionCopyKey(pe.detail || pe.message || '')
-        : undefined;
+      const customFragmentFailure = customFragmentFailurePatch(pe, te, (owner) => customFragmentAllowedPaths(model, owner));
       // library_* thrown while gathering evidence is a different failure class from a model
       // stream fault (same patch as operations-send).
       const libraryFailure = libraryFailurePatch(err, libraryFailurePresentation);
+      // A locally rejected additional body: the text is the reason plus "nothing was sent", and the
+      // technical detail is only the safe code (no retry affordance, see the bubble).
+      const additionalBodyFailure = additionalBodyFailurePatch(err, te);
       const failedMessages = failedBase.map((m) =>
         m.id === messageId
           ? {
@@ -487,12 +497,17 @@ export function continueAnswering(
               text: partialText,
               ...(mergedReasoning ? { reasoningText: mergedReasoning } : {}),
               state: 'failed' as const,
-              errorTitle: te(`${errorTitleKey}.title`),
-              errorDetail: customFragmentReasonKey
-                ? te(`${errorKindKey}.${customFragmentReasonKey}`)
+              errorTitle: additionalBodyRetry ? te('additionalBodyRejected.upstreamTitle') : te(`${errorTitleKey}.title`),
+              ...(additionalBodyRetry ? { additionalBodyRetryEligible: true } : {}),
+              errorDetail: additionalBodyFailure ? additionalBodyFailure.errorDetail : customFragmentFailure
+                ? customFragmentFailure.errorDetail
                 : (pe.detail || pe.message || ''),
               ...(typeof pe.kind === 'string' ? { errorKind: pe.kind } : {}),
               ...(typeof pe.source === 'string' ? { errorSource: pe.source } : {}),
+              ...(additionalBodyFailure ? { errorTechnicalDetail: additionalBodyFailure.errorTechnicalDetail }
+                : customFragmentFailure?.errorTechnicalDetail ? { errorTechnicalDetail: customFragmentFailure.errorTechnicalDetail }
+                // In-stream error frame: once classified, keep the upstream text (already redacted and truncated by the sender) as technical detail, same as operations-send.
+                : pe.streamErrorFrame && pe.message ? { errorTechnicalDetail: pe.message } : {}),
               ...(libraryFailure ?? {}),
             }
           : m,
@@ -542,5 +557,7 @@ function clearErrorPresentationState(message: ChatMessage): ChatMessage {
   delete clean.errorDetail;
   delete clean.errorKind;
   delete clean.errorSource;
+  delete clean.errorTechnicalDetail;
+  delete clean.additionalBodyRetryEligible;
   return clean;
 }

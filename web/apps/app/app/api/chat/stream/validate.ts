@@ -355,6 +355,13 @@ export function validateChatStreamRequest(body: unknown): ValidationResult {
       return { ok: false, status: 400, error: 'customFragments invalid' };
     }
   }
+  if (isRecord(options) && options.additionalBody !== undefined) {
+    const additionalBody = options.additionalBody;
+    if (!isRecord(additionalBody) || typeof additionalBody.raw !== 'string'
+      || Object.keys(additionalBody).some((key) => key !== 'raw')) {
+      return { ok: false, status: 400, error: 'additionalBody invalid' };
+    }
+  }
   if (isRecord(options) && options.capabilityRecipeOmissions !== undefined) {
     const omissions = options.capabilityRecipeOmissions;
     if (!Array.isArray(omissions) || omissions.length === 0 || omissions.length > 8

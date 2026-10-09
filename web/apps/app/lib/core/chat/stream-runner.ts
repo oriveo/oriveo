@@ -16,6 +16,9 @@ import type { Attachment, Citation, AIModel, Provider } from '@oriveo/shared';
 import type { AppStore } from '../store/app-store';
 import type { ContentPart, StreamEvent, StreamOptions, StreamUsage } from '../providers/types';
 import { sendStream } from '../providers/service';
+import { additionalBodyRetryEligible } from './additional-body-retry';
+import { isUpstreamContentEvent } from './additional-body-retry-tap';
+import { decideGenerationParameterRejection } from './generation-parameter-rejection';
 import { readStream } from '../../utils/chat-stream-utils';
 import { createPartialFlushScheduler } from './partial-flush';
 import { batchAppendStreamingReasoning } from './stream-batcher';
@@ -376,6 +379,8 @@ export async function runStreamPipeline(
       Object.assign(error, {
         capabilityResults: requestedCapabilityResults(capabilityContext),
         capabilityCustomRetryEligible: capabilityCustomRetryEligibleOf(streamHandle),
+        additionalBodyRetryEligible: resolveAdditionalBodyRetry(streamHandle, error, normalizedEvents),
+        generationParameterRejection: resolveGenerationParameterRejection(streamHandle, error, normalizedEvents),
         capabilityRecovery: capabilityRecoveryDescriptorOf(streamHandle),
       });
     }
@@ -449,6 +454,68 @@ function capabilityResultContextOf(handle: unknown): CapabilityResultContext | n
 function capabilityCustomRetryEligibleOf(handle: unknown): boolean {
   if (typeof handle !== 'object' || handle === null || !('getCapabilityCustomRetryEligible' in handle)) return false;
   const getter = (handle as { getCapabilityCustomRetryEligible?: unknown }).getCapabilityCustomRetryEligible;
+  return typeof getter === 'function' && getter() === true;
+}
+
+function resolveAdditionalBodyRetry(handle: unknown, error: object, events: readonly StreamEvent[]): boolean {
+  // When the failure is already pinned to a web search / reasoning setting (including custom
+  // fields), the existing recovery path applies and neither the title nor the button mentions the additional body.
+  if (capabilityRecoveryDescriptorOf(handle) || capabilityCustomRetryEligibleOf(handle)) return false;
+  // When one panel parameter is already named exactly, that recovery path applies (an additional
+  // body that happens to write a field of the same name is never attributed to the panel parameter).
+  if (resolveGenerationParameterRejection(handle, error, events)) return false;
+  const receivedUpstreamEvent = events.some(isUpstreamContentEvent);
+  if (receivedUpstreamEvent) return false;
+  if (additionalBodyRetryEligibleOf(handle)) return true;
+  const providerError = error as { status?: unknown; kind?: unknown; streamErrorFrame?: unknown };
+  return additionalBodyRetryEligible({
+    additionalBodyApplied: additionalBodyAppliedOf(handle),
+    receivedUpstreamEvent,
+    sideEffects: false,
+    localRejection: false,
+    ...(providerError.streamErrorFrame === true
+      ? { streamErrorFrame: { classifiedKind: typeof providerError.kind === 'string' ? providerError.kind : undefined } }
+      : providerError.status === 400 ? { httpStatus: 400 } : {}),
+  });
+}
+
+/** A panel generation parameter named in an upstream rejection: only yields a located result for "resend without this setting after the user confirms", never an automatic retry. */
+function resolveGenerationParameterRejection(
+  handle: unknown,
+  error: object,
+  events: readonly StreamEvent[],
+): { parameterId: string } | undefined {
+  // Located web search / reasoning settings (including custom fields) take priority, each with its own recovery path.
+  if (capabilityRecoveryDescriptorOf(handle) || capabilityCustomRetryEligibleOf(handle)) return undefined;
+  const getter = typeof handle === 'object' && handle !== null
+    ? (handle as { getGenerationWrite?: unknown }).getGenerationWrite
+    : undefined;
+  if (typeof getter !== 'function') return undefined;
+  const write = getter() as { written: readonly string[]; wire: Readonly<Record<string, string>> };
+  const providerError = error as { status?: unknown; errorFields?: unknown; streamErrorFrame?: unknown };
+  const decision = decideGenerationParameterRejection({
+    ...(typeof providerError.status === 'number' && providerError.streamErrorFrame !== true ? { status: providerError.status } : {}),
+    streamStarted: events.some(isUpstreamContentEvent),
+    sideEffects: false,
+    ...(providerError.errorFields && typeof providerError.errorFields === 'object'
+      ? { errorFields: providerError.errorFields as Record<string, string> } : {}),
+    written: write.written,
+    wire: write.wire,
+  });
+  return decision.action === 'user_confirmed_resend_without_located_setting' && decision.parameterId
+    ? { parameterId: decision.parameterId }
+    : undefined;
+}
+
+function additionalBodyAppliedOf(handle: unknown): boolean {
+  if (typeof handle !== 'object' || handle === null || !('getAdditionalBodyApplied' in handle)) return false;
+  const getter = (handle as { getAdditionalBodyApplied?: unknown }).getAdditionalBodyApplied;
+  return typeof getter === 'function' && getter() === true;
+}
+
+function additionalBodyRetryEligibleOf(handle: unknown): boolean {
+  if (typeof handle !== 'object' || handle === null || !('getAdditionalBodyRetryEligible' in handle)) return false;
+  const getter = (handle as { getAdditionalBodyRetryEligible?: unknown }).getAdditionalBodyRetryEligible;
   return typeof getter === 'function' && getter() === true;
 }
 

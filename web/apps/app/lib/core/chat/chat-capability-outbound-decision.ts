@@ -1,6 +1,7 @@
 import type { ReasoningMode } from '@oriveo/shared';
 import type { ReasoningIntent } from '@oriveo/core/providers/request-preference/types';
 import type { CapabilityControlPresentation } from './capability-control-presentation';
+import { nearestAcceptedReasoningTier } from './capability-recovery-runtime';
 import { modelControlWebReachesTheWire, resolveModelControlStatus } from './model-control-capability-layout';
 
 export interface ChatCapabilityOutboundDecision {
@@ -30,11 +31,20 @@ interface Input {
   reasoningIntentRequested?: ReasoningIntent;
   reasoningControl: Pick<CapabilityControlPresentation, 'state' | 'availableIntents'>;
   reasoningDormant: boolean;
+  /** Thinking tiers rejected upstream (when the whole group is not dormant). If the selected tier is among them, fall back to the nearest tier, matching what the panel shows. */
+  reasoningRejectedIntents?: readonly string[];
 }
 
 /** Equivalent of iOS ChatCapabilityOutboundDecision: UI reads the effective outbound request. */
 export function resolveChatCapabilityOutboundDecision(input: Input): ChatCapabilityOutboundDecision {
-  const requestedIntent = input.reasoningIntentRequested ?? intentForMode(input.reasoningModeRequested);
+  const storedIntent = input.reasoningIntentRequested ?? intentForMode(input.reasoningModeRequested);
+  const rejected = input.reasoningRejectedIntents ?? [];
+  const requestedIntent = storedIntent !== undefined && rejected.includes(storedIntent)
+    ? nearestAcceptedReasoningTier(
+      storedIntent,
+      input.reasoningControl.availableIntents.filter((intent) => !rejected.includes(intent)),
+    ) as ReasoningIntent | undefined
+    : storedIntent;
   const reasoningPermitted = !input.reasoningDormant
     && input.reasoningControl.state === 'auto_available'
     && requestedIntent !== undefined

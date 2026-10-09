@@ -357,6 +357,7 @@ function mergeFirstExplicit(
   target: GenerationParameterOverrides,
   source: GenerationParameterOverrides | undefined,
   options: { allowReasoning?: boolean; activeParameterIds?: ReadonlySet<string> } = {},
+  onTake?: (key: string) => void,
 ): void {
   if (!source) return;
   for (const [key, value] of Object.entries(source)) {
@@ -370,7 +371,10 @@ function mergeFirstExplicit(
     // reasoning default must really go outbound, otherwise it is settable, storable and readable
     // back while injecting nothing.
     if (!options.allowReasoning && isReasoningParameterID(key)) continue;
-    if (value && value.state !== 'inherit' && target[key] === undefined) target[key] = value;
+    if (value && value.state !== 'inherit' && target[key] === undefined) {
+      target[key] = value;
+      onTake?.(key);
+    }
   }
 }
 
@@ -406,41 +410,10 @@ export function resolveGenerationParameterOverrides(input: {
    */
   activeParameterIds?: ReadonlySet<string>;
 }): GenerationParameterOverrides | undefined {
-  const allowConnectionReasoning = !input.reasoningMode || input.reasoningMode === 'automatic';
-  const activeParameterIds = input.activeParameterIds;
-  const resolved: GenerationParameterOverrides = {};
-  // Transient per-turn values deliberately skip the dormant filter: dormancy means a stored value is
-  // invalid under the new profile, while a transient value was produced by the UI against the
-  // current profile this turn and cannot be stale by definition. Filtering it would break the
-  // highest-precedence scope for no reason. It is still subject to the outbound gate in
-  // applyGenerationParameters.
-  mergeFirstExplicit(resolved, input.transient);
-  if (input.conversationId) {
-    mergeFirstExplicit(resolved, loadGenerationParameterOverrides({
-      providerId: input.providerId,
-      modelId: input.modelId,
-      conversationId: input.conversationId,
-      profileFingerprint: input.profileFingerprint,
-    }), { activeParameterIds });
-  }
-  // The connection scope is the panel on the provider detail page (connection x model defaults plus
-  // connection defaults). Those two layers are the ones allowed to emit reasoning; the conversation
-  // layers (transient / conversation) still honour only the reasoning chip.
-  mergeFirstExplicit(
-    resolved,
-    loadGenerationParameterOverrides({
-      providerId: input.providerId,
-      modelId: input.modelId,
-      profileFingerprint: input.profileFingerprint,
-    }),
-    { allowReasoning: allowConnectionReasoning, activeParameterIds },
-  );
-  mergeFirstExplicit(
-    resolved,
-    loadConnectionGenerationParameterDefaults(input.providerId),
-    { allowReasoning: allowConnectionReasoning, activeParameterIds },
-  );
-  return Object.keys(resolved).length > 0 ? resolved : undefined;
+  const sourced = resolveGenerationParameterOverridesWithSources(input);
+  return sourced
+    ? Object.fromEntries(Object.entries(sourced).map(([key, entry]) => [key, entry.override]))
+    : undefined;
 }
 
 /** Moves compose-state overrides onto the real conversation scope once the first message creates it. */
@@ -858,4 +831,56 @@ function publishGenerationParameterSyncPayload(): void {
 
 export function valueOverride<T extends GenerationParameterValue>(value: T): GenerationParameterOverride<T> {
   return { state: 'value', value };
+}
+
+export type GenerationParameterLayer = 'transient' | 'conversation' | 'connectionModel' | 'connection';
+
+export type SourcedGenerationParameterOverrides = Record<string, {
+  override: GenerationParameterOverride<GenerationParameterValue>;
+  layer: GenerationParameterLayer;
+}>;
+
+/** Same precedence as `resolveGenerationParameterOverrides`, but also reports which layer each effective value came from (the panel shows the source). */
+export function resolveGenerationParameterOverridesWithSources(
+  input: Parameters<typeof resolveGenerationParameterOverrides>[0],
+): SourcedGenerationParameterOverrides | undefined {
+  const allowConnectionReasoning = !input.reasoningMode || input.reasoningMode === 'automatic';
+  const activeParameterIds = input.activeParameterIds;
+  const resolved: GenerationParameterOverrides = {};
+  const sourced: SourcedGenerationParameterOverrides = {};
+  const take = (layer: GenerationParameterLayer) => (key: string) => { sourced[key] = { override: resolved[key]!, layer }; };
+  // Transient per-turn values deliberately skip the dormant filter: dormancy means a stored value is
+  // invalid under the new profile, while a transient value was produced by the UI against the
+  // current profile this turn and cannot be stale by definition. Filtering it would break the
+  // highest-precedence scope for no reason. It is still subject to the outbound gate in
+  // applyGenerationParameters.
+  mergeFirstExplicit(resolved, input.transient, {}, take('transient'));
+  if (input.conversationId) {
+    mergeFirstExplicit(resolved, loadGenerationParameterOverrides({
+      providerId: input.providerId,
+      modelId: input.modelId,
+      conversationId: input.conversationId,
+      profileFingerprint: input.profileFingerprint,
+    }), { activeParameterIds }, take('conversation'));
+  }
+  // The connection scope is the panel on the provider detail page (connection x model defaults plus
+  // connection defaults). Those two layers are the ones allowed to emit reasoning; the conversation
+  // layers (transient / conversation) still honour only the reasoning chip.
+  mergeFirstExplicit(
+    resolved,
+    loadGenerationParameterOverrides({
+      providerId: input.providerId,
+      modelId: input.modelId,
+      profileFingerprint: input.profileFingerprint,
+    }),
+    { allowReasoning: allowConnectionReasoning, activeParameterIds },
+    take('connectionModel'),
+  );
+  mergeFirstExplicit(
+    resolved,
+    loadConnectionGenerationParameterDefaults(input.providerId),
+    { allowReasoning: allowConnectionReasoning, activeParameterIds },
+    take('connection'),
+  );
+  return Object.keys(sourced).length > 0 ? sourced : undefined;
 }

@@ -4,6 +4,7 @@
  * It lives in its own file rather than in `route.ts` because a Next.js route module may only export
  * the members of the route convention, and one extra helper export fails to compile.
  */
+import { applyAdditionalBodyOrThrow } from '@oriveo/core/providers/request-builders/additional-body';
 import {
   resolveGrokSubscriptionAuth,
   type GrokSubscriptionAuthConfig,
@@ -58,6 +59,8 @@ export function applyGrokSubscriptionTransport<T extends { url: string; headers:
     apiBackend?: string;
     supportsWebSearch?: boolean;
     messages?: RequestParams['messages'];
+    /** The Responses branch rebuilds the whole body, so the additional body must be merged again after the rebuild or it is lost. */
+    additionalBody?: { raw: string };
   },
 ): T {
   if (!config) return request;
@@ -78,7 +81,7 @@ export function applyGrokSubscriptionTransport<T extends { url: string; headers:
       ...(rest as T),
       url: config.responsesURL,
       headers: { ...request.headers, ...config.requiredHeaders },
-      body: {
+      body: applyAdditionalBodyOrThrow({
         model: request.body.model,
         input: buildOpenAIResponsesInput(conversation),
         stream: request.body.stream !== false,
@@ -86,13 +89,16 @@ export function applyGrokSubscriptionTransport<T extends { url: string; headers:
         ...(systemPrompt ? { instructions: systemPrompt } : {}),
         ...(context?.supportsWebSearch ? { tools: [{ type: 'web_search' }] } : {}),
         ...(effort ? { reasoning: { effort, summary: 'auto' } } : {}),
-      },
+      }, context?.additionalBody),
     };
   }
   return {
     ...(rest as T),
     url: config.chatURL,
     headers: { ...request.headers, ...config.requiredHeaders },
-    body: effort ? { ...request.body, reasoning_effort: effort } : request.body,
+    body: applyAdditionalBodyOrThrow(
+      effort ? { ...request.body, reasoning_effort: effort } : request.body,
+      context?.additionalBody,
+    ),
   };
 }

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { RELAY_REDACTED_PLACEHOLDER } from '@oriveo/shared/relay/endpoint-policy';
 import { sendLibraryAgentLeg, sendStreamProxy } from '../proxy-client';
 import type { StreamEvent } from '../types';
 import { __resetSubscriptionVersionRejectionGateForTest } from '../subscription-version-rejection';
@@ -418,7 +419,7 @@ describe('proxy-client', () => {
     );
 
     await expect(collectEvents(stream)).resolves.toEqual([
-      { type: 'error', error: 'rate limited', errorKind: 'upstream', source: 'provider' },
+      { type: 'error', error: 'rate limited', errorKind: 'upstream', source: 'provider', streamErrorFrame: true },
       { type: 'done' },
     ]);
   });
@@ -486,6 +487,21 @@ describe('proxy-client', () => {
     ]);
   });
 
+  it('redacts the request key from the raw in-stream error frame and truncates it to 2 KB', async () => {
+    const raw = `invalid key sk_live_secret_123 ${'错'.repeat(1500)}`;
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+      `data: ${JSON.stringify({ error: { message: raw } })}\n\ndata: [DONE]\n\n`,
+      { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+    ));
+    const { stream } = sendStreamProxy('openAI', 'sk_live_secret_123', 'gpt-5', [{ role: 'user', content: 'hello' }], 'https://api.openai.com/v1');
+    const events = await collectEvents(stream);
+    const error = events.find((event) => event.type === 'error') as { error: string } | undefined;
+    // Same redaction marker as the Relay side (the technical detail has only one spelling).
+    expect(error?.error).toContain(`invalid key ${RELAY_REDACTED_PLACEHOLDER}`);
+    expect(error?.error).not.toContain('sk_live_secret_123');
+    expect(new TextEncoder().encode(error!.error).length).toBeLessThanOrEqual(2048);
+  });
+
   it('lets a normal Gemini finishReason=STOP complete without false positives', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
       [
@@ -548,7 +564,7 @@ describe('proxy-client', () => {
     );
 
     await expect(collectEvents(stream)).resolves.toEqual([
-      { type: 'error', error: 'Internal error encountered.', errorKind: 'upstream', source: 'provider' },
+      { type: 'error', error: 'Internal error encountered.', errorKind: 'upstream', source: 'provider', streamErrorFrame: true },
       { type: 'done' },
     ]);
   });
@@ -691,7 +707,7 @@ describe('proxy-client', () => {
     );
 
     await expect(collectEvents(stream)).resolves.toEqual([
-      { type: 'error', error: 'Overloaded', errorKind: 'rateLimited', source: 'provider' },
+      { type: 'error', error: 'Overloaded', errorKind: 'rateLimited', source: 'provider', streamErrorFrame: true },
       { type: 'done' },
     ]);
   });
