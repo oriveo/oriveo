@@ -422,6 +422,7 @@
       "historyUnavailableRetry": "Erneut versuchen",
       "title": "Chat",
       "placeholder": "Nachricht eingeben…",
+      "inputLengthLimitReached": "Eine Nachricht kann höchstens {limit} Zeichen lang sein. Der Rest wurde nicht übernommen.",
       "send": "Senden",
       "greeting": "Wie kann ich dir helfen?",
       "greetingSub": "Wählen Sie einen Prompt unten oder geben Sie Ihre eigene Nachricht ein.",
@@ -463,6 +464,7 @@
         "errorCorrupted": "{fileName} lässt sich nicht öffnen und ist vermutlich beschädigt. Exportiere die Datei neu oder lade sie noch einmal herunter und hänge sie dann wieder an.",
         "errorNoText": "{fileName} enthält keinen markierbaren Text – vermutlich ist es ein Scan. Wähle ein Modell, das Bilder oder PDFs direkt lesen kann.",
         "tooManyFiles": "Für dieses Modell kannst du bis zu {maxFiles} Dateien anhängen.",
+        "textBudgetExceeded": "{fileName} wurde nicht hinzugefügt: Damit würde der angehängte Text dieser Nachricht das Limit überschreiten.",
         "truncatedCtaKnowledge": "Große Datei abgeschnitten. Zu Skill Knowledge hinzufügen für vollständige Suche →"
       },
       "dropFiles": "Dateien hier ablegen",

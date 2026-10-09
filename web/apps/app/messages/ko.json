@@ -422,6 +422,7 @@
       "historyUnavailableRetry": "재시도",
       "title": "대화",
       "placeholder": "메시지를 입력하세요…",
+      "inputLengthLimitReached": "메시지 하나에는 최대 {limit}자까지 입력할 수 있습니다. 넘는 부분은 들어가지 않았습니다.",
       "send": "전송",
       "greeting": "무엇을 도와드릴까요?",
       "greetingSub": "아래 프롬프트를 선택하거나 메시지를 입력하세요.",
@@ -463,6 +464,7 @@
         "errorCorrupted": "{fileName} 파일을 열 수 없습니다. 손상된 것 같습니다. 다시 내보내거나 내려받은 뒤 첨부해 주세요.",
         "errorNoText": "{fileName}에는 선택할 수 있는 텍스트가 없습니다. 스캔한 문서로 보입니다. 이미지나 PDF를 바로 읽는 모델로 바꿔 보세요.",
         "tooManyFiles": "이 모델에는 최대 {maxFiles}개의 파일을 첨부할 수 있습니다.",
+        "textBudgetExceeded": "{fileName} 파일은 추가되지 않았습니다. 추가하면 이 메시지에 첨부할 수 있는 텍스트 한도를 넘습니다.",
         "truncatedCtaKnowledge": "큰 파일이 잘렸습니다. 전체 검색을 위해 Skill Knowledge에 추가 →"
       },
       "dropFiles": "여기에 파일을 드롭하세요",

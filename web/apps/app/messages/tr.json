@@ -422,6 +422,7 @@
       "historyUnavailableRetry": "Yeniden dene",
       "title": "Sohbet",
       "placeholder": "Bir mesaj yazın…",
+      "inputLengthLimitReached": "Bir mesaj en fazla {limit} karakter olabilir. Fazlası eklenmedi.",
       "send": "Gönder",
       "greeting": "Size ne konuda yardımcı olabilirim?",
       "greetingSub": "Aşağıdan bir bilgi istemi seçin veya kendi mesajınızı yazın.",
@@ -463,6 +464,7 @@
         "errorCorrupted": "{fileName} açılamadı; dosya bozulmuş olabilir. Yeniden dışa aktarın ya da indirin, sonra tekrar ekleyin.",
         "errorNoText": "{fileName} içinde seçilebilir metin yok; büyük olasılıkla taranmış bir belge. Görselleri veya PDF’leri doğrudan okuyabilen bir model seçin.",
         "tooManyFiles": "Bu model için en fazla {maxFiles} dosya ekleyebilirsin.",
+        "textBudgetExceeded": "{fileName} eklenmedi: eklenseydi bu mesaja iliştirilen metin sınırı aşardı.",
         "truncatedCtaKnowledge": "Büyük dosya kısaltıldı. Tam arama için Skill Knowledge'a ekleyin →"
       },
       "dropFiles": "Dosyaları buraya bırakın",

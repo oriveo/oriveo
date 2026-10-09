@@ -422,6 +422,7 @@
       "historyUnavailableRetry": "重试",
       "title": "对话",
       "placeholder": "输入消息…",
+      "inputLengthLimitReached": "单条消息最多 {limit} 个字符，超出的部分没有加入。",
       "send": "发送",
       "greeting": "有什么我可以帮你的？",
       "greetingSub": "选择下方提示或输入您的消息。",
@@ -463,6 +464,7 @@
         "errorCorrupted": "{fileName} 打不开，可能已损坏。请重新导出或下载后再添加。",
         "errorNoText": "{fileName} 里没有可选中的文字，多半是扫描件。换一个能直接读图片或 PDF 的模型试试。",
         "tooManyFiles": "这个模型最多可添加 {maxFiles} 个附件。",
+        "textBudgetExceeded": "{fileName} 没有加入：加上它，这条消息附带的文本会超过上限。",
         "truncatedCtaKnowledge": "大文件已截断。添加到 Skill Knowledge 获取完整检索 →"
       },
       "dropFiles": "将文件拖放到此处",

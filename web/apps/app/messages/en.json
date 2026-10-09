@@ -422,6 +422,7 @@
       "historyUnavailableRetry": "Retry",
       "title": "Chat",
       "placeholder": "Type a message…",
+      "inputLengthLimitReached": "Messages can be up to {limit} characters. Anything past that was left out.",
       "send": "Send",
       "greeting": "What can I help you with?",
       "greetingSub": "Choose a prompt below or type your own message.",
@@ -463,6 +464,7 @@
         "errorCorrupted": "{fileName} couldn't be opened and may be damaged. Export or download it again, then re-attach it.",
         "errorNoText": "{fileName} has no selectable text, so it's probably a scan. Pick a model that reads images or PDFs directly.",
         "tooManyFiles": "You can attach up to {maxFiles} files for this model.",
+        "textBudgetExceeded": "{fileName} wasn't added: it would put the text attached to this message over the limit.",
         "truncatedCtaKnowledge": "Large file truncated. Add to Skill Knowledge for full search →"
       },
       "dropFiles": "Drop files here",

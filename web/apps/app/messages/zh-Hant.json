@@ -422,6 +422,7 @@
       "historyUnavailableRetry": "重試",
       "title": "對話",
       "placeholder": "輸入訊息…",
+      "inputLengthLimitReached": "單則訊息最多 {limit} 個字元，超出的部分沒有加入。",
       "send": "傳送",
       "greeting": "有什麼我可以幫你的？",
       "greetingSub": "選擇下方提示或輸入您的訊息。",
@@ -463,6 +464,7 @@
         "errorCorrupted": "{fileName} 打不開，可能已損毀。請重新匯出或下載後再加入。",
         "errorNoText": "{fileName} 裡沒有可選取的文字，多半是掃描檔。換一個能直接讀圖片或 PDF 的模型試試。",
         "tooManyFiles": "這個模型最多可加入 {maxFiles} 個附件。",
+        "textBudgetExceeded": "{fileName} 沒有加入：加上它，這則訊息附帶的文字會超過上限。",
         "truncatedCtaKnowledge": "大檔案已截斷。新增到 Skill Knowledge 取得完整檢索 →"
       },
       "dropFiles": "將檔案拖放到此處",

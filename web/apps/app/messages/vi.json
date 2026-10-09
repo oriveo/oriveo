@@ -422,6 +422,7 @@
       "historyUnavailableRetry": "Thử lại",
       "title": "Trò chuyện",
       "placeholder": "Nhập tin nhắn…",
+      "inputLengthLimitReached": "Mỗi tin nhắn tối đa {limit} ký tự. Phần vượt quá không được thêm vào.",
       "send": "Gửi",
       "greeting": "Tôi có thể giúp gì cho bạn?",
       "greetingSub": "Chọn lời nhắc bên dưới hoặc nhập tin nhắn của riêng bạn.",
@@ -463,6 +464,7 @@
         "errorCorrupted": "Không mở được {fileName}, tệp có thể đã hỏng. Xuất hoặc tải lại rồi đính kèm lần nữa.",
         "errorNoText": "{fileName} không có chữ chọn được, nhiều khả năng là bản quét. Hãy chọn mô hình đọc trực tiếp được ảnh hoặc PDF.",
         "tooManyFiles": "Bạn có thể đính kèm tối đa {maxFiles} tệp cho mô hình này.",
+        "textBudgetExceeded": "{fileName} chưa được thêm: nếu thêm, phần văn bản đính kèm tin nhắn này sẽ vượt giới hạn.",
         "truncatedCtaKnowledge": "Tệp lớn đã bị cắt. Thêm vào Skill Knowledge để tìm kiếm đầy đủ →"
       },
       "dropFiles": "Thả tập tin ở đây",

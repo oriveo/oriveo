@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRef, useCallback, useEffect, useLayoutEffect, useState, useId } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import type { Attachment, AIModel, Provider, ReasoningMode, SendShortcut, QuoteContext } from '@oriveo/shared';
 import { AttachmentPreview } from './AttachmentPreview';
 import { MODEL_OPTIONS_POPOVER_ID, ModelOptionsPopover } from './ModelOptionsPopover';
@@ -25,6 +25,9 @@ import type { CustomFragmentOwner } from '../../lib/core/chat/custom-fragment-se
 import type { CapabilityControlPresentation } from '../../lib/core/chat/capability-control-presentation';
 import type { CapabilityWebPreference } from '../../lib/core/chat/capability-preference-settings';
 import type { ReasoningIntent } from '@oriveo/core/providers/request-preference/types';
+import { CHAT_INPUT_MAX_LENGTH, applyInputLengthLimit, limitInsertion } from '../../lib/utils/grapheme-utils';
+import { getNumberFormatter } from '../../lib/utils/format-utils';
+import { showToast } from '../Toast';
 
 export interface AttachedNoteRef {
   id: string;
@@ -268,6 +271,26 @@ function resizeTextareaToContent(el: HTMLTextAreaElement) {
   el.style.overflowY = el.scrollHeight > MAX_TEXTAREA_HEIGHT_PX ? 'auto' : 'hidden';
 }
 
+/**
+ * Writes pasted content into the textarea. Prefers execCommand, which goes through the browser's
+ * own editing pipeline: it keeps the undo stack and dispatches an input event (when it returns
+ * true, onChange takes over). When it is unavailable or refused, falls back to setRangeText,
+ * which dispatches no event and does not enter the undo stack, so the caller has to sync state.
+ */
+function insertIntoTextarea(el: HTMLTextAreaElement, text: string, start: number, end: number): boolean {
+  try {
+    if (typeof document.execCommand === 'function') {
+      el.focus({ preventScroll: true });
+      el.setSelectionRange(start, end);
+      if (document.execCommand(text ? 'insertText' : 'delete', false, text)) return true;
+    }
+  } catch {
+    // Fall through to setRangeText below.
+  }
+  el.setRangeText(text, start, end, 'end');
+  return false;
+}
+
 export function InputComposer({
   value,
   onChange,
@@ -323,6 +346,7 @@ export function InputComposer({
   // exact is important: next-intl otherwise renders a raw key in production locales.
   const tCommon = useTranslations('common');
   const tLibrary = useTranslations('library');
+  const locale = useLocale();
   // Hover preview card for reference chips: only one is open at a time so cards never overlap.
   const [openNoteId, setOpenNoteId] = useState<string | null>(null);
   const handleNoteClose = useCallback(
@@ -334,6 +358,11 @@ export function InputComposer({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const suppressSendRestoreRef = useRef(false);
   const lastSentValueRef = useRef('');
+  // Text at the moment composition started: intermediate composition states pass through and are
+  // written to value, so the committed text is judged against this as the "previous" text.
+  const compositionBaseRef = useRef<string | null>(null);
+  // One over-limit action shows one toast; it re-arms once the length drops below the limit.
+  const lengthToastArmedRef = useRef(true);
   const sendGenerationRef = useRef(0);
   const sendShortcut = useAppStore((s) => s.preferences.sendShortcut) as SendShortcut;
   const storageQuota = null as { blockUploads?: boolean; status?: string } | null;
@@ -426,6 +455,7 @@ export function InputComposer({
       el.value = value;
     }
     resizeTextareaToContent(el);
+    if (value.length < CHAT_INPUT_MAX_LENGTH) lengthToastArmedRef.current = true;
   }, [value]);
 
   useEffect(() => {
@@ -502,29 +532,111 @@ export function InputComposer({
     [requestSend, sendShortcut],
   );
 
+  const notifyLengthLimit = useCallback(() => {
+    if (!lengthToastArmedRef.current) return;
+    lengthToastArmedRef.current = false;
+    showToast(t('inputLengthLimitReached', {
+      limit: getNumberFormatter(locale).format(CHAT_INPUT_MAX_LENGTH),
+    }));
+  }, [locale, t]);
+
+  /**
+   * The single place user edits land: `previous` is the text before this edit and the textarea
+   * holds the text after it. When over the limit, the textarea is reset to the truncated text.
+   * Programmatic writes (draft restore, skill starter prompts) do not go through here and are kept as is.
+   */
+  const commitUserEdit = useCallback(
+    (el: HTMLTextAreaElement, previous: string) => {
+      const outcome = applyInputLengthLimit(previous, el.value, CHAT_INPUT_MAX_LENGTH, el.selectionStart);
+      if (outcome.truncated) {
+        el.value = outcome.text;
+        el.setSelectionRange(outcome.caret, outcome.caret);
+        notifyLengthLimit();
+      }
+      resizeTextareaToContent(el);
+      onChange(outcome.text);
+    },
+    [notifyLengthLimit, onChange],
+  );
+
   const handleTextChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const next = e.currentTarget.value;
+      const el = e.currentTarget;
+      const next = el.value;
       if (suppressSendRestoreRef.current && next === lastSentValueRef.current) {
-        revertSuppressedRestore(e.currentTarget);
+        revertSuppressedRestore(el);
         return;
       }
       if (suppressSendRestoreRef.current) {
         suppressSendRestoreRef.current = false;
         lastSentValueRef.current = '';
       }
-      resizeTextareaToContent(e.currentTarget);
-      onChange(next);
+      // Do not judge during composition: cutting the pending pinyin string would interrupt the IME.
+      // handleCompositionEnd judges after the text is committed. The event's own isComposing wins
+      // (so a missing compositionend cannot leave the limit off for good); only events without
+      // that field fall back to the state recorded at compositionstart.
+      const nativeComposing = (e.nativeEvent as Partial<InputEvent>).isComposing;
+      const composing = typeof nativeComposing === 'boolean'
+        ? nativeComposing
+        : compositionBaseRef.current !== null;
+      if (composing) {
+        resizeTextareaToContent(el);
+        onChange(next);
+        return;
+      }
+      commitUserEdit(el, value);
     },
-    [onChange, revertSuppressedRestore],
+    [commitUserEdit, onChange, revertSuppressedRestore, value],
+  );
+
+  const handleCompositionStart = useCallback(
+    (e: React.CompositionEvent<HTMLTextAreaElement>) => {
+      // compositionstart fires before the composition text is written, so the textarea still holds the pre-composition text.
+      compositionBaseRef.current = e.currentTarget.value;
+    },
+    [],
   );
 
   const handleCompositionEnd = useCallback(
     (e: React.CompositionEvent<HTMLTextAreaElement>) => {
-      if (!suppressSendRestoreRef.current) return;
-      revertSuppressedRestore(e.currentTarget);
+      const base = compositionBaseRef.current;
+      compositionBaseRef.current = null;
+      if (suppressSendRestoreRef.current) {
+        revertSuppressedRestore(e.currentTarget);
+        return;
+      }
+      // In Chromium the last input event comes before compositionend and is still marked as
+      // composing, so the committed text can only be judged here. Firefox fires one more input
+      // afterwards, when the text is already truncated and the check passes it through.
+      if (base !== null && e.currentTarget.value.length > CHAT_INPUT_MAX_LENGTH) {
+        commitUserEdit(e.currentTarget, base);
+      }
     },
-    [revertSuppressedRestore],
+    [commitUserEdit, revertSuppressedRestore],
+  );
+
+  const handleComposerPaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      handlePaste(e);
+      // The browser normalizes line breaks to LF when writing into a textarea, so measure the length after that.
+      const pasted = (e.clipboardData?.getData('text/plain') ?? '').replace(/\r\n?/g, '\n');
+      if (!pasted) return;
+      const el = e.currentTarget;
+      const start = el.selectionStart ?? el.value.length;
+      const end = el.selectionEnd ?? start;
+      const outcome = limitInsertion(el.value, start, end, pasted, CHAT_INPUT_MAX_LENGTH);
+      // If it fits, leave the default paste to the browser. The textarea's maxLength cannot do the
+      // rest of this: it truncates silently and fires no event.
+      if (!outcome.truncated) return;
+      e.preventDefault();
+      notifyLengthLimit();
+      if (!outcome.inserted && start === end) return;
+      const previous = el.value;
+      if (!insertIntoTextarea(el, outcome.inserted, start, end)) {
+        commitUserEdit(el, previous);
+      }
+    },
+    [commitUserEdit, handlePaste, notifyLengthLimit],
   );
 
   const acceptTypes = buildAcceptAttribute(generationParameterProvider, currentModel, providerAttachmentSupport);
@@ -651,9 +763,10 @@ export function InputComposer({
           placeholder={isStreaming ? t('aiAnswering') : (placeholderOverride ?? t('placeholder'))}
           value={value}
           onChange={handleTextChange}
+          onCompositionStart={handleCompositionStart}
           onCompositionEnd={handleCompositionEnd}
           onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
+          onPaste={handleComposerPaste}
           disabled={disabled || isStreaming}
           aria-label={t('placeholder')}
         />

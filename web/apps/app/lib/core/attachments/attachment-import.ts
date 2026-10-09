@@ -28,6 +28,7 @@ import {
   partitionFilesByAttachmentSize,
 } from '../../utils/attachment-size-policy';
 import { showToast } from '../../../components/Toast';
+import { attachmentTextBudgetBytes } from './attachment-injector';
 import { DEFAULT_LIMITS } from './file-text-extractor';
 
 export interface AttachmentImportRequest {
@@ -80,6 +81,17 @@ const EXTRACTION_FAILURE_COPY: Record<string, string> = {
 export function extractionFailureCopyKey(errorCode: string | undefined): string | null {
   if (!errorCode) return null;
   return EXTRACTION_FAILURE_COPY[errorCode] ?? 'errorGeneric';
+}
+
+/**
+ * How much of the total text budget this attachment will take when it is injected as text on
+ * send. Files that keep their original bytes (PDF / Office) may be uploaded natively instead of
+ * injected, and the model used at send time is unknown here, so they count as 0: better to
+ * block too little than to reject a file that could have been sent.
+ */
+function injectedTextBytes(attachment: Attachment): number {
+  if (attachment.kind !== 'file' || attachment.extractionErrorCode || attachment.originalBase64Data) return 0;
+  return attachmentTextBudgetBytes(attachment.base64Data);
 }
 
 /** Shows the notices of one import batch as a single toast, one per line; each extra line adds reading time. */
@@ -152,7 +164,22 @@ async function runImport(request: AttachmentImportRequest): Promise<void> {
   );
   // A file found to be over the limit only at conversion time still gets the "file too large" notice.
   if (tooLarge.length > 0) request.onRejectedBySize(tooLarge);
-  const incoming = converted.filter((attachment) => request.canAcceptAttachment?.(attachment) ?? true);
+  const acceptable = converted.filter((attachment) => request.canAcceptAttachment?.(attachment) ?? true);
+
+  // Text budget: on send, the injector adds up content bytes in attachment order and skips a file
+  // that does not fit, whole and without telling the user. Check here with the same measure and
+  // the same budget, and leave out files that do not fit with an explanation.
+  const incoming: Attachment[] = [];
+  let textBytes = currentAttachments(request).reduce((sum, attachment) => sum + injectedTextBytes(attachment), 0);
+  for (const attachment of acceptable) {
+    const bytes = injectedTextBytes(attachment);
+    if (bytes > 0 && textBytes + bytes > DEFAULT_LIMITS.totalCap) {
+      failures.push(translate('textBudgetExceeded', { fileName: attachment.fileName ?? '' }));
+      continue;
+    }
+    textBytes += bytes;
+    incoming.push(attachment);
+  }
 
   for (const attachment of incoming) {
     const copyKey = extractionFailureCopyKey(attachment.extractionErrorCode);

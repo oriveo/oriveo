@@ -422,6 +422,7 @@
       "historyUnavailableRetry": "Mencoba kembali",
       "title": "Mengobrol",
       "placeholder": "Ketik pesan…",
+      "inputLengthLimitReached": "Satu pesan paling banyak {limit} karakter. Sisanya tidak dimasukkan.",
       "send": "Mengirim",
       "greeting": "Apa yang bisa saya bantu?",
       "greetingSub": "Pilih perintah di bawah atau ketik pesan Anda sendiri.",
@@ -463,6 +464,7 @@
         "errorCorrupted": "{fileName} tidak bisa dibuka; berkasnya mungkin rusak. Ekspor atau unduh ulang, lalu lampirkan lagi.",
         "errorNoText": "{fileName} tidak berisi teks yang bisa dipilih; kemungkinan hasil pindaian. Pilih model yang bisa membaca gambar atau PDF secara langsung.",
         "tooManyFiles": "Anda dapat melampirkan hingga {maxFiles} berkas untuk model ini.",
+        "textBudgetExceeded": "{fileName} tidak ditambahkan: dengan file ini, teks yang dilampirkan pada pesan akan melebihi batas.",
         "truncatedCtaKnowledge": "File besar dipotong. Tambahkan ke Skill Knowledge untuk pencarian lengkap →"
       },
       "dropFiles": "Letakkan file di sini",

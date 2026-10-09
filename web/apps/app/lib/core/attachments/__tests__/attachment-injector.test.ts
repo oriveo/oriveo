@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   AttachmentInjector,
+  attachmentTextBudgetBytes,
   resolveWrapperVersion,
   type AttachmentPayload,
 } from '../attachment-injector';
@@ -116,6 +117,49 @@ describe('AttachmentInjector.injectAll', () => {
     // At least some should be skipped due to the 200KB total cap
     expect(r.skipped.length).toBeGreaterThan(0);
     expect(r.skipped[0].reason).toBe('total_cap_exceeded');
+  });
+
+  // The per-file extraction cap (maxBytes) and the total budget (totalCap) are the same number.
+  // If the budget also counted the wrapper header, a file that just fits the extraction cap
+  // could never fit and would be skipped whole, silently.
+  it.each(['xml-v1', 'markdown-v1'] as const)(
+    'injects a single file whose content is exactly the extraction cap (%s)',
+    (wrapper) => {
+      expect(DEFAULT_LIMITS.maxBytes).toBe(DEFAULT_LIMITS.totalCap);
+      const content = 'x'.repeat(DEFAULT_LIMITS.maxBytes);
+      const r = AttachmentInjector.injectAll('prompt', [{
+        fileName: 'full.txt',
+        mimeType: 'text/plain',
+        sizeBytes: content.length,
+        extracted: makeExtracted(content, 1, true),
+      }], DEFAULT_LIMITS, wrapper);
+      expect(r.skipped).toEqual([]);
+      expect(r.text).toContain(content);
+    },
+  );
+
+  it('counts multi-byte content in UTF-8 bytes, not UTF-16 length', () => {
+    // U+4E2D is 3 bytes in UTF-8: content that exactly fills the budget is allowed, one more character is skipped.
+    const fits = '\u4e2d'.repeat(Math.floor(DEFAULT_LIMITS.totalCap / 3));
+    const payload = (content: string): AttachmentPayload => ({
+      fileName: 'cjk.txt', mimeType: 'text/plain', sizeBytes: content.length, extracted: makeExtracted(content, 1),
+    });
+    expect(attachmentTextBudgetBytes(fits)).toBeLessThanOrEqual(DEFAULT_LIMITS.totalCap);
+    expect(AttachmentInjector.injectAll('', [payload(fits)]).skipped).toEqual([]);
+    expect(AttachmentInjector.injectAll('', [payload(`${fits}\u4e2d`)]).skipped).toEqual([
+      { fileName: 'cjk.txt', reason: 'total_cap_exceeded' },
+    ]);
+  });
+
+  it('skips the second of two 150KB files and keeps the first', () => {
+    const content = 'x'.repeat(150 * 1024);
+    const payload: AttachmentPayload = {
+      fileName: 'a.txt', mimeType: 'text/plain', sizeBytes: content.length, extracted: makeExtracted(content, 1),
+    };
+    const r = AttachmentInjector.injectAll('prompt', [payload, { ...payload, fileName: 'b.txt' }]);
+    expect(r.skipped).toEqual([{ fileName: 'b.txt', reason: 'total_cap_exceeded' }]);
+    expect(r.text).toContain('<FILE_NAME>a.txt</FILE_NAME>');
+    expect(r.text).not.toContain('b.txt');
   });
 
   it('skips when exceeding maxFiles=3', () => {

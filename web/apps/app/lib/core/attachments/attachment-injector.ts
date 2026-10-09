@@ -37,6 +37,19 @@ export interface AttachmentPayload {
   errorCode?: ExtractionErrorCode;
 }
 
+const budgetEncoder = new TextEncoder();
+
+/**
+ * How much of the total budget (`FileExtractionLimits.totalCap`) an attachment's text takes:
+ * the UTF-8 bytes of the content only. The wrapper header is not counted. The per-file
+ * extraction cap and the total budget are the same number, so counting the header would make a
+ * file that just fits the extraction cap impossible to fit. The import pipeline uses this same
+ * function to check ahead when attachments are added, so the two sides cannot drift.
+ */
+export function attachmentTextBudgetBytes(content: string | null | undefined): number {
+  return content ? budgetEncoder.encode(content).byteLength : 0;
+}
+
 export type SkipReason = 'too_many_files' | 'total_cap_exceeded';
 
 export interface SkippedAttachment {
@@ -186,7 +199,6 @@ export const AttachmentInjector = {
     let consumed = 0;
     const skipped: SkippedAttachment[] = [];
     let emittedIndex = 0;
-    const encoder = new TextEncoder();
 
     for (const p of payloads) {
       // Hard cap on the number of files
@@ -194,15 +206,14 @@ export const AttachmentInjector = {
         skipped.push({ fileName: p.fileName, reason: 'too_many_files' });
         continue;
       }
-      const block = AttachmentInjector.formatAttachment(wrapper, emittedIndex + 1, p);
-      const blockBytes = encoder.encode(block).byteLength;
-      // Total size cap
-      if (consumed + blockBytes > limits.totalCap) {
+      // Total size cap (content only, see attachmentTextBudgetBytes)
+      const contentBytes = attachmentTextBudgetBytes(p.extracted?.content);
+      if (consumed + contentBytes > limits.totalCap) {
         skipped.push({ fileName: p.fileName, reason: 'total_cap_exceeded' });
         continue;
       }
-      parts.push(block);
-      consumed += blockBytes;
+      parts.push(AttachmentInjector.formatAttachment(wrapper, emittedIndex + 1, p));
+      consumed += contentBytes;
       emittedIndex += 1;
     }
 

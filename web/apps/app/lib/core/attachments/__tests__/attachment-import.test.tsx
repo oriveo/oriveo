@@ -16,6 +16,7 @@ import {
   appendAttachmentsWithinLimit,
   extractionFailureCopyKey,
 } from '../attachment-import';
+import { DEFAULT_LIMITS } from '../file-text-extractor';
 import { useAttachmentIntake } from '../../../hooks/useAttachmentIntake';
 import { useAttachmentDragDrop } from '../../../hooks/useAttachmentDragDrop';
 
@@ -146,6 +147,67 @@ describe('importAttachmentFiles', () => {
     await settle();
 
     expect(composer.current.attachments.map((item) => item.fileName)).toEqual(['keep.txt', 'late.txt']);
+  });
+
+  describe('the text budget is enforced when attachments are added, not skipped silently by the injector at send time', () => {
+    const CAP = DEFAULT_LIMITS.totalCap;
+    const withText = (bytes: number) => (files: File[]) =>
+      Promise.resolve(files.map((item) => toAttachment(item, { base64Data: 'x'.repeat(bytes) })));
+
+    it('accepts a single file that exactly fills the budget, without a notice', async () => {
+      const composer = renderComposer();
+      mockValidateAndConvertFiles.mockImplementationOnce(withText(CAP));
+      await act(async () => { await composer.current.pickFiles([file('full.txt')]); });
+      await settle();
+      expect(composer.current.attachments.map((item) => item.fileName)).toEqual(['full.txt']);
+      expect(mockShowToast).not.toHaveBeenCalled();
+    });
+
+    it('leaves out the second of two 150KB files in one batch and says why', async () => {
+      const composer = renderComposer();
+      mockValidateAndConvertFiles.mockImplementationOnce(withText(150 * 1024));
+      await act(async () => { await composer.current.pickFiles([file('a.txt'), file('b.txt')]); });
+      await settle();
+      expect(composer.current.attachments.map((item) => item.fileName)).toEqual(['a.txt']);
+      expect(mockShowToast).toHaveBeenCalledExactlyOnceWith('textBudgetExceeded({"fileName":"b.txt"})');
+    });
+
+    it('counts text already in the tray: a later file that does not fit is left out and one that fits is added', async () => {
+      const composer = renderComposer();
+      mockValidateAndConvertFiles.mockImplementationOnce(withText(150 * 1024));
+      await act(async () => { await composer.current.pickFiles([file('a.txt')]); });
+      await settle();
+      mockValidateAndConvertFiles.mockImplementationOnce(async (files: File[]) => files.map((item) =>
+        toAttachment(item, { base64Data: 'x'.repeat(item.name === 'big.txt' ? 100 * 1024 : 1024) })));
+      await act(async () => { await composer.current.pickFiles([file('big.txt'), file('small.txt')]); });
+      await settle();
+      expect(composer.current.attachments.map((item) => item.fileName)).toEqual(['a.txt', 'small.txt']);
+      expect(mockShowToast).toHaveBeenCalledExactlyOnceWith('textBudgetExceeded({"fileName":"big.txt"})');
+    });
+
+    it('rejects a single file that is over the budget by itself, with a notice', async () => {
+      const composer = renderComposer();
+      mockValidateAndConvertFiles.mockImplementationOnce(withText(CAP + 1));
+      await act(async () => { await composer.current.pickFiles([file('huge.txt')]); });
+      await settle();
+      expect(composer.current.attachments).toEqual([]);
+      expect(mockShowToast).toHaveBeenCalledExactlyOnceWith('textBudgetExceeded({"fileName":"huge.txt"})');
+    });
+
+    // Files with original bytes (PDF / Office) may be uploaded natively instead of injected as text;
+    // the model is unknown at import time, so they cannot be rejected by text size.
+    it('does not charge images or files that may be uploaded natively against the text budget', async () => {
+      const composer = renderComposer();
+      mockValidateAndConvertFiles.mockImplementationOnce(async (files: File[]) => [
+        toAttachment(files[0]!, { base64Data: 'x'.repeat(CAP), originalBase64Data: 'raw' }),
+        toAttachment(files[1]!, { base64Data: 'x'.repeat(CAP), originalBase64Data: 'raw' }),
+        toAttachment(files[2]!, { kind: 'image', base64Data: 'x'.repeat(CAP + 1) }),
+      ]);
+      await act(async () => { await composer.current.pickFiles([file('a.pdf'), file('b.pdf'), file('c.png')]); });
+      await settle();
+      expect(composer.current.attachments).toHaveLength(3);
+      expect(mockShowToast).not.toHaveBeenCalled();
+    });
   });
 
   describe('an extraction failure is announced at import time while the attachment keeps its error code', () => {

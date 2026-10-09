@@ -422,6 +422,7 @@
       "historyUnavailableRetry": "Reintentar",
       "title": "Chat",
       "placeholder": "Escribe un mensaje…",
+      "inputLengthLimitReached": "Un mensaje admite hasta {limit} caracteres. El resto no se añadió.",
       "send": "Enviar",
       "greeting": "¿En qué puedo ayudarte?",
       "greetingSub": "Elige un prompt a continuación o escribe tu propio mensaje.",
@@ -463,6 +464,7 @@
         "errorCorrupted": "No se puede abrir {fileName}; parece dañado. Expórtalo o descárgalo otra vez y vuelve a adjuntarlo.",
         "errorNoText": "{fileName} no tiene texto seleccionable; seguramente es un documento escaneado. Elige un modelo que lea imágenes o PDF directamente.",
         "tooManyFiles": "Puedes adjuntar hasta {maxFiles} archivos para este modelo.",
+        "textBudgetExceeded": "{fileName} no se añadió: con este archivo, el texto adjunto al mensaje superaría el límite.",
         "truncatedCtaKnowledge": "Archivo grande truncado. Agregar a Skill Knowledge para búsqueda completa →"
       },
       "dropFiles": "Suelta los archivos aquí",

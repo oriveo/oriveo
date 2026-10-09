@@ -422,6 +422,7 @@
       "historyUnavailableRetry": "再試行",
       "title": "チャット",
       "placeholder": "メッセージを入力…",
+      "inputLengthLimitReached": "メッセージは 1 件につき {limit} 文字までです。超えた分は入力されていません。",
       "send": "送信",
       "greeting": "何かお手伝いできますか？",
       "greetingSub": "下のプロンプトを選択するか、メッセージを入力してください。",
@@ -463,6 +464,7 @@
         "errorCorrupted": "{fileName} を開けませんでした。ファイルが破損している可能性があります。書き出しやダウンロードをやり直してから、もう一度追加してください。",
         "errorNoText": "{fileName} には選択できるテキストがなく、スキャンした書類のようです。画像や PDF をそのまま読めるモデルに切り替えてください。",
         "tooManyFiles": "このモデルには最大 {maxFiles} 件のファイルを添付できます。",
+        "textBudgetExceeded": "{fileName} は追加されませんでした。追加すると、このメッセージに添付できるテキスト量の上限を超えます。",
         "truncatedCtaKnowledge": "大きなファイルが切り詰められました。完全な検索のために Skill Knowledge に追加 →"
       },
       "dropFiles": "ここにファイルをドロップ",

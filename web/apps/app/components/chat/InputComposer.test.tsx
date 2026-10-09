@@ -128,6 +128,12 @@ vi.mock('next-intl', () => ({
   useLocale: () => activeLocale,
 }));
 
+const { mockShowToast } = vi.hoisted(() => ({ mockShowToast: vi.fn() }));
+vi.mock('../Toast', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../Toast')>()),
+  showToast: mockShowToast,
+}));
+
 vi.mock('../../lib/utils/attachment-utils-lazy', () => ({
   loadAttachmentUtils: mockLoadAttachmentUtils,
 }));
@@ -163,6 +169,7 @@ afterEach(() => {
   mockLoadAttachmentUtils.mockResolvedValue({
     validateAndConvertFiles: mockValidateAndConvertFiles,
   });
+  mockShowToast.mockClear();
   mockCapabilityRuntime.current = undefined;
   activeLocale = 'en';
   localStorage.clear();
@@ -215,6 +222,170 @@ describe('InputComposer send clears draft', () => {
     expect(textarea().value).toBe('');
     fireEvent.change(textarea(), { target: { value: sentText } });
     expect(textarea().value).toBe('');
+  });
+});
+
+describe('InputComposer length limit', () => {
+  const LIMIT = 50_000;
+  const limitToast = 'Messages can be up to 50,000 characters. Anything past that was left out.';
+
+  function textarea() {
+    return screen.getByRole('textbox', { name: 'Type a message…' }) as HTMLTextAreaElement;
+  }
+
+  /** jsdom does not run the default paste action; a false return means the component took over the insertion. */
+  function pasteText(text: string): boolean {
+    return fireEvent.paste(textarea(), {
+      clipboardData: { getData: (type: string) => (type === 'text/plain' ? text : ''), items: [] },
+    });
+  }
+
+  function typeTo(next: string, caret = next.length) {
+    const el = textarea();
+    // React's controlled-value tracking goes by the native setter, which is what fireEvent.change uses.
+    fireEvent.change(el, { target: { value: next, selectionStart: caret, selectionEnd: caret } });
+  }
+
+  it('limit_pasteWithinLimit_passesThrough', () => {
+    render(<SentDraftHarness initial="hello" />);
+    textarea().setSelectionRange(5, 5);
+    expect(pasteText('b'.repeat(LIMIT - 5))).toBe(true);
+    expect(mockShowToast).not.toHaveBeenCalled();
+    // The browser's input event that follows carries the full text and is accepted as is.
+    typeTo(`hello${'b'.repeat(LIMIT - 5)}`);
+    expect(textarea().value.length).toBe(LIMIT);
+    expect(mockShowToast).not.toHaveBeenCalled();
+  });
+
+  it('limit_pasteOverflow_keepsPrefixAndToastsOnce', () => {
+    render(<SentDraftHarness initial="" />);
+    expect(pasteText('a'.repeat(60_000))).toBe(false);
+    expect(textarea().value).toBe('a'.repeat(LIMIT));
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+    expect(mockShowToast).toHaveBeenCalledWith(limitToast);
+    // Already at the limit: pasting again adds nothing and does not repeat the toast.
+    expect(pasteText('more')).toBe(false);
+    expect(textarea().value.length).toBe(LIMIT);
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+  });
+
+  it('formats the limit with the active locale grouping', () => {
+    activeLocale = 'de';
+    render(<SentDraftHarness initial="" />);
+    const el = screen.getByRole('textbox') as HTMLTextAreaElement;
+    fireEvent.paste(el, { clipboardData: { getData: () => 'a'.repeat(60_000), items: [] } });
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+    expect(String(mockShowToast.mock.calls[0]![0])).toContain('50.000');
+  });
+
+  it('limit_pasteInMiddle_keepsSurroundingTextAndCaret', () => {
+    const head = 'H'.repeat(20_000);
+    const tail = 'T'.repeat(20_000);
+    render(<SentDraftHarness initial={head + tail} />);
+    textarea().setSelectionRange(20_000, 20_000);
+    expect(pasteText('p'.repeat(30_000))).toBe(false);
+    expect(textarea().value).toBe(head + 'p'.repeat(10_000) + tail);
+    expect(textarea().selectionStart).toBe(30_000);
+    expect(textarea().selectionEnd).toBe(30_000);
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+  });
+
+  it('limit_replaceSelection_countsRemovedRange', () => {
+    render(<SentDraftHarness initial={'a'.repeat(LIMIT)} />);
+    textarea().setSelectionRange(10, 110);
+    // Replacing 100 selected characters with 100: the length is unchanged, so the default paste is left to the browser.
+    expect(pasteText('b'.repeat(100))).toBe(true);
+    expect(mockShowToast).not.toHaveBeenCalled();
+    // Replacing them with 250: only the 100 replaced positions fit.
+    textarea().setSelectionRange(10, 110);
+    expect(pasteText('b'.repeat(250))).toBe(false);
+    expect(textarea().value).toBe('a'.repeat(10) + 'b'.repeat(100) + 'a'.repeat(LIMIT - 110));
+    expect(textarea().selectionStart).toBe(110);
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+  });
+
+  it('limit_typingAtLimit_blockedToastOnceUntilRearmed', () => {
+    const full = 'a'.repeat(LIMIT);
+    render(<SentDraftHarness initial={full} />);
+    typeTo(`${full}b`);
+    expect(textarea().value).toBe(full);
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+    typeTo(`${full}c`);
+    typeTo(`${full}d`);
+    expect(textarea().value).toBe(full);
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+    // It re-arms only after the length drops below the limit.
+    typeTo(full.slice(1));
+    expect(textarea().value.length).toBe(LIMIT - 1);
+    typeTo(`${full.slice(1)}xy`);
+    expect(textarea().value).toBe(`${full.slice(1)}x`);
+    expect(mockShowToast).toHaveBeenCalledTimes(2);
+  });
+
+  it('limit_imeComposition_notCutWhileComposing_cutOnCommit', () => {
+    const base = 'a'.repeat(LIMIT - 1);
+    // Two BMP ideographs (U+4E2D U+6587) as the committed IME text.
+    const committed = '\u4e2d\u6587';
+    render(<SentDraftHarness initial={base} />);
+    fireEvent.compositionStart(textarea());
+    typeTo(`${base}zhong`);
+    expect(textarea().value).toBe(`${base}zhong`);
+    expect(mockShowToast).not.toHaveBeenCalled();
+    typeTo(`${base}${committed}`);
+    expect(textarea().value).toBe(`${base}${committed}`);
+    fireEvent.compositionEnd(textarea(), { data: committed });
+    expect(textarea().value).toBe(`${base}\u4e2d`);
+    expect(textarea().selectionStart).toBe(LIMIT);
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+    // Some browsers fire one more input after compositionend: the text is already truncated, so no further toast.
+    typeTo(`${base}\u4e2d`);
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+  });
+
+  it('limit_cutPoint_neverSplitsSurrogateOrGraphemeCluster', () => {
+    const base = 'a'.repeat(LIMIT - 1);
+    // Family emoji: three emoji joined by ZWJ.
+    const family = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}';
+    render(<SentDraftHarness initial="" />);
+    expect(pasteText(`${base}${family}`)).toBe(false);
+    expect(textarea().value).toBe(base);
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+  });
+
+  it('limit_deleteAtOrAboveLimit_alwaysAllowed', () => {
+    const above = 'a'.repeat(LIMIT + 500);
+    render(<SentDraftHarness initial={above} />);
+    typeTo(above.slice(1));
+    expect(textarea().value.length).toBe(LIMIT + 499);
+    typeTo('a'.repeat(LIMIT));
+    typeTo('a'.repeat(LIMIT - 1));
+    expect(textarea().value.length).toBe(LIMIT - 1);
+    expect(mockShowToast).not.toHaveBeenCalled();
+  });
+
+  it('limit_legacyOverlongDraft_restoredIntact_onlyShrinkAllowed', () => {
+    const legacy = 'L'.repeat(60_000);
+    render(<SentDraftHarness initial={legacy} />);
+    // Programmatic write: the text stays in the field as is, with no truncation and no toast.
+    expect(textarea().value).toBe(legacy);
+    expect(mockShowToast).not.toHaveBeenCalled();
+    typeTo(`${legacy}x`);
+    expect(textarea().value).toBe(legacy);
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+    typeTo(legacy.slice(0, 59_000));
+    expect(textarea().value.length).toBe(59_000);
+    expect(pasteText('zz')).toBe(false);
+    expect(textarea().value.length).toBe(59_000);
+  });
+
+  it('keeps the send-restore guard: a replayed compositionend after send does not bring the text back', () => {
+    render(<SentDraftHarness initial="how to record the screen" />);
+    fireEvent.compositionStart(textarea());
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    fireEvent.compositionEnd(textarea(), { data: 'how to record the screen' });
+    fireEvent.change(textarea(), { target: { value: 'how to record the screen' } });
+    expect(textarea().value).toBe('');
+    expect(mockShowToast).not.toHaveBeenCalled();
   });
 });
 
