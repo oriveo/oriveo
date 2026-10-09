@@ -72,8 +72,11 @@ internal object GenerationParameterResolver {
 
     fun clearWireDiagnostics() = synchronized(wireDiagnostics) { wireDiagnostics.clear() }
 
-    private fun recordWireRejection(parameterId: String, wirePath: String, reason: WireRejectionReason) {
+    /** [dedupe]: metadata re-validates the same published entry on every parse, and without it repeats would crowd out other diagnostics. */
+    internal fun recordWireRejection(parameterId: String, wirePath: String, reason: WireRejectionReason, dedupe: Boolean = false) {
         synchronized(wireDiagnostics) {
+            val diagnostic = WireDiagnostic(parameterId, wirePath, reason)
+            if (dedupe && diagnostic in wireDiagnostics) return
             wireDiagnostics.addLast(WireDiagnostic(parameterId, wirePath, reason))
             while (wireDiagnostics.size > DIAGNOSTIC_CAPACITY) wireDiagnostics.removeFirst()
         }
@@ -97,6 +100,8 @@ internal object GenerationParameterResolver {
     private val thinkingIncompatibleParameters = setOf("temperature", "top_k")
     private const val THINKING_TOP_P_MIN = 0.95
     private const val THINKING_MAX_TOKENS_HEADROOM = 4096L
+    // Shared contract modelLevelFacts.maxTokensWire.aliases: both names address one upstream field, so a request body may carry only one.
+    private val maxTokensAliases = setOf("max_tokens", "max_completion_tokens")
 
     /** Compatibility entry point for callers that only need the body. */
     fun apply(
@@ -130,6 +135,7 @@ internal object GenerationParameterResolver {
         val builderMaxTokens = parsed["max_tokens"]
         var root = parsed
         val written = mutableMapOf<String, JsonElement>()
+        val omittedKeys = mutableSetOf<String>()
         val overrides = options.generationParameters?.values
         if (profile != null && overrides != null) {
             val accepted = acceptValues(overrides, profile, toolsActive = root["tools"] is JsonArray, dropped)
@@ -157,15 +163,18 @@ internal object GenerationParameterResolver {
                         dropped += DroppedParameter(key, DropReason.RequiredField)
                     } else {
                         root = remove(root, wire.split('.'))
+                        omittedKeys += key
                     }
                     GenerationOverrideState.Value -> accepted[key]?.let {
-                        root = applySpecializedOutputContract(root, profile.template, key, wire, it)
+                        val strict = profile.parameters.firstOrNull { parameter -> parameter.id == key }?.strict == true
+                        root = applySpecializedOutputContract(root, profile.template, key, wire, it, strict)
                         written[key] = it
                     }
                     GenerationOverrideState.Inherit -> Unit
                 }
             }
         }
+        if (profile != null) root = keepSingleMaxTokensName(root, profile, omitted = "max_output_tokens" in omittedKeys)
         if (template == "anthropic_messages") {
             root = guardAnthropicThinking(root, profile, written, builderMaxTokens, dropped)
         }
@@ -279,12 +288,25 @@ internal object GenerationParameterResolver {
         return root
     }
 
+    /**
+     * Keeps one max-tokens name: a default the builder wrote under the other name moves to the resolved path; when the user set a value or chose omit, the other name is simply removed.
+     */
+    private fun keepSingleMaxTokensName(source: JsonObject, profile: GenerationProfileRef, omitted: Boolean): JsonObject {
+        val resolvedWire = profile.wire["max_output_tokens"]?.takeIf { it in maxTokensAliases } ?: return source
+        val other = (maxTokensAliases - resolvedWire).single()
+        val builderValue = source[other] ?: return source
+        val root = JsonObject(source - other)
+        if (omitted || resolvedWire in root) return root
+        return JsonObject(root + (resolvedWire to builderValue))
+    }
+
     private fun applySpecializedOutputContract(
         source: JsonObject,
         template: String?,
         parameterID: String,
         wire: String,
         value: JsonElement,
+        strict: Boolean,
     ): JsonObject {
         if (parameterID == "json_schema" && value is JsonObject) {
             return when (template) {
@@ -293,26 +315,27 @@ internal object GenerationParameterResolver {
                     listOf("response_format"),
                     JsonObject(mapOf(
                         "type" to JsonPrimitive("json_schema"),
-                        "json_schema" to JsonObject(mapOf(
-                            "name" to JsonPrimitive("oriveo_response"),
-                            "strict" to JsonPrimitive(true),
-                            "schema" to value,
-                        )),
+                        "json_schema" to JsonObject(buildMap {
+                            put("name", JsonPrimitive("oriveo_response"))
+                            if (strict) put("strict", JsonPrimitive(true))
+                            put("schema", value)
+                        }),
                     )),
                 )
                 "openai_responses" -> set(
                     source,
                     listOf("text", "format"),
-                    JsonObject(mapOf(
-                        "type" to JsonPrimitive("json_schema"),
-                        "name" to JsonPrimitive("oriveo_response"),
-                        "strict" to JsonPrimitive(true),
-                        "schema" to value,
-                    )),
+                    JsonObject(buildMap {
+                        put("type", JsonPrimitive("json_schema"))
+                        put("name", JsonPrimitive("oriveo_response"))
+                        if (strict) put("strict", JsonPrimitive(true))
+                        put("schema", value)
+                    }),
                 )
+                // The top-level output_format is deprecated; the format shares one output_config object with the thinking effort.
                 "anthropic_messages" -> set(
-                    source,
-                    listOf("output_format"),
+                    remove(source, listOf("output_format")),
+                    listOf("output_config", "format"),
                     JsonObject(mapOf("type" to JsonPrimitive("json_schema"), "schema" to value)),
                 )
                 "gemini_generate_content" -> set(

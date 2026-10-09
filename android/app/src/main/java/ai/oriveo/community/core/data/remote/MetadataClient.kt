@@ -13,6 +13,7 @@ import ai.oriveo.community.core.model.RequestPreferenceResolver
 import ai.oriveo.community.core.model.GenerationProfileRef
 import ai.oriveo.community.core.model.GenerationParameterRef
 import ai.oriveo.community.core.model.GenerationParameterRange
+import ai.oriveo.community.core.provider.GenerationParameterResolver
 import ai.oriveo.community.core.provider.ModelPricingFormatter
 import ai.oriveo.community.core.provider.grok.GrokSubscriptionAvailability
 import ai.oriveo.community.core.provider.grok.GrokSubscriptionAuthResolver
@@ -634,9 +635,23 @@ class MetadataClient internal constructor(
         } else {
             reference.parameters
         }
+        // A model-level wire path replaces the template path for that one model only; when it is
+        // invalid the parameter has no write path at all and never falls back to the template.
+        val wire = templateDefinition.wire.toMutableMap()
+        parameters.forEach { parameter ->
+            val id = parameter.id?.trim()?.takeIf { it.isNotEmpty() } ?: return@forEach
+            val override = parameter.wire?.trim()?.takeIf { it.isNotEmpty() } ?: return@forEach
+            val rejection = GenerationParameterResolver.wireRejectionReason(override)
+            if (rejection == null) {
+                wire[id] = override
+            } else {
+                wire.remove(id)
+                GenerationParameterResolver.recordWireRejection(id, override, rejection, dedupe = true)
+            }
+        }
         return reference.copy(
             template = template,
-            wire = templateDefinition.wire,
+            wire = wire,
             transport = templateDefinition.transport,
             parameters = parameters.map { parameter ->
                 val id = parameter.id?.trim()?.takeIf { it.isNotEmpty() } ?: return@map parameter
@@ -645,13 +660,15 @@ class MetadataClient internal constructor(
                     id = id,
                     group = definition.group,
                     valueSchema = definition.valueSchema,
-                    range = definition.range,
+                    // A model-level range / conflictsWith replaces the platform one as a whole (no
+                    // per-key merge); when absent the platform value applies.
+                    range = parameter.range ?: definition.range,
 
                     enumValues = parameter.enumValues.ifEmpty { definition.enumValues },
                     fixedValue = definition.fixedValue,
                     defaultDescription = definition.defaultDescription,
                     interactionGroup = definition.interactionGroup,
-                    conflictsWith = definition.conflictsWith,
+                    conflictsWith = parameter.conflictsWith.ifEmpty { definition.conflictsWith },
                     requires = definition.requires,
                     constraints = definition.constraints,
                     portability = definition.portability,
