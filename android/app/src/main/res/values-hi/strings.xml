@@ -901,8 +901,11 @@
     <string name="file_extraction_error_corrupted">%1$s पढ़ा नहीं जा सका। फ़ाइल ख़राब हो सकती है।</string>
     <string name="file_extraction_error_unsupported">%1$s समर्थित फ़ाइल प्रकार नहीं है।</string>
     <string name="file_extraction_error_too_large">%1$s बहुत बड़ी है (अधिकतम %2$d MB)।</string>
-    <string name="file_extraction_error_generic">%1$s को प्रोसेस नहीं किया जा सका. फिर कोशिश करें या दूसरी फ़ाइल चुनें.</string>
+    <string name="file_extraction_error_generic">%1$s को प्रोसेस नहीं किया जा सका। दोबारा प्रयास करें या कोई अन्य फ़ाइल चुनें।</string>
     <string name="file_extraction_truncated_notice">%1$s लंबी फ़ाइल है, इसलिए %3$d में से सिर्फ़ पहली %2$d पंक्तियाँ जोड़ी गईं।</string>
+    <string name="file_extraction_send_blocked_text_budget">संदेश नहीं भेजा गया: %1$s को मिलाकर, जुड़ी फ़ाइलों का टेक्स्ट इस मॉडल की सीमा से ज़्यादा हो जाता है। कोई फ़ाइल हटाएँ या मॉडल बदलें।</string>
+    <string name="error_attachment_not_accepted_title">अटैचमेंट स्वीकार नहीं</string>
+    <string name="file_extraction_text_budget_exceeded">%1$s नहीं जोड़ी गई: इसे जोड़ने पर इस संदेश के साथ जुड़ा टेक्स्ट सीमा से ज़्यादा हो जाता।</string>
     <string name="file_extraction_chip_extracted_lines">%1$d पंक्तियाँ निकाली गईं</string>
     <string name="file_attachment_count_limit_reached">इस मॉडल के लिए आप अधिकतम %1$d फ़ाइलें जोड़ सकते हैं।</string>
     <string name="chat_input_length_limit_reached">एक संदेश में अधिकतम %1$,d अक्षर हो सकते हैं। इससे आगे का हिस्सा नहीं जोड़ा गया।</string>

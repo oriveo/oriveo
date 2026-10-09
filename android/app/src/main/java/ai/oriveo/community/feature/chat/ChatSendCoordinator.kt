@@ -60,145 +60,26 @@ internal class ChatSendCoordinator(
         // the epoch later on another thread, and re-reading it there would let a request built for
         // one partition be dispatched against another.
         val evidencePartitionId = capabilityEvidencePartition()
-        val selectedModel = ProviderSelectionSnapshot.selectedModel(provider, modelId)
-        val modelControlIdentity = selectedModel?.let {
-            ModelControlRuntimeIdentityResolver.resolve(provider, it)
-        }
-        val omitSettingMarker = appendToAssistant?.customRetryWithoutFieldsCode
-            ?.split(':')
-            ?.takeIf { parts -> parts.size == 5 && parts[0] == "omit_capability_setting_once" }
-        val omitSettingSource = omitSettingMarker?.get(1)?.takeIf { it in setOf("custom", "provider_recipe") }
-        val omitSettingOwner = omitSettingMarker?.get(2)?.takeIf { it in setOf("web", "reasoning", "generation") }
-        fun decodeMarkerPart(encoded: String): String? = runCatching {
-            String(java.util.Base64.getUrlDecoder().decode(encoded), Charsets.UTF_8)
-        }.getOrNull()
-        val omitRecipeRef = omitSettingMarker?.get(3)?.takeUnless { it == "-" }?.let(::decodeMarkerPart)
-        val omitSettingPointers = omitSettingMarker?.get(4)?.let { encoded ->
-            runCatching {
-                String(java.util.Base64.getUrlDecoder().decode(encoded), Charsets.UTF_8)
-                    .split('\u001f')
-                    .filter { it.startsWith('/') && it.length <= 160 }
-                    .toSet()
-                    .takeIf { it.isNotEmpty() }
-            }.getOrNull()
-        }.orEmpty()
-        fun cachedRejectedSettings(owner: String, source: String, recipeRef: String? = null): Set<String> =
-            modelControlIdentity
-                ?.let { ModelControlRejectionCache.rejectedSettings(it, owner, source, recipeRef = recipeRef) }
-                .orEmpty()
-        val omitSettingCacheMatches = omitSettingSource != null && omitSettingOwner != null &&
-            omitSettingPointers.isNotEmpty() &&
-            (omitSettingSource != "provider_recipe" || !omitRecipeRef.isNullOrBlank()) &&
-            cachedRejectedSettings(omitSettingOwner, omitSettingSource, omitRecipeRef).containsAll(omitSettingPointers)
-        val resendSettingSource = omitSettingSource.takeIf { omitSettingCacheMatches }
-        val resendSettingOwner = omitSettingOwner.takeIf { omitSettingCacheMatches }
-        val resendRecipeRef = omitRecipeRef.takeIf { omitSettingCacheMatches }
-        val resendSettingPointers = omitSettingPointers.takeIf { omitSettingCacheMatches }.orEmpty()
-        // One-shot way out after a local rejection or an upstream rejection of the additional request body:
-        // omit it for this request only, without touching what is stored.
-        val omitLocalOwnerOnce = appendToAssistant?.customRetryWithoutFieldsCode
-            ?.let(::omitLocalFieldsOnceOwner)
-        // Same resolution the composer chip and the model-control panel use. What goes out on the
-        // wire and what the UI shows must always come from one conclusion, never two.
-        val storedTypedPreferences = capabilityPreferenceStore?.resolvedForRequest(
-            providerID = provider.id,
-            providerKind = provider.kind,
-            modelID = modelControlIdentity?.canonicalModelId ?: modelId,
-            conversationID = conversation.id,
-            skillID = conversation.skillId,
-            transportIdentity = modelControlIdentity?.storageIdentity,
-        ) ?: CapabilityPreferenceValues()
-        // A custom fragment goes out on exactly one condition: this owner's custom entry is
-        // enabled right now. Schema availability filtering already happens inside
-        // `fragmentsByOwner`, so there is deliberately no second `capabilityCustomFragmentAvailable`
-        // check here. Writing that rule in two places is exactly the shape of the bug where the UI
-        // claims a custom fragment is in charge while the request quietly dropped it.
-        val storedCustomFragments = if (modelControlIdentity != null) {
-            localCustomFragmentStore?.fragmentsByOwner(
-                provider.id,
-                modelControlIdentity.canonicalModelId,
-                conversation.id,
-                modelControlIdentity.storageIdentity,
-                // Sending is the one discrete event that must not miss a recipe version change: if
-                // the user's custom fields do not follow the new version, this message silently
-                // goes out without a JSON block they believe is still in effect.
-                forwardPort = LocalCapabilityCustomFragmentStore.ForwardPortContext(
-                    providerKind = provider.kind,
-                    schemaModelID = modelId,
-                    activeProfile = selectedModel.generationProfile,
-                ),
-            ).orEmpty()
-        } else emptyMap()
-        val storedReasoningMode = ReasoningMode.fromIntent(storedTypedPreferences.reasoningIntent)
-        val storedWebRequested = storedTypedPreferences.web != CapabilityWebPreference.Off
-        val currentRecipeRefs = MetadataClient.capabilityRuntimeRequest(
-            providerKind = provider.kind,
-            modelID = modelId,
-            finalTransport = modelControlIdentity?.finalTransport.orEmpty(),
-            webRequested = storedWebRequested,
-            reasoningMode = storedReasoningMode,
-            typedWebIntent = "force".takeIf { storedTypedPreferences.web == CapabilityWebPreference.Force },
-            typedReasoningIntent = storedTypedPreferences.reasoningIntent,
-        )?.selections.orEmpty().associate { it.capability to it.id }
-        // A tiered rejection makes the group dormant only when exactly that tier is selected; an untiered rejection still makes the whole group dormant.
-        val normalRejectedRecipeOwners = currentRecipeRefs.mapNotNull { (owner, recipeRef) ->
-            owner.takeIf {
-                owner !in storedCustomFragments && modelControlIdentity != null &&
-                    ModelControlRejectionCache.blocksSelection(
-                        modelControlIdentity,
-                        owner,
-                        "provider_recipe",
-                        recipeRef,
-                        selectedTier = storedTypedPreferences.reasoningIntent.takeIf { owner == "reasoning" },
-                    )
-            }
-        }.toSet()
-        val normalRejectedCustomOwners = storedCustomFragments.keys.filterTo(linkedSetOf()) { owner ->
-            cachedRejectedSettings(owner, "custom").isNotEmpty()
-        }
-        val explicitRecipeOwner = resendSettingOwner?.takeIf {
-            resendSettingSource == "provider_recipe" && resendRecipeRef != null && resendSettingPointers.isNotEmpty()
-        }
-        val dormantOwners = (normalRejectedRecipeOwners + normalRejectedCustomOwners) - setOfNotNull(explicitRecipeOwner)
-        val typedPreferences = storedTypedPreferences.copy(
-            web = if ("web" in dormantOwners) CapabilityWebPreference.Off else storedTypedPreferences.web,
+        val dispatch = resolveCapabilityDispatch(
+            provider = provider,
+            modelId = modelId,
+            conversationId = conversation.id,
+            skillId = conversation.skillId,
+            appendToAssistant = appendToAssistant,
         )
-        val effectiveReasoningMode = ReasoningMode.fromIntent(typedPreferences.reasoningIntent)
-        val requestedWebSearchEnabled = when (typedPreferences.web) {
-            CapabilityWebPreference.Off -> false
-            CapabilityWebPreference.Automatic, CapabilityWebPreference.Force, CapabilityWebPreference.Custom -> true
-        }
-        val effectiveWebSearchEnabled = requestedWebSearchEnabled
-        val dispatchedTypedPreferences = if (effectiveWebSearchEnabled) typedPreferences else typedPreferences.copy(
-            web = CapabilityWebPreference.Off,
-        )
-        // The raw fragment is read only into this process-local request carrier; it is never
-        // persisted or logged. An explicit recovery retry carries a one-shot marker on the
-        // replacement assistant message, which suppresses every custom owner for that one request
-        // without touching what the user has stored.
-        val localCustomFragments = storedCustomFragments
-            .mapNotNull { (owner, raw) ->
-                // The additional request body now owns the outbound path of the legacy generation custom
-                // field (stored values are migrated), so it is not sent from here any more.
-                (owner to raw).takeIf {
-                    owner != "generation" && owner !in dormantOwners && resendSettingOwner != owner &&
-                        omitLocalOwnerOnce != owner
-                }
-            }
-            .toMap()
-        val customOwners = localCustomFragments.keys
-        val additionalRequestBody = if (omitLocalOwnerOnce != ai.oriveo.community.core.provider.AdditionalRequestBody.OWNER) {
-            localCustomFragmentStore?.outboundAdditionalBody(
-                provider.id,
-                modelControlIdentity?.canonicalModelId ?: modelId,
-                conversation.id,
-            )
-        } else null
-        val customTypedPreferences = dispatchedTypedPreferences.copy(
-            web = if ("web" in customOwners) CapabilityWebPreference.Off else dispatchedTypedPreferences.web,
-            reasoningIntent = if ("reasoning" in customOwners) null else dispatchedTypedPreferences.reasoningIntent,
-        )
-        val customReasoningMode = if ("reasoning" in customOwners) ReasoningMode.Automatic else effectiveReasoningMode
+        val selectedModel = dispatch.selectedModel
+        val modelControlIdentity = dispatch.modelControlIdentity
+        val resendSettingSource = dispatch.resendSettingSource
+        val resendSettingOwner = dispatch.resendSettingOwner
+        val resendSettingPointers = dispatch.resendSettingPointers
+        val resendRecipeRef = dispatch.resendRecipeRef
+        val dormantOwners = dispatch.dormantOwners
+        val effectiveReasoningMode = dispatch.effectiveReasoningMode
+        val effectiveWebSearchEnabled = dispatch.effectiveWebSearchEnabled
+        val localCustomFragments = dispatch.localCustomFragments
+        val additionalRequestBody = dispatch.additionalRequestBody
+        val customTypedPreferences = dispatch.customTypedPreferences
+        val customReasoningMode = dispatch.customReasoningMode
 
         // The whole send, including the 1-50ms window spent assembling the prompt, runs on the
         // application scope rather than the ViewModel's. Navigating away or closing the chat screen
@@ -323,7 +204,7 @@ internal class ChatSendCoordinator(
                     attachments = attachments,
                     quoteContext = quoteContext,
                     reasoningMode = customReasoningMode,
-                    webSearchEnabled = effectiveWebSearchEnabled && "web" !in customOwners,
+                    webSearchEnabled = dispatch.outboundWebSearchEnabled,
                     antiForgetText = antiForgetText,
                     requestOptions = requestOptions,
                     persistUserMessage = persistUserMessage,
@@ -332,6 +213,243 @@ internal class ChatSendCoordinator(
                 ),
             )
         }
+    }
+
+    /** The result of [resolveCapabilityDispatch]: every conclusion a send reaches about capability options. The outbound request and the pre-send check read the same one. */
+    internal class CapabilityDispatch(
+        val selectedModel: AIModel?,
+        val modelControlIdentity: ai.oriveo.community.core.provider.ModelControlRuntimeIdentity?,
+        val resendSettingSource: String?,
+        val resendSettingOwner: String?,
+        val resendRecipeRef: String?,
+        val resendSettingPointers: Set<String>,
+        val dormantOwners: Set<String>,
+        val effectiveReasoningMode: ReasoningMode,
+        val effectiveWebSearchEnabled: Boolean,
+        val localCustomFragments: Map<String, String>,
+        val customOwners: Set<String>,
+        val additionalRequestBody: String?,
+        val customTypedPreferences: CapabilityPreferenceValues,
+        val customReasoningMode: ReasoningMode,
+    ) {
+        /** The web search switch handed to the service: when a custom fragment owns web search, the typed switch no longer goes out. */
+        val outboundWebSearchEnabled: Boolean get() = effectiveWebSearchEnabled && "web" !in customOwners
+    }
+
+    /**
+     * Resolves the value of web search, reasoning and the other capability options for one send. Reads only in-memory
+     * preferences and caches; it neither suspends nor touches the network.
+     *
+     * Split out of [launchSend] so the composer's pre-send check gets exactly the values the outbound request will
+     * use (see [outboundRouteOptions]) instead of deriving them a second time.
+     */
+    private fun resolveCapabilityDispatch(
+        provider: Provider,
+        modelId: String,
+        conversationId: String,
+        skillId: String?,
+        appendToAssistant: ChatMessage?,
+    ): CapabilityDispatch {
+        val selectedModel = ProviderSelectionSnapshot.selectedModel(provider, modelId)
+        val modelControlIdentity = selectedModel?.let {
+            ModelControlRuntimeIdentityResolver.resolve(provider, it)
+        }
+        val omitSettingMarker = appendToAssistant?.customRetryWithoutFieldsCode
+            ?.split(':')
+            ?.takeIf { parts -> parts.size == 5 && parts[0] == "omit_capability_setting_once" }
+        val omitSettingSource = omitSettingMarker?.get(1)?.takeIf { it in setOf("custom", "provider_recipe") }
+        val omitSettingOwner = omitSettingMarker?.get(2)?.takeIf { it in setOf("web", "reasoning", "generation") }
+        fun decodeMarkerPart(encoded: String): String? = runCatching {
+            String(java.util.Base64.getUrlDecoder().decode(encoded), Charsets.UTF_8)
+        }.getOrNull()
+        val omitRecipeRef = omitSettingMarker?.get(3)?.takeUnless { it == "-" }?.let(::decodeMarkerPart)
+        val omitSettingPointers = omitSettingMarker?.get(4)?.let { encoded ->
+            runCatching {
+                String(java.util.Base64.getUrlDecoder().decode(encoded), Charsets.UTF_8)
+                    .split('\u001f')
+                    .filter { it.startsWith('/') && it.length <= 160 }
+                    .toSet()
+                    .takeIf { it.isNotEmpty() }
+            }.getOrNull()
+        }.orEmpty()
+        fun cachedRejectedSettings(owner: String, source: String, recipeRef: String? = null): Set<String> =
+            modelControlIdentity
+                ?.let { ModelControlRejectionCache.rejectedSettings(it, owner, source, recipeRef = recipeRef) }
+                .orEmpty()
+        val omitSettingCacheMatches = omitSettingSource != null && omitSettingOwner != null &&
+            omitSettingPointers.isNotEmpty() &&
+            (omitSettingSource != "provider_recipe" || !omitRecipeRef.isNullOrBlank()) &&
+            cachedRejectedSettings(omitSettingOwner, omitSettingSource, omitRecipeRef).containsAll(omitSettingPointers)
+        val resendSettingSource = omitSettingSource.takeIf { omitSettingCacheMatches }
+        val resendSettingOwner = omitSettingOwner.takeIf { omitSettingCacheMatches }
+        val resendRecipeRef = omitRecipeRef.takeIf { omitSettingCacheMatches }
+        val resendSettingPointers = omitSettingPointers.takeIf { omitSettingCacheMatches }.orEmpty()
+        // One-shot way out after a local rejection or an upstream rejection of the additional request body:
+        // omit it for this request only, without touching what is stored.
+        val omitLocalOwnerOnce = appendToAssistant?.customRetryWithoutFieldsCode
+            ?.let(::omitLocalFieldsOnceOwner)
+        // Same resolution the composer chip and the model-control panel use. What goes out on the
+        // wire and what the UI shows must always come from one conclusion, never two.
+        val storedTypedPreferences = capabilityPreferenceStore?.resolvedForRequest(
+            providerID = provider.id,
+            providerKind = provider.kind,
+            modelID = modelControlIdentity?.canonicalModelId ?: modelId,
+            conversationID = conversationId,
+            skillID = skillId,
+            transportIdentity = modelControlIdentity?.storageIdentity,
+        ) ?: CapabilityPreferenceValues()
+        // A custom fragment goes out on exactly one condition: this owner's custom entry is
+        // enabled right now. Schema availability filtering already happens inside
+        // `fragmentsByOwner`, so there is deliberately no second `capabilityCustomFragmentAvailable`
+        // check here. Writing that rule in two places is exactly the shape of the bug where the UI
+        // claims a custom fragment is in charge while the request quietly dropped it.
+        val storedCustomFragments = if (modelControlIdentity != null) {
+            localCustomFragmentStore?.fragmentsByOwner(
+                provider.id,
+                modelControlIdentity.canonicalModelId,
+                conversationId,
+                modelControlIdentity.storageIdentity,
+                // Sending is the one discrete event that must not miss a recipe version change: if
+                // the user's custom fields do not follow the new version, this message silently
+                // goes out without a JSON block they believe is still in effect.
+                forwardPort = LocalCapabilityCustomFragmentStore.ForwardPortContext(
+                    providerKind = provider.kind,
+                    schemaModelID = modelId,
+                    activeProfile = selectedModel.generationProfile,
+                ),
+            ).orEmpty()
+        } else emptyMap()
+        val storedReasoningMode = ReasoningMode.fromIntent(storedTypedPreferences.reasoningIntent)
+        val storedWebRequested = storedTypedPreferences.web != CapabilityWebPreference.Off
+        val currentRecipeRefs = MetadataClient.capabilityRuntimeRequest(
+            providerKind = provider.kind,
+            modelID = modelId,
+            finalTransport = modelControlIdentity?.finalTransport.orEmpty(),
+            webRequested = storedWebRequested,
+            reasoningMode = storedReasoningMode,
+            typedWebIntent = "force".takeIf { storedTypedPreferences.web == CapabilityWebPreference.Force },
+            typedReasoningIntent = storedTypedPreferences.reasoningIntent,
+        )?.selections.orEmpty().associate { it.capability to it.id }
+        // A tiered rejection makes the group dormant only when exactly that tier is selected; an untiered rejection still makes the whole group dormant.
+        val normalRejectedRecipeOwners = currentRecipeRefs.mapNotNull { (owner, recipeRef) ->
+            owner.takeIf {
+                owner !in storedCustomFragments && modelControlIdentity != null &&
+                    ModelControlRejectionCache.blocksSelection(
+                        modelControlIdentity,
+                        owner,
+                        "provider_recipe",
+                        recipeRef,
+                        selectedTier = storedTypedPreferences.reasoningIntent.takeIf { owner == "reasoning" },
+                    )
+            }
+        }.toSet()
+        val normalRejectedCustomOwners = storedCustomFragments.keys.filterTo(linkedSetOf()) { owner ->
+            cachedRejectedSettings(owner, "custom").isNotEmpty()
+        }
+        val explicitRecipeOwner = resendSettingOwner?.takeIf {
+            resendSettingSource == "provider_recipe" && resendRecipeRef != null && resendSettingPointers.isNotEmpty()
+        }
+        val dormantOwners = (normalRejectedRecipeOwners + normalRejectedCustomOwners) - setOfNotNull(explicitRecipeOwner)
+        val typedPreferences = storedTypedPreferences.copy(
+            web = if ("web" in dormantOwners) CapabilityWebPreference.Off else storedTypedPreferences.web,
+        )
+        val effectiveReasoningMode = ReasoningMode.fromIntent(typedPreferences.reasoningIntent)
+        val requestedWebSearchEnabled = when (typedPreferences.web) {
+            CapabilityWebPreference.Off -> false
+            CapabilityWebPreference.Automatic, CapabilityWebPreference.Force, CapabilityWebPreference.Custom -> true
+        }
+        val effectiveWebSearchEnabled = requestedWebSearchEnabled
+        val dispatchedTypedPreferences = if (effectiveWebSearchEnabled) typedPreferences else typedPreferences.copy(
+            web = CapabilityWebPreference.Off,
+        )
+        // The raw fragment is read only into this process-local request carrier; it is never
+        // persisted or logged. An explicit recovery retry carries a one-shot marker on the
+        // replacement assistant message, which suppresses every custom owner for that one request
+        // without touching what the user has stored.
+        val localCustomFragments = storedCustomFragments
+            .mapNotNull { (owner, raw) ->
+                // The additional request body now owns the outbound path of the legacy generation custom
+                // field (stored values are migrated), so it is not sent from here any more.
+                (owner to raw).takeIf {
+                    owner != "generation" && owner !in dormantOwners && resendSettingOwner != owner &&
+                        omitLocalOwnerOnce != owner
+                }
+            }
+            .toMap()
+        val customOwners = localCustomFragments.keys
+        val additionalRequestBody = if (omitLocalOwnerOnce != ai.oriveo.community.core.provider.AdditionalRequestBody.OWNER) {
+            localCustomFragmentStore?.outboundAdditionalBody(
+                provider.id,
+                modelControlIdentity?.canonicalModelId ?: modelId,
+                conversationId,
+            )
+        } else null
+        val customTypedPreferences = dispatchedTypedPreferences.copy(
+            web = if ("web" in customOwners) CapabilityWebPreference.Off else dispatchedTypedPreferences.web,
+            reasoningIntent = if ("reasoning" in customOwners) null else dispatchedTypedPreferences.reasoningIntent,
+        )
+        val customReasoningMode = if ("reasoning" in customOwners) ReasoningMode.Automatic else effectiveReasoningMode
+        return CapabilityDispatch(
+            selectedModel = selectedModel,
+            modelControlIdentity = modelControlIdentity,
+            resendSettingSource = resendSettingSource,
+            resendSettingOwner = resendSettingOwner,
+            resendRecipeRef = resendRecipeRef,
+            resendSettingPointers = resendSettingPointers,
+            dormantOwners = dormantOwners,
+            effectiveReasoningMode = effectiveReasoningMode,
+            effectiveWebSearchEnabled = effectiveWebSearchEnabled,
+            localCustomFragments = localCustomFragments,
+            customOwners = customOwners,
+            additionalRequestBody = additionalRequestBody,
+            customTypedPreferences = customTypedPreferences,
+            customReasoningMode = customReasoningMode,
+        )
+    }
+
+    /**
+     * The reasoning mode and web search switch the service would receive if the message in the composer were sent
+     * now. They come from the same resolution [launchSend] hands to [ChatStreamingManager].
+     *
+     * @param conversationId id of the existing conversation; pass the draft session id when none exists yet (the
+     *   preferences move over unchanged when the conversation is created).
+     */
+    fun outboundRouteOptions(
+        provider: Provider,
+        modelId: String,
+        conversationId: String,
+        skillId: String?,
+    ): Pair<ReasoningMode, Boolean> {
+        val dispatch = resolveCapabilityDispatch(
+            provider = provider,
+            modelId = modelId,
+            conversationId = conversationId,
+            skillId = skillId,
+            appendToAssistant = null,
+        )
+        return dispatch.customReasoningMode to dispatch.outboundWebSearchEnabled
+    }
+
+    /**
+     * The options the pre-send check works from: the two values of [outboundRouteOptions], plus whether the tool loop
+     * may take over.
+     *
+     * Whether the tool loop takes over is only decided after the send, because the MCP tool plan has to ask this
+     * connection's tool-call ruling. All the composer knows is whether MCP servers are enabled.
+     */
+    fun attachmentSendOptions(
+        provider: Provider,
+        modelId: String,
+        conversationId: String,
+        skillId: String?,
+        mcpEnabledServerCount: Int,
+    ): ai.oriveo.community.core.provider.AttachmentSendPreflight.SendOptions {
+        val (reasoningMode, webSearchEnabled) = outboundRouteOptions(provider, modelId, conversationId, skillId)
+        return ai.oriveo.community.core.provider.AttachmentSendPreflight.SendOptions(
+            reasoningMode = reasoningMode,
+            webSearchEnabled = webSearchEnabled,
+            toolLoopPossible = mcpEnabledServerCount > 0,
+        )
     }
 
     private fun finalSystemPrompt(

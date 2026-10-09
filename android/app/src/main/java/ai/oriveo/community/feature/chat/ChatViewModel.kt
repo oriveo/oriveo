@@ -150,6 +150,7 @@ class ChatViewModel(
         pendingAttachments = { pendingAttachments },
         addAttachment = ::addAttachment,
         presentAttachmentSizeLimitDialog = ::presentAttachmentSizeLimitDialog,
+        activeProvider = { conversationState.provider },
     )
     private val sendLauncher = ChatSendLauncher { conversation, provider, modelId, text, existingMessages, attachments,
         persistUserMessage, appendToAssistant, userMessageAlreadyInHistory, quoteContext ->
@@ -239,6 +240,17 @@ class ChatViewModel(
         generationParameterDraftSessionId = { generationParameterDraftSessionId },
         adoptMcpDraft = { conversationId -> mcpCoordinator.adoptDraft(conversationId) },
         onQuoteConsumed = quoteCoordinator::consume,
+        onAttachmentsUndeliverable = { attachmentsUndeliverableToast(it)?.let(globalSnackbarManager::show) },
+        resolveAttachmentSendOptions = { provider, modelId ->
+            sendCoordinator.attachmentSendOptions(
+                provider, modelId,
+                // Before a conversation exists the preferences live under the draft session id and move over unchanged
+                // when the conversation is created.
+                conversationId = currentConversation?.id ?: generationParameterDraftSessionId,
+                skillId = currentConversation?.skillId,
+                mcpEnabledServerCount = mcpCoordinator.panelState.enabledServerCount,
+            )
+        },
         onComposerConsumed = { conversationId ->
             draftCoordinator.pushText("")
             pendingAttachments = emptyList()
@@ -790,8 +802,17 @@ class ChatViewModel(
             messages[messageIndex].role == ChatRole.User -> messages[messageIndex].quoteContext
             else -> messages.take(messageIndex).lastOrNull { it.role == ChatRole.User }?.quoteContext
         }
+        val editedUserMessage = when {
+            messageIndex < 0 -> null
+            messages[messageIndex].role == ChatRole.User -> messages[messageIndex]
+            else -> messages.take(messageIndex).lastOrNull { it.role == ChatRole.User }
+        }
+        val originalAttachments = editedUserMessage?.attachments.orEmpty()
         return retryCoordinator.editMessageInline(messageId)?.also {
             quoteCoordinator.restore(restoredQuote)
+            pendingAttachments = pendingAttachments + attachmentCoordinator.restoredForEdit(
+                originalAttachments, ::supportsImage, ::supportsFile, ::supportsVideo,
+            )
         }
     }
 

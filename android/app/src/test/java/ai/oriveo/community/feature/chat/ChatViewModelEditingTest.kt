@@ -181,6 +181,61 @@ class ChatViewModelEditingTest {
         coVerify { conversationRepository.deleteMessagesStartingAt("conversation-1", "user-1") }
     }
 
+    private fun editingViewModel() = ChatViewModel(
+        savedStateHandle = SavedStateHandle(mapOf("conversationId" to "conversation-1")),
+        context = mockk<Context>(relaxed = true),
+        appPreferencesRepository = appPreferencesRepository,
+        providerRepository = providerRepository,
+        conversationRepository = conversationRepository,
+        noteRepository = mockk(relaxed = true),
+        chatStreamingManager = chatStreamingManager,
+        skillRepository = skillRepository,
+        attachmentProcessor = mockk(relaxed = true),
+        globalSnackbarManager = globalSnackbarManager,
+        applicationScope = applicationScope,
+    )
+
+    private fun editingConversationWith(attachments: List<Attachment>) {
+        val edited = conversation.copy(messages = listOf(userMessage.copy(attachments = attachments), assistantMessage))
+        every { conversationRepository.observeMetadata("conversation-1") } returns flowOf(edited)
+        coEvery { conversationRepository.getWithMessages("conversation-1") } returns edited
+        coEvery { conversationRepository.getWithLatestMessageWindow("conversation-1", any()) } returns edited
+        windowStore.put("conversation-1", edited.messages)
+    }
+
+    /** Changing one word must not lose the files: the original message's attachments return to the composer with the text. */
+    @Test
+    fun `editing puts the original attachments back into the composer`() = runTest {
+        editingConversationWith(listOf(attachment))
+        val viewModel = editingViewModel()
+        advanceUntilIdle()
+
+        val restoredText = viewModel.editMessageInline("assistant-1")
+        advanceUntilIdle()
+
+        assertEquals("Original question", restoredText)
+        val restored = viewModel.pendingAttachments.single()
+        assertEquals("notes.txt", restored.fileName)
+        assertEquals("bm90ZXM=", restored.base64Data)
+        // The original message was deleted by the edit: the copy in the composer is a new attachment with its own id.
+        assertTrue(restored.id != "attachment-1")
+    }
+
+    @Test
+    fun `restored attachments go through the model capability filter and the count limit`() = runTest {
+        // The current model does not accept images (no Image capability); there are 4 files against a limit of 3.
+        val image = Attachment(id = "img", kind = AttachmentKind.Image, fileName = "p.png", mimeType = "image/png", base64Data = "aW1n")
+        val files = (1..4).map { attachment.copy(id = "f$it", fileName = "f$it.txt") }
+        editingConversationWith(listOf(image) + files)
+        val viewModel = editingViewModel()
+        advanceUntilIdle()
+
+        viewModel.editMessageInline("user-1")
+        advanceUntilIdle()
+
+        assertEquals(listOf("f1.txt", "f2.txt", "f3.txt"), viewModel.pendingAttachments.map { it.fileName })
+    }
+
     @Test
     fun `regenerate truncates to the user message and re-streams without persisting a new user`() = runTest {
         val viewModel = ChatViewModel(

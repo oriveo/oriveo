@@ -26,6 +26,11 @@ internal fun failedMessageDetail(error: ProviderServiceError): String = when (er
 internal fun isSubscriptionFailureDetail(errorDetail: String?): Boolean =
     errorDetail != null && errorDetail in SUBSCRIPTION_FAILURE_MESSAGES
 
+/** Whether a persisted `errorDetail` means "attachment text exceeded the model's limits (total size or count) and nothing was sent". The way out is to remove files or switch models; resending as is does not help. */
+internal fun isAttachmentTextOverLimitDetail(errorDetail: String?): Boolean =
+    ProviderServiceError.AttachmentTextOverLimit.isDetail(errorDetail) ||
+        ProviderServiceError.AttachmentCountOverLimit.isDetail(errorDetail)
+
 private val SUBSCRIPTION_FAILURE_MESSAGES: Set<String> =
     GrokSubscriptionFailureReason.entries.map { it.userMessage }.toSet() +
         OpenAISubscriptionFailureReason.entries.map { it.userMessage }

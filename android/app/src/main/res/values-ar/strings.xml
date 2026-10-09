@@ -937,8 +937,11 @@
     <string name="file_extraction_error_corrupted">تعذّر قراءة \u2066%1$s\u2069؛ قد يكون الملف تالفًا.</string>
     <string name="file_extraction_error_unsupported">نوع الملف \u2066%1$s\u2069 غير مدعوم.</string>
     <string name="file_extraction_error_too_large">الملف \u2066%1$s\u2069 كبير جدًا (الحد الأقصى %2$d ميجابايت).</string>
-    <string name="file_extraction_error_generic">تعذّر معالجة \u2066%1$s\u2069. حاول مرة أخرى أو اختر ملفًا آخر.</string>
+    <string name="file_extraction_error_generic">تعذّر معالجة \u2066%1$s\u2069. حاول مجدداً أو اختر ملفاً آخر.</string>
     <string name="file_extraction_truncated_notice">الملف \u2066%1$s\u2069 طويل، فأُضيف أوله فقط (الأسطر: %2$d من أصل %3$d).</string>
+    <string name="file_extraction_send_blocked_text_budget">لم تُرسل الرسالة: بإضافة \u2066%1$s\u2069 يتجاوز النص المرفق الحد الأقصى لهذا النموذج. يُرجى إزالة ملف أو تغيير النموذج.</string>
+    <string name="error_attachment_not_accepted_title">المرفق غير مقبول</string>
+    <string name="file_extraction_text_budget_exceeded">لم تتم إضافة \u2066%1$s\u2069: إضافته تجعل النص المرفق بهذه الرسالة يتجاوز الحد الأقصى.</string>
     <string name="file_extraction_chip_extracted_lines">تم استخراج %1$d سطر</string>
     <string name="file_attachment_count_limit_reached">يمكنك إرفاق ما يصل إلى %1$d ملفات لهذا النموذج.</string>
     <string name="chat_input_length_limit_reached">الحد الأقصى للرسالة الواحدة %1$,d حرف. لم تتم إضافة ما زاد على ذلك.</string>

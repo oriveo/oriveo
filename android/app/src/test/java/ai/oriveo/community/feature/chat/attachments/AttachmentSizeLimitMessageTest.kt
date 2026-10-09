@@ -103,6 +103,17 @@ class AttachmentSizeLimitMessageTest {
     }
 
     @Test
+    fun `every locale names the file that pushed the attached text over the limit`() {
+        val messages = stringsByLocale("file_extraction_send_blocked_text_budget")
+
+        assertEquals(16, messages.size)
+        messages.forEach { (locale, text) ->
+            assertEquals("$locale: $text", 1, occurrences(text, "%1\$s"))
+            assertFalse("$locale: $text", text.contains("{fileName}"))
+        }
+    }
+
+    @Test
     fun `the password protected message does not single out pdf in any locale`() {
         val messages = stringsByLocale("file_extraction_error_encrypted_pdf")
 
@@ -126,6 +137,7 @@ class AttachmentSizeLimitMessageTest {
             "file_extraction_error_too_large",
             "file_extraction_error_generic",
             "file_extraction_truncated_notice",
+            "file_extraction_send_blocked_text_budget",
         )
 
         for (name in names) {

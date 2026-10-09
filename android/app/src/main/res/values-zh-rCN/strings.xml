@@ -982,6 +982,9 @@
     <string name="file_extraction_error_too_large">%1$s 太大，不能超过 %2$d MB。</string>
     <string name="file_extraction_error_generic">无法处理 %1$s，请重试或选择其他文件。</string>
     <string name="file_extraction_truncated_notice">%1$s 内容较长，只加入了前 %2$d 行（共 %3$d 行）。</string>
+    <string name="file_extraction_send_blocked_text_budget">未发送：加上 %1$s 后，附件文本超出了当前模型的上限。请移除部分文件或换一个模型。</string>
+    <string name="error_attachment_not_accepted_title">附件无法使用</string>
+    <string name="file_extraction_text_budget_exceeded">%1$s 没有加入：加上它，这条消息附带的文本会超过上限。</string>
     <string name="file_extraction_chip_extracted_lines">已提取 %1$d 行</string>
     <string name="file_attachment_count_limit_reached">这个模型最多可添加 %1$d 个附件。</string>
     <string name="chat_input_length_limit_reached">单条消息最多 %1$,d 个字符，超出的部分没有加入。</string>

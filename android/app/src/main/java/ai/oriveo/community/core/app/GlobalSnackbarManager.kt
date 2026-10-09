@@ -14,11 +14,14 @@ sealed interface UiText {
         @param:StringRes val resId: Int,
         val args: List<Any> = emptyList(),
     ) : UiText
+    /** Several sentences, each on its own line, merged into one notice (several truncation notices from one import batch, or two limits hit at once). */
+    data class Lines(val lines: List<UiText>) : UiText
 }
 
 fun UiText.resolve(context: Context): String = when (this) {
     is UiText.Dynamic -> value
     is UiText.Resource -> context.getString(resId, *args.toTypedArray())
+    is UiText.Lines -> lines.joinToString("\n") { it.resolve(context) }
 }
 
 /**

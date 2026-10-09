@@ -40,6 +40,7 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.error.ErrorMapper
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.QuoteSelectionContent
+import ai.oriveo.community.core.data.repository.streaming.isAttachmentTextOverLimitDetail
 import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.provider.RelayEndpointPolicy
@@ -109,12 +110,15 @@ internal fun MessageItemWithActions(
         isRateLimitError,
         message.customRetryWithoutFieldsAvailable,
         message.customRetryWithoutFieldsCode,
+        message.errorDetail,
     ) {
         resolveMessageRecoveryCardActionLayout(
             state = message.state,
             shouldOfferModelSwitch = isRateLimitError,
             customRetryWithoutFieldsAvailable = message.customRetryWithoutFieldsAvailable,
             customRetryWithoutFieldsCode = message.customRetryWithoutFieldsCode,
+            attachmentTextOverLimit = message.state == ChatMessageState.Failed &&
+                isAttachmentTextOverLimitDetail(message.errorDetail),
         )
     }
     val recoveryActionsEnabled = remember(isSendingMessage) {

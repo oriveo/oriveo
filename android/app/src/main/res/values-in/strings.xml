@@ -901,8 +901,11 @@
     <string name="file_extraction_error_corrupted">Tidak dapat membaca %1$s; berkasnya mungkin rusak.</string>
     <string name="file_extraction_error_unsupported">%1$s bukan jenis berkas yang didukung.</string>
     <string name="file_extraction_error_too_large">%1$s terlalu besar (maks. %2$d MB).</string>
-    <string name="file_extraction_error_generic">Tidak dapat memproses %1$s. Coba lagi atau pilih berkas lain.</string>
+    <string name="file_extraction_error_generic">Tidak dapat memproses %1$s. Coba lagi atau pilih file lain.</string>
     <string name="file_extraction_truncated_notice">%1$s panjang, sehingga hanya %2$d baris pertama dari %3$d baris yang ditambahkan.</string>
+    <string name="file_extraction_send_blocked_text_budget">Tidak terkirim: dengan %1$s, teks lampiran melebihi batas model ini. Hapus salah satu file atau ganti model.</string>
+    <string name="error_attachment_not_accepted_title">Lampiran tidak diterima</string>
+    <string name="file_extraction_text_budget_exceeded">%1$s tidak ditambahkan: dengan file ini, teks yang dilampirkan pada pesan akan melebihi batas.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d baris diekstrak</string>
     <string name="file_attachment_count_limit_reached">Anda dapat melampirkan hingga %1$d berkas untuk model ini.</string>
     <string name="chat_input_length_limit_reached">Satu pesan maksimal %1$,d karakter. Sisanya tidak ditambahkan.</string>

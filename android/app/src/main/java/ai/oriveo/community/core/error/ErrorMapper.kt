@@ -47,6 +47,8 @@ object ErrorMapper {
         is ProviderServiceError.EmptyResponse -> context.getString(R.string.retry)
         is ProviderServiceError.InvalidConfiguration -> context.getString(R.string.fix_now)
         is ProviderServiceError.LocalRequestRejected -> context.getString(R.string.edit)
+        is ProviderServiceError.AttachmentTextOverLimit -> context.getString(R.string.edit)
+        is ProviderServiceError.AttachmentCountOverLimit -> context.getString(R.string.edit)
         is ProviderServiceError.Network -> context.getString(R.string.retry)
         is ProviderServiceError.Upstream -> context.getString(R.string.switch_model)
         is ProviderServiceError.RelayUpstream -> context.getString(R.string.fix_now)
@@ -138,7 +140,11 @@ object ErrorMapper {
     fun localizeProviderErrorMessage(error: ProviderServiceError, context: Context): String =
         if (error is ProviderServiceError.RelayUpstream) {
             localizeRelayGuidance(error, context)
-        } else if (error is ProviderServiceError.LocalRequestRejected) {
+        } else if (
+            error is ProviderServiceError.LocalRequestRejected ||
+            error is ProviderServiceError.AttachmentTextOverLimit ||
+            error is ProviderServiceError.AttachmentCountOverLimit
+        ) {
             localizeProviderErrorMessage(error.technicalDetail, context)
         } else {
             localizeProviderErrorMessage(error.userMessage, context)
@@ -152,6 +158,18 @@ object ErrorMapper {
         LocalRequestRejectionCopy.parse(rawMessage)?.let { code ->
             return LocalRequestRejectionCopy.render(LocalRequestRejectionCopy.body(code), context)
         }
+        // An attachment text overrun likewise persists only a safe code; the file names are stored encoded after it.
+        ProviderServiceError.AttachmentTextOverLimit.fileNamesTextFromDetail(rawMessage)?.let { fileNames ->
+            val textLine = context.getString(R.string.file_extraction_send_blocked_text_budget, fileNames)
+            // The count limit was hit too: one line for the count and one for the text, each saying its own thing.
+            val countLimit = ProviderServiceError.AttachmentTextOverLimit.countLimitFromDetail(rawMessage)
+                ?: return textLine
+            return context.getString(R.string.file_attachment_count_limit_reached, countLimit) + "\n" + textLine
+        }
+        // A count overrun says the same sentence as the count gate at add time.
+        ProviderServiceError.AttachmentCountOverLimit.maxFilesFromDetail(rawMessage)?.let { maxFiles ->
+            return context.getString(R.string.file_attachment_count_limit_reached, maxFiles)
+        }
         val resId = MESSAGE_TO_RES[rawMessage] ?: return rawMessage
         return context.getString(resId)
     }
@@ -160,6 +178,8 @@ object ErrorMapper {
         rawMessage != null && (
             RelayGuidanceCode.fromPersistenceKey(rawMessage) != null ||
                 LocalRequestRejectionCopy.isCode(rawMessage) ||
+                ProviderServiceError.AttachmentTextOverLimit.fileNamesTextFromDetail(rawMessage) != null ||
+                ProviderServiceError.AttachmentCountOverLimit.maxFilesFromDetail(rawMessage) != null ||
                 MESSAGE_TO_RES.containsKey(rawMessage)
             )
 
@@ -177,6 +197,7 @@ object ErrorMapper {
         ai.oriveo.community.core.data.repository.ADDITIONAL_BODY_REJECTED_UPSTREAM_TITLE to R.string.additional_body_rejected_upstream,
         "Provider Request Failed" to R.string.error_request_failed,
         "Request Failed" to R.string.message_failed,
+        "Attachment Not Accepted" to R.string.error_attachment_not_accepted_title,
         "Grok subscription" to R.string.grok_subscription_title,
         "ChatGPT subscription" to R.string.openai_subscription_title,
     )

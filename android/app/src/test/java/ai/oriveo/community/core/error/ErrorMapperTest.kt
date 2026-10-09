@@ -3,6 +3,8 @@ package ai.oriveo.community.core.error
 import android.content.Context
 import ai.oriveo.community.R
 import ai.oriveo.community.core.data.repository.ProviderRepository
+import ai.oriveo.community.core.data.repository.streaming.failedMessageDetail
+import ai.oriveo.community.core.data.repository.streaming.isAttachmentTextOverLimitDetail
 import ai.oriveo.community.core.model.GrokSubscriptionFailureReason
 import ai.oriveo.community.core.model.OpenAISubscriptionFailureReason
 import ai.oriveo.community.core.model.ProviderServiceError
@@ -267,6 +269,94 @@ class ErrorMapperTest {
         assertEquals("check your key", result.message)
         // technicalDetail keeps the raw text for debugging
         assertEquals("raw detail", result.detail)
+    }
+
+    @Test
+    fun `attachment text over limit is rendered from the persisted safe code with its file names`() {
+        every { context.getString(R.string.file_extraction_send_blocked_text_budget, *anyVararg()) } answers {
+            "blocked[" + (args[1] as Array<*>).joinToString("|") + "]"
+        }
+        every { context.getString(R.string.error_attachment_not_accepted_title) } returns "Attachment not accepted"
+        every { context.getString(R.string.edit) } returns "Edit"
+        // File names are user content: ':' and '@' separate other safe codes and must not break the name apart.
+        val error = ProviderServiceError.AttachmentTextOverLimit(listOf("notes: v2@home.md", "b.txt"))
+        val stored = failedMessageDetail(error)
+
+        assertTrue(stored, stored.startsWith("attachment_text_over_limit:"))
+        assertTrue("The stored code must not contain plain file names: $stored", !stored.contains("notes") && !stored.contains("b.txt"))
+        assertTrue(ErrorMapper.hasLocalizedProviderMessage(stored))
+        assertEquals("blocked[notes: v2@home.md, b.txt]", ErrorMapper.localizeProviderErrorMessage(stored, context))
+        assertTrue(isAttachmentTextOverLimitDetail(stored))
+
+        val mapped = ErrorMapper.map(error, context)
+        assertEquals("Attachment not accepted", mapped.title)
+        assertEquals("blocked[notes: v2@home.md, b.txt]", mapped.message)
+        assertEquals("Edit", mapped.actionTitle)
+    }
+
+    @Test
+    fun `attachment count over limit is rendered with the same sentence as the add-time count gate`() {
+        every { context.getString(R.string.file_attachment_count_limit_reached, *anyVararg()) } answers {
+            "count[" + (args[1] as Array<*>).joinToString("|") + "]"
+        }
+        every { context.getString(R.string.error_attachment_not_accepted_title) } returns "Attachment not accepted"
+        every { context.getString(R.string.edit) } returns "Edit"
+        val error = ProviderServiceError.AttachmentCountOverLimit(maxFiles = 3)
+        val stored = failedMessageDetail(error)
+
+        assertEquals("attachment_count_over_limit:3", stored)
+        assertTrue(ErrorMapper.hasLocalizedProviderMessage(stored))
+        assertEquals("count[3]", ErrorMapper.localizeProviderErrorMessage(stored, context))
+        // The card actions match the text overrun: the way out is to edit the message.
+        assertTrue(isAttachmentTextOverLimitDetail(stored))
+        assertTrue(!ErrorMapper.hasLocalizedProviderMessage("attachment_count_over_limit:x"))
+
+        val mapped = ErrorMapper.map(error, context)
+        assertEquals("Attachment not accepted", mapped.title)
+        assertEquals("count[3]", mapped.message)
+        assertEquals("Edit", mapped.actionTitle)
+    }
+
+    @Test
+    fun `count and text limits exceeded together render as two lines from the persisted safe code`() {
+        every { context.getString(R.string.file_extraction_send_blocked_text_budget, *anyVararg()) } answers {
+            "blocked[" + (args[1] as Array<*>).joinToString("|") + "]"
+        }
+        every { context.getString(R.string.file_attachment_count_limit_reached, *anyVararg()) } answers {
+            "count[" + (args[1] as Array<*>).joinToString("|") + "]"
+        }
+        val error = ProviderServiceError.AttachmentTextOverLimit(listOf("big: v2.txt"), countLimit = 3)
+        val stored = failedMessageDetail(error)
+
+        assertTrue(stored, stored.startsWith("attachment_text_over_limit:"))
+        assertTrue(stored, !stored.contains("big"))
+        assertTrue(isAttachmentTextOverLimitDetail(stored))
+        assertEquals("count[3]\nblocked[big: v2.txt]", ErrorMapper.localizeProviderErrorMessage(stored, context))
+        assertEquals("count[3]\nblocked[big: v2.txt]", ErrorMapper.localizeProviderErrorMessage(error, context))
+    }
+
+    @Test
+    fun `the attachment limit failures are titled as an attachment problem not a generic send failure`() {
+        every { context.getString(R.string.error_attachment_not_accepted_title) } returns "Attachment not accepted"
+        for (error in listOf(
+            ProviderServiceError.AttachmentTextOverLimit(listOf("a.txt")),
+            ProviderServiceError.AttachmentCountOverLimit(3),
+        )) {
+            assertEquals("Attachment Not Accepted", error.title)
+            assertEquals("Attachment not accepted", ErrorMapper.localizeProviderErrorTitle(error.title, context))
+        }
+    }
+
+    @Test
+    fun `unrelated or damaged details are not mistaken for the attachment limit code`() {
+        val isDetail = ::isAttachmentTextOverLimitDetail
+        assertTrue(!isDetail(null))
+        assertTrue(!isDetail("additional_body_rejected:not_object"))
+        assertTrue(!isDetail("attachment_text_over_limit"))
+        // Right code, damaged name segment: it is still treated as this kind of failure (card actions), but there is no
+        // sentence to restore, so it does not pass as localized.
+        assertTrue(isDetail("attachment_text_over_limit:%%%"))
+        assertTrue(!ErrorMapper.hasLocalizedProviderMessage("attachment_text_over_limit:%%%"))
     }
 
     private fun nonRelayErrors(): List<ProviderServiceError> = listOf(

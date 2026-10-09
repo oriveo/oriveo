@@ -937,8 +937,11 @@
     <string name="file_extraction_error_corrupted">No se pudo leer %1$s: es posible que el archivo esté dañado.</string>
     <string name="file_extraction_error_unsupported">El tipo de archivo de %1$s no es compatible.</string>
     <string name="file_extraction_error_too_large">%1$s es demasiado grande (máx. %2$d MB).</string>
-    <string name="file_extraction_error_generic">No se pudo procesar %1$s. Vuelve a intentarlo o elige otro archivo.</string>
+    <string name="file_extraction_error_generic">No se pudo procesar %1$s. Inténtalo de nuevo o elige otro archivo.</string>
     <string name="file_extraction_truncated_notice">%1$s es largo, así que solo se agregaron las primeras %2$d de %3$d líneas.</string>
+    <string name="file_extraction_send_blocked_text_budget">No se envió: con %1$s, el texto adjunto supera el límite de este modelo. Quita un archivo o cambia de modelo.</string>
+    <string name="error_attachment_not_accepted_title">Adjunto no admitido</string>
+    <string name="file_extraction_text_budget_exceeded">%1$s no se agregó: con este archivo, el texto adjunto al mensaje superaría el límite.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d líneas extraídas</string>
     <string name="file_attachment_count_limit_reached">Puedes adjuntar hasta %1$d archivos para este modelo.</string>
     <string name="chat_input_length_limit_reached">Un mensaje admite hasta %1$,d caracteres. El resto no se agregó.</string>

@@ -901,8 +901,11 @@
     <string name="file_extraction_error_corrupted">%1$s okunamadı; dosya bozuk olabilir.</string>
     <string name="file_extraction_error_unsupported">%1$s dosyasının türü desteklenmiyor.</string>
     <string name="file_extraction_error_too_large">%1$s çok büyük (en fazla %2$d MB).</string>
-    <string name="file_extraction_error_generic">%1$s işlenemedi. Yeniden deneyin veya başka bir dosya seçin.</string>
+    <string name="file_extraction_error_generic">%1$s işlenemedi. Tekrar deneyin veya başka bir dosya seçin.</string>
     <string name="file_extraction_truncated_notice">%1$s uzun olduğu için %3$d satırın yalnızca ilk %2$d satırı eklendi.</string>
+    <string name="file_extraction_send_blocked_text_budget">Gönderilmedi: %1$s ile birlikte ekli metin bu modelin sınırını aşıyor. Bir dosyayı kaldırın veya modeli değiştirin.</string>
+    <string name="error_attachment_not_accepted_title">Ek kabul edilmedi</string>
+    <string name="file_extraction_text_budget_exceeded">%1$s eklenmedi: eklenseydi bu mesaja iliştirilen metin izin verilen sınırı aşardı.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d satır çıkarıldı</string>
     <string name="file_attachment_count_limit_reached">Bu model için en fazla %1$d dosya ekleyebilirsin.</string>
     <string name="chat_input_length_limit_reached">Bir mesaj en fazla %1$,d karakter olabilir. Fazlası eklenmedi.</string>

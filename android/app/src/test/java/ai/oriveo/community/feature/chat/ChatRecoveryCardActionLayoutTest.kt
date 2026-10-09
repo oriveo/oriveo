@@ -56,6 +56,19 @@ class ChatRecoveryCardActionLayoutTest {
     }
 
     @Test
+    fun `attachment text over limit leads with edit then retry then switch model`() {
+        val layout = resolveMessageRecoveryCardActionLayout(
+            state = ChatMessageState.Failed,
+            shouldOfferModelSwitch = false,
+            attachmentTextOverLimit = true,
+        )
+
+        assertEquals(MessageRecoveryActionKind.EditMessage, layout.primary)
+        assertEquals(MessageRecoveryActionKind.Retry, layout.secondary)
+        assertEquals(MessageRecoveryActionKind.SwitchModel, layout.tertiary)
+    }
+
+    @Test
     fun `failed recovery keeps retry edit and optional switch model`() {
         val layout = resolveMessageRecoveryCardActionLayout(
             state = ChatMessageState.Failed,

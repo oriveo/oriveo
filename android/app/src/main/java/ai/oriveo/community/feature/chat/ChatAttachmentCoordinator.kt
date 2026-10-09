@@ -13,7 +13,9 @@ import ai.oriveo.community.core.attachments.FileExtractionLimits
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
+import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.provider.AttachmentSendPreflight
 import ai.oriveo.community.feature.chat.attachments.AttachmentImportOutcome
 import ai.oriveo.community.feature.chat.attachments.AttachmentImportPolicy
 import ai.oriveo.community.feature.chat.attachments.AttachmentProcessor
@@ -23,6 +25,8 @@ import kotlinx.coroutines.sync.withLock
 internal class ChatAttachmentCoordinator(
     private val attachmentProcessor: AttachmentProcessor,
     private val globalSnackbarManager: GlobalSnackbarManager,
+    /** The current connection; the text-budget gate at add time needs it to resolve the route. When it is unavailable the gate is skipped and left to the send-time check. */
+    private val activeProvider: () -> Provider? = { null },
     private val activeProviderKind: () -> ProviderKind?,
     private val activeModel: () -> AIModel?,
     private val pendingAttachments: () -> List<Attachment>,
@@ -51,6 +55,41 @@ internal class ChatAttachmentCoordinator(
             return false
         }
         return true
+    }
+
+    /**
+     * Editing a message that has attachments: the original attachments return to the composer together with the text,
+     * so changing one word does not lose the files. Returns the ones to put back.
+     *
+     * They pass through the same gates as newly added ones: kinds the current model does not accept are not put back,
+     * and anything beyond the count limit is dropped with a single notice. The original message is deleted by the
+     * edit, so the restored copies get fresh ids and are stored as new attachments when sent; the local references to
+     * the original image or raw bytes are unaffected by the deletion and are kept as they are.
+     */
+    fun restoredForEdit(
+        original: List<Attachment>,
+        supportsImage: () -> Boolean,
+        supportsFile: () -> Boolean,
+        supportsVideo: () -> Boolean,
+    ): List<Attachment> {
+        if (original.isEmpty()) return emptyList()
+        val supported = original.filter { attachment ->
+            when (attachment.kind) {
+                AttachmentKind.Image -> supportsImage()
+                AttachmentKind.Video -> supportsVideo()
+                AttachmentKind.File -> supportsFile()
+            }
+        }
+        val maxAttachments = FileExtractionLimits.resolve(activeModel()).maxFiles
+        val limited = AttachmentImportLimiter.limit(
+            existing = pendingAttachments(),
+            incoming = supported,
+            maxAttachments = maxAttachments,
+        )
+        if (limited.rejectedCount > 0) showCountLimitReached(maxAttachments)
+        return limited.accepted.map {
+            it.copy(id = ai.oriveo.community.core.util.generateUuidString())
+        }
     }
 
     private fun showCountLimitReached(maxAttachments: Int) {
@@ -88,7 +127,26 @@ internal class ChatAttachmentCoordinator(
         }
     }
 
-    suspend fun processFile(context: Context, uri: Uri): Unit = importMutex.withLock {
+    /**
+     * The number of files queued or being imported. The N files from one picker callback each start a coroutine on the same tick, and each
+     * counts itself here before waiting on [importMutex]; when the count returns to 0 the batch is done. Read and written on the main thread only.
+     */
+    private var queuedFileImports = 0
+
+    /** Notices collected during this batch (truncation, text budget full), merged into one at the end of the batch. */
+    private val pendingImportNotices = mutableListOf<UiText>()
+
+    suspend fun processFile(context: Context, uri: Uri) {
+        queuedFileImports += 1
+        try {
+            importMutex.withLock { importFile(context, uri) }
+        } finally {
+            queuedFileImports -= 1
+            if (queuedFileImports == 0) flushTruncationNotices()
+        }
+    }
+
+    private suspend fun importFile(context: Context, uri: Uri) {
         val currentFileCount = pendingAttachments().count { it.kind == AttachmentKind.File }
         when (val outcome = attachmentProcessor.processFile(
             context = context,
@@ -98,8 +156,16 @@ internal class ChatAttachmentCoordinator(
             currentFileCount = currentFileCount,
         )) {
             is AttachmentImportOutcome.Success -> {
-                addAttachment(outcome.attachment, outcome.source)
-                outcome.truncation?.let { showTruncatedNotice(outcome.attachment, it) }
+                if (exceedsTextBudget(outcome.attachment)) {
+                    // Adding it would put this message's attached text over the limit: say so now instead of waiting for the send to block.
+                    pendingImportNotices += UiText.Resource(
+                        R.string.file_extraction_text_budget_exceeded,
+                        listOf(outcome.attachment.fileName),
+                    )
+                } else {
+                    addAttachment(outcome.attachment, outcome.source)
+                    outcome.truncation?.let { showTruncatedNotice(outcome.attachment, it) }
+                }
             }
             AttachmentImportOutcome.Oversized -> presentAttachmentSizeLimitDialog()
             AttachmentImportOutcome.UnsupportedFile ->
@@ -132,16 +198,31 @@ internal class ChatAttachmentCoordinator(
         }
     }
 
+    private fun exceedsTextBudget(attachment: Attachment): Boolean {
+        val provider = activeProvider() ?: return false
+        val model = activeModel() ?: return false
+        return AttachmentSendPreflight.exceedsTextBudgetOnAdd(provider, model, pendingAttachments(), attachment)
+    }
+
     // Only say "the first N lines were added" when the attachment really entered the composer: a file turned away by
     // the count limit already got the limit message, and must not be followed by a statement that contradicts it.
     private fun showTruncatedNotice(attachment: Attachment, truncation: AttachmentImportOutcome.Truncation) {
         if (pendingAttachments().none { it.id == attachment.id }) return
+        pendingImportNotices += UiText.Resource(
+            R.string.file_extraction_truncated_notice,
+            listOf(attachment.fileName, truncation.shownLines, truncation.totalLines),
+        )
+    }
+
+    // The notices of one import batch are merged into a single multi-line message: the snackbar shows one message at a
+    // time, so showing them one by one would leave only the last file's notice visible.
+    private fun flushTruncationNotices() {
+        if (pendingImportNotices.isEmpty()) return
+        val notices = pendingImportNotices.toList()
+        pendingImportNotices.clear()
         globalSnackbarManager.show(
             GlobalSnackbarMessage(
-                message = UiText.Resource(
-                    R.string.file_extraction_truncated_notice,
-                    listOf(attachment.fileName, truncation.shownLines, truncation.totalLines),
-                ),
+                message = notices.singleOrNull() ?: UiText.Lines(notices),
                 style = GlobalToastStyle.Warning,
             ),
         )

@@ -901,8 +901,11 @@
     <string name="file_extraction_error_corrupted">Không thể đọc %1$s — tệp có thể đã bị hỏng.</string>
     <string name="file_extraction_error_unsupported">%1$s không phải là loại tệp được hỗ trợ.</string>
     <string name="file_extraction_error_too_large">%1$s quá lớn (tối đa %2$d MB).</string>
-    <string name="file_extraction_error_generic">Không thể xử lý %1$s. Hãy thử lại hoặc chọn tệp khác.</string>
+    <string name="file_extraction_error_generic">Không thể xử lý %1$s. Thử lại hoặc chọn tệp khác.</string>
     <string name="file_extraction_truncated_notice">%1$s khá dài nên chỉ thêm %2$d dòng đầu trong tổng số %3$d dòng.</string>
+    <string name="file_extraction_send_blocked_text_budget">Chưa gửi: khi tính cả %1$s, phần văn bản đính kèm vượt giới hạn của mô hình này. Hãy bỏ bớt tệp hoặc đổi mô hình.</string>
+    <string name="error_attachment_not_accepted_title">Tệp đính kèm không được chấp nhận</string>
+    <string name="file_extraction_text_budget_exceeded">%1$s chưa được thêm: nếu thêm, phần văn bản đính kèm tin nhắn này sẽ vượt giới hạn.</string>
     <string name="file_extraction_chip_extracted_lines">Đã trích xuất %1$d dòng</string>
     <string name="file_attachment_count_limit_reached">Bạn có thể đính kèm tối đa %1$d tệp cho mô hình này.</string>
     <string name="chat_input_length_limit_reached">Mỗi tin nhắn tối đa %1$,d ký tự. Phần vượt quá chưa được thêm vào.</string>

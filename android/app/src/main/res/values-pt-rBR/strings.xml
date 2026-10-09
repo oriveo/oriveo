@@ -939,6 +939,9 @@
     <string name="file_extraction_error_too_large">%1$s é muito grande (máx. %2$d MB).</string>
     <string name="file_extraction_error_generic">Não foi possível processar %1$s. Tente novamente ou escolha outro arquivo.</string>
     <string name="file_extraction_truncated_notice">%1$s é longo, então só as primeiras %2$d de %3$d linhas foram adicionadas.</string>
+    <string name="file_extraction_send_blocked_text_budget">Não enviado: com %1$s, o texto anexado passa do limite deste modelo. Remova um arquivo ou troque de modelo.</string>
+    <string name="error_attachment_not_accepted_title">Anexo não aceito</string>
+    <string name="file_extraction_text_budget_exceeded">%1$s não foi adicionado: com ele, o texto anexado a esta mensagem passaria do limite.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d linhas extraídas</string>
     <string name="file_attachment_count_limit_reached">Você pode anexar até %1$d arquivos para este modelo.</string>
     <string name="chat_input_length_limit_reached">Uma mensagem pode ter até %1$,d caracteres. O restante não foi incluído.</string>

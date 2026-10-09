@@ -939,6 +939,9 @@
     <string name="file_extraction_error_too_large">%1$s est trop volumineux (%2$d Mo max.).</string>
     <string name="file_extraction_error_generic">Impossible de traiter %1$s. Réessayez ou choisissez un autre fichier.</string>
     <string name="file_extraction_truncated_notice">%1$s est long : seules les %2$d premières lignes sur %3$d ont été ajoutées.</string>
+    <string name="file_extraction_send_blocked_text_budget">Message non envoyé : avec %1$s, le texte joint dépasse la limite de ce modèle. Retirez un fichier ou changez de modèle.</string>
+    <string name="error_attachment_not_accepted_title">Pièce jointe refusée</string>
+    <string name="file_extraction_text_budget_exceeded">%1$s n’a pas été ajouté : avec ce fichier, le texte joint à ce message dépasserait la limite.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d lignes extraites</string>
     <string name="file_attachment_count_limit_reached">Vous pouvez joindre jusqu’à %1$d fichiers pour ce modèle.</string>
     <string name="chat_input_length_limit_reached">Un message peut contenir jusqu’à %1$,d caractères. Le reste n’a pas été ajouté.</string>

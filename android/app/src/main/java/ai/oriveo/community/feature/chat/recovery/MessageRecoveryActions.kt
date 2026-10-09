@@ -28,7 +28,16 @@ internal fun resolveMessageRecoveryCardActionLayout(
     shouldOfferModelSwitch: Boolean,
     customRetryWithoutFieldsAvailable: Boolean = false,
     customRetryWithoutFieldsCode: String? = null,
+    attachmentTextOverLimit: Boolean = false,
 ): MessageRecoveryCardActionLayout {
+    if (attachmentTextOverLimit) {
+        // Retrying as is gives the same result; the way out is to go back and remove files, or switch to a model with a larger limit.
+        return MessageRecoveryCardActionLayout(
+            primary = MessageRecoveryActionKind.EditMessage,
+            secondary = MessageRecoveryActionKind.Retry,
+            tertiary = MessageRecoveryActionKind.SwitchModel,
+        )
+    }
     if (customRetryWithoutFieldsAvailable) {
         return MessageRecoveryCardActionLayout(
             // When the diagnostic pinned the offending setting down to a single recipe entry we can

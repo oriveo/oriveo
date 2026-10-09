@@ -10,6 +10,7 @@ import ai.oriveo.community.core.attachments.FileExtractionLimits
 import ai.oriveo.community.core.data.attachment.AttachmentStore
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.feature.chat.attachments.AttachmentProcessor
+import kotlinx.coroutines.launch
 import io.mockk.every
 import io.mockk.mockk
 import java.io.ByteArrayInputStream
@@ -57,6 +58,61 @@ class ChatAttachmentCoordinatorTruncationNoticeTest {
 
         assertTrue(import.added.isEmpty())
         assertNull(import.shown)
+    }
+
+    /** Several files picked at once: the truncation notices merge into one multi-line notice instead of each replacing the previous one. */
+    @Test
+    fun `truncation notices from one batch of files are shown as a single multi-line notice`() = runTest {
+        val maxLines = FileExtractionLimits.DEFAULT.maxLines
+        val long = (1..maxLines + 5).joinToString("\n") { "L$it" }
+        val shown = mutableListOf<UiText>()
+        val (coordinator, context, snackbars) = coordinator(mapOf("a.txt" to long, "b.txt" to "short", "c.txt" to long))
+        val collector = launch { snackbars.active.collect { it?.message?.message?.let(shown::add) } }
+
+        // Like the picker callback: each file starts its own coroutine, and all of them queue up on the same tick.
+        val jobs = listOf("a.txt", "b.txt", "c.txt").map { name ->
+            launch { coordinator.processFile(context, Uri.parse("content://com.example.docs/$name")) }
+        }
+        jobs.forEach { it.join() }
+        testScheduler.advanceUntilIdle()
+        collector.cancel()
+
+        assertEquals(
+            listOf<UiText>(
+                UiText.Lines(
+                    listOf(
+                        UiText.Resource(R.string.file_extraction_truncated_notice, listOf("a.txt", maxLines, maxLines + 5)),
+                        UiText.Resource(R.string.file_extraction_truncated_notice, listOf("c.txt", maxLines, maxLines + 5)),
+                    ),
+                ),
+            ),
+            shown.distinct(),
+        )
+    }
+
+    private fun coordinator(files: Map<String, String>): Triple<ChatAttachmentCoordinator, Context, GlobalSnackbarManager> {
+        val processor = AttachmentProcessor(
+            attachmentStore = mockk<AttachmentStore>(relaxed = true),
+        )
+        val resolver = mockk<ContentResolver> {
+            every { query(any(), any(), any(), any(), any()) } returns null
+            every { getType(any()) } returns "text/plain"
+            every { openInputStream(any()) } answers {
+                ByteArrayInputStream(files.getValue(firstArg<Uri>().lastPathSegment!!).toByteArray())
+            }
+        }
+        val pending = mutableListOf<Attachment>()
+        val snackbars = GlobalSnackbarManager()
+        val coordinator = ChatAttachmentCoordinator(
+            attachmentProcessor = processor,
+            globalSnackbarManager = snackbars,
+            activeProviderKind = { null },
+            activeModel = { null },
+            pendingAttachments = { pending },
+            addAttachment = { attachment, _ -> pending += attachment },
+            presentAttachmentSizeLimitDialog = {},
+        )
+        return Triple(coordinator, mockk<Context> { every { contentResolver } returns resolver }, snackbars)
     }
 
     private class Import(val added: List<Attachment>, val shown: UiText?)

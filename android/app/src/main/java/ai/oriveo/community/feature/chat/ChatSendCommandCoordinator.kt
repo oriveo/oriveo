@@ -1,12 +1,18 @@
 package ai.oriveo.community.feature.chat
 
+import ai.oriveo.community.R
 import ai.oriveo.community.core.app.AppPreferencesRepository
+import ai.oriveo.community.core.app.GlobalSnackbarMessage
+import ai.oriveo.community.core.app.GlobalToastStyle
+import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.data.repository.ConversationRepository
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.model.ProviderServiceError
+import ai.oriveo.community.core.provider.AttachmentSendPreflight
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.QuoteContext
 import ai.oriveo.community.core.provider.ModelSelectionUtils
@@ -41,6 +47,17 @@ internal class ChatSendCommandCoordinator(
      * was a draft over to it. Must complete before the send.
      */
     private val adoptMcpDraft: suspend (conversationId: String) -> Unit = {},
+    /** Called when the pre-send check finds this turn's attachments cannot be delivered; no conversation has been created and the composer is untouched. */
+    private val onAttachmentsUndeliverable: (ProviderServiceError) -> Unit = {},
+    /**
+     * The web search and reasoning values this send will actually use outbound, and whether the tool loop may take
+     * over. Returns null when unknown, and the pre-send check falls back to blocking only if every possible route
+     * fails.
+     */
+    private val resolveAttachmentSendOptions: (
+        provider: Provider,
+        modelId: String,
+    ) -> AttachmentSendPreflight.SendOptions? = { _, _ -> null },
     private val onComposerConsumed: suspend (String) -> Unit,
     private val onQuoteConsumed: (QuoteContext?) -> Unit = {},
     private val requestPin: () -> Unit,
@@ -166,6 +183,17 @@ internal class ChatSendCommandCoordinator(
                 return
             }
 
+        // This turn's attachments do not fit: do not create a conversation or clear the composer, and leave the text and
+        // attachments for the user to adjust. The route is worked out from the web search and reasoning values this send
+        // will actually use; when those are unknown, block only if every possible route fails.
+        val sendOptions = if (attachments.isNullOrEmpty()) null else {
+            resolveAttachmentSendOptions(provider, selectedModel.id)
+        }
+        AttachmentSendPreflight.undeliverable(provider, selectedModel, text, attachments, sendOptions)?.let { error ->
+            onAttachmentsUndeliverable(error)
+            return
+        }
+
         val runtimeModelId = selectedModel.id
         val storedModelId = ModelSelectionUtils.preferredStoredModelIdentifier(selectedModel)
 
@@ -249,4 +277,25 @@ internal class ChatSendCommandCoordinator(
 
     private suspend fun fetchFullConversationHistory(conversationId: String): List<ChatMessage> =
         conversationRepository.getWithMessages(conversationId)?.messages.orEmpty()
+}
+
+/** The notice shown when the pre-send check blocks a send. It uses the same discrimination and copy as the failure card: a count overrun says the maximum number of files, a text overrun names the files that do not fit, and when both apply each gets its own line. */
+internal fun attachmentsUndeliverableToast(error: ProviderServiceError): GlobalSnackbarMessage? {
+    val message = when (error) {
+        is ProviderServiceError.AttachmentCountOverLimit ->
+            UiText.Resource(R.string.file_attachment_count_limit_reached, listOf(error.maxFiles))
+        is ProviderServiceError.AttachmentTextOverLimit -> {
+            val textLine = UiText.Resource(R.string.file_extraction_send_blocked_text_budget, listOf(error.fileNamesText))
+            val countLimit = error.countLimit
+            if (countLimit == null) {
+                textLine
+            } else {
+                UiText.Lines(
+                    listOf(UiText.Resource(R.string.file_attachment_count_limit_reached, listOf(countLimit)), textLine),
+                )
+            }
+        }
+        else -> return null
+    }
+    return GlobalSnackbarMessage(message = message, style = GlobalToastStyle.Error)
 }
