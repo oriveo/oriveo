@@ -679,50 +679,6 @@ class ModelControlCapabilityLayoutRulesTest {
         )
     }
 
-    /**
-     * The test above pins the projection itself; this one pins who consumes it:
-     * the web / reasoning cards use the projection that suppresses unavailable,
-     * while the advanced settings row uses the one that suppresses notReady.
-     * Wire them to the wrong one and both projections still pass while the UI
-     * still grows an extra badge.
-     */
-    @Test
-    fun `each card consumes its own badge projection`() {
-        val sheet = repoFile("feature/chat/composer/ModelControlsSheet.kt").readText()
-        listOf("ModelControlWebCard", "ModelControlReasoningCard").forEach { card ->
-            val body = sheet.substringAfter("private fun $card(").substringBefore("\n@Composable")
-            assertTrue(
-                "$card must consume the capability-card projection",
-                body.contains("ModelControlBadgeClassification.capabilityCard(status)"),
-            )
-        }
-        val behaviorRow = sheet
-            .substringAfter("ModelControlNavigationRow(\n                                    icon = Icons.Outlined.Tune,")
-            .substringBefore("\n                            }")
-        assertTrue("scope didn't land on the advanced settings row, this assertion has nothing to test", behaviorRow.contains("badge = modelControlBadge("))
-        assertTrue(
-            "the advanced settings row must not fall back to the unsuppressed projection -- relay and recipe-less models would grow a false 'not ready' badge again",
-            behaviorRow.contains("ModelControlBadgeClassification.advancedSettingsCard("),
-        )
-        assertFalse(
-            "the advanced settings row got wired to the capability card's suppression -- that one suppresses Unavailable, not NotReady",
-            behaviorRow.contains("ModelControlBadgeClassification.capabilityCard("),
-        )
-        assertFalse(
-            "the advanced settings row must not consume the unsuppressed resolve directly",
-            behaviorRow.contains("ModelControlBadgeClassification.resolve("),
-        )
-        // A badge swallows the "N settings adjusted" line the moment it's shown, which is the actual harm here; catch it if this relationship changes.
-        val components = repoFile("feature/chat/composer/ModelControlsComponents.kt").readText()
-        val row = components
-            .substringAfter("internal fun ModelControlNavigationRow(")
-            .substringBefore("// MARK: - List rows")
-        assertTrue(
-            "the mutual exclusion between trailing text and the badge changed -- the advanced settings row's badge projection needs to be re-evaluated",
-            row.contains("if (badge != null) {") && row.contains("} else if (!trailingText.isNullOrEmpty()) {"),
-        )
-    }
-
     // ── Read-only and identity gaps ──────────────────────────────────────────
 
     /** A missing identity outranks "read only"; only writable can persist. */

@@ -1340,8 +1340,6 @@
     <string name="generation_parameter_name_llamacpp_native">llama.cpp 네이티브 모드</string>
     <string name="generation_parameter_name_min_keep">최소 유지 토큰 수</string>
     <string name="generation_parameter_name_mirostat">Mirostat</string>
-    <string name="generation_parameter_name_mirostat_eta">Mirostat eta</string>
-    <string name="generation_parameter_name_mirostat_tau">Mirostat tau</string>
     <string name="generation_parameter_name_n_indent">최소 들여쓰기</string>
     <string name="generation_parameter_name_n_keep">유지할 토큰 수</string>
     <string name="generation_parameter_name_n_probabilities">토큰 확률</string>
@@ -1383,8 +1381,6 @@
     <string name="model_control_custom_fields_active_note">이 컨트롤에는 사용자 지정 요청 필드가 켜져 있어, 위 설정은 전송되지 않습니다.</string>
     <string name="model_control_custom_only_reason">이 연결에서는 자동 구성을 사용할 수 없습니다.</string>
     <string name="model_control_state_not_ready">준비 안 됨</string>
-    <string name="model_control_state_unavailable">사용 불가</string>
-    <string name="model_control_advanced_settings_subtitle">최대 토큰 수, 온도 등 요청 매개변수</string>
     <string name="generation_parameter_developer">개발자</string>
     <string name="generation_parameter_custom_fields_not_in_use">사용 안 함</string>
     <string name="generation_parameter_custom_fields_in_use">사용 중</string>
@@ -1395,7 +1391,6 @@
     <!-- A1 model controls panel rebuild (2026-08-16): ported verbatim from the iOS golden standard. -->
     <string name="model_control_capability_unavailable_here">이 연결에서는 이 기능을 사용할 수 없습니다.</string>
     <string name="model_control_upstream_rejected">제공업체가 이 모델의 설정을 거부했습니다. 이 설정 없이 다시 보내거나 다른 모델을 선택하세요.</string>
-    <string name="model_control_state_manual">수동</string>
     <string name="model_control_state_custom">사용자 지정</string>
     <string name="model_control_status_pending">이 요청 경로에는 아직 자동 구성을 사용할 수 없습니다.</string>
     <string name="model_control_status_unknown_route">이 모델 또는 전송 방식은 이 요청의 자동 구성을 지원하지 않습니다.</string>
@@ -1782,14 +1777,12 @@
     <string name="model_options_more_count">외 %1$d개</string>
     <string name="model_options_needs_manual_setup">직접 설정 필요</string>
     <string name="model_options_no_thinking_mode">이 모델은 사고를 지원하지 않아요</string>
-    <string name="model_options_not_available_connection">이 연결에서는 쓸 수 없음</string>
     <string name="model_options_not_available_yet">아직 사용할 수 없음</string>
     <string name="model_options_open_additional_body">추가 요청 본문 열기</string>
     <string name="model_options_protocol_auto_note">프로토콜이 아직 ‘자동’이라 Oriveo가 웹 검색과 사고 설정을 어떻게 보낼지 알 수 없어요.</string>
     <string name="model_options_reasoning_no_generic_switch">이 제공업체에는 사고용 표준 스위치가 없어요. 추가 요청 본문에 해당 제공업체의 필드를 넣어 주세요.</string>
     <string name="model_options_reasoning_not_catalogued">Oriveo에 아직 이 모델의 사고 설정이 없어서 모델 자체 기본값으로 동작해요.</string>
     <string name="model_options_see_adjustable_models">조정 가능한 모델 보기</string>
-    <string name="model_options_switch_connection">연결 바꾸기</string>
     <string name="model_options_template_thinking_note">채팅 템플릿으로 사고를 켜거나 꺼요. 실제로 적용되는지는 서버에 따라 달라요.</string>
     <string name="model_options_thinks_first_note">먼저 충분히 생각하므로 답변이 조금 늦어져요</string>
     <string name="model_options_tier_rejected_body">이 모델이 지금은 ‘%1$s’ 단계를 받지 않아 ‘%2$s’ 단계로 되돌렸어요. 모델이 다시 지원하면 원래 단계로 자동으로 돌아가요.</string>
@@ -1801,4 +1794,6 @@
     <string name="model_options_web_not_catalogued">Oriveo에 아직 이 모델의 웹 검색 설정이 없어서 여기서 켤 수 없어요.</string>
     <string name="model_options_web_note">필요할 때 먼저 웹을 검색한 뒤 답해요</string>
     <string name="model_options_web_when_needed">필요할 때</string>
+    <string name="additional_body_tools_managed">도구는 Oriveo가 관리해요.</string>
+    <string name="additional_body_streaming_by_oriveo">답변을 어떻게 스트리밍할지는 Oriveo가 정해요.</string>
 </resources>

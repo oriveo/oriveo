@@ -596,7 +596,11 @@ internal fun EnhancedComposer(
     val hasComposerContent = hasComposerText || pendingAttachments.isNotEmpty()
     val dormantCapabilityOwners = modelControlRuntimeIdentity?.let { identity ->
         setOf("web", "reasoning").filterTo(linkedSetOf()) { owner ->
-            ModelControlRejectionCache.isRejectedByAnySource(identity, owner)
+            ModelControlRejectionCache.isRejectedByAnySource(
+                identity,
+                owner,
+                selectedTier = selectedControlReasoning.takeIf { owner == "reasoning" },
+            )
         }
     }.orEmpty()
     val outboundCapabilityDecision = ChatCapabilityOutboundDecision.resolve(

@@ -35,7 +35,6 @@ class GenerationParameterTokenTerminologyTest {
 
     private fun isParameterPanelString(name: String) =
         name == "max_tokens" ||
-            name == "model_control_advanced_settings_subtitle" ||
             name.startsWith("generation_parameter_") ||
             name.startsWith("generation_group_")
 

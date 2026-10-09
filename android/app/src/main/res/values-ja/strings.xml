@@ -1339,8 +1339,6 @@
     <string name="generation_parameter_name_llamacpp_native">llama.cpp ネイティブモード</string>
     <string name="generation_parameter_name_min_keep">最小保持トークン数</string>
     <string name="generation_parameter_name_mirostat">Mirostat</string>
-    <string name="generation_parameter_name_mirostat_eta">Mirostat eta</string>
-    <string name="generation_parameter_name_mirostat_tau">Mirostat tau</string>
     <string name="generation_parameter_name_n_indent">最小インデント</string>
     <string name="generation_parameter_name_n_keep">保持トークン数</string>
     <string name="generation_parameter_name_n_probabilities">トークン確率</string>
@@ -1382,8 +1380,6 @@
     <string name="model_control_custom_fields_active_note">このコントロールではカスタムリクエストフィールドが有効なため、上の設定は送信されません。</string>
     <string name="model_control_custom_only_reason">この接続では自動設定を利用できません。</string>
     <string name="model_control_state_not_ready">準備中</string>
-    <string name="model_control_state_unavailable">利用不可</string>
-    <string name="model_control_advanced_settings_subtitle">最大トークン数・温度などのリクエストパラメータ</string>
     <string name="generation_parameter_developer">開発者</string>
     <string name="generation_parameter_custom_fields_not_in_use">未使用</string>
     <string name="generation_parameter_custom_fields_in_use">使用中</string>
@@ -1394,7 +1390,6 @@
     <!-- A1 model controls panel rebuild (2026-08-16): ported verbatim from the iOS golden standard. -->
     <string name="model_control_capability_unavailable_here">この接続ではこの機能を利用できません。</string>
     <string name="model_control_upstream_rejected">プロバイダーがこのモデルの設定を拒否しました。この設定を外して再送信するか、別のモデルを選んでください。</string>
-    <string name="model_control_state_manual">手動</string>
     <string name="model_control_state_custom">カスタム</string>
     <string name="model_control_status_pending">このリクエスト経路では、まだ自動設定を利用できません。</string>
     <string name="model_control_status_unknown_route">このモデルまたは転送方式は、このリクエストの自動設定に対応していません。</string>
@@ -1781,14 +1776,12 @@
     <string name="model_options_more_count">ほか %1$d 件</string>
     <string name="model_options_needs_manual_setup">手動での設定が必要</string>
     <string name="model_options_no_thinking_mode">このモデルは思考に対応していません</string>
-    <string name="model_options_not_available_connection">この接続では利用できません</string>
     <string name="model_options_not_available_yet">まだ利用できません</string>
     <string name="model_options_open_additional_body">追加リクエストボディを開く</string>
     <string name="model_options_protocol_auto_note">プロトコルがまだ「自動」のため、ウェブ検索と思考の設定をどう送ればよいか Oriveo が判断できません。</string>
     <string name="model_options_reasoning_no_generic_switch">このプロバイダーには思考の共通スイッチがありません。追加リクエストボディにプロバイダー独自のフィールドを追加してください。</string>
     <string name="model_options_reasoning_not_catalogued">このモデルの思考設定はまだ Oriveo に登録されていないため、モデル本来のデフォルトで動作します。</string>
     <string name="model_options_see_adjustable_models">調整できるモデルを見る</string>
-    <string name="model_options_switch_connection">接続を切り替える</string>
     <string name="model_options_template_thinking_note">チャットテンプレートを通じて思考のオン／オフを切り替えます。実際に効くかどうかはサーバー次第です。</string>
     <string name="model_options_thinks_first_note">先にじっくり考えるため、回答まで少し時間がかかります</string>
     <string name="model_options_tier_rejected_body">このモデルは現在「%1$s」を受け付けていないため、「%2$s」に戻しました。モデルが再び対応すると、このレベルは自動で元に戻ります。</string>
@@ -1800,4 +1793,6 @@
     <string name="model_options_web_not_catalogued">このモデルのウェブ検索設定はまだ Oriveo に登録されていないため、ここではオンにできません。</string>
     <string name="model_options_web_note">必要なときは先にウェブを検索してから回答します</string>
     <string name="model_options_web_when_needed">必要なとき</string>
+    <string name="additional_body_tools_managed">ツールは Oriveo が管理します。</string>
+    <string name="additional_body_streaming_by_oriveo">返答のストリーミング方法は Oriveo が決めます。</string>
 </resources>

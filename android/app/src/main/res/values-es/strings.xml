@@ -1339,8 +1339,6 @@
     <string name="generation_parameter_name_llamacpp_native">Modo nativo de llama.cpp</string>
     <string name="generation_parameter_name_min_keep">Mínimo de tokens a conservar</string>
     <string name="generation_parameter_name_mirostat">Mirostat</string>
-    <string name="generation_parameter_name_mirostat_eta">Mirostat eta</string>
-    <string name="generation_parameter_name_mirostat_tau">Mirostat tau</string>
     <string name="generation_parameter_name_n_indent">Sangría mínima</string>
     <string name="generation_parameter_name_n_keep">Tokens a conservar</string>
     <string name="generation_parameter_name_n_probabilities">Probabilidades de tokens</string>
@@ -1382,8 +1380,6 @@
     <string name="model_control_custom_fields_active_note">Los campos personalizados están activos para este control, por lo que la preferencia de arriba no se envía.</string>
     <string name="model_control_custom_only_reason">La configuración automática no está disponible para esta conexión.</string>
     <string name="model_control_state_not_ready">Aún no disponible</string>
-    <string name="model_control_state_unavailable">No disponible</string>
-    <string name="model_control_advanced_settings_subtitle">Máximo de tokens, temperatura y otros parámetros de solicitud</string>
     <string name="generation_parameter_developer">Desarrollador</string>
     <string name="generation_parameter_custom_fields_not_in_use">Sin usar</string>
     <string name="generation_parameter_custom_fields_in_use">En uso</string>
@@ -1394,7 +1390,6 @@
     <!-- A1 model controls panel rebuild (2026-08-16): ported verbatim from the iOS golden standard. -->
     <string name="model_control_capability_unavailable_here">Esta función no está disponible para esta conexión.</string>
     <string name="model_control_upstream_rejected">El proveedor rechazó este ajuste para este modelo. Vuelve a enviar sin él o elige otro modelo.</string>
-    <string name="model_control_state_manual">Manual</string>
     <string name="model_control_state_custom">Personalizado</string>
     <string name="model_control_status_pending">La configuración automática aún no está disponible para esta ruta de solicitud.</string>
     <string name="model_control_status_unknown_route">Este modelo o transporte no admite configuración automática para esta solicitud.</string>
@@ -1797,14 +1792,12 @@
     <string name="model_options_more_count">%1$d más</string>
     <string name="model_options_needs_manual_setup">Requiere configuración manual</string>
     <string name="model_options_no_thinking_mode">Este modelo no tiene modo de razonamiento</string>
-    <string name="model_options_not_available_connection">No disponible para esta conexión</string>
     <string name="model_options_not_available_yet">Aún no disponible</string>
     <string name="model_options_open_additional_body">Abrir el cuerpo de solicitud adicional</string>
     <string name="model_options_protocol_auto_note">El protocolo sigue en «Automático», así que Oriveo no sabe cómo enviar los ajustes de búsqueda web y razonamiento.</string>
     <string name="model_options_reasoning_no_generic_switch">Este proveedor no tiene un interruptor estándar para el razonamiento. Agrega sus campos en el cuerpo de solicitud adicional.</string>
     <string name="model_options_reasoning_not_catalogued">Oriveo aún no tiene ajustes de razonamiento para este modelo, así que usa sus propios valores predeterminados.</string>
     <string name="model_options_see_adjustable_models">Ver qué modelos se pueden ajustar</string>
-    <string name="model_options_switch_connection">Cambiar de conexión</string>
     <string name="model_options_template_thinking_note">Activa o desactiva el razonamiento mediante la plantilla de chat. Que funcione depende de tu servidor.</string>
     <string name="model_options_thinks_first_note">Lo piensa bien antes de responder, así que tarda un poco más</string>
     <string name="model_options_tier_rejected_body">Este modelo no acepta «%1$s» por ahora, así que volvió a «%2$s». El nivel se restablecerá solo cuando el modelo vuelva a admitirlo.</string>
@@ -1816,4 +1809,6 @@
     <string name="model_options_web_not_catalogued">Oriveo aún no tiene ajustes de búsqueda web para este modelo, así que no se puede activar aquí.</string>
     <string name="model_options_web_note">Busca en la web primero cuando una pregunta lo requiere</string>
     <string name="model_options_web_when_needed">Cuando haga falta</string>
+    <string name="additional_body_tools_managed">Las herramientas las gestiona Oriveo.</string>
+    <string name="additional_body_streaming_by_oriveo">Oriveo decide cómo se transmite la respuesta.</string>
 </resources>

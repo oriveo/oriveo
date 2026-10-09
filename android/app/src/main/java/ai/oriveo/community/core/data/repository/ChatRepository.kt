@@ -1009,15 +1009,15 @@ class ChatRepository(
                 canOfferExplicitModelControlResend(locatedRejection, receivedUpstreamEvent, e)
             if (canExplicitlyResend) {
                 effectiveRequestOptions.modelControlRuntimeIdentity?.let { identity ->
-                    locatedRejection.locatedPointers.forEach { pointer ->
-                        ModelControlRejectionCache.record(
-                            identity = identity,
-                            owner = locatedRejection.owner,
-                            source = locatedRejection.source,
-                            setting = pointer,
-                            recipeRef = locatedRejection.recipeRef,
-                        )
-                    }
+                    // The recipe's thinking setting is recorded under the tier actually selected for this send, so the panel removes only the rejected tier.
+                    ModelControlRejectionCache.recordLocated(
+                        identity,
+                        locatedRejection,
+                        ModelControlRejectionCache.rejectedTier(
+                            locatedRejection,
+                            effectiveRequestOptions.capabilityPreferences?.reasoningIntent,
+                        ),
+                    )
                     CapabilityEvidenceObservationBridge.invalidate()
                 }
             }

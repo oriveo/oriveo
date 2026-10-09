@@ -204,12 +204,9 @@ class ModelControlIntentVocabularyTest {
             "model_control_custom_fields_active_note",
             "model_control_custom_only_reason",
             "model_control_state_not_ready",
-            "model_control_state_unavailable",
-            "model_control_advanced_settings_subtitle",
             // Carried over verbatim from the iOS string catalog.
             "model_control_capability_unavailable_here",
             "model_control_upstream_rejected",
-            "model_control_state_manual",
             "model_control_state_custom",
             "model_control_status_pending",
             "model_control_status_unknown_route",
@@ -240,13 +237,8 @@ class ModelControlIntentVocabularyTest {
         val default = strings(File(resourceRoot, "values/strings.xml"))
         keys.forEach { key -> assertTrue("missing default value: $key", !default[key].isNullOrBlank()) }
 
-        // A handful of Latin locales legitimately keep "Manual" identical to English (verified for
-        // es / id / pt-BR) -- that is a correct translation, not a missed one. Listing them
-        // explicitly keeps "identical to English" a judged conclusion rather than a free pass
-        // anyone can add.
-        val identicalByDesign = mapOf(
-            "model_control_state_manual" to setOf("values-es", "values-in", "values-pt-rBR"),
-        )
+        // A translation identical to English must be listed here one by one, so "identical" is always a judged conclusion and never a free pass.
+        val identicalByDesign = emptyMap<String, Set<String>>()
         val localeDirs = resourceRoot.listFiles().orEmpty()
             .filter { it.isDirectory && it.name.startsWith("values-") && File(it, "strings.xml").exists() }
         assertEquals("15 locale directories plus the default values = 16", 15, localeDirs.size)
@@ -370,7 +362,7 @@ class ModelControlIntentVocabularyTest {
      */
     @Test
     fun `every model control string is actually referenced by production code`() {
-        val keys = Regex("""<(?:string|string-array|plurals) name="((?:model_control_|generation_)[^"]+)"""")
+        val keys = Regex("""<(?:string|string-array|plurals) name="((?:model_control_|generation_|model_options_|advanced_|additional_body_|local_request_)[^"]+)"""")
             .findAll(File(resourceRoot, "values/strings.xml").readText())
             .map { it.groupValues[1] }
             .toSortedSet()

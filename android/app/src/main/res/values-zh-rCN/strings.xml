@@ -1352,8 +1352,6 @@
     <string name="generation_parameter_name_llamacpp_native">llama.cpp 原生模式</string>
     <string name="generation_parameter_name_min_keep">最少保留 Token 数</string>
     <string name="generation_parameter_name_mirostat">Mirostat</string>
-    <string name="generation_parameter_name_mirostat_eta">Mirostat eta</string>
-    <string name="generation_parameter_name_mirostat_tau">Mirostat tau</string>
     <string name="generation_parameter_name_n_indent">最小缩进</string>
     <string name="generation_parameter_name_n_keep">保留 Token 数</string>
     <string name="generation_parameter_name_n_probabilities">Token 概率</string>
@@ -1395,8 +1393,6 @@
     <string name="model_control_custom_fields_active_note">该控件已启用自定义请求字段，上面选的偏好不会被发送。</string>
     <string name="model_control_custom_only_reason">此连接仅支持手动自定义配置。</string>
     <string name="model_control_state_not_ready">未就绪</string>
-    <string name="model_control_state_unavailable">不可用</string>
-    <string name="model_control_advanced_settings_subtitle">温度、最大 Token 数等</string>
     <string name="generation_parameter_developer">开发者</string>
     <string name="generation_parameter_custom_fields_not_in_use">未使用</string>
     <string name="generation_parameter_custom_fields_in_use">已启用</string>
@@ -1407,7 +1403,6 @@
     <!-- A1 model controls panel rebuild (2026-08-16): ported verbatim from the iOS golden standard. -->
     <string name="model_control_capability_unavailable_here">此连接不支持该能力。</string>
     <string name="model_control_upstream_rejected">供应商拒绝了这个模型上的该设置。可以不带它重新发送，或换一个模型。</string>
-    <string name="model_control_state_manual">需手动</string>
     <string name="model_control_state_custom">自定义</string>
     <string name="model_control_status_pending">此请求路由暂未提供自动配置。</string>
     <string name="model_control_status_unknown_route">此模型或传输方式不支持该请求的自动配置。</string>
@@ -1794,14 +1789,12 @@
     <string name="model_options_more_count">另 %1$d 项</string>
     <string name="model_options_needs_manual_setup">需要自己配置</string>
     <string name="model_options_no_thinking_mode">这个模型不带思考</string>
-    <string name="model_options_not_available_connection">这条连接不开放</string>
     <string name="model_options_not_available_yet">暂时开不了</string>
     <string name="model_options_open_additional_body">去附加请求体</string>
     <string name="model_options_protocol_auto_note">协议还是「自动」，Oriveo 不知道该怎么发联网和思考的设置。</string>
     <string name="model_options_reasoning_no_generic_switch">这家的思考没有通用开关，要在附加请求体里填它的字段。</string>
     <string name="model_options_reasoning_not_catalogued">这个模型的思考设置还没收录，先按它自己的默认来。</string>
     <string name="model_options_see_adjustable_models">看看哪些模型可以调</string>
-    <string name="model_options_switch_connection">换一个连接</string>
     <string name="model_options_template_thinking_note">按对话模板开关，是否生效看你的服务</string>
     <string name="model_options_thinks_first_note">先想清楚再回答，会慢一些</string>
     <string name="model_options_tier_rejected_body">这个模型现在不接受「%1$s」，已换回「%2$s」。之后它重新支持时，这一档会自己回来。</string>
@@ -1813,4 +1806,6 @@
     <string name="model_options_web_not_catalogued">这个模型的联网设置还没收录，暂时开不了。</string>
     <string name="model_options_web_note">需要查资料时，先搜索再回答</string>
     <string name="model_options_web_when_needed">需要时再搜</string>
+    <string name="additional_body_tools_managed">工具由 Oriveo 管理。</string>
+    <string name="additional_body_streaming_by_oriveo">回复怎么流式返回由 Oriveo 决定。</string>
 </resources>

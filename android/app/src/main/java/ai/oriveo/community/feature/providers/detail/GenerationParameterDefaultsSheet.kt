@@ -261,6 +261,7 @@ fun GenerationParameterDefaultsSheet(
     var schemaDrafts by remember { mutableStateOf(emptyMap<String, String>()) }
     var invalidSchemaIds by remember { mutableStateOf(emptySet<String>()) }
     var diagnosticRevision by remember { mutableStateOf(0) }
+    var confirmDiagnosticsDelete by remember { mutableStateOf(false) }
     val exportSettings = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
     ) { uri ->
@@ -279,7 +280,7 @@ fun GenerationParameterDefaultsSheet(
     val exportDiagnostics = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
     ) { uri ->
-        uri?.let { context.contentResolver.openOutputStream(it)?.bufferedWriter()?.use { writer -> writer.write(GenerationParameterDiagnosticStore.redactedJSON()) } }
+        uri?.let { context.contentResolver.openOutputStream(it)?.bufferedWriter()?.use { writer -> writer.write(GenerationParameterDiagnosticStore.redactedJSON(modelId)) } }
     }
 
     val partition = model?.let {
@@ -302,6 +303,8 @@ fun GenerationParameterDefaultsSheet(
     var showsCustomFieldsUnsupportedAlert by remember(modelId) { mutableStateOf(false) }
 
     var pendingDestruction by remember(modelId) { mutableStateOf<GenerationDestructiveAction?>(null) }
+    // Applying a preset replaces every value set for this model, so it is confirmed first (with nothing set there is nothing to replace and it applies directly).
+    var pendingPreset by remember(modelId) { mutableStateOf<ai.oriveo.community.core.model.GenerationParameterPreset?>(null) }
 
     var customFieldsEntry by remember(modelId) { mutableStateOf(CustomFieldsEntry.Unsupported) }
 
@@ -311,20 +314,7 @@ fun GenerationParameterDefaultsSheet(
     val customFieldsStore = remember(context) { LocalCapabilityCustomFragmentStore.from(context) }
 
     val customFieldsCandidates = remember(provider, capabilityObservationRevision) {
-        run {
-            provider.models.filter { candidate ->
-                val identity = ModelControlRuntimeIdentityResolver.resolve(provider, candidate)
-                identity != null && modelControlOwnerOrder.any { owner ->
-                    capabilityCustomFragmentAvailable(
-                        providerKind = provider.kind,
-                        modelID = candidate.id,
-                        finalTransport = identity.finalTransport,
-                        activeProfile = GenerationParameterAvailability.profile(provider, candidate),
-                        owner = owner,
-                    )
-                }
-            }
-        }
+        customFieldsSupportedCandidates(provider)
     }
     LaunchedEffect(provider.id, modelId, conversationId, customFieldsIdentity, page) {
 
@@ -368,6 +358,58 @@ fun GenerationParameterDefaultsSheet(
     val supportedModelsTransitionMillis =
         OriveoMotion.modelControlPageMillis(isReduceMotionEnabled(context))
 
+    pendingPreset?.let { preset ->
+        val replaced = values.values.keys.map { stringResource(generationParameterTitleRes(it)) }.joinToString(" · ")
+        AlertDialog(
+            onDismissRequest = { pendingPreset = null },
+            title = { Text(stringResource(R.string.advanced_preset_apply_title)) },
+            text = { Text(stringResource(R.string.advanced_preset_apply_body, preset.name, replaced)) },
+            confirmButton = {
+                TextButton(
+                    colors = modelControlTextButtonColors(),
+                    onClick = {
+                        presetStore.apply(preset, provider.id, modelId, profileFingerprint.orEmpty(), portableSemanticMapping)?.let { applied ->
+                            values = applied
+                            persist(applied)
+                        }
+                        pendingPreset = null
+                    },
+                ) { Text(stringResource(R.string.advanced_preset_apply)) }
+            },
+            dismissButton = {
+                TextButton(
+                    colors = modelControlTextButtonColors(),
+                    onClick = { pendingPreset = null },
+                ) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
+    // Showing, exporting and deleting the diagnostics all cover the same scope (the current model), so deleting is confirmed first.
+    if (confirmDiagnosticsDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDiagnosticsDelete = false },
+            title = { Text(stringResource(R.string.advanced_diagnostics_delete_title)) },
+            text = { Text(stringResource(R.string.advanced_diagnostics_delete_body)) },
+            confirmButton = {
+                TextButton(
+                    colors = ButtonDefaults.textButtonColors(contentColor = OriveoTheme.colors.danger),
+                    onClick = {
+                        GenerationParameterDiagnosticStore.clear(modelId)
+                        diagnosticRevision += 1
+                        confirmDiagnosticsDelete = false
+                    },
+                ) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(
+                    colors = modelControlTextButtonColors(),
+                    onClick = { confirmDiagnosticsDelete = false },
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
     pendingDestruction?.let { action ->
         val conflictTitles = mutableListOf<String>()
         if (action == GenerationDestructiveAction.RemoveConflicts) {
@@ -568,9 +610,13 @@ fun GenerationParameterDefaultsSheet(
                     presetStore.list(provider.id, modelId, profileFingerprint, portableSemanticMapping.keys).forEach { preset ->
                         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             TextButton(colors = modelControlTextButtonColors(), onClick = {
-                                presetStore.apply(preset, provider.id, modelId, profileFingerprint, portableSemanticMapping)?.let { applied ->
-                                    values = applied
-                                    persist(applied)
+                                if (values.values.isEmpty()) {
+                                    presetStore.apply(preset, provider.id, modelId, profileFingerprint, portableSemanticMapping)?.let { applied ->
+                                        values = applied
+                                        persist(applied)
+                                    }
+                                } else {
+                                    pendingPreset = preset
                                 }
                             }) { Text(preset.name) }
                             androidx.compose.foundation.layout.Spacer(modifier = Modifier.weight(1f))
@@ -643,8 +689,7 @@ fun GenerationParameterDefaultsSheet(
                                 Text(stringResource(R.string.generation_diagnostics_export))
                             }
                             TextButton(colors = modelControlTextButtonColors(), onClick = {
-                                GenerationParameterDiagnosticStore.clear()
-                                diagnosticRevision += 1
+                                confirmDiagnosticsDelete = true
                             }) { Text(stringResource(R.string.delete)) }
                         }
                     }
@@ -828,7 +873,11 @@ fun GenerationParameterDefaultsSheet(
                                 ) { Text(actionLabel) }
                             }
                     if (parameter.fixedValue != null) {
-                        Text(parameter.fixedValue.toString().orEmpty(), modifier = Modifier.fillMaxWidth())
+                        // Same display function as the advanced settings in the chat: a string is shown without JSON quotes.
+                        Text(
+                            parameter.fixedValue?.let(ai.oriveo.community.feature.chat.modelcontrols.GenerationParameterRowModel::text).orEmpty(),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     } else if (parameter.valueSchema == "enum" && parameter.enumValues.isNotEmpty()) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             val choices = (parameter.enumValues + listOfNotNull(current)).distinct()
@@ -1178,7 +1227,7 @@ private fun CustomFieldsEntryRow(
 }
 
 @Composable
-private fun CustomFieldsSupportedModelsPage(
+internal fun CustomFieldsSupportedModelsPage(
     provider: Provider,
     candidates: List<ai.oriveo.community.core.model.AIModel>,
     onSelect: ((ai.oriveo.community.core.model.AIModel) -> Unit)?,
@@ -1262,7 +1311,7 @@ internal fun basicParameterAnnotationRes(id: String): Int? = when (id) {
 }
 
 @Composable
-private fun GenerationParameterSupportedModelsPage(
+internal fun GenerationParameterSupportedModelsPage(
     provider: Provider,
     parameterId: String,
     scope: GenerationParameterEntryScope,
@@ -1311,6 +1360,21 @@ private fun GenerationParameterSupportedModelsPage(
         }
     }
 }
+
+/** Models on this connection for which any owner really declares a field schema. Shared by the advanced settings in the chat and this page. */
+internal fun customFieldsSupportedCandidates(provider: Provider): List<ai.oriveo.community.core.model.AIModel> =
+    provider.models.filter { candidate ->
+        val identity = ModelControlRuntimeIdentityResolver.resolve(provider, candidate)
+        identity != null && modelControlOwnerOrder.any { owner ->
+            capabilityCustomFragmentAvailable(
+                providerKind = provider.kind,
+                modelID = candidate.id,
+                finalTransport = identity.finalTransport,
+                activeProfile = GenerationParameterAvailability.profile(provider, candidate),
+                owner = owner,
+            )
+        }
+    }
 
 /**
  * Read-only display for a dormant override value. Echo the stored value as-is
@@ -1382,8 +1446,8 @@ internal fun generationParameterTitleRes(raw: String): Int = when (raw) {
     "llamacpp_native" -> R.string.generation_parameter_name_llamacpp_native
     "min_keep" -> R.string.generation_parameter_name_min_keep
     "mirostat" -> R.string.generation_parameter_name_mirostat
-    "mirostat_eta" -> R.string.generation_parameter_name_mirostat_eta
-    "mirostat_tau" -> R.string.generation_parameter_name_mirostat_tau
+    "mirostat_eta" -> R.string.advanced_learning_rate
+    "mirostat_tau" -> R.string.advanced_target_entropy
     "n_indent" -> R.string.generation_parameter_name_n_indent
     "n_keep" -> R.string.generation_parameter_name_n_keep
     "n_probs" -> R.string.generation_parameter_name_n_probabilities

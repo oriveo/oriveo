@@ -8,6 +8,8 @@ import ai.oriveo.community.core.model.GenerationProfileRef
 import ai.oriveo.community.core.model.SourcedGenerationParameter
 import ai.oriveo.community.core.provider.GenerationParameterAvailability
 import ai.oriveo.community.core.provider.GenerationParameterResolver
+import ai.oriveo.community.core.provider.GenerationParameterSupportPresentation
+import ai.oriveo.community.core.provider.GenerationParameterSupportPresentation.PresentationClass
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -38,6 +40,8 @@ internal data class GenerationParameterRowModel(
     val reasoningSetInModelOptions: Boolean,
     /** Non-null only for a row that differs from the page-level tone. */
     val inlineVerification: Verification?,
+    /** The presentation class of this row (the support's presentation class); it decides which label the inline marker uses. */
+    val presentationClass: PresentationClass = PresentationClass.Silent,
 ) {
     enum class Source { Session, ModelDefault, ModelDecides }
     enum class Verification { Verified, Unverified }
@@ -51,7 +55,8 @@ internal data class GenerationParameterRowModel(
         data class Fallback(val kind: FallbackKind, val text: String? = null) : DisplayValue
     }
 
-    enum class FallbackKind { Unlimited, ModelDefaultValue, ModelDecides }
+    /** RandomEachTime / PlainText are the specific wordings of "decided by the model" for the random seed and the output format; used only when no layer gives a value. */
+    enum class FallbackKind { Unlimited, ModelDefaultValue, ModelDecides, RandomEachTime, PlainText }
 
     sealed interface ValidationError {
         data class OutOfRange(val range: GenerationParameterRange) : ValidationError
@@ -61,7 +66,12 @@ internal data class GenerationParameterRowModel(
     data class Chip(val id: String, val display: DisplayValue)
     data class Summary(val chips: List<Chip>, val moreCount: Int)
 
-    data class Page(val rows: List<GenerationParameterRowModel>, val baseline: Verification)
+    data class Page(
+        val rows: List<GenerationParameterRowModel>,
+        val baseline: Verification,
+        /** The class the page header speaks of when the baseline holds: the most common presentation class among unverified rows. */
+        val baselineClass: PresentationClass? = null,
+    )
 
     companion object {
         const val MAX_SUMMARY_CHIPS: Int = 2
@@ -82,15 +92,23 @@ internal data class GenerationParameterRowModel(
          * @param sourced The result of `resolveWithSources`.
          * @param dropped `applyWithResult(...).dropped`, optionally merged with the thinking-interplay preview.
          * @param editableIds The editable set given by the outbound gate; null means judge only by a non-empty wire.
+         * @param isUnverified Whether this row counts as unverified. Production callers always pass
+         *   `GenerationParameterPanelPresentation.showsUnverifiedBadge`, so both pages use one criterion;
+         *   the default (no projection) treats every row as verified.
          */
         fun page(
             profile: GenerationProfileRef,
             sourced: Map<String, SourcedGenerationParameter>,
             dropped: List<GenerationParameterResolver.DroppedParameter> = emptyList(),
             editableIds: Set<String>? = null,
+            isUnverified: (GenerationParameterRef) -> Boolean = { false },
         ): Page {
             val parameters = profile.parameters.filter { it.id != null }
-            val baseline = baseline(parameters)
+            val verification: (GenerationParameterRef) -> Verification = {
+                if (isUnverified(it)) Verification.Unverified else Verification.Verified
+            }
+            val baseline = baseline(parameters, verification)
+            val baselineClass = baselineClass(parameters, verification).takeIf { baseline == Verification.Unverified }
             val droppedById = dropped.associate { it.parameterId to it.reason }
             val effective = parameters.mapNotNull { it.id }.filter { id ->
                 sourced[id]?.override?.state == GenerationOverrideState.Value && id !in droppedById
@@ -118,20 +136,51 @@ internal data class GenerationParameterRowModel(
                     },
                     isEditable = !noWriterReasoning && hasWire && (editableIds?.contains(id) ?: true),
                     reasoningSetInModelOptions = noWriterReasoning,
-                    inlineVerification = verification(parameter).takeIf { it != baseline },
+                    inlineVerification = inlineVerification(verification(parameter), parameter, baseline, baselineClass),
+                    presentationClass = presentationClass(parameter),
                 )
             }
-            return Page(rows, baseline)
+            return Page(rows, baseline, baselineClass)
         }
 
+        /**
+         * Only a row that differs from the baseline is marked. When the baseline holds, a row that is just as unverified but whose presentation class differs from the one the page header speaks of
+         * (for example "no data" among "effect unverified" rows) is still marked, otherwise the one-line header would say something wrong about it.
+         */
+        private fun inlineVerification(
+            verification: Verification,
+            parameter: GenerationParameterRef,
+            baseline: Verification,
+            baselineClass: PresentationClass?,
+        ): Verification? {
+            return when {
+                verification != baseline -> verification
+                verification == Verification.Unverified && presentationClass(parameter) != baselineClass -> verification
+                else -> null
+            }
+        }
+
+        /** The most common presentation class among unverified rows; a tie goes to the one declared first. */
+        private fun baselineClass(
+            parameters: List<GenerationParameterRef>,
+            verification: (GenerationParameterRef) -> Verification,
+        ): PresentationClass? =
+            parameters.filter { verification(it) == Verification.Unverified }
+                .groupingBy(::presentationClass).eachCount()
+                .maxWithOrNull(compareBy<Map.Entry<PresentationClass, Int>> { it.value }.thenByDescending { it.key.ordinal })
+                ?.key
+
         /** Whether "unverified" is the tone of the whole page: the verification state of most rows; a tie counts as verified. */
-        fun baseline(parameters: List<GenerationParameterRef>): Verification {
+        fun baseline(
+            parameters: List<GenerationParameterRef>,
+            verification: (GenerationParameterRef) -> Verification,
+        ): Verification {
             val unverified = parameters.count { verification(it) == Verification.Unverified }
             return if (unverified * 2 > parameters.size) Verification.Unverified else Verification.Verified
         }
 
-        private fun verification(parameter: GenerationParameterRef): Verification =
-            if (parameter.support == "accepted_unverified") Verification.Unverified else Verification.Verified
+        private fun presentationClass(parameter: GenerationParameterRef): PresentationClass =
+            GenerationParameterSupportPresentation.entry(parameter.support).presentationClass
 
         private fun conflicts(parameters: List<GenerationParameterRef>, id: String, other: String): Boolean {
             val self = parameters.firstOrNull { it.id == id }
@@ -158,10 +207,10 @@ internal data class GenerationParameterRowModel(
             }
             parameter.fixedValue?.takeUnless { it is JsonNull }?.let { return DisplayValue.Value(text(it)) }
             val default = parameter.defaultDescription?.takeUnless { it is JsonNull }
-                ?: return DisplayValue.Fallback(FallbackKind.ModelDecides)
+                ?: return modelDecides(parameter)
             val primitive = default as? JsonPrimitive
             if (primitive?.isString == true && primitive.content in PLACEHOLDER_DEFAULTS) {
-                return DisplayValue.Fallback(FallbackKind.ModelDecides)
+                return modelDecides(parameter)
             }
             // The engine uses a sentinel outside the allowed range to mean unlimited (-1 for llama.cpp's max tokens).
             // It may only be shown as "unlimited": the number itself must not appear and is never sent (no value, nothing written).
@@ -172,6 +221,26 @@ internal data class GenerationParameterRowModel(
             }
             return DisplayValue.Fallback(FallbackKind.ModelDefaultValue, text(default))
         }
+
+        /** The allowed range written out for an out-of-range value ("0 - 2", ">= 1"); null when the range has no bound at all. */
+        fun rangeText(range: GenerationParameterRange): String? {
+            val lower = range.min?.let { "≥ ${advancedNumberText(it)}" } ?: range.minExclusive?.let { "> ${advancedNumberText(it)}" }
+            val upper = range.max?.let { "≤ ${advancedNumberText(it)}" } ?: range.maxExclusive?.let { "< ${advancedNumberText(it)}" }
+            return when {
+                range.min != null && range.max != null -> "${advancedNumberText(range.min)} – ${advancedNumberText(range.max)}"
+                lower != null && upper != null -> "$lower – $upper"
+                else -> lower ?: upper
+            }
+        }
+
+        /** "Decided by the model" has a more specific wording for the seed and the output format: no seed means random every time, no format means plain text. */
+        private fun modelDecides(parameter: GenerationParameterRef): DisplayValue = DisplayValue.Fallback(
+            when (parameter.id) {
+                "seed" -> FallbackKind.RandomEachTime
+                "json_schema", "response_format" -> FallbackKind.PlainText
+                else -> FallbackKind.ModelDecides
+            },
+        )
 
         /** A string is shown without JSON quotes, a string array is listed item by item, anything else as raw JSON. */
         fun text(value: JsonElement): String = when {

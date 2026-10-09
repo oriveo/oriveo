@@ -140,9 +140,17 @@ internal class ChatSendCoordinator(
             typedWebIntent = "force".takeIf { storedTypedPreferences.web == CapabilityWebPreference.Force },
             typedReasoningIntent = storedTypedPreferences.reasoningIntent,
         )?.selections.orEmpty().associate { it.capability to it.id }
+        // A tiered rejection makes the group dormant only when exactly that tier is selected; an untiered rejection still makes the whole group dormant.
         val normalRejectedRecipeOwners = currentRecipeRefs.mapNotNull { (owner, recipeRef) ->
             owner.takeIf {
-                owner !in storedCustomFragments && cachedRejectedSettings(owner, "provider_recipe", recipeRef).isNotEmpty()
+                owner !in storedCustomFragments && modelControlIdentity != null &&
+                    ModelControlRejectionCache.blocksSelection(
+                        modelControlIdentity,
+                        owner,
+                        "provider_recipe",
+                        recipeRef,
+                        selectedTier = storedTypedPreferences.reasoningIntent.takeIf { owner == "reasoning" },
+                    )
             }
         }.toSet()
         val normalRejectedCustomOwners = storedCustomFragments.keys.filterTo(linkedSetOf()) { owner ->
