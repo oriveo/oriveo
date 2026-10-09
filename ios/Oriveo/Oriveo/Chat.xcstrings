@@ -8538,7 +8538,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تعذّر قراءة %@؛ قد يكون الملف تالفًا."
+            "value" : "تعذّر قراءة ⁦%@⁩؛ قد يكون الملف تالفًا."
           }
         },
         "de" : {
@@ -8639,7 +8639,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "الملف %@ محمي بكلمة مرور. يرجى إزالة كلمة المرور ثم إرفاقه مرة أخرى."
+            "value" : "الملف ⁦%@⁩ محمي بكلمة مرور. يرجى إزالة كلمة المرور ثم إرفاقه مرة أخرى."
           }
         },
         "de" : {
@@ -8740,13 +8740,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تعذّر معالجة %@. حاول مجدداً أو اختر ملفاً آخر."
+            "value" : "تعذّر معالجة ⁦%@⁩. حاول مجدداً أو اختر ملفاً آخر."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ konnte nicht verarbeitet werden. Versuchen Sie es erneut oder wählen Sie eine andere Datei."
+            "value" : "%@ konnte nicht verarbeitet werden. Versuche es erneut oder wähle eine andere Datei."
           }
         },
         "en" : {
@@ -8841,7 +8841,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تعذّر استخراج النص من %@ (يبدو أنه ملف PDF ممسوح ضوئيًا)."
+            "value" : "تعذّر استخراج النص من ⁦%@⁩ (يبدو أنه ملف PDF ممسوح ضوئيًا)."
           }
         },
         "de" : {
@@ -8942,7 +8942,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "الملف %1$@ كبير جدًا (الحد الأقصى %2$lld ميجابايت)."
+            "value" : "الملف ⁦%1$@⁩ كبير جدًا (الحد الأقصى %2$lld ميجابايت)."
           }
         },
         "de" : {
@@ -9043,7 +9043,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "نوع الملف %@ غير مدعوم."
+            "value" : "نوع الملف ⁦%@⁩ غير مدعوم."
           }
         },
         "de" : {
@@ -9235,6 +9235,107 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "大檔案已截斷。新增到 Skill Knowledge 取得完整檢索 →"
+          }
+        }
+      }
+    },
+    "file_extraction_truncated_notice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الملف ⁦%1$@⁩ طويل، فأُضيف أوله فقط (الأسطر: %2$lld من أصل %3$lld)."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ist lang, daher wurden nur die ersten %2$lld von %3$lld Zeilen hinzugefügt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ is long, so only the first %2$lld of %3$lld lines were added."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ es largo, así que solo se agregaron las primeras %2$lld de %3$lld líneas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ est long : seules les %2$lld premières lignes sur %3$lld ont été ajoutées."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ लंबी फ़ाइल है, इसलिए %3$lld में से सिर्फ़ पहली %2$lld पंक्तियाँ जोड़ी गईं।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ panjang, sehingga hanya %2$lld baris pertama dari %3$lld baris yang ditambahkan."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ は長いため、全 %3$lld 行のうち先頭の %2$lld 行だけを追加しました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 파일이 길어서 전체 %3$lld줄 중 처음 %2$lld줄만 추가했습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ é longo, então só as primeiras %2$lld de %3$lld linhas foram adicionadas."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл %1$@ длинный, добавлено только начало (строк: %2$lld из %3$lld)."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ยาวเกินไป จึงเพิ่มเฉพาะ %2$lld บรรทัดแรกจากทั้งหมด %3$lld บรรทัด"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ uzun olduğu için %3$lld satırın yalnızca ilk %2$lld satırı eklendi."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ khá dài nên chỉ thêm %2$lld dòng đầu trong tổng số %3$lld dòng."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 内容较长，只加入了前 %2$lld 行（共 %3$lld 行）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 內容較長，只加入了前 %2$lld 行（共 %3$lld 行）。"
           }
         }
       }

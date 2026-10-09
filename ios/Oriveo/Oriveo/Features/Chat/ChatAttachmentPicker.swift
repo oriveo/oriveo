@@ -233,6 +233,28 @@ struct ChatAttachmentPicker {
         return String(format: L10n.tr("file_extraction_chip_extracted_lines", table: .chat), lines)
     }
 
+    /// The notice shown when a file was truncated on import; nil if it was not truncated.
+    /// The kept-line count is taken from the truncated body, the same number the injector tells the model.
+    static func truncationNotice(for attachment: Attachment) -> String? {
+        guard attachment.kind == .file,
+              attachment.extractedTruncated == true,
+              let total = attachment.extractedTotalLines,
+              let base64 = attachment.base64Data,
+              let data = Data(base64Encoded: base64),
+              let content = String(data: data, encoding: .utf8) else { return nil }
+        let shown = content.components(separatedBy: "\n").count
+        return String(
+            format: L10n.tr("file_extraction_truncated_notice", table: .chat),
+            attachment.fileName, shown, total
+        )
+    }
+
+    /// One line per truncated file in an import batch, merged into a single notice.
+    static func truncationNotice(for attachments: [Attachment]) -> String? {
+        let notices = attachments.compactMap { truncationNotice(for: $0) }
+        return notices.isEmpty ? nil : notices.joined(separator: "\n")
+    }
+
 
     static func processPhotoItem(
         _ item: PhotosPickerItem,

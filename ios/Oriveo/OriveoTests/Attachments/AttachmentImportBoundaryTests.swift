@@ -231,6 +231,83 @@ struct AttachmentImportBoundaryTests {
         }
     }
 
+    /// Import -> persisted fields -> rebuild at send time, all through production functions: the rebuilt
+    /// ExtractedText has no reason, and the model must still be told the file was truncated (both wrappers).
+    @Test("Text file over the line cap: both wrapper formats tell the model it was truncated at send time")
+    @MainActor
+    func truncatedImportStillTellsTheModelAtSendTime() async throws {
+        let attachment = try await importLongTextFile(lines: 600)
+        #expect(attachment.extractedTruncated == true)
+        #expect(attachment.extractedTotalLines == 600)
+
+        let xml = BaseAPIService.injectFileAttachmentsAsText(
+            userText: "q", attachments: [attachment], provider: .anthropic, model: nil
+        )
+        #expect(xml.skipped.isEmpty)
+        #expect(xml.text.contains("<TRUNCATED>showing first 500 of 600 lines</TRUNCATED>"), "\(xml.text.suffix(160))")
+
+        let markdown = BaseAPIService.injectFileAttachmentsAsText(
+            userText: "q", attachments: [attachment], provider: .deepseek, model: nil
+        )
+        #expect(markdown.text.contains("- Lines: 600 (showing first 500)"), "\(markdown.text.prefix(200))")
+    }
+
+    @Test("Text file over the line cap: it is added, flagged as truncated, and produces one notice with the real line counts")
+    @MainActor
+    func truncatedImportProducesNotice() async throws {
+        let attachment = try await importLongTextFile(lines: 600, name: "notes.txt")
+        #expect(attachment.extractedTruncated == true)
+
+        let notice = try #require(ChatAttachmentPicker.truncationNotice(for: attachment))
+        let format = L10n.tr("file_extraction_truncated_notice", table: .chat)
+        #expect(format != "file_extraction_truncated_notice", "The Chat table is missing this string")
+        #expect(notice == String(format: format, "notes.txt", 500, 600), "\(notice)")
+        #expect(notice.contains("notes.txt") && notice.contains("500") && notice.contains("600"), "\(notice)")
+        #expect(!notice.contains("%"), "Placeholder was not substituted: \(notice)")
+
+        // Files that were not truncated produce no notice; each truncated file in a batch gets its own line.
+        let short = try await importLongTextFile(lines: 20, name: "short.txt")
+        #expect(short.extractedTruncated == false)
+        #expect(ChatAttachmentPicker.truncationNotice(for: short) == nil)
+        #expect(ChatAttachmentPicker.truncationNotice(for: [short]) == nil)
+        let second = try await importLongTextFile(lines: 900, name: "log.txt")
+        let merged = try #require(ChatAttachmentPicker.truncationNotice(for: [attachment, short, second]))
+        #expect(merged == [notice, String(format: format, "log.txt", 500, 900)].joined(separator: "\n"), "\(merged)")
+    }
+
+    @Test("Truncation notice exists in 16 languages: file name, kept lines and total lines each appear exactly once")
+    func truncationNoticeCopyIsComplete() throws {
+        let catalogURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Oriveo/Chat.xcstrings")
+        let catalog = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: catalogURL)) as? [String: Any])
+        let strings = try #require(catalog["strings"] as? [String: Any])
+        let entry = try #require(strings["file_extraction_truncated_notice"] as? [String: Any])
+        #expect(entry["extractionState"] as? String == "manual")
+        let localizations = try #require(entry["localizations"] as? [String: Any])
+        #expect(localizations.count == 16, "Only \(localizations.count) languages")
+        for (language, value) in localizations {
+            let text = ((value as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String ?? ""
+            for placeholder in ["%1$@", "%2$lld", "%3$lld"] {
+                #expect(text.components(separatedBy: placeholder).count == 2, "[\(language)] should contain exactly one \(placeholder): \(text)")
+            }
+            #expect(text.components(separatedBy: "%").count == 4, "[\(language)] should have no other placeholder: \(text)")
+        }
+    }
+
+    @MainActor
+    private func importLongTextFile(lines: Int, name: String = "long.txt") async throws -> Oriveo.Attachment {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("attach-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent(name)
+        try Data((1...lines).map { "line \($0)" }.joined(separator: "\n").utf8).write(to: url)
+        guard case let .imported(attachment) = await ChatAttachmentPicker.processFileURL(url, importContext: .init(provider: nil)) else {
+            throw CocoaError(.fileReadUnknown)
+        }
+        return attachment
+    }
+
     @Test("Per-file size limit: a 30 MB hard cap, and a lower custom limit wins")
     func effectiveSizeLimit() {
         #expect(ChatAttachmentImportPolicy.maxAttachmentBytes == 30 * 1024 * 1024)

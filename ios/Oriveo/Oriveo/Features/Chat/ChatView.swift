@@ -1341,6 +1341,9 @@ struct ChatView: View {
         if !limited.accepted.isEmpty {
             pendingAttachments += limited.accepted
             pruneUnsupportedPendingAttachments()
+            if let notice = ChatAttachmentPicker.truncationNotice(for: limited.accepted) {
+                ToastManager.shared.show(notice)
+            }
         }
         if limited.rejectedCount + skippedOverLimit > 0 {
             ToastManager.shared.show(
