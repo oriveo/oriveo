@@ -80,6 +80,8 @@ struct NoteDetailView: View {
     @State private var titleDraft = ""
     @State private var isEditingBody = false
     @State private var bodyDraft = ""
+    /// Which editor the current body editing session uses; nil when not editing.
+    @State private var bodyEditorSession: NoteBodyEditorSession?
     @State private var newTag = ""
     @State private var showTagEditor = false
     @State private var contentPane = 0
@@ -572,15 +574,32 @@ struct NoteDetailView: View {
             .clipShape(RoundedRectangle(cornerRadius: OriveoTheme.Radius.card, style: .continuous))
     }
 
+    /// Write path of the `TextEditor`: the write that crosses the threshold also moves the session
+    /// up to the bounded view. Both states change in the same update, so `TextEditor` never renders
+    /// one more pass with the over-long body.
+    private var plainEditorBodyBinding: Binding<String> {
+        Binding(
+            get: { bodyDraft },
+            set: { newValue in
+                bodyEditorSession?.bodyDidChange(from: bodyDraft, to: newValue)
+                bodyDraft = newValue
+            }
+        )
+    }
+
     @ViewBuilder
     private func contentCard(_ note: Note) -> some View {
         if isEditingBody {
             Group {
-                if NoteText.requiresBoundedLayout(bodyDraft) {
-                    BoundedNoteTextView(text: $bodyDraft, isEditable: true)
+                if bodyEditorSession?.editor == .bounded {
+                    BoundedNoteTextView(
+                        text: $bodyDraft,
+                        isEditable: true,
+                        focusTakeover: bodyEditorSession?.focusTakeover
+                    )
                         .frame(height: UIScreen.main.bounds.height * 0.52)
                 } else {
-                    TextEditor(text: $bodyDraft)
+                    TextEditor(text: plainEditorBodyBinding)
                         .font(.system(size: 17))
                         .frame(minHeight: UIScreen.main.bounds.height * 0.42)
                         .scrollContentBackground(.hidden)
@@ -651,7 +670,7 @@ struct NoteDetailView: View {
                         title: L10n.tr("Cancel", table: .notes), icon: "xmark",
                         foreground: OriveoTheme.Palette.textTertiary,
                         background: OriveoTheme.Palette.surfaceInset.opacity(0.65)
-                    ) { isEditingBody = false; bodyDraft = note.body }
+                    ) { isEditingBody = false; bodyEditorSession = nil; bodyDraft = note.body }
 
                     editActionPill(
                         title: L10n.tr("Save", table: .notes), icon: "checkmark", isBold: true,
@@ -665,7 +684,11 @@ struct NoteDetailView: View {
                         foreground: OriveoTheme.Palette.textSecondary,
                         background: OriveoTheme.Palette.surfaceInset.opacity(0.75),
                         border: OriveoTheme.Palette.hairline.opacity(0.42)
-                    ) { bodyDraft = note.body; isEditingBody = true }
+                    ) {
+                        bodyDraft = note.body
+                        bodyEditorSession = NoteBodyEditorSession(body: note.body)
+                        isEditingBody = true
+                    }
                 }
             }
         }
@@ -857,6 +880,7 @@ struct NoteDetailView: View {
     private func saveBody() {
         _ = appState.noteManager.updateBody(id: noteID, body: bodyDraft)
         isEditingBody = false
+        bodyEditorSession = nil
         reload()
         ToastManager.shared.show(L10n.tr("Saved", table: .notes), style: .success, duration: 2)
     }
@@ -942,20 +966,33 @@ private struct NoteReadingContent: Equatable {
 struct BoundedNoteTextView: UIViewRepresentable {
     @Binding var text: String
     let isEditable: Bool
+    /// Read once when the view is built: takes back focus and the caret at the moment the editor is
+    /// swapped in from `TextEditor` mid-edit.
+    var focusTakeover: NoteBodyEditorSession.FocusTakeover?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text)
     }
 
     func makeUIView(context: Context) -> UITextView {
-        Self.makeTextView(text: text, isEditable: isEditable, coordinator: context.coordinator)
+        Self.makeTextView(
+            text: text,
+            isEditable: isEditable,
+            coordinator: context.coordinator,
+            focusTakeover: focusTakeover
+        )
     }
 
     /// The single source of the production configuration, shared by makeUIView and the layout tests.
-    static func makeTextView(text: String, isEditable: Bool, coordinator: Coordinator) -> BoundedNoteUITextView {
+    static func makeTextView(
+        text: String,
+        isEditable: Bool,
+        coordinator: Coordinator,
+        focusTakeover: NoteBodyEditorSession.FocusTakeover? = nil
+    ) -> BoundedNoteUITextView {
         // TextKit 1 on purpose: non-contiguous layout is an NSLayoutManager feature, and TextKit 2
         // measured slower on very long paragraphs.
-        let textView = BoundedNoteUITextView(usingTextLayoutManager: false)
+        let textView = BoundedNoteUITextView.makeTextKit1()
         textView.delegate = coordinator
         textView.backgroundColor = .clear
         textView.font = .systemFont(ofSize: 17)
@@ -970,6 +1007,9 @@ struct BoundedNoteTextView: UIViewRepresentable {
         textView.layoutManager.allowsNonContiguousLayout = true
         textView.typingAttributes = Self.textAttributes
         apply(text, to: textView, coordinator: coordinator)
+        if let focusTakeover {
+            textView.requestFocusTakeover(sourceLocation: focusTakeover.sourceLocation)
+        }
         return textView
     }
 

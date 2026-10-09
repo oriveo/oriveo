@@ -330,4 +330,109 @@ struct BoundedNoteTextViewLayoutTests {
         #expect(pasteboard.string == sourceNS.substring(with: NSRange(location: soft - 3, length: 6)))
         #expect(store.text == sourceNS.replacingCharacters(in: NSRange(location: soft - 3, length: 6), with: ""))
     }
+
+    /// The previous case injects a pasteboard and cannot see the production default: if the view never
+    /// ran this class's property initializers, `sourcePasteboard` is a null reference and writing the
+    /// source text back silently does nothing. This only checks object identity and never reads or
+    /// writes the system pasteboard: saving and restoring its `items` in a test can leave stale
+    /// entries in the simulator pasteboard that make later reads hang.
+    @Test("A view built by the production factory uses the system pasteboard by default")
+    func productionTextViewUsesSystemPasteboardByDefault() {
+        for isEditable in [false, true] {
+            let (textView, _, _) = makeProductionTextView("body", isEditable: isEditable)
+            let isSet = unsafeBitCast(textView.sourcePasteboard, to: Int.self) != 0
+            #expect(isSet, "isEditable=\(isEditable)")
+            if isSet { #expect(textView.sourcePasteboard === UIPasteboard.general) }
+        }
+    }
+}
+
+/// Swapping from `TextEditor` to the bounded view mid-edit: the new control has to take back first
+/// responder itself and put the caret back where it was in the stored text.
+@MainActor
+@Suite("Bounded note text view focus takeover", .serialized)
+struct BoundedNoteTextViewFocusTakeoverTests {
+    private static let source: String = {
+        let sentence = "このだんらくにはかいぎょうがない、The quick brown fox jumps over the lazy dog. つづけてかく。 "
+        return String(repeating: sentence, count: 12_000 / sentence.utf16.count + 1)
+    }()
+
+    private final class Store {
+        var text: String
+        init(_ text: String) { self.text = text }
+    }
+
+    /// Same order as SwiftUI: at makeUIView the view has zero size and no window, and only later
+    /// enters a window and gets a width.
+    private func makeThenMount(
+        takeover: NoteBodyEditorSession.FocusTakeover?
+    ) -> (BoundedNoteUITextView, UIWindow, BoundedNoteTextView.Coordinator) {
+        let store = Store(Self.source)
+        let coordinator = BoundedNoteTextView.Coordinator(text: Binding(get: { store.text }, set: { store.text = $0 }))
+        let textView = BoundedNoteTextView.makeTextView(
+            text: Self.source,
+            isEditable: true,
+            coordinator: coordinator,
+            focusTakeover: takeover
+        )
+        let window: UIWindow
+        if let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
+            window = UIWindow(windowScene: scene)
+        } else {
+            window = UIWindow(frame: .zero)
+        }
+        window.frame = CGRect(x: 0, y: 0, width: 430, height: 932)
+        window.isHidden = false
+        textView.frame = CGRect(x: 0, y: 0, width: 386, height: 540)
+        window.addSubview(textView)
+        textView.layoutIfNeeded()
+        return (textView, window, coordinator)
+    }
+
+    private func sourceLocation(ofCaretIn textView: UITextView) -> Int {
+        let prefix = textView.textStorage.attributedSubstring(
+            from: NSRange(location: 0, length: textView.selectedRange.location)
+        )
+        return (NoteSoftParagraphBreaks.strip(prefix) as NSString).length
+    }
+
+    @Test("After a takeover the view is first responder and the caret sits at the source offset, past soft breaks")
+    func takeoverRestoresFocusAndCaret() {
+        let target = NoteSoftParagraphBreaks.maxParagraphUTF16 * 2 + 37
+        let (textView, window, coordinator) = makeThenMount(takeover: .init(sourceLocation: target))
+        defer { withExtendedLifetime(coordinator) { textView.resignFirstResponder(); window.isHidden = true } }
+
+        // The text must really have been split, otherwise "past soft breaks" is not exercised.
+        #expect(textView.textStorage.length > (Self.source as NSString).length)
+        #expect(textView.isFirstResponder)
+        #expect(textView.selectedRange.length == 0)
+        #expect(sourceLocation(ofCaretIn: textView) == target)
+        #expect(textView.selectedRange.location > target)
+    }
+
+    @Test("Without a derivable caret position the caret goes to the end")
+    func takeoverWithoutLocationPutsCaretAtEnd() {
+        let (textView, window, coordinator) = makeThenMount(takeover: .init(sourceLocation: nil))
+        defer { withExtendedLifetime(coordinator) { textView.resignFirstResponder(); window.isHidden = true } }
+
+        #expect(textView.isFirstResponder)
+        #expect(textView.selectedRange == NSRange(location: textView.textStorage.length, length: 0))
+    }
+
+    @Test("An out-of-range offset is clamped to the end")
+    func takeoverClampsOutOfRangeLocation() {
+        let (textView, window, coordinator) = makeThenMount(takeover: .init(sourceLocation: 9_999_999))
+        defer { withExtendedLifetime(coordinator) { textView.resignFirstResponder(); window.isHidden = true } }
+
+        #expect(textView.isFirstResponder)
+        #expect(textView.selectedRange == NSRange(location: textView.textStorage.length, length: 0))
+    }
+
+    @Test("Without a takeover request the view does not grab focus")
+    func noTakeoverLeavesFocusAlone() {
+        let (textView, window, coordinator) = makeThenMount(takeover: nil)
+        defer { withExtendedLifetime(coordinator) { window.isHidden = true } }
+
+        #expect(textView.isFirstResponder == false)
+    }
 }

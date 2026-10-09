@@ -150,13 +150,90 @@ struct NoteTextMathPreviewTests {
 struct NoteTextLargeBodyLayoutTests {
     @Test("ordinary notes keep rich Markdown layout")
     func ordinaryNotesKeepRichLayout() {
-        #expect(NoteText.requiresBoundedLayout(String(repeating: "a", count: 10_000)) == false)
+        #expect(NoteText.requiresBoundedLayout(String(repeating: "a", count: 9_999)) == false)
+    }
+
+    @Test("the threshold is 10,000 UTF-16 units, inclusive")
+    func thresholdIsTenThousandUTF16() {
+        #expect(NoteText.boundedLayoutUTF16Threshold == 10_000)
+        #expect(NoteText.requiresBoundedLayout(String(repeating: "a", count: 10_000)))
     }
 
     @Test("very large notes use the bounded TextKit viewport")
     func largeNotesUseBoundedLayout() {
         let text = String(repeating: "😊", count: NoteText.boundedLayoutUTF16Threshold / 2)
         #expect(NoteText.requiresBoundedLayout(text))
+    }
+}
+
+@Suite("Note body editor session")
+struct NoteBodyEditorSessionTests {
+    private func body(_ count: Int) -> String { String(repeating: "a", count: count) }
+
+    @Test("the editor is chosen by length when editing starts")
+    func editorIsChosenByLengthOnEntry() {
+        #expect(NoteBodyEditorSession(body: body(9_999)).editor == .plain)
+        #expect(NoteBodyEditorSession(body: body(10_000)).editor == .bounded)
+        #expect(NoteBodyEditorSession(body: body(10_000)).focusTakeover == nil)
+    }
+
+    @Test("crossing the threshold while editing moves up to the bounded view, once")
+    func crossingUpwardUpgradesOnce() {
+        var session = NoteBodyEditorSession(body: body(9_999))
+        session.bodyDidChange(from: body(9_999), to: body(9_999) + "bc")
+        #expect(session.editor == .bounded)
+        #expect(session.focusTakeover == .init(sourceLocation: 10_001))
+
+        // After the upgrade no change switches the editor again or re-issues the takeover request.
+        let upgraded = session
+        session.bodyDidChange(from: body(9_999) + "bc", to: body(5_000))
+        session.bodyDidChange(from: body(5_000), to: body(20_000))
+        #expect(session == upgraded)
+    }
+
+    @Test("changes below the threshold keep the plain editor")
+    func changesBelowThresholdKeepPlainEditor() {
+        var session = NoteBodyEditorSession(body: body(100))
+        session.bodyDidChange(from: body(100), to: body(9_999))
+        #expect(session.editor == .plain)
+        #expect(session.focusTakeover == nil)
+    }
+
+    @Test("deleting below the threshold in the bounded view does not switch back")
+    func deletingBelowThresholdKeepsBoundedEditor() {
+        var session = NoteBodyEditorSession(body: body(10_000))
+        session.bodyDidChange(from: body(10_000), to: body(5_000))
+        #expect(session.editor == .bounded)
+        #expect(session.focusTakeover == nil)
+    }
+
+    @Test("entering again after editing ends decides by the length at that time")
+    func reenteringDecidesAgain() {
+        var session = NoteBodyEditorSession(body: body(10_000))
+        session.bodyDidChange(from: body(10_000), to: body(5_000))
+        #expect(NoteBodyEditorSession(body: body(5_000)).editor == .plain)
+    }
+
+    @Test("after a paste in the middle the caret lands at the end of the inserted segment")
+    func caretLandsAfterInsertedSegment() {
+        let old = "あたまぶん" + "うしろがわ"
+        let pasted = String(repeating: "か", count: 12_000)
+        let new = "あたまぶん" + pasted + "うしろがわ"
+        #expect(NoteText.caretLocationAfterEdit(from: old, to: new) == 5 + 12_000)
+
+        var session = NoteBodyEditorSession(body: old)
+        session.bodyDidChange(from: old, to: new)
+        #expect(session.focusTakeover == .init(sourceLocation: 5 + 12_000))
+    }
+
+    @Test("replacing a selection, appending at the end, and the underivable case")
+    func caretInferenceEdgeCases() {
+        #expect(NoteText.caretLocationAfterEdit(from: "abXYZcd", to: "abQcd") == 3)
+        #expect(NoteText.caretLocationAfterEdit(from: "abc", to: "abc") == nil)
+        #expect(NoteText.caretLocationAfterEdit(from: "abc", to: "abcde") == 5)
+        // Never inside a surrogate pair: replacing U+1F200 (D83C DE00) with U+1F600 (D83D DE00), which
+        // share a low surrogate, makes the shared suffix cut into the pair.
+        #expect(NoteText.caretLocationAfterEdit(from: "x\u{1F200}b", to: "x\u{1F600}b") == 3)
     }
 }
 

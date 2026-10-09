@@ -192,6 +192,27 @@ nonisolated enum NoteSoftParagraphBreaks {
 final class BoundedNoteUITextView: UITextView {
     /// Injectable for tests; always the general pasteboard in the app.
     var sourcePasteboard: UIPasteboard = .general
+    /// `makeTextKit1` builds the layout stack itself, so something has to hold the text storage strongly.
+    private var ownedStorage: NSTextStorage?
+
+    /// The only way to construct this view: it assembles a TextKit 1 layout stack explicitly and goes
+    /// through the designated initializer.
+    /// `UITextView(usingTextLayoutManager: false)` is not used: it is a class factory that bypasses
+    /// this class's initializers, so every stored property of the instance it returns is zeroed
+    /// memory instead of its declared initial value. `sourcePasteboard` is then a null reference,
+    /// the step that writes the source text back to the pasteboard on copy and cut silently does
+    /// nothing, and text carrying soft breaks leaks out.
+    static func makeTextKit1() -> BoundedNoteUITextView {
+        let storage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        let container = NSTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        container.widthTracksTextView = true
+        layoutManager.addTextContainer(container)
+        storage.addLayoutManager(layoutManager)
+        let view = BoundedNoteUITextView(frame: .zero, textContainer: container)
+        view.ownedStorage = storage
+        return view
+    }
 
     /// Display text held back until the view has a width. SwiftUI's makeUIView hands over a zero-size
     /// view: loading hundreds of thousands of characters at zero width and then stretching the view to
@@ -216,6 +237,55 @@ final class BoundedNoteUITextView: UITextView {
             attributedText = pending
         }
         super.layoutSubviews()
+        applyFocusTakeoverIfReady()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        applyFocusTakeoverIfReady()
+    }
+
+    /// The offset is only read once the flag is set, and it is always assigned before the flag.
+    private var hasPendingFocusTakeover = false
+    private var pendingFocusSourceLocation: Int?
+
+    /// Called when this view replaces `TextEditor` mid-edit: takes back first responder and puts the
+    /// caret at `sourceLocation` in the stored text (nil puts it at the end).
+    /// At call time the view is usually not in a window yet and its text is still held back (see
+    /// `pendingDisplayText`); it runs once both are in place.
+    func requestFocusTakeover(sourceLocation: Int?) {
+        pendingFocusSourceLocation = sourceLocation
+        hasPendingFocusTakeover = true
+        applyFocusTakeoverIfReady()
+    }
+
+    private func applyFocusTakeoverIfReady() {
+        guard hasPendingFocusTakeover, window != nil, pendingDisplayText == nil else { return }
+        // Clear first: becomeFirstResponder triggers keyboard layout and can re-enter layoutSubviews.
+        hasPendingFocusTakeover = false
+        becomeFirstResponder()
+        let location = pendingFocusSourceLocation.map(displayLocation(forSourceLocation:)) ?? textStorage.length
+        selectedRange = NSRange(location: location, length: 0)
+        scrollRangeToVisible(selectedRange)
+    }
+
+    /// Maps a UTF-16 offset in the stored text to a position in the display string: every soft break
+    /// before it shifts the position by one. An offset that lands exactly on a soft break stays in
+    /// front of it, so the next typed character does not inherit the soft-break marker.
+    private func displayLocation(forSourceLocation sourceLocation: Int) -> Int {
+        var location = max(0, sourceLocation)
+        textStorage.enumerateAttribute(
+            NoteSoftParagraphBreaks.markerKey,
+            in: NSRange(location: 0, length: textStorage.length)
+        ) { value, range, stop in
+            guard value != nil else { return }
+            if range.location < location {
+                location += range.length
+            } else {
+                stop.pointee = true
+            }
+        }
+        return min(location, textStorage.length)
     }
 
     override func copy(_ sender: Any?) {
