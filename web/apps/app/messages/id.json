@@ -422,7 +422,7 @@
       "historyUnavailableRetry": "Mencoba kembali",
       "title": "Mengobrol",
       "placeholder": "Ketik pesan…",
-      "inputLengthLimitReached": "Satu pesan paling banyak {limit} karakter. Sisanya tidak dimasukkan.",
+      "inputLengthLimitReached": "Satu pesan maksimal {limit} karakter. Sisanya tidak ditambahkan.",
       "send": "Mengirim",
       "greeting": "Apa yang bisa saya bantu?",
       "greetingSub": "Pilih perintah di bawah atau ketik pesan Anda sendiri.",

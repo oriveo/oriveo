@@ -422,7 +422,7 @@
       "historyUnavailableRetry": "Thử lại",
       "title": "Trò chuyện",
       "placeholder": "Nhập tin nhắn…",
-      "inputLengthLimitReached": "Mỗi tin nhắn tối đa {limit} ký tự. Phần vượt quá không được thêm vào.",
+      "inputLengthLimitReached": "Mỗi tin nhắn tối đa {limit} ký tự. Phần vượt quá chưa được thêm vào.",
       "send": "Gửi",
       "greeting": "Tôi có thể giúp gì cho bạn?",
       "greetingSub": "Chọn lời nhắc bên dưới hoặc nhập tin nhắn của riêng bạn.",

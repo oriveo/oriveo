@@ -422,7 +422,7 @@
       "historyUnavailableRetry": "Réessayer",
       "title": "Chat",
       "placeholder": "Tapez un message…",
-      "inputLengthLimitReached": "Un message peut contenir jusqu’à {limit} caractères. Le texte en trop n’a pas été ajouté.",
+      "inputLengthLimitReached": "Un message peut contenir jusqu’à {limit} caractères. Le reste n’a pas été ajouté.",
       "send": "Envoyer",
       "greeting": "Comment puis-je vous aider ?",
       "greetingSub": "Choisissez un prompt ci-dessous ou tapez votre propre message.",
@@ -464,7 +464,7 @@
         "errorCorrupted": "Impossible d’ouvrir {fileName} : le fichier semble endommagé. Exportez-le ou téléchargez-le de nouveau, puis joignez-le à nouveau.",
         "errorNoText": "Aucun texte sélectionnable dans {fileName} : c’est sans doute un document numérisé. Choisissez un modèle capable de lire directement les images ou les PDF.",
         "tooManyFiles": "Vous pouvez joindre jusqu’à {maxFiles} fichiers pour ce modèle.",
-        "textBudgetExceeded": "{fileName} n’a pas été ajouté : avec ce fichier, le texte joint à ce message dépasserait la limite.",
+        "textBudgetExceeded": "{fileName} n’a pas été ajouté : avec ce fichier, le texte joint à ce message dépasserait la limite.",
         "truncatedCtaKnowledge": "Fichier volumineux tronqué. Ajouter à Skill Knowledge pour une recherche complète →"
       },
       "dropFiles": "Déposez les fichiers ici",

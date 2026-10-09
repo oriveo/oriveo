@@ -422,7 +422,7 @@
       "historyUnavailableRetry": "إعادة المحاولة",
       "title": "محادثة",
       "placeholder": "اكتب رسالة…",
-      "inputLengthLimitReached": "الحد الأقصى للرسالة الواحدة {limit} حرف. لم يُضَف ما زاد على ذلك.",
+      "inputLengthLimitReached": "الحد الأقصى للرسالة الواحدة {limit} حرف. لم تتم إضافة ما زاد على ذلك.",
       "send": "إرسال",
       "greeting": "كيف يمكنني مساعدتك؟",
       "greetingSub": "اختر أحد الاقتراحات أدناه أو اكتب رسالتك.",

@@ -3233,7 +3233,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "يمكن أن تحتوي الرسالة الواحدة على %lld حرف كحد أقصى. لم يُضَف ما زاد على ذلك."
+            "value" : "الحد الأقصى للرسالة الواحدة %lld حرف. لم تتم إضافة ما زاد على ذلك."
           }
         },
         "de" : {
@@ -3269,13 +3269,13 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Satu pesan maksimal %lld karakter. Sisanya tidak dimasukkan."
+            "value" : "Satu pesan maksimal %lld karakter. Sisanya tidak ditambahkan."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1 件のメッセージは最大 %lld 文字です。超えた分は入力されていません。"
+            "value" : "メッセージは 1 件につき %lld 文字までです。超えた分は入力されていません。"
           }
         },
         "ko" : {
@@ -3299,7 +3299,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "แต่ละข้อความพิมพ์ได้สูงสุด %lld ตัวอักษร ส่วนที่เกินไม่ได้ถูกใส่เข้ามา"
+            "value" : "แต่ละข้อความยาวได้สูงสุด %lld ตัวอักษร ส่วนที่เกินไม่ได้ถูกเพิ่มเข้ามา"
           }
         },
         "tr" : {

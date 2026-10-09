@@ -422,7 +422,7 @@
       "historyUnavailableRetry": "Tentar novamente",
       "title": "Chat",
       "placeholder": "Digite uma mensagem…",
-      "inputLengthLimitReached": "Cada mensagem pode ter até {limit} caracteres. O que passou disso não foi incluído.",
+      "inputLengthLimitReached": "Uma mensagem pode ter até {limit} caracteres. O restante não foi incluído.",
       "send": "Enviar",
       "greeting": "Como posso ajudar?",
       "greetingSub": "Escolha um prompt abaixo ou digite sua própria mensagem.",
