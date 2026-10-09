@@ -10,7 +10,7 @@ import Testing
 @Suite("Chat failure presentation · subscription 426 and model switch")
 struct ChatFailurePresentationTests {
     /// The body xAI returns when it rejects the client version.
-    static let grok426Body = Data(#"{"code":"ClientVersionRejected","error":"Your Grok CLI version (1.0.4) is outdated. Please update to the latest version via `grok update`."}"#.utf8)
+    static let grok426Body = Data(#"{"code":"ClientVersionRejected","error":"Your Grok CLI version (1.0.4) is outdated. Please update to version 1.0.13 or later via `grok update` or the installation documentation."}"#.utf8)
 
     private final class ProbeService: BaseAPIService {}
 

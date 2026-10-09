@@ -26,6 +26,19 @@ final class ChatManager {
     private let providerSession: URLSession
     let toolCallMemory: ToolCallMemoryStore
 
+    /// Refreshes the provider configuration after a subscription request is rejected for its client version.
+    /// It is an instance property only so that this step of the send path can be tested: the default goes
+    /// straight to the network.
+    var subscriptionConfigurationRefresher: () async -> Void = {
+        await MetadataClient.shared.forceRefresh()
+    }
+    /// Prepares the credential of a Grok subscription before a request goes out. The credential lives in the
+    /// Keychain, which an unsigned test host cannot use; as an instance property, a test can supply an
+    /// already prepared outbound context. The default is the direct call.
+    var grokSubscriptionPreparer: (UUID) async -> Result<GrokSubscriptionRuntime.Prepared, GrokSubscriptionError> = {
+        providerID in
+        await GrokSubscriptionRuntime.prepare(providerID: providerID)
+    }
     /// The confirmation gate for remote MCP tools. Nil in production, where `AppState.mcpConfirmationCoordinator`
     /// (the confirmation sheet) is used; tests put a scripted gate here.
     var mcpConfirmationGate: (any McpConfirmationGate)?
@@ -1257,7 +1270,7 @@ final class ChatManager {
             requestOptions.localExplicitContinuationMessageID = explicitContinuationMessageID
             var effectiveAPIKey = apiKey
             if providerKind == .grok, provider.authMode == .subscription {
-                switch await GrokSubscriptionRuntime.prepare(providerID: providerID) {
+                switch await self.grokSubscriptionPreparer(providerID) {
                 case let .success(prepared):
                     effectiveAPIKey = prepared.accessToken
                     // Pin the transport the subscription link will actually use. It comes from the
@@ -2951,7 +2964,7 @@ final class ChatManager {
                 // for a refresh before the failure card lands; one tap on Retry then sends the current values.
                 if !Task.isCancelled,
                    (error as? ProviderServiceError)?.subscriptionClientVersionRejectionLane != nil {
-                    await MetadataClient.shared.forceRefresh()
+                    await self.subscriptionConfigurationRefresher()
                 }
 
                 await MainActor.run {
