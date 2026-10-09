@@ -817,6 +817,18 @@ struct SkillEditView: View {
                     let content: String
                     let sourceType: SkillKnowledgeFileSourceType
                     let ext = url.pathExtension.lowercased()
+                    if let failure = SkillKnowledgeEditingSupport.referenceFileImportFailure(
+                        data: source.data,
+                        fileExtension: ext
+                    ) {
+                        await MainActor.run {
+                            errorMessage = failure.importFailureMessage(
+                                fileName: source.fileName,
+                                maxInputFileBytes: SkillKnowledgeEditingSupport.maxReferenceFileSize
+                            )
+                        }
+                        return
+                    }
                     if ext == "pdf" {
                         let document = try SecurityScopedFileAccess.withAccess(to: url) {
                             PDFDocument(url: url)

@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import UniformTypeIdentifiers
+import ZIPFoundation
 @testable import Oriveo
 
 @Suite("Skill Knowledge Editing")
@@ -103,6 +104,38 @@ struct SkillKnowledgeModelsTests {
                 nextFileBytes: 6 * 1024 * 1024
             ) == .knowledgeTotalSizeExceeded
         )
+    }
+
+    @Test("reference files in password-protected docx/xlsx/pptx are reported as password-protected", arguments: ["docx", "xlsx", "PPTX"])
+    func passwordProtectedOfficeReferenceFileIsReportedAsPasswordProtected(ext: String) throws {
+        let data = Data([0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]) + Data(repeating: 0, count: 2_048)
+        let failure = try #require(
+            SkillKnowledgeEditingSupport.referenceFileImportFailure(data: data, fileExtension: ext)
+        )
+        let message = failure.importFailureMessage(
+            fileName: "secret.\(ext)",
+            maxInputFileBytes: SkillKnowledgeEditingSupport.maxReferenceFileSize
+        )
+        #expect(message == String(format: L10n.tr("file_extraction_error_encrypted_pdf", table: .chat), "secret.\(ext)"))
+    }
+
+    @Test("a regular docx and non-OOXML reference files are not reported as password-protected")
+    func regularReferenceFilesAreNotReportedAsPasswordProtected() throws {
+        let archive = try Archive(accessMode: .create)
+        let xml = Data("<w:document><w:body><w:p><w:r><w:t>hello docx</w:t></w:r></w:p></w:body></w:document>".utf8)
+        try archive.addEntry(
+            with: "word/document.xml",
+            type: .file,
+            uncompressedSize: Int64(xml.count),
+            provider: { position, size in xml[Int(position)..<(Int(position) + size)] }
+        )
+        let docx = try #require(archive.data)
+        #expect(SkillKnowledgeEditingSupport.referenceFileImportFailure(data: docx, fileExtension: "docx") == nil)
+        #expect(try OfficeTextExtractor.extractText(from: docx, fileExtension: "docx")?.contains("hello docx") == true)
+
+        // The OLE header only matters for OOXML extensions; other types take their own branches as usual.
+        let ole = Data([0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]) + Data(repeating: 0, count: 2_048)
+        #expect(SkillKnowledgeEditingSupport.referenceFileImportFailure(data: ole, fileExtension: "txt") == nil)
     }
 
     @Test("Importer Content Types Cover Reference And Knowledge Flows")

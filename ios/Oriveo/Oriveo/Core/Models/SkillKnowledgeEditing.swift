@@ -65,6 +65,14 @@ nonisolated enum SkillKnowledgeEditingSupport {
         sizeBytes > maxReferenceFileSize ? .referenceFileTooLarge : nil
     }
 
+    /// An import failure that can be decided before the file reaches the extractor; nil means extraction can proceed.
+    /// A password-protected docx/xlsx/pptx opened as a zip only reports a corrupt file, and the system wording
+    /// ("incorrect format") does not tell the user to remove the password, so it is recognised here first and
+    /// shows the same "password-protected" message as chat attachments.
+    static func referenceFileImportFailure(data: Data, fileExtension: String) -> ExtractionErrorCode? {
+        OfficeTextExtractor.isPasswordProtected(data, fileExtension: fileExtension) ? .passwordProtectedOffice : nil
+    }
+
     static func knowledgeFileContentTypes(supportedFileTypes: [String]) -> [UTType] {
         buildAllowedContentTypes(supportedFileTypes: supportedFileTypes)
     }
