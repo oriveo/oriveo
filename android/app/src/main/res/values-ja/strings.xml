@@ -942,6 +942,7 @@
     <string name="file_extraction_error_generic">%1$s を処理できませんでした。もう一度試すか、別のファイルを選んでください。</string>
     <string name="file_extraction_chip_extracted_lines">%1$d 行を抽出しました</string>
     <string name="file_attachment_count_limit_reached">このモデルには最大 %1$d 件のファイルを添付できます。</string>
+    <string name="chat_input_length_limit_reached">メッセージは 1 件につき %1$,d 文字までです。超えた分は入力されていません。</string>
     <string name="empty_greeting_explore">今日は何を調べよう？</string>
     <string name="empty_greeting_begin">どこから始めようか？</string>
     <string name="empty_greeting_mind">気になってることある？</string>

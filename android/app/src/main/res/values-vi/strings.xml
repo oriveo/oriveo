@@ -904,6 +904,7 @@
     <string name="file_extraction_error_generic">Không thể xử lý %1$s. Hãy thử lại hoặc chọn tệp khác.</string>
     <string name="file_extraction_chip_extracted_lines">Đã trích xuất %1$d dòng</string>
     <string name="file_attachment_count_limit_reached">Bạn có thể đính kèm tối đa %1$d tệp cho mô hình này.</string>
+    <string name="chat_input_length_limit_reached">Mỗi tin nhắn tối đa %1$,d ký tự. Phần vượt quá chưa được thêm vào.</string>
     <string name="empty_greeting_explore">Hôm nay tìm hiểu gì đây?</string>
     <string name="empty_greeting_begin">Mình bắt đầu từ đâu nhỉ?</string>
     <string name="empty_greeting_mind">Bạn đang nghĩ gì thế?</string>

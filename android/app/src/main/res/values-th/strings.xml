@@ -904,6 +904,7 @@
     <string name="file_extraction_error_generic">ประมวลผล %1$s ไม่ได้ ลองอีกครั้งหรือเลือกไฟล์อื่น</string>
     <string name="file_extraction_chip_extracted_lines">แยกได้ %1$d บรรทัด</string>
     <string name="file_attachment_count_limit_reached">คุณแนบไฟล์ได้สูงสุด %1$d ไฟล์สำหรับโมเดลนี้</string>
+    <string name="chat_input_length_limit_reached">แต่ละข้อความยาวได้สูงสุด %1$,d ตัวอักษร ส่วนที่เกินไม่ได้ถูกเพิ่มเข้ามา</string>
     <string name="empty_greeting_explore">วันนี้อยากรู้เรื่องอะไร?</string>
     <string name="empty_greeting_begin">เริ่มจากตรงไหนดี?</string>
     <string name="empty_greeting_mind">กำลังคิดอะไรอยู่?</string>

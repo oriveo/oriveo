@@ -904,6 +904,7 @@
     <string name="file_extraction_error_generic">%1$s işlenemedi. Yeniden deneyin veya başka bir dosya seçin.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d satır çıkarıldı</string>
     <string name="file_attachment_count_limit_reached">Bu model için en fazla %1$d dosya ekleyebilirsin.</string>
+    <string name="chat_input_length_limit_reached">Bir mesaj en fazla %1$,d karakter olabilir. Fazlası eklenmedi.</string>
     <string name="empty_greeting_explore">Bugün neye kafa yoralım?</string>
     <string name="empty_greeting_begin">Nereden başlayalım?</string>
     <string name="empty_greeting_mind">Aklında ne var?</string>

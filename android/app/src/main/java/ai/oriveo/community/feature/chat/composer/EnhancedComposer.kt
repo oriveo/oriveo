@@ -140,6 +140,7 @@ import ai.oriveo.community.core.util.ExternalActivityLaunchOutcome
 import ai.oriveo.community.core.util.launchExternalActivitySafely
 import ai.oriveo.community.ui.theme.opacity
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
+import ai.oriveo.community.ui.component.rememberComposerLengthLimitedField
 import ai.oriveo.community.ui.theme.OriveoTheme
 import dev.chrisbanes.haze.ExperimentalHazeApi
 import dev.chrisbanes.haze.HazeState
@@ -1112,9 +1113,13 @@ private fun ComposerTextField(
 ) {
     val colors = OriveoTheme.colors
     val text = textProvider()
+    // The length limit has to read and write the selection (after a paste in the middle is cut the
+    // caret lands at the end of the kept part), hence the TextFieldValue overload. The selection
+    // state stays in this composable; the owner still receives a plain String.
+    val field = rememberComposerLengthLimitedField(text = text, onTextChange = onValueChange)
     BasicTextField(
-        value = text,
-        onValueChange = onValueChange,
+        value = field.value,
+        onValueChange = field.onValueChange,
         modifier = modifier
             // UI tests locate the field by resource-id rather than by coordinates, which break as
             // soon as the screen resolution changes.

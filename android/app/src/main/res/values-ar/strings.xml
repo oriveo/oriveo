@@ -940,6 +940,7 @@
     <string name="file_extraction_error_generic">تعذّر معالجة %1$s. حاول مرة أخرى أو اختر ملفًا آخر.</string>
     <string name="file_extraction_chip_extracted_lines">تم استخراج %1$d سطر</string>
     <string name="file_attachment_count_limit_reached">يمكنك إرفاق ما يصل إلى %1$d ملفات لهذا النموذج.</string>
+    <string name="chat_input_length_limit_reached">الحد الأقصى للرسالة الواحدة %1$,d حرف. لم تتم إضافة ما زاد على ذلك.</string>
     <string name="empty_greeting_explore">ماذا نستكشف اليوم؟</string>
     <string name="empty_greeting_begin">من أين نبدأ؟</string>
     <string name="empty_greeting_mind">ما الذي يدور في ذهنك؟</string>

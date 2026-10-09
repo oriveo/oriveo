@@ -940,6 +940,7 @@
     <string name="file_extraction_error_generic">Impossible de traiter %1$s. Réessayez ou choisissez un autre fichier.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d lignes extraites</string>
     <string name="file_attachment_count_limit_reached">Vous pouvez joindre jusqu’à %1$d fichiers pour ce modèle.</string>
+    <string name="chat_input_length_limit_reached">Un message peut contenir jusqu’à %1$,d caractères. Le reste n’a pas été ajouté.</string>
     <string name="empty_greeting_explore">On explore quoi ?</string>
     <string name="empty_greeting_begin">Par où on commence ?</string>
     <string name="empty_greeting_mind">À quoi tu penses ?</string>

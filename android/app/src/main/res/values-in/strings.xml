@@ -904,6 +904,7 @@
     <string name="file_extraction_error_generic">Tidak dapat memproses %1$s. Coba lagi atau pilih berkas lain.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d baris diekstrak</string>
     <string name="file_attachment_count_limit_reached">Anda dapat melampirkan hingga %1$d berkas untuk model ini.</string>
+    <string name="chat_input_length_limit_reached">Satu pesan maksimal %1$,d karakter. Sisanya tidak ditambahkan.</string>
     <string name="empty_greeting_explore">Mau bahas apa hari ini?</string>
     <string name="empty_greeting_begin">Kita mulai dari mana?</string>
     <string name="empty_greeting_mind">Lagi mikirin apa?</string>

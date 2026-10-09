@@ -1014,6 +1014,7 @@
     <string name="file_extraction_error_generic">Couldn\'t process %1$s. Try again or pick another file.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d lines extracted</string>
     <string name="file_attachment_count_limit_reached">You can attach up to %1$d files for this model.</string>
+    <string name="chat_input_length_limit_reached">Messages can be up to %1$,d characters. Anything past that was left out.</string>
     <string name="empty_greeting_explore">What should we explore?</string>
     <string name="empty_greeting_begin">Where should we begin?</string>
     <string name="empty_greeting_mind">What\'s on your mind?</string>

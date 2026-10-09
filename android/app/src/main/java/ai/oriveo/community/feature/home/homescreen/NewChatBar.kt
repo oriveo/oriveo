@@ -68,6 +68,7 @@ import ai.oriveo.community.feature.home.auroraGlassCard
 import ai.oriveo.community.feature.home.homeHeroPillModelName
 import ai.oriveo.community.ui.component.ProviderBadgeIcon
 import ai.oriveo.community.ui.component.isReduceMotionEnabled
+import ai.oriveo.community.ui.component.rememberComposerLengthLimitedField
 import kotlinx.coroutines.delay
 
 /** Hero card corner radius / model pill max width / send button diameter (iOS auroraComposerCard / modelSelectorPill / auroraSendButton) */
@@ -290,9 +291,11 @@ private fun HeroComposerInput(
             ),
         contentAlignment = Alignment.CenterStart,
     ) {
+        // Same length limit as the chat composer (rules in ComposerLengthLimiter).
+        val field = rememberComposerLengthLimitedField(text = text, onTextChange = onTextChange)
         BasicTextField(
-            value = text,
-            onValueChange = onTextChange,
+            value = field.value,
+            onValueChange = field.onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester)

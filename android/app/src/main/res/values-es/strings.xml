@@ -940,6 +940,7 @@
     <string name="file_extraction_error_generic">No se pudo procesar %1$s. Vuelve a intentarlo o elige otro archivo.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d líneas extraídas</string>
     <string name="file_attachment_count_limit_reached">Puedes adjuntar hasta %1$d archivos para este modelo.</string>
+    <string name="chat_input_length_limit_reached">Un mensaje admite hasta %1$,d caracteres. El resto no se agregó.</string>
     <string name="empty_greeting_explore">¿Qué exploramos hoy?</string>
     <string name="empty_greeting_begin">¿Por dónde empezamos?</string>
     <string name="empty_greeting_mind">¿Qué tienes en mente?</string>

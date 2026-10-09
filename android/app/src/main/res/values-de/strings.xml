@@ -940,6 +940,7 @@
     <string name="file_extraction_error_generic">%1$s konnte nicht verarbeitet werden. Versuche es erneut oder wähle eine andere Datei.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d Zeilen extrahiert</string>
     <string name="file_attachment_count_limit_reached">Für dieses Modell kannst du bis zu %1$d Dateien anhängen.</string>
+    <string name="chat_input_length_limit_reached">Eine Nachricht kann höchstens %1$,d Zeichen lang sein. Der Rest wurde nicht übernommen.</string>
     <string name="empty_greeting_explore">Woran tüfteln wir heute?</string>
     <string name="empty_greeting_begin">Wo fangen wir an?</string>
     <string name="empty_greeting_mind">Was beschäftigt dich?</string>
