@@ -90,7 +90,7 @@ class LocalEngineConnector(
         }.getOrElse { throw LocalEngineConnectionException(configurationFailure(it), it) }
         val template = LocalEngineContract.templates.getValue(engine)
         val requested = RelayRequestedConfig(
-            transport = if (engine == LocalEngineKind.LlamaCpp) RelayTransport.LlamaCppNative else RelayTransport.OpenAIChatCompletions,
+            transport = RelayTransport.OpenAIChatCompletions,
             authMode = if (requiresBearer) RelayAuthMode.Bearer else RelayAuthMode.None,
             securityMode = securityMode,
             stream = true,
@@ -191,7 +191,6 @@ class LocalEngineConnector(
     }
 
     private fun apiBaseUrl(endpoint: String, engine: LocalEngineKind): String = endpoint.trimEnd('/').let {
-        if (engine == LocalEngineKind.LlamaCpp) return it
         if (engine == LocalEngineKind.OpenWebUI) return "$it/api"
         if (it.endsWith("/v1", ignoreCase = true)) it else "$it/v1"
     }

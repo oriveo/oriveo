@@ -40,6 +40,9 @@ object AppPreferenceKeys {
      */
     const val PROVIDER_DETERMINISTIC_ID_MIGRATION = "provider_deterministic_id_migration"
 
+    /** Marker that existing llama.cpp connections were moved to the chat channel; set once so a native channel chosen later is left alone. */
+    const val LLAMACPP_CHAT_CHANNEL_MIGRATION = "llamacpp_chat_channel_migration"
+
     val DEVICE_SCOPED_KEYS = setOf(
         ONBOARDING_COMPLETED,
         THEME,
@@ -59,6 +62,7 @@ object AppPreferenceKeys {
         MEMORY_USAGE_CONVERSATION_IDS,
         MEMORY_HAS_SEEN,
         PROVIDER_DETERMINISTIC_ID_MIGRATION,
+        LLAMACPP_CHAT_CHANNEL_MIGRATION,
         PINNED_CONVERSATION_IDS,
         PINNED_CONVERSATION_IDS_UPDATED_AT,
     )

@@ -20,6 +20,10 @@ import ai.oriveo.community.core.model.RelayImageConfig
 import ai.oriveo.community.core.model.RelayKind
 import ai.oriveo.community.core.model.RelayKindDefaults
 import ai.oriveo.community.core.model.RelayCredentialPolicy
+import ai.oriveo.community.core.model.RelayTransport
+import ai.oriveo.community.core.app.AppPreferenceKeys
+import ai.oriveo.community.core.provider.LlamaCppChannelMigration
+import ai.oriveo.community.core.provider.LocalEngineGenerationProfiles
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.provider.AnthropicService
 import ai.oriveo.community.core.provider.RelayOfficialCatalogResolver
@@ -83,6 +87,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -115,6 +120,7 @@ class ProviderRepository(
     private val capabilityPreferenceStore: ai.oriveo.community.core.model.CapabilityPreferenceStore? = null,
     private val localCapabilityCustomFragmentStore: ai.oriveo.community.core.model.LocalCapabilityCustomFragmentStore? = null,
     private val toolCallMemoryStore: ToolCallMemoryStore? = null,
+    private val preferenceDao: ai.oriveo.community.core.data.dao.PreferenceDao? = null,
     // Dispatcher for the pre-write enrichment, catalog resolution and JSON encoding; injectable for tests.
     private val cpuDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
@@ -209,7 +215,16 @@ class ProviderRepository(
         combine(
             dao.observeAll(accountId),
             metadataRefreshSignal,
-        ) { entities, _ -> entities }.mapLatest { entities ->
+        ) { entities, _ -> entities }.onStart {
+            // Must finish before the UI receives its first list, otherwise it flashes the old native channel for one frame.
+            try {
+                migrateLlamaCppConnectionsOnce(accountId)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // No marker is stored when a write failed, so the next launch retries.
+            }
+        }.mapLatest { entities ->
             val knownKinds = ProviderKind.entries.map { it.name }.toSet()
             val sanitizedEntities = entities.filter { entity ->
                 entity.kind in knownKinds
@@ -524,7 +539,7 @@ class ProviderRepository(
                 isAvailable = true,
                 isDefault = false,
                 isManual = false,
-                generationProfile = ai.oriveo.community.core.provider.LocalEngineGenerationProfiles.profile(relayRequested.engineProfile),
+                generationProfile = ai.oriveo.community.core.provider.LocalEngineGenerationProfiles.profile(relayRequested.engineProfile, relayRequested.transport),
                 localLoadState = runtime?.loadState,
                 executionLocality = runtime?.executionLocality,
             )
@@ -1484,6 +1499,54 @@ class ProviderRepository(
         localCapabilityCustomFragmentStore?.removeScopes(providerID = normalizedId)
         ai.oriveo.community.core.provider.ModelControlRejectionCache.removeConnection(normalizedId)
         toolCallMemoryStore?.clearConnection(currentAccountId, normalizedId)
+    }
+
+    /**
+     * Moves existing llama.cpp native-channel connections to the chat channel once. The marker is
+     * stored per device so a native channel the user picks later is not rewritten, and the write goes
+     * through the same guarded entry point as a user edit (including the connection generation bump).
+     */
+    internal suspend fun migrateLlamaCppConnectionsOnce(targetAccountId: String) {
+        val preferences = preferenceDao ?: return
+        val flagKey = AppPreferenceKeys.LLAMACPP_CHAT_CHANNEL_MIGRATION
+        if (preferences.get(flagKey) != null) return
+        var allWritten = true
+        for (entity in dao.getAll(targetAccountId)) {
+            if (entity.kind != ProviderKind.Relay.name) continue
+            val apiKey = loadApiKey(targetAccountId, entity.id)
+            val provider = normalizeProviderIds(entity.toDomain(apiKey))
+            val requested = provider.relayRequested ?: continue
+            val outcome = LlamaCppChannelMigration.migrate(
+                engineProfile = requested.engineProfile,
+                transport = requested.transport,
+                resolvedAPIBaseURL = requested.resolvedAPIBaseURL,
+                alreadyMigrated = false,
+            )
+            if (!outcome.changed) continue
+            val chatProfile = LocalEngineGenerationProfiles.profile("llamacpp", RelayTransport.OpenAIChatCompletions)
+            fun refresh(models: List<ai.oriveo.community.core.model.AIModel>) = models.map {
+                if (it.generationProfile?.template == "llamacpp_native") it.copy(generationProfile = chatProfile) else it
+            }
+            val migrated = provider.copy(
+                relayRequested = requested.copy(transport = outcome.transport, resolvedAPIBaseURL = outcome.resolvedAPIBaseURL),
+                models = refresh(provider.models),
+                catalogModels = refresh(provider.catalogModels),
+            )
+            val write = guardedPersistRelayEdit(
+                provider = migrated,
+                expectedEntity = entity,
+                previousApiKey = apiKey,
+                nextApiKey = apiKey,
+                targetAccountId = targetAccountId,
+                commitGuard = { true },
+            )
+            if (write == null) {
+                allWritten = false
+            } else {
+                dispatchProviderSyncIfCurrent(write, targetAccountId) { true }
+            }
+        }
+        if (allWritten) preferences.set(ai.oriveo.community.core.data.entity.PreferenceEntity(flagKey, "1"))
     }
 
     /** Updates a stored provider connection. */

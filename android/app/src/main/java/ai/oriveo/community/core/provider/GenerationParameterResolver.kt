@@ -343,6 +343,8 @@ internal object GenerationParameterResolver {
                     listOf("generationConfig", "responseJsonSchema"),
                     value,
                 )
+                // The native /completion endpoint takes the bare schema and no response_format wrapper.
+                "llamacpp_native" -> set(source, wire.split('.'), value)
                 else -> source
             }
         }
