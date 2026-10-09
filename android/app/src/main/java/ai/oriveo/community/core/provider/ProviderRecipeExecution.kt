@@ -151,7 +151,7 @@ internal object ProviderRecipeExecution {
         return calls.isNotEmpty() && pending.isEmpty()
     }
 
-    data class CustomResult(val accepted: Boolean, val reason: String? = null, val delta: JsonObject? = null, val preview: JsonObject? = null)
+    data class CustomResult(val accepted: Boolean, val reason: String? = null, val delta: JsonObject? = null, val preview: JsonObject? = null, val line: Int? = null)
 
     /** Losslessly accumulates the provider-owned assistant block used by replay_reasoning. */
     class ReasoningAssistantAccumulator(private val parserKind: String) {
@@ -430,7 +430,13 @@ internal object ProviderRecipeExecution {
 
     fun compileSafeCustom(raw: String, owner: String, declaredOwners: Map<String, String>, base: Map<String, List<JsonElement>> = emptyMap()): CustomResult {
         if (raw.encodeToByteArray().size > 65536) return CustomResult(false, "too_large")
-        val parsed = try { LosslessJson(raw).parse() } catch (error: CustomParse) { return CustomResult(false, error.reason) }
+        val parsed = try { LosslessJson(raw).parse() } catch (error: CustomParse) {
+            // Only syntax errors and duplicate keys stop at a definite position; other reasons have no matching line and report none.
+            val line = if (error.reason == "invalid_json" || error.reason == "duplicate_json_key") {
+                1 + raw.take(error.offset).count { it == '\n' }
+            } else null
+            return CustomResult(false, error.reason, line = line)
+        }
         if (parsed.depth > 32) return CustomResult(false, "depth_exceeded")
         if (parsed.nodes > 2048) return CustomResult(false, "node_limit_exceeded")
         val root = parsed.value as? JsonObject ?: return CustomResult(false, "invalid_fragment")
@@ -469,7 +475,7 @@ internal object ProviderRecipeExecution {
     }
 
     private data class Parsed(val value: JsonElement, val depth: Int, val nodes: Int)
-    private class CustomParse(val reason: String) : Exception()
+    private class CustomParse(val reason: String, val offset: Int) : Exception()
     /** Small recursive parser: kotlinx JSON intentionally loses duplicate keys, so it cannot be used here. */
     private class LosslessJson(private val source: String) {
         private var at = 0; private var maxDepth = 0; private var nodes = 0
@@ -492,6 +498,6 @@ internal object ProviderRecipeExecution {
         private fun token(expected: String, value: JsonElement): JsonElement { if (!source.startsWith(expected, at)) fail("invalid_json"); at += expected.length; return value }
         private fun ws() { while (source.getOrNull(at)?.isWhitespace() == true) at++ }
         private fun take(c: Char): Boolean = (source.getOrNull(at) == c).also { if (it) at++ }
-        private fun fail(reason: String): Nothing = throw CustomParse(reason)
+        private fun fail(reason: String): Nothing = throw CustomParse(reason, minOf(at, source.length))
     }
 }

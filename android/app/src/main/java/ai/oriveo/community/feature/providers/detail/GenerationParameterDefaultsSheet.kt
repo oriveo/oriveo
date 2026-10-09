@@ -990,7 +990,7 @@ fun GenerationParameterDefaultsSheet(
                             val dormantTitle = generationParameterTitle(id)
                             val dormantValue = dormantValueText(
                                 partition.dormant.values[id],
-                                stringResource(R.string.generation_parameter_omit),
+                                stringResource(R.string.generation_parameter_omitted_value),
                             )
                             Row(
                                 modifier = Modifier
@@ -1394,6 +1394,9 @@ internal fun generationParameterTitleRes(raw: String): Int = when (raw) {
     "top_n_sigma" -> R.string.generation_parameter_name_top_n_sigma
     "xtc_probability" -> R.string.generation_parameter_name_xtc_probability
     "xtc_threshold" -> R.string.generation_parameter_name_xtc_threshold
+    "grammar" -> R.string.generation_parameter_name_grammar
+    "min_tokens" -> R.string.generation_parameter_name_min_tokens
+    "skip_special_tokens" -> R.string.generation_parameter_name_skip_special_tokens
     else -> R.string.generation_parameter_name_other
 }
 

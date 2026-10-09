@@ -3,6 +3,8 @@ package ai.oriveo.community.feature.chat.recovery
 import ai.oriveo.community.R
 import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
+import ai.oriveo.community.core.data.repository.LOCAL_FIELDS_RETRY_OFFER_PREFIX
+import ai.oriveo.community.core.provider.AdditionalRequestBody
 
 internal enum class MessageRecoveryActionKind {
     Retry,
@@ -11,6 +13,7 @@ internal enum class MessageRecoveryActionKind {
     SwitchModel,
     ContinueGeneration,
     RetryWithoutLocalCustomFields,
+    RetryWithoutAdditionalBody,
     RetryWithoutLocatedSetting,
 }
 
@@ -33,6 +36,8 @@ internal fun resolveMessageRecoveryCardActionLayout(
             // whole local custom fragment left out.
             primary = if (customRetryWithoutFieldsCode?.startsWith("capability_setting_pre_token_400:provider_recipe:") == true) {
                 MessageRecoveryActionKind.RetryWithoutLocatedSetting
+            } else if (customRetryWithoutFieldsCode == "$LOCAL_FIELDS_RETRY_OFFER_PREFIX${AdditionalRequestBody.OWNER}") {
+                MessageRecoveryActionKind.RetryWithoutAdditionalBody
             } else {
                 MessageRecoveryActionKind.RetryWithoutLocalCustomFields
             },
@@ -94,6 +99,7 @@ internal fun MessageRecoveryActionKind.titleRes(): Int {
         MessageRecoveryActionKind.SwitchModel -> R.string.switch_model
         MessageRecoveryActionKind.ContinueGeneration -> R.string.continue_generating
         MessageRecoveryActionKind.RetryWithoutLocalCustomFields -> R.string.retry_without_custom_fields
+        MessageRecoveryActionKind.RetryWithoutAdditionalBody -> R.string.additional_body_retry_without
         MessageRecoveryActionKind.RetryWithoutLocatedSetting -> R.string.retry_without_this_setting
     }
 }
@@ -116,6 +122,7 @@ internal fun performRecoveryAction(
         // Both variants run the same retry; they differ only in how precisely the card could name
         // what is being left out.
         MessageRecoveryActionKind.RetryWithoutLocalCustomFields,
+        MessageRecoveryActionKind.RetryWithoutAdditionalBody,
         MessageRecoveryActionKind.RetryWithoutLocatedSetting,
         -> onRetryWithoutLocalCustomFields()
     }

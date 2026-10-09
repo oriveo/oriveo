@@ -93,7 +93,9 @@ sealed class ProviderServiceError : Exception() {
             is EmptyModelCatalog -> "No Models Found"
             is EmptyResponse -> "Empty Provider Response"
             is InvalidConfiguration -> "Provider Configuration Error"
-            is LocalRequestRejected -> "Custom request fields"
+            is LocalRequestRejected ->
+                if (owner == ai.oriveo.community.core.provider.AdditionalRequestBody.OWNER) "Check the additional request body"
+                else "Custom request fields"
             is Network, is Upstream -> "Provider Request Failed"
             is GrokSubscription -> "Grok subscription"
             is OpenAISubscription -> "ChatGPT subscription"
