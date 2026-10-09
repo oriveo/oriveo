@@ -1,15 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChevronRight } from 'lucide-react';
-import type { AIModel, Provider } from '@oriveo/shared';
+import type { AIModel, Provider, ReasoningMode } from '@oriveo/shared';
 import { BackButton } from '@oriveo/ui';
-import type { GenerationParameterOverrides, GenerationParameterProfile, GenerationParameterValue } from '@oriveo/core/providers/request-builders/types';
+import type { GenerationParameterOverrides, GenerationParameterProfile } from '@oriveo/core/providers/request-builders/types';
 import {
   previewGenerationCompatibility,
   removeGenerationConflicts,
-  validateOutputContractValue,
 } from '@oriveo/core/providers/generation-workbench';
 import { relayGenerationEndpointFingerprint } from '@oriveo/core/providers/relay-orchestrator';
 import {
@@ -24,7 +23,20 @@ import {
   saveGenerationParameterPreset,
   generationParameterProfileFingerprint,
   valueOverride,
+  resolveGenerationParameterOverridesWithSources,
+  type GenerationParameterLayer,
 } from '../../lib/core/chat/generation-parameter-settings';
+import { activeThinkingForPreview } from '../../lib/core/chat/generation-thinking-preview';
+import { advancedRowAnnotationInput, resolveRowAnnotations } from '../../lib/core/chat/advanced-settings-annotations';
+import { reasoningRowWithoutWritePath } from '../../lib/core/chat/advanced-settings-reasoning';
+import { additionalBodyEntryRow } from '../../lib/core/chat/additional-body-entry';
+import {
+  ADDITIONAL_BODY_SETTINGS_EVENT,
+  additionalBodyScope,
+  resolveEffectiveAdditionalBody,
+} from '../../lib/core/chat/additional-body-settings';
+import { AdvancedSettingsList } from './AdvancedSettingsList';
+import type { AdvancedRowExtras } from './AdvancedParameterRow';
 import {
   buildProviderStreamOptions,
   generationParameterAdjustable,
@@ -39,7 +51,6 @@ import {
   hasSeenNonEmptyGenerationProfile,
   recordSeenGenerationProfile,
   showsUnverifiedBadge,
-  showsUnverifiedGroupNote,
   type GenerationParameterEmptyState,
 } from '../../lib/core/chat/generation-panel-presentation';
 import { partitionGenerationParameterValues } from '../../lib/core/chat/generation-parameter-lifecycle';
@@ -66,6 +77,7 @@ import {
   customFragmentSupportedModels,
   forwardPortCustomFragmentsIfNeeded,
 } from '../../lib/core/chat/custom-fragment-settings';
+import { ADVANCED_REASONING_STATUS_NOTE_KEYS, generationParameterTitleKey } from '../../lib/core/chat/model-options-copy';
 import { CustomRequestFieldsEditor } from './CustomRequestFieldsEditor';
 import styles from './GenerationParameterPanel.module.css';
 
@@ -73,28 +85,8 @@ type Scope = 'default' | 'session';
 type ProfileParameter = GenerationParameterProfile['parameters'][number];
 type CommonTranslator = ReturnType<typeof useTranslations>;
 
-const GENERATION_PARAMETER_LABEL_KEYS: Readonly<Record<string, string>> = {
-  max_output_tokens: 'generationParameterNameMaxOutputTokens',
-  min_tokens: 'generationParameterNameMinTokens',
-  temperature: 'generationParameterNameTemperature',
-  top_p: 'generationParameterNameTopP',
-  top_k: 'generationParameterNameTopK',
-  frequency_penalty: 'generationParameterNameFrequencyPenalty',
-  presence_penalty: 'generationParameterNamePresencePenalty',
-  repetition_penalty: 'generationParameterNameRepetitionPenalty',
-  seed: 'generationParameterNameSeed',
-  stop: 'generationParameterNameStop',
-  verbosity: 'generationParameterNameVerbosity',
-  logprobs: 'generationParameterNameLogprobs',
-  top_logprobs: 'generationParameterNameTopLogprobs',
-  reasoning_effort: 'generationParameterNameReasoningEffort',
-  reasoning_budget: 'generationParameterNameReasoningBudget',
-  reasoning_mode: 'generationParameterNameReasoningMode',
-  response_format: 'generationParameterNameResponseFormat',
-};
-
 function generationParameterLabel(id: string | undefined, tc: CommonTranslator): string {
-  return tc(GENERATION_PARAMETER_LABEL_KEYS[id ?? ''] ?? 'generationParameters');
+  return tc(generationParameterTitleKey(id ?? '') ?? 'generationParameters');
 }
 
 function generationSourceLabel(_source: string | undefined, tc: CommonTranslator): string {
@@ -157,6 +149,8 @@ type GenerationParameterPanelProps = {
    * containers stall the screen at the inner boundary.
    */
   embedded?: boolean;
+  /** The conversation's current reasoning level: the reasoning linkage preview uses it to work out whether thinking will be on for this send, and rows that get dropped state the reason. */
+  reasoningMode?: ReasoningMode;
 };
 
 export function GenerationParameterPanel({
@@ -171,6 +165,7 @@ export function GenerationParameterPanel({
   onSelectCustomFieldsModel,
   hidesTitle = false,
   embedded = false,
+  reasoningMode,
 }: GenerationParameterPanelProps) {
   const tc = useTranslations('common');
   const t = useTranslations('pages.providerDetail');
@@ -289,6 +284,50 @@ export function GenerationParameterPanel({
     ).some((item) => item?.state !== 'inherit'));
   };
 
+  // Inputs of the row model: effective values per layer with their source, the values below
+  // the layer being edited (where "use the model default" falls back to), and the reasoning
+  // linkage preview.
+  const editingLayers = scope === 'session' ? SESSION_LAYERS : DEFAULT_LAYERS;
+  const sources = useMemo(() => {
+    const base = {
+      providerId: provider.id,
+      modelId: model.id,
+      profileFingerprint: key.profileFingerprint,
+      ...(reasoningMode ? { reasoningMode } : {}),
+    };
+    const below = resolveGenerationParameterOverridesWithSources(base) ?? {};
+    return {
+      resolved: resolveGenerationParameterOverridesWithSources({ ...base, ...(key.conversationId ? { conversationId: key.conversationId } : {}) }),
+      lowerValues: Object.fromEntries(Object.entries(below)
+        .filter(([, entry]) => !editingLayers.includes(entry.layer))
+        .map(([id, entry]) => [id, entry.override])) as GenerationParameterOverrides,
+    };
+    // Re-read when `values` changes: storage is the single source of truth, local state is only the trigger.
+  }, [editingLayers, key, model, provider, reasoningMode, values]);
+  const [thinking, setThinking] = useState<{ budgetTokens?: number } | null>(null);
+  const profileTemplate = profile?.template;
+  useEffect(() => {
+    if (scope !== 'session' || !reasoningMode || !profileTemplate) {
+      setThinking(null);
+      return;
+    }
+    let live = true;
+    activeThinkingForPreview({ provider, model, profile, reasoningMode })
+      .then((result) => { if (live) setThinking(result); })
+      .catch(() => { if (live) setThinking(null); });
+    return () => { live = false; };
+    // `profile` is re-resolved every frame, so key the effect on the template identity instead.
+  }, [model, profileTemplate, provider, reasoningMode, scope]);
+  const [additionalBodyRevision, setAdditionalBodyRevision] = useState(0);
+  useEffect(() => {
+    const refresh = () => setAdditionalBodyRevision((revision) => revision + 1);
+    window.addEventListener(ADDITIONAL_BODY_SETTINGS_EVENT, refresh);
+    return () => window.removeEventListener(ADDITIONAL_BODY_SETTINGS_EVENT, refresh);
+  }, []);
+  const additionalBody = useMemo(() => additionalBodyEntryRow(resolveEffectiveAdditionalBody(
+    additionalBodyScope(provider, model, scope === 'session' ? conversationId : undefined),
+  )), [additionalBodyRevision, conversationId, model, provider, scope]);
+
   // When a profile matches again the compatible values come back on their own (they were never
   // deleted, only the criteria changed), so show a one-off toast. Dormant values removed by
   // "clear" cannot be misreported as restored, because `values[id]` is gone.
@@ -322,7 +361,7 @@ export function GenerationParameterPanel({
         {dormantIds.map((id) => (
           <li key={id}>
             <span>{generationParameterLabel(id, tc)}</span>
-            <span>{dormantValueText(partition.dormant[id], tc('remove'))}</span>
+            <span>{dormantValueText(partition.dormant[id], tc('generationParameterOmittedValue'))}</span>
           </li>
         ))}
       </ul>}
@@ -339,7 +378,7 @@ export function GenerationParameterPanel({
       <div className={styles.header}>
         <div>
           {!hidesTitle && <strong>{tc('modelBehavior')}</strong>}
-          <p>{`${tc(scope === 'session' ? 'currentConversation' : 'connectionDefaults')} - ${model.name}`}</p>
+          <p>{scope === 'session' ? `${model.name} · ${tc('advancedThisConversationOnly')}` : model.name}</p>
         </div>
         {reset && !isReadOnly && (
           <button
@@ -347,12 +386,13 @@ export function GenerationParameterPanel({
             className={styles.reset}
             aria-expanded={pendingReset}
             onClick={() => setPendingReset(true)}
-          >{tc('restoreModelBehavior')}</button>
+          >{tc('advancedReset')}</button>
         )}
       </div>
       {reset && !isReadOnly && pendingReset && (
-        <div className={styles.resetConfirm} role="group" aria-label={tc('restoreModelBehavior')}>
-          <p className={styles.customHint}>{tc('restoreModelBehaviorConfirm')}</p>
+        <div className={styles.resetConfirm} role="group" aria-label={tc(scope === 'session' ? 'advancedResetConversationTitle' : 'advancedResetModelTitle')}>
+          <strong>{tc(scope === 'session' ? 'advancedResetConversationTitle' : 'advancedResetModelTitle')}</strong>
+          <p className={styles.customHint}>{tc(scope === 'session' ? 'advancedResetConversationBody' : 'advancedResetModelBody')}</p>
           <button type="button" onClick={() => setPendingReset(false)}>{tc('cancel')}</button>
           <button
             type="button"
@@ -361,7 +401,7 @@ export function GenerationParameterPanel({
               reset();
               setPendingReset(false);
             }}
-          >{tc('restoreModelBehavior')}</button>
+          >{tc(scope === 'session' ? 'advancedResetConversationAction' : 'advancedResetModelAction')}</button>
         </div>
       )}
     </>
@@ -433,10 +473,64 @@ export function GenerationParameterPanel({
   const compatibilityIssues = previewGenerationCompatibility({ profile, overrides: values, streaming: true });
   const diagnostics = listGenerationParameterDiagnostics()
     .filter((entry) => !entry.modelId || entry.modelId === model.id);
+  // The "unverified" page tone shares one evidence projection with the header; when the tone holds, only rows in `inlineIds` get an inline annotation.
+  const annotations = resolveRowAnnotations(
+    visible.map((parameter, index) => advancedRowAnnotationInput(parameter.id!, parameter.support, visibleEvidence[index]!)),
+    visibleEvidence,
+  );
+  const inlineAnnotated = new Set(annotations.inlineIds);
+  const engineName = LOCAL_ENGINE_NAMES[provider.kind === 'relay' ? provider.relayRequested?.engineProfile ?? '' : ''];
+  const rowExtras: Record<string, AdvancedRowExtras> = Object.fromEntries(visible.map((parameter, index) => {
+    const id = parameter.id!;
+    const evidence = visibleEvidence[index]!;
+    // Visibility/editability and wire injection are deliberately separate: a runtime rejection
+    // suppresses only this process's request, not the upstream support fact or the user's
+    // ability to amend the value.
+    //
+    // The editable test and the "show models supporting this parameter" filter must be the same
+    // function, or a user can follow the filter, open the panel, and find the row still greyed
+    // out. It may also never be wider than the outbound allow list.
+    const adjustable = generationParameterAdjustable(profile.wire[id], parameter.support, evidence);
+    // The presentation class is read from the shared contract's presentationClasses table rather
+    // than an inline switch. The evidence layer has only three values, and feeding it straight in
+    // as presentation input is what made accepted_unverified unreachable and unsupported read as
+    // unknown; start from the eight states the profile declares and let evidence only veto or
+    // downgrade.
+    const presentation = generationSupportPresentation(effectiveGenerationSupport(parameter.support, evidence));
+    const reasoning = reasoningRowWithoutWritePath({ id }, profile);
+    // A reasoning-group row with no write path says that one sentence only: no support state and no "switch model" exit.
+    const inline = inlineAnnotated.has(id) && !reasoning;
+    const extras: AdvancedRowExtras = {
+      editable: adjustable && !reasoning,
+      ...(inline && adjustable && showsUnverifiedBadge(evidence) ? { unverifiedLabel: tc('generationParameterUnverifiedBadge') } : {}),
+      // The normal case (the silent class) says nothing; every other state keeps its full label including Source.
+      ...(inline && presentation.renders && presentation.labelKey
+        ? { supportLabel: `${tc(presentation.labelKey)} · ${tc('generationParameterSource')}: ${generationSourceLabel(parameter.source, tc)}` }
+        : {}),
+      ...(inline && presentation.renders && presentation.detailKey ? { supportDetail: tc(presentation.detailKey) } : {}),
+      ...(reasoning ? { statusNote: tc(ADVANCED_REASONING_STATUS_NOTE_KEYS[reasoning.statusNote].slice('common.'.length)) } : {}),
+      ...(parameter.support === 'fixed' ? { fixedText: String(parameter.fixedValue ?? t('defaultURL')) } : {}),
+      ...(presentation.classId === 'not_adjustable' && !reasoning ? {
+        notAdjustable: (
+          <NotAdjustableAction
+            label={tc('generationParameterFindSupportedModels')}
+            emptyLabel={tc('capabilityControlNoSupportedModels')}
+            // With no switcher to open, list the candidates in place. Evaluated lazily: this
+            // resolves a generation profile plus evidence for every model on the connection,
+            // so doing it during render would repeat that once per frame for every
+            // non-adjustable parameter.
+            {...(onFindSupportedModels
+              ? { onClick: () => onFindSupportedModels(id) }
+              : { listCandidates: () => supportedModelNames(provider, model, id) })}
+          />
+        ),
+      } : {}),
+    };
+    return [id, extras];
+  }));
   return (
     <section className={styles.panel} data-embedded={embedded ? 'true' : undefined} aria-label={tc('modelBehavior')}>
       {panelHeader(reset)}
-      {scopeDetail}
       {/* An explanatory sentence, not a parameter row: a single full-width line with its own
           background, rather than a hairline plus two columns, whose skeleton is identical to
           .row and reads as one more disabled control. */}
@@ -448,7 +542,7 @@ export function GenerationParameterPanel({
         </p>
       )}
       {/* Whenever the rendered set contains a relay unknown parameter, the group note is mandatory; omitting it would present a fake certainty. */}
-      {showsUnverifiedGroupNote(visibleEvidence) && (
+      {annotations.showsPageNote && (
         <p className={styles.scopeHint}>{tc('generationParameterUnverifiedGroupNote')}</p>
       )}
       {/* Connection-level tools (presets, backup, diagnostics, relay tools) appear only on the
@@ -532,27 +626,37 @@ export function GenerationParameterPanel({
           setDiagnosticRevision((revision) => revision + 1);
         }}>{tc('generationParameterClearLearnedCapabilities')}</button>
       </div>}
-      <ParameterGroup
-        title={tc('generationBasicSettings')}
-        parameters={basicParameters(visible)}
-        defaultOpen
-        render={(parameter) => renderParameter(parameter)}
+      <AdvancedSettingsList
+        profile={profile}
+        parameters={visible}
+        resolved={sources.resolved}
+        lowerValues={sources.lowerValues}
+        editingLayers={editingLayers}
+        thinking={thinking}
+        {...(engineName ? { engineName } : {})}
+        extras={rowExtras}
+        inputIdPrefix={`generation-${provider.id}-${model.id}`}
+        isReadOnly={isReadOnly}
+        showsLegend={scope === 'session'}
+        additionalBody={additionalBody}
+        onOpenAdditionalBody={onOpenCustomFields ?? (() => setOwnsCustomFieldsPage(true))}
+        onSet={(id, value) => {
+          // Two parameters that declare a conflict do not coexist within one layer: the one set later stays, the earlier one is deleted. Conflicts across layers are not deleted; the row's own note tells the user.
+          const parameter = visible.find((item) => item.id === id);
+          const next = { ...values };
+          for (const conflict of parameter?.conflictsWith ?? []) delete next[conflict];
+          for (const candidate of visible) {
+            if (candidate.conflictsWith?.includes(id)) delete next[candidate.id];
+          }
+          persist({ ...next, [id]: valueOverride(value) });
+        }}
+        onClear={(id) => {
+          const next = { ...values };
+          delete next[id];
+          persist(next);
+        }}
+        onOmit={(id) => persist({ ...values, [id]: { state: 'omit' } })}
       />
-      {GROUP_ORDER.map((group) => (
-        <ParameterGroup
-          key={group}
-          title={tc(GROUP_LABELS[group])}
-          parameters={advancedParameters(visible).filter((parameter) => (parameter.group ?? 'sampling') === group)}
-          render={(parameter) => renderParameter(parameter)}
-        />
-      ))}
-      {/* What "leave empty" means is what BYOK users care about most on this page: the field
-          is simply absent from the request body, rather than filled in with a default. Session
-          scope only, since the connection defaults path is about defaults and not about
-          whether a field is sent on one request. */}
-      {scope === 'session' && (
-        <p className={styles.scopeHint} data-testid="generation-unset-note">{tc('generationParameterUnsetNote')}</p>
-      )}
       {/* After transport is corrected at runtime, an old scope record can keep only some of its
           parameters in the new protocol template, so the panel is non-empty while those values
           have no row. The summary must appear here too, or dormant values in the non-empty
@@ -589,102 +693,6 @@ export function GenerationParameterPanel({
       {developerGroup}
     </section>
   );
-
-  function renderParameter(parameter: ProfileParameter) {
-        const id = parameter.id!;
-        const override = values[id];
-        const evidence = resolveGenerationParameterEvidence({
-          provider,
-          model,
-          profile: profile!,
-          parameterId: id,
-          hasExplicitValue: override?.state === 'value',
-          relayIdentity: relayEvidenceIdentity,
-          streamOptions: generationCapabilityOptions,
-          generationRevision: profile!.revision ?? model.metadataRevision,
-        });
-        // Visibility/editability and wire injection are deliberately separate:
-        // a runtime rejection suppresses only this process's request, not the
-        // upstream support fact or the user's ability to amend the value.
-        //
-        // The editable test and the "show models supporting this parameter" filter must be the
-        // same function, or a user can follow the filter, open the panel, and find the row still
-        // greyed out.
-        const adjustable = generationParameterAdjustable(profile?.wire[id], parameter.support, evidence);
-        // The presentation class is read from the shared contract's presentationClasses table
-        // rather than an inline switch. The evidence layer has only three values, and feeding it
-        // straight in as presentation input is what made accepted_unverified unreachable and
-        // unsupported read as unknown; start from the eight states the profile declares and let
-        // evidence only veto or downgrade.
-        const presentation = generationSupportPresentation(
-          effectiveGenerationSupport(parameter.support, evidence),
-        );
-        return (
-          <ParameterRow
-            key={id}
-            parameter={parameter}
-            override={override}
-            // The three reasoning parameters are editable in connection scope (values really go
-            // out through mergeFirstExplicit); in session scope reasoning is owned solely by the
-            // composer chip and is not rendered here. The editable test must share the outbound
-            // allow list and may never be wider than it. When the panel as a whole is read-only
-            // (managed connection or sending), narrow it once more.
-            editable={adjustable && !isReadOnly}
-            // Only temperature and max tokens get a plain-language annotation: they are the two
-            // parameters most people ever touch, and the parameter name alone explains nothing to
-            // a non-developer. Annotating every row would bury these two.
-            annotation={PARAMETER_ANNOTATION_KEYS[id] ? tc(PARAMETER_ANNOTATION_KEYS[id]!) : undefined}
-            // Locally synthesized relay unknown parameters stay adjustable, at the cost of saying
-            // per row that support is inferred from the protocol and never measured. The badge is
-            // neutral, not a warning.
-            unverifiedLabel={adjustable && showsUnverifiedBadge(evidence)
-              ? tc('generationParameterUnverifiedBadge')
-              : undefined}
-            inputID={`generation-${provider.id}-${model.id}-${id}`}
-            defaultLabel={t('defaultURL')}
-            omitLabel={tc('remove')}
-            // supported and accepted are the normal case, and the normal case says nothing: ten
-            // repeated "supported, source ..." lines would bury the unverified, fixed and unknown
-            // rows that do need attention. Every other state keeps its full label including
-            // Source, the only clue to where a verdict came from and what locally synthesized
-            // relay parameters rely on.
-            supportLabel={presentation.renders && presentation.labelKey ? tc(presentation.labelKey) : undefined}
-            supportDetail={presentation.renders && presentation.detailKey ? tc(presentation.detailKey) : undefined}
-            // Exit for the "not adjustable" class. The test reads the shared contract's
-            // presentation class rather than the support literal; fixed, unsupported and
-            // mode_dependent are assigned by presentationClasses.
-            notAdjustableAction={presentation.classId === 'not_adjustable'
-              ? {
-                label: tc('generationParameterFindSupportedModels'),
-                ...(onFindSupportedModels
-                  ? { onClick: () => onFindSupportedModels(id) }
-                  // With no switcher to open, list the candidates in place. Evaluated lazily:
-                  // this resolves a generation profile plus evidence for every model on the
-                  // connection, so doing it during render would repeat that once per frame for
-                  // every non-adjustable parameter.
-                  : { listCandidates: () => supportedModelNames(provider, model, id) }),
-                emptyLabel: tc('capabilityControlNoSupportedModels'),
-              }
-              : undefined}
-            sourceLabel={`${tc('generationParameterSource')}: ${generationSourceLabel(parameter.source, tc)}`}
-            jsonSchemaLabel={tc('generationJsonSchemaLabel')}
-            onClear={() => {
-              const next = { ...values };
-              delete next[id];
-              persist(next);
-            }}
-            onOmit={() => persist({ ...values, [id]: { state: 'omit' } })}
-            onChange={(value) => {
-              const next = { ...values };
-              for (const conflict of parameter.conflictsWith ?? []) delete next[conflict];
-              for (const candidate of visible) {
-                if (candidate.conflictsWith?.includes(id)) delete next[candidate.id];
-              }
-              persist({ ...next, [id]: valueOverride(value) });
-            }}
-          />
-        );
-  }
 }
 
 /**
@@ -812,213 +820,48 @@ const EMPTY_STATE_TITLE_KEY: Record<GenerationParameterEmptyState, string> = {
   allUnsupported: 'generationParameterEmptyAllUnsupported',
 };
 
-/** Only these two parameters carry an annotation. */
-const PARAMETER_ANNOTATION_KEYS: Readonly<Record<string, string | undefined>> = {
-  temperature: 'generationParameterTemperatureNote',
-  max_output_tokens: 'generationParameterMaxTokensNote',
+const SESSION_LAYERS: readonly GenerationParameterLayer[] = ['transient', 'conversation'];
+const DEFAULT_LAYERS: readonly GenerationParameterLayer[] = ['connectionModel'];
+/** Product names of local engines (used in the common card's footnote); proper nouns are not translated. */
+const LOCAL_ENGINE_NAMES: Readonly<Record<string, string | undefined>> = {
+  llamacpp: 'llama.cpp', ollama: 'Ollama', lmstudio: 'LM Studio', vllm: 'vLLM',
 };
 
-const GROUP_ORDER = ['budget', 'reasoning', 'sampling', 'repetition', 'reproducibility', 'output_contract', 'engine_runtime'] as const;
-const GROUP_LABELS: Record<(typeof GROUP_ORDER)[number], string> = {
-  budget: 'generationGroupBudget', reasoning: 'generationGroupReasoning', sampling: 'generationGroupSampling',
-  repetition: 'generationGroupRepetition', reproducibility: 'generationGroupReproducibility',
-  output_contract: 'generationGroupOutputContract', engine_runtime: 'generationGroupEngineRuntime',
-};
-
-function basicParameters(parameters: ProfileParameter[]): ProfileParameter[] {
-  const preferredSampling = parameters.find((item) => item.id === 'temperature')
-    ?? parameters.find((item) => item.id === 'top_p');
-  return parameters.filter((item) => item.id === 'max_output_tokens')
-    .concat(preferredSampling ? [preferredSampling] : []);
-}
-
-function advancedParameters(parameters: ProfileParameter[]): ProfileParameter[] {
-  const basic = new Set(basicParameters(parameters).map((item) => item.id));
-  return parameters.filter((item) => !basic.has(item.id));
-}
-
-function ParameterGroup({ title, parameters, defaultOpen = false, render }: {
-  title: string;
-  parameters: ProfileParameter[];
-  defaultOpen?: boolean;
-  render: (parameter: ProfileParameter) => ReactNode;
+/**
+ * Primary action for the "not adjustable" class (a greyed-out control must come with an exit).
+ * `onClick` when the host can open a model switcher; `listCandidates` when it cannot and a
+ * read-only list is expanded in place.
+ */
+function NotAdjustableAction({ label, emptyLabel, onClick, listCandidates }: {
+  label: string;
+  emptyLabel: string;
+  onClick?: () => void;
+  listCandidates?: () => readonly string[];
 }) {
-  if (parameters.length === 0) return null;
-  return <details className={styles.group} open={defaultOpen}>
-    <summary>{title}</summary>
-    <div>{parameters.map(render)}</div>
-  </details>;
-}
-
-function ParameterRow({ parameter, override, editable, unverifiedLabel, annotation, inputID, defaultLabel, omitLabel, supportLabel, supportDetail, notAdjustableAction, sourceLabel, jsonSchemaLabel, onChange, onClear, onOmit }: {
-  parameter: ProfileParameter;
-  override?: GenerationParameterOverrides[string];
-  editable: boolean;
-  /** Render the per-row "unverified" badge whenever set; the test may only come from showsUnverifiedBadge. */
-  unverifiedLabel?: string;
-  /** Plain-language annotation; only temperature and max tokens have one, the rest pass undefined. */
-  annotation?: string;
-  inputID: string;
-  defaultLabel: string;
-  omitLabel: string;
-  /** Set only outside the normal case (the silent class); the normal case renders no label at all, Source included. */
-  supportLabel?: string;
-  /** Per-state secondary copy, from the shared contract's supportMap.detailKey. */
-  supportDetail?: string;
-  /**
-   * Primary action for the "not adjustable" class (shared contract
-   * presentationClasses.not_adjustable.primaryAction). One of two shapes: `onClick` when the
-   * host can open a model switcher, `listCandidates` when it cannot and a read-only list is
-   * expanded in place. Neither being present would leave a dead end and is not allowed.
-   */
-  notAdjustableAction?: {
-    label: string;
-    onClick?: () => void;
-    listCandidates?: () => readonly string[];
-    /** Sentence used when there are no candidates: say plainly that switching models will not help, and do not expand an empty list. */
-    emptyLabel?: string;
-  };
-  sourceLabel: string;
-  jsonSchemaLabel: string;
-  onChange: (value: GenerationParameterValue) => void;
-  onClear: () => void;
-  onOmit: () => void;
-}) {
-  const tc = useTranslations('common');
-  const [schemaDraft, setSchemaDraft] = useState(() => override?.state === 'value' && isJSONRecord(override.value)
-    ? JSON.stringify(override.value, null, 2) : '');
-  const [schemaInvalid, setSchemaInvalid] = useState(false);
-  /** null means never expanded, so candidates have not been computed yet; the list is evaluated on expand. */
-  const [notAdjustableCandidates, setNotAdjustableCandidates] = useState<readonly string[] | null>(null);
-  const id = parameter.id;
-  const value = override?.state === 'value' ? override.value : undefined;
-  const isBoolean = parameter.valueSchema === 'boolean';
-  const stringValue = Array.isArray(value)
-    ? value.join(', ')
-    : typeof value === 'number' || typeof value === 'string' ? String(value) : '';
-  return <div className={styles.row} data-parameter={id}>
+  /** null means never expanded, so candidates have not been computed yet. */
+  const [candidates, setCandidates] = useState<readonly string[] | null>(null);
+  return (
     <div className={styles.labelStack}>
-      {/* The badge sits outside the label: it is not part of the control's accessible name, and
-          folding it in would turn the label into "temperature unverified", so neither screen
-          readers nor tests could read a clean parameter name. */}
-      <div className={styles.labelRow}>
-        <label htmlFor={inputID}>{generationParameterLabel(id, tc)}</label>
-        {unverifiedLabel && <em className={styles.unverifiedBadge} data-testid="generation-unverified-badge">{unverifiedLabel}</em>}
-      </div>
-      {annotation && (
-        <span className={styles.parameterAnnotation} data-testid="generation-parameter-annotation">{annotation}</span>
-      )}
-      {supportLabel && <span data-testid="generation-support-line">{supportLabel} - {sourceLabel}</span>}
-      {supportDetail && <span className={styles.supportDetail} data-testid="generation-support-detail">{supportDetail}</span>}
-      {/* A greyed-out control must come with a primary action. The button follows the
-          explanatory copy instead of joining the disabled control column, where the only way
-          out would read as disabled too. */}
-      {notAdjustableAction && <button
+      <button
         type="button"
         className={styles.notAdjustableAction}
         data-testid="generation-not-adjustable-action"
-        {...(notAdjustableAction.listCandidates
-          ? { 'aria-expanded': notAdjustableCandidates !== null }
-          : {})}
+        {...(listCandidates ? { 'aria-expanded': candidates !== null } : {})}
         onClick={() => {
-          if (notAdjustableAction.onClick) {
-            notAdjustableAction.onClick();
+          if (onClick) {
+            onClick();
             return;
           }
-          setNotAdjustableCandidates((current) => (
-            current === null ? (notAdjustableAction.listCandidates?.() ?? []) : null
-          ));
+          setCandidates((current) => (current === null ? (listCandidates?.() ?? []) : null));
         }}
-      >{notAdjustableAction.label}</button>}
-      {notAdjustableCandidates !== null && (
+      >{label}</button>
+      {candidates !== null && (
         <span className={styles.notAdjustableCandidates} data-testid="generation-not-adjustable-candidates">
-          {notAdjustableCandidates.length > 0
-            ? notAdjustableCandidates.join(' - ')
-            : notAdjustableAction?.emptyLabel}
+          {candidates.length > 0 ? candidates.join(' · ') : emptyLabel}
         </span>
       )}
     </div>
-    <div className={styles.control}>
-      {parameter.support === 'fixed' ? (
-        <span>{String(parameter.fixedValue ?? defaultLabel)}</span>
-      ) : parameter.valueSchema === 'enum' && parameter.enumValues?.length ? (
-        <select
-          id={inputID}
-          value={typeof value === 'string' || typeof value === 'number' ? String(value) : ''}
-          disabled={!editable || override?.state === 'omit'}
-          onChange={(event) => {
-            const match = parameter.enumValues?.find((item) => String(item) === event.target.value);
-            if (typeof match === 'string' || typeof match === 'number') onChange(match);
-          }}
-        >
-          <option value="">{defaultLabel}</option>
-          {value !== undefined && !parameter.enumValues.some((item) => item === value) && (
-            <option value={String(value)}>{String(value)}</option>
-          )}
-          {parameter.enumValues.map((item) => <option key={String(item)} value={String(item)}>{String(item)}</option>)}
-        </select>
-      ) : parameter.valueSchema === 'json-schema' ? (
-        <textarea
-          id={inputID}
-          value={schemaDraft}
-          aria-invalid={schemaInvalid}
-          aria-label={jsonSchemaLabel}
-          placeholder={jsonSchemaLabel}
-          disabled={!editable || override?.state === 'omit'}
-          onChange={(event) => {
-            const raw = event.target.value;
-            setSchemaDraft(raw);
-            if (!raw.trim()) {
-              setSchemaInvalid(false);
-              onClear();
-              return;
-            }
-            try {
-              const parsed: unknown = JSON.parse(raw);
-              validateOutputContractValue(parameter.id, parsed as GenerationParameterValue);
-              setSchemaInvalid(false);
-              onChange(parsed as GenerationParameterValue);
-            } catch {
-              setSchemaInvalid(true);
-            }
-          }}
-        />
-      ) : isBoolean ? (
-        <input id={inputID} type="checkbox" checked={value === true} disabled={!editable || override?.state === 'omit'} onChange={(event) => onChange(event.target.checked)} />
-      ) : (
-        <input
-          id={inputID}
-          type={parameter.valueSchema === 'integer' || parameter.valueSchema === 'number' ? 'number' : 'text'}
-          min={parameter.range?.min}
-          max={parameter.range?.max}
-          step={parameter.range?.step ?? (parameter.valueSchema === 'integer' ? 1 : 'any')}
-          value={stringValue}
-          placeholder={override?.state === 'omit' ? omitLabel : defaultLabel}
-          disabled={!editable || override?.state === 'omit'}
-          onChange={(event) => {
-            const raw = event.target.value;
-            if (raw === '') return onClear();
-            if (parameter.valueSchema === 'integer' || parameter.valueSchema === 'number') {
-              const number = Number(raw);
-              if (Number.isFinite(number)) onChange(number);
-            } else if (parameter.valueSchema === 'string-list') {
-              onChange(raw.split(',').map((item) => item.trim()).filter(Boolean));
-            } else {
-              onChange(raw);
-            }
-          }}
-        />
-      )}
-      {editable && <button
-          type="button"
-          className={styles.clear}
-          onClick={override?.state === 'omit' ? onClear : onOmit}
-          aria-label={override?.state === 'omit' ? defaultLabel : omitLabel}
-          title={override?.state === 'omit' ? defaultLabel : omitLabel}
-        >{override?.state === 'omit' ? '↩' : '−'}</button>}
-      {editable && override?.state === 'value' && <button type="button" className={styles.clear} onClick={onClear} aria-label={defaultLabel} title={defaultLabel}>×</button>}
-    </div>
-  </div>;
+  );
 }
 
 /**
@@ -1034,8 +877,4 @@ function dormantValueText(
   const value = override.value;
   if (Array.isArray(value)) return value.join(', ');
   return typeof value === 'object' ? JSON.stringify(value) : String(value);
-}
-
-function isJSONRecord(value: GenerationParameterValue | undefined): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }

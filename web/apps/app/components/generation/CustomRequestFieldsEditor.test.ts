@@ -16,7 +16,7 @@ const keys = [
   'customRequestFieldsPreviewHint', 'customRequestFieldsPreview',
   'customRequestFieldsReasonSyntax', 'customRequestFieldsReasonLimit',
   'customRequestFieldsNotAllowed', 'customRequestFieldsNotAllowedConflict',
-  'customRequestFieldsNoSchemaForModel', 'customRequestFieldsNoSchemaForControl',
+  'customRequestFieldsNoSchemaForControl',
   'customRequestFieldsLegacyEmpty', 'customRequestFieldsSwitchBackToAutomatic',
   'customRequestFieldsRelayDocs', 'customRequestFieldsDocs',
   'customRequestFieldsRemoveTitle', 'customRequestFieldsRemoveKeep', 'customRequestFieldsRemoveConfirm',

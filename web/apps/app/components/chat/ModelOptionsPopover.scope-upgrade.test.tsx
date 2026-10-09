@@ -22,6 +22,8 @@ vi.mock('next-intl', () => ({
   useTranslations: (namespace: string) => (key: string, values?: Record<string, unknown>) => (
     values ? `${namespace}.${key}:${Object.values(values).join(',')}` : `${namespace}.${key}`
   ),
+  // The main pane cards fetch their copy through useCopy, which needs useLocale.
+  useLocale: () => 'en',
 }));
 
 const runtime = vi.hoisted(() => ({
@@ -93,17 +95,15 @@ describe('W3 - scope upgrade row (U1-U11)', () => {
     expect(screen.getByText('common.capabilityControlScopeSetAsModelDefault')).toBeTruthy();
   });
 
-  it('U3 pinned to the fixed bottom area just above the close bar, not inside the scrolling content', () => {
+  it('U3 pinned to the fixed bottom area, not inside the scrolling content', () => {
     open();
     toggleWeb();
 
     const row = upgradeRow()!;
     const footer = row.parentElement!;
-    // Same parent as the close bar: the fixed bottom area is one block, upgrade row first, close bar after.
-    const children = [...footer.children];
-    expect(children.indexOf(row)).toBe(0);
-    expect(children).toHaveLength(2);
+    // The main pane's close button moved into the header, so the fixed bottom area holds only the upgrade row; secondary panes add the close bar below it.
     expect(footer.tagName).toBe('FOOTER');
+    expect([...footer.children]).toEqual([row]);
   });
 
   it('U2 hidden when pushing into a secondary page and restored on returning to the main panel', () => {

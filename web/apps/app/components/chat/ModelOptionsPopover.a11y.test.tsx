@@ -25,6 +25,8 @@ vi.mock('next-intl', () => ({
   useTranslations: (namespace: string) => (key: string, values?: Record<string, unknown>) => (
     values ? `${namespace}.${key}:${Object.values(values).join(',')}` : `${namespace}.${key}`
   ),
+  // The main pane cards fetch their copy through useCopy, which needs useLocale.
+  useLocale: () => 'en',
 }));
 
 const runtime = vi.hoisted(() => ({
@@ -163,7 +165,8 @@ describe('WQA-9 - roving tabindex and arrow keys in the radiogroup', () => {
   const thinkingGroup = () => screen.getByRole('radiogroup', { name: 'common.capabilityControlThinking' });
 
   it('the whole group occupies a single Tab stop: only the selected pill has tabIndex=0', () => {
-    open();
+    // Without an automatic option from the recipe the reasoning tiers have no "never chosen" cell, so the selection comes from the stored tier.
+    open({ reasoningIntent: 'deep' });
     for (const group of [timingGroup(), thinkingGroup()]) {
       const radios = within(group).getAllByRole('radio');
       expect(radios.length).toBeGreaterThan(1);
@@ -204,8 +207,13 @@ describe('WQA-9 - roving tabindex and arrow keys in the radiogroup', () => {
 
   it('selecting the pseudo intent "automatic" stores an empty value and injects no tier', () => {
     const onReasoningIntentChange = vi.fn();
-    open({ onReasoningIntentChange, reasoningIntent: 'deep' });
-    fireEvent.click(screen.getByRole('radio', { name: 'pages.chat.reasoning.supplierDefault' }));
+    // The "automatic" cell only appears when the recipe sends `automatic` (the layout no longer always draws one).
+    open({
+      onReasoningIntentChange,
+      reasoningIntent: 'deep',
+      reasoningControl: { ...reasoningControl, availableIntents: ['automatic', ...reasoningControl.availableIntents] },
+    });
+    fireEvent.click(screen.getByRole('radio', { name: /pages\.chat\.reasoning\.supplierDefault$/ }));
     expect(onReasoningIntentChange).toHaveBeenCalledWith(undefined);
   });
 
@@ -267,34 +275,34 @@ describe('WQA-1 - the read-only banner also renders in the advanced settings pan
   });
 });
 
-describe('WSM-17 - expanding a customOnly status line does not repeat the same sentence', () => {
+describe('WSM-17 - a capability that cannot be configured says so once, and no outlet leads to an empty list', () => {
   afterEach(cleanup);
 
   const customOnly = { state: 'custom_only' as const, availableIntents: [], viaLegacyProfile: false };
+  const unavailable = { state: 'unavailable' as const, availableIntents: [], viaLegacyProfile: false };
 
   const otherModel = { ...model, id: 'model-2', name: 'Model 2' } as AIModel;
+  const webRow = () => screen.getByRole('group', { name: 'common.capabilityControlWebSearch' });
 
-  it('prints the reason once and offers the supported-models route when candidates exist', () => {
-    // customOnly with no locally editable schema => the way out is "view supported models", provided candidates exist.
+  // The explanation is written inline in the row; it must still be printed only once, and its outlet must lead somewhere.
+  it('customOnly: the explanation is printed once and the outlet is the additional request body', () => {
     open({ webControl: customOnly, alternativeModels: { web: [otherModel] } });
-    fireEvent.click(screen.getByRole('button', { name: /capabilityControlCustomOnlyReason/ }));
-
-    const printed = screen.getAllByText('common.capabilityControlCustomOnlyReason');
-    expect(printed, 'the reason must not be repeated by the expanded row').toHaveLength(1);
-    expect(screen.getByText('common.capabilityControlViewSupportedModels')).toBeTruthy();
+    expect(within(webRow()).getAllByText('common.modelOptionsWebNoGenericSwitch')).toHaveLength(1);
+    fireEvent.click(within(webRow()).getByRole('button', { name: 'common.openAdditionalBody' }));
+    // Pushed into a secondary pane: the header now carries a back button.
+    expect(screen.getByLabelText('common.back')).toBeTruthy();
   });
 
-  it('prints the reason once and says so plainly when there is no candidate to offer', () => {
-    open({ webControl: customOnly });
-    fireEvent.click(screen.getByRole('button', { name: /capabilityControlCustomOnlyReason/ }));
-    expect(screen.getAllByText('common.capabilityControlCustomOnlyReason')).toHaveLength(1);
-    expect(screen.getByText('common.capabilityControlNoSupportedModels')).toBeTruthy();
+  it('a model that cannot search and has no candidate offers no outlet to an empty list', () => {
+    open({ webControl: unavailable });
+    expect(within(webRow()).getAllByText('common.modelOptionsCannotSearch')).toHaveLength(1);
+    expect(within(webRow()).queryByRole('button')).toBeNull();
   });
 
-  it('explains an unavailable state with the no-official-config line', () => {
-    open({ webControl: { state: 'unavailable' as const, availableIntents: [], viaLegacyProfile: false } });
-    fireEvent.click(screen.getByRole('button', { name: /capabilityControlNotSupportedByModel/ }));
-    expect(screen.getByText('common.capabilityControlWebNoOfficialConfig')).toBeTruthy();
+  it('a model that cannot search but has candidates makes the whole row tappable into the supported models', () => {
+    open({ webControl: unavailable, alternativeModels: { web: [otherModel] } });
+    fireEvent.click(within(webRow()).getByRole('button'));
+    expect(screen.getByText('Model 2')).toBeTruthy();
   });
 });
 
@@ -304,25 +312,8 @@ describe('the advanced settings row does not hang a false "not ready" badge', ()
 
   const advancedRow = () => screen.getByText('common.modelBehavior').closest('button')!;
 
-  it('no generationControl (relay, or nothing sent) renders no "not ready"', () => {
+  it('the parameters row renders no "not ready" badge', () => {
     open();
-    // The default generationControl is UNKNOWN_CONTROL, which must not leave a permanent "not ready" here.
     expect(within(advancedRow()).queryByText('pages.chat.reasoning.notReady')).toBeNull();
-  });
-
-  it('when the server says unsupported the "unavailable" badge stays, since this row has no status line to say it', () => {
-    open({ generationControl: { state: 'unavailable' as const, availableIntents: [], viaLegacyProfile: false } });
-    expect(within(advancedRow()).getByText('pages.chat.reasoning.unavailable')).toBeTruthy();
-  });
-
-  // managed_only is a catalog verdict: the capability works but the connection fixes it, so the row
-  // has to say so rather than fall through to "unavailable".
-  it('a capability the connection fixes keeps its own badge', () => {
-    open({
-      generationControl: {
-        state: 'managed_only' as const, availableIntents: [], viaLegacyProfile: false,
-      },
-    });
-    expect(within(advancedRow()).getByText('common.capabilityControlFixedByConnection')).toBeTruthy();
   });
 });

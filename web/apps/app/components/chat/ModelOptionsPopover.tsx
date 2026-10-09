@@ -2,17 +2,32 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Check, ChevronRight, Globe, Lock, RefreshCw, Settings2, SlidersHorizontal, Sparkles } from 'lucide-react';
-import type { AIModel, Provider } from '@oriveo/shared';
-import { BackButton } from '@oriveo/ui';
+import { Check, ChevronRight, Lock, RefreshCw, Settings2 } from 'lucide-react';
+import type { AIModel, Provider, ReasoningMode } from '@oriveo/shared';
+import { BackButton, CloseButton } from '@oriveo/ui';
 import type { ReasoningIntent } from '@oriveo/core/providers/request-preference/types';
 import { GenerationParameterPanel } from '../generation/GenerationParameterPanel';
 import { CustomRequestFieldsEditor } from '../generation/CustomRequestFieldsEditor';
 import {
   generationParameterProfileFingerprint,
-  loadGenerationParameterOverrides,
+  resolveGenerationParameterOverridesWithSources,
 } from '../../lib/core/chat/generation-parameter-settings';
-import { partitionGenerationParameterValues } from '../../lib/core/chat/generation-parameter-lifecycle';
+import { generationParameterRows } from '../../lib/core/chat/generation-parameter-rows';
+import { resolveGenerationProfileForModel } from '../../lib/core/chat/stream-options';
+import {
+  ADDITIONAL_BODY_SETTINGS_EVENT,
+  additionalBodyScope,
+  resolveEffectiveAdditionalBody,
+} from '../../lib/core/chat/additional-body-settings';
+import {
+  chatTemplateThinkingApplies,
+  chatTemplateThinkingState,
+  writeChatTemplateThinking,
+} from '../../lib/core/chat/chat-template-thinking';
+import type { ModelOptionCapabilityInput, ModelOptionLinkAction } from '../../lib/core/chat/model-option-capability-shape';
+import { modelOptionsPanelModel, reasoningTierAfterTap } from '../../lib/core/chat/model-options-panel-model';
+import { ModelOptionsCapabilityCard, ModelOptionsHeaderLine, ModelOptionsParametersCard, type ModelOptionsCardActions } from './ModelOptionsMainCards';
+import mainStyles from './ModelOptionsMainCards.module.css';
 import { capabilityRuntimeIdentity, saveCapabilityPreferences, type CapabilityWebPreference } from '../../lib/core/chat/capability-preference-settings';
 import {
   customFragmentOwnerFacts,
@@ -23,14 +38,6 @@ import {
 import type { CapabilityControlPresentation } from '../../lib/core/chat/capability-control-presentation';
 import { resolveWebAvailableIntents } from '../../lib/core/chat/capability-control-presentation';
 import {
-  modelControlAdvancedSettingsBadgeClassification,
-  modelControlBadge,
-  modelControlCardBadgeClassification,
-  modelControlFooterEntries,
-  modelControlReasoningLayout,
-  modelControlShowsSupportedModelsAction,
-  modelControlStatusIsConfigurable,
-  modelControlStatusTextKey,
   modelControlTransportLabel,
   modelControlWebLayout,
   modelControlsCanPersist,
@@ -39,12 +46,8 @@ import {
   resolveModelControlStatus,
   resolveModelControlsEditability,
   resolveModelControlsIdentityGap,
-  MODEL_CONTROL_AUTOMATIC_INTENT,
-  type ModelControlEscape,
   type ModelControlFooterEntry,
-  type ModelControlIntentOption,
   type ModelControlMessageKey,
-  type ModelControlStatus,
 } from '../../lib/core/chat/model-control-capability-layout';
 import { getCapabilityRuntime, refreshMetadata } from '../../lib/core/metadata/metadata-client';
 import { getProviderInstanceDisplayName } from '../../lib/core/providers/provider-display';
@@ -64,7 +67,7 @@ import styles from './InputComposer.module.css';
  *    explains the reason plus a way forward.
  * 2. The control shape follows the semantics. Web search is a binary question, so it is a
  *    switch; reasoning is a scale from "do not think" to "take as long as needed", so it is a
- *    row of pills plus a one-line note for the selected step.
+ *    segmented control of tiers plus a one-line note for the selected step.
  * 3. Sub-pages switch horizontally inside the same popover and never open another layer. The
  *    user always has a way back.
  * 4. Custom fields do not live in the capability cards. They are a low-frequency developer
@@ -100,35 +103,17 @@ function parentPane(pane: Pane): Pane | null {
   }
 }
 
-/**
- * Arrow-key delta inside a radiogroup. Under RTL the left and right arrows must follow the
- * reading direction (APG radio group): on a mirrored UI "right" means the previous option.
- */
-function radioArrowDelta(key: string, isRTL: boolean): number {
-  switch (key) {
-    case 'ArrowDown': return 1;
-    case 'ArrowUp': return -1;
-    case 'ArrowRight': return isRTL ? -1 : 1;
-    case 'ArrowLeft': return isRTL ? 1 : -1;
-    default: return 0;
-  }
-}
-
-function isRTLElement(element: Element): boolean {
-  return element.closest('[dir]')?.getAttribute('dir') === 'rtl'
-    || element.ownerDocument.documentElement.dir === 'rtl';
-}
-
 export type ModelOptionsPopoverProps = {
   provider?: Provider;
   model?: AIModel;
   conversationId?: string;
   webControl?: CapabilityControlPresentation;
   reasoningControl?: CapabilityControlPresentation;
-  generationControl?: CapabilityControlPresentation;
   webPreference?: CapabilityWebPreference;
   onWebPreferenceChange?: (next: CapabilityWebPreference) => void;
   reasoningIntent?: ReasoningIntent;
+  /** The conversation's current reasoning level: the advanced-settings reasoning linkage preview is computed from it. */
+  reasoningMode?: ReasoningMode;
   /** `undefined` = "auto" is selected, i.e. no level is injected. */
   onReasoningIntentChange?: (intent: ReasoningIntent | undefined) => void;
   /** Read-only while sending or replaying a conversation: still viewable, but not writable. */
@@ -138,6 +123,8 @@ export type ModelOptionsPopoverProps = {
   transportIdentity?: string;
   webRuntimeRejected?: boolean;
   reasoningRuntimeRejected?: boolean;
+  /** Reasoning levels the upstream rejected individually (when the whole group is not dormant). */
+  reasoningRejectedIntents?: readonly string[];
   /** Models where auto configuration is actually available on this connection, keyed by capability. */
   alternativeModels?: Partial<Record<CustomFragmentOwner, AIModel[]>>;
   onSelectAlternativeModel?: (model: AIModel) => void;
@@ -146,6 +133,8 @@ export type ModelOptionsPopoverProps = {
   onOpenConnectionSettings?: () => void;
   onFindModelsSupportingParameter?: (parameterId: string) => void;
   onOverrideChange?: (hasOverride: boolean) => void;
+  /** Pane to open straight into (used by the error card's "edit" action). */
+  initialPane?: 'customFields';
   onClose: () => void;
 };
 
@@ -165,22 +154,24 @@ export function ModelOptionsPopover({
   conversationId,
   webControl = UNKNOWN_CONTROL,
   reasoningControl = UNKNOWN_CONTROL,
-  generationControl = UNKNOWN_CONTROL,
   webPreference = 'off',
   onWebPreferenceChange,
   reasoningIntent,
+  reasoningMode,
   onReasoningIntentChange,
   runtimeIsReadOnly = false,
   runtimeReadOnlyReason,
   transportIdentity,
   webRuntimeRejected = false,
   reasoningRuntimeRejected = false,
+  reasoningRejectedIntents = [],
   alternativeModels,
   onSelectAlternativeModel,
   onOpenModelSwitcher,
   onOpenConnectionSettings,
   onFindModelsSupportingParameter,
   onOverrideChange,
+  initialPane,
   onClose,
 }: ModelOptionsPopoverProps) {
   const tCommon = useTranslations('common');
@@ -191,7 +182,7 @@ export function ModelOptionsPopover({
       : tReasoning(key.slice('pages.chat.reasoning.'.length), values)
   ), [tCommon, tReasoning]);
 
-  const [pane, setPane] = useState<Pane>({ kind: 'main' });
+  const [pane, setPane] = useState<Pane>(initialPane === 'customFields' ? { kind: 'customFields' } : { kind: 'main' });
   const containerRef = useRef<HTMLElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
   /**
@@ -240,12 +231,12 @@ export function ModelOptionsPopover({
     return () => document.removeEventListener('keydown', handleKeyDown, true);
   }, [pane]);
   /**
-   * Recompute the "N adjusted" count when returning from a sub-pane to the main panel.
+   * Recompute the parameter chips when returning from a sub-pane to the main panel.
    *
-   * That number is derived from local storage, while the place that changes it (the parameter
+   * Those values are derived from local storage, while the place that changes it (the parameter
    * table under advanced settings) lives in another pane. Switching panes inside this component
    * does not change provider/model/conversationId, so the useMemo keeps hitting its cache and
-   * the row still shows the count from before the user edited anything. A derived value read
+   * the card still shows the values from before the user edited anything. A derived value read
    * from storage needs an explicit "back on this pane" signal; a re-render is not a dependency change.
    *
    * The condition is "the previous pane was not main" rather than a plain `pane.kind === 'main'`,
@@ -270,9 +261,6 @@ export function ModelOptionsPopover({
    */
   const [showsScopeUpgrade, setShowsScopeUpgrade] = useState(false);
   const [scopeUpgradeConfirmed, setScopeUpgradeConfirmed] = useState(false);
-  /** Explanation shown when an unavailable status row is opened. Every unavailable state must be
-   * able to produce one, otherwise the row is a control that looks like a button and does nothing. */
-  const [explainedCapability, setExplainedCapability] = useState<CustomFragmentOwner | null>(null);
   const [isRefreshingRuntime, setIsRefreshingRuntime] = useState(false);
   const [runtimeRefreshFailed, setRuntimeRefreshFailed] = useState(false);
 
@@ -318,7 +306,6 @@ export function ModelOptionsPopover({
 
   const webStatus = resolveModelControlStatus(webControl);
   const reasoningStatus = resolveModelControlStatus(reasoningControl);
-  const generationStatus = resolveModelControlStatus(generationControl);
 
   /**
    * Available web-search levels. The decision lives in the registry surface
@@ -330,20 +317,12 @@ export function ModelOptionsPopover({
 
   const webFacts = ownerFacts('web');
   const reasoningFacts = ownerFacts('reasoning');
-  const generationFacts = ownerFacts('generation');
 
   const webLayout = modelControlWebLayout({
     status: webStatus,
     availableIntents: webIntents,
     selection: webPreference,
     isEditable: canPersist && !webFacts.isActive,
-    hasCustomSchema,
-  });
-  const reasoningLayout = modelControlReasoningLayout({
-    status: reasoningStatus,
-    intents: reasoningIntents,
-    ...(reasoningIntent ? { selectedIntent: reasoningIntent } : {}),
-    isEditable: canPersist && !reasoningFacts.isActive,
     hasCustomSchema,
   });
 
@@ -445,20 +424,126 @@ export function ModelOptionsPopover({
     [alternativeModels],
   );
 
-  /** "N adjusted" counts conversation overrides union model defaults (conversation wins on ties, dormant excluded), the same source as the chip dot. */
-  const activeOverrideCount = useMemo(() => {
-    if (!provider || !model) return 0;
-    const profileFingerprint = generationParameterProfileFingerprint(provider, model);
-    const values = {
-      ...(loadGenerationParameterOverrides({ providerId: provider.id, modelId: model.id, profileFingerprint }) ?? {}),
-      ...(conversationId
-        ? loadGenerationParameterOverrides({ providerId: provider.id, modelId: model.id, conversationId, profileFingerprint }) ?? {}
-        : {}),
-    };
-    if (Object.keys(values).length === 0) return 0;
-    const active = partitionGenerationParameterValues({ provider, model, values }).active;
-    return Object.values(active ?? {}).filter((item) => item?.state !== 'inherit').length;
+  /**
+   * The chips on the parameters card and the rows under advanced settings share one row model:
+   * the same sourced evaluation and the same editing layers (this conversation). The values
+   * read from storage are recomputed through `behaviorRevision` when returning from a sub-pane.
+   */
+  const generationRows = useMemo(() => {
+    if (!provider || !model) return [];
+    const profile = resolveGenerationProfileForModel(provider, model);
+    if (!profile) return [];
+    return generationParameterRows({
+      parameterIds: profile.parameters.map((parameter) => parameter.id),
+      profile,
+      resolved: resolveGenerationParameterOverridesWithSources({
+        providerId: provider.id,
+        modelId: model.id,
+        profileFingerprint: generationParameterProfileFingerprint(provider, model),
+        ...(conversationId ? { conversationId } : {}),
+      }),
+      editingLayers: ['transient', 'conversation'],
+    });
   }, [behaviorRevision, conversationId, model, provider]);
+
+  /** The chat-template switch reads and writes the additional request body (same conversation scope as the body pane); re-read whenever that storage changes. */
+  const [additionalBodyRevision, setAdditionalBodyRevision] = useState(0);
+  useEffect(() => {
+    const refresh = () => setAdditionalBodyRevision((revision) => revision + 1);
+    window.addEventListener(ADDITIONAL_BODY_SETTINGS_EVENT, refresh);
+    return () => window.removeEventListener(ADDITIONAL_BODY_SETTINGS_EVENT, refresh);
+  }, []);
+  const bodyScope = useMemo(
+    () => (provider && model ? additionalBodyScope(provider, model, conversationId) : null),
+    [conversationId, model, provider],
+  );
+  const chatTemplateState = useMemo(
+    () => chatTemplateThinkingState(bodyScope ? resolveEffectiveAdditionalBody(bodyScope) : null),
+    [additionalBodyRevision, bodyScope],
+  );
+
+  const finalTransport = provider && model
+    ? capabilityRuntimeIdentity(provider, model)?.finalTransport ?? provider.relayResolvedTransport
+    : undefined;
+  const connection = provider?.kind === 'relay' ? 'custom' : 'official';
+  const sharedCapabilityInput = {
+    connection,
+    protocolUndecided: identityGap === 'relayTransportUndecided' && editability === 'runtimeIdentityUnavailable',
+    // Only reasoning rejects per level; the web search row does not read this input.
+    rejectedIntents: reasoningRejectedIntents,
+    chatTemplateThinkingIsOn: chatTemplateState === 'on',
+    supportsChatTemplate: chatTemplateThinkingApplies(finalTransport),
+  } as const;
+  const webInput: ModelOptionCapabilityInput = {
+    ...sharedCapabilityInput,
+    capability: 'web',
+    status: webStatus,
+    availableIntents: webIntents,
+    selectedIntent: webLayout.effectiveSelection,
+    isWritable: canPersist && !webFacts.isActive,
+  };
+  const reasoningInput: ModelOptionCapabilityInput = {
+    ...sharedCapabilityInput,
+    capability: 'reasoning',
+    status: reasoningStatus,
+    availableIntents: reasoningIntents,
+    ...(reasoningIntent ? { selectedIntent: reasoningIntent } : {}),
+    isWritable: canPersist && !reasoningFacts.isActive,
+  };
+  const transportLabel = finalTransport ? modelControlTransportLabel(finalTransport) ?? tCommon('capabilityControlProtocol') : undefined;
+  const panelModel = modelOptionsPanelModel({
+    connection,
+    connectionName: provider ? getProviderInstanceDisplayName(provider) : '',
+    ...(provider?.kind === 'relay' && provider.relayRequested?.engineProfile ? { engineProfile: provider.relayRequested.engineProfile } : {}),
+    ...(provider?.relayResolvedBaseURLText ?? provider?.baseURLText ? { apiBaseURL: provider?.relayResolvedBaseURLText ?? provider?.baseURLText } : {}),
+    ...(transportLabel ? { transportLabel } : {}),
+    web: webInput,
+    reasoning: reasoningInput,
+    chatTemplateState,
+    hasAlternativeModels: { web: candidates('web').length > 0, reasoning: candidates('reasoning').length > 0 },
+    hasReadOnlyReason: Boolean(readOnlyReason),
+    generationRows,
+    notes: {
+      web: { overridden: webFacts.isActive, riskTiers: webFacts.riskTiers, upstreamRejected: webRuntimeRejected },
+      reasoning: { overridden: reasoningFacts.isActive, riskTiers: reasoningFacts.riskTiers, upstreamRejected: reasoningRuntimeRejected },
+    },
+  });
+
+  const cardActions: ModelOptionsCardActions = {
+    canFollow: (link: ModelOptionLinkAction) => {
+      switch (link) {
+        case 'openSupportedModels': case 'openAdditionalRequestBody': return true;
+        case 'openConnectionProtocol': return Boolean(onOpenConnectionSettings);
+        case 'switchConnection': return Boolean(onOpenModelSwitcher);
+      }
+    },
+    follow: (link, capability) => {
+      switch (link) {
+        case 'openSupportedModels': setPane({ kind: 'supportedModels', capability }); break;
+        case 'openAdditionalRequestBody': setPane({ kind: 'customFields' }); break;
+        case 'openConnectionProtocol': onOpenConnectionSettings?.(); break;
+        case 'switchConnection': onOpenModelSwitcher?.(); break;
+      }
+    },
+    onToggle: (row, isOn) => {
+      if (row.target.kind === 'chatTemplateThinking') {
+        if (bodyScope) writeChatTemplateThinking(isOn, bodyScope);
+        return;
+      }
+      if (row.capability === 'web') {
+        // On returns to "search when needed"; "search on every message" belongs to the timing control, the switch carries no strength.
+        handleWebPreferenceChange(isOn ? 'automatic' : 'off');
+        return;
+      }
+      handleReasoningIntentChange((isOn ? row.target.on : row.target.off) as ReasoningIntent);
+    },
+    onWebTiming: (timing) => handleWebPreferenceChange(timing),
+    onTier: (tapped, options, current) => {
+      // The automatic tier and tapping the selected tier again both store "never chosen".
+      handleReasoningIntentChange(reasoningTierAfterTap(options, current, tapped) as ReasoningIntent | undefined);
+    },
+    onAdvancedSettingsLink: () => setPane({ kind: 'advanced' }),
+  };
 
   const refetchRuntime = useCallback(async () => {
     setIsRefreshingRuntime(true);
@@ -473,102 +558,10 @@ export function ModelOptionsPopover({
   // -- Render helpers --
 
   /**
-   * The two projections must not be mixed: capability cards collapse `unavailable` (the status
-   * line already says it in full), while advanced-settings rows collapse `notReady` (request
-   * parameter editing does not read the recipe, so that badge would be false). Both decisions
-   * live in pure functions in layout; this only dispatches.
-   */
-  const renderBadge = (
-    status: ModelControlStatus,
-    overridden: boolean,
-    surface: 'capabilityCard' | 'advancedSettings',
-  ) => {
-    const badge = modelControlBadge(
-      surface === 'capabilityCard'
-        ? modelControlCardBadgeClassification(status)
-        : modelControlAdvancedSettingsBadgeClassification(status),
-      overridden,
-    );
-    if (!badge) return null;
-    return <span className={styles.modelControlBadge} data-tone={badge.tone}>{tr(badge.textKey)}</span>;
-  };
-
-  /**
-   * The replacement row shown when a capability is unavailable. With no explanation to give it
-   * does not build a button: a control that does nothing when tapped is as bad as a greyed out
-   * option.
-   */
-  const renderStatusRow = (
-    capability: CustomFragmentOwner,
-    textKey: ModelControlMessageKey,
-    explanationKey: ModelControlMessageKey | undefined,
-    escape: ModelControlEscape,
-  ) => {
-    const expanded = explainedCapability === capability;
-    // "No candidate models" has to be appended here: it depends on the model list of the whole
-    // connection, a fact the pure layout function cannot reach. Without it, tapping "see supported
-    // models" leads into an empty list.
-    const noCandidates = escape === 'supportedModels' && candidates(capability).length === 0;
-    const resolvedEscape: ModelControlEscape = noCandidates ? 'none' : escape;
-    /**
-     * The explanation and the status line for `customOnly` are the same sentence (layout keeps
-     * them in one place on purpose). Repeating it inside the disclosure hands the user the line
-     * they just read, so the tap pays back nothing and the UI looks stuck. On a matching key the
-     * disclosure renders only the way out.
-     */
-    const explanationRepeatsStatus = explanationKey === textKey;
-    const hasExpandedContent = Boolean(explanationKey)
-      && (!explanationRepeatsStatus || noCandidates || resolvedEscape !== 'none');
-    // With neither an explanation nor a way out, do not build a button: a control that does
-    // nothing when tapped is as bad as a greyed out option.
-    if (!hasExpandedContent) {
-      return <p className={styles.modelControlStatusRow}>{tr(textKey)}</p>;
-    }
-    return (
-      <>
-        <button
-          type="button"
-          className={styles.modelControlStatusRow}
-          data-interactive="true"
-          aria-expanded={expanded}
-          onClick={() => setExplainedCapability(expanded ? null : capability)}
-        >
-          <span>{tr(textKey)}</span>
-          <ChevronRight size={14} aria-hidden="true" className={styles.modelControlForwardChevron} />
-        </button>
-        {expanded && (
-          <div className={styles.modelControlExplanation}>
-            {!explanationRepeatsStatus && <p>{tr(explanationKey!)}</p>}
-            {noCandidates && <p>{tCommon('capabilityControlNoSupportedModels')}</p>}
-            {resolvedEscape === 'supportedModels' && (
-              <button
-                type="button"
-                className={styles.modelControlInlineAction}
-                onClick={() => setPane({ kind: 'supportedModels', capability })}
-              >
-                {tCommon('capabilityControlViewSupportedModels')}
-              </button>
-            )}
-            {resolvedEscape === 'advancedSettings' && (
-              <button
-                type="button"
-                className={styles.modelControlInlineAction}
-                onClick={() => setPane({ kind: 'advanced' })}
-              >
-                {tCommon('capabilityControlGoToAdvancedSettings')}
-              </button>
-            )}
-          </div>
-        )}
-      </>
-    );
-  };
-
-  /**
    * With no entries at all the whole group is skipped: rendering a zero-height container gives
    * the card an extra bottom margin out of nowhere.
    */
-  const renderFooterEntries = (entries: ModelControlFooterEntry[], capability: CustomFragmentOwner) => {
+  const renderFooterEntries = (entries: ModelControlFooterEntry[], capability: 'web' | 'reasoning') => {
     if (entries.length === 0) return null;
     return (
       <div className={styles.modelControlNotes}>
@@ -607,40 +600,6 @@ export function ModelOptionsPopover({
     );
   };
 
-  const footerEntriesFor = (input: {
-    status: ModelControlStatus;
-    capability: CustomFragmentOwner;
-    overridden: boolean;
-    riskTiers: readonly string[];
-    upstreamRejected: boolean;
-    statusRowEscape: ModelControlEscape;
-  }) => {
-    const showsSupportedModels = modelControlShowsSupportedModelsAction(input.status);
-    return modelControlFooterEntries({
-      context: 'panelCard',
-      overridden: input.overridden,
-      ...(readOnlyReason ? { readOnlyReason } : {}),
-      isConfigurable: modelControlStatusIsConfigurable(input.status),
-      statusTextKey: modelControlStatusTextKey(input.status),
-      upstreamRejected: input.upstreamRejected,
-      riskTiers: input.riskTiers,
-      showsSupportedModelsAction: showsSupportedModels,
-      hasSupportedModelCandidates: showsSupportedModels && candidates(input.capability).length > 0,
-      showsAdvancedSettingsAction: input.overridden,
-      statusRowEscape: input.statusRowEscape,
-    });
-  };
-
-  // -- Pane content --
-
-  const subtitle = useMemo(() => {
-    if (!provider) return '';
-    const parts = [getProviderInstanceDisplayName(provider)];
-    const transport = model ? capabilityRuntimeIdentity(provider, model)?.finalTransport : undefined;
-    if (transport) parts.push(modelControlTransportLabel(transport) ?? tCommon('capabilityControlProtocol'));
-    return parts.join(' - ');
-  }, [model, provider, tCommon]);
-
   const missingModelPanel = (
     <>
       <header className={styles.modelControlsHeader}>
@@ -677,138 +636,6 @@ export function ModelOptionsPopover({
         </ul>
       </div>
     </>
-  );
-
-  const webCard = (
-    <section className={styles.modelControlCard} aria-label={tCommon('capabilityControlWebSearch')}>
-      <div className={styles.modelControlCardHeader}>
-        <Globe size={15} aria-hidden="true" className={styles.modelControlCardIcon} data-accent="web" />
-        <span className={styles.modelControlCardTitle}>{tCommon('capabilityControlWebSearch')}</span>
-        {/* Switch and badge are mutually exclusive and the switch wins: the card title is already the label for the switch, and a second line would say "web search" twice. */}
-        {webLayout.form === 'toggle' ? (
-          // The native input covers the whole 44px hit area, keeping keyboard, screen reader and
-          // checked semantics; the span after it only unifies the look across browsers. The label
-          // carries no text, so the accessible name still comes from the input and the header does
-          // not announce "web search" twice.
-          <label className={styles.modelControlSwitchHit}>
-            <input
-              type="checkbox"
-              role="switch"
-              className={styles.modelControlSwitch}
-              aria-label={tCommon('capabilityControlWebSearch')}
-              checked={webLayout.isOn}
-              onChange={(event) => {
-                // Off maps to `off`; on returns to "search when needed". Switching to "search on
-                // every message" is the job of the two pills below; the switch carries no strength.
-                handleWebPreferenceChange(event.target.checked ? 'automatic' : 'off');
-              }}
-            />
-            <span className={styles.modelControlSwitchTrack} aria-hidden="true">
-              <span className={styles.modelControlSwitchThumb}>
-                <Check className={styles.modelControlSwitchCheck} strokeWidth={3} />
-              </span>
-            </span>
-          </label>
-        ) : renderBadge(webStatus, webFacts.isActive, 'capabilityCard')}
-      </div>
-      {webLayout.form === 'toggle' ? (
-        <>
-          {webLayout.captionKey && (
-            <p className={styles.modelControlNote} data-tone="tertiary">{tr(webLayout.captionKey)}</p>
-          )}
-          {webLayout.timingOptions.length > 0 && (
-            <ModelControlRadioGroup
-              label={tCommon('capabilityControlSearchTiming')}
-              options={webLayout.timingOptions}
-              selection={webLayout.timingSelection}
-              translate={tr}
-              onSelect={(id) => handleWebPreferenceChange(id as CapabilityWebPreference)}
-            />
-          )}
-        </>
-      ) : renderStatusRow('web', webLayout.statusTextKey!, webLayout.explanationKey, webLayout.escape)}
-      {renderFooterEntries(footerEntriesFor({
-        status: webStatus,
-        capability: 'web',
-        overridden: webFacts.isActive,
-        riskTiers: webFacts.riskTiers,
-        upstreamRejected: webRuntimeRejected,
-        statusRowEscape: webLayout.form === 'statusRow' ? webLayout.escape : 'none',
-      }), 'web')}
-    </section>
-  );
-
-  const reasoningCard = (
-    <section className={styles.modelControlCard} aria-label={tCommon('capabilityControlThinking')}>
-      <div className={styles.modelControlCardHeader}>
-        <Sparkles size={15} aria-hidden="true" className={styles.modelControlCardIcon} data-accent="reasoning" />
-        <span className={styles.modelControlCardTitle}>{tCommon('capabilityControlThinking')}</span>
-        {renderBadge(reasoningStatus, reasoningFacts.isActive, 'capabilityCard')}
-      </div>
-      {reasoningLayout.form === 'pillRow' ? (
-        <>
-          <ModelControlRadioGroup
-            label={tCommon('capabilityControlThinking')}
-            options={reasoningLayout.options}
-            selection={reasoningLayout.selection}
-            translate={tr}
-            onSelect={(id) => handleReasoningIntentChange(
-              // "Automatic" is a pseudo intent: choosing it injects no level, so it has to persist as empty.
-              id === MODEL_CONTROL_AUTOMATIC_INTENT ? undefined : id as ReasoningIntent,
-            )}
-          />
-          {/* The annotation follows the selected step. A pill only fits one noun, so this line carries whatever separates the steps. */}
-          {reasoningLayout.selectedAnnotationKey && (
-            <p className={styles.modelControlNote} data-tone="tertiary">
-              {tr(reasoningLayout.selectedAnnotationKey)}
-            </p>
-          )}
-        </>
-      ) : renderStatusRow(
-        'reasoning', reasoningLayout.statusTextKey!, reasoningLayout.explanationKey, reasoningLayout.escape,
-      )}
-      {reasoningLayout.footnoteKey && (
-        <p className={styles.modelControlNote} data-tone="tertiary">{tr(reasoningLayout.footnoteKey)}</p>
-      )}
-      {renderFooterEntries(footerEntriesFor({
-        status: reasoningStatus,
-        capability: 'reasoning',
-        overridden: reasoningFacts.isActive,
-        riskTiers: reasoningFacts.riskTiers,
-        upstreamRejected: reasoningRuntimeRejected,
-        statusRowEscape: reasoningLayout.form === 'statusRow' ? reasoningLayout.escape : 'none',
-      }), 'reasoning')}
-    </section>
-  );
-
-  /**
-   * Advanced settings is the only entry that keeps a second pane: behind it is a variable-length
-   * parameter table that would swamp the other two if expanded in place. The subtitle turns the
-   * row from an arrow pointing nowhere in particular into an entry the user can predict. The
-   * trailing text says only how many items are adjusted; read-only reasons belong to the banner
-   * at the top of the panel.
-   */
-  const advancedRow = (
-    <button
-      type="button"
-      className={styles.modelControlNavigationRow}
-      onClick={() => setPane({ kind: 'advanced' })}
-    >
-      <SlidersHorizontal size={15} aria-hidden="true" className={styles.modelControlCardIcon} data-accent="generation" />
-      <span className={styles.modelControlNavigationCopy}>
-        <span className={styles.modelControlCardTitle}>{tCommon('modelBehavior')}</span>
-        <span className={styles.modelControlNavigationSubtitle}>
-          {tCommon('capabilityControlAdvancedSettingsSubtitle')}
-        </span>
-      </span>
-      {activeOverrideCount > 0 && (
-        <span className={styles.modelControlNavigationTrailing}>
-          {tCommon('capabilityControlAdjustedCount', { count: activeOverrideCount })}
-        </span>
-      )}
-      {renderBadge(generationStatus, generationFacts.isActive, 'advancedSettings')}
-      <ChevronRight size={14} aria-hidden="true" className={styles.modelControlForwardChevron} />
-    </button>
   );
 
   /** Each read-only reason gets the action that can actually resolve it. All three have to pass the question "does tapping this really change the state". */
@@ -871,17 +698,19 @@ export function ModelOptionsPopover({
 
   const mainPane = (
     <>
-      <header className={styles.modelControlsHeader}>
-        {/* The title is the model name: the user opened this page to change settings for this
-            model, and repeating "model options" spends the most informative line on a category. */}
+      <header className={styles.modelControlsHeader} data-closable="true">
+        {/* The title is the model name: the user opened this page to change settings for this model. */}
         <strong className={styles.modelControlsTitle}>{model?.name}</strong>
-        {subtitle && <span className={styles.modelControlsSubtitle}>{subtitle}</span>}
+        <ModelOptionsHeaderLine model={panelModel} />
+        <CloseButton className={styles.modelControlsClose} label={tCommon('close')} onClick={onClose} />
       </header>
       <div className={styles.modelControlSections}>
-        {readOnlyBanner}
-        {webCard}
-        {reasoningCard}
-        {advancedRow}
+        {/* No read-only banner while the card has a live control: that sentence would contradict the control right below it. */}
+        {panelModel.showsReadOnlyBanner && readOnlyBanner}
+        <p className={mainStyles.sectionLabel}>{tCommon('modelOptionsCapabilitiesSection')}</p>
+        <ModelOptionsCapabilityCard model={panelModel} actions={cardActions} notes={renderFooterEntries} />
+        <p className={mainStyles.sectionLabel}>{tCommon('generationParameters')}</p>
+        <ModelOptionsParametersCard model={panelModel} onOpen={() => setPane({ kind: 'advanced' })} />
       </div>
     </>
   );
@@ -911,6 +740,7 @@ export function ModelOptionsPopover({
             // a second max-height plus overflow inside the panel gives two nested scrollers that do
             // not know about each other, and the screen locks up at the inner boundary.
             embedded
+            {...(reasoningMode ? { reasoningMode } : {})}
             // Read-only is passed through. A managed connection or an in-flight send only means "not editable right now"; the page structure stays complete.
             isReadOnly={!canPersist}
             onOpenCustomFields={() => setPane({ kind: 'customFields' })}
@@ -1060,77 +890,14 @@ export function ModelOptionsPopover({
             )}
           </div>
         )}
-        <div className={styles.modelControlsCloseBar}>
-          <button type="button" onClick={onClose}>{tCommon('close')}</button>
-        </div>
+        {/* The main pane's close button lives in its header; sub-panes have a back button there, so
+            close stays in the footer. With no model the placeholder page has no header close button either. */}
+        {(!model || pane.kind !== 'main') && (
+          <div className={styles.modelControlsCloseBar}>
+            <button type="button" onClick={onClose}>{tCommon('close')}</button>
+          </div>
+        )}
       </footer>
     </section>
-  );
-}
-
-/**
- * The mutually exclusive pill group shared by "when to search" and "reasoning level"
- * (APG radio group).
- *
- * `role="radiogroup"` is a promise: a screen reader tells the user this is a single-choice group
- * driven by the arrow keys. Both halves have to hold, or the role is lying:
- * - roving tabindex: the group takes a single stop in the Tab ring, landing on the selected pill;
- * - arrow keys move focus and change the selection (radio group behavior, not the tablist "move
- *   focus only" rule), with Home/End jumping to either end.
- *
- * Under RTL the left and right arrows follow the reading direction; see `radioArrowDelta`.
- */
-function ModelControlRadioGroup({ label, options, selection, translate, onSelect }: {
-  label: string;
-  options: readonly ModelControlIntentOption[];
-  /** The currently selected id. Layout guarantees it is one of `options` (stale levels are clamped). */
-  selection: string;
-  translate: (key: ModelControlMessageKey) => string;
-  onSelect: (id: string) => void;
-}) {
-  const groupRef = useRef<HTMLDivElement>(null);
-  const selectedIndex = Math.max(0, options.findIndex((option) => option.id === selection));
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const container = groupRef.current;
-    if (!container) return;
-    const delta = radioArrowDelta(event.key, isRTLElement(container));
-    const isEdgeKey = event.key === 'Home' || event.key === 'End';
-    if (delta === 0 && !isEdgeKey) return;
-    // Arrow keys would otherwise scroll `.modelControlSections`; this group claims them as selection actions.
-    event.preventDefault();
-    const nextIndex = event.key === 'Home' ? 0
-      : event.key === 'End' ? options.length - 1
-      : (selectedIndex + delta + options.length) % options.length;
-    const next = options[nextIndex];
-    if (!next) return;
-    container.querySelectorAll<HTMLButtonElement>('[role="radio"]')[nextIndex]?.focus();
-    onSelect(next.id);
-  };
-
-  return (
-    <div
-      ref={groupRef}
-      className={styles.modelControlPills}
-      role="radiogroup"
-      aria-label={label}
-      onKeyDown={handleKeyDown}
-    >
-      {options.map((option, index) => (
-        <button
-          key={option.id}
-          type="button"
-          role="radio"
-          aria-checked={selection === option.id}
-          aria-label={translate(option.labelKey)}
-          tabIndex={index === selectedIndex ? 0 : -1}
-          className={styles.modelControlPill}
-          data-active={selection === option.id}
-          onClick={() => onSelect(option.id)}
-        >
-          {translate(option.labelKey)}
-        </button>
-      ))}
-    </div>
   );
 }

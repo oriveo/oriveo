@@ -25,6 +25,8 @@ import { describe, expect, it } from 'vitest';
 const composerCss = readFileSync(join(process.cwd(), 'components/chat/InputComposer.module.css'), 'utf8');
 const tokensCss = readFileSync(join(process.cwd(), '../../packages/ui/src/tokens/variables.css'), 'utf8');
 const popoverTsx = readFileSync(join(process.cwd(), 'components/chat/ModelOptionsPopover.tsx'), 'utf8');
+// The main pane cards live in ModelOptionsMainCards.tsx, so source-level checks on the popover read both files.
+const paneTsx = popoverTsx + readFileSync(join(process.cwd(), 'components/chat/ModelOptionsMainCards.tsx'), 'utf8');
 // The advanced settings pane renders this panel wholesale, so its scroll contract is the popover's scroll contract.
 const panelCss = readFileSync(join(process.cwd(), 'components/generation/GenerationParameterPanel.module.css'), 'utf8');
 
@@ -237,17 +239,17 @@ describe('model options popover geometry', () => {
   });
 
   /**
-   * The three forward chevrons (status row, advanced settings row, candidate model row) must mirror
+   * The three forward chevrons (capability card link row, parameters card, candidate model row) must mirror
    * in RTL. The back control has had that rule for a while and the forward chevrons did not, so on a
    * mirrored interface that `>` points back the way you came.
    */
   it('forward chevrons mirror in RTL and all three really carry that class', () => {
     expect(composerCss).toMatch(/\[dir='rtl'\]\s*\.modelControlForwardChevron\s*\{[^}]*scaleX\(-1\)/);
     // The class is really used in production; without this, the assertion above is a false green.
-    const tagged = [...popoverTsx.matchAll(/<ChevronRight[^>]*className=\{styles\.modelControlForwardChevron\}/g)];
-    expect(tagged.length, 'status row / advanced settings row / candidate model row all need a mirrored forward chevron').toBe(3);
+    const tagged = [...paneTsx.matchAll(/<ChevronRight[^>]*className=\{styles\.modelControlForwardChevron\}/g)];
+    expect(tagged.length, 'capability card link row / parameters card / candidate model row all need a mirrored forward chevron').toBe(3);
     // The reverse check: no unmirrored ChevronRight should remain in the panel.
-    expect([...popoverTsx.matchAll(/<ChevronRight[^>]*\/>/g)].length).toBe(3);
+    expect([...paneTsx.matchAll(/<ChevronRight[^>]*\/>/g)].length).toBe(3);
   });
 
   /**
@@ -276,6 +278,51 @@ describe('model options popover geometry', () => {
     const mobileSend = Number(/\.sendBtn,\s*\n\s*\.stopBtn\s*\{[^}]*height:\s*(\d+)px/.exec(mobile)![1]);
     const mobilePaddingBottom = pxAndSafeArea(paddingBottom(declaration(ruleBody('.composer', mobile), 'padding'))).px;
     expect(popoverBottom, 'mobile: the popover bottom edge must sit above the top of the toolbar row').toBeGreaterThanOrEqual(mobileSend + mobilePaddingBottom);
+  });
+
+  /**
+   * Interactive controls in the header must be the shared components with their own look.
+   * `.modelControlsBack` / `.modelControlsClose` only handle position and hit area; on a bare
+   * `<button>` they leave the browser's default light button, and since the header is a vertical
+   * flex it would stretch into a full row (a white block under the title in dark mode). jsdom does
+   * not compute styles, so render tests cannot see this.
+   */
+  it('the header back and close controls use the shared components, never a bare button; close leaves the vertical flow', () => {
+    expect(popoverTsx).not.toMatch(/<button[^>]*className=\{styles\.modelControls(?:Back|Close)\}/);
+    expect(popoverTsx).toMatch(/<CloseButton[^>]*className=\{styles\.modelControlsClose\}/);
+    expect(declaration(ruleBody('.modelControlsClose', composerCss), 'position')).toBe('absolute');
+    // The title and subtitle leave room for the close control: 8 margin + 40 control + 4 gap.
+    const closable = ruleBody(".modelControlsHeader[data-closable='true']", composerCss);
+    expect(declaration(closable, 'position')).toBe('relative');
+    expect(declaration(closable, 'padding-inline-end')).toBe('52px');
+  });
+
+  /**
+   * The main pane's reasoning tiers and search timing are equal-width segments, not a row of
+   * free-standing pills; the way out inside a card is a text link, not another outlined button.
+   * Both are only visible in the source and the styles.
+   */
+  it('tiers and search timing are drawn as equal-width segments with icons on the tiers; the outlet inside a card is a text link', () => {
+    expect(paneTsx).toMatch(/<Segments\s+variant="tiers"/);
+    expect(paneTsx).toMatch(/<Segments\s+variant="segments"/);
+    expect(paneTsx).toMatch(/variant === 'tiers' && <TierIcon tier=\{option\.id\} \/>/);
+    const track = ruleBody('.modelControlPills[data-variant]', composerCss);
+    expect(declaration(track, 'display')).toBe('grid');
+    // Wrap when the cells do not fit; nothing may overflow the 440-wide popover horizontally.
+    expect(declaration(track, 'grid-template-columns')).toMatch(/auto-fit/);
+    // Track background = the pill's original background: the text on unselected cells sits on the same color, so the registered contrast entries still hold.
+    expect(declaration(track, 'background')).toBe(declaration(ruleBody('.modelControlPill', composerCss), 'background'));
+    const tierCell = ruleBody(".modelControlPills[data-variant='tiers'] > .modelControlPill", composerCss);
+    expect(Number(/min-height\s*:\s*(\d+)px/.exec(tierCell)![1])).toBeGreaterThanOrEqual(44);
+
+    expect(paneTsx).toMatch(/className=\{styles\.modelControlInlineAction\} data-variant="link"/);
+    const link = ruleBody(".modelControlInlineAction[data-variant='link']", composerCss);
+    expect(declaration(link, 'border')).toBe('0');
+    expect(declaration(link, 'color')).toBe('var(--o-primary-text-on-surface)');
+  });
+
+  it('the placeholder page shown without a model has no header close control, so the bottom close bar must stay', () => {
+    expect(popoverTsx).toMatch(/\(!model \|\| pane\.kind !== 'main'\) && \(\s*<div className=\{styles\.modelControlsCloseBar\}/);
   });
 
   it('the pinned bottom area does not scroll, so the close bar is always reachable', () => {
@@ -343,6 +390,9 @@ describe('model options popover geometry', () => {
     // Back control (shared BackButton): 40 visually, extended by 2 on each side to 44x44. It is the only way out of a second-level pane, so a mis-tap costs the most.
     expect(minHeight('.modelControlsBack') + outset('.modelControlsBack::after') * 2)
       .toBeGreaterThanOrEqual(44);
+    // Close control in the main pane header (shared CloseButton): likewise 40 visually, extended by 2 on each side.
+    expect(minHeight('.modelControlsClose') + outset('.modelControlsClose::after') * 2)
+      .toBeGreaterThanOrEqual(44);
     // Secondary in-card actions (switch model, refetch, open protocol settings): 36 visually plus 2x4.
     expect(minHeight('.modelControlInlineAction') + outset('.modelControlInlineAction::after') * 2)
       .toBeGreaterThanOrEqual(44);
@@ -380,9 +430,9 @@ describe('model options popover geometry', () => {
       .toMatch(/0 0 0 3px/);
 
     // Production really uses an accessible input with a custom track and thumb, not a block of CSS nobody applies.
-    expect(popoverTsx).toMatch(/<label className=\{styles\.modelControlSwitchHit\}>[\s\S]{0,240}?role="switch"/);
-    expect(popoverTsx).toMatch(/<span className=\{styles\.modelControlSwitchTrack\} aria-hidden="true">/);
-    expect(popoverTsx).toMatch(/<span className=\{styles\.modelControlSwitchThumb\}>/);
+    expect(paneTsx).toMatch(/<label className=\{styles\.modelControlSwitchHit\}>[\s\S]{0,240}?role="switch"/);
+    expect(paneTsx).toMatch(/<span className=\{styles\.modelControlSwitchTrack\} aria-hidden="true">/);
+    expect(paneTsx).toMatch(/<span className=\{styles\.modelControlSwitchThumb\}>/);
   });
 
   /**

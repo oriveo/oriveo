@@ -6,7 +6,8 @@
    freezes the whole screen with no visible cause. Here the panel hands scrolling over and drops the
    border and shadow: it is not a second card inside the popover, it is the screen. The standalone form
    used on the provider detail page is unaffected. */
-.panel[data-embedded='true'] { border:0; max-height:none; overflow:visible; box-shadow:none; }
+/* When embedded in the popover the outer layer already provides the header and padding, so the panel's own top padding is zero; otherwise a large gap opens between the title and the subtitle. */
+.panel[data-embedded='true'] { padding:0 6px 6px; border:0; max-height:none; overflow:visible; box-shadow:none; }
 /* Cross-axis center rather than start: the reset action on the right is pushed to min-height:36px for a
    44px hit area, while the left column is only around 17px when it holds a single 12px line. Aligned to
    start their top edges match but their text centers differ by 8px, which reads as the reset action
@@ -101,6 +102,7 @@
 /* ── Custom request fields: multiple owners on one page ────── */
 .customFields { display:flex; flex-direction:column; gap:14px; }
 .customOwner { display:flex; flex-direction:column; gap:7px; padding:12px 0 0; border-top:1px solid var(--o-border, #e5e7eb); }
+.customOwner[data-alone='true'] { padding-top:0; border-top:0; }
 .customOwnerHeader { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .customOwnerHeader strong { font-size:13px; font-weight:650; color:var(--o-text, #111827); }
 /* "Enabled" is this section's only status statement, with no second toggle to look at, so it has to read
@@ -137,7 +139,8 @@
 /* The forward chevron follows the reading direction, the same rule as .modelControlForwardChevron in the
    popover: an unmirrored `>` means "back" in RTL, while tapping this row navigates inwards. */
 [dir='rtl'] .developerRow svg { transform:scaleX(-1); }
-.developerRowState { color:var(--o-text-tertiary, #9ca3af); font-size:11px; }
+/* With an arrow the row has three children; the state text must sit next to the arrow instead of being placed in the middle by space-between. */
+.developerRowState { margin-inline-start:auto; color:var(--o-text-tertiary, #9ca3af); font-size:11px; }
 .developerExplanation { display:flex; flex-direction:column; gap:6px; padding:9px 11px; border-radius:9px; background:var(--o-bg-subtle, #f3f4f6); }
 /* gap 8: there can be a dozen candidate models and they will wrap, so with hit areas expanded 4px above
    and below the two rows meet without overlapping. */

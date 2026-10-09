@@ -7,7 +7,6 @@ import { previewSafeCustomFragment, safeCustomDeclaredOwners } from '@oriveo/cor
 import { resolveCustomControlDefinitions } from '@oriveo/core/providers/request-preference/capability-runtime';
 import { getCapabilityRuntime } from '../../lib/core/metadata/metadata-client';
 import { capabilityRuntimeIdentity } from '../../lib/core/chat/capability-preference-settings';
-import { resolveGenerationProfileForModel } from '../../lib/core/chat/stream-options';
 import {
   CUSTOM_FRAGMENT_OWNERS,
   customFragmentOwnerFacts,
@@ -22,6 +21,7 @@ import styles from './GenerationParameterPanel.module.css';
 // The rule lives in `lib/core/chat/custom-fragment-rejection`, because the error card uses the
 // same three-way classification. Re-exported here so existing importers keep their paths.
 import { customFragmentRejectionMessage } from '../../lib/core/chat/custom-fragment-rejection';
+import { AdditionalBodyEditor } from './AdditionalBodyEditor';
 export { customFragmentRejectionMessage };
 export type { CustomFragmentRejection } from '../../lib/core/chat/custom-fragment-rejection';
 
@@ -39,13 +39,16 @@ export type { CustomFragmentRejection } from '../../lib/core/chat/custom-fragmen
  * and mode is derived entirely from content: non-empty = active, cleared = off, with no third
  * state in between.
  */
-export function CustomRequestFieldsEditor({ provider, model }: {
+export function CustomRequestFieldsEditor({ provider, model, conversationId }: {
   provider: Provider;
   model: AIModel;
   /**
-   * Kept only as call-site context; it takes no part in any copy or storage decision.
+   * For the web search and reasoning sections this is only call-site context; it takes no part in
+   * any copy or storage decision. The additional request body section uses it to edit this
+   * conversation's own copy (a new chat uses its draft session id); without it, the model default
+   * is edited.
    *
-   * The custom field key is connection x model x transport x owner (see `storageKey` in
+   * The web / reasoning custom field key is connection x model x transport x owner (see `storageKey` in
    * `custom-fragment-settings`) and has no conversation dimension, so an edit made from the chat
    * page and one made from the provider detail page hit the same record. Scope wording and the
    * delete confirmation therefore always use the connection_model variant: saying "this
@@ -57,10 +60,6 @@ export function CustomRequestFieldsEditor({ provider, model }: {
   const tc = useTranslations('common');
   const transportIdentity = capabilityRuntimeIdentity(provider, model)?.transportIdentity ?? '';
   const runtime = getCapabilityRuntime();
-  /** The relay generation field structure comes from the locally parsed profile, not from official controlDefinitions. */
-  const generationProfile = provider.kind === 'relay'
-    ? resolveGenerationProfileForModel(provider, model)
-    : undefined;
 
   const identityKey = `${provider.id}\u0000${model.id}\u0000${transportIdentity}`;
   /**
@@ -129,24 +128,24 @@ export function CustomRequestFieldsEditor({ provider, model }: {
   };
 
   const scopeNote = tc('customRequestFieldsScopeConnectionModel');
+  // The generation section is the additional request body: it does not depend on a schema and is always present.
+  const capabilitySections = snapshot.sections.filter((owner) => owner !== 'generation');
 
   return (
     <section className={styles.customFields} data-testid="custom-request-fields">
-      {snapshot.sections.length === 0 ? (
-        <p className={styles.customHint} data-testid="custom-fields-empty">
-          {tc('customRequestFieldsNoSchemaForModel')}
-        </p>
-      ) : snapshot.sections.map((owner) => {
+      {/* When neither web search nor reasoning has a schema, this page is just the additional
+          request body: no "needs an official schema" line, which would read as "this page is
+          unusable" above an editor that works fine. */}
+      {capabilitySections.map((owner) => {
         const raw = drafts[owner] ?? '';
         const trimmed = raw.trim();
         const isLegacyEmpty = !trimmed && legacyEmptyOwners.has(owner);
         const definitions = ownerDefinitions(runtime, model, owner);
-        const relayGenerationProfile = owner === 'generation' ? generationProfile : undefined;
         const preview = trimmed
           ? previewSafeCustomFragment({
             raw,
             owner,
-            generationProfile: relayGenerationProfile,
+            generationProfile: undefined,
             recipes: [],
             intents: {},
             ...(definitions.length > 0
@@ -156,7 +155,7 @@ export function CustomRequestFieldsEditor({ provider, model }: {
           : undefined;
         const allowedPaths = definitions.length > 0
           ? definitions.map((definition) => definition.targetPointer)
-          : Object.keys(safeCustomDeclaredOwners(relayGenerationProfile));
+          : Object.keys(safeCustomDeclaredOwners(undefined));
         const docsUrl = officialCustomFieldDocsUrl(runtime, definitions.flatMap((definition) => definition.sourceRefs));
         const inputID = `custom-fragment-${owner}-${model.id}`;
 
@@ -273,7 +272,19 @@ export function CustomRequestFieldsEditor({ provider, model }: {
           </div>
         );
       })}
-      <p className={styles.customHint} data-testid="custom-fields-footer">{tc('customRequestFieldsFooter')}</p>
+      <div className={styles.customOwner} data-alone={capabilitySections.length === 0 ? 'true' : undefined} data-testid="custom-fields-generation">
+        <div className={styles.customOwnerHeader}>
+          <strong>{tc('additionalBodyTitle')}</strong>
+        </div>
+        <AdditionalBodyEditor provider={provider} model={model} {...(conversationId ? { conversationId } : {})} />
+      </div>
+      {/* The footer states the whitelist rule of the web search / reasoning sections (only
+          officially declared fields are accepted). The additional request body is not bound by it
+          and has its own explanation, so the footer is omitted when it is alone, otherwise the two
+          sentences would contradict each other. */}
+      {capabilitySections.length > 0 && (
+        <p className={styles.customHint} data-testid="custom-fields-footer">{tc('customRequestFieldsFooter')}</p>
+      )}
     </section>
   );
 }
@@ -313,6 +324,8 @@ function loadSnapshot(provider: Provider, model: AIModel, transportIdentity: str
   const legacyEmptyOwners = new Set<string>();
   const drafts: Record<string, string> = {};
   for (const owner of CUSTOM_FRAGMENT_OWNERS) {
+    // The generation section is the additional request body, which AdditionalBodyEditor reads and writes itself.
+    if (owner === 'generation') continue;
     const settings = loadCustomFragmentSettings(customFragmentScope(provider, model, transportIdentity, owner));
     drafts[owner] = settings.raw;
     const hasContent = settings.raw.trim().length > 0;

@@ -51,7 +51,7 @@ function escapeForRegExp(value: string): string {
 
 /**
  * Switches to the Advanced Settings pane. The row's accessible name is the whole row text
- * (title + subtitle + "N adjusted"), so match the title as a substring.
+ * (title + subtitle + parameter chips), so match the title as a substring.
  */
 function openAdvancedPane() {
   const common = localeMessages[activeLocale]!.common as Record<string, string>;
@@ -119,10 +119,13 @@ const { mockCapabilityRuntime } = vi.hoisted(() => ({
 
 vi.mock('next-intl', () => ({
   useTranslations: (namespace: string) => (key: string, values?: Record<string, unknown>) => {
-    const path = `${namespace}.${key}`;
+    // useTranslations() without a namespace reads from the root path (useCopy takes non-common copy this way).
+    const path = namespace ? `${namespace}.${key}` : key;
     const message = translation(localeMessages[activeLocale]!, path) ?? legacyEnglishTestCopy[path] ?? key;
     return message.replace(/\{(\w+)\}/g, (_placeholder, name: string) => String(values?.[name] ?? `{${name}}`));
   },
+  // The advanced settings list's useCopy uses it to pick the Intl.ListFormat locale.
+  useLocale: () => activeLocale,
 }));
 
 vi.mock('../../lib/utils/attachment-utils-lazy', () => ({
@@ -282,6 +285,8 @@ describe('InputComposer', () => {
     });
     const toggle = modelOptionsPanel().getByRole('switch', { name: 'Web Search' }) as HTMLInputElement;
     expect(toggle.checked).toBe(false);
+    // While off, the row's subtitle says what it does (the explanation is the switch row's subtitle, not a note shown once on).
+    expect(screen.getByText('Searches the web first when a question needs it')).toBeTruthy();
     // Search timing is not shown while the toggle is off: it asks how eager to be while on.
     expect(screen.queryByRole('radiogroup', { name: 'Search timing' })).toBeNull();
     fireEvent.click(toggle);
@@ -295,11 +300,10 @@ describe('InputComposer', () => {
     });
     const timing = within(screen.getByRole('radiogroup', { name: 'Search timing' }));
     expect(timing.getAllByRole('radio').map((node) => node.textContent))
-      .toEqual(['Search when needed', 'Search every message']);
-    expect(timing.getByRole('radio', { name: 'Search when needed' }).getAttribute('aria-checked')).toBe('true');
-    fireEvent.click(timing.getByRole('radio', { name: 'Search every message' }));
+      .toEqual(['When needed', 'Every message']);
+    expect(timing.getByRole('radio', { name: 'When needed' }).getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(timing.getByRole('radio', { name: 'Every message' }));
     expect(onWebPreferenceChange).toHaveBeenLastCalledWith('force');
-    expect(screen.getByText('When on, the model searches the web when it helps before answering.')).toBeTruthy();
     // "Search timing" is not a visible heading on iOS or Android.
     // Web keeps the phrase only because `role="radiogroup"` needs an accessible name, and this group
     // cannot reuse the card title: "Web Search" already names the toggle, and two controls sharing a
@@ -314,7 +318,7 @@ describe('InputComposer', () => {
       webPreference: 'automatic', onWebPreferenceChange: vi.fn(),
     });
     expect(screen.queryByRole('radiogroup', { name: 'Search timing' })).toBeNull();
-    expect(screen.queryByRole('radio', { name: 'Search every message' })).toBeNull();
+    expect(screen.queryByRole('radio', { name: 'Every message' })).toBeNull();
   });
 
   // Clamping only computes, it never writes: narrowing happens in `persist()`, and `restore()` writes
@@ -343,10 +347,14 @@ describe('InputComposer', () => {
     const panel = modelOptionsPanel();
     expect(panel.queryByRole('switch', { name: 'Web Search' })).toBeNull();
     expect(panel.queryByRole('radiogroup', { name: 'Thinking Mode' })).toBeNull();
-    expect(panel.getAllByText('Cannot adjust yet')).toHaveLength(2);
+    // Each row states its own status and reason; with no candidate models there is no "see which models can be adjusted" link.
+    expect(panel.getAllByText('Not available yet')).toHaveLength(1);
+    expect(panel.getAllByText('Uses the model’s default')).toHaveLength(1);
+    expect(panel.getByText('Oriveo doesn’t have web search settings for this model yet, so it can’t be turned on here.')).toBeTruthy();
+    expect(panel.queryByRole('button', { name: 'See which models can be adjusted' })).toBeNull();
   });
 
-  it('gives a reason and a way to switch models when unsupported, without stacking an Unavailable badge on the status line', () => {
+  it('gives a reason and a way to switch models when unsupported, without stacking an Unavailable badge on the row', () => {
     const alternative = { id: 'web-capable', name: 'Web Capable', capabilities: ['text'], isAvailable: true, isDefault: false, priceTier: '' } as unknown as AIModel;
     const onSelectAlternativeModel = vi.fn();
     renderPanel({
@@ -355,79 +363,63 @@ describe('InputComposer', () => {
       webPreference: 'off', onWebPreferenceChange: vi.fn(),
       capabilityAlternativeModels: { web: [alternative] }, onSelectAlternativeModel,
     });
-    const card = within(screen.getByRole('region', { name: 'Web Search' }));
-    expect(card.getByText('Not supported by this model')).toBeTruthy();
-    // The status line already says the model does not support this; a badge on the title row says it twice.
+    const row = screen.getByRole('group', { name: 'Web Search' });
+    const card = within(row);
+    expect(card.getByText('This model can’t search the web')).toBeTruthy();
+    // The row already states the full reason; an extra "Unavailable" badge would say the same thing twice.
     expect(card.queryByText('Unavailable')).toBeNull();
     // A raw reasonCode never reaches the UI.
-    expect(screen.getByRole('region', { name: 'Web Search' }).textContent).not.toContain('transport_not_supported');
+    expect(row.textContent).not.toContain('transport_not_supported');
 
-    fireEvent.click(card.getByRole('button', { name: /Not supported by this model/ }));
-    expect(screen.getByText('This model has no official web search configuration. Oriveo doesn’t guess, to avoid failed requests.')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'View supported models' }));
+    // The whole row is the way out: it opens the supported models, and picking one switches to it.
+    fireEvent.click(card.getByRole('button', { name: /This model can’t search the web/ }));
     fireEvent.click(screen.getByRole('button', { name: /Web Capable/ }));
     expect(onSelectAlternativeModel).toHaveBeenCalledWith(alternative);
     // The panel closes once the model has been switched.
     expect(screen.queryByRole('dialog', { name: 'Model Options' })).toBeNull();
   });
 
-  it('appends the truth to the description when there are no candidates, offering no dead end into an empty list', () => {
+  it('offers no dead end into an empty list when there are no candidates', () => {
     renderPanel({
       webControl: control('unavailable'), reasoningControl: control('auto_available', ['low']),
       webPreference: 'off', onWebPreferenceChange: vi.fn(),
       capabilityAlternativeModels: { web: [] }, onSelectAlternativeModel: vi.fn(),
     });
-    const card = within(screen.getByRole('region', { name: 'Web Search' }));
-    fireEvent.click(card.getByRole('button', { name: /Not supported by this model/ }));
-    expect(card.getByText('No models in this connection support this capability yet.')).toBeTruthy();
-    expect(card.queryByRole('button', { name: 'View supported models' })).toBeNull();
+    const card = within(screen.getByRole('group', { name: 'Web Search' }));
+    expect(card.getByText('This model can’t search the web')).toBeTruthy();
+    // The reason is still stated, but the row is not tappable and carries no "see which models can be adjusted" link.
+    expect(card.queryByRole('button')).toBeNull();
   });
 
-  it('sends the user to advanced settings when customOnly has a schema, and to model switching when it does not', () => {
-    mockCapabilityRuntime.current = {
-      controlDefinitions: { 'official.web': { id: 'official.web', owner: 'web', targetPointer: '/enable_search', sourceRefs: ['web-doc'] } },
-      sourceIndex: { 'web-doc': {} },
-    };
-    const model = layoutModel({
-      capabilityControls: { web: { state: 'custom_only', customControlRefs: ['official.web'] } },
-    } as Partial<AIModel>);
+  // customOnly always leads to the additional request body (this provider has no standard switch,
+  // so the fields have to be written by hand), whether or not a schema exists.
+  it('states that customOnly has no standard switch and offers the additional request body as the way out', () => {
     renderPanel({
-      currentModel: model,
-      generationParameterProvider: connectedProvider('openAI'),
       webControl: control('custom_only'), reasoningControl: control('auto_available', ['low']),
       webPreference: 'off', onWebPreferenceChange: vi.fn(),
       capabilityAlternativeModels: { web: [] },
     });
-    const card = within(screen.getByRole('region', { name: 'Web Search' }));
-    fireEvent.click(card.getByRole('button', { name: /This connection supports custom configuration only\./ }));
-    expect(card.getByRole('button', { name: 'Go to Advanced Settings' })).toBeTruthy();
-
-    cleanup();
-    mockCapabilityRuntime.current = undefined;
-    renderPanel({
-      webControl: control('custom_only'), reasoningControl: control('auto_available', ['low']),
-      webPreference: 'off', onWebPreferenceChange: vi.fn(),
-      capabilityAlternativeModels: { web: [{ id: 'alt', name: 'Alt', capabilities: ['text'], isAvailable: true, isDefault: false, priceTier: '' } as unknown as AIModel] },
-      onSelectAlternativeModel: vi.fn(),
-    });
-    const noSchema = within(screen.getByRole('region', { name: 'Web Search' }));
-    fireEvent.click(noSchema.getByRole('button', { name: /This connection supports custom configuration only\./ }));
-    expect(noSchema.queryByRole('button', { name: 'Go to Advanced Settings' })).toBeNull();
-    expect(noSchema.getByRole('button', { name: 'View supported models' })).toBeTruthy();
+    const card = within(screen.getByRole('group', { name: 'Web Search' }));
+    expect(card.getByText('Needs manual setup')).toBeTruthy();
+    expect(card.getAllByText('This provider has no standard switch for web search. Add its fields in the additional request body.')).toHaveLength(1);
+    expect(card.queryByRole('switch')).toBeNull();
+    fireEvent.click(card.getByRole('button', { name: 'Open additional request body' }));
+    expect(screen.getByRole('button', { name: 'Back' })).toBeTruthy();
   });
 
-  it('renders thinking as a row of pills: only the levels the recipe ships, Auto always present, annotation following the selection', () => {
+  it('renders thinking as a segmented row: only the levels the recipe ships, Automatic only when the recipe ships it, annotation following the selection', () => {
     const onReasoningIntentChange = vi.fn();
     renderPanel({
-      webControl: control('auto_available'), reasoningControl: control('auto_available', ['off', 'low', 'deep']),
+      webControl: control('auto_available'), reasoningControl: control('auto_available', ['automatic', 'off', 'low', 'deep']),
       webPreference: 'off', onWebPreferenceChange: vi.fn(), onReasoningIntentChange,
     });
     const tiers = within(screen.getByRole('radiogroup', { name: 'Thinking Mode' }));
     expect(tiers.getAllByRole('radio').map((node) => node.textContent))
-      .toEqual(['Off', 'Automatic', 'Fast', 'Deep']);
+      .toEqual(['Automatic', 'Off', 'Fast', 'Deep']);
+    // Never chosen = "Automatic".
     expect(tiers.getByRole('radio', { name: 'Automatic' }).getAttribute('aria-checked')).toBe('true');
-    expect(screen.getByText('The model decides on its own.')).toBeTruthy();
-    // There is no separate deep-thinking switch: `off` is simply the first pill in this row.
+    expect(screen.getAllByText('The model decides on its own.').length).toBeGreaterThan(0);
+    // There is no separate deep-thinking switch: `off` is simply one cell of this segmented row.
     expect(screen.queryByRole('switch', { name: 'Deep thinking' })).toBeNull();
 
     fireEvent.click(tiers.getByRole('radio', { name: 'Fast' }));
@@ -437,6 +429,17 @@ describe('InputComposer', () => {
     expect(onReasoningIntentChange).toHaveBeenLastCalledWith(undefined);
     fireEvent.click(tiers.getByRole('radio', { name: 'Off' }));
     expect(onReasoningIntentChange).toHaveBeenLastCalledWith('off');
+
+    // When the recipe does not ship `automatic` there is no "Automatic" cell, and with nothing chosen no cell is selected.
+    cleanup();
+    renderPanel({
+      webControl: control('auto_available'), reasoningControl: control('auto_available', ['off', 'low', 'deep']),
+      webPreference: 'off', onWebPreferenceChange: vi.fn(), onReasoningIntentChange,
+    });
+    const declared = within(screen.getByRole('radiogroup', { name: 'Thinking Mode' }));
+    expect(declared.getAllByRole('radio').map((node) => node.textContent)).toEqual(['Off', 'Fast', 'Deep']);
+    expect(declared.queryByRole('radio', { checked: true })).toBeNull();
+    expect(screen.getByText('Uses the model’s default')).toBeTruthy();
   });
 
   it('moves the annotation with the selected level instead of listing all six at once', () => {
@@ -449,13 +452,15 @@ describe('InputComposer', () => {
     expect(screen.queryByText('Simple questions, fast answers.')).toBeNull();
   });
 
-  it('keeps the "thinking cannot be turned off" footnote when the recipe has no off level', () => {
+  it('has no "off" cell when the recipe has no off level, and once a level is chosen the row end says it always thinks first', () => {
     renderPanel({
       webControl: control('auto_available'), reasoningControl: control('auto_available', ['low', 'deep']),
-      webPreference: 'off', onWebPreferenceChange: vi.fn(), onReasoningIntentChange: vi.fn(),
+      reasoningIntent: 'low', webPreference: 'off', onWebPreferenceChange: vi.fn(), onReasoningIntentChange: vi.fn(),
     });
     expect(screen.queryByRole('radio', { name: 'Off' })).toBeNull();
-    expect(screen.getByText('This model cannot turn thinking off.')).toBeTruthy();
+    // The row-end "always thinks" replaces the old "cannot turn thinking off" footnote; with nothing chosen the row end follows the panel model and says "uses the model default".
+    expect(screen.getByText('Always thinks before answering')).toBeTruthy();
+    expect(screen.getByText('Higher levels take longer and may cost more.')).toBeTruthy();
   });
 
   it('degrades a single fixed level into one status line that is deliberately not clickable', () => {
@@ -463,7 +468,7 @@ describe('InputComposer', () => {
       webControl: control('auto_available'), reasoningControl: control('auto_available', []),
       webPreference: 'off', onWebPreferenceChange: vi.fn(), onReasoningIntentChange: vi.fn(),
     });
-    const card = within(screen.getByRole('region', { name: 'Thinking Mode' }));
+    const card = within(screen.getByRole('group', { name: 'Thinking Mode' }));
     expect(card.getByText('This model runs at a fixed thinking level and can’t be adjusted.')).toBeTruthy();
     expect(card.queryByRole('radiogroup')).toBeNull();
     expect(card.queryByRole('button')).toBeNull();
@@ -498,7 +503,7 @@ describe('InputComposer', () => {
     const panel = modelOptionsPanel();
     expect(panel.getByText('AI is answering…')).toBeTruthy();
     expect(panel.queryByRole('switch')).toBeNull();
-    expect(panel.getByText('Search every message')).toBeTruthy();
+    expect(panel.getByText('Every message')).toBeTruthy();
     expect(panel.getByText('Deep')).toBeTruthy();
   });
 
@@ -537,19 +542,20 @@ describe('InputComposer', () => {
     });
     const advanced = openAdvancedPane();
     // In the second pane the main panel cards are absent: this is the same layer swapping content, not a stacked overlay.
-    expect(advanced.queryByRole('region', { name: 'Web Search' })).toBeNull();
+    expect(advanced.queryByRole('group', { name: 'Web Search' })).toBeNull();
     fireEvent.click(advanced.getByRole('button', { name: 'Back' }));
-    expect(modelOptionsPanel().getByRole('region', { name: 'Web Search' })).toBeTruthy();
-    // The close bar sits outside the scroll area and is reachable from both panes.
+    expect(modelOptionsPanel().getByRole('group', { name: 'Web Search' })).toBeTruthy();
+    // The main pane's close button is in its header; a secondary pane's header is the back key, so close stays in the footer. Both panes can reach it.
     expect(modelOptionsPanel().getByRole('button', { name: 'Close' })).toBeTruthy();
+    expect(openAdvancedPane().getByRole('button', { name: 'Close' })).toBeTruthy();
   });
 
-  // "N adjusted" is derived by reading local storage, but the place that changes it is another pane.
+  // The parameter chips are derived by reading local storage, but the place that changes them is another pane.
   // Switching panes inside the same component does not change provider/model/conversationId, so the
-  // useMemo keeps hitting its cache and the row would still show the value from before.
+  // useMemo keeps hitting its cache and the card would still show the value from before.
   // This assertion has to go through the real input rather than writing storage directly: only letting
-  // production code persist the value proves the row re-reads what it just wrote.
-  it('recomputes "N adjusted" after returning from advanced settings instead of showing the stale count', () => {
+  // production code persist the value proves the card re-reads what it just wrote.
+  it('recomputes the parameter chips after returning from advanced settings instead of showing the stale value', () => {
     const provider = connectedProvider();
     const model = {
       id: 'tuned-model', name: 'Tuned Model', capabilities: ['text'], reasoningModeAvailable: false,
@@ -563,21 +569,28 @@ describe('InputComposer', () => {
     render(
       <InputComposer value="" onChange={vi.fn()} onSend={vi.fn()} isStreaming={false}
         generationParameterProvider={provider} generationParameterConversationId="p16-conversation"
-        currentModel={model} />,
+        capabilityTransportIdentity="p16.transport.rev" currentModel={model} />,
     );
     openModelControls();
-    expect(modelOptionsPanel().queryByText('1 adjusted')).toBeNull();
+    // The "N adjusted" count is gone; the parameters card draws chips instead (same source as the chips: one per parameter that has a stored value).
+    expect(modelOptionsPanel().queryByText('Temperature 0.7')).toBeNull();
 
+    // This fixture needs a transport identity so the panel is writable. Without one the whole page is read-only
+    // ("settings haven't loaded"), and a read-only row draws no input at all.
     const advanced = openAdvancedPane();
-    fireEvent.change(advanced.getByLabelText('Temperature'), { target: { value: '0.7' } });
+    fireEvent.click(advanced.getByRole('button', { name: /^Temperature/ }));
+    const input = advanced.getByLabelText('Temperature');
+    expect(document.activeElement).toBe(input);
+    fireEvent.change(input, { target: { value: '0.7' } });
     fireEvent.click(advanced.getByRole('button', { name: 'Back' }));
-    expect(modelOptionsPanel().getByText('1 adjusted')).toBeTruthy();
+    expect(modelOptionsPanel().getByText('Temperature 0.7')).toBeTruthy();
 
-    // The reverse holds too: after resetting to defaults the row must disappear rather than stick at 1.
+    // The reverse holds too: after resetting to defaults the chip must disappear rather than stick.
     const again = openAdvancedPane();
+    fireEvent.click(again.getByRole('button', { name: /^Temperature/ }));
     fireEvent.change(again.getByLabelText('Temperature'), { target: { value: '' } });
     fireEvent.click(again.getByRole('button', { name: 'Back' }));
-    expect(modelOptionsPanel().queryByText('1 adjusted')).toBeNull();
+    expect(modelOptionsPanel().queryByText(/^Temperature /)).toBeNull();
   });
 
   it('shows no extra explanation group on either card in the normal state', () => {
@@ -585,11 +598,11 @@ describe('InputComposer', () => {
       webControl: control('auto_available', ['force']), reasoningControl: control('auto_available', ['off', 'low']),
       webPreference: 'automatic', onWebPreferenceChange: vi.fn(), onReasoningIntentChange: vi.fn(),
     });
-    const web = within(screen.getByRole('region', { name: 'Web Search' }));
-    expect(web.queryByRole('button', { name: 'View supported models' })).toBeNull();
+    const web = within(screen.getByRole('group', { name: 'Web Search' }));
+    expect(web.queryByRole('button', { name: 'See which models can be adjusted' })).toBeNull();
     expect(web.queryByText('This field can increase what the provider charges.')).toBeNull();
-    const reasoning = within(screen.getByRole('region', { name: 'Thinking Mode' }));
-    expect(reasoning.queryByRole('button', { name: 'View supported models' })).toBeNull();
+    const reasoning = within(screen.getByRole('group', { name: 'Thinking Mode' }));
+    expect(reasoning.queryByRole('button', { name: 'See which models can be adjusted' })).toBeNull();
     expect(reasoning.queryByText('This field can increase what the provider charges.')).toBeNull();
   });
 
@@ -598,7 +611,7 @@ describe('InputComposer', () => {
       webControl: control('auto_available'), reasoningControl: control('auto_available', ['low']),
       webPreference: 'automatic', onWebPreferenceChange: vi.fn(), webRuntimeRejected: true,
     });
-    expect(within(screen.getByRole('region', { name: 'Web Search' }))
+    expect(within(screen.getByRole('group', { name: 'Web Search' }))
       .getByText('The provider rejected this setting for this model. Send again without it, or pick another model.'))
       .toBeTruthy();
   });
@@ -723,7 +736,7 @@ describe('InputComposer', () => {
         generationParameterConversationId={`draft-${locale}`}
         capabilityTransportIdentity="r1.transport.rev"
         webControl={control('auto_available', ['force'])}
-        reasoningControl={control('auto_available', ['off', 'low', 'max'])}
+        reasoningControl={control('auto_available', ['automatic', 'off', 'low', 'max'])}
         generationControl={control('auto_available')}
         webPreference="automatic" onWebPreferenceChange={vi.fn()} onReasoningIntentChange={vi.fn()} />);
       openModelControls();
@@ -737,18 +750,16 @@ describe('InputComposer', () => {
     }
   });
 
-  it('drops the duplicate footer link when the status line already offers "view supported models"', () => {
+  it('shows the way out in one place only: no extra "see which models can be adjusted" link when the whole row is tappable', () => {
     const alternative = { id: 'alt', name: 'Alt', capabilities: ['text'], isAvailable: true, isDefault: false, priceTier: '' } as unknown as AIModel;
     renderPanel({
       webControl: control('unavailable'), reasoningControl: control('auto_available', ['low']),
       webPreference: 'off', onWebPreferenceChange: vi.fn(),
       capabilityAlternativeModels: { web: [alternative] }, onSelectAlternativeModel: vi.fn(),
     });
-    const card = within(screen.getByRole('region', { name: 'Web Search' }));
-    // The footer omits the link while the description is collapsed; once expanded it shows inside the description, still only once.
-    expect(card.queryAllByRole('button', { name: 'View supported models' })).toHaveLength(0);
-    fireEvent.click(card.getByRole('button', { name: /Not supported by this model/ }));
-    expect(card.getAllByRole('button', { name: 'View supported models' })).toHaveLength(1);
+    const card = within(screen.getByRole('group', { name: 'Web Search' }));
+    expect(card.getAllByRole('button')).toHaveLength(1);
+    expect(card.queryByRole('button', { name: 'See which models can be adjusted' })).toBeNull();
   });
 
   it('keeps the model behavior entry for every chat model, stating a missing auto configuration honestly inside the panel', () => {
@@ -1292,11 +1303,13 @@ describe('model control vocabulary', () => {
       generationParameterProvider={connectedProvider()} generationParameterConversationId="draft-en"
       capabilityTransportIdentity="r1.transport.rev"
       webControl={{ state: 'auto_available', availableIntents: ['force'], viaLegacyProfile: false }}
-      reasoningControl={{ state: 'auto_available', availableIntents: ['off', 'low', 'balanced', 'deep', 'max'], viaLegacyProfile: false }}
+      reasoningControl={{ state: 'auto_available', availableIntents: ['automatic', 'off', 'low', 'balanced', 'deep', 'max'], viaLegacyProfile: false }}
       webPreference="automatic" onWebPreferenceChange={vi.fn()} onReasoningIntentChange={vi.fn()} />);
     const panel = modelOptionsPanel();
     expect(panel.getByRole('radio', { name: 'Max' })).toBeTruthy();
-    expect(panel.getByRole('radio', { name: 'Search every message' })).toBeTruthy();
+    // The main pane's search timing uses the short wording (common.modelOptionsWebEveryMessage); the frozen
+    // "Search every message" above is still the wording of the pages.chat.reasoning.force entry.
+    expect(panel.getByRole('radio', { name: 'Every message' })).toBeTruthy();
     expect(panel.getByRole('radio', { name: 'Automatic' })).toBeTruthy();
   });
 
@@ -1342,14 +1355,13 @@ describe('model control vocabulary', () => {
       'capabilityControlWebSearch', 'capabilityControlThinking', 'capabilityControlWebSwitchNote',
       'capabilityControlSearchTiming', 'capabilityControlNotSupportedByModel',
       'capabilityControlCannotAdjustYet', 'capabilityControlWebNoOfficialConfig',
-      'capabilityControlReasoningNoOfficialConfig', 'capabilityControlReasoningFixedLevel',
-      'capabilityControlReasoningOffUnavailable', 'capabilityControlCustomOnlyReason',
-      'capabilityControlUnavailableForConnection', 'capabilityControlViewSupportedModels',
+      'capabilityControlReasoningFixedLevel', 'capabilityControlCustomOnlyReason',
+      'capabilityControlViewSupportedModels',
       'capabilityControlNoSupportedModels', 'capabilityControlGoToAdvancedSettings',
       'capabilityControlChooseAnotherModel',
       'capabilityControlSupportedModelsIntro', 'capabilityControlSwitchToModel',
       'capabilityControlBadgeCustom', 'capabilityControlBadgeManual',
-      'capabilityControlUpstreamRejected', 'capabilityControlAdjustedCount',
+      'capabilityControlUpstreamRejected',
       'capabilityControlIdentityRuntimeMissing', 'capabilityControlIdentityRelayTransport',
       'capabilityControlIdentityModelMissing', 'capabilityControlFetchAgain',
       'capabilityControlFetching', 'capabilityControlFetchFailed', 'capabilityControlSetProtocol',
@@ -1386,6 +1398,9 @@ describe('model control vocabulary', () => {
       // A translation with zero references is a trap.
       'capabilityControlAppliedToConversation', 'capabilityControlSetAsModelDefault',
       'capabilityControlModelDefaultSaved',
+      // After the main pane was redrawn from the panel model, these three have no references left.
+      'capabilityControlReasoningNoOfficialConfig', 'capabilityControlReasoningOffUnavailable',
+      'capabilityControlUnavailableForConnection',
     ];
     for (const [locale, messages] of Object.entries(localeMessages)) {
       const common = messages.common as Record<string, unknown>;

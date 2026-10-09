@@ -86,13 +86,17 @@ vi.mock("./MessageRecoveryCard", () => ({
     onContinue,
     primaryActionLabel,
     onPrimaryAction,
+    errorTitle,
+    errorDetail,
   }: {
+    errorTitle?: string;
+    errorDetail?: string;
     onRetry?: () => void;
     onContinue?: () => void;
     primaryActionLabel?: string;
     onPrimaryAction?: () => void;
   }) => (
-    <div data-testid="message-recovery-card">
+    <div data-testid="message-recovery-card" data-error-title={errorTitle} data-error-detail={errorDetail}>
       {onRetry ? (
         <button type="button" onClick={onRetry}>
           regenerateBtn
@@ -804,6 +808,35 @@ describe("MessageBubble", () => {
     expect(screen.queryByText("disclaimer")).toBeNull();
     expect(screen.queryByRole("button", { name: "error.retry" })).toBeNull();
     expect(screen.getByTestId("message-recovery-card")).toBeTruthy();
+  });
+
+  it('upstream names one panel parameter as rejected: the title is that item, the body explains the way out, the upstream text is in the technical detail, and resending is triggered by a click', () => {
+    mockCreateModelDisplayLookup.mockReturnValue({ resolve: vi.fn().mockReturnValue(null) });
+    const onRetryWithoutCustom = vi.fn();
+    render(
+      <MessageBubble
+        message={{
+          ...baseMessage,
+          id: 'assistant-generation-rejected',
+          state: 'failed',
+          errorTitle: 'requestFailed.title',
+          errorDetail: "Unsupported value: 'temperature'",
+          errorSource: 'provider',
+          errorTechnicalDetail: "Unsupported value: 'temperature'",
+          generationParameterRejection: { parameterId: 'temperature' },
+        }}
+        provider={provider}
+        onRetryWithoutCustom={onRetryWithoutCustom}
+        isLastMessage
+      />,
+    );
+
+    const card = screen.getByTestId('message-recovery-card');
+    expect(card.getAttribute('data-error-title')).toBe('generationParameterNameTemperature');
+    expect(card.getAttribute('data-error-detail')).toBe('capabilityControlUpstreamRejected');
+    expect(onRetryWithoutCustom).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'resendWithoutSetting' }));
+    expect(onRetryWithoutCustom).toHaveBeenCalledTimes(1);
   });
 
   it("renders library_not_searched as a static Tool Call row", () => {

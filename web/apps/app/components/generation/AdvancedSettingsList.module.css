@@ -1,0 +1,61 @@
+/* Advanced settings parameter list. Values use the existing web tokens. */
+.list { display:flex; flex-direction:column; gap:10px; }
+.section { display:flex; flex-direction:column; gap:6px; }
+.sectionTitle { margin:0; padding:8px 4px 0; font-size:12px; font-weight:600; letter-spacing:.06em; color:var(--o-text-secondary, #5f6673); }
+.card { border:1px solid var(--o-border, #e5e7eb); border-radius:12px; background:var(--o-surface-raised, #fff); overflow:hidden; }
+.row, .cluster, .mode { border-top:1px solid var(--o-border, #e5e7eb); }
+.card > :first-child { border-top:0; }
+.rowHead { display:flex; align-items:center; gap:10px; width:100%; min-height:44px; padding:6px 12px; border:0; background:none; color:inherit; font:inherit; text-align:start; cursor:pointer; }
+.rowHead:disabled { cursor:default; }
+.rowHead:focus-visible { outline:2px solid var(--o-focus-ring, #7c3aed); outline-offset:-2px; }
+.rowTitle { flex:1; min-width:0; display:flex; align-items:center; gap:6px; }
+.titleText { font-size:14px; color:var(--o-text, #18181b); }
+.titleStack { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.subtitle { font-size:12px; color:var(--o-text-secondary, #646b78); }
+.row[data-superseded='true'] .titleText, .row[data-superseded='true'] .rowHead > span:last-child { color:var(--o-text-tertiary, #a8adb8); text-decoration:line-through; }
+.badge { padding:1px 6px; border:1px solid var(--o-border, #e5e7eb); border-radius:999px; font-style:normal; font-size:10px; color:var(--o-text-secondary, #6b7280); }
+.setChip { display:inline-block; max-width:55%; min-height:24px; padding:0 9px; line-height:24px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-radius:999px; background:var(--o-primary-subtle, #ede9fe); color:var(--o-primary-text-on-surface, #5b21b6); font-size:13px; font-weight:600; font-variant-numeric:tabular-nums; }
+.inheritedChip { display:inline-flex; align-items:center; gap:6px; min-height:24px; padding:0 9px; border-radius:999px; background:var(--o-bg-subtle, #f1f2f5); color:var(--o-text, #3f3f46); font-size:13px; font-weight:600; font-variant-numeric:tabular-nums; }
+.inheritedChip em { font-style:normal; font-size:11px; font-weight:500; color:var(--o-text-secondary, #646b78); }
+.engineDefault { font-size:13px; color:var(--o-text-tertiary, #8a909c); font-variant-numeric:tabular-nums; }
+.unset, .summary { font-size:13px; color:var(--o-text-secondary, #6b7280); }
+.chevron { flex:none; color:var(--o-text-tertiary, #a8adb8); transition:transform .15s; }
+.chevron[data-expanded='true'] { transform:rotate(90deg); }
+.note, .error, .footnote { margin:0; padding:0 12px 8px; font-size:12px; line-height:1.45; color:var(--o-text-secondary, #646b78); }
+.error { color:var(--o-error-text, #b91c1c); }
+.footnote { padding:0 4px; }
+.editor { display:flex; flex-direction:column; gap:8px; padding:0 12px 12px; }
+.editor .note, .editor .error { padding:0; }
+.field { width:100%; box-sizing:border-box; min-height:34px; padding:0 10px; border:1px solid var(--o-border, #d1d5db); border-radius:8px; background:var(--o-bg-subtle, #f1f2f5); color:inherit; font:inherit; font-size:15px; font-weight:600; text-align:end; font-variant-numeric:tabular-nums; }
+.schema { width:100%; box-sizing:border-box; min-height:112px; padding:8px; border:1px solid var(--o-border, #d1d5db); border-radius:8px; background:transparent; color:inherit; font:12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; resize:vertical; }
+.schema[aria-invalid='true'] { border-color:var(--o-error, #dc2626); }
+.toggle { align-self:flex-end; }
+/* Reserve the extra row only when the "model default" tick is drawn; without a tick those 18px would be unexplained empty space. */
+.slider { position:relative; }
+.slider[data-tick='true'] { padding-bottom:18px; }
+.slider input { width:100%; accent-color:var(--o-primary, #7c3aed); }
+.tick[data-edge] { transform:none; }
+.tick { position:absolute; bottom:0; transform:translateX(-50%); font-size:11px; white-space:nowrap; color:var(--o-text-secondary, #646b78); }
+.ghostActions { display:flex; flex-wrap:wrap; gap:8px; }
+/* In the light theme the card background is almost the same color as --o-bg-subtle, so without a border the two ghost buttons would look like plain text. */
+.ghost { min-height:30px; padding:0 12px; border:1px solid var(--o-border, #e5e7eb); border-radius:999px; background:var(--o-bg-subtle, #f1f2f5); color:var(--o-text, #3f3f46); font:inherit; font-size:13px; cursor:pointer; }
+.ghost:disabled { opacity:.5; cursor:default; }
+.members { padding-inline-start:12px; }
+.members .row:first-child { border-top:1px solid var(--o-border, #e5e7eb); }
+.mode { display:flex; flex-direction:column; gap:8px; padding:10px 12px; }
+.mode .note { padding:0; }
+.segmented { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:2px; padding:3px; border-radius:10px; background:var(--o-bg-subtle, #eceef2); }
+.segmented button { min-height:30px; border:0; border-radius:8px; background:none; color:var(--o-text-secondary, #52525b); font:inherit; font-size:13px; cursor:pointer; }
+.segmented button[aria-checked='true'] { background:var(--o-surface-raised, #fff); color:var(--o-primary-text-on-surface, #5b21b6); font-weight:600; box-shadow:0 1px 3px rgba(15,23,42,.15); }
+.segmented button:disabled { cursor:default; }
+.legend { display:flex; flex-wrap:wrap; gap:14px; padding:0 4px; font-size:12px; color:var(--o-text-secondary, #646b78); }
+.legend span { display:inline-flex; align-items:center; gap:6px; }
+.legendSet, .legendInherited { display:inline-block; width:10px; height:10px; border-radius:999px; }
+.legendSet { background:var(--o-primary-subtle, #ede9fe); }
+.legendInherited { background:var(--o-bg-subtle, #f1f2f5); border:1px solid var(--o-border, #e5e7eb); }
+
+.tags { display:flex; flex-wrap:wrap; gap:8px; }
+.tag { display:inline-flex; align-items:center; gap:6px; min-height:30px; padding:0 6px 0 10px; border-radius:8px; background:var(--o-bg-subtle, #f1f2f5); color:var(--o-text, #3f3f46); font-family:var(--o-font-mono); font-size:13px; white-space:pre; }
+.tagRemove { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border:0; border-radius:6px; background:transparent; color:var(--o-text-tertiary, #6b7280); cursor:pointer; }
+.tagAdd { min-height:30px; padding:0 12px; border:0; border-radius:8px; background:var(--o-primary-subtle); color:var(--o-primary-text-on-surface); font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+.tagInput { text-align:start; padding:6px 10px; resize:vertical; font-weight:400; }

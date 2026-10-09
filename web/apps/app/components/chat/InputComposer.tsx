@@ -3,9 +3,10 @@
 import React from 'react';
 import { useRef, useCallback, useEffect, useLayoutEffect, useState, useId } from 'react';
 import { useTranslations } from 'next-intl';
-import type { Attachment, AIModel, Provider, SendShortcut, QuoteContext } from '@oriveo/shared';
+import type { Attachment, AIModel, Provider, ReasoningMode, SendShortcut, QuoteContext } from '@oriveo/shared';
 import { AttachmentPreview } from './AttachmentPreview';
 import { MODEL_OPTIONS_POPOVER_ID, ModelOptionsPopover } from './ModelOptionsPopover';
+import { OPEN_ADDITIONAL_BODY_EDITOR_EVENT } from '../../lib/core/chat/additional-body-rejection';
 import { ComposerToolButton } from './ComposerToolButton';
 import { Brain, FileText, Globe, Library, Quote, SlidersHorizontal } from 'lucide-react';
 import { AttachmentIcon, StopIcon, SendIcon, CloseIcon } from '../icons';
@@ -48,6 +49,8 @@ interface InputComposerProps {
   /** Either the array itself or a function of the current state (`setAttachments` can be passed directly). */
   onAttachmentsChange?: (next: AttachmentsChange) => void;
   /* Reasoning */
+  /** The conversation's current thinking tier, passed on to model options (the thinking-linkage preview in advanced settings). */
+  reasoningMode?: ReasoningMode;
   /**
    * Single source of truth for the reasoning intent. `ReasoningMode` cannot express `off`, and
    * treating it as the truth produced "turned it off but the chip still says automatic". Chip
@@ -79,6 +82,7 @@ interface InputComposerProps {
    */
   webControl?: CapabilityControlPresentation;
   reasoningControl?: CapabilityControlPresentation;
+  reasoningRejectedIntents?: readonly string[];
   generationControl?: CapabilityControlPresentation;
   /** Full runtime identity; when missing the panel goes read-only and offers the matching recovery action. */
   capabilityTransportIdentity?: string;
@@ -274,6 +278,7 @@ export function InputComposer({
   attachments = [],
   onAttachmentsChange,
   reasoningIntent,
+  reasoningMode,
   onReasoningIntentChange,
   reasoningOutboundActive = false,
   webPreference,
@@ -290,6 +295,7 @@ export function InputComposer({
   generationControl,
   capabilityTransportIdentity,
   reasoningRuntimeRejected = false,
+  reasoningRejectedIntents,
   capabilityAlternativeModels,
   onSelectAlternativeModel,
   onOpenModelSwitcher,
@@ -333,6 +339,16 @@ export function InputComposer({
   const storageQuota = null as { blockUploads?: boolean; status?: string } | null;
   const [modelControlsOpen, setModelControlsOpen] = useState(false);
   const [hasModelBehaviorOverride, setHasModelBehaviorOverride] = useState(false);
+  // "Edit" on the additional request body error card: opens the overlay straight at the additional request body editor; the nonce makes an already open overlay remount on that page.
+  const [modelControlsInitialPane, setModelControlsInitialPane] = useState<{ pane: 'customFields'; nonce: number } | null>(null);
+  useEffect(() => {
+    const open = () => {
+      setModelControlsInitialPane((previous) => ({ pane: 'customFields', nonce: (previous?.nonce ?? 0) + 1 }));
+      setModelControlsOpen(true);
+    };
+    window.addEventListener(OPEN_ADDITIONAL_BODY_EDITOR_EVENT, open);
+    return () => window.removeEventListener(OPEN_ADDITIONAL_BODY_EDITOR_EVENT, open);
+  }, []);
   /**
    * Return focus to the chip after the popover closes.
    *
@@ -349,6 +365,7 @@ export function InputComposer({
     const active = document.activeElement;
     restoresModelControlsFocus.current = Boolean(popover && active && popover.contains(active));
     setModelControlsOpen(false);
+    setModelControlsInitialPane(null);
   }, []);
   useEffect(() => {
     if (modelControlsOpen || !restoresModelControlsFocus.current) return;
@@ -643,21 +660,24 @@ export function InputComposer({
 
         {modelControlsOpen && (
           <ModelOptionsPopover
+            key={modelControlsInitialPane?.nonce ?? 0}
+            initialPane={modelControlsInitialPane?.pane}
             provider={generationParameterProvider}
             model={currentModel}
             conversationId={generationParameterConversationId}
             webControl={webControl}
             reasoningControl={reasoningControl}
-            generationControl={generationControl}
             webPreference={webPreference}
             onWebPreferenceChange={onWebPreferenceChange}
             reasoningIntent={reasoningIntent}
+            reasoningMode={reasoningMode}
             onReasoningIntentChange={onReasoningIntentChange}
             runtimeIsReadOnly={capabilityRuntimeReadOnly}
             runtimeReadOnlyReason={capabilityRuntimeReadOnlyReason}
             transportIdentity={capabilityTransportIdentity}
             webRuntimeRejected={webRuntimeRejected}
             reasoningRuntimeRejected={reasoningRuntimeRejected}
+            reasoningRejectedIntents={reasoningRejectedIntents}
             alternativeModels={capabilityAlternativeModels}
             onSelectAlternativeModel={onSelectAlternativeModel}
             onOpenModelSwitcher={onOpenModelSwitcher}

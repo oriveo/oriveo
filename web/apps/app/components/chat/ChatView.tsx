@@ -74,7 +74,7 @@ import { CUSTOM_FRAGMENT_ERROR_KIND } from '../../lib/core/chat/custom-fragment-
 import type { ReasoningIntent } from '@oriveo/core/providers/request-preference/types';
 import { generationParameterProfileFingerprint } from '../../lib/core/chat/generation-parameter-settings';
 import { capabilityRuntimeIdentity, displayCapabilityPreferences, loadCapabilityPreferenceDraft, saveCapabilityPreferenceDraft, saveCapabilityPreferences, withCapabilityReasoningIntent } from '../../lib/core/chat/capability-preference-settings';
-import { capabilityRejectionIsDormant, invokeCapabilityRecoveryRetry } from '../../lib/core/chat/capability-recovery-runtime';
+import { capabilityRejectionIsDormant, capabilityRejectionState, invokeCapabilityRecoveryRetry } from '../../lib/core/chat/capability-recovery-runtime';
 import { resolveChatCapabilityOutboundDecision } from '../../lib/core/chat/chat-capability-outbound-decision';
 import { LibraryContextPicker } from './LibraryContextPicker';
 import { resolveDirectMaxDocuments } from '../../lib/core/library/types';
@@ -534,9 +534,12 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   const webRuntimeRejected = capabilityRecoveryIdentity
     ? capabilityRejectionIsDormant(capabilityRecoveryIdentity, 'web', 'provider_recipe')
     : false;
-  const reasoningRuntimeRejected = capabilityRecoveryIdentity
-    ? capabilityRejectionIsDormant(capabilityRecoveryIdentity, 'reasoning', 'provider_recipe')
-    : false;
+  // Reasoning rejections are per tier: the whole group goes dormant only when the tiers are not distinguished or every declared tier was rejected; otherwise just those tiers are.
+  const reasoningRejection = capabilityRecoveryIdentity
+    ? capabilityRejectionState(capabilityRecoveryIdentity, 'reasoning', 'provider_recipe', reasoningControl.availableIntents)
+    : undefined;
+  const reasoningRuntimeRejected = reasoningRejection?.dormant ?? false;
+  const reasoningRejectedIntents = reasoningRejection?.rejectedIntents ?? [];
   /**
    * Whether custom web fields are taking over this request right now. The chip's globe
    * test has to account for it: web access enabled through custom JSON reaches the wire
@@ -563,6 +566,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
     ...(reasoningIntent ? { reasoningIntentRequested: reasoningIntent } : {}),
     reasoningControl,
     reasoningDormant: reasoningRuntimeRejected,
+    reasoningRejectedIntents,
   });
   // One decision object drives both the chip and the actual send: a local dormant state or a reverse intent gate no longer only closes the wire.
   const effectiveWebSearchEnabled = capabilityOutboundDecision.webSearchEnabled;
@@ -671,6 +675,16 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
       return;
     }
     const recovery = failed?.capabilityRecovery;
+    // Upstream named one panel parameter as rejected: resend once without it, saved settings untouched.
+    if (!recovery && failed?.generationParameterRejection) {
+      void retry(messageId, { omitGenerationParameters: [failed.generationParameterRejection.parameterId] });
+      return;
+    }
+    // "Retry without the additional request body" omits the body for this one send only; the located web / reasoning settings take priority and the two do not chain.
+    if (!recovery && failed?.additionalBodyRetryEligible) {
+      void retry(messageId, { omitAdditionalBody: true });
+      return;
+    }
     const currentIdentity = provider && currentModel
       ? capabilityRuntimeIdentity(provider, currentModel)
       : null;
@@ -1220,6 +1234,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         attachments={attachments}
         onAttachmentsChange={setAttachments}
         reasoningIntent={reasoningIntent}
+        reasoningMode={reasoningMode}
         onReasoningIntentChange={handleReasoningIntentChange}
         reasoningOutboundActive={capabilityOutboundDecision.hasReasoningSelection}
         webPreference={webPreference}
@@ -1236,6 +1251,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         generationControl={generationControl}
         capabilityTransportIdentity={capabilityPreferenceIdentity?.transportIdentity}
         reasoningRuntimeRejected={reasoningRuntimeRejected}
+        reasoningRejectedIntents={reasoningRejectedIntents}
         capabilityAlternativeModels={capabilityAlternativeModels}
         onSelectAlternativeModel={handleSelectAlternativeModel}
         onOpenModelSwitcher={() => setShowModelSwitcher(true)}

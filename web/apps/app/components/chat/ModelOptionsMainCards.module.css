@@ -1,0 +1,123 @@
+/* Supplementary styles for the main "Model options" pane; cards, switches and segments reuse InputComposer.module.css. */
+
+.sectionLabel {
+  margin: 4px 4px -2px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--o-text-secondary);
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.mark::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.mark[data-mark='official'] { color: var(--o-success-text); }
+.mark[data-mark='unverified'] { color: var(--o-warning-text); }
+
+/* Divider between rows inside a card; the first row has none. */
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row + .row {
+  padding-top: 10px;
+  border-top: 0.5px solid var(--o-border);
+}
+
+.rowText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.caption {
+  font-size: 12px;
+  color: var(--o-text-secondary);
+}
+
+.trailing {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--o-text-secondary);
+  text-align: end;
+}
+
+.trailing[data-tone='error'] { color: var(--o-error-text); }
+
+/* A status row: a button when tappable; read-only uses the same layout without the arrow. */
+.disclosure {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+}
+
+button.disclosure { cursor: pointer; }
+
+.primaryAction {
+  min-height: 40px;
+  border: 0;
+  border-radius: var(--o-radius-md);
+  background: var(--o-primary);
+  color: var(--o-text-inverse);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--o-bg-subtle);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--o-text-secondary);
+}
+
+.chip[data-kind='set'] {
+  background: var(--o-primary-subtle);
+  color: var(--o-primary-text-on-surface);
+}
+
+.tierIcon {
+  flex: 0 0 auto;
+  display: block;
+}
+
+/* Long tier names (German, Russian) in equal-width cells are truncated with an ellipsis instead of stretching the cell. */
+.segmentLabel {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

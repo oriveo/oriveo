@@ -6,6 +6,7 @@ import {
   loadCustomFragmentSettings,
   saveCustomFragmentSettings,
 } from '../../lib/core/chat/custom-fragment-settings';
+import { additionalBodyScope, loadAdditionalBody, saveAdditionalBody } from '../../lib/core/chat/additional-body-settings';
 import { CustomRequestFieldsEditor } from './CustomRequestFieldsEditor';
 
 /**
@@ -70,13 +71,14 @@ describe('CustomRequestFieldsEditor with every owner on one page', () => {
     const sections = [...document.querySelectorAll('[data-testid^="custom-fields-"]')]
       .map((node) => node.getAttribute('data-testid'))
       .filter((id) => id === 'custom-fields-web' || id === 'custom-fields-reasoning' || id === 'custom-fields-generation');
-    expect(sections).toEqual(['custom-fields-web', 'custom-fields-reasoning']);
+    // The generation section is the additional request body editor: it needs no schema and is always present.
+    expect(sections).toEqual(['custom-fields-web', 'custom-fields-reasoning', 'custom-fields-generation']);
     // Section titles use the user-facing wording, not the internal web / reasoning identifiers.
     expect(screen.getByText('capabilityControlWebSearch')).toBeTruthy();
     expect(screen.getByText('capabilityControlThinking')).toBeTruthy();
     // There is no automatic-versus-custom radio pair, so the page must contain no radio at all.
     expect(screen.queryAllByRole('radio')).toHaveLength(0);
-    // The fixed footer line is always present.
+    // The footer line is present whenever the web search / reasoning sections are.
     expect(screen.getByTestId('custom-fields-footer').textContent).toBe('customRequestFieldsFooter');
   });
 
@@ -166,12 +168,19 @@ describe('CustomRequestFieldsEditor with every owner on one page', () => {
     expect(screen.queryByTestId('custom-fields-legacy-web')).toBeNull();
   });
 
-  it('shows a single line rather than an empty editor when no owner has a schema for this model and transport', () => {
+  it('leaves only the additional request body when no owner has a schema for this model and transport, never an empty editor', () => {
     const bare = { ...model, capabilityControls: {} } as AIModel;
     render(<CustomRequestFieldsEditor provider={provider} model={bare} />);
 
-    expect(screen.getByTestId('custom-fields-empty').textContent).toBe('customRequestFieldsNoSchemaForModel');
-    expect(document.querySelector('textarea')).toBeNull();
+    // With only the additional request body left, the "needs an official schema" line and the
+    // footer about officially declared fields are omitted: both describe the web search /
+    // reasoning sections, and above an editor that works they would read as "this page is unusable".
+    expect(screen.queryByTestId('custom-fields-empty')).toBeNull();
+    expect(screen.queryByTestId('custom-fields-footer')).toBeNull();
+    expect(screen.queryByText('customRequestFieldsNoSchemaForModel')).toBeNull();
+    // Web search and reasoning still get no empty editor; the additional request body does not depend on a schema, so its editor is there.
+    expect(document.querySelectorAll('textarea')).toHaveLength(1);
+    expect(within('custom-fields-generation').querySelector('textarea')).toBeTruthy();
   });
 });
 
@@ -180,3 +189,36 @@ function within(testID: string): HTMLElement {
   if (!node) throw new Error(`${testID} was not rendered`);
   return node as HTMLElement;
 }
+
+describe('CustomRequestFieldsEditor generation section (the additional request body editor)', () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(cleanup);
+
+  // The switch and the content are independent here (whatever is written is stored), and the
+  // errors and the preview come from AdditionalBodyEditor; its details are covered in
+  // AdditionalBodyEditor.render.test.tsx. This only checks the wiring: reads and writes go to the
+  // additional body storage, never the old custom fragment namespace, and a conversation id
+  // writes the conversation layer.
+  it('shows the stored additional request body and switch; edits write back without touching the switch', () => {
+    saveAdditionalBody(additionalBodyScope(provider, model), { raw: '{"top_k":3}', enabled: false });
+    render(<CustomRequestFieldsEditor provider={provider} model={model} />);
+    const textarea = within('custom-fields-generation').querySelector('textarea')!;
+    expect(textarea.value).toBe('{"top_k":3}');
+    expect(within('custom-fields-generation').querySelector('[role="switch"]')!.getAttribute('aria-checked')).toBe('false');
+
+    fireEvent.change(textarea, { target: { value: '{"top_k":4}' } });
+    expect(loadAdditionalBody(additionalBodyScope(provider, model))).toMatchObject({ raw: '{"top_k":4}', enabled: false });
+    expect(loadCustomFragmentSettings(customFragmentScope(provider, model, 'transport-a', 'generation')).raw).toBe('');
+
+    fireEvent.change(textarea, { target: { value: '{"messages":[]}' } });
+    expect(screen.getByTestId('additional-body-error')).toBeTruthy();
+  });
+
+  it('writes this conversation\'s own copy when a conversationId is given, leaving the model default alone', () => {
+    saveAdditionalBody(additionalBodyScope(provider, model), { raw: '{"top_k":3}', enabled: true });
+    render(<CustomRequestFieldsEditor provider={provider} model={model} conversationId="conversation-1" />);
+    fireEvent.change(within('custom-fields-generation').querySelector('textarea')!, { target: { value: '{"top_k":5}' } });
+    expect(loadAdditionalBody(additionalBodyScope(provider, model, 'conversation-1'))).toMatchObject({ raw: '{"top_k":5}' });
+    expect(loadAdditionalBody(additionalBodyScope(provider, model))).toMatchObject({ raw: '{"top_k":3}' });
+  });
+});

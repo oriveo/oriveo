@@ -1,0 +1,34 @@
+/* Additional request body editor. Values use existing Web tokens; the dark code area follows the design, and --ab-line sets one line height shared by the line-number gutter, the highlight band and the textarea. */
+.editor { display:flex; flex-direction:column; gap:10px; --ab-line:18px; }
+.card { border:1px solid var(--o-border, #e5e7eb); border-radius:12px; background:var(--o-surface-raised, #fff); overflow:hidden; }
+.switchRow { display:flex; align-items:center; gap:12px; min-height:44px; padding:10px 12px; }
+.switchText { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.title { font-size:14px; color:var(--o-text, #18181b); }
+.note { margin:0; font-size:12px; line-height:1.45; overflow-wrap:anywhere; color:var(--o-text-secondary, #646b78); }
+.error { margin:0; font-size:12px; line-height:1.45; overflow-wrap:anywhere; color:var(--o-error-text, #b91c1c); }
+.code { border-radius:12px; background:#1e1f24; color:#e6e6eb; overflow:hidden; }
+.codeScroll { display:flex; max-height:320px; overflow:auto; padding:10px 0; font:12px/var(--ab-line) ui-monospace, SFMono-Regular, Menlo, monospace; }
+.gutter { flex:none; display:flex; flex-direction:column; padding:0 10px 0 12px; text-align:end; color:#8b8f99; user-select:none; }
+.gutter [data-error-line='true'] { color:#fca5a5; font-weight:600; }
+.textWrap { position:relative; flex:1; min-width:0; }
+.errorBand { position:absolute; inset-inline:0; height:var(--ab-line); background:rgba(239, 68, 68, .22); pointer-events:none; }
+.textarea { position:relative; display:block; box-sizing:border-box; width:100%; margin:0; padding:0 12px 0 0; border:0; background:transparent; color:inherit; font:inherit; line-height:var(--ab-line); white-space:pre; overflow:hidden; resize:none; outline:none; }
+/* The focus ring is drawn around the whole code area and tucked inward: the global input focus style would only outline the right half beside the gutter,
+   and the scroll container would clip its right edge. */
+.textarea:focus, .textarea:focus-visible { outline:none; box-shadow:none; }
+.code:focus-within { outline:2px solid var(--o-primary); outline-offset:-2px; }
+.codeBar { display:flex; align-items:center; gap:8px; min-height:40px; padding:4px 8px 4px 12px; border-top:1px solid rgba(255, 255, 255, .08); }
+.deviceOnly { flex:1; min-width:0; font-size:12px; color:#a1a5ae; }
+.barButton { min-height:30px; padding:0 12px; border:0; border-radius:999px; background:var(--o-bg-subtle, #f1f2f5); color:var(--o-text, #3f3f46); font:inherit; font-size:13px; cursor:pointer; }
+.codeBar .barButton { background:rgba(255, 255, 255, .1); color:#e6e6eb; }
+.barButton:focus-visible { outline:2px solid var(--o-focus-ring, #7c3aed); outline-offset:2px; }
+.confirm { display:flex; flex-direction:column; gap:6px; padding:10px 12px; border-radius:12px; background:var(--o-bg-subtle, #f1f2f5); font-size:13px; }
+.confirmActions { display:flex; justify-content:flex-end; gap:8px; }
+.listSection { display:flex; flex-direction:column; gap:6px; }
+.sectionTitle { margin:0; padding:4px 4px 0; font-size:12px; font-weight:600; letter-spacing:.06em; color:var(--o-text-secondary, #5f6673); }
+.listRow { display:flex; align-items:flex-start; gap:10px; padding:9px 12px; border-top:1px solid var(--o-border, #e5e7eb); }
+.listRow:first-child { border-top:0; }
+.listText { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.path { font:13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; word-break:break-all; color:var(--o-text, #18181b); }
+.included, .blocked { flex:none; font-size:12.5px; font-weight:600; line-height:1.55; white-space:nowrap; color:var(--o-success-text, #15803d); }
+.blocked { color:var(--o-error-text, #b91c1c); }

@@ -58,6 +58,8 @@ import { SavedNoteRefs } from "./SavedNoteRefs";
 
 import { isLibraryFeatureEnabled } from "../../lib/core/library/feature-flag";
 import { CUSTOM_FRAGMENT_ERROR_KIND } from "../../lib/core/chat/custom-fragment-rejection";
+import { ADDITIONAL_BODY_ERROR_KIND, OPEN_ADDITIONAL_BODY_EDITOR_EVENT } from "../../lib/core/chat/additional-body-rejection";
+import { generationParameterTitleKey } from "../../lib/core/chat/model-options-copy";
 import { QuoteContextChip } from "./QuoteContextChip";
 import { UnhandledToolCallCard } from "./UnhandledToolCallCard";
 import { UserMessageFullTextDialog } from "./UserMessageFullTextDialog";
@@ -293,6 +295,21 @@ export const MessageBubble = memo(function MessageBubble({
   const handleManagedAcknowledgePrivacy = useCallback(async () => {
     onRetry?.();
   }, [onRetry]);
+
+  // Located web / reasoning settings take priority (same order as the resend dispatch in ChatView).
+  const rejectedGenerationParameterId = message.capabilityRecovery
+    ? undefined
+    : message.generationParameterRejection?.parameterId;
+  const rejectedGenerationParameterTitleKey = rejectedGenerationParameterId
+    ? generationParameterTitleKey(rejectedGenerationParameterId)
+    : undefined;
+  const rejectedGenerationParameterTitle = rejectedGenerationParameterId
+    ? (rejectedGenerationParameterTitleKey ? tCommon(rejectedGenerationParameterTitleKey) : rejectedGenerationParameterId)
+    : undefined;
+
+  const openAdditionalBodyEditor = useCallback(() => {
+    window.dispatchEvent(new CustomEvent(OPEN_ADDITIONAL_BODY_EDITOR_EVENT));
+  }, []);
 
   const libraryRecoveryAction = useMemo(() => {
     if (!libraryFeatureEnabled) return null;
@@ -640,31 +657,46 @@ export const MessageBubble = memo(function MessageBubble({
               <div className={styles.inlineError}>
                 <MessageRecoveryCard
                   state="failed"
-                  errorTitle={message.errorTitle}
-                  errorDetail={message.errorDetail}
+                  // Upstream named one panel parameter as rejected: the title is that parameter's name, the body explains the way out, and the upstream's own text goes under technical details.
+                  errorTitle={rejectedGenerationParameterTitle ?? message.errorTitle}
+                  errorDetail={rejectedGenerationParameterTitle
+                    ? tCommon('capabilityControlUpstreamRejected')
+                    : message.errorDetail}
                   errorKind={message.errorKind}
                   errorSource={message.errorSource}
                   // Transport failures persist raw technical text into errorDetail: a dropped
                   // connection gives `Failed to fetch`. The body is localized by kind and the
-                  // original text stays under technical details. Custom request field rejections are
-                  // the exception: what they persist is already a localized sentence chosen by
-                  // rejection reason.
+                  // original text stays under technical details. Custom request field and additional
+                  // request body rejections are the exception: what they persist is already a
+                  // localized sentence chosen by rejection reason.
                   detailIsInternalTechnicalText={
                     (message.errorSource === "oriveo" ||
                       message.errorSource === "network") &&
-                    message.errorKind !== CUSTOM_FRAGMENT_ERROR_KIND
+                    message.errorKind !== CUSTOM_FRAGMENT_ERROR_KIND &&
+                    message.errorKind !== ADDITIONAL_BODY_ERROR_KIND
                   }
+                  technicalDetail={message.errorTechnicalDetail}
                   onRetry={onRetry}
                   onEdit={onEditAndResend ? handleStartEdit : undefined}
                   onSwitchModel={rateLimited ? onSwitchModel : undefined}
                   // Way out of a custom request field fail-closed: a plain retry gets rejected the same way,
                   // so the only action that can send the message right now is "send without custom fields".
-                  primaryActionLabel={message.errorKind === CUSTOM_FRAGMENT_ERROR_KIND
+                  // A local additional request body rejection sends nothing, so there is no retry path; the only way out is to edit the content.
+                  primaryActionLabel={message.errorKind === ADDITIONAL_BODY_ERROR_KIND
+                    ? tCommon('openAdditionalBody')
+                    : message.errorKind === CUSTOM_FRAGMENT_ERROR_KIND
                     ? tCommon('retryWithoutCustomRequestFields')
                     : message.capabilityRecovery?.action === 'user_confirmed_resend_without_located_setting'
-                      ? tCommon('resendWithoutSetting') : libraryRecoveryAction?.label}
-                  onPrimaryAction={message.errorKind === CUSTOM_FRAGMENT_ERROR_KIND
+                      || rejectedGenerationParameterTitle
+                      ? tCommon('resendWithoutSetting')
+                      : message.additionalBodyRetryEligible
+                        ? tCommon('retryWithoutAdditionalBody') : libraryRecoveryAction?.label}
+                  onPrimaryAction={message.errorKind === ADDITIONAL_BODY_ERROR_KIND
+                    ? openAdditionalBodyEditor
+                    : message.errorKind === CUSTOM_FRAGMENT_ERROR_KIND
                     || message.capabilityRecovery?.action === 'user_confirmed_resend_without_located_setting'
+                    || rejectedGenerationParameterTitle
+                    || message.additionalBodyRetryEligible
                     ? onRetryWithoutCustom : libraryRecoveryAction?.run}
                   disabled={interactionLocked}
                 />

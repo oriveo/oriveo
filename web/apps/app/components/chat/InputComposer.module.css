@@ -537,6 +537,27 @@
   color: var(--o-text);
 }
 
+/* Close button in the top-right corner of the main pane header. Its look belongs to @oriveo/ui CloseButton;
+   this only handles position and hit area. The header is two stacked lines of text, so the button is taken
+   out of the flow, otherwise it would be stretched into a full row. */
+.modelControlsHeader[data-closable='true'] {
+  position: relative;
+  padding-inline-end: 52px;
+}
+
+.modelControlsClose {
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-end: 8px;
+  min-height: 40px;
+}
+
+.modelControlsClose::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+}
+
 /* Mirror the back arrow under RTL, otherwise it points forward */
 .modelControlsBack svg {
   transform: scaleX(1);
@@ -774,6 +795,44 @@
   inset-inline: 0;
 }
 
+/* Segmented variant (thinking tiers and search timing in the main pane): equal-width cells in one track, with the selected cell raised.
+   The track uses the pill's original background and unselected cells are transparent, so the color behind the text is unchanged
+   and the contrast ratios still hold.
+   `auto-fit`: when the cells do not fit (long languages + six tiers) they wrap instead of overflowing horizontally. */
+.modelControlPills[data-variant] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
+  gap: 2px;
+  padding: 3px;
+  border-radius: 14px;
+  background: var(--o-surface);
+}
+
+.modelControlPills[data-variant] > .modelControlPill {
+  min-width: 0;
+  padding: 0 4px;
+  border-radius: 11px;
+  background: transparent;
+}
+
+.modelControlPills[data-variant] > .modelControlPill[data-active='true'] {
+  background: var(--o-segmented-selected-bg);
+}
+
+/* Tiers: icon on top, name below. At 52 high the cell already exceeds 44, so the hit area is not expanded further (when wrapped into two rows, the upper and lower cells would overlap). */
+.modelControlPills[data-variant='tiers'] > .modelControlPill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 52px;
+}
+
+.modelControlPills[data-variant='tiers'] > .modelControlPill::after {
+  inset-block: 0;
+}
+
 .modelControlPill:hover {
   color: var(--o-text);
 }
@@ -870,6 +929,21 @@
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* The way out inside a capability card is a text link (switch connection / open the additional request body / see which models can be adjusted):
+   the card already has toggles and segments, and an outlined button would outweigh them. The hit area reuses the pseudo-element layer above. */
+.modelControlInlineAction[data-variant='link'] {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--o-primary-text-on-surface);
+  font-weight: 600;
+}
+
+.modelControlInlineAction[data-variant='link']:hover:not(:disabled) {
+  text-decoration: underline;
 }
 
 /* 36 visually, 44 for the hit target, same technique as the pills. `inset-inline: 0` is
@@ -1110,6 +1184,7 @@
 .modelControlNavigationRow:focus-visible,
 .modelControlCandidateRow:focus-visible,
 .modelControlsBack:focus-visible,
+.modelControlsClose:focus-visible,
 .modelControlsCloseBar button:focus-visible {
   outline: 2px solid var(--o-primary);
   outline-offset: 2px;
