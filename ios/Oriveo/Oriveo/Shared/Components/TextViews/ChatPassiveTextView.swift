@@ -13,6 +13,28 @@ final class ChatPassiveTextView: UITextView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    /// `makeTextKit1` builds the layout stack itself, so something has to hold the text storage strongly.
+    private var ownedStorage: NSTextStorage?
+
+    /// Constructor for callers that want a TextKit 1 layout stack (table cells: same pixels, cheaper
+    /// to create).
+    /// `ChatPassiveTextView(usingTextLayoutManager: false)` is not used: it is a class factory that
+    /// bypasses this class's initializers. `configureForChat()` does not run (the delegate behind the
+    /// selection menu is never attached) and stored properties are zeroed memory instead of their
+    /// declared initial values (`pasteboard` is a null reference, so copying a selection that
+    /// contains a formula silently does nothing).
+    static func makeTextKit1() -> ChatPassiveTextView {
+        let storage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        let container = NSTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        container.widthTracksTextView = true
+        layoutManager.addTextContainer(container)
+        storage.addLayoutManager(layoutManager)
+        let view = ChatPassiveTextView(frame: .zero, textContainer: container)
+        view.ownedStorage = storage
+        return view
+    }
+
     override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         if gestureRecognizer === panGestureRecognizer {
             return false

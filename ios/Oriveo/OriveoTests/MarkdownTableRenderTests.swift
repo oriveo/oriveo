@@ -483,6 +483,69 @@ struct TableCardDeferredBuildTests {
         try body(root.view)
     }
 
+    /// A cell text view has to be a fully initialized `ChatPassiveTextView`: declared property
+    /// defaults in effect and `configureForChat()` run. Construction through the class factory
+    /// bypasses both without any error.
+    @Test("a cell text view built on the production path ran the class initializers")
+    func upgradedCellTextViewIsFullyInitialized() throws {
+        let card = UIKitTableCard(tableData: tableData(rows: 2, tag: "init-\(UUID().uuidString.prefix(6))"))
+        card.frame = CGRect(x: 0, y: 0, width: 360, height: 10)
+        card.layoutIfNeeded()
+        card.frame.size.height = card.intrinsicContentSize.height
+        card.completeDeferredRows()
+        let cell = try #require(card._testCell(row: 1, column: 0)?.view as? ChatPassiveTextView)
+
+        // Read the state into plain values before asserting: in an uninitialized instance
+        // `pasteboard` is a null reference, and when an expectation fails the test framework
+        // describing the view would take the host down without reporting anything.
+        let state: [String: Bool] = [
+            // configureForChat()
+            "delegate is self": cell.delegate === cell,
+            "delaysContentTouches off": cell.delaysContentTouches == false,
+            "pan gesture off": cell.panGestureRecognizer.isEnabled == false,
+            "contiguous layout": cell.layoutManager.allowsNonContiguousLayout == false,
+            "contentMode topLeft": cell.contentMode == .topLeft,
+            // set explicitly when the cell is built
+            "quoteContentKind is table": cell.quoteContentKind == .table,
+            // property defaults
+            "useStableWidthForIntrinsic off": cell.useStableWidthForIntrinsic == false,
+            "stripsSoftParagraphBreaks off": cell.stripsSoftParagraphBreaks == false,
+            "usesLengthOnlyIntrinsicHeightCache on": cell.usesLengthOnlyIntrinsicHeightCache == true,
+            "pasteboard set": unsafeBitCast(cell.pasteboard, to: Int.self) != 0,
+        ]
+        let violated = state.filter { !$0.value }.keys.sorted()
+        #expect(violated == [])
+    }
+
+    /// For a selection that contains a formula this class rewrites the pasteboard (in the display
+    /// string a formula is only an attachment placeholder). The default pasteboard is checked to be
+    /// the system one first, then a separate pasteboard is injected to verify the write, so the
+    /// system pasteboard itself is never read or written.
+    @Test("copying a cell selection that contains a formula yields the formula source")
+    func upgradedCellCopiesMathSource() throws {
+        let card = UIKitTableCard(tableData: tableData(rows: 2, tag: "copy-\(UUID().uuidString.prefix(6))"))
+        card.frame = CGRect(x: 0, y: 0, width: 360, height: 10)
+        card.layoutIfNeeded()
+        card.frame.size.height = card.intrinsicContentSize.height
+        card.completeDeferredRows()
+        let cell = try #require(card._testCell(row: 1, column: 0)?.view as? ChatPassiveTextView)
+        let defaultIsSet = unsafeBitCast(cell.pasteboard, to: Int.self) != 0
+        #expect(defaultIsSet)
+        if defaultIsSet { #expect(cell.pasteboard === UIPasteboard.general) }
+
+        let pasteboard = UIPasteboard.withUniqueName()
+        defer { UIPasteboard.remove(withName: pasteboard.name) }
+        cell.pasteboard = pasteboard
+        let content = NSMutableAttributedString(string: "E = ")
+        content.append(NSAttributedString(
+            attachment: LatexAttachment(image: UIImage(), font: .systemFont(ofSize: 17), isInline: true, latex: "mc^2")
+        ))
+        cell.attributedText = content
+        cell.selectedRange = NSRange(location: 0, length: cell.textStorage.length)
+        cell.copy(nil)
+        #expect(pasteboard.string == "E = $mc^2$")
+    }
+
     private func tableData(rows: Int, tag: String, mathLatex: String? = nil) -> UIKitTableCard.TableData {
         UIKitTableCard.TableData(
             headers: ["Model", "Context", "Input", "Output", "Notes"],

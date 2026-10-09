@@ -508,7 +508,7 @@ final class UIKitTableCard: UIView {
         guard let placeholder = rowViews[rowIdx].cells[j] as? CellPlaceholderView else { return }
         let isHeader = rowIdx == 0
         // TextKit 1: same pixels, roughly 25% cheaper to create.
-        let label = ChatPassiveTextView(usingTextLayoutManager: false)
+        let label = ChatPassiveTextView.makeTextKit1()
         label.isEditable = false
         label.isSelectable = true
         label.isScrollEnabled = false
