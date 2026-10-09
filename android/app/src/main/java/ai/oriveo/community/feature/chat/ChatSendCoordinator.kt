@@ -94,6 +94,10 @@ internal class ChatSendCoordinator(
         val resendSettingOwner = omitSettingOwner.takeIf { omitSettingCacheMatches }
         val resendRecipeRef = omitRecipeRef.takeIf { omitSettingCacheMatches }
         val resendSettingPointers = omitSettingPointers.takeIf { omitSettingCacheMatches }.orEmpty()
+        // One-shot way out after a local rejection or an upstream rejection of the additional request body:
+        // omit it for this request only, without touching what is stored.
+        val omitLocalOwnerOnce = appendToAssistant?.customRetryWithoutFieldsCode
+            ?.let(::omitLocalFieldsOnceOwner)
         // Same resolution the composer chip and the model-control panel use. What goes out on the
         // wire and what the UI shows must always come from one conclusion, never two.
         val storedTypedPreferences = capabilityPreferenceStore?.resolvedForRequest(
@@ -166,12 +170,22 @@ internal class ChatSendCoordinator(
         // without touching what the user has stored.
         val localCustomFragments = storedCustomFragments
             .mapNotNull { (owner, raw) ->
+                // The additional request body now owns the outbound path of the legacy generation custom
+                // field (stored values are migrated), so it is not sent from here any more.
                 (owner to raw).takeIf {
-                    owner !in dormantOwners && resendSettingOwner != owner
+                    owner != "generation" && owner !in dormantOwners && resendSettingOwner != owner &&
+                        omitLocalOwnerOnce != owner
                 }
             }
             .toMap()
         val customOwners = localCustomFragments.keys
+        val additionalRequestBody = if (omitLocalOwnerOnce != ai.oriveo.community.core.provider.AdditionalRequestBody.OWNER) {
+            localCustomFragmentStore?.outboundAdditionalBody(
+                provider.id,
+                modelControlIdentity?.canonicalModelId ?: modelId,
+                conversation.id,
+            )
+        } else null
         val customTypedPreferences = dispatchedTypedPreferences.copy(
             web = if ("web" in customOwners) CapabilityWebPreference.Off else dispatchedTypedPreferences.web,
             reasoningIntent = if ("reasoning" in customOwners) null else dispatchedTypedPreferences.reasoningIntent,
@@ -248,7 +262,7 @@ internal class ChatSendCoordinator(
                     }?.let { owner to mapOf(recipeRef to it) }
                 }.toMap()
                 options.copy(
-                    generationParameters = if ("generation" in customOwners || "generation" in dormantOwners) null else generationParameterSettingsStore.resolve(
+                    generationParameters = if ("generation" in dormantOwners) null else generationParameterSettingsStore.resolve(
                         transient = baseRequestOptions.generationParameters,
                         providerID = provider.id,
                         modelID = modelId,
@@ -278,6 +292,7 @@ internal class ChatSendCoordinator(
                     capabilityPreferences = customTypedPreferences,
                     localCustomFragment = localCustomFragments["generation"],
                     localCustomFragments = localCustomFragments,
+                    additionalRequestBody = additionalRequestBody,
                     // Every provider carries the same identity carrier. It holds only opaque local
                     // generation/epoch/revision values and never reads or forwards a key; the real
                     // transport and endpoint are filled in by the dispatch layer, which fails
@@ -324,3 +339,12 @@ internal class ChatSendCoordinator(
         }
     }
 }
+
+internal const val OMIT_LOCAL_FIELDS_ONCE_PREFIX = "omit_local_fields_once:"
+
+/** Only these three owners are recognized in a local recovery marker; any other value counts as no marker. */
+internal fun omitLocalFieldsOnceOwner(marker: String): String? =
+    marker.removePrefix(OMIT_LOCAL_FIELDS_ONCE_PREFIX).takeIf {
+        marker.startsWith(OMIT_LOCAL_FIELDS_ONCE_PREFIX) &&
+            it in setOf(ai.oriveo.community.core.provider.AdditionalRequestBody.OWNER, "web", "reasoning")
+    }

@@ -13,7 +13,14 @@ class LocalCapabilityCustomFragmentStore internal constructor(
     private val readRetiredDeveloperGate: () -> Boolean? = { null },
     private val clearRetiredDeveloperGate: () -> Unit = {},
     private val json: Json = Json { ignoreUnknownKeys = true; coerceInputValues = true },
+    readAdditionalBody: (() -> String?)? = null,
+    writeAdditionalBody: ((String?) -> Unit)? = null,
 ) {
+    // A constructor given only the two older lambdas (storage unit tests) falls back to process memory, so the additional request body is never dropped silently.
+    private var memoryAdditionalBody: String? = null
+    private val readAdditional: () -> String? = readAdditionalBody ?: { memoryAdditionalBody }
+    private val writeAdditional: (String?) -> Unit = writeAdditionalBody ?: { memoryAdditionalBody = it }
+
 
     private var cachedRaw: String? = null
     private var cachedRecords: List<Record> = emptyList()
@@ -21,6 +28,111 @@ class LocalCapabilityCustomFragmentStore internal constructor(
 
     init {
         migrateRetiredDeveloperGate()
+        migrateLegacyGenerationFragments()
+    }
+
+    /**
+     * Additional request body: the content is stored apart from the "send with request" switch, so it survives being turned off.
+     * Keyed by connection x model x conversation (or the model default); the transport and recipe version are not part of the key.
+     */
+    data class AdditionalBody(val rawJSON: String, val sendWithRequest: Boolean) {
+        companion object {
+            val Empty = AdditionalBody(rawJSON = "", sendWithRequest = false)
+        }
+    }
+
+    @Serializable
+    internal data class AdditionalBodyRecord(
+        val providerID: String,
+        val modelID: String,
+        val conversationID: String,
+        val rawJSON: String,
+        val sendWithRequest: Boolean,
+        val updatedAt: Long,
+    )
+
+    /** Falls back to the model-default layer when the conversation layer has no record; a conversation record, even a disabled one, wins. */
+    fun additionalBody(providerID: String, modelID: String, conversationID: String?): AdditionalBody {
+        migrateLegacyGenerationFragments()
+        return synchronized(this) {
+            val scope = conversationID ?: MODEL_DEFAULT_CONVERSATION
+            val records = additionalBodyRecords()
+            fun find(conversation: String) = records.firstOrNull {
+                it.providerID.equals(providerID, ignoreCase = true) && it.modelID == modelID &&
+                    it.conversationID == conversation
+            }
+            (find(scope) ?: find(MODEL_DEFAULT_CONVERSATION).takeIf { scope != MODEL_DEFAULT_CONVERSATION })
+                ?.let { AdditionalBody(it.rawJSON, it.sendWithRequest) }
+                ?: AdditionalBody.Empty
+        }
+    }
+
+    /** The text that is really sent with this request; null when it is switched off or blank. */
+    fun outboundAdditionalBody(providerID: String, modelID: String, conversationID: String?): String? =
+        additionalBody(providerID, modelID, conversationID)
+            .takeIf { it.sendWithRequest && it.rawJSON.isNotBlank() }?.rawJSON
+
+    fun setAdditionalBody(body: AdditionalBody, providerID: String, modelID: String, conversationID: String?) =
+        synchronized(this) {
+            val scope = conversationID ?: MODEL_DEFAULT_CONVERSATION
+            val next = additionalBodyRecords().filterNot {
+                it.providerID.equals(providerID, ignoreCase = true) && it.modelID == modelID && it.conversationID == scope
+            }.toMutableList()
+            if (body.sendWithRequest || body.rawJSON.isNotBlank()) {
+                next += AdditionalBodyRecord(
+                    providerID = providerID,
+                    modelID = modelID,
+                    conversationID = scope,
+                    rawJSON = body.rawJSON,
+                    sendWithRequest = body.sendWithRequest,
+                    updatedAt = System.currentTimeMillis(),
+                )
+            }
+            writeAdditionalBodyRecords(next)
+        }
+
+    /**
+     * Moves legacy generation custom fields into the additional request body: per scope the most recently edited text is taken; one that was being sent and is valid under the new rules
+     * keeps being sent, and the rest (disabled, half-written JSON, protected fields) stays as a draft that is not sent. The old records are deleted afterwards,
+     * so running it again has no effect, and an existing additional request body in the target scope is never overwritten.
+     */
+    private fun migrateLegacyGenerationFragments() = synchronized(this) {
+        val legacy = records().filter { it.namespace == GENERATION_NAMESPACE }
+        if (legacy.isEmpty()) return@synchronized
+        val existing = additionalBodyRecords()
+        val migrated = legacy
+            .filter { it.rawJSON.isNotBlank() }
+            .groupBy { Triple(it.providerID.lowercase(), it.modelID, it.conversationID) }
+            .values
+            .mapNotNull { group -> group.maxByOrNull { it.updatedAt } }
+            .filter { record ->
+                existing.none {
+                    it.providerID.equals(record.providerID, ignoreCase = true) && it.modelID == record.modelID &&
+                        it.conversationID == record.conversationID
+                }
+            }
+            .map { record ->
+                val valid = ai.oriveo.community.core.provider.AdditionalRequestBody.validate(record.rawJSON) is
+                    ai.oriveo.community.core.provider.AdditionalRequestBody.Validation.Accepted
+                AdditionalBodyRecord(
+                    providerID = record.providerID,
+                    modelID = record.modelID,
+                    conversationID = record.conversationID,
+                    rawJSON = record.rawJSON,
+                    sendWithRequest = record.enabled && valid,
+                    updatedAt = record.updatedAt,
+                )
+            }
+        writeAdditionalBodyRecords(existing + migrated)
+        write(json.encodeToString(records().filterNot { it.namespace == GENERATION_NAMESPACE }))
+    }
+
+    private fun additionalBodyRecords(): List<AdditionalBodyRecord> = readAdditional()?.let {
+        runCatching { json.decodeFromString<List<AdditionalBodyRecord>>(it) }.getOrDefault(emptyList())
+    }.orEmpty()
+
+    private fun writeAdditionalBodyRecords(records: List<AdditionalBodyRecord>) {
+        writeAdditional(json.encodeToString(records.sortedByDescending { it.updatedAt }.take(MAX_RECORDS)))
     }
 
     private fun migrateRetiredDeveloperGate() {
@@ -265,7 +377,15 @@ class LocalCapabilityCustomFragmentStore internal constructor(
         toConversationID: String,
         transportIdentity: String,
     ) = synchronized(this) {
-        if (fromConversationID == toConversationID || transportIdentity.isBlank()) return@synchronized
+        if (fromConversationID == toConversationID) return@synchronized
+        additionalBodyRecords().firstOrNull {
+            it.providerID.equals(providerID, ignoreCase = true) && it.modelID == modelID &&
+                it.conversationID == fromConversationID
+        }?.let { source ->
+            setAdditionalBody(AdditionalBody(source.rawJSON, source.sendWithRequest), providerID, modelID, toConversationID)
+            setAdditionalBody(AdditionalBody.Empty, providerID, modelID, fromConversationID)
+        }
+        if (transportIdentity.isBlank()) return@synchronized
         supportedNamespaces().forEach { namespace ->
 
             val source = latestRecord(providerID, modelID, fromConversationID, transportIdentity, namespace)
@@ -292,10 +412,20 @@ class LocalCapabilityCustomFragmentStore internal constructor(
                 (conversationID == null || it.conversationID == conversationID)
         }
         write(json.encodeToString(next))
+        writeAdditionalBodyRecords(
+            additionalBodyRecords().filterNot {
+                (providerID == null || it.providerID.equals(providerID, ignoreCase = true)) &&
+                    (modelID == null || it.modelID == modelID) &&
+                    (conversationID == null || it.conversationID == conversationID)
+            },
+        )
     }
 
     /** Raw developer fields must not survive an account boundary. */
-    fun clearAll() = synchronized(this) { write(null) }
+    fun clearAll() = synchronized(this) {
+        write(null)
+        writeAdditional(null)
+    }
 
     private fun records(): List<Record> = synchronized(this) {
         val raw = read()
@@ -339,6 +469,7 @@ class LocalCapabilityCustomFragmentStore internal constructor(
         const val MODEL_DEFAULT_CONVERSATION = ""
         private const val PREFS_NAME = "local_capability_custom_fragments"
         private const val KEY_PAYLOAD = "v1"
+        private const val KEY_ADDITIONAL_BODY = "additional_body_v1"
 
         private const val KEY_RETIRED_DEVELOPER_MODE = "developer_mode"
         private const val MAX_RECORDS = 100
@@ -371,6 +502,8 @@ class LocalCapabilityCustomFragmentStore internal constructor(
                 clearRetiredDeveloperGate = {
                     prefs.edit().remove(KEY_RETIRED_DEVELOPER_MODE).apply()
                 },
+                readAdditionalBody = { prefs.getString(KEY_ADDITIONAL_BODY, null) },
+                writeAdditionalBody = { payload -> prefs.edit().putString(KEY_ADDITIONAL_BODY, payload).apply() },
             )
         }
     }

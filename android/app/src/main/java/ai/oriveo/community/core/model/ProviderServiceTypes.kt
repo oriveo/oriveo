@@ -35,6 +35,17 @@ sealed class ProviderServiceError : Exception() {
     data object EmptyModelCatalog : ProviderServiceError()
     data object EmptyResponse : ProviderServiceError()
     data class InvalidConfiguration(val detail: String) : ProviderServiceError()
+    /**
+     * The user's additional request body or web-search / thinking custom fields failed local validation, so this message was not sent.
+     * Kept apart from [InvalidConfiguration]: the connection itself is fine and must not be presented as a configuration fault (Critical).
+     * The technical details carry only a safe code, never key names or values the user wrote (protected fields and forbidden segment names come from a fixed vocabulary and may appear).
+     */
+    data class LocalRequestRejected(
+        val owner: String,
+        val reason: String,
+        val fieldName: String? = null,
+        val line: Int? = null,
+    ) : ProviderServiceError()
     data class Network(val detail: String) : ProviderServiceError()
     data class Upstream(
         val statusCode: Int,
@@ -78,6 +89,7 @@ sealed class ProviderServiceError : Exception() {
             is EmptyModelCatalog -> "No Models Found"
             is EmptyResponse -> "Empty Provider Response"
             is InvalidConfiguration -> "Provider Configuration Error"
+            is LocalRequestRejected -> "Custom request fields"
             is Network, is Upstream -> "Provider Request Failed"
             is GrokSubscription -> "Grok subscription"
             is OpenAISubscription -> "ChatGPT subscription"
@@ -93,6 +105,7 @@ sealed class ProviderServiceError : Exception() {
             is EmptyModelCatalog -> "The provider returned an empty model catalog, so we could not finish setup."
             is EmptyResponse -> "The provider returned no assistant content for this message."
             is InvalidConfiguration -> "The selected provider configuration is incomplete, so the request could not be sent."
+            is LocalRequestRejected -> "This message was not sent. Fix the custom request fields and try again."
             is Network -> "The request did not complete successfully. Please check your network and try again."
             is Upstream -> "The provider returned an error for this request. Please retry or switch models."
             is GrokSubscription -> reason.userMessage
@@ -109,6 +122,15 @@ sealed class ProviderServiceError : Exception() {
             is EmptyModelCatalog -> "The provider model catalog returned zero models."
             is EmptyResponse -> "The provider chat completion finished without any text content."
             is InvalidConfiguration -> detail
+            is LocalRequestRejected -> buildString {
+                if (owner == ai.oriveo.community.core.provider.AdditionalRequestBody.OWNER) {
+                    append("additional_body_rejected:").append(reason)
+                    fieldName?.let { append(':').append(it) }
+                } else {
+                    append("custom_request_fields_rejected:").append(owner).append(':').append(reason)
+                }
+                line?.let { append('@').append(it) }
+            }
             is Network -> detail
             is Upstream -> "Upstream HTTP $statusCode: $detail"
             is GrokSubscription -> "Grok subscription ${reason.name}: $detail"
