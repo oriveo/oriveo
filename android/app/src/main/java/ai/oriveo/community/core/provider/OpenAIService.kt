@@ -522,6 +522,7 @@ class OpenAIService(
                                             throw ProviderServiceError.Upstream(
                                                 statusCode = 200,
                                                 detail = extractErrorMessage(payload) ?: "OpenAI Responses stream failed.",
+                                                streamErrorFrame = true,
                                             )
                                         }
                                     }

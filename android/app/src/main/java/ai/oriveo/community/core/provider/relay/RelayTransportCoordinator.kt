@@ -853,7 +853,7 @@ internal class RelayTransportCoordinator(
             val safeDetail = RelayDebugSnippet.extract(payload, redacting = credentials)
                 .orEmpty()
                 .ifBlank { "The custom LLM returned an error." }
-            throw ProviderServiceError.Upstream(statusCode = 200, detail = safeDetail)
+            throw ProviderServiceError.Upstream(statusCode = 200, detail = safeDetail, streamErrorFrame = true)
         }
         return ""
     }
@@ -1175,6 +1175,7 @@ internal class RelayTransportCoordinator(
                                                                 // structural classification above; it
                                                                 // is never persisted or shown.
                                                                 detail = "The custom LLM Responses stream reported a failure.",
+                                                                streamErrorFrame = true,
                                                             )
                                                         }
                                                     }

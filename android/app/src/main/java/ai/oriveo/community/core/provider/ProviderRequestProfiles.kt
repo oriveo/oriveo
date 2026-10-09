@@ -273,7 +273,11 @@ internal fun applyCapabilityRuntimeCustomFragment(
             ?: throw ProviderServiceError.LocalRequestRejected(owner, "transport_or_schema_mismatch")
         val custom = ProviderRecipeExecution.compileSafeCustom(raw, owner, authority.owners)
         if (!custom.accepted || custom.delta == null) {
-            throw ProviderServiceError.LocalRequestRejected(owner, custom.reason ?: "invalid_fragment")
+            val reason = custom.reason ?: "invalid_fragment"
+            // An unknown field carries the same official declaration the validation used (shared with the editor's
+            // safeCustomAllowedPaths), and never the key the user wrote.
+            val allowed = if (reason == "unknown_path") authority.owners.keys.sorted() else emptyList()
+            throw ProviderServiceError.LocalRequestRejected(owner, reason, allowedPaths = allowed)
         }
         if ((custom.delta.leafPointers() intersect body.leafPointers()).isNotEmpty()) {
             throw ProviderServiceError.LocalRequestRejected(owner, "typed_field_conflict")

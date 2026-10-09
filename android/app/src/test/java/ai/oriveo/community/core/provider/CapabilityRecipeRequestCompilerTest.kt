@@ -708,6 +708,16 @@ class CapabilityRecipeRequestCompilerTest {
             ProviderKind.Qwen, "qwen-custom", false,
             ChatRequestOptions(localCustomFragment = web.string("raw")!!, localCustomOwner = web.string("owner")!!),
         ))
+        // A field the section does not accept: the error carries the fields that section may use (the official declaration).
+        val unknownWeb = captureMatrix(
+            ProviderKind.Qwen, "qwen-custom", false,
+            ChatRequestOptions(localCustomFragment = "{\"user_secret_key\":\"v\"}", localCustomOwner = "web"),
+        )
+        val unknownRejection = unknownWeb.error as ai.oriveo.community.core.model.ProviderServiceError.LocalRequestRejected
+        assertEquals("unknown_path", unknownRejection.reason)
+        val allowedWeb = safeCustomAllowedPaths(ProviderKind.Qwen, "qwen-custom", "openai_chat", null, "web")
+        assertTrue("declared web paths", allowedWeb.isNotEmpty())
+        assertEquals(allowedWeb, unknownRejection.allowedPaths)
         // The risk tier behind the cost and privacy warnings comes only from controlDefinitions.riskTier as published;
         // qwen.web.enable_search is declared privacy_impacting there.
         assertEquals(

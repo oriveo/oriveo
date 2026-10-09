@@ -45,6 +45,8 @@ sealed class ProviderServiceError : Exception() {
         val reason: String,
         val fieldName: String? = null,
         val line: Int? = null,
+        /** For a "field this section does not accept" rejection, the fields the section does allow: official declared paths, never user input. */
+        val allowedPaths: List<String> = emptyList(),
     ) : ProviderServiceError()
     data class Network(val detail: String) : ProviderServiceError()
     data class Upstream(
@@ -52,6 +54,8 @@ sealed class ProviderServiceError : Exception() {
         val detail: String,
         /** Structured `/error/param` only; never inferred from message/detail text. */
         val rejectedParameter: String? = null,
+        /** Set when thrown from an unclassified in-stream error frame; blocking or empty-result fallbacks do not count. This flag alone decides "retry without the additional request body"; message text is never compared. */
+        val streamErrorFrame: Boolean = false,
     ) : ProviderServiceError()
     /**
      * A Grok subscription sign-in failed.
@@ -130,6 +134,13 @@ sealed class ProviderServiceError : Exception() {
                     append("custom_request_fields_rejected:").append(owner).append(':').append(reason)
                 }
                 line?.let { append('@').append(it) }
+                if (allowedPaths.isNotEmpty()) {
+                    // Paths are official declarations and may contain ':' or '@', so they are encoded and appended last
+                    append("#allowed=").append(
+                        java.util.Base64.getUrlEncoder().withoutPadding()
+                            .encodeToString(allowedPaths.joinToString("\u001f").toByteArray(Charsets.UTF_8)),
+                    )
+                }
             }
             is Network -> detail
             is Upstream -> "Upstream HTTP $statusCode: $detail"

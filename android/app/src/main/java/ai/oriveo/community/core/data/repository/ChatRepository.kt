@@ -93,7 +93,8 @@ internal const val LOCAL_FIELDS_RETRY_OFFER_PREFIX = "local_fields_retry_offer:"
  *
  * - Web-search or thinking custom fields failed local validation: no request was sent, so offer a way out for that section (not for a local rejection of the additional request body, which has to be fixed and resent).
  * - The request really carried the additional request body, no upstream event had arrived yet and there was no tool side effect, and the failure is an HTTP 400 or an in-stream error frame
- *   that is not classified as quota / rate limit / auth / model unavailable (`mapStreamError` maps it to `Upstream(200)`).
+ *   that is not classified as quota / rate limit / auth / model unavailable (an `Upstream(200)` carrying the `streamErrorFrame` mark).
+ *   An `Upstream(200)` that is not an error frame, such as an empty stream or a blocking fallback, gets no way out.
  *   An error after content has already arrived means the upstream started answering and is not a rejection of the request body, so no way out is offered.
  */
 internal fun localFieldsRetryOwner(
@@ -107,12 +108,19 @@ internal fun localFieldsRetryOwner(
     }
     if (sentAdditionalBody.isNullOrBlank() || receivedUpstreamEvent || hadToolSideEffects) return null
     val rejectsBody = when (error) {
-        is ProviderServiceError.Upstream -> error.statusCode == 400 || error.statusCode == 200
+        is ProviderServiceError.Upstream -> error.statusCode == 400 || (error.statusCode == 200 && error.streamErrorFrame)
         is ProviderServiceError.RelayUpstream -> error.statusCode == 400
         else -> false
     }
     return ai.oriveo.community.core.provider.AdditionalRequestBody.OWNER.takeIf { rejectsBody }
 }
+
+/** Title of the error card when the upstream rejected a request that carried the additional request body; the English source string is localized through the ErrorMapper title table. */
+internal const val ADDITIONAL_BODY_REJECTED_UPSTREAM_TITLE = "Request with additional request body was rejected"
+
+/** Driven by the same decision as [localFieldsRetryOwner]: the title changes only when the "retry without the additional request body" way out is offered, otherwise it is left as is. */
+internal fun localFieldsFailureTitle(title: String?, retryOwner: String?): String? =
+    if (retryOwner == ai.oriveo.community.core.provider.AdditionalRequestBody.OWNER) ADDITIONAL_BODY_REJECTED_UPSTREAM_TITLE else title
 
 /**
  * Sends a message and drives the stream that answers it.
@@ -1030,7 +1038,7 @@ class ChatRepository(
             val failedMessage = assistantPlaceholder.copy(
                 text = outputs.streamingText.value.trim(),
                 state = ChatMessageState.Failed,
-                errorTitle = title,
+                errorTitle = localFieldsFailureTitle(title, localFieldsRetryOwner),
                 errorDetail = detail,
                 // A rejected response is not observed success. Preserve only the production
                 // dispatch facts; the exact recipe/custom locator is carried separately by CTA.

@@ -274,6 +274,10 @@ internal object GenerationParameterResolver {
                 dropped += DroppedParameter(key, DropReason.ThinkingIncompatible)
             }
         }
+        // Decided on the request body: values the builder wrote itself (a legacy temperature and the like) are dropped too, but they are not panel values and stay off the dropped list.
+        for (field in thinkingIncompatibleParameters) {
+            if (field in root) root = JsonObject(root - field)
+        }
         val budget = (thinking["budget_tokens"] as? JsonPrimitive)?.longOrNull ?: return root
         val maxTokensKey = profile?.wire?.entries?.firstOrNull { it.value == "max_tokens" }?.key
         val userMaxTokens = maxTokensKey?.let(written::get)
