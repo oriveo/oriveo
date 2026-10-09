@@ -717,7 +717,6 @@ internal fun ChatScreenContent(
                         returnToNoteId = if (canReplaceCurrentNote) viewModel.noteCoordinator.returnToNoteId else null,
                         onOpenSavedNote = onNavigateToNoteDetail,
                         highlightedMessageId = noteFocusHighlightId,
-                        context = context,
                         coroutineScope = coroutineScope,
                         latestMessageCount = latestMessageCount,
                     )

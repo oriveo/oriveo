@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -96,7 +97,6 @@ internal fun BoxScope.ChatMessagesList(
     returnToNoteId: String?,
     onOpenSavedNote: (String) -> Unit,
     highlightedMessageId: String?,
-    context: Context,
     coroutineScope: CoroutineScope,
     latestMessageCount: Int,
 ) {
@@ -268,6 +268,50 @@ internal fun BoxScope.ChatMessagesList(
         }
     }
 
+    ChatScrollToBottomOverlay(
+        listState = listState,
+        scrollController = scrollController,
+        composerOverlayHeightDp = composerOverlayHeightDp,
+        coroutineScope = coroutineScope,
+        latestMessageCount = latestMessageCount,
+    )
+
+    ChatOutlineRail(
+        messages = messages,
+        listState = listState,
+        hasMoreAbove = hasMoreAbove,
+        hasMoreBelow = hasMoreBelow,
+        scrollController = scrollController,
+        coroutineScope = coroutineScope,
+    )
+}
+
+/**
+ * The "jump to latest" button, kept in its own recomposition scope.
+ *
+ * `showScrollToBottom` is a `derivedStateOf`, so whoever reads it is invalidated when it flips. Read
+ * inside [ChatMessagesList] itself, every flip recomposed the whole list function, handed `LazyColumn`
+ * a new content lambda, produced a new `LazyListIntervalContent` (which does not override `equals`),
+ * made `LazyListItemProviderImpl.equals` report a change, and so recomposed every visible message cell
+ * together with its markdown subtree.
+ *
+ * `canScrollForward` flips when the list reaches either edge and `following` flips on follow
+ * detach/reclaim and on streaming mode changes, all of which happen constantly while reading a long
+ * conversation. With the read moved here, a flip recomposes only this button.
+ *
+ * `coroutineScope` is still passed in rather than created with `rememberCoroutineScope()` here: the
+ * scroll-to-bottom animation has to outlive the button's own fade-out, and a scope tied to the button
+ * would be cancelled halfway through.
+ */
+@Composable
+private fun BoxScope.ChatScrollToBottomOverlay(
+    listState: LazyListState,
+    scrollController: ChatScrollController,
+    composerOverlayHeightDp: Dp,
+    coroutineScope: CoroutineScope,
+    latestMessageCount: Int,
+) {
+    val context = LocalContext.current
     val showScrollToBottom by remember(listState, scrollController) {
         derivedStateOf { listState.canScrollForward && !scrollController.following }
     }
@@ -293,14 +337,4 @@ internal fun BoxScope.ChatMessagesList(
             },
         )
     }
-
-    ChatOutlineRail(
-        messages = messages,
-        listState = listState,
-        hasMoreAbove = hasMoreAbove,
-        hasMoreBelow = hasMoreBelow,
-        scrollController = scrollController,
-        context = context,
-        coroutineScope = coroutineScope,
-    )
 }
