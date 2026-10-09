@@ -71,6 +71,15 @@ export async function adaptMoonshotToolLoopResponse(
             }
           }
 
+          // Evidence that web search actually ran: an accepted $web_search call whose
+          // arguments carry a non-empty search_result.search_id (the upstream only fills
+          // it in after performing the search). The summary names the tool only and
+          // never includes search content.
+          for (const toolCall of outcome.toolCalls) {
+            if (!moonshotWebSearchExecuted(toolCall.function!.arguments!)) continue;
+            emit(JSON.stringify({ type: "tool_result", tool: "$web_search", summary: "$web_search", step: leg + 1 }));
+          }
+
           // Feed back: echo the assistant tool-call message plus the tool result, with
           // arguments returned verbatim.
           // Kimi contract: when thinking is in effect (enabled by default on k2.5/k2.6), an
@@ -264,6 +273,21 @@ export function runMoonshotBuiltinTool(toolCall: MoonshotToolCall): string {
     return JSON.stringify({ error: `Unsupported tool: ${name || "unknown"}` });
   }
   return toolCall.function?.arguments || "{}";
+}
+
+/** Reads the evidence field only and never rewrites arguments, which are echoed back verbatim. Unparseable arguments or a missing search_id do not count as executed. */
+function moonshotWebSearchExecuted(argumentsText: string): boolean {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(argumentsText);
+  } catch {
+    return false;
+  }
+  if (typeof parsed !== "object" || parsed === null) return false;
+  const searchResult = (parsed as { search_result?: unknown }).search_result;
+  if (typeof searchResult !== "object" || searchResult === null) return false;
+  const searchID = (searchResult as { search_id?: unknown }).search_id;
+  return typeof searchID === "string" && searchID.trim().length > 0;
 }
 
 function finalizeToolCalls(builders: Map<number, MoonshotToolCallBuilder>): MoonshotToolCall[] {

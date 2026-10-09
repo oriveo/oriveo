@@ -2,6 +2,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createProxyChunkParser } from '@oriveo/core/providers/proxy-chunk-parser';
+import { adaptGeminiInteractionsResponse } from '@oriveo/core/providers/response-adapters/gemini-interactions';
+import { adaptMoonshotFormulaFiberResponse } from '@oriveo/core/providers/response-adapters/moonshot-formula-fiber-loop';
+import { adaptMoonshotToolLoopResponse } from '@oriveo/core/providers/response-adapters/moonshot-tool-loop';
 import type { StreamEvent } from '../providers/types';
 import { buildCapabilityResultContext, collectCapabilityResults, type CapabilityResultContext } from './capability-result-runtime';
 import { decideCapabilityRecovery } from './capability-recovery-runtime';
@@ -62,7 +65,28 @@ function contextFor(coverage: Pick<Coverage, 'recipeRef'>): CapabilityResultCont
   }, runtimeEnvelope);
 }
 
-function parseProductionEvents(coverage: Coverage): StreamEvent[] {
+const sseResponse = (body: string) => new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+const answerLeg = () => sseResponse('data: {"choices":[{"delta":{"content":"answer"}}]}\n\ndata: [DONE]\n\n');
+const moonshotRequest = {
+  url: 'https://api.moonshot.ai/v1/chat/completions',
+  headers: { Authorization: 'Bearer sk-test' },
+  body: { model: 'kimi-k2.6', stream: true, messages: [{ role: 'user', content: 'news' }] },
+};
+
+/** Feeds adapter-produced SSE to the production parser, the same path the browser takes after receiving the route response (`data:` lines only). */
+async function parseAdapted(response: Response, providerKind: Coverage['providerKind']): Promise<StreamEvent[]> {
+  const parse = createProxyChunkParser(providerKind);
+  const events: StreamEvent[] = [];
+  for (const line of (await response.text()).split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data: ') || trimmed === 'data: [DONE]') continue;
+    const result = parse(null, trimmed.slice(6));
+    if (result != null) events.push(...(Array.isArray(result) ? result : [result]));
+  }
+  return events;
+}
+
+async function parseProductionEvents(coverage: Coverage): Promise<StreamEvent[]> {
   const parse = createProxyChunkParser(coverage.providerKind);
   const emit = (eventType: string | null, payload: unknown) => {
     const result = parse(eventType, JSON.stringify(payload));
@@ -86,18 +110,28 @@ function parseProductionEvents(coverage: Coverage): StreamEvent[] {
         ...emit(null, { choices: [{ delta: { content: '', annotations: [{ type: 'url_citation', url_citation: { url: 'https://source.example/openrouter', title: 'Source', content: 'evidence' } }] } }] }),
         ...emit(null, { choices: [{ delta: { content: 'answer' } }] }),
       ];
+    case 'zhipu':
+      // Shape from the official API reference: search results sit in a top-level `web_search` array and the link field is `link`.
+      return emit(null, { choices: [{ delta: { content: 'answer' }, finish_reason: 'stop' }], web_search: [{ title: 'Source', link: 'https://source.example/zhipu', content: 'evidence' }] });
+    case 'moonshot': {
+      // The recorded first leg (`$web_search` + search_result.search_id) is replayed through the production tool-loop adapter;
+      // the adapter produces the evidence event and the parser passes it through, so nothing is hand-built here.
+      const recorded = readFileSync(resolve(repositoryRoot, 'shared/test-fixtures/provider-toolcall/recorded/moonshot_web_search.leg1.sse'), 'utf8');
+      const adapted = await adaptMoonshotToolLoopResponse(sseResponse(recorded), moonshotRequest, { fetch: async () => answerLeg() });
+      return parseAdapted(adapted, 'moonshot');
+    }
     default:
       return emit(null, { choices: [{ delta: { reasoning_content: 'production parser evidence' } }] });
   }
 }
 
 describe('shared result-fact matrix', () => {
-  it('consumes every one of 15 category-7 fixtures through the production proxy parser', () => {
+  it('consumes every one of 15 category-7 fixtures through the production proxy parser', async () => {
     expect(facts.providerResultCoverage).toHaveLength(15);
     for (const coverage of facts.providerResultCoverage) {
       expect(existsSync(resolve(repositoryRoot, coverage.producerFixture)), coverage.providerKind).toBe(true);
       const context = contextFor(coverage);
-      const result = collectCapabilityResults(context, parseProductionEvents(coverage));
+      const result = collectCapabilityResults(context, await parseProductionEvents(coverage));
       if (coverage.expected === 'no_execution_fact') {
         // A generation recipe produces no execution fact at all, not even not_requested.
         expect(context, coverage.providerKind).toBeNull();
@@ -107,6 +141,34 @@ describe('shared result-fact matrix', () => {
       expect(result).toHaveLength(1);
       expect(result[0]?.state, coverage.providerKind).toBe(coverage.expected);
     }
+  });
+
+  it('confirms web for the adapter-produced recipes that have no row of their own in the shared facts', async () => {
+    const stateOf = (recipeRef: string, events: StreamEvent[]) => collectCapabilityResults(contextFor({ recipeRef }), events).map((item) => item.state);
+    const interactions = (deltas: unknown[]) => adaptGeminiInteractionsResponse(sseResponse(deltas
+      .map((delta) => `event: step.delta\ndata: ${JSON.stringify({ event_type: 'step.delta', delta })}\n\n`).join('')));
+
+    expect(stateOf('gemini.interactions.web.v1', await parseAdapted(interactions([
+      { type: 'google_search_result', result: [{ url: 'https://source.example/gemini', title: 'Source' }] },
+    ]), 'gemini'))).toEqual(['observed']);
+    expect(stateOf('gemini.interactions.web.v1', await parseAdapted(interactions([
+      { type: 'text_annotation_delta', annotations: [{ type: 'url_citation', url: 'https://source.example/gemini', title: 'Source' }] },
+    ]), 'gemini'))).toEqual(['observed']);
+    expect(stateOf('gemini.interactions.web.v1', await parseAdapted(interactions([
+      { type: 'text', text: 'ordinary answer' },
+    ]), 'gemini'))).toEqual(['unconfirmed']);
+
+    const formulaLeg = sseResponse('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"web_search","arguments":"{}"}}]}}]}\n\ndata: [DONE]\n\n');
+    const formula = await adaptMoonshotFormulaFiberResponse(formulaLeg, {
+      ...moonshotRequest,
+      moonshotFormula: {
+        uri: 'moonshot/web-search:latest', toolsPath: '/v1/formulas/moonshot/web-search:latest/tools',
+        fibersPath: '/v1/formulas/moonshot/web-search:latest/fibers', argumentsMode: 'verbatim', resultPaths: ['context.output'],
+      },
+    }, { fetch: async (url) => (url.endsWith('/fibers')
+      ? new Response(JSON.stringify({ status: 'succeeded', context: { output: 'search output' } }))
+      : answerLeg()) });
+    expect(stateOf('moonshot.formula.web.v1', await parseAdapted(formula, 'moonshot'))).toEqual(['observed']);
   });
 
   it('never emits an owner=generation execution fact for any recipe in the Server registry', () => {

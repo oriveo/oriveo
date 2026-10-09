@@ -66,6 +66,10 @@ export async function adaptMoonshotFormulaFiberResponse(
             const toolResult = { role: 'tool', tool_call_id: call.id ?? '', name: call.function.name, content: result.output };
             messages.push(toolResult);
             completedMessages.push(toolResult);
+            // Evidence that web search ran: the Fiber executed and returned a non-empty result.
+            // The summary carries the tool name only, since the result may be encrypted and
+            // search content does not belong in the execution fact.
+            if (result.output.trim()) emit(JSON.stringify({ type: 'tool_result', tool: call.function.name, summary: call.function.name, step: leg + 1 }));
           }
           // Internal, recipe-required local replay state. It is emitted only after a whole Fiber
           // leg completed; the browser persists it locally and never auto-resumes it.

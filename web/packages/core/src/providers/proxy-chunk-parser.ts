@@ -180,6 +180,21 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
         step: chunk.step,
       });
     }
+    // Web sources already normalized by the adapter from upstream frames (Gemini Interactions).
+    // Like tool_result they are passed through, but deduplicated and validated again here:
+    // an entry without a link is not a source, and nothing is emitted when nothing is new.
+    if (chunk.type === 'citations' && Array.isArray(chunk.citations)) {
+      let changed = false;
+      for (const raw of chunk.citations) {
+        if (!isRecord(raw) || !isNonEmptyString(raw.url)) continue;
+        changed = mergeCitation(protocolCitations, {
+          url: raw.url,
+          title: typeof raw.title === 'string' ? raw.title : undefined,
+          snippet: typeof raw.snippet === 'string' ? raw.snippet : undefined,
+        }) || changed;
+      }
+      if (changed) events.push({ type: 'citations', citations: protocolCitations.slice() });
+    }
     if (
       chunk.type === 'confirm_required'
       && isToolConfirmationReason(chunk.reason)
@@ -431,6 +446,32 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
         openRouterCitationsPending = false;
         events.push({ type: 'citations', citations: protocolCitations.slice() });
       }
+    }
+    // Zhipu web sources. The official API reference puts search results in a top-level
+    // `web_search` array (title / link / content ...); an older location,
+    // `choices.0.delta.tool_calls.N.web_search.search_result`, uses the same entry fields.
+    // Both are accepted and merged by link. Only entries with a link count as sources, and
+    // that is the criterion for treating Zhipu web search as confirmed.
+    if (providerKind === 'zhipu' && !_eventType) {
+      const zhipuEntries: unknown[] = Array.isArray(chunk.web_search) ? [...chunk.web_search] : [];
+      const zhipuChoice = Array.isArray(chunk.choices) && isRecord(chunk.choices[0]) ? chunk.choices[0] : null;
+      for (const holder of [zhipuChoice?.delta, zhipuChoice?.message]) {
+        if (!isRecord(holder) || !Array.isArray(holder.tool_calls)) continue;
+        for (const call of holder.tool_calls) {
+          const searched = isRecord(call) && isRecord(call.web_search) ? call.web_search.search_result : null;
+          if (Array.isArray(searched)) zhipuEntries.push(...searched);
+        }
+      }
+      let changed = false;
+      for (const raw of zhipuEntries) {
+        if (!isRecord(raw) || !isNonEmptyString(raw.link)) continue;
+        changed = mergeCitation(protocolCitations, {
+          url: raw.link,
+          title: typeof raw.title === 'string' ? raw.title : undefined,
+          snippet: typeof raw.content === 'string' ? raw.content : undefined,
+        }) || changed;
+      }
+      if (changed) events.push({ type: 'citations', citations: protocolCitations.slice() });
     }
     if (providerKind === 'openRouter' && Array.isArray(chunk.citations)) {
       let changed = false;

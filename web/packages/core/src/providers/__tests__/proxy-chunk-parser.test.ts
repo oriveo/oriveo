@@ -799,3 +799,96 @@ describe('createProxyChunkParser - OpenRouter web sources', () => {
     expect(citationsOf(events)).toEqual([]);
   });
 });
+
+/**
+ * Zhipu web sources. The official API reference puts search results in a **top-level**
+ * `web_search` array (`{title, link, content, media, icon, refer, publish_date}`); an older
+ * location, `choices.0.delta.tool_calls.0.web_search.search_result`, uses the same entry
+ * fields. Both are accepted and merged. Only non-empty parsed sources count: an HTTP 200, a
+ * text body, or a declared tool do not confirm web search.
+ */
+describe('createProxyChunkParser — Zhipu web sources', () => {
+  const citationsOf = (events: StreamEvent[]) => events.filter((event) => event.type === 'citations');
+  const evidenceOf = (events: StreamEvent[]) => events.filter((event) => event.type === 'citations' || event.type === 'tool_result');
+  const entry = (link: string, title: string, content: string) => ({
+    title, link, content, media: 'Example Media', icon: 'https://example.com/icon.png', refer: 'ref_1', publish_date: '2026-10-09',
+  });
+
+  it('top-level web_search with two entries -> two citations (link/title/content mapped correctly)', () => {
+    const parser = createProxyChunkParser('zhipu');
+    const events = feed(parser, null, JSON.stringify({
+      choices: [{ delta: { content: '' }, finish_reason: 'stop' }],
+      web_search: [
+        entry('https://example.com/a', 'Source A', 'Summary A'),
+        entry('https://example.com/b', 'Source B', 'Summary B'),
+      ],
+    }));
+    expect(citationsOf(events)).toEqual([{ type: 'citations', citations: [
+      { url: 'https://example.com/a', title: 'Source A', snippet: 'Summary A' },
+      { url: 'https://example.com/b', title: 'Source B', snippet: 'Summary B' },
+    ] }]);
+  });
+
+  it('legacy search_result path -> citations', () => {
+    const parser = createProxyChunkParser('zhipu');
+    const events = feed(parser, null, JSON.stringify({ choices: [{ delta: { tool_calls: [{
+      index: 0, id: 'call_1', type: 'web_search',
+      web_search: { search_result: [entry('https://example.com/legacy', 'Legacy source', 'Legacy summary')] },
+    }] } }] }));
+    expect(citationsOf(events)).toEqual([{ type: 'citations', citations: [
+      { url: 'https://example.com/legacy', title: 'Legacy source', snippet: 'Legacy summary' },
+    ] }]);
+  });
+
+  it('merges duplicates when both paths give the same link, and does not re-emit without new sources', () => {
+    const parser = createProxyChunkParser('zhipu');
+    feed(parser, null, JSON.stringify({ choices: [{ delta: { tool_calls: [{
+      index: 0, type: 'web_search', web_search: { search_result: [entry('https://example.com/a', 'Source A', 'Summary A')] },
+    }] } }] }));
+    const tail = feed(parser, null, JSON.stringify({
+      choices: [{ delta: {}, finish_reason: 'stop' }],
+      web_search: [entry('https://example.com/a', 'Source A', 'Summary A'), entry('https://example.com/b', 'Source B', 'Summary B')],
+    }));
+    expect(citationsOf(tail)).toEqual([{ type: 'citations', citations: [
+      { url: 'https://example.com/a', title: 'Source A', snippet: 'Summary A' },
+      { url: 'https://example.com/b', title: 'Source B', snippet: 'Summary B' },
+    ] }]);
+    expect(citationsOf(feed(parser, null, JSON.stringify({
+      choices: [{ delta: {} }], web_search: [entry('https://example.com/a', 'Source A', 'Summary A')],
+    })))).toEqual([]);
+  });
+
+  it('plain Zhipu answer (no web_search) -> nothing emitted, stays unconfirmed', () => {
+    const parser = createProxyChunkParser('zhipu');
+    const events = [
+      ...feed(parser, null, JSON.stringify({ choices: [{ delta: { content: 'plain answer' } }] })),
+      ...feed(parser, null, JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], web_search: [] })),
+      // An entry without a link is not a source.
+      ...feed(parser, null, JSON.stringify({ choices: [{ delta: {} }], web_search: [{ title: 'title only' }, 'not-an-entry'] })),
+    ];
+    expect(evidenceOf(events)).toEqual([]);
+  });
+
+  it('Qwen plain answer with web search on -> still unconfirmed (the OpenAI-compatible protocol returns no sources, and a same-named top-level field is ignored)', () => {
+    const parser = createProxyChunkParser('qwen');
+    const events = [
+      ...feed(parser, null, JSON.stringify({ choices: [{ delta: { content: 'cloudy today' } }] })),
+      ...feed(parser, null, JSON.stringify({
+        choices: [{ delta: {}, finish_reason: 'stop' }],
+        web_search: [entry('https://example.com/a', 'Source A', 'Summary A')],
+      })),
+    ];
+    expect(evidenceOf(events)).toEqual([]);
+  });
+});
+
+describe('createProxyChunkParser — internal citations events sent down by the adapter', () => {
+  it('passes through and deduplicates; entries without a link and empty arrays emit nothing', () => {
+    const parser = createProxyChunkParser('gemini');
+    expect(feed(parser, null, JSON.stringify({ type: 'citations', citations: [
+      { url: 'https://example.com/a', title: 'A' }, { title: 'no url' }, 'junk',
+    ] }))).toEqual([{ type: 'citations', citations: [{ url: 'https://example.com/a', title: 'A' }] }]);
+    expect(feed(parser, null, JSON.stringify({ type: 'citations', citations: [{ url: 'https://example.com/a', title: 'A' }] }))).toEqual([]);
+    expect(feed(parser, null, JSON.stringify({ type: 'citations', citations: [] }))).toEqual([]);
+  });
+});

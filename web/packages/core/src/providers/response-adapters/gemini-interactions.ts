@@ -12,6 +12,7 @@ export function adaptGeminiInteractionsResponse(upstream: Response): Response {
           const json: unknown = await upstream.json().catch(() => null);
           emitContinuation(json, emit);
           for (const text of completedTexts(json)) emit({ choices: [{ delta: { content: text } }] });
+          const cited = mergeUrlCitations([], completedAnnotations(json)); if (cited) emit({ type: 'citations', citations: cited });
           const usage = usageFrom(json); if (usage) emit({ type: 'usage', usage });
         }
       } catch (error) {
@@ -34,6 +35,7 @@ function interactionErrorFrame(event: unknown): { message: string; code?: string
 
 async function consumeSse(body: ReadableStream<Uint8Array>, emit: (value: unknown) => void) {
   const reader = body.getReader(); const decoder = new TextDecoder(); let buffer = '';
+  const citations: InteractionCitation[] = [];
   while (true) {
     const { done, value } = await reader.read(); if (done) break;
     buffer += decoder.decode(value, { stream: true });
@@ -47,9 +49,45 @@ async function consumeSse(body: ReadableStream<Uint8Array>, emit: (value: unknow
       if (upstreamError) { emit({ error: upstreamError }); continue; }
       emitContinuation(event, emit);
       for (const text of deltaTexts(event)) emit({ choices: [{ delta: { content: text } }] });
+      // Only two things confirm web search ran: the search tool returned a result, or the text carries a url_citation.
+      if (searchResultObserved(event)) emit({ type: 'tool_result', tool: 'google_search', summary: 'google_search', step: 1 });
+      const cited = mergeUrlCitations(citations, deltaAnnotations(event)); if (cited) emit({ type: 'citations', citations: cited });
       const usage = usageFrom(event); if (usage) emit({ type: 'usage', usage });
     }
   }
+}
+
+interface InteractionCitation { url: string; title?: string }
+
+function stepDelta(value: unknown): Record<string, any> | null {
+  return isRecord(value) && value.event_type === 'step.delta' && isRecord(value.delta) ? value.delta : null;
+}
+/** A `google_search_result` counts as an executed search only when `result` is non-empty and not flagged `is_error`. */
+function searchResultObserved(value: unknown): boolean {
+  const delta = stepDelta(value);
+  return delta != null && delta.type === 'google_search_result' && Array.isArray(delta.result) && delta.result.length > 0 && delta.is_error !== true;
+}
+function deltaAnnotations(value: unknown): unknown[] {
+  const delta = stepDelta(value);
+  return delta != null && delta.type === 'text_annotation_delta' && Array.isArray(delta.annotations) ? delta.annotations : [];
+}
+function completedAnnotations(value: unknown): unknown[] {
+  if (!isRecord(value)) return [];
+  const steps = Array.isArray(value.steps) ? value.steps : [];
+  return steps.flatMap((step) => isRecord(step) && step.type === 'model_output' && Array.isArray(step.content)
+    ? step.content.flatMap((part: unknown) => isRecord(part) && Array.isArray(part.annotations) ? part.annotations : [])
+    : []);
+}
+/** Merges url_citations into the running list (deduplicated by link); returns the full snapshot only when something was added, otherwise null. */
+function mergeUrlCitations(existing: InteractionCitation[], annotations: unknown[]): InteractionCitation[] | null {
+  let changed = false;
+  for (const annotation of annotations) {
+    if (!isRecord(annotation) || annotation.type !== 'url_citation' || typeof annotation.url !== 'string' || !annotation.url.trim()) continue;
+    if (existing.some((citation) => citation.url === annotation.url)) continue;
+    existing.push({ url: annotation.url, ...(typeof annotation.title === 'string' && annotation.title ? { title: annotation.title } : {}) });
+    changed = true;
+  }
+  return changed ? existing.slice() : null;
 }
 function emitContinuation(value: unknown, emit: (value: unknown) => void) {
   if (!isRecord(value)) return;
