@@ -8,6 +8,7 @@ import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayKind
+import ai.oriveo.community.core.provider.LocalEngineGenerationProfiles
 import ai.oriveo.community.core.provider.ModelSelectionUtils
 import ai.oriveo.community.core.util.normalizeProviderIds
 import ai.oriveo.community.core.util.normalizeUuid
@@ -39,8 +40,20 @@ object ProviderMapper {
             updatedAt = updatedAt,
             cachedAvailableModelCount = cachedAvailableModelCount,
             authMode = ProviderAuthMode.fromRawValue(authMode),
-        ).recoveredFromPersistence()
+        ).recoveredFromPersistence().withCurrentLocalEngineProfiles()
     )
+
+    // Local engine parameter tables are constants shipped with the app; a persisted copy may come from an
+    // older build (for example one without `strict`), so reads always use the current table.
+    private val LOCAL_ENGINES_REFRESHED_ON_READ = setOf("ollama", "lmstudio", "vllm")
+
+    private fun Provider.withCurrentLocalEngineProfiles(): Provider {
+        val requested = relayRequested ?: return this
+        if (requested.engineProfile !in LOCAL_ENGINES_REFRESHED_ON_READ) return this
+        val current = LocalEngineGenerationProfiles.profile(requested.engineProfile, requested.transport) ?: return this
+        fun refresh(list: List<AIModel>) = list.map { if (it.generationProfile == current) it else it.copy(generationProfile = current) }
+        return copy(models = refresh(models), catalogModels = refresh(catalogModels))
+    }
 
     fun Provider.toEntity(accountId: String = LOCAL_PARTITION_ID): ProviderEntity = ProviderEntity(
         id = normalizeUuid(id),

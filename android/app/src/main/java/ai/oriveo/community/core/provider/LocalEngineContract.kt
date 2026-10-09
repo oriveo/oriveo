@@ -1,6 +1,8 @@
 package ai.oriveo.community.core.provider
 
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -72,22 +74,14 @@ object LocalEngineContract {
 object LocalEngineGenerationProfiles {
     fun profile(engineProfile: String?, transport: RelayTransport? = null): GenerationProfileRef? {
         return when (engineProfile) {
-            "llamacpp" -> GenerationProfileRef(
-                template = "llamacpp_native", parameters = LLAMA_IDS.map { parameter(it) },
-                wire = LLAMA_IDS.associateWith { if (it == "max_output_tokens") "n_predict" else it },
-                transport = "llamacpp_native",
-            )
-            "vllm" -> GenerationProfileRef(
-                template = "vllm_extra_body", parameters = VLLM_IDS.map { parameter(it) },
-                wire = VLLM_IDS.associateWith {
-                    when (it) {
-                        "max_output_tokens" -> "max_tokens"
-                        "top_k", "min_p", "typical_p", "repeat_penalty" -> "extra_body.${if (it == "repeat_penalty") "repetition_penalty" else it}"
-                        else -> it
-                    }
-                },
-                transport = "openai_chat_completions",
-            )
+            "llamacpp" -> if (transport == RelayTransport.LlamaCppNative) {
+                fromRows("llamacpp_native", "llamacpp_native", LLAMA_NATIVE_ROWS)
+            } else {
+                fromRows("openai_chat_completions", "openai_chat_completions", LLAMA_CHAT_ROWS)
+            }
+            "ollama" -> fromRows("openai_chat_completions", "openai_chat_completions", OLLAMA_ROWS)
+            "lmstudio" -> fromRows("openai_chat_completions", "openai_chat_completions", LMSTUDIO_ROWS)
+            "vllm" -> fromRows("vllm_extra_body", "openai_chat_completions", VLLM_ROWS)
             "openwebui" -> {
                 val ids = listOf("max_output_tokens", "stop", "temperature", "top_p", "frequency_penalty", "presence_penalty", "seed", "response_format", "json_schema", "verbosity", "logprobs", "top_logprobs")
                 GenerationProfileRef(
@@ -143,7 +137,8 @@ object LocalEngineGenerationProfiles {
             "samplers" -> "string-list" to null
             "ignore_eos", "post_sampling_probs", "logprobs" -> "boolean" to null
             "json_schema" -> "json-schema" to null
-            "temperature" -> "number" to null
+            "temperature", "frequency_penalty", "presence_penalty" -> "number" to null
+            "reasoning_budget" -> "integer" to null
             "repeat_penalty" -> "number" to GenerationParameterRange(min = 0.0)
             "stop" -> "string-list" to null
             else -> "string" to null
@@ -169,18 +164,179 @@ object LocalEngineGenerationProfiles {
         )
     }
 
-    private val LLAMA_IDS = listOf(
-        "max_output_tokens", "stop", "temperature", "top_p", "top_k", "min_p", "typical_p",
-        "repeat_penalty", "repeat_last_n", "mirostat", "mirostat_tau", "mirostat_eta",
-        "dry_multiplier", "dry_base", "dry_allowed_length", "dry_penalty_last_n",
-        "xtc_probability", "xtc_threshold", "samplers", "ignore_eos", "top_n_sigma",
-        "dynatemp_range", "dynatemp_exponent", "min_keep", "n_keep", "n_indent",
-        "t_max_predict_ms", "n_probs", "post_sampling_probs", "seed", "json_schema", "logprobs",
+    private class Row(
+        val id: String,
+        val wire: String,
+        val valueSchema: String,
+        val group: String,
+        val range: GenerationParameterRange?,
+        val default: JsonElement?,
+        val enumValues: List<JsonElement>,
     )
-    private val VLLM_IDS = listOf(
-        "max_output_tokens", "stop", "temperature", "top_p", "top_k", "min_p", "typical_p",
-        "presence_penalty", "frequency_penalty", "repeat_penalty", "seed", "json_schema", "logprobs", "top_logprobs",
+
+    private fun row(
+        id: String,
+        wire: String,
+        valueSchema: String,
+        group: String,
+        min: Double? = null,
+        max: Double? = null,
+        minExclusive: Double? = null,
+        maxExclusive: Double? = null,
+        default: JsonElement? = null,
+        enumValues: List<JsonElement> = emptyList(),
+    ) = Row(
+        id, wire, valueSchema, group,
+        if (min == null && max == null && minExclusive == null && maxExclusive == null) null
+        else GenerationParameterRange(min = min, max = max, minExclusive = minExclusive, maxExclusive = maxExclusive),
+        default, enumValues,
     )
+
+    private fun fromRows(template: String, transport: String, rows: List<Row>) = GenerationProfileRef(
+        template = template,
+        parameters = rows.map { row ->
+            GenerationParameterRef(
+                id = row.id,
+                support = "accepted_unverified",
+                source = "user_declared",
+                group = row.group,
+                valueSchema = row.valueSchema,
+                range = row.range,
+                enumValues = row.enumValues,
+                defaultDescription = row.default,
+                portability = if (row.id in setOf("top_k", "min_p", "repeat_penalty")) "engine_scoped" else "transport_scoped",
+                risk = if (row.id in setOf("top_k", "min_p")) "experimental" else "normal",
+                strict = if (row.id == "json_schema") true else null,
+            )
+        },
+        wire = rows.associate { it.id to it.wire },
+        transport = transport,
+    )
+
+    // On-device constant table; LocalEngineProfileContractTest checks it row by row against the shared contract's localEngineProfiles.
+    private val LLAMA_CHAT_ROWS = listOf(
+        row("max_output_tokens", "max_tokens", "integer", "budget", min = 1.0, default = JsonPrimitive(-1)),
+        row("stop", "stop", "string-list", "budget"),
+        row("temperature", "temperature", "number", "sampling", min = 0.0, default = JsonPrimitive(0.8)),
+        row("top_p", "top_p", "number", "sampling", min = 0.0, max = 1.0, default = JsonPrimitive(0.95)),
+        row("top_k", "top_k", "integer", "sampling", min = 0.0, default = JsonPrimitive(40)),
+        row("min_p", "min_p", "number", "sampling", min = 0.0, max = 1.0, default = JsonPrimitive(0.05)),
+        row("typical_p", "typical_p", "number", "sampling", min = 0.0, max = 1.0, default = JsonPrimitive(1)),
+        row("top_n_sigma", "top_n_sigma", "number", "sampling", default = JsonPrimitive(-1)),
+        row("presence_penalty", "presence_penalty", "number", "repetition", default = JsonPrimitive(0)),
+        row("frequency_penalty", "frequency_penalty", "number", "repetition", default = JsonPrimitive(0)),
+        row("repeat_penalty", "repeat_penalty", "number", "repetition", min = 0.0, default = JsonPrimitive(1)),
+        row("repeat_last_n", "repeat_last_n", "integer", "repetition", min = 0.0, default = JsonPrimitive(64)),
+        row("mirostat", "mirostat", "integer", "sampling", min = 0.0, max = 2.0, default = JsonPrimitive(0)),
+        row("mirostat_tau", "mirostat_tau", "number", "sampling", min = 0.0, default = JsonPrimitive(5)),
+        row("mirostat_eta", "mirostat_eta", "number", "sampling", min = 0.0, default = JsonPrimitive(0.1)),
+        row("dry_multiplier", "dry_multiplier", "number", "repetition", min = 0.0, default = JsonPrimitive(0)),
+        row("dry_base", "dry_base", "number", "repetition", min = 1.0, default = JsonPrimitive(1.75)),
+        row("dry_allowed_length", "dry_allowed_length", "integer", "repetition", min = 0.0, default = JsonPrimitive(2)),
+        row("dry_penalty_last_n", "dry_penalty_last_n", "integer", "repetition", min = -1.0, default = JsonPrimitive(-1)),
+        row("dry_sequence_breakers", "dry_sequence_breakers", "string-list", "repetition"),
+        row("xtc_probability", "xtc_probability", "number", "sampling", min = 0.0, max = 1.0, default = JsonPrimitive(0)),
+        row("xtc_threshold", "xtc_threshold", "number", "sampling", min = 0.0, max = 1.0, default = JsonPrimitive(0.1)),
+        row("dynatemp_range", "dynatemp_range", "number", "sampling", min = 0.0, default = JsonPrimitive(0)),
+        row("dynatemp_exponent", "dynatemp_exponent", "number", "sampling", default = JsonPrimitive(1)),
+        row("samplers", "samplers", "string-list", "sampling"),
+        row("min_keep", "min_keep", "integer", "sampling", min = 0.0, default = JsonPrimitive(0)),
+        row("n_keep", "n_keep", "integer", "sampling", min = -1.0, default = JsonPrimitive(0)),
+        row("n_indent", "n_indent", "integer", "sampling", min = 0.0, default = JsonPrimitive(0)),
+        row("t_max_predict_ms", "t_max_predict_ms", "integer", "budget", min = 0.0, default = JsonPrimitive(0)),
+        row("ignore_eos", "ignore_eos", "boolean", "budget", default = JsonPrimitive(false)),
+        row("seed", "seed", "integer", "reproducibility"),
+        row("grammar", "grammar", "string", "output_contract"),
+        row("json_schema", "response_format", "json-schema", "output_contract"),
+        row("logprobs", "logprobs", "boolean", "output_contract", default = JsonPrimitive(false)),
+        row("top_logprobs", "top_logprobs", "integer", "output_contract", min = 0.0),
+        row("post_sampling_probs", "post_sampling_probs", "boolean", "output_contract", default = JsonPrimitive(false)),
+    )
+
+    private val LLAMA_NATIVE_ROWS = listOf(
+        row("max_output_tokens", "n_predict", "integer", "budget", min = 1.0, default = JsonPrimitive(-1)),
+        row("stop", "stop", "string-list", "budget"),
+        row("temperature", "temperature", "number", "sampling", min = 0.0, default = JsonPrimitive(0.8)),
+        row("top_p", "top_p", "number", "sampling", min = 0.0, max = 1.0, default = JsonPrimitive(0.95)),
+        row("top_k", "top_k", "integer", "sampling", min = 0.0, default = JsonPrimitive(40)),
+        row("min_p", "min_p", "number", "sampling", min = 0.0, max = 1.0, default = JsonPrimitive(0.05)),
+        row("typical_p", "typical_p", "number", "sampling", min = 0.0, max = 1.0, default = JsonPrimitive(1)),
+        row("top_n_sigma", "top_n_sigma", "number", "sampling", default = JsonPrimitive(-1)),
+        row("presence_penalty", "presence_penalty", "number", "repetition", default = JsonPrimitive(0)),
+        row("frequency_penalty", "frequency_penalty", "number", "repetition", default = JsonPrimitive(0)),
+        row("repeat_penalty", "repeat_penalty", "number", "repetition", min = 0.0, default = JsonPrimitive(1)),
+        row("repeat_last_n", "repeat_last_n", "integer", "repetition", min = 0.0, default = JsonPrimitive(64)),
+        row("mirostat", "mirostat", "integer", "sampling", min = 0.0, max = 2.0, default = JsonPrimitive(0)),
+        row("mirostat_tau", "mirostat_tau", "number", "sampling", min = 0.0, default = JsonPrimitive(5)),
+        row("mirostat_eta", "mirostat_eta", "number", "sampling", min = 0.0, default = JsonPrimitive(0.1)),
+        row("dry_multiplier", "dry_multiplier", "number", "repetition", min = 0.0, default = JsonPrimitive(0)),
+        row("dry_base", "dry_base", "number", "repetition", min = 1.0, default = JsonPrimitive(1.75)),
+        row("dry_allowed_length", "dry_allowed_length", "integer", "repetition", min = 0.0, default = JsonPrimitive(2)),
+        row("dry_penalty_last_n", "dry_penalty_last_n", "integer", "repetition", min = -1.0, default = JsonPrimitive(-1)),
+        row("dry_sequence_breakers", "dry_sequence_breakers", "string-list", "repetition"),
+        row("xtc_probability", "xtc_probability", "number", "sampling", min = 0.0, max = 1.0, default = JsonPrimitive(0)),
+        row("xtc_threshold", "xtc_threshold", "number", "sampling", min = 0.0, max = 1.0, default = JsonPrimitive(0.1)),
+        row("dynatemp_range", "dynatemp_range", "number", "sampling", min = 0.0, default = JsonPrimitive(0)),
+        row("dynatemp_exponent", "dynatemp_exponent", "number", "sampling", default = JsonPrimitive(1)),
+        row("samplers", "samplers", "string-list", "sampling"),
+        row("min_keep", "min_keep", "integer", "sampling", min = 0.0, default = JsonPrimitive(0)),
+        row("n_keep", "n_keep", "integer", "sampling", min = -1.0, default = JsonPrimitive(0)),
+        row("n_indent", "n_indent", "integer", "sampling", min = 0.0, default = JsonPrimitive(0)),
+        row("t_max_predict_ms", "t_max_predict_ms", "integer", "budget", min = 0.0, default = JsonPrimitive(0)),
+        row("ignore_eos", "ignore_eos", "boolean", "budget", default = JsonPrimitive(false)),
+        row("seed", "seed", "integer", "reproducibility"),
+        row("grammar", "grammar", "string", "output_contract"),
+        row("json_schema", "json_schema", "json-schema", "output_contract"),
+        row("n_probs", "n_probs", "integer", "output_contract", min = 0.0, default = JsonPrimitive(0)),
+        row("post_sampling_probs", "post_sampling_probs", "boolean", "output_contract", default = JsonPrimitive(false)),
+    )
+
+    private val OLLAMA_ROWS = listOf(
+        row("max_output_tokens", "max_tokens", "integer", "budget", min = 1.0),
+        row("stop", "stop", "string-list", "budget"),
+        row("reasoning_effort", "reasoning_effort", "string", "reasoning"),
+        row("temperature", "temperature", "number", "sampling", min = 0.0),
+        row("top_p", "top_p", "number", "sampling", min = 0.0, max = 1.0),
+        row("presence_penalty", "presence_penalty", "number", "repetition"),
+        row("frequency_penalty", "frequency_penalty", "number", "repetition"),
+        row("seed", "seed", "integer", "reproducibility"),
+        row("response_format", "response_format", "enum", "output_contract", enumValues = listOf(JsonPrimitive("text"), JsonPrimitive("json"))),
+        row("json_schema", "response_format", "json-schema", "output_contract"),
+    )
+
+    private val LMSTUDIO_ROWS = listOf(
+        row("max_output_tokens", "max_tokens", "integer", "budget", min = 1.0),
+        row("stop", "stop", "string-list", "budget"),
+        row("temperature", "temperature", "number", "sampling", min = 0.0),
+        row("top_p", "top_p", "number", "sampling", min = 0.0, max = 1.0),
+        row("top_k", "top_k", "integer", "sampling", min = 0.0),
+        row("presence_penalty", "presence_penalty", "number", "repetition"),
+        row("frequency_penalty", "frequency_penalty", "number", "repetition"),
+        row("repeat_penalty", "repeat_penalty", "number", "repetition", min = 0.0),
+        row("seed", "seed", "integer", "reproducibility"),
+        row("json_schema", "response_format", "json-schema", "output_contract"),
+    )
+
+    private val VLLM_ROWS = listOf(
+        row("max_output_tokens", "max_tokens", "integer", "budget", min = 1.0),
+        row("min_tokens", "min_tokens", "integer", "budget", min = 0.0, default = JsonPrimitive(0)),
+        row("stop", "stop", "string-list", "budget"),
+        row("ignore_eos", "ignore_eos", "boolean", "budget", default = JsonPrimitive(false)),
+        row("temperature", "temperature", "number", "sampling", min = 0.0, max = 2.0, default = JsonPrimitive(1)),
+        row("top_p", "top_p", "number", "sampling", max = 1.0, minExclusive = 0.0, default = JsonPrimitive(1)),
+        row("top_k", "top_k", "integer", "sampling", min = -1.0, default = JsonPrimitive(0)),
+        row("min_p", "min_p", "number", "sampling", min = 0.0, max = 1.0, default = JsonPrimitive(0)),
+        row("presence_penalty", "presence_penalty", "number", "repetition", min = -2.0, max = 2.0, default = JsonPrimitive(0)),
+        row("frequency_penalty", "frequency_penalty", "number", "repetition", min = -2.0, max = 2.0, default = JsonPrimitive(0)),
+        row("repeat_penalty", "repetition_penalty", "number", "repetition", minExclusive = 0.0, default = JsonPrimitive(1)),
+        row("seed", "seed", "integer", "reproducibility"),
+        row("skip_special_tokens", "skip_special_tokens", "boolean", "output_contract", default = JsonPrimitive(true)),
+        row("response_format", "response_format", "enum", "output_contract", enumValues = listOf(JsonPrimitive("text"), JsonPrimitive("json"))),
+        row("json_schema", "response_format", "json-schema", "output_contract"),
+        row("logprobs", "logprobs", "boolean", "output_contract", default = JsonPrimitive(false)),
+        row("top_logprobs", "top_logprobs", "integer", "output_contract", min = 0.0, default = JsonPrimitive(0)),
+    )
+
 }
 
 /** The two scopes a generation-parameter entry point can have: the chat-page chip (this
@@ -317,4 +473,15 @@ object GenerationParameterAvailability {
 
     private fun modelFromProfile(profile: GenerationProfileRef?): AIModel =
         AIModel(id = "generation-profile", name = "generation-profile", generationProfile = profile)
+}
+
+object LlamaCppChannelMigration {
+    data class Outcome(val transport: RelayTransport, val resolvedAPIBaseURL: String?, val changed: Boolean)
+
+    fun migrate(engineProfile: String?, transport: RelayTransport?, resolvedAPIBaseURL: String?, alreadyMigrated: Boolean): Outcome {
+        val unchanged = Outcome(transport ?: RelayTransport.Auto, resolvedAPIBaseURL, false)
+        if (alreadyMigrated || engineProfile != "llamacpp" || transport != RelayTransport.LlamaCppNative) return unchanged
+        val base = resolvedAPIBaseURL?.trimEnd('/')?.let { if (it.endsWith("/v1", ignoreCase = true)) it else "$it/v1" }
+        return Outcome(RelayTransport.OpenAIChatCompletions, base, true)
+    }
 }
