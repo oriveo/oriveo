@@ -218,14 +218,53 @@ struct AttachmentRouterTests {
     }
 
 
-    @Test("Oversized Client")
+    /// Base64 of a file whose original size is `bytes` (the content does not matter, only the length is judged).
+    private static func originalBase64(ofByteCount bytes: Int) -> String {
+        String(repeating: "A", count: (bytes + 2) / 3 * 4)
+    }
+
+    @Test("original file over 30MB → clientExtract (iOS jetsam guard)")
     func oversizedClient() {
         let route = AttachmentRouter.decide(
-            attachment: Self.makeAttachment(sizeBytes: 35 * 1024 * 1024),
+            attachment: Self.makeAttachment(
+                originalBase64: Self.originalBase64(ofByteCount: 35 * 1024 * 1024)
+            ),
             provider: .openAI,
             model: Self.makeModel()
         )
         #expect(route == .clientExtract)
+    }
+
+    @Test("PDF with a 25MB original and tiny extracted text → Gemini (20MB inlineData limit) → clientExtract")
+    func originalOverGeminiThresholdFallsBackToText() {
+        let pdf = Self.makeAttachment(
+            mimeType: "application/pdf",
+            originalBase64: Self.originalBase64(ofByteCount: 25 * 1024 * 1024),
+            sizeBytes: 5_000
+        )
+        let model = Self.makeModel(nativeFileMimes: ["application/pdf"], pdfNativeDefault: true)
+        #expect(AttachmentRouter.decide(attachment: pdf, provider: .gemini, model: model) == .clientExtract)
+        // The same file still goes native on a route with a 30MB threshold.
+        #expect(AttachmentRouter.decide(attachment: pdf, provider: .openAI, model: model) == .native)
+    }
+
+    @Test("the threshold compares the original file size, not the extracted text size")
+    func thresholdIgnoresExtractedTextSize() {
+        let pdf = Self.makeAttachment(
+            mimeType: "application/pdf",
+            originalBase64: Self.originalBase64(ofByteCount: 19 * 1024 * 1024),
+            sizeBytes: 25 * 1024 * 1024
+        )
+        let model = Self.makeModel(nativeFileMimes: ["application/pdf"], pdfNativeDefault: true)
+        #expect(AttachmentRouter.decide(attachment: pdf, provider: .gemini, model: model) == .native)
+    }
+
+    @Test("base64 length converts to the original byte count (padding included)")
+    func originalByteCountFromBase64() {
+        for bytes in [0, 1, 2, 3, 4, 5, 1024, 20 * 1024 * 1024, 20 * 1024 * 1024 + 1] {
+            let base64 = Data(count: bytes).base64EncodedString()
+            #expect(AttachmentRouter.originalByteCount(ofBase64: base64) == bytes)
+        }
     }
 
     @Test("no originalBase64Data → clientExtract")

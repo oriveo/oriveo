@@ -588,7 +588,7 @@ final class MoonshotService: BaseAPIService, ProviderServiceProtocol, CustomBase
         if !systemPrompt.isEmpty {
             apiMessages.append(["role": "system", "content": systemPrompt])
         }
-        apiMessages.append(contentsOf: capabilityIntent.outboundMessages.map { Self.buildRequestMessage($0) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
         let reasoningReplayRecipe = RecipeContinuationRuntime.selectedRecipe(
             provider: .moonshot, modelID: modelID, transport: resolved?.transport ?? "openai_chat",
             webSearchEnabled: webSearchEnabled, reasoningMode: reasoningMode,
@@ -635,17 +635,18 @@ final class MoonshotService: BaseAPIService, ProviderServiceProtocol, CustomBase
         return request
     }
 
-    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel? = nil) -> [String: Any] {
+    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel?, isOutgoingTurn: Bool) throws -> [String: Any] {
         let attachments = msg.attachments ?? []
         let imageAttachments = attachments.filter { $0.kind == .image }
         let videoAttachments = attachments.filter { $0.kind == .video }
 
-        let (combinedText, _) = BaseAPIService.injectFileAttachmentsAsText(
+        let combinedText = try AttachmentDelivery.deliver(
+            isOutgoingTurn: isOutgoingTurn,
             userText: msg.text,
             attachments: attachments,
-            provider: .moonshot,
+            transport: .moonshotChat,
             model: model
-        )
+        ).injectedText
 
         guard !imageAttachments.isEmpty || !videoAttachments.isEmpty else {
             return ["role": msg.role.rawValue, "content": combinedText]

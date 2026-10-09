@@ -298,7 +298,7 @@ final class DeepSeekService: BaseAPIService, ProviderServiceProtocol, BalanceQue
         if !systemPrompt.isEmpty {
             apiMessages.append(["role": "system", "content": systemPrompt])
         }
-        apiMessages.append(contentsOf: capabilityIntent.outboundMessages.map { Self.buildRequestMessage($0) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
         // `localExplicitContinuationMessageID` is set only by ChatManager's continue/retry
         // action. A normal new send cannot load sidecar state, even if it shares a model.
         if let replayAssistantMessages {
@@ -333,19 +333,15 @@ final class DeepSeekService: BaseAPIService, ProviderServiceProtocol, BalanceQue
         return request
     }
 
-    static func buildRequestMessageForTest(_ msg: ChatMessage, model: AIModel? = nil) -> [String: Any] {
-        buildRequestMessage(msg, model: model)
-    }
-
-    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel? = nil) -> [String: Any] {
+    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel?, isOutgoingTurn: Bool) throws -> [String: Any] {
         let attachments = msg.attachments ?? []
-        let (text, _) = BaseAPIService.injectFileAttachmentsAsText(
+        let text = try AttachmentDelivery.deliver(
+            isOutgoingTurn: isOutgoingTurn,
             userText: msg.text,
             attachments: attachments,
-            provider: .deepseek,
-            model: model,
-            imagePlaceholderText: "[Image omitted: unsupported by DeepSeek]"
-        )
+            transport: .deepSeekChat,
+            model: model
+        ).injectedText
         return [
             "role": msg.role.rawValue,
             "content": text,

@@ -775,6 +775,7 @@ struct ChatCapabilitySelection: Hashable, Codable, Sendable {
 struct AttachmentExtractionLimits: Codable, Equatable, Hashable, Sendable {
     var maxLines: Int?
     var maxBytes: Int?
+    /// Total cap on text injected into the body after file extraction (UTF-8 bytes).
     var totalCap: Int?
     var maxInputFileBytes: Int?
     var maxAttachments: Int?

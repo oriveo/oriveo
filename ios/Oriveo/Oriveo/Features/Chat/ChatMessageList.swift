@@ -146,6 +146,8 @@ struct ChatMessageList: View, Equatable {
     @Binding var autoScrollEnabled: Bool
     /// Edit restore pushes text back to the composer; the list does not own input state.
     var onRestoreComposerText: (String) -> Void
+    /// Editing puts the original message's attachments back into the composer (through the composer's own capability filtering and file count limit).
+    var onRestoreComposerAttachments: ([Attachment]) -> Void = { _ in }
     @Binding var pendingQuoteContext: QuoteContext?
     @Binding var showModelSwitcher: Bool
     var composerFocused: Binding<Bool>
@@ -635,17 +637,18 @@ struct ChatMessageList: View, Equatable {
             return projection.messages[..<index].last(where: { $0.role == .user })?.quoteContext
         }()
 
-        let restoredText: String?
+        let draft: ComposerEditDraft?
         if message.role == .user {
             guard isSendingMessage == false else { return }
-            restoredText = appState.editUserMessage(messageID: message.id, in: conversationID)
+            draft = appState.beginEditingUserMessage(messageID: message.id, in: conversationID)
         } else {
-            restoredText = appState.editPromptingMessage(for: message.id, in: conversationID)
+            draft = appState.beginEditingPromptingMessage(for: message.id, in: conversationID)
         }
 
-        guard let restoredText else { return }
+        guard let draft else { return }
         withAnimation(preferredAnimation) {
-            onRestoreComposerText(restoredText)
+            onRestoreComposerText(draft.text)
+            onRestoreComposerAttachments(draft.attachments)
             pendingQuoteContext = restoredQuoteContext?.isValid == true ? restoredQuoteContext : nil
             composerFocused.wrappedValue = true
         }

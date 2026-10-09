@@ -335,6 +335,17 @@ struct ChatView: View {
         quoteContext: QuoteContext?,
         capabilitySelection: ChatCapabilitySelection
     ) {
+        // This turn's attachments do not fit on the route about to be used: do not send, and leave the composer text and attachments as they are.
+        if let overLimit = appState.composerAttachmentOverLimit(
+            text: text,
+            attachments: attachments,
+            in: projection.activeConversationID,
+            generationParameterDraftSessionID: generationParameterDraftSessionID,
+            capabilitySelection: capabilitySelection
+        ) {
+            ToastManager.shared.show(overLimit.message)
+            return
+        }
         autoScrollEnabled = true
         composerFocused = false
         if let resolvedChatContext {
@@ -1145,6 +1156,7 @@ struct ChatView: View {
             isAtBottom: $isAtBottom,
             autoScrollEnabled: $autoScrollEnabled,
             onRestoreComposerText: restoreComposerText,
+            onRestoreComposerAttachments: restoreComposerAttachments,
             pendingQuoteContext: $pendingQuoteContext,
             showModelSwitcher: Binding(
                 get: { modelPickerPresentation != nil },
@@ -1330,20 +1342,37 @@ struct ChatView: View {
     private func applyImportedAttachments(
         _ attachments: [Attachment],
         source: String = "unknown",
-        skippedOverLimit: Int = 0
+        skippedOverLimit: Int = 0,
+        announcesTruncation: Bool = true
     ) {
-        let limited = AttachmentImportLimiter.limit(
+        // Text budget gate: a file that would push this message's text over the limit is not added (same limit as at send time).
+        let budgeted = AttachmentDelivery.admitWithinTextBudget(
             existing: pendingAttachments,
             incoming: attachments,
+            provider: resolvedChatContext?.provider.kind,
+            model: resolvedChatContext?.model
+        )
+        let limited = AttachmentImportLimiter.limit(
+            existing: pendingAttachments,
+            incoming: budgeted.accepted,
             maxAttachments: currentFileExtractionLimits.maxFiles
         )
+        // Notices for one batch are merged into a single multi-line toast: files not added first, then truncated ones.
+        var notices = budgeted.rejected.map {
+            String(format: L10n.tr("file_extraction_text_budget_exceeded", table: .chat), $0.fileName)
+        }
 
         if !limited.accepted.isEmpty {
             pendingAttachments += limited.accepted
             pruneUnsupportedPendingAttachments()
-            if let notice = ChatAttachmentPicker.truncationNotice(for: limited.accepted) {
-                ToastManager.shared.show(notice)
+            // Attachments restored by an edit were already announced as truncated when first added.
+            if announcesTruncation,
+               let notice = ChatAttachmentPicker.truncationNotice(for: limited.accepted) {
+                notices.append(notice)
             }
+        }
+        if !notices.isEmpty {
+            ToastManager.shared.show(notices.joined(separator: "\n"))
         }
         if limited.rejectedCount + skippedOverLimit > 0 {
             ToastManager.shared.show(
@@ -1387,6 +1416,15 @@ struct ChatView: View {
 
     private func restoreComposerText(_ text: String) {
         composerTextPush.push(text)
+    }
+
+    /// Editing a message with attachments: the original attachments replace those in the composer (the text is replaced too;
+    /// a message without attachments leaves the composer's attachments alone). They take the same path as newly added
+    /// attachments: the text budget gate, the file count limit, and filtering by the current model's capabilities.
+    private func restoreComposerAttachments(_ attachments: [Attachment]) {
+        guard !attachments.isEmpty else { return }
+        pendingAttachments = []
+        applyImportedAttachments(attachments, source: "edit", announcesTruncation: false)
     }
 
     private func handleAppear(currentModel: AIModel?) {

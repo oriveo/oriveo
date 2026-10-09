@@ -210,7 +210,7 @@ final class GroqService: BaseAPIService, ProviderServiceProtocol {
         if !systemPrompt.isEmpty {
             apiMessages.append(.init(role: "system", content: .text(systemPrompt)))
         }
-        apiMessages.append(contentsOf: capabilityIntent.outboundMessages.map { Self.buildRequestMessage($0) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
 
         let reasoningEffort = capabilityIntent.reasoningMode.flatMap { allowedMode in
             ProfileParamsResolver.reasoningMergeParams(
@@ -232,16 +232,17 @@ final class GroqService: BaseAPIService, ProviderServiceProtocol {
         return request
     }
 
-    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel? = nil) -> GroqChatRequest.Message {
+    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel?, isOutgoingTurn: Bool) throws -> GroqChatRequest.Message {
         let atts = msg.attachments ?? []
         let imageAtts = atts.filter { $0.kind == .image }
 
-        let (combinedText, _) = BaseAPIService.injectFileAttachmentsAsText(
+        let combinedText = try AttachmentDelivery.deliver(
+            isOutgoingTurn: isOutgoingTurn,
             userText: msg.text,
             attachments: atts,
-            provider: .groq,
+            transport: .groqChat,
             model: model
-        )
+        ).injectedText
 
         guard !imageAtts.isEmpty else {
             return .init(role: msg.role.rawValue, content: .text(combinedText))

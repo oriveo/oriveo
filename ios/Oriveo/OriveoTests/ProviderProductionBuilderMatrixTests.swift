@@ -13,6 +13,8 @@ private final class ProviderMatrixURLProtocol: URLProtocol, @unchecked Sendable 
     struct CapturedRequest {
         let url: URL?
         let body: Data?
+        var method: String? = nil
+        var headerNames: [String] = []
     }
     nonisolated(unsafe) static var captured: [CapturedRequest] = []
     nonisolated(unsafe) static var responder: ((URLRequest, Data?) -> Data)?
@@ -24,7 +26,10 @@ private final class ProviderMatrixURLProtocol: URLProtocol, @unchecked Sendable 
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         let requestBody = request.httpBody ?? Self.readBody(from: request.httpBodyStream)
-        Self.captured.append(CapturedRequest(url: request.url, body: requestBody))
+        Self.captured.append(CapturedRequest(
+            url: request.url, body: requestBody, method: request.httpMethod,
+            headerNames: (request.allHTTPHeaderFields ?? [:]).keys.sorted()
+        ))
         if let failure = Self.failure {
             client?.urlProtocol(self, didFailWithError: failure)
             return
@@ -780,6 +785,653 @@ struct ProviderProductionBuilderMatrixTests {
                         "Gemini stream=true must select its SSE endpoint, not invent a body flag")
             } else {
                 #expect(streamingJSON["stream"] as? Bool == true, "\(row.providerKind) did not propagate stream=true")
+            }
+        }
+    }
+
+    // MARK: - Attachment delivery: text limits and native scope
+
+    private static let attachmentDocxMime =
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+    private static func attachmentTextFile(_ name: String) -> Oriveo.Attachment {
+        let content = "content of \(name)"
+        return Oriveo.Attachment(
+            id: UUID(), kind: .file, fileName: name, mimeType: "text/plain",
+            base64Data: Data(content.utf8).base64EncodedString(),
+            extractedSizeBytes: content.utf8.count
+        )
+    }
+
+    private static func attachmentEvidenceModel(
+        id: String, maxAttachments: Int? = nil, nativeFileMimes: [String] = []
+    ) -> AIModel {
+        AIModel(
+            id: id, name: id, capabilities: [.text, .image, .file],
+            reasoningModeAvailable: false, isAvailable: true, isDefault: true, priceTier: "premium",
+            attachmentExtraction: maxAttachments.map { AttachmentExtractionLimits(maxAttachments: $0) },
+            nativeFileMimes: nativeFileMimes,
+            pdfNativeDefault: !nativeFileMimes.isEmpty
+        )
+    }
+
+    private static func jsonStrings(in value: Any) -> [String] {
+        if let string = value as? String { return [string] }
+        if let array = value as? [Any] { return array.flatMap(jsonStrings(in:)) }
+        if let object = value as? [String: Any] { return object.values.flatMap(jsonStrings(in:)) }
+        return []
+    }
+
+    private static func jsonKeys(in value: Any) -> Set<String> {
+        if let array = value as? [Any] { return array.reduce(into: []) { $0.formUnion(jsonKeys(in: $1)) } }
+        if let object = value as? [String: Any] {
+            return object.reduce(into: Set(object.keys)) { $0.formUnion(jsonKeys(in: $1.value)) }
+        }
+        return []
+    }
+
+    /// Number of attachment text blocks actually present in the request body (xml and markdown wrappers each recognize their own block header).
+    private static func attachmentBlockCount(in body: Data) throws -> Int {
+        let json = try JSONSerialization.jsonObject(with: body)
+        return jsonStrings(in: json).reduce(0) { total, string in
+            total + string.components(separatedBy: "<ATTACHMENT_FILE>").count - 1
+                + string.components(separatedBy: "## Attachment ").count - 1
+        }
+    }
+
+    private struct AttachmentSendOutcome {
+        let body: Data?
+        let error: Error?
+        /// Number of requests the URLProtocol actually received during this send.
+        let requestCount: Int
+        /// URL / method / header names of the last request (present only when the send succeeded).
+        var request: ProviderMatrixURLProtocol.CapturedRequest? = nil
+    }
+
+    /// Every runtime row sends one non-streaming and one streaming request through the real Service. `turns` gives each message's role and attachments in order.
+    private static func attachmentOutcomes(
+        row: ProviderCoverage, registry: [String: Any], session: URLSession,
+        turns: [(role: ChatRole, attachments: [Oriveo.Attachment])], evidenceModel: AIModel?,
+        text: String = "hello"
+    ) async throws -> [AttachmentSendOutcome] {
+        let kind = try #require(localProviderKind(forServerKey: row.providerKind))
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(
+            json: try runtimeGenerationMetadata(registry: registry, row: row)
+        )
+        let messages = turns.map { turn in
+            var message = ChatMessage(id: UUID(), role: turn.role, text: text, providerKind: kind,
+                                      providerName: kind.displayName, modelID: row.modelId, modelName: row.modelId, state: .delivered)
+            message.attachments = turn.attachments.isEmpty ? nil : turn.attachments
+            return message
+        }
+        let resolved = try #require(MetadataClient.shared.syncResolveCatalogModel(
+            modelID: row.modelId, providerKind: kind
+        ))
+        var options = ChatRequestOptions(generationProfile: resolved.generationProfile)
+        options.capabilityEvidenceModel = evidenceModel
+        let identity = matrixIdentity(
+            providerKind: kind, modelID: row.modelId, transport: row.selectorTransport ?? row.transport
+        )
+        var outcomes: [AttachmentSendOutcome] = []
+        ProviderMatrixURLProtocol.captured = []
+        do {
+            _ = try await CapabilityEvidenceRequestContext.$current.withValue(identity) {
+                try await sendNonstream(
+                    provider: kind, session: session, modelID: row.modelId,
+                    messages: messages, options: options
+                )
+            }
+            outcomes.append(.init(
+                body: ProviderMatrixURLProtocol.captured.last?.body, error: nil,
+                requestCount: ProviderMatrixURLProtocol.captured.count,
+                request: ProviderMatrixURLProtocol.captured.last
+            ))
+        } catch {
+            outcomes.append(.init(body: nil, error: error, requestCount: ProviderMatrixURLProtocol.captured.count))
+        }
+        ProviderMatrixURLProtocol.captured = []
+        let stream = CapabilityEvidenceRequestContext.$current.withValue(identity) {
+            sendStream(
+                provider: kind, session: session, modelID: row.modelId,
+                messages: messages, options: options
+            )
+        }
+        do {
+            for try await _ in stream {}
+            outcomes.append(.init(
+                body: ProviderMatrixURLProtocol.captured.last?.body, error: nil,
+                requestCount: ProviderMatrixURLProtocol.captured.count,
+                request: ProviderMatrixURLProtocol.captured.last
+            ))
+        } catch {
+            outcomes.append(.init(body: nil, error: error, requestCount: ProviderMatrixURLProtocol.captured.count))
+        }
+        return outcomes
+    }
+
+    private static func attachmentBodies(
+        row: ProviderCoverage, registry: [String: Any], session: URLSession,
+        attachments: [Oriveo.Attachment], evidenceModel: AIModel?
+    ) async throws -> [Data] {
+        try await attachmentOutcomes(
+            row: row, registry: registry, session: session,
+            turns: [(.user, attachments)], evidenceModel: evidenceModel
+        ).map { outcome in
+            if let error = outcome.error { throw error }
+            return try #require(outcome.body)
+        }
+    }
+
+    @Test("17 runtime rows: an outgoing turn over the attachment text limit is blocked before any request; the same files in history still send")
+    func outgoingTurnOverAttachmentTextLimitIsBlocked() async throws {
+        await MetadataClient.shared.resetForTesting()
+        ProviderMatrixURLProtocol.responder = nil
+        let session = providerMatrixSession()
+        let registry = try Self.capabilityRuntimeRegistry()
+        let rows = try Self.executionFixture().providerCoverage
+        #expect(rows.count == 17)
+        let files = ["a.txt", "b.txt", "c.txt", "d.txt"].map(Self.attachmentTextFile)
+        for row in rows {
+            let label = "\(row.providerKind)/\(row.recipeRef)"
+            let model = Self.attachmentEvidenceModel(id: row.modelId)
+
+            // The message being sent carries 4 text files (default limit 3): the real build path throws and no request is produced.
+            let blocked = try await Self.attachmentOutcomes(
+                row: row, registry: registry, session: session,
+                turns: [(.user, files)], evidenceModel: model
+            )
+            #expect(blocked.count == 2)
+            for outcome in blocked {
+                #expect(outcome.requestCount == 0, "\(label) sent a request although a file was left out")
+                guard case let .attachmentTextOverLimit(fileNames, fileCountLimit)? = outcome.error as? ProviderServiceError else {
+                    Issue.record("\(label) did not block the over-limit outgoing turn: \(String(describing: outcome.error))")
+                    continue
+                }
+                // The 4th file is over the count limit: no file is named, and the limit is given.
+                #expect(fileNames.isEmpty && fileCountLimit == FileExtractionLimits.default.maxFiles, "\(label)")
+            }
+
+            // The same 4 files in an earlier user message: not blocked, and the request body carries the first 3.
+            let history = try await Self.attachmentOutcomes(
+                row: row, registry: registry, session: session,
+                turns: [(.user, files), (.assistant, []), (.user, [])], evidenceModel: model
+            )
+            // A call without an evidence model is not a chat send: not blocked, and the default limits apply.
+            let nonChat = try await Self.attachmentOutcomes(
+                row: row, registry: registry, session: session,
+                turns: [(.user, files)], evidenceModel: nil
+            )
+            for outcome in history + nonChat {
+                #expect(outcome.error == nil, "\(label) blocked a turn that is not the outgoing chat turn: \(String(describing: outcome.error))")
+                let body = try #require(outcome.body)
+                #expect(try Self.attachmentBlockCount(in: body) == 3)
+            }
+        }
+    }
+
+    @Test("17 runtime rows: the model's attachment limit, not the default, decides how many text blocks reach the body")
+    func attachmentTextLimitFollowsEvidenceModel() async throws {
+        await MetadataClient.shared.resetForTesting()
+        ProviderMatrixURLProtocol.responder = nil
+        let session = providerMatrixSession()
+        let registry = try Self.capabilityRuntimeRegistry()
+        let rows = try Self.executionFixture().providerCoverage
+        #expect(rows.count == 17)
+        let files = [Self.attachmentTextFile("a.txt"), Self.attachmentTextFile("b.txt")]
+        for row in rows {
+            // Files in an earlier message: a turn carrying over-limit files would be blocked outright (see the next case), so the block count cannot be measured.
+            let limited = try await Self.attachmentOutcomes(
+                row: row, registry: registry, session: session,
+                turns: [(.user, files), (.assistant, []), (.user, [])],
+                evidenceModel: Self.attachmentEvidenceModel(id: row.modelId, maxAttachments: 1)
+            )
+            #expect(limited.count == 2)
+            for outcome in limited {
+                #expect(outcome.error == nil)
+                #expect(try Self.attachmentBlockCount(in: try #require(outcome.body)) == 1,
+                        "\(row.providerKind)/\(row.recipeRef) ignored the model's maxAttachments")
+            }
+            let unlimited = try await Self.attachmentBodies(
+                row: row, registry: registry, session: session, attachments: files,
+                evidenceModel: Self.attachmentEvidenceModel(id: row.modelId)
+            )
+            let withoutModel = try await Self.attachmentBodies(
+                row: row, registry: registry, session: session, attachments: files,
+                evidenceModel: nil
+            )
+            for body in unlimited + withoutModel {
+                #expect(try Self.attachmentBlockCount(in: body) == 2,
+                        "\(row.providerKind)/\(row.recipeRef) changed the default-limit body")
+            }
+        }
+    }
+
+    // MARK: - Attachment delivery: native file upload (per-route switches are in NativeFileUploadSwitch)
+
+    /// The matrix rows for the four direct routes with native file upload enabled, and what each one's native block looks like in the request body.
+    private struct NativeFileLine {
+        let name: String
+        let row: ProviderCoverage
+        /// How to tell a native file block is present in the request body (by the route's wire shape).
+        let hasNativePart: (_ strings: [String], _ keys: Set<String>) -> Bool
+    }
+
+    private static func nativeFileLines() throws -> [NativeFileLine] {
+        let rows = try executionFixture().providerCoverage
+        func row(_ providerKind: String, _ transport: String) throws -> ProviderCoverage {
+            try #require(rows.first { $0.providerKind == providerKind && $0.transport == transport })
+        }
+        return [
+            NativeFileLine(name: "openai-responses", row: try row("openAI", "openai_responses")) { strings, keys in
+                strings.contains("input_file") && keys.contains("file_data") && keys.contains("filename")
+            },
+            NativeFileLine(name: "anthropic-messages", row: try row("anthropic", "anthropic_messages")) { strings, keys in
+                strings.contains("document") && keys.contains("media_type")
+            },
+            NativeFileLine(name: "gemini-generate-content", row: try row("gemini", "gemini_generate_content")) { _, keys in
+                keys.contains("inlineData")
+            },
+            NativeFileLine(name: "openrouter-chat", row: try row("openRouter", "openai_chat")) { strings, keys in
+                strings.contains("file") && keys.contains("file_data") && keys.contains("filename")
+            },
+        ]
+    }
+
+    /// How to tell a native file block appeared where none should (the union of the four wire shapes).
+    private static func carriesAnyNativeFilePart(strings: [String], keys: Set<String>) -> Bool {
+        strings.contains("document") || strings.contains("input_file")
+            || keys.contains("inlineData") || keys.contains("file_data")
+    }
+
+    static let nativePDFMarker = "ORIVEO-PDF-MARKER-7391"
+
+    /// A minimal PDF with one page and one line holding a marker word (the cross-reference table is generated from the real offsets).
+    private static func markerPDF() -> Data {
+        let stream = "BT /F1 18 Tf 72 720 Td (\(nativePDFMarker)) Tj ET"
+        let objects = [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            "<< /Length \(stream.utf8.count) >>\nstream\n\(stream)\nendstream",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        ]
+        var pdf = "%PDF-1.4\n"
+        var offsets: [Int] = []
+        for (index, object) in objects.enumerated() {
+            offsets.append(pdf.utf8.count)
+            pdf += "\(index + 1) 0 obj\n\(object)\nendobj\n"
+        }
+        let xrefOffset = pdf.utf8.count
+        pdf += "xref\n0 \(objects.count + 1)\n0000000000 65535 f \n"
+        for offset in offsets {
+            pdf += String(format: "%010d 00000 n \n", offset)
+        }
+        pdf += "trailer\n<< /Size \(objects.count + 1) /Root 1 0 R >>\nstartxref\n\(xrefOffset)\n%%EOF\n"
+        return Data(pdf.utf8)
+    }
+
+    /// The extracted text deliberately omits the marker word: if the upstream can answer with it, it can only have read the native file.
+    private static let nativePDFExtractedText = "extracted pdf text"
+
+    private static func pdfAttachment(
+        name: String = "paper.pdf", extractedText: String = nativePDFExtractedText,
+        originalByteCount: Int? = nil
+    ) -> Oriveo.Attachment {
+        // When an original size is given, use filler bytes of that length: the native threshold looks only at the original file's byte count, and the extracted text always stays small.
+        let original = originalByteCount.map { Data(count: $0) } ?? markerPDF()
+        return Oriveo.Attachment(
+            id: UUID(), kind: .file, fileName: name, mimeType: "application/pdf",
+            base64Data: Data(extractedText.utf8).base64EncodedString(),
+            extractedSizeBytes: extractedText.utf8.count,
+            originalBase64Data: original.base64EncodedString()
+        )
+    }
+
+    private static func sizedTextFile(_ name: String, bytes: Int) -> Oriveo.Attachment {
+        let content = String(repeating: "x", count: bytes)
+        return Oriveo.Attachment(
+            id: UUID(), kind: .file, fileName: name, mimeType: "text/plain",
+            base64Data: Data(content.utf8).base64EncodedString(), extractedSizeBytes: bytes
+        )
+    }
+
+    @Test("native file upload: the four enabled direct transports send a whitelisted PDF as a native part and no longer as a text block")
+    func whitelistedPDFGoesNativeOnEnabledDirectTransports() async throws {
+        await MetadataClient.shared.resetForTesting()
+        ProviderMatrixURLProtocol.responder = nil
+        let session = providerMatrixSession()
+        let registry = try Self.capabilityRuntimeRegistry()
+        let lines = try Self.nativeFileLines()
+        #expect(lines.count == 4)
+        let pdf = Self.pdfAttachment()
+        let pdfBase64 = try #require(pdf.originalBase64Data)
+        for line in lines {
+            let bodies = try await Self.attachmentBodies(
+                row: line.row, registry: registry, session: session,
+                attachments: [pdf, Self.attachmentTextFile("notes.txt")],
+                evidenceModel: Self.attachmentEvidenceModel(id: line.row.modelId, nativeFileMimes: ["application/pdf"])
+            )
+            #expect(bodies.count == 2)
+            for body in bodies {
+                let json = try JSONSerialization.jsonObject(with: body)
+                let strings = Self.jsonStrings(in: json)
+                #expect(line.hasNativePart(strings, Self.jsonKeys(in: json)), "\(line.name) sent no native file part")
+                #expect(strings.contains { $0.contains(pdfBase64) }, "\(line.name) did not carry the original PDF bytes")
+                // The PDF no longer appears as a text block; text files in the same message are injected as usual.
+                #expect(try Self.attachmentBlockCount(in: body) == 1, "\(line.name)")
+                #expect(!strings.contains { $0.contains(Self.nativePDFExtractedText) }, "\(line.name) also injected the PDF as text")
+                #expect(strings.contains { $0.contains("content of notes.txt") })
+            }
+        }
+    }
+
+    @Test("native file upload: without a whitelist the body is extracted text only, and transports that are not enabled ignore the whitelist")
+    func nativeFilePartsNeedBothWhitelistAndEnabledTransport() async throws {
+        await MetadataClient.shared.resetForTesting()
+        ProviderMatrixURLProtocol.responder = nil
+        let session = providerMatrixSession()
+        let registry = try Self.capabilityRuntimeRegistry()
+        let rows = try Self.executionFixture().providerCoverage
+        #expect(rows.count == 17)
+        let enabled = Set(try Self.nativeFileLines().map { "\($0.row.providerKind)/\($0.row.recipeRef)" })
+        #expect(enabled.count == 4)
+        let pdf = Self.pdfAttachment()
+        let pdfBase64 = try #require(pdf.originalBase64Data)
+        for row in rows {
+            let label = "\(row.providerKind)/\(row.recipeRef)"
+            // A model without an allow-list (the shape when a direct catalog lacks the field): the request body is the same as before native upload was enabled.
+            var bodies = try await Self.attachmentBodies(
+                row: row, registry: registry, session: session, attachments: [pdf],
+                evidenceModel: Self.attachmentEvidenceModel(id: row.modelId)
+            )
+            // A call without an evidence model likewise carries text only.
+            bodies += try await Self.attachmentBodies(
+                row: row, registry: registry, session: session, attachments: [pdf], evidenceModel: nil
+            )
+            if !enabled.contains(label) {
+                // The route is not enabled (or its builder never assembles native blocks): even with an allow-list on the model, only text goes out.
+                bodies += try await Self.attachmentBodies(
+                    row: row, registry: registry, session: session, attachments: [pdf],
+                    evidenceModel: Self.attachmentEvidenceModel(id: row.modelId, nativeFileMimes: ["application/pdf"])
+                )
+            }
+            for body in bodies {
+                let json = try JSONSerialization.jsonObject(with: body)
+                let strings = Self.jsonStrings(in: json)
+                #expect(!Self.carriesAnyNativeFilePart(strings: strings, keys: Self.jsonKeys(in: json)),
+                        "\(label) sent a native file part")
+                #expect(!strings.contains { $0.contains(pdfBase64) }, "\(label) sent the original PDF bytes")
+                #expect(try Self.attachmentBlockCount(in: body) == 1, "\(label)")
+                #expect(strings.contains { $0.contains(Self.nativePDFExtractedText) }, "\(label)")
+            }
+        }
+    }
+
+    private final class TransportLog: @unchecked Sendable {
+        private let lock = NSLock()
+        private var seen: [AttachmentTransport] = []
+        func record(_ transport: AttachmentTransport) { lock.lock(); seen.append(transport); lock.unlock() }
+        var transports: Set<AttachmentTransport> { lock.lock(); defer { lock.unlock() }; return Set(seen) }
+    }
+
+    @Test("17 runtime rows: the transport resolved before sending is the one the production builder reports to attachment delivery")
+    func presendTransportMatchesProductionBuilder() async throws {
+        await MetadataClient.shared.resetForTesting()
+        ProviderMatrixURLProtocol.responder = nil
+        let session = providerMatrixSession()
+        let registry = try Self.capabilityRuntimeRegistry()
+        let rows = try Self.executionFixture().providerCoverage
+        #expect(rows.count == 17)
+        var covered: Set<AttachmentTransport> = []
+        for row in rows {
+            let label = "\(row.providerKind)/\(row.recipeRef)"
+            let kind = try #require(Self.localProviderKind(forServerKey: row.providerKind))
+            let model = Self.attachmentEvidenceModel(id: row.modelId)
+            let log = TransportLog()
+            // Send the real build path once non-streaming and once streaming, and record the route the build point reports to deliver.
+            let outcomes = try await AttachmentDeliveryObservation.$onDeliver.withValue({ log.record($0) }) {
+                try await Self.attachmentOutcomes(
+                    row: row, registry: registry, session: session,
+                    turns: [(.user, [Self.attachmentTextFile("a.txt")])], evidenceModel: model
+                )
+            }
+            #expect(outcomes.count == 2, "\(label)")
+            // The catalog still matches this row right now: the pre-send resolution must land on the same route.
+            let resolved = AttachmentTransportResolver.resolve(
+                provider: TestFactories.makeProvider(kind: kind, models: [model]), model: model, request: .init()
+            )
+            #expect(resolved != nil, "\(label) was not resolvable before sending")
+            #expect(log.transports == Set([resolved].compactMap { $0 }), "\(label) built on \(log.transports), resolved \(String(describing: resolved))")
+            if let resolved { covered.insert(resolved) }
+        }
+        #expect(covered == [
+            .openAIResponses, .openAIChat, .anthropicMessages, .geminiGenerateContent, .openRouterChat,
+            .groqChat, .deepSeekChat, .siliconFlowChat, .togetherChat, .fireworksChat, .miniMaxChat,
+            .zhipuChat, .qwenChat, .grokResponses, .grokChat, .moonshotChat, .mistralChat,
+        ])
+
+        // The snapshot has not arrived: providers that pick their protocol from the catalog are not predicted, the rest work as usual.
+        await MetadataClient.shared.resetForTesting()
+        let anyModel = Self.attachmentEvidenceModel(id: "gpt-4.1")
+        for kind in [ProviderKind.openAI, .grok, .gemini, .miniMax] {
+            #expect(AttachmentTransportResolver.resolve(
+                provider: TestFactories.makeProvider(kind: kind, models: [anyModel]), model: anyModel, request: .init()
+            ) == nil, "\(kind)")
+        }
+        #expect(AttachmentTransportResolver.resolve(
+            provider: TestFactories.makeProvider(kind: .anthropic, models: [anyModel]), model: anyModel, request: .init()
+        ) == .anthropicMessages)
+    }
+
+    @Test("Gemini: web search on an Interactions recipe resolves to and builds on the Interactions transport; off stays on generateContent")
+    func presendTransportMatchesGeminiInteractionsRoute() async throws {
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: try interactionsMetadataJSON())
+        ProviderMatrixURLProtocol.responder = nil
+        let session = providerMatrixSession()
+        let model = Self.attachmentEvidenceModel(id: "gemini-interactions")
+        var user = ChatMessage(id: UUID(), role: .user, text: "news", providerKind: .gemini,
+                               providerName: "Gemini", modelID: "gemini-interactions", modelName: "gemini-interactions", state: .delivered)
+        user.attachments = [Self.attachmentTextFile("a.txt")]
+        var options = ChatRequestOptions()
+        options.capabilityEvidenceModel = model
+        let provider = TestFactories.makeProvider(kind: .gemini, models: [model])
+        for (webSearchEnabled, expected) in [(true, AttachmentTransport.geminiInteractions), (false, .geminiGenerateContent)] {
+            let log = TransportLog()
+            await AttachmentDeliveryObservation.$onDeliver.withValue({ log.record($0) }) {
+                // Only which route the build point took matters; the stub has no response body for this route, so whether the send itself succeeds is outside this assertion.
+                _ = try? await Self.sendNonstream(
+                    provider: .gemini, session: session, modelID: "gemini-interactions",
+                    messages: [user], options: options, webSearchEnabled: webSearchEnabled
+                )
+                do {
+                    for try await _ in Self.sendStream(
+                        provider: .gemini, session: session, modelID: "gemini-interactions",
+                        messages: [user], options: options, webSearchEnabled: webSearchEnabled
+                    ) {}
+                } catch {}
+            }
+            #expect(log.transports == [expected], "webSearchEnabled=\(webSearchEnabled)")
+            #expect(AttachmentTransportResolver.resolve(
+                provider: provider, model: model, request: .init(webSearchEnabled: webSearchEnabled)
+            ) == expected, "webSearchEnabled=\(webSearchEnabled)")
+        }
+    }
+
+    @Test("native file upload: a PDF over the transport's native size threshold falls back to extracted text")
+    func oversizePDFFallsBackToText() async throws {
+        await MetadataClient.shared.resetForTesting()
+        ProviderMatrixURLProtocol.responder = nil
+        let session = providerMatrixSession()
+        let registry = try Self.capabilityRuntimeRegistry()
+        for line in try Self.nativeFileLines() {
+            let kind = try #require(Self.localProviderKind(forServerKey: line.row.providerKind))
+            let model = Self.attachmentEvidenceModel(id: line.row.modelId, nativeFileMimes: ["application/pdf"])
+            let oversize = Self.pdfAttachment(originalByteCount: AttachmentRouter.maxNativeBytes(for: kind) + 1)
+            let atThreshold = Self.pdfAttachment(originalByteCount: AttachmentRouter.maxNativeBytes(for: kind))
+            for body in try await Self.attachmentBodies(
+                row: line.row, registry: registry, session: session, attachments: [oversize], evidenceModel: model
+            ) {
+                let json = try JSONSerialization.jsonObject(with: body)
+                let strings = Self.jsonStrings(in: json)
+                #expect(!Self.carriesAnyNativeFilePart(strings: strings, keys: Self.jsonKeys(in: json)), "\(line.name)")
+                #expect(try Self.attachmentBlockCount(in: body) == 1, "\(line.name)")
+                #expect(strings.contains { $0.contains(Self.nativePDFExtractedText) }, "\(line.name)")
+            }
+            // A file exactly at the threshold still goes native. This only asks about routing and does not stuff tens of MB of filler bytes into a request body;
+            // that a file routed native really becomes a native block is shown on a real request body by the small-PDF case above.
+            #expect(AttachmentRouter.decide(attachment: atThreshold, provider: kind, model: model) == .native, "\(line.name)")
+        }
+    }
+
+    @Test("native file upload: a native file counts toward neither the text total nor the text file count")
+    func nativeFilesDoNotConsumeTextBudget() async throws {
+        await MetadataClient.shared.resetForTesting()
+        ProviderMatrixURLProtocol.responder = nil
+        let session = providerMatrixSession()
+        let registry = try Self.capabilityRuntimeRegistry()
+        let defaults = FileExtractionLimits.default
+        // The PDF's extracted text and the text file each take 60% of the default total: both as text would be over the limit, while the PDF going native fits.
+        let share = defaults.totalCap * 6 / 10
+        let pdf = Self.pdfAttachment(extractedText: String(repeating: "p", count: share))
+        let text = Self.sizedTextFile("big.txt", bytes: share)
+        // Text files fill the default count limit, plus one native PDF.
+        let fullCount = (1...defaults.maxFiles).map { Self.attachmentTextFile("f\($0).txt") }
+        for line in try Self.nativeFileLines() {
+            let native = Self.attachmentEvidenceModel(id: line.row.modelId, nativeFileMimes: ["application/pdf"])
+            let textOnly = Self.attachmentEvidenceModel(id: line.row.modelId)
+
+            for body in try await Self.attachmentBodies(
+                row: line.row, registry: registry, session: session, attachments: [pdf, text], evidenceModel: native
+            ) {
+                let json = try JSONSerialization.jsonObject(with: body)
+                #expect(line.hasNativePart(Self.jsonStrings(in: json), Self.jsonKeys(in: json)), "\(line.name)")
+                #expect(try Self.attachmentBlockCount(in: body) == 1, "\(line.name)")
+            }
+            for body in try await Self.attachmentBodies(
+                row: line.row, registry: registry, session: session,
+                attachments: [Self.pdfAttachment()] + fullCount, evidenceModel: native
+            ) {
+                #expect(try Self.attachmentBlockCount(in: body) == defaults.maxFiles, "\(line.name)")
+            }
+
+            // Control: with both pieces of content going as text, this turn is blocked.
+            let blocked = try await Self.attachmentOutcomes(
+                row: line.row, registry: registry, session: session,
+                turns: [(.user, [pdf, text])], evidenceModel: textOnly
+            )
+            for outcome in blocked {
+                #expect(outcome.requestCount == 0, "\(line.name)")
+                guard case let .attachmentTextOverLimit(fileNames, _)? = outcome.error as? ProviderServiceError else {
+                    Issue.record("\(line.name) did not block the over-limit text turn: \(String(describing: outcome.error))")
+                    continue
+                }
+                #expect(fileNames == ["big.txt"])
+            }
+        }
+    }
+
+    @Test("native file upload: catalog metadata carries nativeFileMimes / pdfNativeDefault onto direct models, and a missing field means none")
+    func catalogMetadataFeedsNativeFileWhitelist() async throws {
+        let registry = try Self.capabilityRuntimeRegistry()
+        for line in try Self.nativeFileLines() {
+            let kind = try #require(Self.localProviderKind(forServerKey: line.row.providerKind))
+            let plain = try Self.runtimeGenerationMetadata(registry: registry, row: line.row)
+            var document = try #require(JSONSerialization.jsonObject(with: Data(plain.utf8)) as? [String: Any])
+            var providers = try #require(document["providers"] as? [String: Any])
+            var provider = try #require(providers[line.row.providerKind] as? [String: Any])
+            var models = try #require(provider["models"] as? [String: Any])
+            var entry = try #require(models[line.row.modelId] as? [String: Any])
+            entry["nativeFileMimes"] = ["Application/PDF"]
+            entry["pdfNativeDefault"] = true
+            entry["attachmentExtraction"] = ["maxLines": 120, "totalCap": 51_200]
+            models[line.row.modelId] = entry
+            provider["models"] = models
+            providers[line.row.providerKind] = provider
+            document["providers"] = providers
+            let withWhitelist = String(decoding: try JSONSerialization.data(withJSONObject: document), as: UTF8.self)
+
+            await MetadataClient.shared.resetForTesting()
+            try await MetadataClient.shared.loadForTesting(json: withWhitelist)
+            let built = await CatalogModelBuilder.buildCatalogModel(
+                providerKind: kind, runtimeModelId: line.row.modelId, fallbackName: line.row.modelId
+            )
+            #expect(built.nativeFileMimes == ["application/pdf"], "\(line.name)")
+            #expect(built.pdfNativeDefault, "\(line.name)")
+            #expect(AttachmentRouter.decide(attachment: Self.pdfAttachment(), provider: kind, model: built) == .native)
+            // Per-model extraction limit overrides come from the catalog; the two not given fall back to defaults.
+            let limits = FileExtractionLimits.resolve(model: built)
+            #expect(limits.maxLines == 120 && limits.totalCap == 51_200, "\(line.name)")
+            #expect(limits.maxBytes == FileExtractionLimits.default.maxBytes, "\(line.name)")
+            #expect(limits.maxInputFileBytes == FileExtractionLimits.default.maxInputFileBytes, "\(line.name)")
+
+            // The catalog stops providing them: after a re-enrich the allow-list is withdrawn, and a stored model does not keep going native with the old value.
+            await MetadataClient.shared.resetForTesting()
+            try await MetadataClient.shared.loadForTesting(json: plain)
+            let withdrawn = CatalogModelBuilder.enrichStoredModel(built, providerKind: kind)
+            #expect(withdrawn.nativeFileMimes.isEmpty, "\(line.name)")
+            #expect(!withdrawn.pdfNativeDefault, "\(line.name)")
+            #expect(withdrawn.attachmentExtraction == nil, "\(line.name)")
+            let fresh = await CatalogModelBuilder.buildCatalogModel(
+                providerKind: kind, runtimeModelId: line.row.modelId, fallbackName: line.row.modelId
+            )
+            #expect(fresh.nativeFileMimes.isEmpty && !fresh.pdfNativeDefault, "\(line.name)")
+            #expect(FileExtractionLimits.resolve(model: fresh) == .default, "\(line.name)")
+        }
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    /// Exports the real requests for the four routes, so a person can swap in a real key and send them upstream to verify that the upstream accepts native file blocks and reads the content.
+    /// Files are written only when `ORIVEO_TEST_EXPORT_DIR` is set (to pass it to the test process through xcodebuild, add the `TEST_RUNNER_` prefix):
+    ///   TEST_RUNNER_ORIVEO_TEST_EXPORT_DIR=<directory> <run the iOS tests> \
+    ///     -only-testing:OriveoTests/ProviderProductionBuilderMatrixTests/exportNativeFileRequests
+    /// Each route writes `<route>.nonstream.json` and `<route>.stream.json`: method / url / headerNames / body.
+    /// The key in the request is the placeholder `test-key`; headers export names only.
+    @Test("native file upload: export the production requests of the four enabled transports for a marker PDF")
+    func exportNativeFileRequests() async throws {
+        await MetadataClient.shared.resetForTesting()
+        ProviderMatrixURLProtocol.responder = nil
+        let session = providerMatrixSession()
+        let registry = try Self.capabilityRuntimeRegistry()
+        let exportDirectory = ProcessInfo.processInfo.environment["ORIVEO_TEST_EXPORT_DIR"]
+            .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
+        if let exportDirectory {
+            try FileManager.default.createDirectory(at: exportDirectory, withIntermediateDirectories: true)
+        }
+        let question = "What is the marker code printed in the attached PDF? Reply with the code only."
+        for line in try Self.nativeFileLines() {
+            let outcomes = try await Self.attachmentOutcomes(
+                row: line.row, registry: registry, session: session,
+                turns: [(.user, [Self.pdfAttachment(name: "marker.pdf")])],
+                evidenceModel: Self.attachmentEvidenceModel(id: line.row.modelId, nativeFileMimes: ["application/pdf"]),
+                text: question
+            )
+            #expect(outcomes.count == 2)
+            for (mode, outcome) in zip(["nonstream", "stream"], outcomes) {
+                #expect(outcome.error == nil, "\(line.name) \(mode): \(String(describing: outcome.error))")
+                let body = try #require(outcome.body)
+                let json = try JSONSerialization.jsonObject(with: body)
+                let strings = Self.jsonStrings(in: json)
+                #expect(line.hasNativePart(strings, Self.jsonKeys(in: json)), "\(line.name) \(mode)")
+                #expect(strings.contains { $0.contains(question) }, "\(line.name) \(mode)")
+                // The marker word is only in the PDF bytes, never in any plaintext field.
+                #expect(!strings.contains { $0.contains(Self.nativePDFMarker) }, "\(line.name) \(mode)")
+                guard let exportDirectory else { continue }
+                let request = try #require(outcome.request)
+                let exported: [String: Any] = [
+                    "line": line.name,
+                    "mode": mode,
+                    "modelId": line.row.modelId,
+                    "method": request.method ?? "POST",
+                    "url": request.url?.absoluteString ?? "",
+                    "path": request.url?.path ?? "",
+                    "headerNames": request.headerNames,
+                    "marker": Self.nativePDFMarker,
+                    "body": json,
+                ]
+                try JSONSerialization.data(withJSONObject: exported, options: [.prettyPrinted, .sortedKeys])
+                    .write(to: exportDirectory.appendingPathComponent("\(line.name).\(mode).json"))
             }
         }
     }

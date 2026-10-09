@@ -40,6 +40,11 @@ enum ProviderServiceError: Error {
     /// A web-search or thinking custom field failed local validation, so no request was sent. Same reasoning
     /// as above: the field is wrong, not the connection.
     case customFieldsRejected(CustomFieldsRejection)
+    /// Some files in the message being sent do not fit the model's attachment text limit, so the request was not sent.
+    /// The connection is fine: removing some files or switching models lets the send go through.
+    /// `fileNames`: files that do not fit the text total. A non-nil `fileCountLimit` means more files than the count limit (its value) were attached.
+    /// When both occur the message uses two lines, one for the count and one for the text; `fileNames` is empty when only the count is over.
+    case attachmentTextOverLimit(fileNames: [String], fileCountLimit: Int? = nil)
     /// The user signed in with their own provider subscription (Codex, Grok) and that lane failed.
     case subscriptionFailure(
         lane: SubscriptionLane,
@@ -67,10 +72,24 @@ enum ProviderServiceError: Error {
         case quotaExhausted
     }
 
+    /// The two stable codes for attachments that do not fit: the persisted detail uses them, and the failure card recognizes this kind by them.
+    /// Only a count overflow gives the count code; everything else (including both at once) gives the text code.
+    static let attachmentTextOverLimitCode = "attachment_text_over_limit"
+    static let attachmentCountOverLimitCode = "attachment_count_over_limit"
+    static let attachmentOverLimitCodes: Set<String> = [attachmentTextOverLimitCode, attachmentCountOverLimitCode]
+
+    /// The stable over-limit code for this error, or nil for any other kind of error.
+    var attachmentOverLimitCode: String? {
+        guard case let .attachmentTextOverLimit(fileNames, fileCountLimit) = self else { return nil }
+        return fileNames.isEmpty && fileCountLimit != nil
+            ? Self.attachmentCountOverLimitCode
+            : Self.attachmentTextOverLimitCode
+    }
+
     /// Whether a failed chat send should mark the connection as failing. Only an invalid key or a
     /// misconfigured connection does; network blips, rate limits, upstream errors and a mistake
     /// in the additional request body or the web-search / thinking custom fields (the JSON is wrong, not the
-    /// connection) leave it alone.
+    /// connection), or attachment text over the model's limit, leave it alone.
     var marksConnectionFailed: Bool {
         switch self {
         case .invalidAPIKey, .invalidConfiguration: return true
@@ -81,6 +100,7 @@ enum ProviderServiceError: Error {
     /// Localized headline for the error banner.
     var title: String {
         if case .subscriptionFailure = self { return L10n.tr(titleKey, table: .providers) }
+        if case .attachmentTextOverLimit = self { return L10n.tr(titleKey, table: .chat) }
         return L10n.tr(titleKey)
     }
 
@@ -108,6 +128,9 @@ enum ProviderServiceError: Error {
             // Also the marker that identifies the "Retry without custom fields" action on a failed message
             // (`LocalCustomFragmentDisposition`).
             return "Custom request fields error"
+        case .attachmentTextOverLimit:
+            // The chat failure card looks this title up in the Chat table first.
+            return "Attachment Not Accepted"
         case let .subscriptionFailure(lane, _, _, _):
             return lane.titleKey
         }
@@ -120,6 +143,23 @@ enum ProviderServiceError: Error {
             return rejection.localizedMessage + " " + L10n.tr("This message wasn’t sent.", table: .chat)
         }
         if case let .customFieldsRejected(rejection) = self { return rejection.localizedMessage }
+        if case let .attachmentTextOverLimit(fileNames, fileCountLimit) = self {
+            // Report each reason on its own line: one for the count, one for the text; the text line names only the files that do not fit the total.
+            var lines: [String] = []
+            if let fileCountLimit {
+                lines.append(String(
+                    format: L10n.tr("file_attachment_count_limit_reached", table: .chat),
+                    fileCountLimit
+                ))
+            }
+            if !fileNames.isEmpty || fileCountLimit == nil {
+                lines.append(String(
+                    format: L10n.tr("file_extraction_send_blocked_text_budget", table: .chat),
+                    fileNames.joined(separator: ", ")
+                ))
+            }
+            return lines.joined(separator: "\n")
+        }
         return L10n.tr(messageKey)
     }
 
@@ -145,6 +185,10 @@ enum ProviderServiceError: Error {
             return "The provider returned an error for this request. Please retry or switch models."
         case .additionalRequestBodyRejected, .customFieldsRejected:
             return "This message wasn’t sent."
+        case let .attachmentTextOverLimit(fileNames, fileCountLimit):
+            return fileNames.isEmpty && fileCountLimit != nil
+                ? "file_attachment_count_limit_reached"
+                : "file_extraction_send_blocked_text_budget"
         case let .subscriptionFailure(_, _, messageKey, _):
             return messageKey
         }
@@ -164,6 +208,7 @@ enum ProviderServiceError: Error {
         case let .upstream(statusCode, _): return "upstream_\(statusCode)"
         case .additionalRequestBodyRejected: return "additional_request_body_rejected"
         case .customFieldsRejected: return "custom_request_fields_rejected"
+        case .attachmentTextOverLimit: return attachmentOverLimitCode ?? Self.attachmentTextOverLimitCode
         case let .subscriptionFailure(lane, kind, _, _): return "\(lane.rawValue)_subscription_\(kind.rawValue)"
         }
     }
@@ -187,6 +232,9 @@ enum ProviderServiceError: Error {
             return rejection.safeCode
         case let .customFieldsRejected(rejection):
             return rejection.safeCode
+        case .attachmentTextOverLimit:
+            // Keep only the stable code: file names are user content and stay out of the persisted detail.
+            return attachmentOverLimitCode ?? Self.attachmentTextOverLimitCode
         case let .subscriptionFailure(lane, kind, _, detail):
             return "\(lane.titleKey) \(kind.rawValue): \(detail)"
         }
@@ -361,7 +409,7 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
         if !systemPrompt.isEmpty {
             apiMessages.append(.init(role: "system", content: .text(systemPrompt)))
         }
-        apiMessages.append(contentsOf: capabilityIntent.outboundMessages.map { Self.buildRequestMessage($0) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
 
         let payload = OpenRouterChatRequest(
             model: modelID,
@@ -590,7 +638,7 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
                     if !systemPrompt.isEmpty {
                         apiMessages.append(.init(role: "system", content: .text(systemPrompt)))
                     }
-                    apiMessages.append(contentsOf: capabilityIntent.outboundMessages.map { Self.buildRequestMessage($0) })
+                    apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
 
                     let payload = OpenRouterChatRequest(
                         model: modelID,
@@ -793,18 +841,23 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
 
     // MARK: - Request Message Building
 
-    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel? = nil) -> OpenRouterChatRequest.Message {
+    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel?, isOutgoingTurn: Bool) throws -> OpenRouterChatRequest.Message {
         let atts = msg.attachments ?? []
         let imageAtts = atts.filter { $0.kind == .image }
 
-        let (combinedText, _) = BaseAPIService.injectFileAttachmentsAsText(
+        // Files on the model's allow-list go out as OpenRouter file parts; the rest are extracted and injected as text
+        // (whether native upload is enabled is decided by AttachmentTransport).
+        let delivery = try AttachmentDelivery.deliver(
+            isOutgoingTurn: isOutgoingTurn,
             userText: msg.text,
             attachments: atts,
-            provider: .openRouter,
+            transport: .openRouterChat,
             model: model
         )
+        let nativeAtts = delivery.native
+        let combinedText = delivery.injectedText
 
-        guard !imageAtts.isEmpty else {
+        guard !imageAtts.isEmpty || !nativeAtts.isEmpty else {
             return .init(role: msg.role.rawValue, content: .text(combinedText))
         }
 
@@ -813,6 +866,14 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
             let dataURL = a.resolvedDataURL
             guard !dataURL.isEmpty else { continue }
             parts.append(.init(type: "image_url", image_url: .init(url: dataURL, detail: "auto")))
+        }
+        for f in nativeAtts {
+            // Skip empty strings like nil: an empty file_data is rejected upstream
+            if let base64 = f.originalBase64Data, !base64.isEmpty {
+                parts.append(.init(type: "file", file: .init(
+                    filename: f.fileName, file_data: "data:\(f.mimeType);base64,\(base64)"
+                )))
+            }
         }
         return .init(role: msg.role.rawValue, content: .parts(parts))
     }

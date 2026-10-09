@@ -353,7 +353,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
         let systemPrompt = requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let payload = GrokResponsesRequest(
             model: modelID,
-            input: capabilityIntent.outboundMessages.map { Self.buildResponsesInputMessage($0) },
+            input: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildResponsesInputMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) },
             instructions: systemPrompt.isEmpty ? nil : systemPrompt,
             stream: stream ? true : nil
         )
@@ -562,7 +562,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
         let model = requestOptions.capabilityEvidenceModel
         var body: [String: Any] = [
             "model": modelID,
-            "input": messages.map { Self.buildSubscriptionResponsesInputItem($0) },
+            "input": try AttachmentDelivery.mapTurns(messages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildSubscriptionResponsesInputItem($0, model: model, isOutgoingTurn: $1) },
             "store": false,
         ]
         if stream { body["stream"] = true }
@@ -584,7 +584,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
         return request
     }
 
-    static func buildSubscriptionResponsesInputItem(_ msg: ChatMessage) -> [String: Any] {
+    static func buildSubscriptionResponsesInputItem(_ msg: ChatMessage, model: AIModel?, isOutgoingTurn: Bool) throws -> [String: Any] {
         let role = msg.role.rawValue
         guard msg.role == .user else {
             let type = msg.role == .assistant ? "output_text" : "input_text"
@@ -593,12 +593,13 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
         let attachments = msg.attachments ?? []
         let imageAttachments = attachments.filter { $0.kind == .image }
         let fileAttachments = attachments.filter { $0.kind == .file }
-        let (combinedText, _) = BaseAPIService.injectFileAttachmentsAsText(
+        let combinedText = try AttachmentDelivery.deliver(
+            isOutgoingTurn: isOutgoingTurn,
             userText: msg.text,
             attachments: fileAttachments,
-            provider: .grok,
-            model: nil
-        )
+            transport: .grokSubscription,
+            model: model
+        ).injectedText
         var parts: [[String: Any]] = []
         if !combinedText.isEmpty || imageAttachments.isEmpty {
             parts.append(["type": "input_text", "text": combinedText])
@@ -611,7 +612,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
         return ["role": role, "content": parts]
     }
 
-    private static func buildResponsesInputMessage(_ msg: ChatMessage) -> GrokResponsesRequest.InputMessage {
+    private static func buildResponsesInputMessage(_ msg: ChatMessage, model: AIModel?, isOutgoingTurn: Bool) throws -> GrokResponsesRequest.InputMessage {
         guard let attachments = msg.attachments, !attachments.isEmpty else {
             return .init(role: msg.role.rawValue, content: .text(msg.text))
         }
@@ -622,12 +623,13 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
 
         let imageAttachments = attachments.filter { $0.kind == .image }
         let fileAttachments = attachments.filter { $0.kind == .file }
-        let (combinedText, _) = BaseAPIService.injectFileAttachmentsAsText(
+        let combinedText = try AttachmentDelivery.deliver(
+            isOutgoingTurn: isOutgoingTurn,
             userText: msg.text,
             attachments: fileAttachments,
-            provider: .grok,
-            model: nil
-        )
+            transport: .grokResponses,
+            model: model
+        ).injectedText
         guard !imageAttachments.isEmpty else {
             return .init(role: msg.role.rawValue, content: .text(combinedText))
         }
@@ -646,7 +648,8 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
             : .init(role: msg.role.rawValue, content: .parts(parts))
     }
 
-    private static func transportKind(for resolved: MetadataClient.ResolvedModelMetadata?) -> TransportKind {
+    /// Outbound dispatch and the pre-send attachment route resolution read the same function.
+    static func transportKind(for resolved: MetadataClient.ResolvedModelMetadata?) -> TransportKind {
         guard let raw = resolved?.transport,
               let kind = TransportKind(rawValue: raw) else {
             return .openaiChat
@@ -792,7 +795,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
         if !systemPrompt.isEmpty {
             apiMessages.append(["role": "system", "content": systemPrompt])
         }
-        apiMessages.append(contentsOf: capabilityIntent.outboundMessages.map { Self.buildRequestMessage($0) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
 
         var payload: [String: Any] = [
             "model": modelID,
@@ -830,18 +833,19 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
         return request
     }
 
-    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel? = nil) -> [String: Any] {
+    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel?, isOutgoingTurn: Bool) throws -> [String: Any] {
         let attachments = msg.attachments ?? []
         let imageAttachments = attachments.filter { $0.kind == .image }
         let fileAttachments = attachments.filter { $0.kind == .file }
 
         if !imageAttachments.isEmpty {
-            let (injectedText, _) = BaseAPIService.injectFileAttachmentsAsText(
+            let injectedText = try AttachmentDelivery.deliver(
+                isOutgoingTurn: isOutgoingTurn,
                 userText: msg.text,
                 attachments: fileAttachments,
-                provider: .grok,
+                transport: .grokChat,
                 model: model
-            )
+            ).injectedText
             var parts: [[String: Any]] = []
             if !injectedText.isEmpty {
                 parts.append(["type": "text", "text": injectedText])
@@ -859,12 +863,13 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
             return ["role": msg.role.rawValue, "content": parts]
         }
 
-        let (text, _) = BaseAPIService.injectFileAttachmentsAsText(
+        let text = try AttachmentDelivery.deliver(
+            isOutgoingTurn: isOutgoingTurn,
             userText: msg.text,
             attachments: attachments,
-            provider: .grok,
+            transport: .grokChat,
             model: model
-        )
+        ).injectedText
         return ["role": msg.role.rawValue, "content": text]
     }
 

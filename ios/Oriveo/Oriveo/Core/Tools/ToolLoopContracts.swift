@@ -74,12 +74,24 @@ nonisolated struct ToolLoopMessage: Codable, Equatable, Sendable {
             var detail: String?
         }
 
+        /// A Chat Completions native file block (`file_data` is a data URI). Only the OpenRouter leg carries it.
+        struct File: Codable, Equatable, Sendable {
+            var filename: String
+            var fileData: String
+
+            private enum CodingKeys: String, CodingKey {
+                case filename
+                case fileData = "file_data"
+            }
+        }
+
         var type: String
         var text: String?
         var imageURL: ImageURL?
+        var file: File? = nil
 
         private enum CodingKeys: String, CodingKey {
-            case type, text
+            case type, text, file
             case imageURL = "image_url"
         }
     }

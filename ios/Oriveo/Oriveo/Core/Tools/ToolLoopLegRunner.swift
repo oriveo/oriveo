@@ -303,23 +303,29 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
     }
 
     /// Converts the chat history into loop messages: file attachments are injected as text the same
-    /// way plain chat does, and images become `image_url` parts.
+    /// way plain chat does, images become `image_url` parts, and on routes that support it files on the
+    /// model's allow-list become native `file` parts.
     static func messages(
         from chatMessages: [ChatMessage],
         providerKind: ProviderKind,
-        model: AIModel
-    ) -> [ToolLoopMessage] {
-        chatMessages.compactMap { message in
+        model: AIModel,
+        isChatSend: Bool
+    ) throws -> [ToolLoopMessage] {
+        let outgoingTurnIndex = AttachmentDelivery.outgoingTurnIndex(in: chatMessages, isChatSend: isChatSend)
+        return try chatMessages.enumerated().compactMap { index, message in
             let attachments = message.attachments ?? []
-            let injected = BaseAPIService.injectFileAttachmentsAsText(
+            let delivery = try AttachmentDelivery.deliver(
+                isOutgoingTurn: index == outgoingTurnIndex,
                 userText: message.text,
                 attachments: attachments,
-                provider: providerKind,
-                model: model,
-                imagePlaceholderText: nil
-            ).text
+                transport: .toolLoop(providerKind),
+                model: model
+            )
+            let injected = delivery.injectedText
             let images = attachments.filter { $0.kind == .image && !$0.resolvedDataURL.isEmpty }
-            guard !images.isEmpty else {
+            // Skip empty strings like nil: an empty file_data is rejected upstream
+            let nativeFiles = delivery.native.filter { $0.originalBase64Data?.isEmpty == false }
+            guard !images.isEmpty || !nativeFiles.isEmpty else {
                 return ToolLoopMessage(role: message.role.rawValue, content: injected)
             }
 
@@ -332,6 +338,17 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
                     type: "image_url",
                     text: nil,
                     imageURL: .init(url: $0.resolvedDataURL, detail: "auto")
+                )
+            })
+            parts.append(contentsOf: nativeFiles.map {
+                .init(
+                    type: "file",
+                    text: nil,
+                    imageURL: nil,
+                    file: .init(
+                        filename: $0.fileName,
+                        fileData: "data:\($0.mimeType);base64,\($0.originalBase64Data ?? "")"
+                    )
                 )
             })
             return ToolLoopMessage(role: message.role.rawValue, contentParts: parts)

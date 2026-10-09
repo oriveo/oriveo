@@ -240,16 +240,16 @@ struct AttachmentImportBoundaryTests {
         #expect(attachment.extractedTruncated == true)
         #expect(attachment.extractedTotalLines == 600)
 
-        let xml = BaseAPIService.injectFileAttachmentsAsText(
-            userText: "q", attachments: [attachment], provider: .anthropic, model: nil
+        let xml = AttachmentDelivery.plan(
+            userText: "q", attachments: [attachment], transport: AttachmentTransport.anthropicMessages.profile, model: nil
         )
         #expect(xml.skipped.isEmpty)
-        #expect(xml.text.contains("<TRUNCATED>showing first 500 of 600 lines</TRUNCATED>"), "\(xml.text.suffix(160))")
+        #expect(xml.injectedText.contains("<TRUNCATED>showing first 500 of 600 lines</TRUNCATED>"), "\(xml.injectedText.suffix(160))")
 
-        let markdown = BaseAPIService.injectFileAttachmentsAsText(
-            userText: "q", attachments: [attachment], provider: .deepseek, model: nil
+        let markdown = AttachmentDelivery.plan(
+            userText: "q", attachments: [attachment], transport: AttachmentTransport.deepSeekChat.profile, model: nil
         )
-        #expect(markdown.text.contains("- Lines: 600 (showing first 500)"), "\(markdown.text.prefix(200))")
+        #expect(markdown.injectedText.contains("- Lines: 600 (showing first 500)"), "\(markdown.injectedText.prefix(200))")
     }
 
     @Test("Text file over the line cap: it is added, flagged as truncated, and produces one notice with the real line counts")
@@ -293,6 +293,80 @@ struct AttachmentImportBoundaryTests {
             }
             #expect(text.components(separatedBy: "%").count == 4, "[\(language)] should have no other placeholder: \(text)")
         }
+    }
+
+    @Test("the text budget gate on add: files that do not fit are not added, the verdict matches send time, and files that may go native take no budget")
+    @MainActor
+    func addTimeTextBudgetGateMatchesSendTime() async throws {
+        let first = try await importLongTextFile(lines: 400, name: "first.txt")
+        let second = try await importLongTextFile(lines: 400, name: "second.txt")
+        let small = try await importLongTextFile(lines: 2, name: "small.txt")
+        let firstBytes = try #require(Data(base64Encoded: first.resolvedBase64Data)).count
+        // The limit fits one 400-line file plus a small file, but not two of the big ones.
+        var model = AIModel(
+            id: "m", name: "m", capabilities: [.text, .file], reasoningModeAvailable: false,
+            isAvailable: true, isDefault: true, priceTier: "premium",
+            attachmentExtraction: AttachmentExtractionLimits(totalCap: firstBytes + 100)
+        )
+
+        let gate = AttachmentDelivery.admitWithinTextBudget(
+            existing: [first], incoming: [second, small], provider: .openAI, model: model
+        )
+        #expect(gate.accepted.map(\.fileName) == ["small.txt"])
+        #expect(gate.rejected.map(\.fileName) == ["second.txt"])
+        // The send-time verdict on the same set of files: the rejected one does not fit there either, and the accepted one does.
+        let sendAll = AttachmentDelivery.plan(
+            userText: "q", attachments: [first, second, small], transport: AttachmentTransport.openAIChat.profile, model: model
+        )
+        #expect(sendAll.skipped.map(\.attachment.fileName) == ["second.txt"])
+        let sendAccepted = AttachmentDelivery.plan(
+            userText: "q", attachments: [first] + gate.accepted, transport: AttachmentTransport.openAIChat.profile, model: model
+        )
+        #expect(sendAccepted.skipped.isEmpty)
+
+        // Without a model the default limit applies and all of these fit.
+        let defaults = AttachmentDelivery.admitWithinTextBudget(existing: [first], incoming: [second], provider: nil, model: nil)
+        #expect(defaults.rejected.isEmpty)
+
+        // Files on the allow-list that may go as native file blocks at send time: no budget, not rejected, left to be judged by route at send time.
+        model.nativeFileMimes = ["application/pdf"]
+        model.pdfNativeDefault = true
+        let pdf = Attachment(
+            id: UUID(), kind: .file, fileName: "big.pdf", mimeType: "application/pdf",
+            base64Data: first.resolvedBase64Data, extractedSizeBytes: 9_000, originalBase64Data: "JVBERi0="
+        )
+        let withNative = AttachmentDelivery.admitWithinTextBudget(
+            existing: [pdf], incoming: [pdf, first, second], provider: .gemini, model: model
+        )
+        #expect(withNative.accepted.map(\.fileName) == ["big.pdf", "first.txt"])
+        #expect(withNative.rejected.map(\.fileName) == ["second.txt"])
+
+        // The notice text: the Chat table has this entry, and its placeholder is replaced by the file name.
+        let format = L10n.tr("file_extraction_text_budget_exceeded", table: .chat)
+        #expect(format != "file_extraction_text_budget_exceeded", "the Chat table is missing this string")
+        let notice = String(format: format, "second.txt")
+        #expect(notice.contains("second.txt") && !notice.contains("%"), "\(notice)")
+    }
+
+    @Test("the budget-full notice exists in all 16 languages with exactly one file name placeholder, and Arabic has direction isolates on both sides")
+    func textBudgetExceededCopyIsComplete() throws {
+        let catalogURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Oriveo/Chat.xcstrings")
+        let catalog = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: catalogURL)) as? [String: Any])
+        let strings = try #require(catalog["strings"] as? [String: Any])
+        let entry = try #require(strings["file_extraction_text_budget_exceeded"] as? [String: Any])
+        #expect(entry["extractionState"] as? String == "manual")
+        let localizations = try #require(entry["localizations"] as? [String: Any])
+        #expect(localizations.count == 16, "only \(localizations.count) languages")
+        for (language, value) in localizations {
+            let text = ((value as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String ?? ""
+            #expect(text.components(separatedBy: "%@").count == 2, "[\(language)] expected exactly one %@: \(text)")
+            #expect(text.components(separatedBy: "%").count == 2, "[\(language)] unexpected extra placeholder: \(text)")
+            #expect(!text.contains("{"), "[\(language)] leftover web placeholder: \(text)")
+        }
+        let arabic = ((localizations["ar"] as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String ?? ""
+        #expect(arabic.contains("\u{2066}%@\u{2069}"))
     }
 
     @MainActor

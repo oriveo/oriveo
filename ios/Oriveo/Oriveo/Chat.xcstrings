@@ -2419,6 +2419,107 @@
         }
       }
     },
+    "Attachment Not Accepted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "المرفق غير مقبول"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anhang nicht akzeptiert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attachment Not Accepted"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adjunto no admitido"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pièce jointe refusée"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "अटैचमेंट स्वीकार नहीं"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lampiran tidak diterima"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添付ファイルを使用できません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "첨부파일을 사용할 수 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anexo não aceito"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вложение не принято"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ไฟล์แนบใช้ไม่ได้"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ek kabul edilmedi"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tệp đính kèm không được chấp nhận"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附件无法使用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附件無法使用"
+          }
+        }
+      }
+    },
     "Attachments are filled in by Oriveo." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9134,6 +9235,208 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不支援 %@ 這種檔案類型。"
+          }
+        }
+      }
+    },
+    "file_extraction_send_blocked_text_budget" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم تُرسل الرسالة: بإضافة ⁦%@⁩ يتجاوز النص المرفق الحد الأقصى لهذا النموذج. يُرجى إزالة ملف أو تغيير النموذج."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht gesendet: Mit %@ überschreitet der angehängte Text das Limit dieses Modells. Entferne eine Datei oder wechsle das Modell."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not sent: with %@, the attached text is over this model's limit. Remove a file or switch models."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se envió: con %@, el texto adjunto supera el límite de este modelo. Quita un archivo o cambia de modelo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Message non envoyé : avec %@, le texte joint dépasse la limite de ce modèle. Retirez un fichier ou changez de modèle."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "संदेश नहीं भेजा गया: %@ को मिलाकर, जुड़ी फ़ाइलों का टेक्स्ट इस मॉडल की सीमा से ज़्यादा हो जाता है। कोई फ़ाइल हटाएँ या मॉडल बदलें।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidak terkirim: dengan %@, teks lampiran melebihi batas model ini. Hapus salah satu file atau ganti model."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送信できませんでした。%@ を含めると、添付テキストがこのモデルの上限を超えます。ファイルを減らすか、モデルを切り替えてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "보내지 못했습니다. %@까지 포함하면 첨부 텍스트가 이 모델의 한도를 넘습니다. 파일을 줄이거나 모델을 바꿔 주세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não enviado: com %@, o texto anexado passa do limite deste modelo. Remova um arquivo ou troque de modelo."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не отправлено: вместе с %@ прикреплённый текст превышает лимит этой модели. Уберите файл или выберите другую модель."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ยังไม่ได้ส่ง: เมื่อรวม %@ แล้ว เนื้อหาของไฟล์แนบเกินขีดจำกัดของโมเดลนี้ ลองนำไฟล์ออกหรือเปลี่ยนโมเดล"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gönderilmedi: %@ ile birlikte ekli metin bu modelin sınırını aşıyor. Bir dosyayı kaldırın veya modeli değiştirin."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chưa gửi: khi tính cả %@, phần văn bản đính kèm vượt giới hạn của mô hình này. Hãy bỏ bớt tệp hoặc đổi mô hình."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未发送：加上 %@ 后，附件文本超出了当前模型的上限。请移除部分文件或换一个模型。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未傳送：加上 %@ 後，附件文字超出了目前模型的上限。請移除部分檔案或換一個模型。"
+          }
+        }
+      }
+    },
+    "file_extraction_text_budget_exceeded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم تتم إضافة ⁦%@⁩: إضافته تجعل النص المرفق بهذه الرسالة يتجاوز الحد الأقصى."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ wurde nicht hinzugefügt: Damit würde der angehängte Text dieser Nachricht das Limit überschreiten."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ wasn't added: it would put the text attached to this message over the limit."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ no se agregó: con este archivo, el texto adjunto al mensaje superaría el límite."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ n’a pas été ajouté : avec ce fichier, le texte joint à ce message dépasserait la limite."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ नहीं जोड़ी गई: इसे जोड़ने पर इस संदेश के साथ जुड़ा टेक्स्ट सीमा से ज़्यादा हो जाता।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ tidak ditambahkan: dengan file ini, teks yang dilampirkan pada pesan akan melebihi batas."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ は追加されませんでした。追加すると、このメッセージに添付できるテキスト量の上限を超えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 파일은 추가되지 않았습니다. 추가하면 이 메시지에 첨부할 수 있는 텍스트 한도를 넘습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ não foi adicionado: com ele, o texto anexado a esta mensagem passaria do limite."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл %@ не добавлен: с ним текст, прикреплённый к этому сообщению, превысил бы лимит."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ไม่ได้เพิ่ม %@ เพราะจะทำให้เนื้อหาไฟล์ที่แนบกับข้อความนี้เกินขีดจำกัด"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ eklenmedi: eklenseydi bu mesaja iliştirilen metin izin verilen sınırı aşardı."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ chưa được thêm: nếu thêm, phần văn bản đính kèm tin nhắn này sẽ vượt giới hạn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 没有加入：加上它，这条消息附带的文本会超过上限。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 沒有加入：加上它，這則訊息附帶的文字會超過上限。"
           }
         }
       }

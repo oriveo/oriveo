@@ -136,6 +136,12 @@ actor MetadataClient {
         let pricingStatus: String?
         let capabilities: [String]?
         let supportsPdfInput: Bool?
+        /// Mime allow-list for files that may be uploaded as native file blocks; missing or empty means files are always extracted to text.
+        let nativeFileMimes: [String]?
+        /// PDFs go as native file blocks first even when text can be extracted.
+        let pdfNativeDefault: Bool?
+        /// Per-model file extraction limit overrides (lines / bytes per file / text total / input file size); every field is optional.
+        let attachmentExtraction: AttachmentExtractionLimits?
         let supportsServiceTier: Bool?
         /// `var` because the catalog view fills it from `profilesRef` during expansion.
         var profiles: ModelProfileRefs?
@@ -344,6 +350,11 @@ actor MetadataClient {
         var capabilityEvidenceOwnedKeys: Set<String> = []
         var capabilityEvidenceViewPresent: Bool = false
         var capabilityEvidenceViewMalformed: Bool = false
+        /// Per-model native file mime allow-list from the catalog (lowercased); empty means files are always extracted to text.
+        var nativeFileMimes: [String] = []
+        var pdfNativeDefault: Bool = false
+        /// Per-model file extraction limit overrides from the catalog; nil means the client default limits.
+        var attachmentExtraction: AttachmentExtractionLimits? = nil
     }
 
     struct AttachmentSupport: Codable, Sendable, Equatable {
@@ -1794,6 +1805,11 @@ actor MetadataClient {
         return Self.confirmedCatalogLock.withLock { $0.all || $0.kinds.contains(kind) }
     }
 
+    /// Whether a metadata snapshot is already in hand (including the cache left from last time). False on a cold start before one has been fetched.
+    nonisolated func syncHasSnapshot() -> Bool {
+        Self.withSharedSnapshot { $0 != nil }
+    }
+
     /// Whether this provider's catalog has not loaded yet (listed by the index, catalog not arrived).
     /// When true it also fetches that one catalog.
     ///
@@ -2159,7 +2175,10 @@ actor MetadataClient {
             capabilityEvidenceCandidates: evidence.candidates,
             capabilityEvidenceOwnedKeys: evidence.ownedKeys,
             capabilityEvidenceViewPresent: evidence.namespacePresent,
-            capabilityEvidenceViewMalformed: evidence.malformed
+            capabilityEvidenceViewMalformed: evidence.malformed,
+            nativeFileMimes: (model.nativeFileMimes ?? []).map { $0.lowercased() },
+            pdfNativeDefault: model.pdfNativeDefault ?? false,
+            attachmentExtraction: model.attachmentExtraction
         )
     }
 

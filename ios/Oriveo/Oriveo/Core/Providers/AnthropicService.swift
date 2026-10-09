@@ -118,7 +118,10 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             throw ProviderServiceError.invalidConfiguration(detail: "Missing model identifier.")
         }
 
-        let (data, _) = try await performRawWithUnsupportedParamSelfHeal(
+        // When a relay rejects a native file block, resend once with the files injected as text (NativeFileFallback).
+        let (data, _) = try await NativeFileFallback.run(
+            .relayScope(.anthropicMessages, connectionID: requestOptions.attachmentConnectionID)
+        ) { try await performRawWithUnsupportedParamSelfHeal(
             providerKind: .relay,
             modelID: modelID,
             effectiveTransport: RelayTransport.anthropicMessages.rawValue,
@@ -136,7 +139,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                 relayRequested: relayRequested,
                 droppedParams: droppedParams
             )
-        }
+        } }
 
         let anthropicResponse: AnthropicChatResponse
         do {
@@ -359,24 +362,30 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                         throw ProviderServiceError.invalidConfiguration(detail: "Missing model identifier.")
                     }
 
-                    let request = try self.buildRelayMessagesRequest(
-                        modelID: modelID,
-                        messages: messages,
-                        apiKey: apiKey,
-                        baseURL: baseURL,
-                        stream: true,
-                        reasoningMode: reasoningMode,
-                        requestOptions: requestOptions,
-                        relayRequested: relayRequested
-                    )
-                    let (bytes, response) = try await self.bytesWithUnsupportedParamSelfHeal(
-                        providerKind: .relay,
-                        modelID: modelID,
-                        request: request,
-                        effectiveTransport: RelayTransport.anthropicMessages.rawValue,
-                        relayEngineProfile: relayRequested?.engineProfile,
-                        relayDeclaredProfile: requestOptions.generationProfile
-                    )
+                    // When a relay rejects a native file block before the first event, resend once with the files injected as text (NativeFileFallback).
+                    let (request, bytes, response) = try await NativeFileFallback.run(
+                        .relayScope(.anthropicMessages, connectionID: requestOptions.attachmentConnectionID)
+                    ) {
+                        let request = try self.buildRelayMessagesRequest(
+                            modelID: modelID,
+                            messages: messages,
+                            apiKey: apiKey,
+                            baseURL: baseURL,
+                            stream: true,
+                            reasoningMode: reasoningMode,
+                            requestOptions: requestOptions,
+                            relayRequested: relayRequested
+                        )
+                        let (bytes, response) = try await self.bytesWithUnsupportedParamSelfHeal(
+                            providerKind: .relay,
+                            modelID: modelID,
+                            request: request,
+                            effectiveTransport: RelayTransport.anthropicMessages.rawValue,
+                            relayEngineProfile: relayRequested?.engineProfile,
+                            relayDeclaredProfile: requestOptions.generationProfile
+                        )
+                        return (request, bytes, response)
+                    }
 
                     guard let httpResponse = response as? HTTPURLResponse else {
                         throw ProviderServiceError.network(detail: "Missing HTTPURLResponse.")
@@ -563,7 +572,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             cache_control: .init(type: "ephemeral"),
             thinking: nil,
             output_config: nil,
-            messages: capabilityIntent.outboundMessages.map { Self.buildRequestMessage($0) }
+            messages: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, transport: .anthropicMessages, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) }
         )
         var body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
         if capabilityIntent.webSearchEnabled,
@@ -692,7 +701,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             cache_control: nil,
             thinking: thinking,
             output_config: outputConfig,
-            messages: capabilityIntent.outboundMessages.map { Self.buildRequestMessage($0) }
+            messages: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, transport: .relayAnthropicMessages, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) }
         )
         var body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
         let generationApplication = ProfileParamsResolver.applyGenerationParameters(
@@ -820,7 +829,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
         return components?.url?.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? "\(baseString)/\(defaultVersion)"
     }
 
-    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel? = nil) -> AnthropicChatRequest.Message {
+    private static func buildRequestMessage(_ msg: ChatMessage, transport: AttachmentTransport, model: AIModel?, isOutgoingTurn: Bool) throws -> AnthropicChatRequest.Message {
         let role = msg.role == .assistant ? "assistant" : "user"
 
         guard let atts = msg.attachments, !atts.isEmpty else {
@@ -830,16 +839,16 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
         let imageAtts = atts.filter { $0.kind == .image }
         let fileAtts = atts.filter { $0.kind == .file }
 
-        let (nativeAtts, textFileAtts) = BaseAPIService.partitionAttachmentsByRoute(
-            fileAtts, provider: .anthropic, model: model
-        )
-
-        let (combinedText, _) = BaseAPIService.injectFileAttachmentsAsText(
+        // The transport's per-route switch decides which routes can split out native files; a route with it off always has an empty native set.
+        let delivery = try AttachmentDelivery.deliver(
+            isOutgoingTurn: isOutgoingTurn,
             userText: msg.text,
-            attachments: textFileAtts,
-            provider: .anthropic,
+            attachments: fileAtts,
+            transport: transport,
             model: model
         )
+        let nativeAtts = delivery.native
+        let combinedText = delivery.injectedText
 
         guard !imageAtts.isEmpty || !nativeAtts.isEmpty else {
             return .init(role: role, content: .text(combinedText))

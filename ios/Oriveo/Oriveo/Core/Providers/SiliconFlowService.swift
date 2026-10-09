@@ -322,7 +322,7 @@ final class SiliconFlowService: BaseAPIService, ProviderServiceProtocol, CustomB
         if !systemPrompt.isEmpty {
             apiMessages.append(["role": "system", "content": systemPrompt])
         }
-        apiMessages.append(contentsOf: capabilityIntent.outboundMessages.map { Self.buildRequestMessage($0) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
 
         var payload: [String: Any] = [
             "model": modelID,
@@ -347,16 +347,17 @@ final class SiliconFlowService: BaseAPIService, ProviderServiceProtocol, CustomB
         return request
     }
 
-    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel? = nil) -> [String: Any] {
+    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel?, isOutgoingTurn: Bool) throws -> [String: Any] {
         let atts = msg.attachments ?? []
         let imageAtts = atts.filter { $0.kind == .image }
 
-        let (combinedText, _) = BaseAPIService.injectFileAttachmentsAsText(
+        let combinedText = try AttachmentDelivery.deliver(
+            isOutgoingTurn: isOutgoingTurn,
             userText: msg.text,
             attachments: atts,
-            provider: .siliconFlow,
+            transport: .siliconFlowChat,
             model: model
-        )
+        ).injectedText
 
         guard !imageAtts.isEmpty else {
             return ["role": msg.role.rawValue, "content": combinedText]

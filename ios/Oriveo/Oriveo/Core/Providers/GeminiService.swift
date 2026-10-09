@@ -18,7 +18,8 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         previousResponseID: String? = nil,
         systemPrompt: String = "",
         safeCustomBodyFragments: [SafeCustomBodyFragment] = [],
-        additionalRequestBody: AdditionalRequestBodyPayload? = nil
+        additionalRequestBody: AdditionalRequestBodyPayload? = nil,
+        capabilityEvidenceModel: AIModel? = nil
     ) throws -> URLRequest {
         try validateAPIKey(apiKey)
         guard recipe.executionKind == "endpoint_route",
@@ -48,8 +49,19 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         var body: [String: Any] = [
             "model": modelID,
             "stream": stream,
-            "input": (previousResponseID == nil ? messages : messages.suffix(1)).map {
-                ["role": $0.role == .assistant ? "model" : $0.role.rawValue, "parts": [["text": $0.text]]]
+            // Files go through text injection (this route has no native file blocks); images are not sent, and the route's placeholder tells the model an image was not delivered.
+            "input": try AttachmentDelivery.mapTurns(
+                Array(previousResponseID == nil ? messages : messages.suffix(1)),
+                isChatSend: capabilityEvidenceModel != nil
+            ) { message, isOutgoingTurn in
+                let text = try AttachmentDelivery.deliver(
+                    isOutgoingTurn: isOutgoingTurn,
+                    userText: message.text,
+                    attachments: message.attachments ?? [],
+                    transport: .geminiInteractions,
+                    model: capabilityEvidenceModel
+                ).injectedText
+                return ["role": message.role == .assistant ? "model" : message.role.rawValue, "parts": [["text": text]]]
             },
         ]
         let trimmedSystem = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -116,16 +128,13 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             throw ProviderServiceError.invalidConfiguration(detail: "Missing model identifier.")
         }
 
-        if webSearchEnabled,
-           let recipe = MetadataClient.shared.syncCapabilityRecipe(
-               modelID: modelID, providerKind: .gemini, capability: "web"
-           ), recipe.executionKind == "endpoint_route",
-           recipe.transport.protocolName == "gemini_interactions" {
+        if let recipe = Self.interactionsRecipe(modelID: modelID, webSearchEnabled: webSearchEnabled) {
             return try await sendInteractions(
                 apiKey: apiKey, modelID: modelID, messages: messages, stream: false, recipe: recipe,
                 systemPrompt: requestOptions.systemPrompt,
                 safeCustomBodyFragments: requestOptions.localSafeCustomBodyFragments,
                 additionalRequestBody: requestOptions.localAdditionalRequestBody,
+                capabilityEvidenceModel: requestOptions.capabilityEvidenceModel,
                 producerMessageID: requestOptions.localContinuationMessageID,
                 explicitMessageID: requestOptions.localExplicitContinuationMessageID
             )
@@ -202,7 +211,10 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             throw ProviderServiceError.invalidConfiguration(detail: "Missing model identifier.")
         }
 
-        let (data, _) = try await performRawWithUnsupportedParamSelfHeal(
+        // When a relay rejects a native file block, resend once with the files injected as text (NativeFileFallback).
+        let (data, _) = try await NativeFileFallback.run(
+            .relayScope(.geminiGenerateContent, connectionID: requestOptions.attachmentConnectionID)
+        ) { try await performRawWithUnsupportedParamSelfHeal(
             providerKind: .relay,
             modelID: modelID,
             effectiveTransport: RelayTransport.geminiGenerateContent.rawValue,
@@ -222,7 +234,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                 relayRequested: relayRequested,
                 droppedParams: droppedParams
             )
-        }
+        } }
 
         let geminiResponse: GeminiGenerateContentResponse
         do {
@@ -284,16 +296,13 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                         throw ProviderServiceError.invalidConfiguration(detail: "Missing model identifier.")
                     }
 
-                    if webSearchEnabled,
-                       let recipe = MetadataClient.shared.syncCapabilityRecipe(
-                           modelID: modelID, providerKind: .gemini, capability: "web"
-                       ), recipe.executionKind == "endpoint_route",
-                       recipe.transport.protocolName == "gemini_interactions" {
+                    if let recipe = Self.interactionsRecipe(modelID: modelID, webSearchEnabled: webSearchEnabled) {
                         try await self.streamInteractions(
                             apiKey: apiKey, modelID: modelID, messages: messages, recipe: recipe,
                             systemPrompt: requestOptions.systemPrompt,
                             safeCustomBodyFragments: requestOptions.localSafeCustomBodyFragments,
                             additionalRequestBody: requestOptions.localAdditionalRequestBody,
+                            capabilityEvidenceModel: requestOptions.capabilityEvidenceModel,
                             producerMessageID: requestOptions.localContinuationMessageID,
                             explicitMessageID: requestOptions.localExplicitContinuationMessageID, continuation: continuation
                         )
@@ -440,26 +449,32 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                         throw ProviderServiceError.invalidConfiguration(detail: "Missing model identifier.")
                     }
 
-                    let request = try self.buildRelayGenerateContentRequest(
-                        modelID: modelID,
-                        messages: messages,
-                        apiKey: apiKey,
-                        baseURL: baseURL,
-                        stream: true,
-                        reasoningMode: reasoningMode,
-                        webSearchEnabled: webSearchEnabled,
-                        supportsImageGen: supportsImageGen,
-                        requestOptions: requestOptions,
-                        relayRequested: relayRequested
-                    )
-                    let (bytes, response) = try await self.bytesWithUnsupportedParamSelfHeal(
-                        providerKind: .relay,
-                        modelID: modelID,
-                        request: request,
-                        effectiveTransport: RelayTransport.geminiGenerateContent.rawValue,
-                        relayEngineProfile: relayRequested?.engineProfile,
-                        relayDeclaredProfile: requestOptions.generationProfile
-                    )
+                    // When a relay rejects a native file block before the first event, resend once with the files injected as text (NativeFileFallback).
+                    let (request, bytes, response) = try await NativeFileFallback.run(
+                        .relayScope(.geminiGenerateContent, connectionID: requestOptions.attachmentConnectionID)
+                    ) {
+                        let request = try self.buildRelayGenerateContentRequest(
+                            modelID: modelID,
+                            messages: messages,
+                            apiKey: apiKey,
+                            baseURL: baseURL,
+                            stream: true,
+                            reasoningMode: reasoningMode,
+                            webSearchEnabled: webSearchEnabled,
+                            supportsImageGen: supportsImageGen,
+                            requestOptions: requestOptions,
+                            relayRequested: relayRequested
+                        )
+                        let (bytes, response) = try await self.bytesWithUnsupportedParamSelfHeal(
+                            providerKind: .relay,
+                            modelID: modelID,
+                            request: request,
+                            effectiveTransport: RelayTransport.geminiGenerateContent.rawValue,
+                            relayEngineProfile: relayRequested?.engineProfile,
+                            relayDeclaredProfile: requestOptions.generationProfile
+                        )
+                        return (request, bytes, response)
+                    }
 
                     guard let httpResponse = response as? HTTPURLResponse else {
                         throw ProviderServiceError.network(detail: "Missing HTTPURLResponse.")
@@ -572,17 +587,29 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
 
     // MARK: - Gemini Interactions (GA `/v1/interactions`)
 
+    /// Whether this turn goes through Interactions: only when web search is on and the catalog recipe points this model's web search at that endpoint.
+    /// Streaming and non-streaming dispatch and the pre-send attachment route resolution read the same function.
+    static func interactionsRecipe(modelID: String, webSearchEnabled: Bool) -> MetadataClient.CapabilityRecipe? {
+        guard webSearchEnabled,
+              let recipe = MetadataClient.shared.syncCapabilityRecipe(
+                  modelID: modelID, providerKind: .gemini, capability: "web"
+              ), recipe.executionKind == "endpoint_route",
+              recipe.transport.protocolName == "gemini_interactions" else { return nil }
+        return recipe
+    }
+
     private func sendInteractions(
         apiKey: String, modelID: String, messages: [ChatMessage], stream: Bool,
         recipe: MetadataClient.CapabilityRecipe, systemPrompt: String,
         safeCustomBodyFragments: [SafeCustomBodyFragment], additionalRequestBody: AdditionalRequestBodyPayload?,
+        capabilityEvidenceModel: AIModel?,
         producerMessageID: UUID?, explicitMessageID: UUID?
     ) async throws -> ProviderChatResult {
         let previousID = try Self.loadExplicitInteractionID(explicitMessageID)
         let request = try buildInteractionsRequest(
             modelID: modelID, messages: messages, apiKey: apiKey, stream: stream, recipe: recipe,
             previousResponseID: previousID, systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments,
-            additionalRequestBody: additionalRequestBody
+            additionalRequestBody: additionalRequestBody, capabilityEvidenceModel: capabilityEvidenceModel
         )
         // This route uses the session directly, bypassing BaseAPIService's send wrapper, so it records the requested fact itself.
         CapabilityExecutionRuntime.confirmRequestDispatched()
@@ -618,6 +645,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         apiKey: String, modelID: String, messages: [ChatMessage], recipe: MetadataClient.CapabilityRecipe,
         systemPrompt: String, safeCustomBodyFragments: [SafeCustomBodyFragment],
         additionalRequestBody: AdditionalRequestBodyPayload?,
+        capabilityEvidenceModel: AIModel?,
         producerMessageID: UUID?, explicitMessageID: UUID?,
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
     ) async throws {
@@ -625,7 +653,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         let request = try buildInteractionsRequest(
             modelID: modelID, messages: messages, apiKey: apiKey, stream: true, recipe: recipe,
             previousResponseID: previousID, systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments,
-            additionalRequestBody: additionalRequestBody
+            additionalRequestBody: additionalRequestBody, capabilityEvidenceModel: capabilityEvidenceModel
         )
         // Same as above: this route confirms the dispatch itself because it uses the session directly.
         CapabilityExecutionRuntime.confirmRequestDispatched()
@@ -893,7 +921,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             requestedReasoningMode: supportsImageGen ? reasoningMode : recipeLegacyInput.reasoningMode,
             webSearchEnabled: supportsImageGen ? webSearchEnabled : recipeLegacyInput.webSearchEnabled
         )
-        let contents = capabilityIntent.outboundMessages.map { Self.buildContent($0) }
+        let contents = try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildContent($0, transport: .geminiGenerateContent, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) }
         let modalities: [String]? = supportsImageGen ? ["TEXT", "IMAGE"] : nil
         let config = GeminiGenerateContentRequest.GenerationConfig(
             responseModalities: modalities,
@@ -1044,7 +1072,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             requestedReasoningMode: reasoningMode,
             webSearchEnabled: webSearchEnabled
         )
-        let contents = capabilityIntent.outboundMessages.map { Self.buildContent($0) }
+        let contents = try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildContent($0, transport: .relayGeminiGenerateContent, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) }
         let modalities = supportsImageGen ? ["TEXT", "IMAGE"] : ["TEXT"]
         let shouldDropThinkingConfig = droppedParams.contains("thinking_config")
         let thinkingBudget = shouldDropThinkingConfig
@@ -1167,7 +1195,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         return components?.url?.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? "\(baseString)/\(defaultVersion)"
     }
 
-    private static func buildContent(_ msg: ChatMessage, model: AIModel? = nil) -> GeminiGenerateContentRequest.Content {
+    private static func buildContent(_ msg: ChatMessage, transport: AttachmentTransport, model: AIModel?, isOutgoingTurn: Bool) throws -> GeminiGenerateContentRequest.Content {
         let role = msg.role == .assistant ? "model" : "user"
 
         guard let atts = msg.attachments, !atts.isEmpty else {
@@ -1175,16 +1203,16 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         }
 
         let fileAtts = atts.filter { $0.kind == .file }
-        let (nativeAtts, textFileAtts) = BaseAPIService.partitionAttachmentsByRoute(
-            fileAtts, provider: .gemini, model: model
-        )
-
-        let (injectedText, _) = BaseAPIService.injectFileAttachmentsAsText(
+        // The transport's per-route switch decides which routes can split out native files; a route with it off always has an empty native set.
+        let delivery = try AttachmentDelivery.deliver(
+            isOutgoingTurn: isOutgoingTurn,
             userText: msg.text,
-            attachments: textFileAtts,
-            provider: .gemini,
+            attachments: fileAtts,
+            transport: transport,
             model: model
         )
+        let nativeAtts = delivery.native
+        let injectedText = delivery.injectedText
 
         var parts: [GeminiGenerateContentRequest.Part] = [.init(text: injectedText)]
         for a in atts {
@@ -1198,7 +1226,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                 guard !b64.isEmpty else { continue }
                 parts.append(.init(inlineData: .init(mimeType: a.mimeType, data: b64)))
             case .file:
-                break
+                break  // Files are already handled by AttachmentDelivery
             }
         }
         for f in nativeAtts {

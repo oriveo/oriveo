@@ -384,7 +384,8 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
     }
 
 
-    private static func exactAnthropicWebRecipe(
+    /// Outbound dispatch and the pre-send attachment route resolution read the same function.
+    static func exactAnthropicWebRecipe(
         modelID: String, requested: Bool
     ) -> MetadataClient.CapabilityRecipe? {
         guard requested,
@@ -442,7 +443,7 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
             "model": modelID,
             "max_tokens": resolved?.maxOutputTokens ?? 8192,
             "stream": stream,
-            "messages": requestMessages.map { Self.buildAnthropicWebMessage($0) },
+            "messages": try AttachmentDelivery.mapTurns(requestMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildAnthropicWebMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) },
         ]
         let system = requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         if !system.isEmpty { body["system"] = system }
@@ -477,10 +478,11 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
         return components.url
     }
 
-    private static func buildAnthropicWebMessage(_ message: ChatMessage) -> [String: Any] {
-        let (text, _) = BaseAPIService.injectFileAttachmentsAsText(
-            userText: message.text, attachments: message.attachments ?? [], provider: .miniMax, model: nil
-        )
+    private static func buildAnthropicWebMessage(_ message: ChatMessage, model: AIModel?, isOutgoingTurn: Bool) throws -> [String: Any] {
+        let text = try AttachmentDelivery.deliver(
+            isOutgoingTurn: isOutgoingTurn,
+            userText: message.text, attachments: message.attachments ?? [], transport: .miniMaxAnthropicWeb, model: model
+        ).injectedText
         return ["role": message.role.rawValue, "content": text]
     }
 
@@ -765,7 +767,7 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
         if !systemPrompt.isEmpty {
             apiMessages.append(["role": "system", "content": systemPrompt])
         }
-        apiMessages.append(contentsOf: capabilityIntent.outboundMessages.map { Self.buildRequestMessage($0) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
         if let replayAssistantMessages {
             let insertAt = apiMessages.lastIndex(where: { $0["role"] as? String == "user" })
                 ?? apiMessages.count
@@ -794,14 +796,15 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
         return request
     }
 
-    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel? = nil) -> [String: Any] {
+    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel?, isOutgoingTurn: Bool) throws -> [String: Any] {
         let atts = msg.attachments ?? []
-        let (text, _) = BaseAPIService.injectFileAttachmentsAsText(
+        let text = try AttachmentDelivery.deliver(
+            isOutgoingTurn: isOutgoingTurn,
             userText: msg.text,
             attachments: atts,
-            provider: .miniMax,
+            transport: .miniMaxChat,
             model: model
-        )
+        ).injectedText
         return ["role": msg.role.rawValue, "content": text]
     }
 

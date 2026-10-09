@@ -121,7 +121,8 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                                 relayRequested: relayRequested,
                                 reasoningMode: reasoningMode
                             ),
-                            webSearchShape: webSearchShape
+                            webSearchShape: webSearchShape,
+                            attachmentConnectionID: requestOptions.attachmentConnectionID
                         ) { hints in
                             try self.buildRelayResponsesRequest(
                                 modelID: modelID,
@@ -249,7 +250,10 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             )
 
         case .openaiResponses:
-            let (data, _) = try await performRelayResponsesDataRequestWithFallbacks(
+            // When a relay rejects a native file block, resend once with the files injected as text (NativeFileFallback).
+            let (data, _) = try await NativeFileFallback.run(
+                .relayScope(.openaiResponses, connectionID: requestOptions.attachmentConnectionID)
+            ) { try await performRelayResponsesDataRequestWithFallbacks(
                 initialReasoningEffort: resolveRelayResponsesReasoningEffort(
                     relayRequested: relayRequested,
                     reasoningMode: reasoningMode
@@ -270,7 +274,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                     imageToolModelID: imageToolModelID,
                     removeTools: hints.removeTools
                 )
-            }
+            } }
 
             let response: ResponsesResponse
             do {
@@ -505,16 +509,21 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
 
                     let bytes: URLSession.AsyncBytes
                     if let subscription {
-                        let request = try self.buildCodexSubscriptionResponsesRequest(
-                            modelID: modelID,
-                            messages: messages,
-                            apiKey: apiKey,
-                            subscription: subscription,
-                            reasoningMode: reasoningMode,
-                            webSearchEnabled: webSearchEnabled,
-                            requestOptions: requestOptions
-                        )
-                        bytes = try await self.codexSubscriptionResponsesBytes(request: request)
+                        // When the subscription backend rejects a native file block before the first event, resend once with the files injected as text (NativeFileFallback).
+                        bytes = try await NativeFileFallback.run(
+                            .codexSubscriptionScope(connectionID: requestOptions.attachmentConnectionID)
+                        ) {
+                            let request = try self.buildCodexSubscriptionResponsesRequest(
+                                modelID: modelID,
+                                messages: messages,
+                                apiKey: apiKey,
+                                subscription: subscription,
+                                reasoningMode: reasoningMode,
+                                webSearchEnabled: webSearchEnabled,
+                                requestOptions: requestOptions
+                            )
+                            return try await self.codexSubscriptionResponsesBytes(request: request)
+                        }
                     } else {
                         let transport = self.resolvedOfficialTransport(modelID: modelID)
                         if transport == .openaiChat {
@@ -721,16 +730,17 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         }
     }
 
-    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel? = nil) -> ChatCompletionRequest.Message {
+    private static func buildRequestMessage(_ msg: ChatMessage, transport: AttachmentTransport, model: AIModel?, isOutgoingTurn: Bool) throws -> ChatCompletionRequest.Message {
         let atts = msg.attachments ?? []
         let imageAtts = atts.filter { $0.kind == .image }
 
-        let (combinedText, _) = BaseAPIService.injectFileAttachmentsAsText(
+        let combinedText = try AttachmentDelivery.deliver(
+            isOutgoingTurn: isOutgoingTurn,
             userText: msg.text,
             attachments: atts,
-            provider: .openAI,
+            transport: transport,
             model: model
-        )
+        ).injectedText
 
         guard !imageAtts.isEmpty else {
             return .init(role: msg.role.rawValue, content: .text(combinedText))
@@ -966,7 +976,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         let systemPrompt = requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let payload = ResponsesRequest(
             model: modelID,
-            input: capabilityIntent.outboundMessages.map { Self.buildResponsesInputMessage($0) },
+            input: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildResponsesInputMessage($0, transport: .openAIResponses, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) },
             instructions: systemPrompt.isEmpty ? nil : systemPrompt,
             stream: stream ? true : nil,
             reasoning: nil,
@@ -1123,7 +1133,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         )
     }
 
-    private static func buildResponsesInputMessage(_ msg: ChatMessage, model: AIModel? = nil) -> ResponsesRequest.InputMessage {
+    private static func buildResponsesInputMessage(_ msg: ChatMessage, transport: AttachmentTransport, model: AIModel?, isOutgoingTurn: Bool) throws -> ResponsesRequest.InputMessage {
         let textType = msg.role == .assistant ? "output_text" : "input_text"
         func textOnly(_ text: String) -> ResponsesRequest.InputMessage {
             .init(role: msg.role.rawValue, content: .parts([.init(type: textType, text: text)]))
@@ -1139,16 +1149,16 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         let imageAtts = atts.filter { $0.kind == .image }
         let fileAtts = atts.filter { $0.kind == .file }
 
-        let (nativeAtts, textFileAtts) = BaseAPIService.partitionAttachmentsByRoute(
-            fileAtts, provider: .openAI, model: model
-        )
-
-        let (combinedText, _) = BaseAPIService.injectFileAttachmentsAsText(
+        // The transport's per-route switch decides which routes can split out native files; a route with it off always has an empty native set.
+        let delivery = try AttachmentDelivery.deliver(
+            isOutgoingTurn: isOutgoingTurn,
             userText: msg.text,
-            attachments: textFileAtts,
-            provider: .openAI,
+            attachments: fileAtts,
+            transport: transport,
             model: model
         )
+        let nativeAtts = delivery.native
+        let combinedText = delivery.injectedText
 
         if imageAtts.isEmpty && nativeAtts.isEmpty {
             return textOnly(combinedText)
@@ -1201,7 +1211,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         if !systemPrompt.isEmpty {
             apiMessages.append(.init(role: "system", content: .text(systemPrompt)))
         }
-        apiMessages.append(contentsOf: capabilityIntent.outboundMessages.map { Self.buildRequestMessage($0) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, transport: .openAIChat, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
         let payload = ChatCompletionRequest(
             model: modelID,
             stream: stream ? true : nil,
@@ -1284,7 +1294,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             request.setValue(header.value, forHTTPHeaderField: header.key)
         }
         var body: [String: Any] = [
-            "prompt": llamaCppPrompt(messages: messages, systemPrompt: requestOptions.systemPrompt),
+            "prompt": try llamaCppPrompt(messages: messages, requestOptions: requestOptions),
             "stream": stream,
         ]
         if let nPredictOverride { body["n_predict"] = nPredictOverride }
@@ -1300,14 +1310,26 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         return request
     }
 
-    private func llamaCppPrompt(messages: [ChatMessage], systemPrompt: String) -> String {
+    /// File attachments are extracted to text blocks per the route's declaration and joined into their own row; if this turn does not fit it is stopped here like on every other route.
+    private func llamaCppPrompt(messages: [ChatMessage], requestOptions: ChatRequestOptions) throws -> String {
         var lines: [String] = []
-        let trimmedSystem = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedSystem = requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedSystem.isEmpty { lines.append("system: \(trimmedSystem)") }
-        for message in messages {
-            let text = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let turns = try AttachmentDelivery.mapTurns(
+            messages, isChatSend: requestOptions.capabilityEvidenceModel != nil
+        ) { message, isOutgoingTurn in
+            (message.role, try AttachmentDelivery.deliver(
+                isOutgoingTurn: isOutgoingTurn,
+                userText: message.text,
+                attachments: message.attachments ?? [],
+                transport: .relayLlamaCppNative,
+                model: requestOptions.capabilityEvidenceModel
+            ).injectedText)
+        }
+        for (role, injectedText) in turns {
+            let text = injectedText.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { continue }
-            lines.append("\(message.role.rawValue): \(text)")
+            lines.append("\(role.rawValue): \(text)")
         }
         lines.append("assistant:")
         return lines.joined(separator: "\n")
@@ -1405,7 +1427,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         guard let relayRequested else {
             throw ProviderServiceError.invalidConfiguration(detail: "Missing local connection security context.")
         }
-        let prompt = llamaCppPrompt(messages: messages, systemPrompt: requestOptions.systemPrompt)
+        let prompt = try llamaCppPrompt(messages: messages, requestOptions: requestOptions)
         let result = await LocalEngineRuntimeClient.preflight(
             endpoint: endpoint,
             engine: .llamacpp,
@@ -1428,6 +1450,11 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
     }
 
     private func resolvedOfficialTransport(modelID: String) -> TransportKind {
+        Self.officialTransport(modelID: modelID)
+    }
+
+    /// Which protocol a direct OpenAI model uses. Outbound dispatch and the pre-send attachment route resolution read the same function.
+    static func officialTransport(modelID: String) -> TransportKind {
         guard let raw = MetadataClient.shared.syncResolveCatalogModel(
             modelID: modelID,
             providerKind: .openAI
@@ -1503,7 +1530,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
 
         let payload = ResponsesRequest(
             model: modelID,
-            input: messages.map { Self.buildResponsesInputMessage($0) },
+            input: try AttachmentDelivery.mapTurns(messages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildResponsesInputMessage($0, transport: .codexSubscription, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) },
             instructions: systemPrompt.isEmpty ? nil : systemPrompt,
             stream: true,
             reasoning: ResponsesRequest.Reasoning(effort: effort, summary: "auto"),
@@ -1598,7 +1625,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         if !systemPrompt.isEmpty {
             apiMessages.append(.init(role: "system", content: .text(systemPrompt)))
         }
-        apiMessages.append(contentsOf: capabilityIntent.outboundMessages.map { Self.buildRequestMessage($0) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, transport: .relayOpenAIChat, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
 
         let reasoningEffort = capabilityIntent.reasoningMode.flatMap { allowedMode in
             reasoningEffortOverride ?? resolveRelayChatCompletionsReasoningEffort(
@@ -1723,7 +1750,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         let tools: [ResponsesRequest.Tool]? = toolsArray.isEmpty ? nil : toolsArray
         let payload = ResponsesRequest(
             model: modelID,
-            input: capabilityIntent.outboundMessages.map { Self.buildResponsesInputMessage($0) },
+            input: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildResponsesInputMessage($0, transport: .relayOpenAIResponses, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) },
             instructions: systemPrompt.isEmpty ? nil : systemPrompt,
             stream: stream ? true : nil,
             reasoning: capabilityIntent.reasoningMode == nil
@@ -2223,6 +2250,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
     private func streamRelayResponses(
         initialReasoningEffort: String?,
         webSearchShape: MetadataClient.StreamShape?,
+        attachmentConnectionID: UUID?,
         requestBuilder: @escaping (RelayRetryHints) throws -> URLRequest
     ) -> AsyncThrowingStream<StreamEvent, Error> {
         AsyncThrowingStream { continuation in
@@ -2232,6 +2260,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         initialReasoningEffort: initialReasoningEffort,
                         hints: RelayRetryHints(),
                         webSearchShape: webSearchShape,
+                        attachmentConnectionID: attachmentConnectionID,
                         requestBuilder: requestBuilder,
                         continuation: continuation
                     )
@@ -2263,14 +2292,20 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         initialReasoningEffort: String?,
         hints: RelayRetryHints,
         webSearchShape: MetadataClient.StreamShape?,
+        attachmentConnectionID: UUID?,
         requestBuilder: @escaping (RelayRetryHints) throws -> URLRequest,
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
     ) async throws -> ResponsesStreamPumpResult {
         let bytes: URLSession.AsyncBytes
-        let pair = try await self.executeRelayResponsesStreamRequestWithFallbacks(
-            initialReasoningEffort: initialReasoningEffort,
-            requestBuilder: { _ in try requestBuilder(hints) }
-        )
+        // When a relay rejects a native file block before the first event, resend once with the files injected as text (NativeFileFallback).
+        let pair = try await NativeFileFallback.run(
+            .relayScope(.openaiResponses, connectionID: attachmentConnectionID)
+        ) {
+            try await self.executeRelayResponsesStreamRequestWithFallbacks(
+                initialReasoningEffort: initialReasoningEffort,
+                requestBuilder: { _ in try requestBuilder(hints) }
+            )
+        }
         bytes = pair.0
 
         var result = ResponsesStreamPumpResult(

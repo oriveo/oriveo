@@ -1025,6 +1025,25 @@ final class AppState {
         }
     }
 
+    /// This message's attachments, with file payloads guaranteed to be in memory.
+    ///
+    /// A thread in memory may come from a projection that does not read file payloads (window loading, observation,
+    /// sync merges). When a file is missing its payload, this one conversation is re-read from the database with
+    /// payloads; if it cannot be read the attachments are returned as they are.
+    func attachmentsWithFilePayloads(of message: ChatMessage, in conversationID: UUID) -> [Attachment] {
+        let attachments = message.attachments ?? []
+        let missingPayload = attachments.contains {
+            $0.kind == .file && ($0.base64Data?.isEmpty ?? true) && $0.extractionErrorCode == nil
+        }
+        guard missingPayload,
+              let fetched = try? conversationRuntimeBridge.fetchConversationProjections(
+                  ids: [conversationID], uid: sessionPartitionUID, hydrateFilePayloads: true
+              ).first,
+              let hydrated = fetched.messages.first(where: { $0.id == message.id })?.attachments
+        else { return attachments }
+        return hydrated
+    }
+
     func unpinNote(_ noteID: UUID, from convID: UUID?) {
         if let convID {
             conversationPinnedNoteIds[convID]?.removeAll { $0 == noteID }
@@ -1372,6 +1391,23 @@ final class AppState {
         selectModel(modelID: modelID, providerID: providerID, for: conversationID)
     }
 
+    /// Called when the composer's send is tapped: non-nil means this turn's attachments do not fit, so do not send and do not clear the composer.
+    func composerAttachmentOverLimit(
+        text: String,
+        attachments: [Attachment],
+        in conversationID: UUID?,
+        generationParameterDraftSessionID: UUID?,
+        capabilitySelection: ChatCapabilitySelection
+    ) -> ProviderServiceError? {
+        chatManager.composerAttachmentOverLimit(
+            text: text,
+            attachments: attachments,
+            conversationID: conversationID,
+            draftSessionID: generationParameterDraftSessionID,
+            capabilitySelection: capabilitySelection
+        )
+    }
+
     func sendMessage(
         _ text: String,
         attachments: [Attachment] = [],
@@ -1484,6 +1520,15 @@ final class AppState {
 
     func editPromptingMessage(for assistantMessageID: UUID, in conversationID: UUID) -> String? {
         chatManager.editPromptingMessage(for: assistantMessageID, in: conversationID)
+    }
+
+    /// Edit a user message: truncates the conversation and returns the text and original attachments to put back in the composer.
+    func beginEditingUserMessage(messageID: UUID, in conversationID: UUID) -> ComposerEditDraft? {
+        chatManager.beginEditingUserMessage(messageID: messageID, in: conversationID)
+    }
+
+    func beginEditingPromptingMessage(for assistantMessageID: UUID, in conversationID: UUID) -> ComposerEditDraft? {
+        chatManager.beginEditingPromptingMessage(for: assistantMessageID, in: conversationID)
     }
 
     func continueMessage(

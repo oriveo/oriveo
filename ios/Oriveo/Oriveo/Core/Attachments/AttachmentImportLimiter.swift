@@ -62,3 +62,47 @@ nonisolated struct AttachmentImportLimiter: Sendable {
         )
     }
 }
+
+/// What goes back into the composer when a sent user message is edited.
+nonisolated struct ComposerEditDraft: Sendable {
+    let text: String
+    /// The original message's attachments, converted into composer attachments that can be sent again (see `ComposerAttachmentRestoration`).
+    let attachments: [Attachment]
+}
+
+nonisolated enum ComposerAttachmentRestoration {
+    /// Turns a sent message's attachments back into composer attachments.
+    ///
+    /// The original message is deleted by the edit, so what goes back into the composer is an independent copy:
+    /// a new attachment id, and images saved again under a new local id (reusing the old id would leave the
+    /// copy pointing at an image the edit is about to remove).
+    /// Attachments whose content cannot be read on this device (a file whose body is not stored here) are not put back, since they could not be sent anyway.
+    static func restoredForComposer(_ attachments: [Attachment], partitionUID: String) -> [Attachment] {
+        attachments.compactMap { original in
+            var copy = original
+            copy.id = UUID()
+            switch original.kind {
+            case .image:
+                // Images imported on this device are keyed by localImageID; otherwise the original is stored under the attachment id.
+                let sourceKey = original.localImageID ?? original.id.uuidString
+                guard let data = ImageStore.loadImageData(for: sourceKey, partitionUID: partitionUID) else {
+                    return nil
+                }
+                let imageID = UUID().uuidString
+                ImageStore.save(imageData: data, for: imageID, partitionUID: partitionUID)
+                if let thumbnail = ImageStore.loadThumbnailData(for: sourceKey, partitionUID: partitionUID) {
+                    ImageStore.saveThumbnail(imageData: thumbnail, for: imageID, partitionUID: partitionUID)
+                } else {
+                    ImageStore.generateAndSaveThumbnail(from: data, for: imageID, partitionUID: partitionUID)
+                }
+                copy.localImageID = imageID
+            case .file, .video:
+                // A file whose extraction failed (a scanned PDF) never had body text; it is delivered through its error code or its original bytes.
+                let hasBody = original.base64Data?.isEmpty == false
+                let hasOriginal = original.originalBase64Data?.isEmpty == false
+                guard hasBody || hasOriginal || original.extractionErrorCode != nil else { return nil }
+            }
+            return copy
+        }
+    }
+}

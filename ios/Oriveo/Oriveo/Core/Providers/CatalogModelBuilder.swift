@@ -71,7 +71,12 @@ enum CatalogModelBuilder {
             imageGenProfile: metadata?.profiles.imageGen,
             generationProfile: metadata?.generationProfile,
             toolCall: metadata?.toolCall,
-            libraryAgentic: metadata?.libraryAgentic
+            libraryAgentic: metadata?.libraryAgentic,
+            // Per-model extraction limits come only from the catalog; a catalog miss or a missing field means the default limits.
+            attachmentExtraction: metadata?.attachmentExtraction,
+            // The native file allow-list comes only from the catalog; a catalog miss or a missing field means empty, so files are extracted to text.
+            nativeFileMimes: metadata?.nativeFileMimes ?? [],
+            pdfNativeDefault: metadata?.pdfNativeDefault ?? false
         )
     }
 
@@ -126,6 +131,10 @@ enum CatalogModelBuilder {
         enriched.cacheWrite5mPerMToken = metadata.cacheWrite5mPerMToken
         enriched.cacheWrite1hPerMToken = metadata.cacheWrite1hPerMToken
         enriched.supportsPdfInput = metadata.supportsPdfInput
+        // When metadata hits, an empty allow-list or a missing limits override is an authoritative withdrawal and must clear the old cache.
+        enriched.nativeFileMimes = metadata.nativeFileMimes
+        enriched.pdfNativeDefault = metadata.pdfNativeDefault
+        enriched.attachmentExtraction = metadata.attachmentExtraction
         enriched.supportsServiceTier = metadata.supportsServiceTier
         enriched.contextLength = metadata.contextLength ?? model.contextLength
         enriched.maxOutputTokens = metadata.maxOutputTokens ?? model.maxOutputTokens

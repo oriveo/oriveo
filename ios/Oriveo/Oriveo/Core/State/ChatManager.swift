@@ -556,71 +556,13 @@ final class ChatManager {
         guard let model else { return nil }
         let modelName = model.name
         let storedModelID = ModelResolver.preferredStoredModelIdentifier(for: model, providerKind: provider.kind)
-        var requestedCapabilitySelection = capabilitySelection
-        do {
-            let runtimeIdentity = CapabilityPreferenceRuntimeIdentity.make(provider: provider, model: model)
-            let transportIdentity = runtimeIdentity?.wireValue ?? ""
-            let capabilityModelID = runtimeIdentity?.canonicalModelID ?? ""
-            let store = GenerationParameterSettingsStore.shared
-            let conversationValues = store.capabilityPreferences(
-                providerID: provider.id, modelID: capabilityModelID, conversationID: conversationID,
-                transportIdentity: transportIdentity
-            )
-            let skillValues = conversations[index].skillId.flatMap { skillID in
-                store.capabilityPreferences(
-                    providerID: provider.id, modelID: capabilityModelID, conversationID: nil,
-                    skillID: skillID, transportIdentity: transportIdentity
-                )
-            }
-            let connectionValues = store.capabilityPreferences(
-                providerID: provider.id, modelID: capabilityModelID, conversationID: nil,
-                transportIdentity: transportIdentity
-            )
-            let connectionScopeValues = store.connectionCapabilityPreferences(
-                providerID: provider.id, modelID: capabilityModelID, transportIdentity: transportIdentity
-            )
-            let typed = CapabilityPreferenceValueResolver.resolve(
-                singleSend: capabilitySelection.typedPreferences,
-                conversation: conversationValues,
-                skill: skillValues,
-                connectionModel: connectionValues,
-                connection: connectionScopeValues
-            )
-            if runtimeIdentity != nil {
-                requestedCapabilitySelection.webSearchEnabled = typed.web != .off
-            }
-            let displayedIntent = CapabilityPreferenceValueResolver.displaySelection(
-                conversation: conversationValues,
-                skill: skillValues,
-                connectionModel: connectionValues,
-                connection: connectionScopeValues
-            ).reasoningIntent
-            if let intent = capabilitySelection.typedPreferences?.reasoningIntent ?? displayedIntent {
-                requestedCapabilitySelection.reasoningMode = ReasoningMode.fromIntent(intent) ?? .automatic
-            }
-            requestedCapabilitySelection.typedPreferences = typed
-            let localCustomForwardPort = CapabilityLocalCustomForwardPortContext(
-                providerKind: provider.kind, schemaModelID: model.id
-            )
-            let webCustom = store.effectiveLocalCustomConfiguration(
-                providerID: provider.id, modelID: capabilityModelID, conversationID: conversationID,
-                transportIdentity: transportIdentity, namespace: "webPatch",
-                forwardPort: localCustomForwardPort
-            ).mode == .custom
-            let reasoningCustom = store.effectiveLocalCustomConfiguration(
-                providerID: provider.id, modelID: capabilityModelID, conversationID: conversationID,
-                transportIdentity: transportIdentity, namespace: "reasoningPatch",
-                forwardPort: localCustomForwardPort
-            ).mode == .custom
-            if webCustom {
-                requestedCapabilitySelection.webSearchEnabled = false
-                requestedCapabilitySelection.typedPreferences?.web = .off
-            }
-            if reasoningCustom {
-                requestedCapabilitySelection.reasoningMode = .automatic
-                requestedCapabilitySelection.typedPreferences?.reasoningIntent = nil
-            }
-        }
+        let requestedCapabilitySelection = requestedCapabilitySelection(
+            capabilitySelection,
+            provider: provider,
+            model: model,
+            conversationID: conversationID,
+            skillID: conversations[index].skillId
+        )
         var resolvedCapabilitySelection = initialCapabilitySelection(requestedCapabilitySelection)
         resolvedCapabilitySelection.libraryResearchEnabled = false
 
@@ -850,6 +792,15 @@ final class ChatManager {
     }
 
     func editUserMessage(messageID: UUID, in conversationID: UUID) -> String? {
+        beginEditingUserMessage(messageID: messageID, in: conversationID)?.text
+    }
+
+    func editPromptingMessage(for assistantMessageID: UUID, in conversationID: UUID) -> String? {
+        beginEditingPromptingMessage(for: assistantMessageID, in: conversationID)?.text
+    }
+
+    /// Edit a user message: truncates the conversation to before it and returns the text and original attachments to put back in the composer.
+    func beginEditingUserMessage(messageID: UUID, in conversationID: UUID) -> ComposerEditDraft? {
         guard hydrateConversationMessagesIfNeeded(id: conversationID) else { return nil }
         guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }) else { return nil }
         guard let msgIndex = conversations[convIndex].messages.firstIndex(where: { $0.id == messageID }),
@@ -858,7 +809,7 @@ final class ChatManager {
         return beginEditingUserMessage(at: msgIndex, in: conversationID)
     }
 
-    func editPromptingMessage(for assistantMessageID: UUID, in conversationID: UUID) -> String? {
+    func beginEditingPromptingMessage(for assistantMessageID: UUID, in conversationID: UUID) -> ComposerEditDraft? {
         guard hydrateConversationMessagesIfNeeded(id: conversationID) else { return nil }
         guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }) else { return nil }
         guard let msgIndex = conversations[convIndex].messages.firstIndex(where: { $0.id == assistantMessageID }),
@@ -1189,6 +1140,149 @@ final class ChatManager {
         return resolved
     }
 
+    /// The capability selection actually in effect this turn (web search / reasoning level), resolved from
+    /// the conversation, skill and connection preference layers. Sending and the composer's pre-send attachment
+    /// check read the same function, so both see the same web search switch.
+    private func requestedCapabilitySelection(
+        _ capabilitySelection: ChatCapabilitySelection,
+        provider: Provider,
+        model: AIModel,
+        conversationID: UUID,
+        skillID: UUID?
+    ) -> ChatCapabilitySelection {
+        var requestedCapabilitySelection = capabilitySelection
+        do {
+            let runtimeIdentity = CapabilityPreferenceRuntimeIdentity.make(provider: provider, model: model)
+            let transportIdentity = runtimeIdentity?.wireValue ?? ""
+            let capabilityModelID = runtimeIdentity?.canonicalModelID ?? ""
+            let store = GenerationParameterSettingsStore.shared
+            let conversationValues = store.capabilityPreferences(
+                providerID: provider.id, modelID: capabilityModelID, conversationID: conversationID,
+                transportIdentity: transportIdentity
+            )
+            let skillValues = skillID.flatMap { skillID in
+                store.capabilityPreferences(
+                    providerID: provider.id, modelID: capabilityModelID, conversationID: nil,
+                    skillID: skillID, transportIdentity: transportIdentity
+                )
+            }
+            let connectionValues = store.capabilityPreferences(
+                providerID: provider.id, modelID: capabilityModelID, conversationID: nil,
+                transportIdentity: transportIdentity
+            )
+            let connectionScopeValues = store.connectionCapabilityPreferences(
+                providerID: provider.id, modelID: capabilityModelID, transportIdentity: transportIdentity
+            )
+            let typed = CapabilityPreferenceValueResolver.resolve(
+                singleSend: capabilitySelection.typedPreferences,
+                conversation: conversationValues,
+                skill: skillValues,
+                connectionModel: connectionValues,
+                connection: connectionScopeValues
+            )
+            if runtimeIdentity != nil {
+                requestedCapabilitySelection.webSearchEnabled = typed.web != .off
+            }
+            let displayedIntent = CapabilityPreferenceValueResolver.displaySelection(
+                conversation: conversationValues,
+                skill: skillValues,
+                connectionModel: connectionValues,
+                connection: connectionScopeValues
+            ).reasoningIntent
+            if let intent = capabilitySelection.typedPreferences?.reasoningIntent ?? displayedIntent {
+                requestedCapabilitySelection.reasoningMode = ReasoningMode.fromIntent(intent) ?? .automatic
+            }
+            requestedCapabilitySelection.typedPreferences = typed
+            let localCustomForwardPort = CapabilityLocalCustomForwardPortContext(
+                providerKind: provider.kind, schemaModelID: model.id
+            )
+            let webCustom = store.effectiveLocalCustomConfiguration(
+                providerID: provider.id, modelID: capabilityModelID, conversationID: conversationID,
+                transportIdentity: transportIdentity, namespace: "webPatch",
+                forwardPort: localCustomForwardPort
+            ).mode == .custom
+            let reasoningCustom = store.effectiveLocalCustomConfiguration(
+                providerID: provider.id, modelID: capabilityModelID, conversationID: conversationID,
+                transportIdentity: transportIdentity, namespace: "reasoningPatch",
+                forwardPort: localCustomForwardPort
+            ).mode == .custom
+            if webCustom {
+                requestedCapabilitySelection.webSearchEnabled = false
+                requestedCapabilitySelection.typedPreferences?.web = .off
+            }
+            if reasoningCustom {
+                requestedCapabilitySelection.reasoningMode = .automatic
+                requestedCapabilitySelection.typedPreferences?.reasoningIntent = nil
+            }
+        }
+        return requestedCapabilitySelection
+    }
+
+    /// Pre-send check when the composer's send is tapped: whether this turn's attachments fit on the route about to be used.
+    ///
+    /// Non-nil means they do not fit: the caller does not send, keeps the composer and shows a notice. The route
+    /// and model resolution and the over-limit decision use the same functions and inputs as a real send; when
+    /// the route cannot be determined yet (the catalog is not loaded, image generation, and so on) it returns
+    /// nil and the failure card at send time covers it.
+    func composerAttachmentOverLimit(
+        text: String,
+        attachments: [Attachment],
+        conversationID: UUID?,
+        draftSessionID: UUID?,
+        capabilitySelection: ChatCapabilitySelection
+    ) -> ProviderServiceError? {
+        guard attachments.contains(where: { $0.kind == .file }) else { return nil }
+        let conversation = conversationID.flatMap { id in conversations.first(where: { $0.id == id }) }
+        let provider: Provider
+        let model: AIModel
+        if let conversation {
+            guard let resolvedProvider = appState.provider(for: conversation.providerID),
+                  let resolvedModel = appState.currentModel(for: conversation) ?? resolvedProvider.defaultModel else {
+                return nil
+            }
+            provider = resolvedProvider
+            model = resolvedModel
+        } else {
+            // No conversation yet: sending creates one with the currently selected model.
+            guard conversationID == nil, let active = appState.activeModel else { return nil }
+            provider = active.provider
+            model = active.model
+        }
+        // Preferences and tool switches of a new chat move from the draft id to the conversation id on send, so reading by draft id gets the same ones.
+        guard let scopeID = conversationID ?? draftSessionID else { return nil }
+
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let selection = initialCapabilitySelection(requestedCapabilitySelection(
+            capabilitySelection,
+            provider: provider,
+            model: model,
+            conversationID: scopeID,
+            skillID: conversation?.skillId
+        ))
+
+        let usesToolLoop = !prepareMcpToolPlan(conversationID: scopeID, provider: provider, model: model).isEmpty
+        guard let transport = AttachmentTransportResolver.resolve(
+            provider: provider,
+            model: model,
+            request: .init(
+                webSearchEnabled: selection.webSearchEnabled,
+                webPreferenceIsAutomatic: selection.typedPreferences?.web == .automatic,
+                usesToolLoop: usesToolLoop
+            )
+        ) else { return nil }
+        let deliveryModel = AttachmentTransportResolver.deliveryModel(provider: provider, model: model, transport: transport)
+        // When this connection is already remembered as not accepting file blocks, sending goes straight to text; the check uses the same premise.
+        let plan = NativeFileFallback.withKnownConnectionState(connectionID: provider.id, transport: transport) {
+            AttachmentDelivery.plan(
+                userText: trimmed,
+                attachments: attachments,
+                transport: transport.profile,
+                model: deliveryModel
+            )
+        }
+        return AttachmentDelivery.overLimitError(for: plan, model: deliveryModel)
+    }
+
     private func initialCapabilitySelection(
         _ requested: ChatCapabilitySelection
     ) -> ChatCapabilitySelection {
@@ -1390,9 +1484,8 @@ final class ChatManager {
                         conversationID: conversationID
                     )
             }
-            requestOptions.capabilityEvidenceModel = provider.kind == .relay
-                ? model
-                : MetadataClient.shared.syncCurrentCapabilityEvidenceModel(model, providerKind: provider.kind)
+            requestOptions.capabilityEvidenceModel = AttachmentTransportResolver.evidenceModel(provider: provider, model: model)
+            requestOptions.attachmentConnectionID = provider.id
             // Built before dispatch, so `endpointFingerprint` is still unknown here. The final
             // endpoint is folded in later, once the production builder has chosen a URL.
             let capabilityEvidenceIdentity = CapabilityEvidenceRequestIdentity.make(
@@ -3266,10 +3359,11 @@ final class ChatManager {
             session: providerSession
         )
         let messages = McpToolBridge.initialMessages(
-            history: OpenAIChatToolLoopLegRunner.messages(
+            history: try OpenAIChatToolLoopLegRunner.messages(
                 from: requestMessages,
                 providerKind: provider.kind,
-                model: model
+                model: model,
+                isChatSend: true
             ),
             systemPrompt: requestOptions.systemPrompt
         )
@@ -3446,7 +3540,7 @@ final class ChatManager {
         return requestSnapshot
     }
 
-    private func beginEditingUserMessage(at messageIndex: Int, in conversationID: UUID) -> String? {
+    private func beginEditingUserMessage(at messageIndex: Int, in conversationID: UUID) -> ComposerEditDraft? {
         guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }) else { return nil }
         guard conversations[convIndex].messages.indices.contains(messageIndex),
               conversations[convIndex].messages[messageIndex].role == .user else {
@@ -3454,6 +3548,13 @@ final class ChatManager {
         }
 
         let messageText = conversations[convIndex].messages[messageIndex].text
+        // Put the original attachments back into the composer along with the text. This must happen before truncation, which deletes this message's file payloads.
+        let restoredAttachments = ComposerAttachmentRestoration.restoredForComposer(
+            appState.attachmentsWithFilePayloads(
+                of: conversations[convIndex].messages[messageIndex], in: conversationID
+            ),
+            partitionUID: appState.sessionPartitionUID
+        )
         var updated = conversations[convIndex]
         let truncatedSegment = Array(updated.messages[messageIndex...])
         updated.messages.removeSubrange(messageIndex...)
@@ -3475,7 +3576,7 @@ final class ChatManager {
         )
         appState.persistRecoverySnapshotAfterDestructiveChange()
 
-        return messageText
+        return ComposerEditDraft(text: messageText, attachments: restoredAttachments)
     }
 
     private struct ImageAttachmentDiskWrite: Sendable {

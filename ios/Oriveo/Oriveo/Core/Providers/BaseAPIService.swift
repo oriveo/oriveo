@@ -503,6 +503,8 @@ class BaseAPIService {
         // recorded. However the error is classified afterwards (relay guidance copy and so on),
         // the fact "the upstream answered 400 before any event" stays the same.
         CapabilityExecutionRuntime.recordUpstreamHTTPFailure(statusCode: statusCode)
+        // Also tell the native file fallback layer here: it looks only at the status code, never at the classified error type.
+        NativeFileFallback.currentAttempt?.recordRejection(statusCode: statusCode)
         let upstreamSnippet = decodeErrorMessage(from: data, request: request)
         let detail = upstreamSnippet
             ?? HTTPURLResponse.localizedString(forStatusCode: statusCode)
@@ -1245,73 +1247,6 @@ private struct GenericErrorEnvelope: Decodable {
 
 extension BaseAPIService {
 
-    /// - Parameters:
-    ///   - attachments: msg.attachments
-    static func injectFileAttachmentsAsText(
-        userText: String,
-        attachments: [Attachment],
-        provider: ProviderKind,
-        model: AIModel?,
-        imagePlaceholderText: String? = nil
-    ) -> (text: String, skipped: [(fileName: String, reason: AttachmentInjector.SkipReason)]) {
-        let limits = FileExtractionLimits.resolve(model: model)
-        let wrapper = AttachmentWrapperVersion.resolve(provider: provider)
-
-        var effectiveUserText = userText
-        if let placeholder = imagePlaceholderText {
-            let imageCount = attachments.filter { $0.kind == .image }.count
-            if imageCount > 0 {
-                let placeholders = Array(repeating: placeholder, count: imageCount)
-                effectiveUserText = ([effectiveUserText] + placeholders)
-                    .filter { !$0.isEmpty }
-                    .joined(separator: "\n\n")
-            }
-        }
-
-        let fileAttachments: [(fileName: String, mimeType: String, sizeBytes: Int, extracted: ExtractedText?, errorCode: ExtractionErrorCode?)] = attachments.compactMap { att in
-            guard att.kind == .file else { return nil }
-
-            if let codeStr = att.extractionErrorCode,
-               let code = ExtractionErrorCode(rawValue: codeStr) {
-                return (att.fileName, att.mimeType, att.extractedSizeBytes ?? 0, nil, code)
-            }
-
-            let content = decodeAttachmentText(att.resolvedBase64Data) ?? ""
-            let extracted = ExtractedText(
-                content: content,
-                totalLines: att.extractedTotalLines ?? content.components(separatedBy: "\n").count,
-                truncated: att.extractedTruncated ?? false,
-                truncationReason: nil,
-                sizeBytes: att.extractedSizeBytes ?? Data(content.utf8).count
-            )
-            return (att.fileName, att.mimeType, extracted.sizeBytes, extracted, nil)
-        }
-
-        return AttachmentInjector.injectAll(
-            intoUserText: effectiveUserText,
-            fileAttachments: fileAttachments,
-            limits: limits,
-            wrapper: wrapper
-        )
-    }
-
-    static func partitionAttachmentsByRoute(
-        _ attachments: [Attachment],
-        provider: ProviderKind,
-        model: AIModel?
-    ) -> (native: [Attachment], text: [Attachment]) {
-        guard let model = model else { return ([], attachments) }
-        var native: [Attachment] = []
-        var text: [Attachment] = []
-        for att in attachments {
-            switch AttachmentRouter.decide(attachment: att, provider: provider, model: model) {
-            case .native: native.append(att)
-            case .clientExtract: text.append(att)
-            }
-        }
-        return (native, text)
-    }
-
     static func appendAttachmentSystemGuidance(
         to systemPrompt: String,
         hasAttachments: Bool
@@ -1321,11 +1256,5 @@ extension BaseAPIService {
             return AttachmentInjector.systemPromptGuidance
         }
         return systemPrompt + "\n\n" + AttachmentInjector.systemPromptGuidance
-    }
-
-    private static func decodeAttachmentText(_ base64: String?) -> String? {
-        guard let base64 = base64, !base64.isEmpty,
-              let d = Data(base64Encoded: base64) else { return nil }
-        return String(data: d, encoding: .utf8)
     }
 }

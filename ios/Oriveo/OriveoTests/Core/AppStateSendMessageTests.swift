@@ -1060,3 +1060,171 @@ struct AppStateSendMessageTests {
         #expect(assistant.state == .delivered)
     }
 }
+
+// MARK: - Pre-send attachment check in the composer
+
+private final class ComposerPreflightTransportLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var seen: [AttachmentTransport] = []
+    func record(_ transport: AttachmentTransport) { lock.lock(); seen.append(transport); lock.unlock() }
+    var transports: Set<AttachmentTransport> { lock.lock(); defer { lock.unlock() }; return Set(seen) }
+}
+
+extension AppStateSendMessageTests {
+
+    private func preflightTextFile(_ name: String, content: String = "x") -> Oriveo.Attachment {
+        Oriveo.Attachment(
+            id: UUID(), kind: .file, fileName: name, mimeType: "text/plain",
+            base64Data: Data(content.utf8).base64EncodedString(),
+            extractedSizeBytes: content.utf8.count
+        )
+    }
+
+    @MainActor
+    private func preflightRelayState(
+        transport: RelayTransport,
+        extraction: AttachmentExtractionLimits? = nil
+    ) -> (state: AppState, provider: Provider, model: AIModel) {
+        let state = makeIsolatedAppState(prefix: "composer-preflight-")
+        var model = TestFactories.makeModel(id: "relay-model", name: "Relay Model", capabilities: [.text], isDefault: true)
+        model.attachmentExtraction = extraction
+        var provider = TestFactories.makeProvider(
+            kind: .relay, models: [model], catalogModels: [model],
+            apiKey: "relay-key", apiKeyPreview: "relay...",
+            baseURLText: "https://relay.example.com", customName: "Preflight Relay"
+        )
+        provider.relayRequested = RelayRequestedConfig(transport: transport, authMode: .auto, modelID: "relay-model")
+        state.providers = [provider]
+        state.setActiveModel(providerID: provider.id, modelID: "relay-model")
+        return (state, provider, model)
+    }
+
+    @Test("composer pre-send: too many files are blocked with no conversation and no request, and the notice is the count one")
+    func composerPreflightBlocksOverFileCount() async throws {
+        registerAppStateSendMessageMock()
+        defer { unregisterAppStateSendMessageMock() }
+        var requestCount = 0
+        AppStateSendMessageURLProtocol.requestHandler = { request in
+            requestCount += 1
+            return (appStateSendMessageHTTPResponse(url: try #require(request.url), statusCode: 500), Data())
+        }
+        let (state, _, _) = preflightRelayState(transport: .openaiChatCompletions)
+        let files = ["a.txt", "b.txt", "c.txt", "d.txt"].map { preflightTextFile($0) }
+
+        let blocked = state.composerAttachmentOverLimit(
+            text: "q", attachments: files, in: nil,
+            generationParameterDraftSessionID: UUID(), capabilitySelection: ChatCapabilitySelection()
+        )
+        guard case let .attachmentTextOverLimit(fileNames, fileCountLimit)? = blocked else {
+            Issue.record("over-count turn was not blocked before sending: \(String(describing: blocked))")
+            return
+        }
+        #expect(fileNames.isEmpty)
+        #expect(fileCountLimit == FileExtractionLimits.default.maxFiles)
+        #expect(blocked?.message == String(
+            format: L10n.tr("file_attachment_count_limit_reached", table: .chat), FileExtractionLimits.default.maxFiles
+        ))
+        // The check itself persists nothing: no conversation, no messages, no requests.
+        #expect(state.conversations.isEmpty)
+        #expect(requestCount == 0)
+
+        // Anything that fits is not blocked; image-only attachments are not blocked either.
+        #expect(state.composerAttachmentOverLimit(
+            text: "q", attachments: Array(files.prefix(3)), in: nil,
+            generationParameterDraftSessionID: UUID(), capabilitySelection: ChatCapabilitySelection()
+        ) == nil)
+        let image = Oriveo.Attachment(id: UUID(), kind: .image, fileName: "p.png", mimeType: "image/png", base64Data: "aGk=")
+        #expect(state.composerAttachmentOverLimit(
+            text: "q", attachments: [image], in: nil,
+            generationParameterDraftSessionID: UUID(), capabilitySelection: ChatCapabilitySelection()
+        ) == nil)
+    }
+
+    @Test("composer pre-send: an over-limit text total gets the text notice and is computed against the conversation's current model")
+    func composerPreflightBlocksOverTextBudgetUsingTheConversationModel() async throws {
+        let (state, provider, model) = preflightRelayState(
+            transport: .openaiResponses, extraction: AttachmentExtractionLimits(totalCap: 32)
+        )
+        let conversation = TestFactories.makeConversation(providerID: provider.id, providerKind: provider.kind, modelID: model.id)
+        state.upsertConversationProjection(conversation)
+        let files = [preflightTextFile("a.txt", content: "aaaa"), preflightTextFile("b.txt", content: String(repeating: "b", count: 64))]
+
+        let blocked = state.composerAttachmentOverLimit(
+            text: "q", attachments: files, in: conversation.id,
+            generationParameterDraftSessionID: nil, capabilitySelection: ChatCapabilitySelection()
+        )
+        guard case let .attachmentTextOverLimit(fileNames, fileCountLimit)? = blocked else {
+            Issue.record("over-budget turn was not blocked before sending: \(String(describing: blocked))")
+            return
+        }
+        #expect(fileNames == ["b.txt"])
+        #expect(fileCountLimit == nil)
+        #expect(blocked?.message == String(
+            format: L10n.tr("file_extraction_send_blocked_text_budget", table: .chat), "b.txt"
+        ))
+        #expect(state.conversation(for: conversation.id)?.messages.isEmpty == true)
+    }
+
+    @Test("composer pre-send: image generation routes are not predicted and not blocked (left to the failure card at send time)")
+    func composerPreflightDoesNotBlockWhenTheRouteIsNotPredictable() async throws {
+        let state = makeIsolatedAppState(prefix: "composer-preflight-unresolved-")
+        let model = TestFactories.makeModel(id: "image-model", name: "Image", capabilities: [.text, .imageGen], isDefault: true)
+        var provider = TestFactories.makeProvider(
+            kind: .relay, models: [model], catalogModels: [model],
+            apiKey: "relay-key", apiKeyPreview: "relay...", baseURLText: "https://relay.example.com", customName: "Image Relay"
+        )
+        provider.relayRequested = RelayRequestedConfig(transport: .openaiResponses, authMode: .auto, modelID: "image-model")
+        state.providers = [provider]
+        state.setActiveModel(providerID: provider.id, modelID: "image-model")
+        let files = ["a.txt", "b.txt", "c.txt", "d.txt"].map { preflightTextFile($0) }
+        #expect(state.composerAttachmentOverLimit(
+            text: "q", attachments: files, in: nil,
+            generationParameterDraftSessionID: UUID(), capabilitySelection: ChatCapabilitySelection()
+        ) == nil)
+    }
+
+    @Test("the five Relay routes: the route resolved before sending matches the one the build point reports in a real send, and so does the verdict")
+    func composerPreflightMatchesRealRelaySend() async throws {
+        registerAppStateSendMessageMock()
+        defer { unregisterAppStateSendMessageMock() }
+        var requestCount = 0
+        AppStateSendMessageURLProtocol.requestHandler = { request in
+            requestCount += 1
+            return (appStateSendMessageHTTPResponse(url: try #require(request.url), statusCode: 500), Data())
+        }
+        let files = ["a.txt", "b.txt", "c.txt", "d.txt"].map { preflightTextFile($0) }
+        let expected: [(RelayTransport, AttachmentTransport)] = [
+            (.openaiChatCompletions, .relayOpenAIChat),
+            (.openaiResponses, .relayOpenAIResponses),
+            (.llamacppNative, .relayLlamaCppNative),
+            (.anthropicMessages, .relayAnthropicMessages),
+            (.geminiGenerateContent, .relayGeminiGenerateContent),
+        ]
+        for (relayTransport, transport) in expected {
+            let (state, provider, model) = preflightRelayState(transport: relayTransport)
+            #expect(AttachmentTransportResolver.resolve(provider: provider, model: model, request: .init()) == transport)
+            #expect(state.composerAttachmentOverLimit(
+                text: "q", attachments: files, in: nil,
+                generationParameterDraftSessionID: UUID(), capabilitySelection: ChatCapabilitySelection()
+            ) != nil, "\(relayTransport)")
+
+            // Bypass the composer and send for real: the build point reports exactly this route, and it likewise sends no request because the files do not fit.
+            requestCount = 0
+            let log = ComposerPreflightTransportLog()
+            let sent = await AttachmentDeliveryObservation.$onDeliver.withValue({ log.record($0) }) {
+                await state.sendMessage("q", attachments: files, in: nil)
+            }
+            let conversationID = try #require(sent)
+            try await waitUntil {
+                guard let assistant = state.conversation(for: conversationID)?.messages.last(where: { $0.role == .assistant }) else {
+                    return false
+                }
+                return assistant.state != .generating
+            }
+            #expect(log.transports == [transport], "\(relayTransport) built on \(log.transports)")
+            #expect(state.conversation(for: conversationID)?.messages.last?.state == .failed, "\(relayTransport)")
+            #expect(requestCount == 0, "\(relayTransport)")
+        }
+    }
+}
+

@@ -16,10 +16,20 @@ struct MessageRecoveryCardActionLayout: Equatable {
 
 func resolveMessageRecoveryCardActionLayout(
     for state: ChatMessageState,
-    shouldOfferModelSwitch: Bool
+    shouldOfferModelSwitch: Bool,
+    isAttachmentOverLimit: Bool = false
 ) -> MessageRecoveryCardActionLayout {
     switch state {
     case .failed:
+        // The send was stopped locally because the attachments do not fit the model's limit: retrying as is
+        // would be stopped again, so editing the message comes first.
+        if isAttachmentOverLimit {
+            return .init(
+                primary: .editMessage,
+                secondary: .retry,
+                tertiary: shouldOfferModelSwitch ? .switchModel : nil
+            )
+        }
         return .init(
             primary: .retry,
             secondary: .editMessage,
@@ -130,7 +140,8 @@ enum AssistantMessageRecoveryBuilder {
 
         let actionLayout = resolveMessageRecoveryCardActionLayout(
             for: state,
-            shouldOfferModelSwitch: shouldOfferModelSwitch
+            shouldOfferModelSwitch: shouldOfferModelSwitch,
+            isAttachmentOverLimit: model.message.errorDetail.map(ProviderServiceError.attachmentOverLimitCodes.contains) == true
         )
 
         let actionRouter: (MessageRecoveryActionKind) -> Void = { action in

@@ -274,7 +274,7 @@ final class MistralService: BaseAPIService, ProviderServiceProtocol {
         if !systemPrompt.isEmpty {
             apiMessages.append(["role": "system", "content": systemPrompt])
         }
-        apiMessages.append(contentsOf: capabilityIntent.outboundMessages.map { Self.buildRequestMessage($0) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
         if let replayAssistantMessages {
             let insertAt = apiMessages.lastIndex(where: { $0["role"] as? String == "user" })
                 ?? apiMessages.count
@@ -302,10 +302,6 @@ final class MistralService: BaseAPIService, ProviderServiceProtocol {
         return request
     }
 
-    static func buildRequestMessageForTest(_ msg: ChatMessage, model: AIModel? = nil) -> [String: Any] {
-        buildRequestMessage(msg, model: model)
-    }
-
     private static func reasoningReplayRecipe(
         modelID: String, reasoningMode: ReasoningMode
     ) -> MetadataClient.CapabilityRecipe? {
@@ -316,16 +312,17 @@ final class MistralService: BaseAPIService, ProviderServiceProtocol {
         )
     }
 
-    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel? = nil) -> [String: Any] {
+    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel?, isOutgoingTurn: Bool) throws -> [String: Any] {
         let attachments = msg.attachments ?? []
         let imageAttachments = attachments.filter { $0.kind == .image }
 
-        let (combinedText, _) = BaseAPIService.injectFileAttachmentsAsText(
+        let combinedText = try AttachmentDelivery.deliver(
+            isOutgoingTurn: isOutgoingTurn,
             userText: msg.text,
             attachments: attachments,
-            provider: .mistral,
+            transport: .mistralChat,
             model: model
-        )
+        ).injectedText
 
         guard !imageAttachments.isEmpty, msg.role == .user else {
             return ["role": msg.role.rawValue, "content": combinedText]

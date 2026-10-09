@@ -177,6 +177,8 @@ nonisolated struct ChatRequestOptions: Hashable, Codable, Sendable {
     var capabilityPreferences: CapabilityPreferenceValues? = nil
     var generationProfile: GenerationProfileRef? = nil
     var capabilityEvidenceModel: AIModel? = nil
+    /// Provider id of the connection this send runs on, used only by the native-file fallback layer to remember that a connection does not accept file blocks. Not encoded and not synced.
+    var attachmentConnectionID: UUID? = nil
     var localContinuationMessageID: UUID? = nil
     /// Only `ChatManager.continueMessage` sets this. A fresh user send never reads sidecar state.
     var localExplicitContinuationMessageID: UUID? = nil
