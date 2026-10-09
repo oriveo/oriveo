@@ -36,7 +36,12 @@ import {
   flushPendingStreaming as flushPendingForConv,
 } from "../core/chat/stream-batcher";
 import { markNewConversationRoutePromotion } from "../core/chat/route-transition";
-import { findUnsendableTextAttachments } from "../core/attachments/attachment-delivery";
+import type { SkippedAttachment } from "../core/attachments/attachment-injector";
+import {
+  findUnsendableAttachmentsBeforeSend,
+  trackAttachmentSendBlocked,
+} from "../core/chat/attachment-preflight";
+import { resolveFileExtractionLimits } from "../core/attachments/file-text-extractor";
 import { showToast } from "../../components/Toast";
 import { clearStreamPartialBackup } from "../core/store/stream-partial-backup";
 
@@ -227,29 +232,61 @@ export function useStreamChat({
   const tFileExtraction = useTranslations("pages.chat.fileExtraction");
   const libraryFeatureEnabled = isLibraryFeatureEnabled();
 
+  // -- How to word attachments that do not fit --
+  // The two reasons are worded separately: over the file count cap gets the count-cap message, and a text
+  // budget overflow names the files that do not fit. The pre-send notice and the body of the failure
+  // card shown at send time use the same sentence.
+  const describeAttachmentOverLimit = useCallback(
+    (skipped: SkippedAttachment[], model: AIModel): string => {
+      const overBudget = skipped.filter((item) => item.reason === "total_cap_exceeded");
+      const lines: string[] = [];
+      if (overBudget.length < skipped.length) {
+        lines.push(
+          tFileExtraction("tooManyFiles", {
+            maxFiles: resolveFileExtractionLimits(model).maxFiles,
+          }),
+        );
+      }
+      if (overBudget.length > 0) {
+        lines.push(
+          tFileExtraction("sendBlockedTextBudget", {
+            fileName: overBudget.map((item) => item.fileName).join(", "),
+          }),
+        );
+      }
+      return lines.join("\n");
+    },
+    [tFileExtraction],
+  );
+
   // -- Pre-send check --
-  // While building the outbound history the injector skips a whole attachment that does not fit the text
-  // budget, so the user never sees it and the model does not know a file is missing. Run the same
-  // calculation first: if something does not fit, do not send, and say which files. Returns true when blocked.
+  // While building the outbound history, a turn whose attachments do not fit the text budget fails
+  // outright (it is stored as a failed send). Run the same calculation first: if something does not
+  // fit, do not send, and say why. Returns true when blocked.
   const blockUnsendableAttachments = useCallback(
-    (
+    async (
       messageAttachments: Attachment[] | undefined,
+      sendProvider: Provider,
       model: AIModel,
-      providerKind: string,
-    ): boolean => {
-      const skipped = findUnsendableTextAttachments(messageAttachments, model, providerKind);
+    ): Promise<boolean> => {
+      const skipped = await findUnsendableAttachmentsBeforeSend({
+        attachments: messageAttachments,
+        provider: sendProvider,
+        model,
+        reasoningMode,
+        webSearchEnabled,
+      });
       if (skipped.length === 0) return false;
+      trackAttachmentSendBlocked(skipped, sendProvider);
       showToast(
-        tFileExtraction("sendBlockedTextBudget", {
-          fileName: skipped.map((item) => item.fileName).join(", "),
-        }),
+        describeAttachmentOverLimit(skipped, model),
         6000,
         undefined,
         "warning",
       );
       return true;
     },
-    [tFileExtraction],
+    [describeAttachmentOverLimit, reasoningMode, webSearchEnabled],
   );
 
   // -- Interrupt only when the same conversation is being overwritten --
@@ -284,7 +321,7 @@ export function useStreamChat({
         provider,
         currentModel,
       );
-      if (blockUnsendableAttachments(msgAttachments, precheckSelection.model, precheckSelection.provider.kind)) {
+      if (await blockUnsendableAttachments(msgAttachments, precheckSelection.provider, precheckSelection.model)) {
         return SEND_BLOCKED;
       }
       // Interrupt only when the target conversation already has an unfinished stream (an overwrite
@@ -322,6 +359,7 @@ export function useStreamChat({
             batchAppendStreaming(resolvedConvId, chunk);
           },
           te: (key: string) => te(key),
+          describeAttachmentOverLimit,
         };
         const effectiveLibraryContextDocuments = libraryFeatureEnabled
           ? libraryContextDocuments
@@ -413,6 +451,7 @@ export function useStreamChat({
       onLibraryContextFailed,
       guardSameConversation,
       blockUnsendableAttachments,
+      describeAttachmentOverLimit,
     ],
   );
 
@@ -450,7 +489,7 @@ export function useStreamChat({
       excludeCapabilityOwners?: Array<'web' | 'reasoning' | 'generation'>;
     }) => {
       if (!conversation || !provider || !currentModel) return;
-      if (blockUnsendableAttachments(resendUserMessage(messages, messageId)?.attachments, currentModel, provider.kind)) {
+      if (await blockUnsendableAttachments(resendUserMessage(messages, messageId)?.attachments, provider, currentModel)) {
         return;
       }
       guardSameConversation(conversation.id);
@@ -464,6 +503,7 @@ export function useStreamChat({
           batchAppendStreaming(resolvedConvId, chunk);
         },
         te: (key: string) => te(key),
+        describeAttachmentOverLimit,
       };
       const commonParams = {
         messageId,
@@ -526,6 +566,7 @@ export function useStreamChat({
       onSendFailed,
       guardSameConversation,
       blockUnsendableAttachments,
+      describeAttachmentOverLimit,
     ],
   );
 
@@ -533,6 +574,10 @@ export function useStreamChat({
   const continueAnswering = useCallback(
     async (messageId: string) => {
       if (!conversation || !provider || !currentModel) return;
+      // Continuing resends the previous user message together with its attachments, so it goes through the pre-send check like send and retry.
+      if (await blockUnsendableAttachments(resendUserMessage(messages, messageId)?.attachments, provider, currentModel)) {
+        return;
+      }
       guardSameConversation(conversation.id);
       const targetMsg = messages.find((m) => m.id === messageId);
       const libraryRecovery = isLibraryResearchMessage(targetMsg);
@@ -569,6 +614,7 @@ export function useStreamChat({
             batchAppendStreaming(resolvedConvId, chunk);
           },
           te: (key: string) => te(key),
+          describeAttachmentOverLimit,
         };
         const commonParams = {
           messageId,
@@ -621,6 +667,8 @@ export function useStreamChat({
       te,
       tLibrary,
       guardSameConversation,
+      blockUnsendableAttachments,
+      describeAttachmentOverLimit,
     ],
   );
 
@@ -628,8 +676,14 @@ export function useStreamChat({
   const editAndResend = useCallback(
     async (messageId: string, newText: string) => {
       if (!conversation || !provider || !currentModel) return;
-      // No pre-send check here: edit-and-resend carries only the new text, not the original message's
-      // attachments (see operations-edit.ts), so checking the original attachments would block a request that can be sent.
+      // Edit-and-resend carries the original message's attachments (see operations-edit.ts), so it goes through the pre-send check like send and retry.
+      const edited = messages.find((message) => message.id === messageId);
+      if (
+        edited?.role === "user"
+        && await blockUnsendableAttachments(edited.attachments, provider, currentModel)
+      ) {
+        return;
+      }
       guardSameConversation(conversation.id);
       const { editAndResend: editAndResendOp } = await loadChatOperations();
       let resolvedConvId: string | undefined = conversation.id;
@@ -640,6 +694,7 @@ export function useStreamChat({
           batchAppendStreaming(resolvedConvId, chunk);
         },
         te: (key: string) => te(key),
+        describeAttachmentOverLimit,
       };
       const handle = editAndResendOp(ctx, {
         messageId,
@@ -682,6 +737,8 @@ export function useStreamChat({
       router,
       onSendFailed,
       guardSameConversation,
+      blockUnsendableAttachments,
+      describeAttachmentOverLimit,
     ],
   );
 

@@ -125,6 +125,20 @@ vi.mock('../../core/sync-port', () => ({
   getSyncAdapter: () => mocks.mockSyncAdapter,
 }));
 
+const mockTrackEvent = vi.hoisted(() => vi.fn());
+vi.mock('../../core/telemetry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../core/telemetry')>()),
+  trackEvent: mockTrackEvent,
+}));
+
+// The connection in the fixtures is not a real provider; the pre-send check's line is fixed to a Chat line
+// without native blocks, while whether the files fit is still computed by the production delivery decision.
+vi.mock('../../core/attachments/attachment-transport-resolver', () => ({
+  resolveAttachmentLine: async (input: { toolLoop?: boolean }) => ({
+    transport: 'openai_chat', toolLoop: input.toolLoop === true, exact: true,
+  }),
+}));
+
 import {
   SEND_BLOCKED,
   flushAndInterruptActiveStream,
@@ -737,6 +751,49 @@ describe('useStreamChat pre-send check: do not send when attachments do not fit 
     expect(mockShowToast.mock.calls[0]?.[0]).toBe('sendBlockedTextBudget({"fileName":"b.txt, c.txt"})');
   });
 
+  it('send: exceeding the file count names the count cap, not the text budget', async () => {
+    const { result } = renderHook(() => useStreamChat({
+      provider, currentModel,
+      conversation: undefined,
+      messages: [],
+      reasoningMode: 'automatic',
+      onSendFailed: vi.fn(),
+    }));
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.send('Hello', [], undefined, [
+        textFile('a.txt', 10), textFile('b.txt', 10), textFile('c.txt', 10), textFile('d.txt', 10),
+      ]);
+    });
+
+    expect(outcome).toBe(SEND_BLOCKED);
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+    expect(mockShowToast.mock.calls[0]?.[0]).toBe('tooManyFiles({"maxFiles":3})');
+    expect(mocks.mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('send: when both the count and the text total are exceeded, the two explanations take a line each', async () => {
+    const { result } = renderHook(() => useStreamChat({
+      provider, currentModel,
+      conversation: undefined,
+      messages: [],
+      reasoningMode: 'automatic',
+      onSendFailed: vi.fn(),
+    }));
+
+    await act(async () => {
+      await result.current.send('Hello', [], undefined, [
+        ...overBudget(), textFile('c.txt', 10), textFile('d.txt', 10), textFile('e.txt', 10),
+      ]);
+    });
+
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+    expect(mockShowToast.mock.calls[0]?.[0]).toBe(
+      `tooManyFiles({"maxFiles":3})\n${BLOCKED_TOAST}`,
+    );
+  });
+
   it('send: judged by the latest model selected in the store; a model with a tighter limit blocks an attachment that fits by default', async () => {
     mocks.mockStoreState.providers = [{
       ...provider,
@@ -805,11 +862,33 @@ describe('useStreamChat pre-send check: do not send when attachments do not fit 
     expect(retryMessage).not.toHaveBeenCalled();
   });
 
-  // Edit-and-resend carries only the new text, not the original message's attachments, so checking the original attachments would block a request that can be sent.
-  it('editAndResend: the original message\'s attachments are not carried by the resend, so it is not blocked', async () => {
+  // Edit-and-resend carries the original message's attachments, so like send / retry it goes through the pre-send check.
+  it('editAndResend: the original message\'s attachments travel with the resend; on a hit it shows a notice and does not call editAndResend', async () => {
     const editAndResend = vi.fn().mockReturnValue(handle());
     mocks.mockLoadChatOperations.mockResolvedValue({ editAndResend });
     const conversation = conversationWithAttachments(overBudget());
+
+    const { result } = renderHook(() => useStreamChat({
+      provider, currentModel,
+      conversation,
+      messages: conversation.messages,
+      reasoningMode: 'automatic',
+      onSendFailed: vi.fn(),
+    }));
+
+    await act(async () => {
+      await result.current.editAndResend('user-1', 'Edited');
+    });
+
+    expect(mockShowToast.mock.calls[0]?.[0]).toBe(BLOCKED_TOAST);
+    expect(mocks.mockLoadChatOperations).not.toHaveBeenCalled();
+    expect(editAndResend).not.toHaveBeenCalled();
+  });
+
+  it('editAndResend: resends as usual, without a notice, when the original message\'s attachments fit', async () => {
+    const editAndResend = vi.fn().mockReturnValue(handle());
+    mocks.mockLoadChatOperations.mockResolvedValue({ editAndResend });
+    const conversation = conversationWithAttachments([textFile('a.txt', 100 * 1024)]);
 
     const { result } = renderHook(() => useStreamChat({
       provider, currentModel,
@@ -827,7 +906,7 @@ describe('useStreamChat pre-send check: do not send when attachments do not fit 
     expect(mockShowToast).not.toHaveBeenCalled();
   });
 
-  it('continueAnswering: no pre-send check, continues as usual', async () => {
+  it('continueAnswering: also goes through the pre-send check (it resends the previous user message with its attachments); on a hit it shows a notice and does not continue', async () => {
     mocks.mockContinueAnswering.mockReturnValue(handle());
     const conversation = conversationWithAttachments(overBudget());
 
@@ -843,8 +922,14 @@ describe('useStreamChat pre-send check: do not send when attachments do not fit 
       await result.current.continueAnswering('assistant-1');
     });
 
-    expect(mocks.mockContinueAnswering).toHaveBeenCalledTimes(1);
-    expect(mockShowToast).not.toHaveBeenCalled();
+    expect(mockShowToast.mock.calls[0]?.[0]).toBe(BLOCKED_TOAST);
+    expect(mocks.mockContinueAnswering).not.toHaveBeenCalled();
+    // A blocked send records one event: only the stable code and provider_kind, never file names
+    expect(mockTrackEvent).toHaveBeenCalledWith('attachment_send_blocked', {
+      error_code: 'attachment_text_over_limit',
+      provider_kind: expect.any(String),
+    });
+    expect(JSON.stringify(mockTrackEvent.mock.calls)).not.toContain('b.txt');
   });
 });
 
