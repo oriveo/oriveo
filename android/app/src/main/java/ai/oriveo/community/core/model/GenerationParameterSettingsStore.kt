@@ -128,25 +128,50 @@ class GenerationParameterSettingsStore(
         profileFingerprint: String? = null,
         reasoningMode: ReasoningMode? = null,
         activeParameterIds: Set<String>? = null,
-    ): GenerationParameterOverrides? {
+    ): GenerationParameterOverrides? = resolveWithSources(
+        transient, providerID, modelID, conversationID, profileFingerprint, reasoningMode, activeParameterIds,
+    ).takeIf { it.isNotEmpty() }?.let { sourced -> GenerationParameterOverrides(sourced.mapValues { it.value.override }) }
+
+    /**
+     * Same layering and filtering as [resolve], plus which layer each value came from, so the advanced-settings row can show
+     * "changed in this conversation" or "using the model default". A parameter missing from the result has a value in no layer (the model decides).
+     */
+    fun resolveWithSources(
+        transient: GenerationParameterOverrides?,
+        providerID: String,
+        modelID: String,
+        conversationID: String,
+        profileFingerprint: String? = null,
+        reasoningMode: ReasoningMode? = null,
+        activeParameterIds: Set<String>? = null,
+    ): Map<String, SourcedGenerationParameter> {
         val allowConnectionReasoning = reasoningMode == null || reasoningMode == ReasoningMode.Automatic
-        val result = linkedMapOf<String, GenerationParameterOverride>()
+        val result = linkedMapOf<String, SourcedGenerationParameter>()
 
         listOf(
-            Triple(transient, false, false),
-            Triple(sessionOverrides(providerID, modelID, conversationID, profileFingerprint), false, true),
-            Triple(modelDefaults(providerID, modelID, profileFingerprint), allowConnectionReasoning, true),
-            Triple(connectionDefaults(providerID), allowConnectionReasoning, true),
+            Layer(transient, false, false, GenerationParameterSource.Session),
+            Layer(sessionOverrides(providerID, modelID, conversationID, profileFingerprint), false, true, GenerationParameterSource.Session),
+            Layer(modelDefaults(providerID, modelID, profileFingerprint), allowConnectionReasoning, true, GenerationParameterSource.ModelDefault),
+            Layer(connectionDefaults(providerID), allowConnectionReasoning, true, GenerationParameterSource.ModelDefault),
         )
-            .forEach { (layer, allowReasoning, dropDormant) ->
-                layer?.values?.forEach { (key, value) ->
-                    if (!allowReasoning && key in REASONING_PARAMETER_IDS) return@forEach
-                    if (dropDormant && activeParameterIds?.contains(key) == false) return@forEach
-                    if (key !in result && value.state != GenerationOverrideState.Inherit) result[key] = value
+            .forEach { layer ->
+                layer.values?.values?.forEach { (key, value) ->
+                    if (!layer.allowReasoning && key in REASONING_PARAMETER_IDS) return@forEach
+                    if (layer.dropDormant && activeParameterIds?.contains(key) == false) return@forEach
+                    if (key !in result && value.state != GenerationOverrideState.Inherit) {
+                        result[key] = SourcedGenerationParameter(value, layer.source)
+                    }
                 }
             }
-        return result.takeIf { it.isNotEmpty() }?.let(::GenerationParameterOverrides)
+        return result
     }
+
+    private data class Layer(
+        val values: GenerationParameterOverrides?,
+        val allowReasoning: Boolean,
+        val dropDormant: Boolean,
+        val source: GenerationParameterSource,
+    )
 
     private fun replace(
         values: GenerationParameterOverrides?,
@@ -271,6 +296,14 @@ class GenerationParameterSettingsStore(
         }
     }
 }
+
+/** Which layer the effective value came from; "decided by the model" means no layer gave a value and is not represented here. */
+enum class GenerationParameterSource { Session, ModelDefault }
+
+data class SourcedGenerationParameter(
+    val override: GenerationParameterOverride,
+    val source: GenerationParameterSource,
+)
 
 object GenerationParameterProfileFingerprint {
     fun make(provider: Provider, model: AIModel): String {

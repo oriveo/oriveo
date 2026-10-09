@@ -213,6 +213,21 @@ internal fun buildLlamaCppPrompt(messages: List<ChatMessage>, requestOptions: Ch
         add("assistant:")
     }.joinToString("\\n")
 
+/**
+ * Whether this request to a relay Anthropic-compatible connection sends thinking, and at which tier: shared by the builder and the advanced-settings thinking preview,
+ * so the preview can never disagree with the real request body. Null means nothing is sent (automatic tier, or the outbound gate does not allow it).
+ */
+internal fun relayAnthropicThinkingFields(
+    modelID: String,
+    reasoningMode: ReasoningMode,
+    requestOptions: ChatRequestOptions,
+    capabilityProjection: CapabilityEvidenceProductionAdapter.Projection?,
+): String? {
+    val effectiveReasoning = effectiveRelayReasoningMode(requestOptions, reasoningMode)
+    if (!permitsReasoning(capabilityProjection, effectiveReasoning)) return null
+    return relayAnthropicThinkingJson(effectiveReasoning, modelID)
+}
+
 internal fun buildAnthropicBody(
     modelID: String,
     messages: List<ChatMessage>,
@@ -222,12 +237,9 @@ internal fun buildAnthropicBody(
     capabilityProjection: CapabilityEvidenceProductionAdapter.Projection? = null,
 ): String {
     val options = MessageBuilder.normalizeRequestOptions(requestOptions)
-    val effectiveReasoning = effectiveRelayReasoningMode(requestOptions, reasoningMode)
     val resolved = MetadataClient.resolveCatalogModelAcrossProviders(modelID)
     val extras = mutableListOf<String>()
-    if (permitsReasoning(capabilityProjection, effectiveReasoning)) {
-        relayAnthropicThinkingJson(effectiveReasoning, modelID)?.let { extras += it }
-    }
+    relayAnthropicThinkingFields(modelID, reasoningMode, requestOptions, capabilityProjection)?.let { extras += it }
     if (resolved.allowsTemperature() && permitsGeneration(capabilityProjection, "temperature")) {
         MessageBuilder.temperatureJson(options.temperature)?.let { extras += it }
     }
