@@ -65,6 +65,8 @@ export function buildCatalogModel({
     transport: resolved.metadata?.transport,
     minClientVersion: resolved.metadata?.minClientVersion,
     attachmentExtraction: resolved.metadata?.attachmentExtraction,
+    nativeFileMimes: resolved.metadata?.nativeFileMimes,
+    pdfNativeDefault: resolved.metadata?.pdfNativeDefault,
   };
 }
 
@@ -160,6 +162,9 @@ export function enrichStoredModel(model: AIModel, providerKind: ProviderKind | s
           ? metadata.libraryAgentic
           : model.libraryAgentic
       : model.libraryAgentic,
+    // The native file allowlist follows the same rule as the profile above: once the catalog is hit, absent means withdrawn, and it does not fall back to the locally stored one.
+    nativeFileMimes: metadata ? metadata.nativeFileMimes : model.nativeFileMimes,
+    pdfNativeDefault: metadata ? metadata.pdfNativeDefault : model.pdfNativeDefault,
   };
 }
 

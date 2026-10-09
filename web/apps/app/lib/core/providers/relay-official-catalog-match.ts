@@ -174,6 +174,10 @@ function applyOfficialMatch(
     // request would keep using a withdrawn profile. generation has no matching capability or envelope
     // switch (`RelayTransportEnvelope` has no such dimension), so no capability narrowing is applied.
     generationProfile: match.profiles.generation,
+    // The native file allowlist of the same-named official model; omitted when this protocol's envelope does not take native files.
+    // Whether it really goes native still depends on the line level (each relay protocol only tries native when no text can be extracted).
+    nativeFileMimes: envelope && !envelope.nativeFile ? undefined : match.nativeFileMimes,
+    pdfNativeDefault: envelope && !envelope.nativeFile ? undefined : match.pdfNativeDefault,
     relayMatchSource: match.source,
     relayMatchedProviderKind: match.matchedProviderKind,
   };

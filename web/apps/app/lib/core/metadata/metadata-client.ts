@@ -301,6 +301,10 @@ interface ModelMetadata {
     totalCap?: number;
     maxInputFileBytes?: number;
   };
+  /** MIME types the model accepts as native files; absent = no native files. */
+  nativeFileMimes?: string[];
+  /** Whether text PDFs go native by default. */
+  pdfNativeDefault?: boolean;
   /** Raw server namespace. It is decoded through the local allowlist only. */
   capabilityEvidenceView?: unknown;
   /** Persisted allowlisted result; decoded again before each consumer boundary. */
@@ -613,6 +617,10 @@ export interface ResolvedModelMetadata {
     totalCap?: number;
     maxInputFileBytes?: number;
   };
+  /** MIME types the model accepts as native files; absent = no native files. */
+  nativeFileMimes?: string[];
+  /** Whether text PDFs go native by default. */
+  pdfNativeDefault?: boolean;
   isDefault: boolean;
 }
 
@@ -1591,6 +1599,14 @@ function buildResolvedFromEntry(entry: {
         : undefined,
     uiHints,
     attachmentExtraction: entry.model.attachmentExtraction ?? undefined,
+    ...(Array.isArray(entry.model.nativeFileMimes)
+      ? {
+          nativeFileMimes: entry.model.nativeFileMimes
+            .filter((mime): mime is string => typeof mime === "string" && mime.trim().length > 0)
+            .map((mime) => mime.trim().toLowerCase()),
+        }
+      : {}),
+    ...(entry.model.pdfNativeDefault === true ? { pdfNativeDefault: true } : {}),
     isDefault: entry.provider.defaultModelId === entry.canonicalModelId,
   };
   resolvedModelProjectionCache.set(entry.model, resolved);
@@ -3704,6 +3720,8 @@ function allowlistedMetadataModelFields(model: ModelMetadata): PublicMetadataMod
     "transport",
     "minClientVersion",
     "attachmentExtraction",
+    "nativeFileMimes",
+    "pdfNativeDefault",
   ] as const satisfies readonly (keyof ModelMetadata)[];
   for (const key of publicKeys) {
     if (model[key] !== undefined) safe[key] = model[key];
