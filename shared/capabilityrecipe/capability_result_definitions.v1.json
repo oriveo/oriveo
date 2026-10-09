@@ -308,7 +308,10 @@
       "capability": "web",
       "protocol": "gemini_interactions",
       "responseParserKind": "gemini_google_search_v1",
-      "signals": []
+      "signals": [
+        {"kind": "citation", "producerEvent": "citations", "pointer": "/citations", "nonEmpty": true},
+        {"kind": "provider_tool_result", "producerEvent": "tool_result", "pointer": "/summary", "nonEmpty": true}
+      ]
     },
     "openrouter.chat.web": {
       "capability": "web",

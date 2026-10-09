@@ -64,9 +64,11 @@
       "recipeRef": "zhipu.chat.web.v1",
       "modelId": "glm-5",
       "transport": "openai_chat",
-      "expected": "unconfirmed",
+      "expected": "observed",
       "producerFixture": "web/packages/core/src/providers/__tests__/proxy-chunk-parser.test.ts",
-      "producerEvents": []
+      "producerEvents": [
+        "citations"
+      ]
     },
     {
       "providerKind": "qwen",
@@ -82,9 +84,11 @@
       "recipeRef": "moonshot.chat.web.v1",
       "modelId": "kimi-k2.6",
       "transport": "openai_chat",
-      "expected": "unconfirmed",
-      "producerFixture": "web/packages/core/src/providers/response-adapters/moonshot-tool-loop.ts",
-      "producerEvents": []
+      "expected": "observed",
+      "producerFixture": "web/packages/core/src/providers/response-adapters/__tests__/web-search-evidence.test.ts",
+      "producerEvents": [
+        "tool_result"
+      ]
     },
     {
       "providerKind": "mistral",
