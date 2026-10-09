@@ -606,7 +606,7 @@ open class OpenAICompatibleService(
                 declaredReasoningLevels = requestOptions.activeModel?.let {
                     CapabilityControlResolution.subscriptionDeclaredReasoningLevels(providerKind, it)
                 }.orEmpty(),
-            )
+            ).let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
         } else {
             buildResponsesRequest(
                 modelID = modelID,
@@ -742,7 +742,7 @@ open class OpenAICompatibleService(
                                     ?.jsonPrimitive
                                     ?.contentOrNull
                                     ?: "Responses stream failed."
-                                throw ProviderServiceError.Upstream(statusCode = 200, detail = detail)
+                                throw ProviderServiceError.Upstream(statusCode = 200, detail = detail, streamErrorFrame = true)
                             }
                         }
 
@@ -803,7 +803,7 @@ open class OpenAICompatibleService(
                 model,
             ),
             stream = stream,
-        )
+        ).let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
     }
 
     /**

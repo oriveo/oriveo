@@ -125,6 +125,62 @@ class GenerationParameterOutboundContractTest {
         assertEquals("20480", body["max_tokens"]!!.jsonPrimitive.content)
     }
 
+    @Test
+    fun `relay anthropic thinking drops builder written legacy temperature too`() {
+        val model = anthropicModel("claude-sonnet-4-5")
+        val projection = relayProjection(
+            model, RelayTransport.AnthropicMessages,
+            keys = setOf("reasoning_level/deep", "generation_parameter/temperature", "generation_parameter/max_output_tokens"),
+        )
+        val thinking = json.parseToJsonElement(buildAnthropicBody(
+            model.id, emptyList(), true, ReasoningMode.Deep,
+            ChatRequestOptions(temperature = 0.7f, activeModel = model),
+            capabilityProjection = projection,
+        )).jsonObject
+        assertEquals("enabled", thinking["thinking"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+        assertNull(thinking["temperature"])
+
+        val plain = json.parseToJsonElement(buildAnthropicBody(
+            model.id, emptyList(), true, ReasoningMode.Fast,
+            ChatRequestOptions(temperature = 0.7f, activeModel = model),
+            capabilityProjection = relayProjection(
+                model, RelayTransport.AnthropicMessages,
+                keys = setOf("generation_parameter/temperature", "generation_parameter/max_output_tokens"),
+            ),
+        )).jsonObject
+        assertNull(plain["thinking"])
+        assertEquals("0.7", plain["temperature"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `official anthropic thinking drops builder written legacy temperature too`() = runTest {
+        MetadataTestFixtures.applyRaw(officialMetadata().toString())
+        val thinking = officialAnthropicBody(ReasoningMode.Deep, ChatRequestOptions(temperature = 0.7f))
+        assertEquals("enabled", thinking["thinking"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+        assertNull(thinking["temperature"])
+    }
+
+    private suspend fun officialAnthropicBody(mode: ReasoningMode, options: ChatRequestOptions): JsonObject {
+        var requestBody: String? = null
+        val client = HttpClient(MockEngine { request ->
+            requestBody = (request.body as? TextContent)?.text
+            respond("data: [DONE]\n\n", HttpStatusCode.OK)
+        })
+        runCatching {
+            AnthropicService(client, json, TransportRegistry(json)).sendMessageStream(
+                apiKey = "outbound-test-key",
+                modelID = OFFICIAL_MODEL,
+                messages = listOf(ProviderTestFixtures.userMessage("hello", ProviderKind.Anthropic, OFFICIAL_MODEL)),
+                baseUrl = null,
+                supportsImageGen = false,
+                reasoningMode = mode,
+                webSearchEnabled = false,
+                requestOptions = options,
+            ).toList()
+        }
+        return json.parseToJsonElement(requireNotNull(requestBody) { "Anthropic did not build a request" }).jsonObject
+    }
+
     private fun runCase(item: JsonObject): GenerationParameterResolver.Result {
         val profileJson = item["profile"]!!.jsonObject
         val template = profileJson["template"]!!.jsonPrimitive.content

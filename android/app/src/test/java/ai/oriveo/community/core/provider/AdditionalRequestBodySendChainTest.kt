@@ -2,6 +2,8 @@ package ai.oriveo.community.core.provider
 
 import ai.oriveo.community.core.data.repository.LOCAL_FIELDS_RETRY_OFFER_PREFIX
 import ai.oriveo.community.core.data.repository.localFieldsRetryOwner
+import ai.oriveo.community.core.data.repository.ADDITIONAL_BODY_REJECTED_UPSTREAM_TITLE
+import ai.oriveo.community.core.data.repository.localFieldsFailureTitle
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.CapabilityEvidenceIdentity
 import ai.oriveo.community.core.model.ChatRequestOptions
@@ -28,6 +30,7 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -131,6 +134,8 @@ class AdditionalRequestBodySendChainTest {
         assertEquals(AdditionalRequestBody.OWNER, owner)
         val marker = localFieldsResendMarker("$LOCAL_FIELDS_RETRY_OFFER_PREFIX$owner")!!
         assertEquals(AdditionalRequestBody.OWNER, omitLocalFieldsOnceOwner(marker))
+        // The same decision switches the error card title
+        assertEquals(ADDITIONAL_BODY_REJECTED_UPSTREAM_TITLE, localFieldsFailureTitle((error as ProviderServiceError).title, owner))
 
         // ChatSendCoordinator treats this marker as "omit the additional request body for this request"; the panel parameters are unaffected.
         service.send(ChatRequestOptions(generationParameters = temperature(0.3), additionalRequestBody = null))
@@ -138,6 +143,43 @@ class AdditionalRequestBodySendChainTest {
         assertNull(retry["top_k"])
         assertNull(retry["chat_template_kwargs"])
         assertNotNull("panel parameter survives the retry: $retry", retry["temperature"])
+    }
+
+    @Test
+    fun `stream fallbacks that are not error frames never offer the additional body retry`() = runTest {
+        // Empty stream: the production path delivers an empty Done and the send orchestration turns it into EmptyResponse
+        val emptyEvents = relayGemini("").toList()
+        assertTrue("empty stream ends with Done: $emptyEvents", emptyEvents.last() is StreamEvent.Done)
+        assertNull(localFieldsRetryOwner(ProviderServiceError.EmptyResponse, additional, false, false))
+
+        // Blocking fallback: the stream has no error frame, yet the production path still throws Upstream(200)
+        val blocked = runCatching {
+            relayGemini("data: {\"candidates\":[{\"content\":{\"parts\":[]},\"finishReason\":\"SAFETY\"}]}\n\n").toList()
+        }.exceptionOrNull()
+        assertTrue("got $blocked", blocked is ProviderServiceError.Upstream && blocked.statusCode == 200)
+        assertNull(localFieldsRetryOwner(blocked!!, additional, receivedUpstreamEvent = false, hadToolSideEffects = false))
+        assertEquals("Provider Request Failed", localFieldsFailureTitle((blocked as ProviderServiceError).title, null))
+    }
+
+    private fun relayGemini(stream: String): kotlinx.coroutines.flow.Flow<StreamEvent> {
+        val client = HttpClient(MockEngine {
+            respond(stream, HttpStatusCode.OK, io.ktor.http.headersOf(io.ktor.http.HttpHeaders.ContentType, "text/event-stream"))
+        })
+        return ai.oriveo.community.core.provider.relay.RelayTransportCoordinator(
+            client = client, json = json, transportRegistry = ai.oriveo.community.core.provider.transport.TransportRegistry(json),
+        ).sendMessageStream(
+            apiKey = API_KEY, modelID = "gemini-2.5-pro",
+            messages = listOf(ProviderTestFixtures.userMessage("Hi", ProviderKind.Relay, "gemini-2.5-pro")),
+            baseUrl = "https://relay.example.com/v1beta", supportsImageGen = false,
+            reasoningMode = ReasoningMode.Automatic, webSearchEnabled = false,
+            requestOptions = ChatRequestOptions(
+                additionalRequestBody = additional,
+                relayRequested = RelayRequestedConfig(
+                    transport = RelayTransport.GeminiGenerateContent,
+                    authMode = ai.oriveo.community.core.model.RelayAuthMode.XGoogApiKey,
+                ),
+            ),
+        )
     }
 
     private class AnthropicHarness(val service: AnthropicService) {

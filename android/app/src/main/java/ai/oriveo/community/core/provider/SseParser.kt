@@ -469,7 +469,7 @@ object SseParser {
     internal fun throwIfAnthropicErrorEvent(json: Json, eventType: String, data: String) {
         if (eventType != "error") return
         throwIfStreamErrorPayload(json, data)
-        throw ProviderServiceError.Upstream(200, "The Anthropic stream reported an unrecognized error.")
+        throw ProviderServiceError.Upstream(200, "The Anthropic stream reported an unrecognized error.", streamErrorFrame = true)
     }
 
     private fun mapStreamError(type: String?, message: String?): ProviderServiceError {
@@ -486,7 +486,7 @@ object SseParser {
                 "The provider stream reported that the model is unavailable.",
             )
             // The stream was already a 2xx, so there is no finer-grained HTTP status to fall back on
-            else -> ProviderServiceError.Upstream(200, "The provider stream reported an error.")
+            else -> ProviderServiceError.Upstream(200, "The provider stream reported an error.", streamErrorFrame = true)
         }
     }
 
