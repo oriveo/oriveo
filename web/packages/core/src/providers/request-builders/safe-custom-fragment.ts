@@ -31,7 +31,33 @@ export type SafeCustomFragmentRejection =
 
 export type SafeCustomFragmentResult =
   | { accepted: true; delta: Record<string, unknown>; preview: Record<string, unknown>; pointers: string[] }
-  | { accepted: false; reason: SafeCustomFragmentRejection };
+  | { accepted: false; reason: SafeCustomFragmentRejection; line?: number };
+
+/**
+ * Thrown by the outbound paths when a fragment is rejected. The message keeps the historical
+ * `Safe custom fragment rejected: <reason>` shape; `owner` and `line` are structured extras so the
+ * error card can name the section and the line without ever echoing the user's JSON.
+ */
+export class SafeCustomFragmentRejectedError extends Error {
+  readonly line?: number;
+  constructor(readonly owner: OwnerId, readonly reason: SafeCustomFragmentRejection, line?: number) {
+    super(`Safe custom fragment rejected: ${reason}`);
+    this.name = 'SafeCustomFragmentRejectedError';
+    if (line !== undefined) this.line = line;
+  }
+}
+
+/** Line numbers only exist for errors the parser stopped on; everything else carries none. */
+export function rejectSafeCustomFragment(
+  owner: OwnerId,
+  raw: string,
+  result: { reason: SafeCustomFragmentRejection; line?: number },
+): SafeCustomFragmentRejectedError {
+  // Callers compile `raw.trim()`; leading blank lines still count in the editor the user sees.
+  const leading = /^\s*/.exec(raw)?.[0] ?? '';
+  const offset = (leading.match(/\n/g) ?? []).length;
+  return new SafeCustomFragmentRejectedError(owner, result.reason, result.line === undefined ? undefined : result.line + offset);
+}
 
 /** Compiler reasons that keep their own identity on the way out; everything else is `compile_rejected`. */
 const FORWARDED_COMPILER_REASONS = new Set<SafeCustomFragmentRejection>([
@@ -58,7 +84,12 @@ export function compileSafeCustomFragment(
   if (new TextEncoder().encode(raw).byteLength > MAX_BYTES) return { accepted: false, reason: 'too_large' };
   let parsed: unknown; let metrics: Metrics;
   try { const parser = new LosslessJsonParser(raw); parsed = parser.parse(); metrics = parser.metrics; }
-  catch (error) { return { accepted: false, reason: error instanceof ParseError ? error.reason : 'invalid_json' }; }
+  catch (error) {
+    if (!(error instanceof ParseError)) return { accepted: false, reason: 'invalid_json' };
+    return error.reason === 'invalid_json' || error.reason === 'duplicate_json_key'
+      ? { accepted: false, reason: error.reason, line: lineAt(raw, error.at) }
+      : { accepted: false, reason: error.reason };
+  }
   if (metrics.depth > MAX_DEPTH) return { accepted: false, reason: 'depth_exceeded' };
   if (metrics.nodes > MAX_NODES) return { accepted: false, reason: 'node_limit_exceeded' };
   if (!isRecord(parsed)) return { accepted: false, reason: 'invalid_fragment' };
@@ -113,16 +144,22 @@ function pointerExists(base: Readonly<Record<string, unknown>>, pointer: string)
 
 interface Metrics { depth: number; nodes: number }
 type ParseReason = 'duplicate_json_key' | 'forbidden_key' | 'depth_exceeded' | 'node_limit_exceeded' | 'invalid_json';
-class ParseError extends Error { constructor(readonly reason: ParseReason) { super(reason); } }
+class ParseError extends Error { constructor(readonly reason: ParseReason, readonly at = 0) { super(reason); } }
+/** 1-based line of the offset where the parser stopped; used only for the error card. */
+function lineAt(source: string, at: number): number {
+  let line = 1;
+  for (let index = 0; index < Math.min(at, source.length); index++) if (source[index] === '\n') line++;
+  return line;
+}
 class LosslessJsonParser {
   private at = 0; readonly metrics: Metrics = { depth: 0, nodes: 0 };
   constructor(private readonly source: string) {}
-  parse(): unknown { this.ws(); const out = this.value(0); this.ws(); if (this.at !== this.source.length) throw new ParseError('invalid_json'); return out; }
+  parse(): unknown { this.ws(); const out = this.value(0); this.ws(); if (this.at !== this.source.length) throw new ParseError('invalid_json', this.at); return out; }
   private value(depth: number): unknown { if (depth > MAX_DEPTH) throw new ParseError('depth_exceeded'); this.metrics.depth = Math.max(this.metrics.depth, depth); if (++this.metrics.nodes > MAX_NODES) throw new ParseError('node_limit_exceeded'); this.ws(); const c = this.source[this.at]; if (c === '{') return this.object(depth + 1); if (c === '[') return this.array(depth + 1); if (c === '"') return this.string(); if (this.source.startsWith('true', this.at)) { this.at += 4; return true; } if (this.source.startsWith('false', this.at)) { this.at += 5; return false; } if (this.source.startsWith('null', this.at)) { this.at += 4; return null; } return this.number(); }
-  private object(depth: number): Record<string, unknown> { if (depth > MAX_DEPTH) throw new ParseError('depth_exceeded'); this.metrics.depth = Math.max(this.metrics.depth, depth); this.at++; this.ws(); const out: Record<string, unknown> = {}; const seen = new Set<string>(); if (this.take('}')) return out; while (true) { this.ws(); if (this.source[this.at] !== '"') throw new ParseError('invalid_json'); const key = this.string(); if (seen.has(key)) throw new ParseError('duplicate_json_key'); if (BLOCKED.has(key)) throw new ParseError('forbidden_key'); seen.add(key); this.ws(); if (!this.take(':')) throw new ParseError('invalid_json'); out[key] = this.value(depth); this.ws(); if (this.take('}')) return out; if (!this.take(',')) throw new ParseError('invalid_json'); } }
-  private array(depth: number): unknown[] { if (depth > MAX_DEPTH) throw new ParseError('depth_exceeded'); this.metrics.depth = Math.max(this.metrics.depth, depth); this.at++; this.ws(); const out: unknown[] = []; if (this.take(']')) return out; while (true) { out.push(this.value(depth)); this.ws(); if (this.take(']')) return out; if (!this.take(',')) throw new ParseError('invalid_json'); } }
-  private string(): string { const start = this.at++; let escaped = false; while (this.at < this.source.length) { const c = this.source[this.at++]; if (escaped) { escaped = false; continue; } if (c === '\\') { escaped = true; continue; } if (c === '"') { try { return JSON.parse(this.source.slice(start, this.at)) as string; } catch { throw new ParseError('invalid_json'); } } if (c.charCodeAt(0) < 0x20) throw new ParseError('invalid_json'); } throw new ParseError('invalid_json'); }
-  private number(): number { const start = this.at; while (this.at < this.source.length && /[0-9eE+\-.]/.test(this.source[this.at])) this.at++; const token = this.source.slice(start, this.at); const value = Number(token); if (!token || !Number.isFinite(value) || !/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(token)) throw new ParseError('invalid_json'); return value; }
+  private object(depth: number): Record<string, unknown> { if (depth > MAX_DEPTH) throw new ParseError('depth_exceeded'); this.metrics.depth = Math.max(this.metrics.depth, depth); this.at++; this.ws(); const out: Record<string, unknown> = {}; const seen = new Set<string>(); if (this.take('}')) return out; while (true) { this.ws(); if (this.source[this.at] !== '"') throw new ParseError('invalid_json', this.at); const keyAt = this.at; const key = this.string(); if (seen.has(key)) throw new ParseError('duplicate_json_key', keyAt); if (BLOCKED.has(key)) throw new ParseError('forbidden_key'); seen.add(key); this.ws(); if (!this.take(':')) throw new ParseError('invalid_json', this.at); out[key] = this.value(depth); this.ws(); if (this.take('}')) return out; if (!this.take(',')) throw new ParseError('invalid_json', this.at); } }
+  private array(depth: number): unknown[] { if (depth > MAX_DEPTH) throw new ParseError('depth_exceeded'); this.metrics.depth = Math.max(this.metrics.depth, depth); this.at++; this.ws(); const out: unknown[] = []; if (this.take(']')) return out; while (true) { out.push(this.value(depth)); this.ws(); if (this.take(']')) return out; if (!this.take(',')) throw new ParseError('invalid_json', this.at); } }
+  private string(): string { const start = this.at++; let escaped = false; while (this.at < this.source.length) { const c = this.source[this.at++]; if (escaped) { escaped = false; continue; } if (c === '\\') { escaped = true; continue; } if (c === '"') { try { return JSON.parse(this.source.slice(start, this.at)) as string; } catch { throw new ParseError('invalid_json', this.at); } } if (c.charCodeAt(0) < 0x20) throw new ParseError('invalid_json', this.at); } throw new ParseError('invalid_json', this.at); }
+  private number(): number { const start = this.at; while (this.at < this.source.length && /[0-9eE+\-.]/.test(this.source[this.at])) this.at++; const token = this.source.slice(start, this.at); const value = Number(token); if (!token || !Number.isFinite(value) || !/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(token)) throw new ParseError('invalid_json', this.at); return value; }
   private ws() { while (/\s/.test(this.source[this.at] ?? '')) this.at++; }
   private take(c: string) { if (this.source[this.at] !== c) return false; this.at++; return true; }
 }

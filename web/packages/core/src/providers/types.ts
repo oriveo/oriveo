@@ -93,11 +93,21 @@ export type StreamEvent =
        */
       skipReport?: boolean;
       traceId?: string;
+      /** An error frame the upstream sent inside the stream (not the empty-stream fallback and not an HTTP error). Classification relies on this marker only and never compares message text. */
+      streamErrorFrame?: true;
+      /** Raw structured fields from an HTTP error body that can pinpoint the cause (such as `/error/param`); used for classification locally only. */
+      errorFields?: Record<string, string>;
     };
 
 export interface StreamHandle {
   stream: ReadableStream<StreamEvent>;
   abort: () => void;
+  /** The final request body carried the additional request body and the upstream rejected it before any event ("retry without the additional request body"). */
+  getAdditionalBodyRetryEligible?: () => boolean;
+  /** The merger actually merged a non-empty additional request body into the final request body (a send-path fact, not read from storage). */
+  getAdditionalBodyApplied?: () => boolean;
+  /** The panel generation parameters that actually reached the wire in this request, with their wire paths (a send-path fact, not read from storage). */
+  getGenerationWrite?: () => { written: readonly string[]; wire: Readonly<Record<string, string>> };
   /** Local-only proxy execution context; never forwarded to an upstream provider. */
   getCapabilityResultContext?: () => unknown;
   /** Resolves when the proxy has received final response headers (also null when the header is absent). */
@@ -201,6 +211,8 @@ export interface StreamOptions {
   /** Local-only opaque continuation sent solely to Oriveo's proxy for an explicit user continue/retry. */
   continuation?: ContinuationIntent;
   supportsImageGen?: boolean;
+  /** Raw additional request body (stored locally and sent only with this request). It is merged as the last step of the request body, see `request-builders/additional-body`. */
+  additionalBody?: { raw: string };
   /**
    * Relay web search switch, decided from model capability + transport envelope + user intent in
    * `stream-options.ts`. The adapter layer only consumes the boolean and no longer decides for itself.

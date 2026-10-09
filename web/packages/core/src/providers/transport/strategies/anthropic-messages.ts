@@ -21,6 +21,7 @@ import type {
 } from '../transport-strategy';
 import { citationFromRaw, mergeCitation } from '../citation-utils';
 import { deepMerge } from '../merge-utils';
+import { resolveRelayAnthropicThinking } from '../../request-builders/anthropic-thinking';
 import { parseUsageAnthropic } from '../usage-parsers';
 import { nativeToolCallEvents } from '../../tool-call-protocol';
 
@@ -78,24 +79,6 @@ function extractText(parts: ContentPart[]): string {
     .join('\n');
 }
 
-// Relay-only heuristic fallback: a user-defined Anthropic-compatible endpoint has no official profile to follow.
-function relayAnthropicBudgetTokens(mode: string): number {
-  switch (mode) {
-    case 'fast':
-      return 2048;
-    case 'balanced':
-      return 8192;
-    case 'deep':
-      return 16384;
-    case 'max':
-      // Matches the shared formula 24576 + max_tokens = max(8192, budget+4096) = 28672, which stays
-      // under claude-opus-4-1's 32000 max_output limit (32768 makes opus return 400).
-      return 24576;
-    default:
-      return 8192;
-  }
-}
-
 const DEFAULT_BLOCK_TYPE = 'web_search_tool_result';
 const DEFAULT_SNIPPET_FIELD = 'cited_text';
 
@@ -132,9 +115,13 @@ export const anthropicMessagesStrategy: TransportStrategy = {
       input.options?.reasoning &&
       input.options.reasoning !== 'automatic'
     ) {
-      const budgetTokens = relayAnthropicBudgetTokens(input.options.reasoning);
-      body.thinking = { type: 'enabled', budget_tokens: budgetTokens };
-      body.max_tokens = Math.max(8192, budgetTokens + 4096);
+      // The thinking decision shares one source with the relay orchestration layer so the two budget
+      // tables cannot drift apart.
+      const thinking = resolveRelayAnthropicThinking(input.options.reasoning);
+      if (thinking) {
+        body.thinking = { type: 'enabled', budget_tokens: thinking.budgetTokens };
+        body.max_tokens = thinking.maxTokens;
+      }
     }
 
     if (input.mergeParams) deepMerge(body, input.mergeParams);

@@ -682,6 +682,7 @@ describe('createProxyChunkParser - in-stream overload classification', () => {
       error: nvidiaOverloaded,
       errorKind: 'rateLimited',
       source: 'provider',
+      streamErrorFrame: true,
     }]);
   });
 
@@ -695,6 +696,7 @@ describe('createProxyChunkParser - in-stream overload classification', () => {
       error: 'Overloaded',
       errorKind: 'rateLimited',
       source: 'provider',
+      streamErrorFrame: true,
     }]);
     expect(feed(parser, 'error', JSON.stringify({
       type: 'error',
@@ -704,6 +706,7 @@ describe('createProxyChunkParser - in-stream overload classification', () => {
       error: 'Internal server error',
       errorKind: 'upstream',
       source: 'provider',
+      streamErrorFrame: true,
     }]);
   });
 
@@ -716,6 +719,7 @@ describe('createProxyChunkParser - in-stream overload classification', () => {
       error: 'The server had an error processing your request.',
       errorKind: 'upstream',
       source: 'provider',
+      streamErrorFrame: true,
     }]);
   });
 

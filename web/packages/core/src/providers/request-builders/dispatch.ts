@@ -26,9 +26,11 @@ import { buildSiliconFlowRequest } from "./siliconflow";
 import { buildZhipuRequest } from "./zhipu";
 import { buildRelayReasoningParams } from "./utils";
 import { applyCapabilityRecipes, attachCapabilityExecution, isMiniMaxAnthropicMessagesRoute, legacyGenerationGateAllowsInjection, resolveCapabilityExecutionPlan, type RuntimeRecipe } from './capability-execution';
-import { compileSafeCustomFragment, type SafeCustomFragmentResult } from './safe-custom-fragment';
+import { compileSafeCustomFragment, rejectSafeCustomFragment, type SafeCustomFragmentResult } from './safe-custom-fragment';
 import { mapContinuationForRecipe } from './continuation-replay';
-import { safeCustomDeclaredOwners, safeCustomOwners, wireRejectionReason } from './generation-parameters';
+import { applyAdditionalBodyToRequest } from './additional-body';
+import { mergeDroppedGenerationParameters, safeCustomDeclaredOwners, safeCustomOwners, wireRejectionReason } from './generation-parameters';
+import { guardAnthropicThinking } from './anthropic-thinking';
 import type { GenerationParameterOverrides, GenerationParameterProfile, ProviderRequest, RequestParams } from "./types";
 import type { MetadataBaseURLRejectionReporter } from "../transport/endpoint-resolver";
 import { applyToolCallWireAdapter } from './tool-call-wire-adapter';
@@ -126,9 +128,8 @@ export async function buildProviderRequest(
   const generationRecipe = capabilityPlan.recipes.find((recipe) => recipe.capability === 'generation');
   // A valid runtime generation control owns the template decision. The typed builder remains
   // backwards-compatible only where that control is absent; a mismatch is zero injection.
-  const generationProfile = customGenerationSelected
-    ? null
-    : capabilityPlan.overridesLegacy.has('generation')
+  // The additional body coexists with panel parameters (additional body contract): the old implementation cleared the whole panel parameter group once a generation custom field was written, which is gone.
+  const generationProfile = capabilityPlan.overridesLegacy.has('generation')
     ? legacyGenerationGateAllowsInjection(generationRecipe, resolvedGenerationProfile?.template)
       ? resolvedGenerationProfile
       : null
@@ -200,7 +201,13 @@ export async function buildProviderRequest(
     }
   }
 
-  const applyRecipes = (request: ProviderRequest): ProviderRequest => {
+  // The additional body is the last step of every chat request body: merged after the builder, the capability recipe and custom fragments.
+  // images_api is not a chat body and returns early, never passing through here.
+  const applyRecipes = (request: ProviderRequest): ProviderRequest => applyAdditionalBodyToRequest(
+    applyRecipesBeforeAdditionalBody(request),
+    effectiveParams.options?.additionalBody,
+  );
+  const applyRecipesBeforeAdditionalBody = (request: ProviderRequest): ProviderRequest => {
     // The library tools for /api/chat/stream have to become the builder-owned base first and
     // then have the web server tool merged in. Assigning them wholesale after the builder would
     // wipe the tools set by the v2 recipe.
@@ -213,8 +220,23 @@ export async function buildProviderRequest(
       capabilityPlan.intents ?? {},
       effectiveParams.options?.capabilityRecipeOmissions,
     );
+    // A recipe may write the thinking field only after the builder (official Anthropic), so the linked protection is evaluated once more after thinking and generation
+    // parameters are both written (shared contract outboundRules.anthropicThinking.evaluatedAfter); this happens before custom fragments and the additional body,
+    // so a same-named field written explicitly in the additional body still wins. The builder's own call is kept; the two are idempotent.
+    // It uses the same profile as the builder call (when metadata has no generation profile, the one supplied by the caller).
+    const builderGenerationProfile = withGenerationProfile.options?.generationProfile;
+    const thinkingDropped = builderGenerationProfile?.template === 'anthropic_messages' && withBuilderTools.generationWrite
+      ? guardAnthropicThinking(compiled.body, {
+        profile: builderGenerationProfile,
+        written: withBuilderTools.generationWrite.written,
+        builderDefaultMaxTokens: withBuilderTools.generationWrite.builderDefaultMaxTokens,
+      })
+      : [];
+    const droppedGenerationParameters = thinkingDropped.length > 0
+      ? mergeDroppedGenerationParameters(withBuilderTools.droppedGenerationParameters ?? [], thinkingDropped)
+      : withBuilderTools.droppedGenerationParameters;
     const typedGenerationDelta = generationRecipe
-      ? emittedGenerationDelta(withBuilderTools.body, effectiveParams.options?.generationParameters, generationProfile)
+      ? emittedGenerationDelta(thinkingDropped.length > 0 ? compiled.body : withBuilderTools.body, effectiveParams.options?.generationParameters, generationProfile)
       : {};
     // Official-provider writable paths come only from capabilityPlan.customDeclaredOwners
     // (customControlRefs resolved against the same runtime envelope). Relay's generation
@@ -246,6 +268,7 @@ export async function buildProviderRequest(
     if (capabilityPlan.recipes.length === 0 && Object.keys(customDelta).length === 0 && !capabilityPlan.noExecute) return withBuilderTools;
     const withFacts: ProviderRequest = {
       ...withBuilderTools,
+      ...(droppedGenerationParameters ? { droppedGenerationParameters } : {}),
       body: mergeBodyDeltas(compiled.body, customDelta, continuationDelta),
       ...continuationCapture(capabilityPlan.recipes),
       capabilityExecution: {
@@ -413,7 +436,7 @@ function compileCustomFragments(
     const declared = fragments[owner];
     if (declared === undefined) continue;
     const custom = compileSafeCustomFragment(declared.raw.trim(), owner, declaredOwners, body);
-    if (!custom.accepted) throw new Error(`Safe custom fragment rejected: ${custom.reason}`);
+    if (!custom.accepted) throw rejectSafeCustomFragment(owner, declared.raw, custom);
     body = mergeBodyDeltas(body, custom.delta);
     delta = mergeBodyDeltas(delta, custom.delta);
     preview = mergeBodyDeltas(preview, custom.preview);

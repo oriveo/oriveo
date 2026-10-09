@@ -13,6 +13,7 @@ import {
   readWireHardeningDiagnostics,
   restrictWireToDeclaredParameters,
   wireRejectionReason,
+  writeGenerationParameters,
 } from '../generation-parameters';
 import { deepMerge, resolveGenerationProfile, type RuntimeMetadataResponse } from '../runtime';
 import type { GenerationParameterProfile, ProviderRequest, RequestParams } from '../types';
@@ -122,9 +123,10 @@ describe('generation_parameter_contract.v1 red proof', () => {
     expect(body).toEqual({});
   });
 
-  it('rejects mutually exclusive active parameters before a request is sent', () => {
+  // outboundRules.conflict: a conflict no longer fails the whole request; the item admitted first in declaration order stays and later ones are dropped.
+  it('drops the later-declared side of a mutual conflict instead of failing the request', () => {
     const body: Record<string, unknown> = {};
-    expect(() => applyGenerationParameters(
+    const result = writeGenerationParameters(
       body,
       {
         temperature: { state: 'value', value: 0.2 },
@@ -138,10 +140,12 @@ describe('generation_parameter_contract.v1 red proof', () => {
           { id: 'top_p', support: 'supported', source: 'test', conflictsWith: ['temperature'] },
         ],
       },
-    )).toThrow('temperature conflicts with top_p');
+    );
+    expect(body).toEqual({ temperature: 0.2 });
+    expect(result.dropped).toEqual([{ parameterId: 'top_p', reason: 'conflict' }]);
   });
 
-  it('consumes facade-filtered overrides, while real outbound conflicts still fail', () => {
+  it('consumes facade-filtered overrides, while real outbound conflicts drop one side', () => {
     const profile: GenerationParameterProfile = {
       template: 'openai_chat_completions',
       wire: { temperature: 'temperature', top_p: 'top_p', top_logprobs: 'top_logprobs' },
@@ -174,7 +178,7 @@ describe('generation_parameter_contract.v1 red proof', () => {
       ...profile,
       parameters: profile.parameters.map((parameter) => ({ ...parameter, support: 'supported' })),
     };
-    expect(() => buildOpenAICompatibleRequest({
+    const conflicting = buildOpenAICompatibleRequest({
       providerKind: 'relay', apiKey: '', modelID: 'fixture-chat', baseURL: 'https://contract.invalid/v1',
       messages: [{ role: 'user', content: 'hello' }],
       options: {
@@ -184,7 +188,9 @@ describe('generation_parameter_contract.v1 red proof', () => {
           top_p: { state: 'value', value: 0.8 },
         },
       },
-    }, null)).toThrow('temperature conflicts with top_p');
+    }, null);
+    expect(conflicting.body.temperature).toBe(0.2);
+    expect(conflicting.body.top_p).toBeUndefined();
   });
 
   it('relay unknown omit removes a field from a production request body', () => {
@@ -208,7 +214,8 @@ describe('generation_parameter_contract.v1 red proof', () => {
     expect(request.body.temperature).toBeUndefined();
   });
 
-  it('enforces metadata value schemas and ranges before a request is sent', () => {
+  // outboundRules.invalidValue: a value that fails range / type checks drops only that item, recorded as invalid_value, and no longer throws.
+  it('drops values that violate metadata value schemas and ranges', () => {
     const profile: GenerationParameterProfile = {
       template: 'openai_chat_completions',
       wire: { max_output_tokens: 'max_tokens' },
@@ -217,18 +224,19 @@ describe('generation_parameter_contract.v1 red proof', () => {
         valueSchema: 'integer', range: { min: 1, max: 4096 },
       }],
     };
-    expect(() => applyGenerationParameters(
-      {}, { max_output_tokens: { state: 'value', value: 1.5 } }, profile,
-    )).toThrow('max_output_tokens must be an integer');
-    expect(() => applyGenerationParameters(
-      {}, { max_output_tokens: { state: 'value', value: 0 } }, profile,
-    )).toThrow('max_output_tokens must be at least 1');
+    for (const value of [1.5, 0]) {
+      const body: Record<string, unknown> = {};
+      const result = writeGenerationParameters(body, { max_output_tokens: { state: 'value', value } }, profile);
+      expect(body).toEqual({});
+      expect(result.dropped).toEqual([{ parameterId: 'max_output_tokens', reason: 'invalid_value' }]);
+    }
   });
 
   it.each([
     ['openai_chat_completions', 'response_format', { type: 'json_schema', json_schema: expect.objectContaining({ strict: true }) }],
     ['openai_responses', 'text.format', expect.objectContaining({ type: 'json_schema', strict: true })],
-    ['anthropic_messages', 'output_format', expect.objectContaining({ type: 'json_schema' })],
+    // Contract modelLevelFacts.structuredOutput: Anthropic writes output_config.format; the top-level output_format is deprecated.
+    ['anthropic_messages', 'output_config.format', expect.objectContaining({ type: 'json_schema' })],
     ['gemini_generate_content', 'generationConfig.responseJsonSchema', { type: 'object' }],
   ] as const)('maps JSON Schema through the dedicated %s output contract', (template, wirePath, expected) => {
     const body: Record<string, unknown> = {};
@@ -237,7 +245,8 @@ describe('generation_parameter_contract.v1 red proof', () => {
     }, {
       template,
       wire: { json_schema: wirePath },
-      parameters: [{ id: 'json_schema', support: 'supported', source: 'contract', valueSchema: 'json-schema' }],
+      // strict is written only when true is delivered (modelLevelFacts.fields.strict); the omitted-means-not-written case is covered by modelLevelOutboundCases.
+      parameters: [{ id: 'json_schema', support: 'supported', source: 'contract', valueSchema: 'json-schema', strict: true }],
     });
     expect(valueAtPath(body, wirePath)).toEqual(expected);
     if (template === 'gemini_generate_content') {
@@ -245,7 +254,8 @@ describe('generation_parameter_contract.v1 red proof', () => {
     }
   });
 
-  it('rejects tools/schema conflicts and logprobs dependencies before body mutation', () => {
+  // outboundRules.conflict.builderPresenceKeys + requires: only json_schema / top_logprobs themselves are dropped.
+  it('drops tools/schema conflicts and unmet logprobs dependencies item by item', () => {
     const schemaProfile: GenerationParameterProfile = {
       template: 'openai_chat_completions',
       wire: { json_schema: 'response_format', logprobs: 'logprobs', top_logprobs: 'top_logprobs' },
@@ -255,12 +265,16 @@ describe('generation_parameter_contract.v1 red proof', () => {
         { id: 'top_logprobs', support: 'supported', source: 'contract', valueSchema: 'integer', requires: [{ key: 'logprobs', value: true }] },
       ],
     };
-    expect(() => applyGenerationParameters({}, {
+    const schemaBody: Record<string, unknown> = {};
+    expect(writeGenerationParameters(schemaBody, {
       json_schema: { state: 'value', value: { type: 'object' } },
-    }, schemaProfile, { toolsActive: true })).toThrow('json_schema conflicts with tools');
-    expect(() => applyGenerationParameters({}, {
+    }, schemaProfile, { toolsActive: true }).dropped).toEqual([{ parameterId: 'json_schema', reason: 'conflict' }]);
+    expect(schemaBody).toEqual({});
+    const logprobsBody: Record<string, unknown> = {};
+    expect(writeGenerationParameters(logprobsBody, {
       top_logprobs: { state: 'value', value: 5 },
-    }, schemaProfile)).toThrow('top_logprobs requires logprobs');
+    }, schemaProfile).dropped).toEqual([{ parameterId: 'top_logprobs', reason: 'requirement_unmet' }]);
+    expect(logprobsBody).toEqual({});
   });
 });
 
@@ -359,9 +373,10 @@ describe('generation_parameter_contract.v1 wire hardening', () => {
       parameters: [{ id: 'json_schema', support: 'supported', source: 'contract', valueSchema: 'json-schema' }],
     };
     const oversized = { type: 'object', title: 'x'.repeat(64 * 1024) };
-    expect(() => applyGenerationParameters({}, {
-      json_schema: { state: 'value', value: oversized },
-    }, profile)).toThrow('json_schema exceeds 64 KiB');
+    const body: Record<string, unknown> = {};
+    const result = writeGenerationParameters(body, { json_schema: { state: 'value', value: oversized } }, profile);
+    expect(body).toEqual({});
+    expect(result.dropped).toEqual([{ parameterId: 'json_schema', reason: 'invalid_value' }]);
   });
 });
 

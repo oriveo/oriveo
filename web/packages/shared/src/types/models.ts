@@ -531,6 +531,12 @@ export interface ChatMessage {
    * it, and the kind alone decides the recovery action.
    */
   errorSource?: ProviderErrorSource;
+  /** Text shown in the collapsed "technical details" area (a safe code, or the upstream original after redaction and truncation); falls back to errorDetail when absent. Stored locally only. */
+  errorTechnicalDetail?: string;
+  /** Set when the request carried an additional request body and the upstream rejected it before any event: the error card offers "retry without the additional request body". Stored locally only. */
+  additionalBodyRetryEligible?: boolean;
+  /** A pre-stream upstream 400 named exactly one panel generation parameter that was written: the error card points to it and offers "resend without this setting". Stored locally only. */
+  generationParameterRejection?: { parameterId: string };
   attachments?: Attachment[];
   /** One-turn selected-text reference; never shares pinned-note lifetime. */
   quoteContext?: QuoteContext;

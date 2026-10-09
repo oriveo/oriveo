@@ -8,6 +8,7 @@ import type { ProviderKind, ReasoningMode } from '@oriveo/shared/pure-types';
 import type { ProxyMessage, ProxyToolDefinition } from './runtime';
 import type { ContinuationIntent } from '../request-preference/continuation';
 import type { OwnerId } from '../request-preference/types';
+import type { DroppedGenerationParameter } from './generation-parameters';
 
 /** Typed user intent; it is not a wire fragment, and recipes remain the sole compiler. */
 export type CapabilityPreferenceInput = {
@@ -87,9 +88,12 @@ export interface GenerationParameterProfile {
     range?: { min?: number; max?: number; minExclusive?: number; maxExclusive?: number; step?: number };
     enumValues?: Array<string | number>;
     fixedValue?: GenerationParameterValue;
-    defaultDescription?: string | number;
+    /** Boolean defaults in a local engine's built-in table are likewise used for display only. */
+    defaultDescription?: string | number | boolean;
     interactionGroup?: string;
     conflictsWith?: string[];
+    /** Appears only on json_schema: strict is written into the structured output object only when true, and omitted otherwise. */
+    strict?: boolean;
     requires?: Array<Record<string, unknown>>;
     constraints?: Array<Record<string, unknown>>;
     portability?: string;
@@ -155,6 +159,8 @@ export interface RequestParams {
     /** Owner-scoped developer mode. Presence selects Custom for that
      * owner even when raw is empty, suppressing its recipe and typed fields. */
     customFragments?: Partial<Record<OwnerId, { raw: string }>>;
+    /** Raw additional request body: merged after the builder and the capability writer, as the very last step of the request body. */
+    additionalBody?: { raw: string };
   };
 }
 
@@ -173,6 +179,10 @@ export interface ProviderRequest {
     | 'moonshot_formula_fiber_loop'
     | 'gemini_interactions';
   moonshotMaxToolLoops?: number;
+  /** Panel generation parameters dropped by the per-item outbound decision (including the thinking linkage guard). Never serialized upstream. */
+  droppedGenerationParameters?: DroppedGenerationParameter[];
+  /** Context from when the builder wrote the generation parameters, so the thinking linkage guard can be evaluated once more after the recipe has written its thinking fields. Never serialized upstream. */
+  generationWrite?: { written: string[]; builderDefaultMaxTokens: unknown };
   /** Local response-state producer selected by the same authoritative recipe as the request.
    * Never serialized upstream; shells pass it to the protocol parser only. */
   continuationCapture?: {

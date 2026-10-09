@@ -39,7 +39,6 @@ import {
   convertToOpenAIChatParts,
   extractImagePrompt,
   extractText,
-  mapAnthropicReasoningBudget,
   mapGeminiReasoningBudget,
   normalizeBaseURL,
   parseAnthropicResponse,
@@ -53,8 +52,13 @@ import {
   toImageDataUrl,
   type RelayDirectFetchConfig,
 } from './relay-adapter';
-import { applyGenerationParameters } from './request-builders/generation-parameters';
-import { compileSafeCustomFragment } from './request-builders/safe-custom-fragment';
+import { writeGenerationParameters } from './request-builders/generation-parameters';
+import { generationWriteFacts } from './generation-rejection-facts';
+import { additionalBodyHasContent, applyAdditionalBodyInPlace, assertAdditionalBodyAccepted } from './request-builders/additional-body';
+import { readTopLevelErrorFrame } from './upstream-error-text';
+import { classifyInStreamProviderErrorKind } from './errors';
+import { guardAnthropicThinking, resolveRelayAnthropicThinking } from './request-builders/anthropic-thinking';
+import { compileSafeCustomFragment, rejectSafeCustomFragment, SafeCustomFragmentRejectedError } from './request-builders/safe-custom-fragment';
 import { safeCustomOwners } from './request-builders/dispatch';
 import {
   createRelayJSONStream,
@@ -199,9 +203,20 @@ type RelayMessages = { role: 'user' | 'assistant' | 'system'; content: string | 
  * Image generation does not call this (`buildImagesGenerationsBody` has its own serialization):
  * `/images/generations` does not accept these chat-protocol fields.
  */
-function applyRelayGenerationParameters(body: Record<string, unknown>, options: StreamOptions | undefined): void {
-  applyGenerationParameters(body, options?.generationParameters, options?.generationProfile);
+function applyRelayGenerationParameters(
+  body: Record<string, unknown>,
+  options: StreamOptions | undefined,
+  transport?: RelayTransport,
+): void {
+  const builderDefaultMaxTokens = body.max_tokens;
+  const { written } = writeGenerationParameters(body, options?.generationParameters, options?.generationProfile);
+  // The linkage guard keys off the connection protocol only: the builder has already written the thinking fields, so it is evaluated again after the generation parameters are written.
+  if (transport === 'anthropic_messages') {
+    guardAnthropicThinking(body, { profile: options?.generationProfile, written, builderDefaultMaxTokens });
+  }
   applyRelaySafeCustomFragments(body, options);
+  // Additional request body: the last step, merged after panel parameters and custom fragments; on a name clash it wins.
+  applyAdditionalBodyInPlace(body, options?.additionalBody);
 }
 
 /**
@@ -222,10 +237,10 @@ function applyRelaySafeCustomFragments(body: Record<string, unknown>, options: S
     const declared = fragments[owner];
     if (declared === undefined) continue;
     if (owner !== 'generation' || Object.keys(declaredOwners).length === 0) {
-      throw new Error('Safe custom fragment rejected: unknown_owned_path');
+      throw new SafeCustomFragmentRejectedError(owner, 'unknown_owned_path');
     }
     const custom = compileSafeCustomFragment(declared.raw.trim(), owner, declaredOwners, body);
-    if (!custom.accepted) throw new Error(`Safe custom fragment rejected: ${custom.reason}`);
+    if (!custom.accepted) throw rejectSafeCustomFragment(owner, declared.raw, custom);
     mergeRelayBodyDelta(body, custom.delta);
   }
 }
@@ -246,6 +261,19 @@ function mergeRelayBodyDelta(body: Record<string, unknown>, delta: Readonly<Reco
 
 function isPlainRelayObject(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Top-level in-stream `error` frame of Relay Chat / llama.cpp native; credentials are scrubbed centrally by createRelaySSEStream. */
+function relayTopLevelErrorFrame(chunk: unknown): StreamEvent | null {
+  const frame = readTopLevelErrorFrame(chunk);
+  if (!frame) return null;
+  return {
+    type: 'error',
+    error: frame.message,
+    errorKind: classifyInStreamProviderErrorKind(frame.message, frame.typeOrCode),
+    source: 'provider',
+    streamErrorFrame: true,
+  };
 }
 
 function requestCredentialValues(
@@ -285,7 +313,26 @@ export function sendRelayStream(
   ) {
     return sendRelayImagesGeneration(apiKey, modelID, messages, resolvedBaseURL, options, deps);
   }
+  // Local rejection of the additional request body: some of the five transports assemble the body inside the
+  // buildRequest closure (where an exception would turn into an in-stream error), so validate synchronously
+  // here first and every protocol throws a standalone error before the request is sent.
+  assertAdditionalBodyAccepted(options?.additionalBody);
+  // All five transports' bodies go through the merger at the end of applyRelayGenerationParameters; the same check decides here whether it was really included.
+  const additionalBodyApplied = additionalBodyHasContent(options?.additionalBody);
+  const handle = sendRelayTransportStream(transport, apiKey, modelID, messages, resolvedBaseURL, options, deps);
+  const generationWrite = generationWriteFacts(options);
+  return { ...handle, getAdditionalBodyApplied: () => additionalBodyApplied, getGenerationWrite: () => generationWrite };
+}
 
+function sendRelayTransportStream(
+  transport: RelayTransport,
+  apiKey: string,
+  modelID: string,
+  messages: RelayMessages,
+  resolvedBaseURL: string,
+  options: StreamOptions | undefined,
+  deps: RelayOrchestratorDeps,
+): StreamHandle {
   switch (transport) {
     case 'anthropic_messages':
       return sendAnthropicMessagesStream(apiKey, modelID, messages, resolvedBaseURL, options, deps);
@@ -333,6 +380,8 @@ function sendLlamaCppNativeStream(
   };
   const parseCompletion = (_eventType: string | null, data: string): StreamEvent | null => {
     const chunk = JSON.parse(data) as { content?: string; completion?: string; stop?: boolean };
+    const errorFrame = relayTopLevelErrorFrame(chunk);
+    if (errorFrame) return errorFrame;
     if (chunk.content ?? chunk.completion) return { type: 'delta', content: chunk.content ?? chunk.completion ?? '' };
     return chunk.stop ? { type: 'done' } : null;
   };
@@ -494,6 +543,8 @@ function sendOpenAIChatCompletionsStream(
               total_tokens?: number;
             };
           };
+          const errorFrame = relayTopLevelErrorFrame(chunk);
+          if (errorFrame) return errorFrame;
           const events: StreamEvent[] = [];
 
           if (chunk.usage) {
@@ -735,6 +786,7 @@ function sendOpenAIResponsesStream(
               errorKind: mapped.errorKind,
               source: 'provider',
               ...(mapped.i18nKey ? { i18nKey: mapped.i18nKey } : {}),
+              streamErrorFrame: true,
             });
           }
 
@@ -791,14 +843,14 @@ function sendAnthropicMessagesStream(
     messages: apiMessages,
   };
   if (systemText) body.system = systemText;
-  if (options?.reasoning && options.reasoning !== 'automatic') {
-    const budget = mapAnthropicReasoningBudget(options.reasoning);
-    body.thinking = { type: 'enabled', budget_tokens: budget };
-    body.max_tokens = Math.max(8192, budget + 4096);
+  const thinking = resolveRelayAnthropicThinking(options?.reasoning);
+  if (thinking) {
+    body.thinking = { type: 'enabled', budget_tokens: thinking.budgetTokens };
+    body.max_tokens = thinking.maxTokens;
   }
-  applyRelayGenerationParameters(body, options);
-
   const transport: RelayTransport = 'anthropic_messages';
+  applyRelayGenerationParameters(body, options, transport);
+
   const authMode = resolveRelayAuthMode(options, transport, deps.getRelayRuntimeConfig());
   const sensitiveCredentialValues = requestCredentialValues(apiKey, options, authMode);
   const directHeaders: Record<string, string> = {
@@ -977,7 +1029,7 @@ function sendGeminiGenerateContentStream(
         const message = typeof chunk.error === 'string'
           ? chunk.error
           : chunk.error.message || 'Gemini stream error';
-        return [{ type: 'error', error: message, errorKind: 'upstream', source: 'provider' }];
+        return [{ type: 'error', error: message, errorKind: 'upstream', source: 'provider', streamErrorFrame: true }];
       }
       const blocked = detectGeminiBlockEvent(chunk as Record<string, unknown>);
       if (blocked) return [blocked];

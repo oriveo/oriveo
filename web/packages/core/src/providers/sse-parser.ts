@@ -14,6 +14,7 @@
 
 import type { TransportPort, TransportResponse } from '../ports';
 import { isSubscriptionErrorKind, toProviderError } from './errors';
+import { structuredErrorFields } from './generation-rejection-facts';
 import type { ProviderErrorSource } from './errors';
 import type { RelayErrorContext } from './relay-error-classifier';
 import type { StreamEvent } from './types';
@@ -257,6 +258,7 @@ export function createSSEStream(
       // Handle non-ok responses
       if (!response.ok) {
         const text = await response.text().catch(() => '');
+        const errorFields = structuredErrorFields(text);
         const pe = toProviderError(
           response.status,
           text,
@@ -284,6 +286,7 @@ export function createSSEStream(
           quotaSource: pe.quotaSource,
           nextAction: pe.nextAction,
           severity: pe.severity,
+          ...(errorFields ? { errorFields } : {}),
         });
         ctrl.close();
         return;

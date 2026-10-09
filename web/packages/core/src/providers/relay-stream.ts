@@ -14,6 +14,7 @@
  *   - createRelayResponsesStreamWithRetry: the name is kept, and rejections are rethrown unchanged
  */
 
+import { sanitizeUpstreamErrorText } from './upstream-error-text';
 import type { StreamEvent } from './types';
 import { createSSEStream } from './sse-parser';
 import { toProviderError } from './errors';
@@ -386,7 +387,12 @@ function redactRelayStreamEvent(
   event: StreamEvent,
   sensitiveCredentialValues: readonly string[],
 ): StreamEvent {
-  if (event.type !== 'error' || sensitiveCredentialValues.length === 0) return event;
+  if (event.type !== 'error') return event;
+  // An in-stream error frame is the upstream's raw text: scrub credentials first, then truncate to 2 KB (same pure function as the official route).
+  if (event.streamErrorFrame) {
+    return { ...event, error: sanitizeUpstreamErrorText(redactRelayCredentials(event.error, sensitiveCredentialValues)) };
+  }
+  if (sensitiveCredentialValues.length === 0) return event;
   return {
     ...event,
     error: redactRelayCredentials(event.error, sensitiveCredentialValues),

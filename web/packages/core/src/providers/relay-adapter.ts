@@ -310,22 +310,6 @@ export function resolveOpenAIReasoningEffort(
   return mapOpenAIReasoning(options.reasoning);
 }
 
-export function mapAnthropicReasoningBudget(mode: NonNullable<StreamOptions['reasoning']>) {
-  switch (mode) {
-    case 'fast':
-      return 2048;
-    case 'balanced':
-      return 8192;
-    case 'deep':
-      return 16384;
-    case 'max':
-      // The max tier is fixed at 24576 across clients, matching anthropic-messages.ts.
-      return 24576;
-    default:
-      return 8192;
-  }
-}
-
 export function mapGeminiReasoningBudget(mode: NonNullable<StreamOptions['reasoning']>) {
   switch (mode) {
     case 'fast':

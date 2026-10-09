@@ -503,6 +503,13 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
       const error = resolveResponseStreamError(chunk);
       events.push(inStreamProviderError(error, upstreamErrorSource, resolveResponseStreamErrorType(chunk)));
     }
+    // Responses `event: error`: a top-level {type:'error', code, message} with no error object, so none of the branches above match.
+    if (_eventType === 'error' && !(chunk.error && typeof chunk.error === 'object')) {
+      const frame = chunk as { message?: unknown; code?: unknown };
+      if (typeof frame.message === 'string' && frame.message) {
+        events.push(inStreamProviderError(frame.message, upstreamErrorSource, frame.code));
+      }
+    }
 
     events.push(...captureContinuation(_eventType, chunk));
 
@@ -1105,5 +1112,6 @@ function inStreamProviderError(
     error: message,
     errorKind: classifyInStreamProviderErrorKind(message, type),
     source,
+    streamErrorFrame: true,
   };
 }

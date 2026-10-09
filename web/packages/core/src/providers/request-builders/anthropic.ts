@@ -2,7 +2,8 @@
 import { resolveProviderBaseURL } from "../url-utils";
 import { buildAnthropicRequestPayload, deepMerge } from "./runtime";
 import { STREAM_HEADERS, type ProviderRequest, type RequestParams } from "./types";
-import { applyGenerationParameters, credentialHeader } from './generation-parameters';
+import { guardAnthropicThinking } from './anthropic-thinking';
+import { credentialHeader, mergeDroppedGenerationParameters, writeGenerationParameters } from './generation-parameters';
 import { toAnthropicTool } from './tool-call-wire-adapter';
 
 export function buildAnthropicRequest(
@@ -35,12 +36,19 @@ export function buildAnthropicRequest(
   if (params.options?.supportsWebSearch) {
     deepMerge(body, webSearchProfile?.mergeParams);
   }
-  applyGenerationParameters(
+  const builderDefaultMaxTokens = body.max_tokens;
+  const { written, dropped: writeDropped } = writeGenerationParameters(
     body,
     params.options?.generationParameters,
     params.options?.generationProfile,
     { toolsActive: Boolean(params.tools?.length) },
   );
+  // The thinking fields were already written by reasoningParams, so the linkage guard must be evaluated again after the generation parameters.
+  const thinkingDropped = guardAnthropicThinking(body, {
+    profile: params.options?.generationProfile,
+    written,
+    builderDefaultMaxTokens,
+  });
 
   return {
     url: `${resolveProviderBaseURL(params.providerKind, params.baseURL)}/messages`,
@@ -50,5 +58,7 @@ export function buildAnthropicRequest(
       "anthropic-version": "2023-06-01",
     },
     body,
+    droppedGenerationParameters: mergeDroppedGenerationParameters(writeDropped, thinkingDropped),
+    generationWrite: { written, builderDefaultMaxTokens },
   };
 }

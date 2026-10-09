@@ -23,6 +23,15 @@ export function adaptGeminiInteractionsResponse(upstream: Response): Response {
   return new Response(stream, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' } });
 }
 
+function interactionErrorFrame(event: unknown): { message: string; code?: string } | null {
+  if (!event || typeof event !== 'object') return null;
+  const error = (event as { error?: unknown }).error;
+  if (!error || typeof error !== 'object') return null;
+  const { message, code, status } = error as { message?: unknown; code?: unknown; status?: unknown };
+  const typeOrCode = typeof status === 'string' ? status : typeof code === 'string' ? code : undefined;
+  return { message: typeof message === 'string' && message ? message : 'Gemini Interactions error', ...(typeOrCode ? { code: typeOrCode } : {}) };
+}
+
 async function consumeSse(body: ReadableStream<Uint8Array>, emit: (value: unknown) => void) {
   const reader = body.getReader(); const decoder = new TextDecoder(); let buffer = '';
   while (true) {
@@ -33,6 +42,9 @@ async function consumeSse(body: ReadableStream<Uint8Array>, emit: (value: unknow
       const data = frame.split('\n').filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trim()).join('\n');
       if (!data || data === '[DONE]') continue;
       let event: unknown; try { event = JSON.parse(data); } catch { continue; }
+      // Rewrite the upstream error event into an OpenAI-style top-level error frame so the client parser recognizes it uniformly as an in-stream error frame.
+      const upstreamError = interactionErrorFrame(event);
+      if (upstreamError) { emit({ error: upstreamError }); continue; }
       emitContinuation(event, emit);
       for (const text of deltaTexts(event)) emit({ choices: [{ delta: { content: text } }] });
       const usage = usageFrom(event); if (usage) emit({ type: 'usage', usage });

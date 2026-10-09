@@ -72,6 +72,8 @@ export interface ProviderError {
   upstreamURL?: string;
   quotaSource?: ProviderQuotaSource;
   traceId?: string;
+  /** Comes from an upstream in-stream error frame (see StreamEvent.streamErrorFrame). */
+  streamErrorFrame?: boolean;
 }
 
 export class ProviderErrorObject extends Error implements ProviderError {

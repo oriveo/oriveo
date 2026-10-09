@@ -17,7 +17,7 @@ const WIRE_SEGMENT_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const BLOCKED_WIRE_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor']);
 const MAX_WIRE_SEGMENTS = 4;
 /** Root fields owned by the builder: the request skeleton belongs to the builder and a wire may never overwrite it. */
-const BUILDER_OWNED_ROOT_FIELDS = new Set([
+export const BUILDER_OWNED_ROOT_FIELDS: ReadonlySet<string> = new Set([
   'model', 'messages', 'input', 'contents', 'prompt', 'attachments', 'instructions', 'system', 'stream', 'stream_options', 'tools', 'tool_choice', 'plugins',
 ]);
 
@@ -62,6 +62,13 @@ function recordWireRejection(parameterId: string, wirePath: string, reason: Wire
   if (wireDiagnostics.length > DIAGNOSTIC_CAPACITY) wireDiagnostics.shift();
 }
 
+/** Deduplicated variant: profile resolution runs on every render, so one malformed delivery leaves a single diagnostic. */
+export function recordWireRejectionOnce(parameterId: string, wirePath: string, reason: WireRejectionReason): void {
+  const seen = wireDiagnostics.some((item) =>
+    item.parameterId === parameterId && item.wirePath === wirePath && item.reason === reason);
+  if (!seen) recordWireRejection(parameterId, wirePath, reason);
+}
+
 /**
  * Keep only the parameter ids declared in the local constant table on a synthesized relay profile
  * wire, and run each through structural hardening. A relay catalog comes from the user's own
@@ -86,12 +93,137 @@ export function restrictWireToDeclaredParameters<
   return { ...profile, wire };
 }
 
+export type GenerationDropReason =
+  | 'invalid_value'
+  | 'conflict'
+  | 'requirement_unmet'
+  | 'required_field'
+  | 'thinking_incompatible'
+  | 'thinking_budget';
+
+export interface DroppedGenerationParameter {
+  parameterId: string;
+  reason: GenerationDropReason;
+}
+
+export interface GenerationParameterWriteResult {
+  dropped: DroppedGenerationParameter[];
+  written: string[];
+}
+
+/** Wire fields the upstream requires, which "do not send" cannot delete. */
+export const REQUIRED_WIRE_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  anthropic_messages: ['max_tokens'],
+};
+/** Keys the builder writes into the request that take part in conflict resolution. */
+const BUILDER_PRESENCE_KEYS = ['tools'] as const;
+
 /**
- * Write parameter intents already decided by the app facade into the production body. Raw support
- * and relay flags are not reinterpreted here: the only outbound decision is
- * `resolveGenerationParameterEvidence(...).requestPolicy`, and this writer only hardens wire,
- * conflicts, dependencies and ranges. The numeric value 0 is a valid explicit value and is never
- * treated as missing.
+ * Per-parameter outbound decision: an invalid parameter drops only itself, conflicts resolve in the
+ * profile's declaration order, an unmet requirement drops only the dependent parameter, and
+ * everything else is written. Returns the list of dropped parameters. Parameter problems no longer
+ * throw: a thrown error surfaces from the route as a provider failure, which shows the user the
+ * wrong cause and loses the remaining parameters as well. A parameter whose wire fails structural
+ * hardening is still skipped silently (local diagnostic only, not in the list).
+ */
+export function writeGenerationParameters(
+  body: JsonObject,
+  overrides: GenerationParameterOverrides | undefined,
+  profile: GenerationParameterProfile | undefined,
+  options: { toolsActive?: boolean } = {},
+): GenerationParameterWriteResult {
+  const dropped: DroppedGenerationParameter[] = [];
+  const written: string[] = [];
+  if (!profile?.template) return { dropped, written };
+  // Alias normalization ignores overrides: a default the builder wrote under the other name must
+  // also move over when the parameter is left to inherit.
+  normalizeMaxTokensAlias(body, profile.wire.max_output_tokens);
+  if (!overrides) return { dropped, written };
+  const template = profile.template;
+
+  // Candidates follow the profile's declaration order, which decides who is accepted first when
+  // conflicts are resolved.
+  const candidates = profile.parameters.flatMap((parameter) => {
+    const override = overrides[parameter.id];
+    const wirePath = profile.wire[parameter.id];
+    if (!override || override.state === 'inherit' || !wirePath) return [];
+    const rejection = wireRejectionReason(wirePath);
+    if (rejection) {
+      recordWireRejection(parameter.id, wirePath, rejection);
+      return [];
+    }
+    return [{ key: parameter.id, override, parameter, wirePath }];
+  });
+
+  const presentKeys = new Set<string>(
+    BUILDER_PRESENCE_KEYS.filter((key) => key === 'tools' ? options.toolsActive || isPresent(body[key]) : isPresent(body[key])),
+  );
+  const accepted: Array<(typeof candidates)[number] & { override: ValueOverride }> = [];
+  for (const candidate of candidates) {
+    if (candidate.override.state !== 'value') continue;
+    if (!isValidValue(candidate.override.value, candidate.parameter)) {
+      dropped.push({ parameterId: candidate.key, reason: 'invalid_value' });
+      continue;
+    }
+    const ownConflicts = candidate.parameter.conflictsWith ?? [];
+    const conflicted = ownConflicts.some((key) => presentKeys.has(key))
+      || accepted.some((peer) => ownConflicts.includes(peer.key) || (peer.parameter.conflictsWith ?? []).includes(candidate.key));
+    if (conflicted) {
+      dropped.push({ parameterId: candidate.key, reason: 'conflict' });
+      continue;
+    }
+    accepted.push(candidate as (typeof accepted)[number]);
+  }
+  const activeValues = new Map(accepted.map((item) => [item.key, item.override.value]));
+  const requirementUnmet = new Set(accepted.filter((item) => (item.parameter.requires ?? []).some((requirement) => {
+    const key = typeof requirement.key === 'string' ? requirement.key : undefined;
+    return !key || !activeValues.has(key) || ('value' in requirement && activeValues.get(key) !== requirement.value);
+  })).map((item) => item.key));
+
+  const requiredWires = REQUIRED_WIRE_FIELDS[template] ?? [];
+  for (const candidate of candidates) {
+    if (candidate.override.state === 'omit') {
+      if (requiredWires.includes(candidate.wirePath)) {
+        dropped.push({ parameterId: candidate.key, reason: 'required_field' });
+        continue;
+      }
+      deleteAtPath(body, candidate.wirePath);
+      continue;
+    }
+    if (!activeValues.has(candidate.key)) continue;
+    if (requirementUnmet.has(candidate.key)) {
+      dropped.push({ parameterId: candidate.key, reason: 'requirement_unmet' });
+      continue;
+    }
+    setGenerationValue(body, candidate.key, candidate.wirePath, activeValues.get(candidate.key)!, template, candidate.parameter.strict === true);
+    written.push(candidate.key);
+  }
+  return { dropped: mergeDroppedGenerationParameters(dropped), written };
+}
+
+/** The two names of one upstream field: a request body may carry only one of them. */
+const MAX_TOKENS_ALIASES = ['max_tokens', 'max_completion_tokens'] as const;
+
+function normalizeMaxTokensAlias(body: JsonObject, wirePath: string | undefined): void {
+  if (wirePath !== 'max_tokens' && wirePath !== 'max_completion_tokens') return;
+  const other = MAX_TOKENS_ALIASES.find((name) => name !== wirePath)!;
+  if (!(other in body)) return;
+  // The value is unchanged and not counted as dropped; a value already on the resolved path wins.
+  if (!(wirePath in body)) body[wirePath] = body[other];
+  delete body[other];
+}
+
+/** Merge several dropped-parameter lists, ordered by parameterId code point. */
+export function mergeDroppedGenerationParameters(
+  ...lists: ReadonlyArray<readonly DroppedGenerationParameter[]>
+): DroppedGenerationParameter[] {
+  return lists.flat().sort((a, b) => (a.parameterId < b.parameterId ? -1 : a.parameterId > b.parameterId ? 1 : 0));
+}
+
+/**
+ * Legacy entry point: the signature is unchanged and it delegates to the per-parameter writer.
+ * Callers that need the dropped list use `writeGenerationParameters` instead. The numeric value 0
+ * is a valid explicit value and is never treated as missing.
  */
 export function applyGenerationParameters(
   body: JsonObject,
@@ -99,56 +231,27 @@ export function applyGenerationParameters(
   profile: GenerationParameterProfile | undefined,
   options: { toolsActive?: boolean } = {},
 ): void {
-  if (!overrides) return;
-
-  // Conflict, requires and range checks may only look at the set that will really go out. The app
-  // has already filtered overrides by the facade requestPolicy; candidates here are formed purely
-  // from wire presence plus structural hardening, otherwise malformed metadata would throw a
-  // RangeError before being discarded and block the whole chat request.
-  const outboundCandidates = Object.entries(overrides).flatMap(([key, override]) => {
-    if (!override || override.state === 'inherit') return [];
-    const parameter = profile?.parameters.find((item) => item.id === key);
-    const wirePath = profile?.wire[key];
-    const template = profile?.template;
-    if (!parameter || !wirePath || !template) return [];
-    const rejection = wireRejectionReason(wirePath);
-    if (rejection) {
-      recordWireRejection(key, wirePath, rejection);
-      return [];
-    }
-    return [{ key, override, parameter, wirePath, template }];
-  });
-  const values: Array<[string, ValueOverride]> = outboundCandidates.flatMap((candidate) =>
-    candidate.override.state === 'value' ? [[candidate.key, candidate.override]] : []);
-  const activeKeys = values.map(([key]) => key);
-  if (options.toolsActive) activeKeys.push('tools');
-  assertNoActiveConflicts(activeKeys, profile);
-  assertRequirements(values, profile);
-
-  for (const { key, override, parameter, wirePath, template } of outboundCandidates) {
-    if (override.state === 'omit') {
-      deleteAtPath(body, wirePath);
-      continue;
-    }
-    assertValidValue(key, override.value, parameter);
-    setGenerationValue(body, key, wirePath, override.value, template);
-  }
+  writeGenerationParameters(body, overrides, profile, options);
 }
 
-function assertRequirements(
-  values: Array<[string, ValueOverride]>,
-  profile: GenerationParameterProfile | undefined,
-): void {
-  const active = new Map(values.map(([key, override]) => [key, override.value]));
-  for (const parameter of profile?.parameters ?? []) {
-    if (!active.has(parameter.id)) continue;
-    for (const requirement of parameter.requires ?? []) {
-      const key = typeof requirement.key === 'string' ? requirement.key : undefined;
-      if (!key || !active.has(key) || ('value' in requirement && active.get(key) !== requirement.value)) {
-        throw new RangeError(`${parameter.id} requires ${key ?? 'a profile dependency'}`);
-      }
-    }
+function isPresent(value: unknown): boolean {
+  return Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null;
+}
+
+function isValidValue(
+  value: GenerationParameterValue | undefined,
+  parameter: GenerationParameterProfile['parameters'][number],
+): value is GenerationParameterValue {
+  if (value === undefined || value === null) return false;
+  try {
+    assertValidValue(parameter.id, value, parameter);
+    // response_format values are only recognized at encoding time, so reject them here to avoid throwing during the write.
+    if (parameter.id === 'response_format' && value !== 'text' && value !== 'json') return false;
+    if (parameter.id === 'json_schema') validateJSONSchema(value);
+  } catch {
+    return false;
   }
+  return true;
 }
 
 /** A JSON Schema is an output contract: only the schema itself is validated, and it must never become a channel for overriding the request body. */
@@ -203,16 +306,19 @@ function setGenerationValue(
   wirePath: string,
   value: GenerationParameterValue,
   template: string,
+  strict = false,
 ): void {
   if (key === 'json_schema') {
     validateJSONSchema(value);
     const name = typeof value.title === 'string' && value.title.trim() ? value.title.trim() : 'oriveo_response';
+    // strict is written only when the parameter is delivered with true; by default the key is omitted.
+    const strictField = strict ? { strict: true } : {};
     if (template === 'openai_chat_completions' || template === 'vllm_extra_body') {
-      setAtPath(body, wirePath, { type: 'json_schema', json_schema: { name, strict: true, schema: value } });
+      setAtPath(body, wirePath, { type: 'json_schema', json_schema: { name, ...strictField, schema: value } });
       return;
     }
     if (template === 'openai_responses') {
-      setAtPath(body, wirePath, { type: 'json_schema', name, strict: true, schema: value });
+      setAtPath(body, wirePath, { type: 'json_schema', name, ...strictField, schema: value });
       return;
     }
     if (template === 'anthropic_messages') {
@@ -242,17 +348,6 @@ function setGenerationValue(
 export function credentialHeader(name: string, value: string): Record<string, string> {
   const credential = value.trim();
   return credential ? { [name]: credential } : {};
-}
-
-function assertNoActiveConflicts(keys: string[], profile: GenerationParameterProfile | undefined): void {
-  const active = new Set(keys);
-  for (const parameter of profile?.parameters ?? []) {
-    if (!active.has(parameter.id)) continue;
-    const conflict = parameter.conflictsWith?.find((key) => active.has(key));
-    if (conflict) {
-      throw new RangeError(`${parameter.id} conflicts with ${conflict}`);
-    }
-  }
 }
 
 function assertValidValue(
