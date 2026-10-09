@@ -167,6 +167,42 @@ class FileTextExtractorTest {
     }
 
     @Test
+    fun theUntruncatedPdfEntryUsedBySkillImportOnlyEverThrowsExtractionException() {
+        // Skill reference import used to call PdfTextExtractor directly, so a LinkageError thrown by another
+        // pdfbox class failing to initialise mid-parse bypassed the boundary and the outer catch (Exception).
+        val failures: List<() -> Nothing> = listOf(
+            { throw NoClassDefFoundError("com.tom_roush.pdfbox.pdmodel.font.PDFont") },
+            { throw ExceptionInInitializerError(OutOfMemoryError("heap")) },
+            { throw UnsatisfiedLinkError("no pdfbox native") },
+            { throw StackOverflowError() },
+        )
+
+        for (failure in failures) {
+            val error = runCatching { FileTextExtractor.extractPdfText(ByteArray(0)) { failure() } }
+                .exceptionOrNull()
+            assertTrue("$error", error is ExtractionException)
+        }
+        // The real parser likewise only produces an ExtractionException on garbage bytes.
+        val garbage = runCatching { FileTextExtractor.extractPdfText("not a pdf".toByteArray()) }.exceptionOrNull()
+        assertTrue("$garbage", garbage is ExtractionException)
+    }
+
+    @Test
+    fun skillReferenceImportDoesNotCallThePdfParserAroundTheBoundary() {
+        var dir = java.io.File(System.getProperty("user.dir") ?: ".")
+        var source: java.io.File? = null
+        repeat(8) {
+            val candidate = java.io.File(dir, "app/src/main/java/ai/oriveo/community/feature/skills/SkillEditScreen.kt")
+            if (source == null && candidate.exists()) source = candidate
+            dir = dir.parentFile ?: dir
+        }
+        val text = requireNotNull(source) { "SkillEditScreen.kt not found" }.readText()
+
+        assertFalse(text.contains("PdfTextExtractor.extract("))
+        assertTrue(text.contains("FileTextExtractor.extractPdfText("))
+    }
+
+    @Test
     fun guardLeavesDomainFailuresAndCancellationUntouched() {
         val domain = ExtractionException(ExtractionErrorCode.ScannedPdf)
         assertSame(

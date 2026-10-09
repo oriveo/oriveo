@@ -324,11 +324,12 @@ fun SkillEditScreen(
                     when {
                         isPdf -> {
                             PDFBoxResourceLoader.init(androidContext)
-                            // Shares the chat attachment extractor: the PDF is not copied onto
-                            // the heap a second time, and an unavailable engine surfaces as an
-                            // ExtractionException instead of an Error that kills the process.
+                            // Shares the chat attachment extractor and its failure boundary: the PDF is
+                            // not copied onto the heap a second time, and any engine class that is
+                            // unavailable mid-parse surfaces as an ExtractionException instead of an
+                            // Error that kills the process.
                             try {
-                                ai.oriveo.community.core.attachments.extractors.PdfTextExtractor.extract(source.bytes)
+                                ai.oriveo.community.core.attachments.FileTextExtractor.extractPdfText(source.bytes)
                             } catch (e: ai.oriveo.community.core.attachments.ExtractionException) {
                                 // No text layer: fall through to the "content is empty"
                                 // message below.

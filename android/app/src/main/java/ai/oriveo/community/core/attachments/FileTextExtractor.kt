@@ -159,6 +159,16 @@ object FileTextExtractor {
     private val linkageFailureLogged = AtomicBoolean(false)
     private const val TAG = "FileTextExtractor"
 
+    /**
+     * The whole text of a PDF, untruncated, for callers that store the full text as a knowledge
+     * file (skill reference import). It goes through the same failure boundary as [extract].
+     */
+    @Throws(ExtractionException::class)
+    fun extractPdfText(data: ByteArray): String = extractPdfText(data) { PdfTextExtractor.extract(it) }
+
+    internal fun extractPdfText(data: ByteArray, parse: (ByteArray) -> String): String =
+        guardExtraction("application/pdf") { parse(data) }
+
     @Throws(ExtractionException::class)
     private fun extractInner(
         data: ByteArray,
