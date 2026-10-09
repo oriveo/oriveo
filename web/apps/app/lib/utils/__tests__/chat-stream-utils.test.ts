@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ChatMessage } from '@oriveo/shared';
+import type { AIModel, Attachment, ChatMessage } from '@oriveo/shared';
 import { buildChatHistory, readStream, sanitizeOutboundMessages } from '../chat-stream-utils';
+import { findUnsendableTextAttachments } from '../../core/attachments/attachment-delivery';
 
 vi.mock('../../infra/storage/image-store', () => ({
   loadImageBase64: vi.fn(async () => 'stored-image-b64'),
@@ -104,6 +105,58 @@ describe('buildChatHistory', () => {
     expect(textPart?.text).toContain('notes.md');
     expect(textPart?.text).toContain('# Heading');
     expect(textPart?.text).toContain('Summarize these notes');
+  });
+});
+
+describe('buildChatHistory text attachments (production path)', () => {
+  const textAttachment = (fileName: string, bytes: number, extra: Partial<Attachment> = {}): Attachment => ({
+    id: fileName,
+    kind: 'file',
+    fileName,
+    mimeType: 'text/plain',
+    base64Data: 'x'.repeat(bytes),
+    ...extra,
+  });
+  const outboundText = (history: Awaited<ReturnType<typeof buildChatHistory>>): string => {
+    const content = history[history.length - 1]!.content;
+    if (typeof content === 'string') return content;
+    return content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n');
+  };
+
+  // A persisted attachment stores extractedTruncated but not the truncation reason. The injector used to look
+  // only at the reason, so every truncated file was sent without any truncation note.
+  it('a truncated attachment is sent with the TRUNCATED marker', async () => {
+    const content = Array.from({ length: 500 }, (_, i) => `L${i + 1}`).join('\n');
+    const history = await buildChatHistory([makeMessage({
+      text: 'Summarize',
+      attachments: [{
+        id: 'a', kind: 'file', fileName: 'long.txt', mimeType: 'text/plain',
+        base64Data: content, extractedTruncated: true, extractedTotalLines: 1200, extractedSizeBytes: 9000,
+      }],
+    })], null, 'openAI');
+
+    expect(outboundText(history)).toContain('<TRUNCATED>showing first 500 of 1200 lines</TRUNCATED>');
+  });
+
+  it('the attachments the pre-send check reports are exactly the ones missing from the outbound content', async () => {
+    const model = {
+      id: 'm', name: 'M', capabilities: ['text'], reasoningModeAvailable: false,
+      isAvailable: true, isDefault: true, priceTier: '$',
+      attachmentExtraction: { totalCap: 100 * 1024 },
+    } as unknown as AIModel;
+    const attachments = [
+      textAttachment('a.txt', 60 * 1024),
+      textAttachment('b.txt', 60 * 1024),
+      textAttachment('c.txt', 10 * 1024),
+    ];
+
+    const text = outboundText(await buildChatHistory([makeMessage({ text: 'Compare', attachments })], model, 'openAI'));
+    const missing = attachments
+      .map((attachment) => attachment.fileName)
+      .filter((fileName) => !text.includes(`<FILE_NAME>${fileName}</FILE_NAME>`));
+
+    expect(missing).toEqual(['b.txt']);
+    expect(findUnsendableTextAttachments(attachments, model, 'openAI').map((item) => item.fileName)).toEqual(missing);
   });
 });
 

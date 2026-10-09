@@ -24,7 +24,7 @@ import {
 import {
   resolveFileExtractionLimits,
 } from '../core/attachments/file-text-extractor';
-import { decideAttachmentRoute } from '../core/attachments/attachment-router';
+import { resolveFileAttachmentDelivery } from '../core/attachments/attachment-delivery';
 import { applyOutboundAttachmentBudget } from '../core/attachments/outbound-attachment-budget';
 
 /**
@@ -63,7 +63,6 @@ export async function buildChatHistory(
     if (m.attachments && m.attachments.length > 0) {
       const parts: ContentPart[] = [];
       const filePayloads: AttachmentPayload[] = [];
-      let hasNativePdfFallback = false;
 
       if (m.text) {
         // Hold the text aside; AttachmentInjector.injectAll assembles it further down.
@@ -86,57 +85,34 @@ export async function buildChatHistory(
             video_url: { url: `data:${att.mimeType};base64,${att.base64Data}` },
           });
         } else if (att.kind === 'file') {
-          // AttachmentRouter is the single place that decides native vs client_extract, replacing
-          // scattered scanned_pdf + capabilities.native_pdf checks.
-          const route = currentModel
-            ? decideAttachmentRoute(att, providerKind ?? '', currentModel)
-            : 'client_extract';
-          if (route === 'native' && att.originalBase64Data) {
+          // Native upload vs text injection is decided by the same function the pre-send check uses (attachment-delivery.ts).
+          const delivery = resolveFileAttachmentDelivery(att, currentModel, providerKind);
+          if (delivery.route === 'native') {
             parts.push({
               type: 'file',
               file: {
                 filename: att.fileName,
-                file_data: `data:${att.mimeType};base64,${att.originalBase64Data}`,
+                file_data: `data:${att.mimeType};base64,${delivery.originalBase64Data}`,
                 mimeType: att.mimeType,
                 extractionErrorCode: att.extractionErrorCode,
               },
             });
-            hasNativePdfFallback = true;
           } else {
             // client_extract: build an ATTACHMENT_FILE text block via AttachmentInjector.
-            const extracted = att.base64Data
-              ? {
-                  content: att.base64Data,
-                  totalLines: att.extractedTotalLines ?? att.base64Data.split('\n').length,
-                  truncated: att.extractedTruncated ?? false,
-                  truncationReason: undefined as ('lines' | 'bytes' | undefined),
-                  sizeBytes: att.extractedSizeBytes ?? att.base64Data.length,
-                }
-              : null;
-            filePayloads.push({
-              fileName: att.fileName,
-              mimeType: att.mimeType,
-              sizeBytes: att.extractedSizeBytes ?? att.base64Data?.length ?? 0,
-              extracted,
-              errorCode: att.extractionErrorCode as (import('../core/attachments/file-text-extractor').ExtractionErrorCode | undefined),
-            });
+            filePayloads.push(delivery.payload);
           }
         }
       }
 
       // Append filePayloads to the end of userText via AttachmentInjector.
-      const { text: combinedText, skipped } = AttachmentInjector.injectAll(
+      // An attachment that does not fit is still skipped here, but only as a safety net: the send
+      // entry point already ran findUnsendableTextAttachments with the same rules and blocked the send.
+      const { text: combinedText } = AttachmentInjector.injectAll(
         effectiveText ?? '',
         filePayloads,
         limits,
         wrapper,
       );
-
-      // Skipped-attachment telemetry is consumed by the caller; return it through the extension field.
-      if (skipped.length > 0) {
-        // Telemetry is handled upstream. Here we only append a note to combinedText so the model
-        // knows. The actual UI toast is raised in operations.ts (TODO: pass skipped info upwards).
-      }
 
       // When there are attachments, this message's text already contains the ATTACHMENT_FILE block;
       // the matching system prompt guidance is appended in buildSystemPromptContent in operations.ts.

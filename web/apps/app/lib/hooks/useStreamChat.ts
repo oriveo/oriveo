@@ -36,6 +36,8 @@ import {
   flushPendingStreaming as flushPendingForConv,
 } from "../core/chat/stream-batcher";
 import { markNewConversationRoutePromotion } from "../core/chat/route-transition";
+import { findUnsendableTextAttachments } from "../core/attachments/attachment-delivery";
+import { showToast } from "../../components/Toast";
 import { clearStreamPartialBackup } from "../core/store/stream-partial-backup";
 
 interface UseStreamChatParams {
@@ -57,6 +59,21 @@ interface UseStreamChatParams {
  * flush / pagehide backups against this session safe no-ops.
  */
 const RESERVED_MSG_ID = "__reserved__";
+
+/** Returned by `send` when the pre-send check blocks it: the caller uses it to put back the composer content that was already cleared. */
+export const SEND_BLOCKED = "blocked" as const;
+
+/** The user message a retry will resend: the first user message found going up from the target (the same lookup retryMessage uses). */
+function resendUserMessage(
+  messages: ChatMessage[],
+  messageId: string,
+): ChatMessage | undefined {
+  const index = messages.findIndex((message) => message.id === messageId);
+  for (let i = index; i >= 0; i--) {
+    if (messages[i].role === "user") return messages[i];
+  }
+  return undefined;
+}
 
 interface StreamReservation {
   /** Reservation timestamp, reused by registerStream on the real handle so elapsed_ms counts from the user's click. */
@@ -207,7 +224,33 @@ export function useStreamChat({
   const router = useRouter();
   const te = useTranslations("errors");
   const tLibrary = useTranslations("library");
+  const tFileExtraction = useTranslations("pages.chat.fileExtraction");
   const libraryFeatureEnabled = isLibraryFeatureEnabled();
+
+  // -- Pre-send check --
+  // While building the outbound history the injector skips a whole attachment that does not fit the text
+  // budget, so the user never sees it and the model does not know a file is missing. Run the same
+  // calculation first: if something does not fit, do not send, and say which files. Returns true when blocked.
+  const blockUnsendableAttachments = useCallback(
+    (
+      messageAttachments: Attachment[] | undefined,
+      model: AIModel,
+      providerKind: string,
+    ): boolean => {
+      const skipped = findUnsendableTextAttachments(messageAttachments, model, providerKind);
+      if (skipped.length === 0) return false;
+      showToast(
+        tFileExtraction("sendBlockedTextBudget", {
+          fileName: skipped.map((item) => item.fileName).join(", "),
+        }),
+        6000,
+        undefined,
+        "warning",
+      );
+      return true;
+    },
+    [tFileExtraction],
+  );
 
   // -- Interrupt only when the same conversation is being overwritten --
   const guardSameConversation = useCallback(
@@ -232,6 +275,18 @@ export function useStreamChat({
       quoteContext?: QuoteContext,
     ) => {
       if (!text || !provider || !currentModel) return;
+      // The check runs before interrupting the same-conversation stream and before reserving: a blocked
+      // send must have no side effects. The model is the latest selection in the store, the same
+      // resolution the real send below uses.
+      const precheckSelection = resolveLatestSendSelection(
+        getVanillaStore(),
+        conv,
+        provider,
+        currentModel,
+      );
+      if (blockUnsendableAttachments(msgAttachments, precheckSelection.model, precheckSelection.provider.kind)) {
+        return SEND_BLOCKED;
+      }
       // Interrupt only when the target conversation already has an unfinished stream (an overwrite
       // within the same conversation); sending in a different conversation does not abort it.
       guardSameConversation(conv?.id);
@@ -357,6 +412,7 @@ export function useStreamChat({
       onSendFailed,
       onLibraryContextFailed,
       guardSameConversation,
+      blockUnsendableAttachments,
     ],
   );
 
@@ -394,6 +450,9 @@ export function useStreamChat({
       excludeCapabilityOwners?: Array<'web' | 'reasoning' | 'generation'>;
     }) => {
       if (!conversation || !provider || !currentModel) return;
+      if (blockUnsendableAttachments(resendUserMessage(messages, messageId)?.attachments, currentModel, provider.kind)) {
+        return;
+      }
       guardSameConversation(conversation.id);
       const targetMsg = messages.find((message) => message.id === messageId);
       const libraryRecovery = isLibraryResearchMessage(targetMsg);
@@ -466,6 +525,7 @@ export function useStreamChat({
       router,
       onSendFailed,
       guardSameConversation,
+      blockUnsendableAttachments,
     ],
   );
 
@@ -568,6 +628,8 @@ export function useStreamChat({
   const editAndResend = useCallback(
     async (messageId: string, newText: string) => {
       if (!conversation || !provider || !currentModel) return;
+      // No pre-send check here: edit-and-resend carries only the new text, not the original message's
+      // attachments (see operations-edit.ts), so checking the original attachments would block a request that can be sent.
       guardSameConversation(conversation.id);
       const { editAndResend: editAndResendOp } = await loadChatOperations();
       let resolvedConvId: string | undefined = conversation.id;

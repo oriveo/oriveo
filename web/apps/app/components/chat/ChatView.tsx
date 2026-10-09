@@ -11,7 +11,7 @@ import { useNotifications } from '../../lib/hooks/useNotifications';
 import { useMediaQuery } from '../../lib/hooks/useMediaQuery';
 import { useAttachmentDragDrop } from '../../lib/hooks/useAttachmentDragDrop';
 import { appendAttachmentsWithinLimit } from '../../lib/core/attachments/attachment-import';
-import { useStreamChat } from '../../lib/hooks/useStreamChat';
+import { SEND_BLOCKED, useStreamChat } from '../../lib/hooks/useStreamChat';
 import { loadSyncCore } from '../../lib/core/sync-lazy';
 import { getVanillaStore } from '../../providers/StoreProvider';
 import { pinNoteToConversation, unpinNoteFromConversation } from '../../lib/core/conversation-ops';
@@ -814,25 +814,39 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
       pendingQuoteAttachedAtRef.current = null;
     }
     try {
-      if (currentQuoteContext) {
-        await send(
-          text,
-          messages,
-          conversation,
-          currentAttachments,
-          currentPendingPinnedNoteIds,
-          currentLibraryContextDocuments,
-          currentQuoteContext,
-        );
-      } else {
-        await send(
-          text,
-          messages,
-          conversation,
-          currentAttachments,
-          currentPendingPinnedNoteIds,
-          currentLibraryContextDocuments,
-        );
+      const outcome = currentQuoteContext
+        ? await send(
+            text,
+            messages,
+            conversation,
+            currentAttachments,
+            currentPendingPinnedNoteIds,
+            currentLibraryContextDocuments,
+            currentQuoteContext,
+          )
+        : await send(
+            text,
+            messages,
+            conversation,
+            currentAttachments,
+            currentPendingPinnedNoteIds,
+            currentLibraryContextDocuments,
+          );
+      if (outcome === SEND_BLOCKED) {
+        // The pre-send check blocked it (an attachment does not fit the current model's text budget):
+        // nothing was sent, so put back the composer content cleared above and the user can send again
+        // right after removing a file or switching models.
+        if (!overrideText) {
+          setInputText(text);
+          setAttachments(currentAttachments);
+          setPendingPinnedNoteIds(currentPendingPinnedNoteIds);
+          setLibraryContextDocuments(currentLibraryContextDocuments);
+          if (currentQuoteContext) {
+            setPendingQuoteContext(currentQuoteContext);
+            pendingQuoteAttachedAtRef.current = currentQuoteAttachedAt ?? Date.now();
+          }
+        }
+        return;
       }
       if (currentQuoteContext) {
         trackEvent('selection_ask_sent', {

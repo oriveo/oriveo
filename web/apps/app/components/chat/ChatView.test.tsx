@@ -202,6 +202,7 @@ vi.mock('../../lib/hooks/useAttachmentDragDrop', () => ({
 }));
 
 vi.mock('../../lib/hooks/useStreamChat', () => ({
+  SEND_BLOCKED: 'blocked',
   useStreamChat: (...args: unknown[]) => mockUseStreamChat(...args),
 }));
 
@@ -783,6 +784,28 @@ beforeEach(async () => {
     ));
     expect(screen.getByTestId('input-composer').getAttribute('data-quote-selection')).toBe('');
     expect(screen.getByTestId('input-composer').getAttribute('data-value')).toBe('');
+  });
+
+  // When the pre-send check blocks, nothing was sent: the already-cleared input and attachments are put back so the user can send again right after removing a file or switching models.
+  it('send blocked by the pre-send check: input text and attachments are restored unchanged', async () => {
+    const send = vi.fn().mockResolvedValue('blocked');
+    mockUseStreamChat.mockReturnValue({
+      send,
+      continueAnswering: vi.fn(),
+      retry: vi.fn(),
+      editAndResend: vi.fn(),
+      stop: vi.fn(),
+    });
+    await renderChatView();
+    fireEvent.click(screen.getByRole('button', { name: 'type draft' }));
+    fireEvent.click(screen.getByRole('button', { name: 'attach file' }));
+    fireEvent.click(screen.getByRole('button', { name: 'send draft' }));
+
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(screen.getByTestId('input-composer').getAttribute('data-value')).toBe('vector database context');
+    });
+    expect(screen.getByTestId('input-composer').getAttribute('data-attachment-count')).toBe('1');
   });
 
   it('clears the composer after send accepts the draft', async () => {
