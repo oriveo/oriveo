@@ -34,8 +34,14 @@ export function editAndResend(
   if (msgIndex === -1) return null;
 
   const removedMsgs = messages.slice(msgIndex);
-  const editedMessageQuote = messages[msgIndex].role === 'user'
-    ? messages[msgIndex].quoteContext
+  const editedMessage = messages[msgIndex];
+  const editedMessageQuote = editedMessage.role === 'user'
+    ? editedMessage.quoteContext
+    : undefined;
+  // An edit changes the text: the attachments of the original message follow to the new one as the same
+  // attachment objects, so the originals (cloud and local) keep being used.
+  const editedMessageAttachments = editedMessage.role === 'user' && editedMessage.attachments?.length
+    ? editedMessage.attachments
     : undefined;
   const removedDeliveredIDs = removedMsgs.filter((m) => m.state === 'delivered').map((m) => m.id);
   const remaining = messages.slice(0, msgIndex);
@@ -44,7 +50,8 @@ export function editAndResend(
   if (removedDeliveredIDs.length > 0) {
     getSyncAdapter()?.didDeleteMessages(removedDeliveredIDs, conversation.id, remainingLastDelivered);
   }
-  cleanupCloudAttachments(removedMsgs);
+  // The carried-over attachments are still in use, so their cloud objects must not be deleted; only clean up those of the messages removed after it.
+  cleanupCloudAttachments(editedMessageAttachments ? removedMsgs.slice(1) : removedMsgs);
   ctx.store.getState().updateConversation(conversation.id, {
     messages: remaining,
     ...deriveConversationMetadata(conversation, remaining),
@@ -68,6 +75,7 @@ export function editAndResend(
     text: newText, prevMessages: remaining, conversation,
     provider, model, reasoningMode, webSearchEnabled,
     quoteContext: editedMessageQuote,
+    ...(editedMessageAttachments ? { attachments: editedMessageAttachments } : {}),
     libraryContextDocuments: [],
     libraryContextCancelledText,
     onNewConversation, onFailed,

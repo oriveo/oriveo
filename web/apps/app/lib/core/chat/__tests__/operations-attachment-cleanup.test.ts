@@ -255,7 +255,7 @@ describe('chat operation attachment cleanup', () => {
     expect(historyArg.filter((m) => m.role === 'user' && m.text === user.text)).toHaveLength(1);
   });
 
-  it('editAndResend deletes all removed attachment refs', async () => {
+  it('editAndResend carries the edited message attachments to the new message and cleans up only the cloud attachments of the messages removed after it', async () => {
     const provider = makeProvider();
     const model = makeModel();
     const user: ChatMessage = {
@@ -275,6 +275,13 @@ describe('chat operation attachment cleanup', () => {
         fileName: 'user.png',
         mimeType: 'image/png',
         storageRef: 'users/user-1/attachments/user-image',
+      }, {
+        id: 'att-user-file',
+        kind: 'file',
+        fileName: 'notes.txt',
+        mimeType: 'text/plain',
+        base64Data: 'notes',
+        storageRef: 'users/user-1/attachments/user-file',
       }],
     };
     const assistant: ChatMessage = {
@@ -314,9 +321,16 @@ describe('chat operation attachment cleanup', () => {
 
     await handle?.done;
 
-    expect(mocks.deleteAttachments).toHaveBeenCalledWith('user-1', [
-      'users/user-1/attachments/user-image',
+    // The edited message's attachments follow the resend to the new message (the cloud objects are still in use); only those of the messages removed after it are deleted.
+    expect(mocks.deleteAttachments).toHaveBeenCalledExactlyOnceWith('user-1', [
       'users/user-1/attachments/assistant-image',
     ]);
+    const resent = store.getState().conversations[0]?.messages.find((m) => m.role === 'user');
+    expect(resent?.id).not.toBe(user.id);
+    expect(resent?.text).toBe('edited');
+    expect(resent?.attachments).toEqual(user.attachments);
+    const historyArg = mocks.buildChatHistory.mock.calls.at(-1)?.[0] as ChatMessage[];
+    // They are in the outbound history too (this test model takes no images, so images are filtered out before sending while file attachments stay).
+    expect(historyArg.find((m) => m.id === resent?.id)?.attachments).toEqual([user.attachments![1]]);
   });
 });
