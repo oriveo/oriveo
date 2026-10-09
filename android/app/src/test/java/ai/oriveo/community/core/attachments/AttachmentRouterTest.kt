@@ -194,4 +194,28 @@ class AttachmentRouterTest {
         assertEquals(20 * 1024 * 1024, AttachmentRouter.maxNativeBytes(ProviderKind.Gemini))
         assertEquals(25 * 1024 * 1024, AttachmentRouter.maxNativeBytes(ProviderKind.DeepSeek))
     }
+
+    @Test fun `oversized original bytes still fall back when the recorded size is missing`() {
+        // Older messages and attachments synced from another client may lack extractedSizeBytes: the threshold must be judged on the original bytes themselves.
+        val twentyOneMegabytes = "AAAA".repeat(21 * 1024 * 1024 / 3)
+        val route = AttachmentRouter.decide(
+            makeAttachment(mimeType = "application/pdf", originalBase64 = twentyOneMegabytes, sizeBytes = null),
+            ProviderKind.Gemini,
+            makeModel(nativeFileMimes = listOf("application/pdf"), pdfNativeDefault = true),
+        )
+        assertEquals(AttachmentRoute.ClientExtract, route)
+    }
+
+    @Test fun `original bytes on disk are sized by the recorded value`() {
+        // At pre-send time the original bytes are not hydrated yet and only a placeholder exists; the original file size recorded at import is used then.
+        val pending = makeAttachment(
+            originalBase64 = AttachmentHydrator.PENDING_ORIGINAL_PLACEHOLDER,
+            sizeBytes = 30 * 1024 * 1024,
+        )
+        assertEquals(AttachmentRoute.ClientExtract, AttachmentRouter.decide(pending, ProviderKind.OpenAI, makeModel()))
+        assertEquals(
+            AttachmentRoute.Native,
+            AttachmentRouter.decide(pending.copy(extractedSizeBytes = 5_000), ProviderKind.OpenAI, makeModel()),
+        )
+    }
 }

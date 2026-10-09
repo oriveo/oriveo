@@ -320,7 +320,7 @@ class McpChatToolRunner(
             requestOptions = requestOptions,
         )
         return makeLoop(plan, executor(conversationId, onStep), legRunner, runtimeConfig(), onUnhandledToolCalls)
-            .run(McpToolBridge.initialMessages(toolLoopMessagesFrom(messages, provider, json), systemPrompt), onProgress)
+            .run(McpToolBridge.initialMessages(toolLoopMessagesFrom(messages, provider, model, json), systemPrompt), onProgress)
     }
 
     companion object {

@@ -141,6 +141,70 @@ class AttachmentInjectorTest {
         assertTrue(markdown, markdown.contains("- Lines: 700 (showing first 500"))
     }
 
+    private fun truncatedPayload(reason: ExtractedText.TruncationReason?) = AttachmentInjector.AttachmentPayload(
+        fileName = "big.md",
+        mimeType = "text/markdown",
+        sizeBytes = 50_000,
+        extracted = ExtractedText(
+            content = (1..500).joinToString("\n") { "L$it" },
+            totalLines = 700,
+            truncated = true,
+            truncationReason = reason,
+            sizeBytes = 50_000,
+        ),
+        errorCode = null,
+    )
+
+    /** The truncation marker carries no cap number and no reason: the number does not follow the model's limit, so writing one would tell the model a wrong cap. */
+    @Test
+    fun theTruncationMarkerCarriesNoSizeNumberWhateverTheReason() {
+        for (reason in listOf(ExtractedText.TruncationReason.Lines, ExtractedText.TruncationReason.Bytes, null)) {
+            val xml = AttachmentInjector.formatAttachmentXml(1, truncatedPayload(reason))
+            assertTrue(xml, xml.contains("<TRUNCATED>showing first 500 of 700 lines</TRUNCATED>"))
+            val markdown = AttachmentInjector.formatAttachmentMarkdown(1, truncatedPayload(reason))
+            assertTrue(markdown, markdown.contains("- Lines: 700 (showing first 500)\n"))
+            assertFalse(xml + markdown, (xml + markdown).contains("200KB"))
+        }
+    }
+
+    @Test
+    fun fileTooLargeInstructionCoversFilesThatOnlyBlowUpOnceUnpacked() {
+        val payload = AttachmentInjector.AttachmentPayload(
+            fileName = "huge.xlsx", mimeType = "application/zip", sizeBytes = 10, extracted = null,
+            errorCode = ExtractionErrorCode.FileTooLarge,
+        )
+        val expected = "This file is past the size the local extractor will read, either as stored or once unpacked. " +
+            "DO NOT fabricate content. Tell the user the file is too large and ask them to split or shorten it."
+        assertTrue(AttachmentInjector.formatAttachmentXml(1, payload).contains("[INSTRUCTION: $expected]"))
+        assertTrue(AttachmentInjector.formatAttachmentMarkdown(1, payload).contains("> **Instruction to model:** $expected"))
+    }
+
+    @Test
+    fun fileTypeComesFromTheMimeForOpenDocumentRtfAndSvg() {
+        val expected = mapOf(
+            "application/vnd.oasis.opendocument.text" to "odt",
+            "application/vnd.oasis.opendocument.spreadsheet" to "ods",
+            "application/vnd.oasis.opendocument.presentation" to "odp",
+            "application/rtf" to "rtf",
+            "text/rtf" to "rtf",
+            "image/svg+xml" to "svg",
+        )
+        for ((mime, type) in expected) {
+            // A file name without an extension: only the mime can tell.
+            val xml = AttachmentInjector.formatAttachmentXml(1, makePayload(fileName = "untitled", mime = mime))
+            assertTrue("$mime: $xml", xml.contains("<FILE_TYPE>$type</FILE_TYPE>"))
+        }
+    }
+
+    @Test
+    fun aWhitespaceOnlyMessageBodyIsNotPrependedToTheAttachments() {
+        val result = AttachmentInjector.injectAll(" \n ", listOf(makePayload()))
+        assertTrue(result.text, result.text.startsWith("<ATTACHMENT_FILE>"))
+        // Body text with content is kept as is, without trimming whitespace at either end.
+        val kept = AttachmentInjector.injectAll(" hi ", listOf(makePayload()))
+        assertTrue(kept.text, kept.text.startsWith(" hi \n\n<ATTACHMENT_FILE>"))
+    }
+
     @Test
     fun totalCapCountsFileContentOnlyNotTheWrapper() {
         val limits = FileExtractionLimits.DEFAULT

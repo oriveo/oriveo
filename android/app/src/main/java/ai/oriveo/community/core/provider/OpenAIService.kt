@@ -59,6 +59,15 @@ class OpenAIService(
 
     companion object {
         private const val BASE_URL = "https://api.openai.com/v1"
+
+        /** Whether the connection points at the official API; a custom endpoint only has Chat Completions. The pre-send route resolution and the outbound path share this. */
+        internal fun usesOfficialOpenAIApi(baseUrl: String?): Boolean = resolveUrl(baseUrl) == BASE_URL
+
+        private fun resolveUrl(custom: String?): String {
+            val url = (custom?.takeIf { it.isNotBlank() } ?: BASE_URL).trimEnd('/')
+            return if (url.startsWith("http")) url else "https://$url"
+        }
+
         // Relay and custom OpenAI-compatible endpoints still call `GET /v1/models` from the
         // client and filter locally. Relay is a legitimate exception to catalog-driven listing,
         // because its directory comes from the user's own machine.
@@ -198,7 +207,9 @@ class OpenAIService(
         }
 
         val resolved = MetadataClient.resolveCatalogModel(modelID, ProviderKind.OpenAI)
-        if (TransportKind.fromWireValue(resolved?.transport) == TransportKind.OpenAIChat) {
+        if (AttachmentTransportResolver.openAIOfficialTransport(usesOfficialApi = true, resolved?.transport) ==
+            TransportKind.OpenAIChat
+        ) {
             return sendMessageViaChatCompletions(
                 apiKey = apiKey,
                 modelID = modelID,
@@ -348,7 +359,9 @@ class OpenAIService(
         } else {
             null
         }
-        if (TransportKind.fromWireValue(resolved?.transport) == TransportKind.OpenAIChat) {
+        if (AttachmentTransportResolver.openAIOfficialTransport(usesOfficialApi = true, resolved?.transport) ==
+            TransportKind.OpenAIChat
+        ) {
             streamViaChatCompletions(
                 apiKey = apiKey,
                 modelID = modelID,
@@ -604,15 +617,6 @@ class OpenAIService(
         return EXCLUDED_PREFIXES.none { lowered.startsWith(it) }
     }
 
-    private fun usesOfficialOpenAIApi(baseUrl: String?): Boolean {
-        return resolveUrl(baseUrl) == BASE_URL
-    }
-
-    private fun resolveUrl(custom: String?): String {
-        val url = (custom?.takeIf { it.isNotBlank() } ?: BASE_URL).trimEnd('/')
-        return if (url.startsWith("http")) url else "https://$url"
-    }
-
     private fun io.ktor.client.request.HttpRequestBuilder.applyHeaders(apiKey: String) {
         header("Accept", "application/json")
         header("Authorization", "Bearer $apiKey")
@@ -833,6 +837,7 @@ class OpenAIService(
             messages = messagesForCapabilityProjection(messages, capabilityProjection),
             providerKind = ProviderKind.OpenAI,
             systemPrompt = options.systemPrompt,
+            activeModel = requestOptions.activeModel,
         )
 
         val extras = mutableListOf<String>()

@@ -57,6 +57,44 @@ class MiniMaxService(client: HttpClient, json: Json) : OpenAICompatibleService(
         val headers: Map<String, String>,
     )
 
+    companion object {
+        private fun exactAnthropicWebRoute(
+            modelID: String,
+            webSearchEnabled: Boolean,
+            reasoningMode: ReasoningMode,
+        ): AnthropicWebRoute? {
+            if (!webSearchEnabled) return null
+            val request = MetadataClient.capabilityRuntimeRequest(
+                ProviderKind.MiniMax, modelID, "openai_chat", webRequested = true, reasoningMode = reasoningMode,
+            ) ?: return null
+            val selection = request.selections.singleOrNull { it.capability == "web" } ?: return null
+            val route = selection.route ?: return null
+            fun string(key: String) = (route[key] as? JsonPrimitive)?.contentOrNull
+            val headers = (route["headers"] as? JsonObject)?.mapNotNull { (key, value) ->
+                (value as? JsonPrimitive)?.contentOrNull?.let { key to it }
+            }?.toMap() ?: return null
+            if (selection.id != "minimax.messages.web.v1" ||
+                selection.executionKind != "endpoint_route" ||
+                selection.responseParserKind != "minimax_anthropic_web_v1" ||
+                selection.continuationKind != "replay_blocks" ||
+                string("sourceProtocol") != "openai_chat" || string("protocol") != "anthropic_messages" ||
+                string("endpointClass") != "messages" || string("method") != "POST" ||
+                string("authMode") != "x_api_key" || string("authHeader") != "x-api-key" ||
+                string("requestMapper") != "minimax_anthropic_messages_v1" ||
+                headers != mapOf("Content-Type" to "application/json", "anthropic-version" to "2023-06-01")
+            ) return null
+            val path = string("path")?.takeIf { it == "/anthropic/v1/messages" } ?: return null
+            return AnthropicWebRoute(selection, request.runtime, path, "x-api-key", headers)
+        }
+
+        /** Whether this web search request switches to the Anthropic-compatible endpoint; outbound dispatch and the pre-send route resolution share this. */
+        internal fun routesWebThroughAnthropic(
+            modelID: String,
+            webSearchEnabled: Boolean,
+            reasoningMode: ReasoningMode,
+        ): Boolean = exactAnthropicWebRoute(modelID, webSearchEnabled, reasoningMode) != null
+    }
+
     override suspend fun syncProvider(
         apiKey: String,
         preferredModelID: String?,
@@ -175,35 +213,6 @@ class MiniMaxService(client: HttpClient, json: Json) : OpenAICompatibleService(
         emitAll(sendAnthropicWebMessageStream(route, apiKey, modelID, messages, baseUrl, requestOptions))
     }
 
-    private fun exactAnthropicWebRoute(
-        modelID: String,
-        webSearchEnabled: Boolean,
-        reasoningMode: ReasoningMode,
-    ): AnthropicWebRoute? {
-        if (!webSearchEnabled) return null
-        val request = MetadataClient.capabilityRuntimeRequest(
-            ProviderKind.MiniMax, modelID, "openai_chat", webRequested = true, reasoningMode = reasoningMode,
-        ) ?: return null
-        val selection = request.selections.singleOrNull { it.capability == "web" } ?: return null
-        val route = selection.route ?: return null
-        fun string(key: String) = (route[key] as? JsonPrimitive)?.contentOrNull
-        val headers = (route["headers"] as? JsonObject)?.mapNotNull { (key, value) ->
-            (value as? JsonPrimitive)?.contentOrNull?.let { key to it }
-        }?.toMap() ?: return null
-        if (selection.id != "minimax.messages.web.v1" ||
-            selection.executionKind != "endpoint_route" ||
-            selection.responseParserKind != "minimax_anthropic_web_v1" ||
-            selection.continuationKind != "replay_blocks" ||
-            string("sourceProtocol") != "openai_chat" || string("protocol") != "anthropic_messages" ||
-            string("endpointClass") != "messages" || string("method") != "POST" ||
-            string("authMode") != "x_api_key" || string("authHeader") != "x-api-key" ||
-            string("requestMapper") != "minimax_anthropic_messages_v1" ||
-            headers != mapOf("Content-Type" to "application/json", "anthropic-version" to "2023-06-01")
-        ) return null
-        val path = string("path")?.takeIf { it == "/anthropic/v1/messages" } ?: return null
-        return AnthropicWebRoute(selection, request.runtime, path, "x-api-key", headers)
-    }
-
     private fun buildAnthropicWebBody(
         route: AnthropicWebRoute,
         modelID: String,
@@ -212,8 +221,15 @@ class MiniMaxService(client: HttpClient, json: Json) : OpenAICompatibleService(
         requestOptions: ChatRequestOptions,
     ): JsonObject? {
         val resolved = MetadataClient.resolveCatalogModel(modelID, ProviderKind.MiniMax)
+        // Build the messages outside runCatching: when this turn's attachments do not fit it throws the attachment
+        // overrun the user should see, which must not be swallowed as "invalid recipe".
+        val messagesJson = MessageBuilder.buildAnthropicMessages(
+            messages,
+            MetadataClient.resolveAIModelForRouter(modelID, ProviderKind.MiniMax),
+            ai.oriveo.community.core.attachments.AttachmentTransportProfile.MiniMaxAnthropicMessages,
+        )
         val messageArray = runCatching {
-            json.parseToJsonElement("[${MessageBuilder.buildAnthropicMessages(messages, MetadataClient.resolveAIModelForRouter(modelID, ProviderKind.MiniMax))}]") as JsonArray
+            json.parseToJsonElement("[$messagesJson]") as JsonArray
         }.getOrNull() ?: return null
         var body = buildJsonObject {
             put("model", modelID)

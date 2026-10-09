@@ -630,8 +630,15 @@ class ProviderToolLegRunner(
  * shaping such as DeepSeek accepting only string content, and a leg carrying attachments
  * would be rejected.
  */
-fun toolLoopMessagesFrom(messages: List<ChatMessage>, provider: Provider, json: Json): List<ToolLoopMessage> {
-    val encoded = MessageBuilder.buildChatCompletionsMessages(messages, provider.kind)
+fun toolLoopMessagesFrom(
+    messages: List<ChatMessage>,
+    provider: Provider,
+    activeModel: AIModel?,
+    json: Json,
+): List<ToolLoopMessage> {
+    // The model decides the attachment limits; without it the default limits apply, and the verdict can differ from
+    // the one plain chat reaches for the same message.
+    val encoded = MessageBuilder.buildChatCompletionsMessages(messages, provider.kind, activeModel = activeModel)
     val array = json.parseToJsonElement("[$encoded]").jsonArray
     return array.mapNotNull { element ->
         val objectValue = element as? JsonObject ?: return@mapNotNull null

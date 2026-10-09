@@ -1,5 +1,7 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.attachments.AttachmentTransportProfile
+import ai.oriveo.community.core.attachments.NativeFileFallback
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Attachment
@@ -134,15 +136,16 @@ open class OpenAICompatibleService(
         // fallback below and come back as a 404. The test is whether a subscription context is
         // present, not the model id.
         val codexSubscription = requestOptions.openAISubscription
-        val transportKind = when {
-            codexSubscription != null -> TransportKind.OpenAIResponses
-            subscription?.usesResponses == true -> TransportKind.OpenAIResponses
-            subscription != null -> TransportKind.OpenAIChat
-            else -> TransportKind.fromWireValue(resolved?.transport) ?: TransportKind.OpenAIChat
-        }
+        val transportKind = AttachmentTransportResolver.openAICompatibleTransport(
+            subscriptionTransport = when {
+                codexSubscription != null -> TransportKind.OpenAIResponses.wireValue
+                else -> subscription?.transport
+            },
+            catalogTransport = resolved?.transport,
+        )
 
         if (transportKind == TransportKind.OpenAIResponses) {
-            emitAll(
+            val stream = { options: ChatRequestOptions ->
                 sendOpenAIResponsesStream(
                     apiKey = apiKey,
                     modelID = modelID,
@@ -150,10 +153,21 @@ open class OpenAICompatibleService(
                     baseUrl = baseUrl,
                     reasoningMode = reasoningMode,
                     webSearchEnabled = webSearchEnabled,
-                    requestOptions = requestOptions,
+                    requestOptions = options,
                     resolved = resolved,
                 )
-            )
+            }
+            // Whether a subscription backend accepts file blocks is unverified: when rejected, resend once with the files injected as text. Direct API-key connections do not fall back.
+            if (codexSubscription != null || subscription?.usesResponses == true) {
+                emitAll(
+                    NativeFileFallback.stream(
+                        lane = subscriptionFallbackLane(requestOptions),
+                        recoverable = { hasRecoverableSubscriptionFile(messages, requestOptions) },
+                    ) { textOnly -> stream(requestOptions.copy(nativeFilesDisabled = textOnly || requestOptions.nativeFilesDisabled)) },
+                )
+            } else {
+                emitAll(stream(requestOptions))
+            }
             return@flow
         }
 
@@ -464,29 +478,42 @@ open class OpenAICompatibleService(
         if (apiKey.isBlank() || modelID.isBlank()) throw ProviderServiceError.InvalidConfiguration("Missing provider credentials.")
         val resolved = MetadataClient.resolveCatalogModel(modelID, providerKind)
         val subscription = requestOptions.grokSubscription
-        val responses = subscription?.usesResponses == true ||
-            (subscription == null && TransportKind.fromWireValue(resolved?.transport) == TransportKind.OpenAIResponses)
+        val responses = AttachmentTransportResolver.openAICompatibleTransport(
+            subscriptionTransport = subscription?.transport,
+            catalogTransport = resolved?.transport,
+        ) == TransportKind.OpenAIResponses
         val endpoint = when {
             subscription?.usesResponses == true -> subscription.responsesUrl
                 ?: throw ProviderServiceError.InvalidConfiguration("Missing Grok subscription responses endpoint.")
             subscription != null -> subscription.chatUrl
             else -> resolveEndpoint(baseUrl, if (responses) EndpointResolver.EndpointKind.RESPONSES else EndpointResolver.EndpointKind.CHAT)
         }
-        val body = if (subscription?.usesResponses == true) {
-            buildGrokSubscriptionResponsesBody(modelID, messages, reasoningMode, requestOptions, stream = false)
-        } else if (responses) buildResponsesRequest(
-            modelID, messages, false, reasoningMode, webSearchEnabled, requestOptions, resolved,
-        ) else forceMiniMaxReasoningSplit(applyCapabilityRuntimeCustomFragment(
-            buildChatRequest(modelID, messages, false, reasoningMode, webSearchEnabled, supportsImageGen, requestOptions, resolved),
-            providerKind, modelID, TransportKind.OpenAIChat.wireValue, requestOptions,
-        ))
-        val response = client.post(endpoint) {
-            applyHeaders(apiKey, subscription); contentType(ContentType.Application.Json); setBody(body)
+        suspend fun post(options: ChatRequestOptions): JsonObject {
+            val body = if (subscription?.usesResponses == true) {
+                buildGrokSubscriptionResponsesBody(modelID, messages, reasoningMode, options, stream = false)
+            } else if (responses) buildResponsesRequest(
+                modelID, messages, false, reasoningMode, webSearchEnabled, options, resolved,
+            ) else forceMiniMaxReasoningSplit(applyCapabilityRuntimeCustomFragment(
+                buildChatRequest(modelID, messages, false, reasoningMode, webSearchEnabled, supportsImageGen, options, resolved),
+                providerKind, modelID, TransportKind.OpenAIChat.wireValue, options,
+            ))
+            val response = client.post(endpoint) {
+                applyHeaders(apiKey, subscription); contentType(ContentType.Application.Json); setBody(body)
+            }
+            if (!response.status.isSuccess()) {
+                throw SseParser.mapHttpError(response, subscription = subscription != null)
+            }
+            return json.parseToJsonElement(response.bodyAsText()).jsonObject
         }
-        if (!response.status.isSuccess()) {
-            throw SseParser.mapHttpError(response, subscription = subscription != null)
+        // The subscription Responses transport: when file blocks are rejected, resend once with the files injected as text.
+        val root = if (subscription?.usesResponses == true) {
+            NativeFileFallback.run(
+                lane = subscriptionFallbackLane(requestOptions),
+                recoverable = { hasRecoverableSubscriptionFile(messages, requestOptions) },
+            ) { textOnly -> post(requestOptions.copy(nativeFilesDisabled = textOnly || requestOptions.nativeFilesDisabled)) }
+        } else {
+            post(requestOptions)
         }
-        val root = json.parseToJsonElement(response.bodyAsText()).jsonObject
         val text = if (responses) {
             (root["output_text"] as? JsonPrimitive)?.contentOrNull ?: (root["output"] as? JsonArray).orEmpty()
                 .flatMap { ((it as? JsonObject)?.get("content") as? JsonArray).orEmpty() }
@@ -596,6 +623,7 @@ open class OpenAICompatibleService(
                 inputElementsJson = MessageBuilder.buildOpenAIResponsesInput(
                     messages,
                     requestOptions.activeModel,
+                    subscriptionAttachmentTransport(requestOptions),
                 ),
                 // Android's ChatRole only has user and assistant, and the system prompt has always
                 // travelled in options, so there is nothing to strip out of messages here.
@@ -785,6 +813,23 @@ open class OpenAICompatibleService(
         }
     }
 
+    /** The attachment transport this subscription Responses request uses. */
+    private fun subscriptionAttachmentTransport(requestOptions: ChatRequestOptions): AttachmentTransportProfile =
+        AttachmentTransportProfile.SubscriptionResponses.let {
+            if (requestOptions.nativeFilesDisabled) it.withoutNativeFiles() else it
+        }
+
+    private fun subscriptionFallbackLane(requestOptions: ChatRequestOptions) = NativeFileFallback.Lane(
+        connectionId = requestOptions.modelControlRuntimeIdentity?.connectionId ?: "${providerKind.rawValue}-subscription",
+        providerKind = providerKind,
+        protocol = TransportKind.OpenAIResponses.wireValue,
+    )
+
+    private fun hasRecoverableSubscriptionFile(messages: List<ChatMessage>, requestOptions: ChatRequestOptions): Boolean =
+        NativeFileFallback.hasRecoverableNativeFile(
+            messages, requestOptions.activeModel, AttachmentTransportProfile.SubscriptionResponses,
+        )
+
     private fun buildGrokSubscriptionResponsesBody(
         modelID: String,
         messages: List<ChatMessage>,
@@ -795,7 +840,9 @@ open class OpenAICompatibleService(
         val model = requestOptions.activeModel
         return GrokSubscriptionOutbound.buildResponsesBody(
             modelID = modelID,
-            inputElementsJson = MessageBuilder.buildOpenAIResponsesInput(messages, model),
+            inputElementsJson = MessageBuilder.buildOpenAIResponsesInput(
+                messages, model, subscriptionAttachmentTransport(requestOptions),
+            ),
             systemPrompt = MessageBuilder.normalizeRequestOptions(requestOptions).systemPrompt,
             supportsWebSearch = model?.capabilities?.contains(ModelCapability.Web) == true,
             reasoningMode = reasoningMode.rawValue,
@@ -1013,6 +1060,7 @@ open class OpenAICompatibleService(
         val msgs = buildMessagesJson(
             messages = messagesForCapabilityProjection(messages, capabilityProjection),
             systemPrompt = options.systemPrompt,
+            activeModel = requestOptions.activeModel,
         )
 
         val extras = mutableListOf<String>()
@@ -1290,11 +1338,16 @@ open class OpenAICompatibleService(
      * cannot cover its shape - do not start a second construction path inside a subclass, or
      * other consumers such as the library retrieval leg will miss it.
      */
-    protected open fun buildMessagesJson(messages: List<ChatMessage>, systemPrompt: String?): String {
+    protected open fun buildMessagesJson(
+        messages: List<ChatMessage>,
+        systemPrompt: String?,
+        activeModel: AIModel? = null,
+    ): String {
         return MessageBuilder.buildChatCompletionsMessages(
             messages = messages,
             providerKind = providerKind,
             systemPrompt = systemPrompt,
+            activeModel = activeModel,
         )
     }
 

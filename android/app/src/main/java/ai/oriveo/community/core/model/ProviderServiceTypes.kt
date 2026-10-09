@@ -48,6 +48,79 @@ sealed class ProviderServiceError : Exception() {
         /** For a "field this section does not accept" rejection, the fields the section does allow: official declared paths, never user input. */
         val allowedPaths: List<String> = emptyList(),
     ) : ProviderServiceError()
+    /**
+     * This message's file attachments, delivered as text, exceed the current model's limits (total size or count), so some files cannot be sent and the whole message was not sent.
+     * Like [LocalRequestRejected] this is a local block: the connection is fine and the request never left the device.
+     * [fileNames] are the files that fell outside the limit, in attachment order.
+     */
+    data class AttachmentTextOverLimit(
+        val fileNames: List<String>,
+        /** The count limit when other files in the same message are also turned away by it; null when only the text total is the problem. */
+        val countLimit: Int? = null,
+    ) : ProviderServiceError() {
+        /** The file names as shown to the user; the same string the persisted safe code encodes. */
+        val fileNamesText: String get() = fileNames.joinToString(NAME_SEPARATOR)
+
+        companion object {
+            /** Diagnostics use only this stable code, never file names. */
+            const val CODE = "attachment_text_over_limit"
+            private const val DETAIL_PREFIX = "$CODE:"
+            private const val NAME_SEPARATOR = ", "
+
+            /** Whether a persisted `errorDetail` is this kind of failure. */
+            fun isDetail(detail: String?): Boolean = detail != null && detail.startsWith(DETAIL_PREFIX)
+
+            /** Restores the displayed file-name string from the persisted safe code; null when it is not this failure or the encoding is damaged. */
+            fun fileNamesTextFromDetail(detail: String?): String? {
+                if (detail == null || !detail.startsWith(DETAIL_PREFIX)) return null
+                return runCatching {
+                    String(
+                        java.util.Base64.getUrlDecoder()
+                            .decode(detail.removePrefix(DETAIL_PREFIX).substringBefore(COUNT_SEPARATOR)),
+                        Charsets.UTF_8,
+                    )
+                }.getOrNull()
+            }
+
+            /** When this failure also hit the count limit, restores that limit from the safe code; null when absent or damaged. */
+            fun countLimitFromDetail(detail: String?): Int? {
+                if (detail == null || !detail.startsWith(DETAIL_PREFIX)) return null
+                val body = detail.removePrefix(DETAIL_PREFIX)
+                if (COUNT_SEPARATOR !in body) return null
+                return body.substringAfter(COUNT_SEPARATOR).toIntOrNull()
+            }
+
+            // The base64url alphabet has no ':', so it can safely join the count limit after the name segment.
+            private const val COUNT_SEPARATOR = ':'
+
+            internal fun detailFor(fileNames: List<String>, countLimit: Int? = null): String =
+                // File names are user content and may contain ':' / '@', so they are encoded and placed after the code
+                DETAIL_PREFIX + java.util.Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(fileNames.joinToString(NAME_SEPARATOR).toByteArray(Charsets.UTF_8)) +
+                    (countLimit?.let { "$COUNT_SEPARATOR$it" } ?: "")
+        }
+    }
+    /**
+     * The number of this message's files delivered as text exceeds the current model's limit and nothing else is over a limit, so the whole message was not sent.
+     * A local block like [AttachmentTextOverLimit]; kept separate because the way out is worded differently: this one says "at most N files".
+     */
+    data class AttachmentCountOverLimit(val maxFiles: Int) : ProviderServiceError() {
+        companion object {
+            const val CODE = "attachment_count_over_limit"
+            private const val DETAIL_PREFIX = "$CODE:"
+
+            /** Whether a persisted `errorDetail` is this kind of failure. */
+            fun isDetail(detail: String?): Boolean = detail != null && detail.startsWith(DETAIL_PREFIX)
+
+            /** Restores the count limit from the persisted safe code; null when it is not this failure or the number is damaged. */
+            fun maxFilesFromDetail(detail: String?): Int? {
+                if (detail == null || !detail.startsWith(DETAIL_PREFIX)) return null
+                return detail.removePrefix(DETAIL_PREFIX).toIntOrNull()
+            }
+
+            internal fun detailFor(maxFiles: Int): String = DETAIL_PREFIX + maxFiles
+        }
+    }
     data class Network(val detail: String) : ProviderServiceError()
     data class Upstream(
         val statusCode: Int,
@@ -96,6 +169,7 @@ sealed class ProviderServiceError : Exception() {
             is LocalRequestRejected ->
                 if (owner == ai.oriveo.community.core.provider.AdditionalRequestBody.OWNER) "Check the additional request body"
                 else "Custom request fields"
+            is AttachmentTextOverLimit, is AttachmentCountOverLimit -> "Attachment Not Accepted"
             is Network, is Upstream -> "Provider Request Failed"
             is GrokSubscription -> "Grok subscription"
             is OpenAISubscription -> "ChatGPT subscription"
@@ -112,6 +186,10 @@ sealed class ProviderServiceError : Exception() {
             is EmptyResponse -> "The provider returned no assistant content for this message."
             is InvalidConfiguration -> "The selected provider configuration is incomplete, so the request could not be sent."
             is LocalRequestRejected -> "This message was not sent. Fix the custom request fields and try again."
+            is AttachmentTextOverLimit ->
+                (countLimit?.let { "You can attach up to $it files for this model.\n" } ?: "") +
+                    "Not sent: with ${fileNames.joinToString(", ")}, the attached text is over this model's limit. Remove a file or switch models."
+            is AttachmentCountOverLimit -> "You can attach up to $maxFiles files for this model."
             is Network -> "The request did not complete successfully. Please check your network and try again."
             is Upstream -> "The provider returned an error for this request. Please retry or switch models."
             is GrokSubscription -> reason.userMessage
@@ -144,6 +222,8 @@ sealed class ProviderServiceError : Exception() {
                     )
                 }
             }
+            is AttachmentTextOverLimit -> AttachmentTextOverLimit.detailFor(fileNames, countLimit)
+            is AttachmentCountOverLimit -> AttachmentCountOverLimit.detailFor(maxFiles)
             is Network -> detail
             is Upstream -> "Upstream HTTP $statusCode: $detail"
             is GrokSubscription -> "Grok subscription ${reason.name}: $detail"

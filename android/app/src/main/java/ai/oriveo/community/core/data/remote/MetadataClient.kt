@@ -289,6 +289,8 @@ class MetadataClient internal constructor(
         val nativeFileMimes: List<String> = emptyList(),
 
         val pdfNativeDefault: Boolean = false,
+        /** Attachment limits the catalog sets for this model (lines / bytes per file, total text, input file size); null when not set. */
+        val attachmentExtraction: ai.oriveo.community.core.model.AttachmentExtractionLimits? = null,
 
         val capabilityEvidenceCandidates: List<CapabilityEvidenceCandidateView>? = null,
 
@@ -707,6 +709,8 @@ class MetadataClient internal constructor(
         val nativeFileMimes: List<String>? = null,
 
         val pdfNativeDefault: Boolean? = null,
+        /** Per-model attachment limit overrides; every field is optional. */
+        val attachmentExtraction: ai.oriveo.community.core.model.AttachmentExtractionLimits? = null,
 
         val capabilityEvidenceView: JsonElement? = JsonPrimitive(CAPABILITY_EVIDENCE_ABSENT),
         val capabilityEvidenceCandidates: List<CapabilityEvidenceCandidateView>? = null,
@@ -1900,6 +1904,7 @@ class MetadataClient internal constructor(
             transport = model.transport?.takeIf { it.isNotBlank() },
             nativeFileMimes = model.nativeFileMimes.orEmpty(),
             pdfNativeDefault = model.pdfNativeDefault ?: false,
+            attachmentExtraction = model.attachmentExtraction,
             capabilityEvidenceCandidates = model.capabilityEvidenceCandidates,
             capabilityEvidenceOwnedKeys = model.capabilityEvidenceOwnedKeys?.toSet(),
             capabilityEvidenceViewMalformed = model.capabilityEvidenceViewMalformed,
@@ -2084,6 +2089,7 @@ class MetadataClient internal constructor(
             priceTier = metadata.pricingStatus,
             nativeFileMimes = metadata.nativeFileMimes,
             pdfNativeDefault = metadata.pdfNativeDefault,
+            attachmentExtraction = metadata.attachmentExtraction,
             toolCall = metadata.toolCall,
         )
     }

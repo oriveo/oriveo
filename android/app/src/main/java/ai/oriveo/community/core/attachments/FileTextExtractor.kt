@@ -69,7 +69,8 @@ data class FileExtractionLimits(
                 maxBytes = o.maxBytes ?: DEFAULT.maxBytes,
                 totalCap = o.totalCap ?: DEFAULT.totalCap,
                 maxInputFileBytes = o.maxInputFileBytes?.toLong() ?: DEFAULT.maxInputFileBytes,
-
+                // The file-count cap comes with the model; fall back to the default when it is missing or not positive.
+                maxFiles = o.maxAttachments?.takeIf { it > 0 } ?: DEFAULT.maxFiles,
             )
         }
     }
@@ -159,6 +160,25 @@ object FileTextExtractor {
     private val linkageFailureLogged = AtomicBoolean(false)
     private const val TAG = "FileTextExtractor"
 
+    /** The longest prefix of [text] that fits in [maxBytes] UTF-8 bytes without splitting a character (surrogate pairs included). */
+    private fun utf8Prefix(text: String, maxBytes: Int): String {
+        var bytes = 0
+        var index = 0
+        while (index < text.length) {
+            val codePoint = text.codePointAt(index)
+            val width = when {
+                codePoint < 0x80 -> 1
+                codePoint < 0x800 -> 2
+                codePoint < 0x10000 -> 3
+                else -> 4
+            }
+            if (bytes + width > maxBytes) break
+            bytes += width
+            index += Character.charCount(codePoint)
+        }
+        return text.substring(0, index)
+    }
+
     /**
      * The whole text of a PDF, untruncated, for callers that store the full text as a knowledge
      * file (skill reference import). It goes through the same failure boundary as [extract].
@@ -243,10 +263,16 @@ object FileTextExtractor {
                     hi = mid - 1
                 }
             }
-            pickedLines = pickedLines.take(lo)
-
-            pickedLines = alignToLogicalBoundary(pickedLines)
-            joined = pickedLines.joinToString("\n")
+            if (lo == 0) {
+                // The first line alone does not fit (minified JSON, a log with no newlines): cutting by line would
+                // leave nothing, so keep the start of that line up to a character boundary instead.
+                joined = utf8Prefix(pickedLines.firstOrNull().orEmpty(), limits.maxBytes)
+            } else {
+                pickedLines = pickedLines.take(lo)
+                // Fall back to a logical separator (XLSX sheet / PPTX slide)
+                pickedLines = alignToLogicalBoundary(pickedLines)
+                joined = pickedLines.joinToString("\n")
+            }
             truncated = true
             if (reason == null) reason = ExtractedText.TruncationReason.Bytes
         }

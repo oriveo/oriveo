@@ -32,6 +32,8 @@ object AttachmentInjector {
     data class InjectResult(
         val text: String,
         val skipped: List<SkippedAttachment>,
+        /** Parallel to [skipped]: the index in the input list of each skipped attachment (it tells apart files with the same name). */
+        val skippedIndexes: List<Int> = emptyList(),
     )
 
     private val errorInstructions = mapOf(
@@ -46,7 +48,7 @@ object AttachmentInjector {
         ExtractionErrorCode.UnsupportedFormat to
             "This file format is not supported by the local extractor. DO NOT fabricate content. Tell the user which formats are supported (PDF / DOCX / XLSX / PPTX / EPUB / HTML / plain text / code files).",
         ExtractionErrorCode.FileTooLarge to
-            "This file exceeds the maximum size limit. DO NOT fabricate content. Tell the user the file is too large and ask them to split or shorten it.",
+            "This file is past the size the local extractor will read, either as stored or once unpacked. DO NOT fabricate content. Tell the user the file is too large and ask them to split or shorten it.",
         ExtractionErrorCode.ExtractionTimeout to
             "Extraction of this file timed out (over 30 seconds). DO NOT fabricate content. Tell the user the file is too complex; ask them to simplify or split it.",
         ExtractionErrorCode.ExtractionError to
@@ -59,11 +61,16 @@ object AttachmentInjector {
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> "docx"
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> "xlsx"
             "application/vnd.openxmlformats-officedocument.presentationml.presentation" -> "pptx"
+            "application/vnd.oasis.opendocument.text" -> "odt"
+            "application/vnd.oasis.opendocument.spreadsheet" -> "ods"
+            "application/vnd.oasis.opendocument.presentation" -> "odp"
             "application/epub+zip" -> "epub"
             "text/html", "application/xhtml+xml" -> "html"
             "text/markdown" -> "md"
             "application/json" -> "json"
             "application/xml", "text/xml" -> "xml"
+            "application/rtf", "text/rtf" -> "rtf"
+            "image/svg+xml" -> "svg"
             else -> fileName.substringAfterLast('.', "").lowercase().ifEmpty { "txt" }
         }
     }
@@ -92,16 +99,9 @@ object AttachmentInjector {
         if (payload.extracted?.truncated == true) {
             val n = payload.extracted.content.split("\n").size
             val total = payload.extracted.totalLines
-            val text = when (payload.extracted.truncationReason) {
-                ExtractedText.TruncationReason.Lines ->
-                    "showing first $n of $total lines (size cap 200KB)"
-                ExtractedText.TruncationReason.Bytes ->
-                    "showing first $n of $total lines (truncated to fit 200KB cap)"
-                // The reason is not persisted, so an attachment rebuilt at send time has none;
-                // the model must still be told the file was truncated.
-                null -> "showing first $n of $total lines"
-            }
-            appendLine("<TRUNCATED>$text</TRUNCATED>")
+            // No cap or reason in the marker: the cap varies per model and the reason is not persisted,
+            // so any number written here would be wrong.
+            appendLine("<TRUNCATED>showing first $n of $total lines</TRUNCATED>")
         }
         append("</ATTACHMENT_FILE>")
     }
@@ -116,7 +116,7 @@ object AttachmentInjector {
         if (payload.extracted != null) {
             if (payload.extracted.truncated) {
                 val n = payload.extracted.content.split("\n").size
-                appendLine("- Lines: ${payload.extracted.totalLines} (showing first $n, size cap 200KB)")
+                appendLine("- Lines: ${payload.extracted.totalLines} (showing first $n)")
             } else {
                 appendLine("- Lines: ${payload.extracted.totalLines}")
             }
@@ -149,16 +149,19 @@ object AttachmentInjector {
         wrapper: AttachmentWrapperVersion = AttachmentWrapperVersion.XmlV1,
     ): InjectResult {
         val parts = mutableListOf<String>()
-        if (userText.isNotEmpty()) parts.add(userText)
+        // Whitespace-only text is dropped; anything with content is kept verbatim.
+        if (userText.isNotBlank()) parts.add(userText)
 
         var consumed = 0
         val skipped = mutableListOf<SkippedAttachment>()
+        val skippedIndexes = mutableListOf<Int>()
         var emittedIndex = 0
 
-        for (att in attachments) {
-
+        for ((inputIndex, att) in attachments.withIndex()) {
+            // Hard cap on the number of files
             if (emittedIndex >= limits.maxFiles) {
                 skipped.add(SkippedAttachment(att.fileName, SkipReason.TooManyFiles))
+                skippedIndexes.add(inputIndex)
                 continue
             }
             // The total cap counts body text only. The wrapper and truncation marker do not use budget, or a file
@@ -166,6 +169,7 @@ object AttachmentInjector {
             val contentBytes = att.extracted?.content?.toByteArray(Charsets.UTF_8)?.size ?: 0
             if (consumed + contentBytes > limits.totalCap) {
                 skipped.add(SkippedAttachment(att.fileName, SkipReason.TotalCapExceeded))
+                skippedIndexes.add(inputIndex)
                 continue
             }
             parts.add(formatAttachment(wrapper, emittedIndex + 1, att))
@@ -173,7 +177,7 @@ object AttachmentInjector {
             emittedIndex += 1
         }
 
-        return InjectResult(text = parts.joinToString("\n\n"), skipped = skipped)
+        return InjectResult(text = parts.joinToString("\n\n"), skipped = skipped, skippedIndexes = skippedIndexes)
     }
 
     const val SYSTEM_PROMPT_GUIDANCE = "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."

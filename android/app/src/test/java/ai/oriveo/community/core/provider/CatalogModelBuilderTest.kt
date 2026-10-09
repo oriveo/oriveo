@@ -25,6 +25,77 @@ class CatalogModelBuilderTest {
     }
 
     @After
+    // ── Per-model attachment limit overrides ──
+
+    @Test
+    fun `attachment limits from metadata reach every model object the delivery code uses`() {
+        MetadataTestFixtures.applyRaw(
+            """
+            {"version":1,"providers":{"openAI":{
+              "resolveMap":{"tight":"tight","plain":"plain"},
+              "models":{
+                "tight":{"attachmentExtraction":{"maxLines":120,"maxBytes":50000,"totalCap":90000,"maxInputFileBytes":1048576}},
+                "plain":{}
+              }}}}
+            """.trimIndent(),
+        )
+        val expected = ai.oriveo.community.core.model.AttachmentExtractionLimits(
+            maxLines = 120, maxBytes = 50_000, totalCap = 90_000, maxInputFileBytes = 1_048_576,
+        )
+        // The entry in the model list (add-attachment, the Chat Completions route and the pre-send check use it).
+        val built = CatalogModelBuilder.buildCatalogModel(ProviderKind.OpenAI, "tight", "tight")
+        assertEquals(expected, built.attachmentExtraction)
+        // The one the native routes' request builders use.
+        assertEquals(expected, MetadataClient.resolveAIModelForRouter("tight", ProviderKind.OpenAI)?.attachmentExtraction)
+        val limits = ai.oriveo.community.core.attachments.FileExtractionLimits.resolve(built)
+        assertEquals(120, limits.maxLines)
+        assertEquals(50_000, limits.maxBytes)
+        assertEquals(90_000, limits.totalCap)
+        assertEquals(1_048_576L, limits.maxInputFileBytes)
+
+        // A stored model follows catalog refreshes: limits are carried when the catalog sends them and cleared when it withdraws them.
+        val stale = AIModel(id = "plain", name = "plain", attachmentExtraction = expected)
+        assertNull(CatalogModelBuilder.enrichStoredModel(stale, ProviderKind.OpenAI).attachmentExtraction)
+        val fresh = AIModel(id = "tight", name = "tight")
+        assertEquals(expected, CatalogModelBuilder.enrichStoredModel(fresh, ProviderKind.OpenAI).attachmentExtraction)
+    }
+
+    // ── Native file allowlist ──
+
+    @Test
+    fun `native file whitelist from metadata reaches built and refreshed models and is cleared when withdrawn`() {
+        MetadataTestFixtures.applyRaw(
+            """
+            {"version":1,"providers":{"openRouter":{
+              "resolveMap":{"native":"native","plain":"plain"},
+              "models":{
+                "native":{"nativeFileMimes":["application/pdf"],"pdfNativeDefault":true},
+                "plain":{}
+              }}}}
+            """.trimIndent(),
+        )
+        val built = CatalogModelBuilder.buildCatalogModel(ProviderKind.OpenRouter, "native", "native")
+        assertEquals(listOf("application/pdf"), built.nativeFileMimes)
+        assertTrue(built.pdfNativeDefault)
+
+        // A catalog entry without these two fields means no native upload; a model the catalog cannot find is empty as well.
+        val plain = CatalogModelBuilder.buildCatalogModel(ProviderKind.OpenRouter, "plain", "plain")
+        assertEquals(emptyList<String>(), plain.nativeFileMimes)
+        assertFalse(plain.pdfNativeDefault)
+        val unknown = CatalogModelBuilder.buildCatalogModel(ProviderKind.OpenRouter, "not-in-catalog", "x")
+        assertEquals(emptyList<String>(), unknown.nativeFileMimes)
+        assertFalse(unknown.pdfNativeDefault)
+
+        val fresh = CatalogModelBuilder.enrichStoredModel(AIModel(id = "native", name = "native"), ProviderKind.OpenRouter)
+        assertEquals(listOf("application/pdf"), fresh.nativeFileMimes)
+        assertTrue(fresh.pdfNativeDefault)
+        // Once the catalog withdraws the allowlist, the old value on a stored model must not linger.
+        val stale = AIModel(id = "plain", name = "plain", nativeFileMimes = listOf("application/pdf"), pdfNativeDefault = true)
+        val cleared = CatalogModelBuilder.enrichStoredModel(stale, ProviderKind.OpenRouter)
+        assertEquals(emptyList<String>(), cleared.nativeFileMimes)
+        assertFalse(cleared.pdfNativeDefault)
+    }
+
     fun tearDown() {
         MetadataTestFixtures.clear()
     }

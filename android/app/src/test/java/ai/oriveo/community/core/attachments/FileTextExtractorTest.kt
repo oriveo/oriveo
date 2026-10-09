@@ -33,12 +33,57 @@ class FileTextExtractorTest {
         assertTrue(r.content.toByteArray(Charsets.UTF_8).size <= FileExtractionLimits.MAX_BYTES)
     }
 
+    /** A document that is a single line over the byte cap: keep the start, cut on a UTF-8 character boundary, and never cut it down to nothing. */
+    @Test
+    fun aSingleLineOverTheByteCapKeepsItsHeadCutOnACharacterBoundary() {
+        val limits = FileExtractionLimits.DEFAULT.copy(maxBytes = 10)
+        // Each CJK character takes 3 bytes: 10 bytes fit 3 of them, and the 4th must not be cut in half.
+        val cjk = FileTextExtractor.truncate("\u4e00\u4e8c\u4e09\u56db\u4e94\u516d", 18, limits)
+        assertEquals("\u4e00\u4e8c\u4e09", cjk.content)
+        assertTrue(cjk.truncated)
+        assertEquals(ExtractedText.TruncationReason.Bytes, cjk.truncationReason)
+        assertEquals(1, cjk.totalLines)
+        // A 4-byte emoji (a surrogate pair) is not split either.
+        val emoji = FileTextExtractor.truncate("ab😀😀😀", 14, limits)
+        assertEquals("ab😀😀", emoji.content)
+        // Through the production extraction entry point: minified JSON.
+        val json = "{\"k\":\"" + "v".repeat(300_000) + "\"}"
+        val extracted = FileTextExtractor.extract(json.toByteArray(), "min.json", "application/json")
+        assertTrue(extracted.truncated)
+        assertEquals(FileExtractionLimits.MAX_BYTES, extracted.content.toByteArray(Charsets.UTF_8).size)
+        assertTrue(extracted.content.startsWith("{\"k\":\"vvv"))
+    }
+
+    /** The first line alone is over the cap and more lines follow: the start of the first line is kept the same way. */
+    @Test
+    fun anOversizedFirstLineIsCutInsideTheLineEvenWhenMoreLinesFollow() {
+        val limits = FileExtractionLimits.DEFAULT.copy(maxBytes = 10)
+        val r = FileTextExtractor.truncate("0123456789ABCDEF\nsecond", 23, limits)
+        assertEquals("0123456789", r.content)
+        assertTrue(r.truncated)
+        assertEquals(2, r.totalLines)
+    }
+
     @Test
     fun resolveDefaultWhenNoModel() {
         val limits = FileExtractionLimits.resolve(null)
         assertEquals(500, limits.maxLines)
         assertEquals(204_800, limits.maxBytes)
         assertEquals(3, limits.maxFiles)
+    }
+
+    @Test
+    fun resolveTakesTheAttachmentCountFromTheModel() {
+        fun model(maxAttachments: Int?) = ai.oriveo.community.core.model.AIModel(
+            id = "m",
+            name = "m",
+            attachmentExtraction = ai.oriveo.community.core.model.AttachmentExtractionLimits(maxAttachments = maxAttachments),
+        )
+        assertEquals(5, FileExtractionLimits.resolve(model(5)).maxFiles)
+        assertEquals(1, FileExtractionLimits.resolve(model(1)).maxFiles)
+        // When it is not set or not positive, the default applies.
+        assertEquals(3, FileExtractionLimits.resolve(model(null)).maxFiles)
+        assertEquals(3, FileExtractionLimits.resolve(model(0)).maxFiles)
     }
 
     @Test
@@ -232,7 +277,8 @@ class FileTextExtractorTest {
             (1..7).joinToString("\n") { "l$it" },
             (1..8).joinToString("\n") { "l$it" },
             (1..40).joinToString("\n") { "line number $it" },
-            "x".repeat(200),
+            // "The first line alone is over the cap" is not in the comparison: the old implementation cut it down to nothing, and now the start of the line is kept
+            // (see aSingleLineOverTheByteCapKeepsItsHeadCutOnACharacterBoundary).
             // Multi-byte characters, so the byte limit and the character count disagree.
             "\u77ed\u884c\n" + "\u6c49".repeat(30) + "\n\u5c3e",
             "windows\r\nline\r\nendings",

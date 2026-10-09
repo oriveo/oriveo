@@ -324,6 +324,8 @@ data class ChatRequestOptions(
     /** Normal sends suppress an entire rejected owner. Only an explicit one-request recipe latch may bypass it. */
     @kotlinx.serialization.Transient val dormantCapabilityOwners: Set<String> = emptySet(),
     @kotlinx.serialization.Transient val activeModel: AIModel? = null,
+    /** This request must not carry original file blocks (the resend after a native file fallback, or a connection already known not to accept them). Set only inside the outbound path. */
+    @kotlinx.serialization.Transient val nativeFilesDisabled: Boolean = false,
     /** P3c local-only continuation: populated only by ChatRepository on an explicit continue/retry. */
     @kotlinx.serialization.Transient val localContinuationMessageId: String? = null,
     @kotlinx.serialization.Transient val localContinuationState: JsonObject? = null,

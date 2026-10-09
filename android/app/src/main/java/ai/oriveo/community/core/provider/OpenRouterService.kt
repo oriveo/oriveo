@@ -304,6 +304,7 @@ class OpenRouterService(
             messages = messagesForCapabilityProjection(messages, capabilityProjection),
             providerKind = ProviderKind.OpenRouter,
             systemPrompt = options.systemPrompt,
+            activeModel = requestOptions.activeModel,
         )
 
         val extras = mutableListOf<String>()

@@ -1,6 +1,8 @@
 package ai.oriveo.community.core.provider.relay
 
 import ai.oriveo.community.core.data.remote.MetadataClient
+import ai.oriveo.community.core.attachments.AttachmentTransportProfile
+import ai.oriveo.community.core.attachments.NativeFileFallback
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
@@ -302,12 +304,65 @@ internal class RelayTransportCoordinator(
         )
         return when (resolveTransport(requestOptions)) {
             RelayTransport.LlamaCppNative -> sendLlamaCppNative(request)
-            RelayTransport.OpenAIResponses -> openAIResponsesTransport.send(request)
+            RelayTransport.OpenAIResponses ->
+                sendWithNativeFileFallback(request, RelayTransport.OpenAIResponses, openAIResponsesTransport::send)
             RelayTransport.OpenAIChatCompletions, RelayTransport.Auto -> openAIChatTransport.send(request)
-            RelayTransport.GeminiGenerateContent -> geminiTransport.send(request)
-            RelayTransport.AnthropicMessages -> anthropicMessagesTransport.send(request)
+            RelayTransport.GeminiGenerateContent ->
+                sendWithNativeFileFallback(request, RelayTransport.GeminiGenerateContent, geminiTransport::send)
+            RelayTransport.AnthropicMessages ->
+                sendWithNativeFileFallback(request, RelayTransport.AnthropicMessages, anthropicMessagesTransport::send)
         }
     }
+
+    /**
+     * The attachment transport of each of the three Relay protocols that carry native file blocks, paired with the official catalog entry used to look up the model allowlist.
+     * It is the same pair [buildResponsesBody] / [buildAnthropicBody] / [buildGeminiBody] use.
+     */
+    private fun nativeFileLane(transport: RelayTransport): Pair<AttachmentTransportProfile, ProviderKind> =
+        when (transport) {
+            RelayTransport.OpenAIResponses -> AttachmentTransportProfile.RelayOpenAIResponses to ProviderKind.OpenAI
+            RelayTransport.AnthropicMessages -> AttachmentTransportProfile.RelayAnthropicMessages to ProviderKind.Anthropic
+            RelayTransport.GeminiGenerateContent -> AttachmentTransportProfile.RelayGeminiGenerateContent to ProviderKind.Gemini
+            else -> error("no native file blocks on $transport")
+        }
+
+    private fun fallbackLane(request: RelayTransportRequest, transport: RelayTransport) = NativeFileFallback.Lane(
+        // The connection identity comes first; callers without one (connectivity probes and the like) fall back to the endpoint address.
+        connectionId = request.requestOptions.modelControlRuntimeIdentity?.connectionId
+            ?: request.baseUrl.orEmpty(),
+        providerKind = ProviderKind.Relay,
+        protocol = transport.value,
+    )
+
+    private fun hasRecoverableNativeFile(request: RelayTransportRequest, transport: RelayTransport): Boolean {
+        val (profile, catalogKind) = nativeFileLane(transport)
+        return NativeFileFallback.hasRecoverableNativeFile(
+            request.messages,
+            MetadataClient.resolveAIModelForRouter(request.modelID, catalogKind),
+            profile,
+        )
+    }
+
+    private fun RelayTransportRequest.textOnly(textOnly: Boolean): RelayTransportRequest =
+        if (textOnly) copy(requestOptions = requestOptions.copy(nativeFilesDisabled = true)) else this
+
+    private suspend fun sendWithNativeFileFallback(
+        request: RelayTransportRequest,
+        transport: RelayTransport,
+        send: suspend (RelayTransportRequest) -> StreamEvent.Done,
+    ): StreamEvent.Done = NativeFileFallback.run(
+        lane = fallbackLane(request, transport),
+        recoverable = { hasRecoverableNativeFile(request, transport) },
+    ) { textOnly -> send(request.textOnly(textOnly)) }
+
+    private fun streamWithNativeFileFallback(
+        request: RelayTransportRequest,
+        transport: RelayTransport,
+        stream: (RelayTransportRequest) -> Flow<StreamEvent>,
+    ): Flow<StreamEvent> = NativeFileFallback.stream(
+        lane = fallbackLane(request, transport),
+        recoverable = { hasRecoverableNativeFile(request, transport) },
+    ) { textOnly -> stream(request.textOnly(textOnly)) }
 
     override fun sendMessageStream(
         apiKey: String,
@@ -332,9 +387,12 @@ internal class RelayTransportCoordinator(
         )
         return when (resolveTransport(requestOptions)) {
             RelayTransport.LlamaCppNative -> streamLlamaCppNative(request)
-            RelayTransport.OpenAIResponses -> openAIResponsesTransport.stream(request)
-            RelayTransport.AnthropicMessages -> anthropicMessagesTransport.stream(request)
-            RelayTransport.GeminiGenerateContent -> geminiTransport.stream(request)
+            RelayTransport.OpenAIResponses ->
+                streamWithNativeFileFallback(request, RelayTransport.OpenAIResponses, openAIResponsesTransport::stream)
+            RelayTransport.AnthropicMessages ->
+                streamWithNativeFileFallback(request, RelayTransport.AnthropicMessages, anthropicMessagesTransport::stream)
+            RelayTransport.GeminiGenerateContent ->
+                streamWithNativeFileFallback(request, RelayTransport.GeminiGenerateContent, geminiTransport::stream)
             RelayTransport.OpenAIChatCompletions,
             RelayTransport.Auto,
             -> openAIChatTransport.stream(request)
@@ -1927,11 +1985,8 @@ internal class RelayTransportCoordinator(
         }
     }
 
-    private fun resolveTransport(requestOptions: ChatRequestOptions): RelayTransport {
-        return requestOptions.relayRequested?.transport
-            ?.takeIf { it != RelayTransport.Auto }
-            ?: RelayTransport.OpenAIChatCompletions
-    }
+    private fun resolveTransport(requestOptions: ChatRequestOptions): RelayTransport =
+        ai.oriveo.community.core.provider.AttachmentTransportResolver.relayTransport(requestOptions.relayRequested)
 
     /**
      * Builds the runtime cache identity only after the actual dispatch and the final URL are known.

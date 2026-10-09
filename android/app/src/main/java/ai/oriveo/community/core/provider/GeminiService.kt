@@ -1,6 +1,8 @@
 package ai.oriveo.community.core.provider
 
 import ai.oriveo.community.core.data.remote.MetadataClient
+import ai.oriveo.community.core.attachments.AttachmentDelivery
+import ai.oriveo.community.core.attachments.AttachmentTransportProfile
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ChatMessage
@@ -63,6 +65,30 @@ class GeminiService(
 
     companion object {
         private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+
+        /**
+         * Whether this request switches to Interactions: only when the server recipe selects an endpoint_route for
+         * web search. Outbound dispatch and the pre-send route resolution share this one place, and the recipe itself
+         * is returned for the outbound path to use.
+         */
+        internal fun interactionsRoute(
+            modelID: String,
+            webSearchEnabled: Boolean,
+            reasoningMode: ReasoningMode,
+        ): Pair<MetadataClient.CapabilityRuntimeRequest, MetadataClient.CapabilityRecipeSelection>? {
+            val runtime = MetadataClient.capabilityRuntimeRequest(
+                providerKind = ProviderKind.Gemini,
+                modelID = modelID,
+                finalTransport = "gemini_interactions",
+                webRequested = webSearchEnabled,
+                reasoningMode = reasoningMode,
+            ) ?: return null
+            val recipe = runtime.selections.firstOrNull {
+                it.capability == "web" && it.executionKind == "endpoint_route"
+            } ?: return null
+            return runtime to recipe
+        }
+
         // TransportKind is this module's historical internal key for a strategy, while
         // capabilityRuntime uses the canonical protocol name from the recipe contract. A
         // local enum drifting apart from that must never reject an otherwise valid recipe.
@@ -98,10 +124,9 @@ class GeminiService(
         webSearchEnabled: Boolean,
         requestOptions: ChatRequestOptions,
     ): StreamEvent.Done {
-        val runtime = MetadataClient.capabilityRuntimeRequest(
-            ProviderKind.Gemini, modelID, "gemini_interactions", webSearchEnabled, reasoningMode,
-        )
-        val recipe = runtime?.selections?.firstOrNull { it.capability == "web" && it.executionKind == "endpoint_route" }
+        val interactions = interactionsRoute(modelID, webSearchEnabled, reasoningMode)
+        val runtime = interactions?.first
+        val recipe = interactions?.second
         if (runtime != null && recipe != null) {
             var done: StreamEvent.Done? = null
             sendInteractionsStream(apiKey, modelID, messages, baseUrl, false, runtime.runtime, recipe, requestOptions)
@@ -148,16 +173,9 @@ class GeminiService(
 
         // Interactions is only reachable through an exact endpoint_route recipe. Current server
         // verdicts intentionally select no such route, so ordinary Gemini remains generateContent.
-        val interactionsRuntime = MetadataClient.capabilityRuntimeRequest(
-            providerKind = ProviderKind.Gemini,
-            modelID = modelID,
-            finalTransport = "gemini_interactions",
-            webRequested = webSearchEnabled,
-            reasoningMode = reasoningMode,
-        )
-        val interactionsRecipe = interactionsRuntime?.selections?.firstOrNull {
-            it.capability == "web" && it.executionKind == "endpoint_route"
-        }
+        val interactions = interactionsRoute(modelID, webSearchEnabled, reasoningMode)
+        val interactionsRuntime = interactions?.first
+        val interactionsRecipe = interactions?.second
         if (interactionsRuntime != null && interactionsRecipe != null) {
             emitAll(
                 sendInteractionsStream(
@@ -401,10 +419,27 @@ class GeminiService(
         val base = buildJsonObject {
             put("model", JsonPrimitive(modelID))
             put("stream", JsonPrimitive(stream))
-            put("input", JsonArray(outboundMessages.map { message ->
+            val currentTurnIndex = AttachmentDelivery.currentTurnIndex(outboundMessages)
+            put("input", JsonArray(outboundMessages.mapIndexed { index, message ->
+                // File attachments are injected as text and a turn that does not fit is not sent; images and videos go as inlineData parts,
+                // the same as generateContent (`input` is Gemini's Content[]).
+                val plan = AttachmentDelivery.plan(
+                    baseText = message.text,
+                    attachments = message.attachments.orEmpty(),
+                    model = requestOptions.activeModel,
+                    transport = AttachmentTransportProfile.GeminiInteractions,
+                )
+                AttachmentDelivery.requireDeliverable(plan, isCurrentTurn = index == currentTurnIndex)
                 buildJsonObject {
                     put("role", JsonPrimitive(if (message.role.rawValue == "assistant") "model" else "user"))
-                    put("parts", JsonArray(listOf(buildJsonObject { put("text", JsonPrimitive(message.text)) })))
+                    val mediaParts = MessageBuilder.geminiMediaParts(message.attachments.orEmpty())
+                        .map { json.parseToJsonElement(it) }
+                    // Without images the shape stays as before: there is always one text part.
+                    val textPart = buildJsonObject { put("text", JsonPrimitive(plan.text)) }
+                    put(
+                        "parts",
+                        JsonArray(if (mediaParts.isNotEmpty() && plan.text.isBlank()) mediaParts else listOf(textPart) + mediaParts),
+                    )
                 }
             }))
             MessageBuilder.normalizeRequestOptions(requestOptions).systemPrompt.takeIf { it.isNotBlank() }?.let { prompt ->

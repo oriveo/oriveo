@@ -255,6 +255,75 @@ class MiniMaxServiceTest {
         assertEquals("web_search_tool_result", replay["content"]!!.jsonArray[2].jsonObject["type"]!!.jsonPrimitive.content)
     }
 
+    private fun textFile(name: String, content: String) = ai.oriveo.community.core.model.Attachment(
+        id = name,
+        kind = ai.oriveo.community.core.model.AttachmentKind.File,
+        fileName = name,
+        mimeType = "text/plain",
+        base64Data = java.util.Base64.getEncoder().encodeToString(content.toByteArray()),
+    )
+
+    private fun captureWebBodies(): Pair<HttpClient, MutableList<kotlinx.serialization.json.JsonObject>> {
+        val bodies = mutableListOf<kotlinx.serialization.json.JsonObject>()
+        val client = HttpClient(MockEngine { request ->
+            bodies += json.parseToJsonElement((request.body as TextContent).text).jsonObject
+            respond(
+                content = "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "text/event-stream"),
+            )
+        })
+        return client to bodies
+    }
+
+    /** The MiniMax web search route goes through the Anthropic-compatible endpoint, but files are still wrapped in markdown as MiniMax does. */
+    @Test
+    fun `web route wraps file attachments in markdown like the chat route`() = runTest {
+        injectMiniMaxWebMetadata()
+        val (client, bodies) = captureWebBodies()
+        val message = userMessage("read").copy(attachments = listOf(textFile("notes.txt", "file body")))
+        runCatching {
+            MiniMaxService(client, json).sendMessageStream(
+                "key", "MiniMax-M3", listOf(message), "https://api.minimax.io/v1",
+                false, ReasoningMode.Automatic, true, ChatRequestOptions(),
+            ).toList()
+        }
+        val sent = bodies.single().toString()
+        assertTrue(sent, sent.contains("## Attachment 1: notes.txt"))
+        assertFalse(sent, sent.contains("ATTACHMENT_FILE"))
+    }
+
+    /** When this turn's files do not fit, the attachment overrun must be reported, not swallowed as a configuration error, and the request must not be sent. */
+    @Test
+    fun `web route surfaces an attachment over the text budget instead of a configuration error`() = runTest {
+        injectMiniMaxWebMetadata()
+        val (client, bodies) = captureWebBodies()
+        val big = "x".repeat(150 * 1024)
+        val message = userMessage("read").copy(attachments = listOf(textFile("a.txt", big), textFile("b.txt", big)))
+        val service = MiniMaxService(client, json)
+        val streamed = runCatching {
+            service.sendMessageStream(
+                "key", "MiniMax-M3", listOf(message), "https://api.minimax.io/v1",
+                false, ReasoningMode.Automatic, true, ChatRequestOptions(),
+            ).toList()
+        }.exceptionOrNull()
+        assertEquals(
+            ai.oriveo.community.core.model.ProviderServiceError.AttachmentTextOverLimit(listOf("b.txt")),
+            streamed,
+        )
+        val unary = runCatching {
+            service.sendMessage(
+                "key", "MiniMax-M3", listOf(message), "https://api.minimax.io/v1",
+                false, ReasoningMode.Automatic, true, ChatRequestOptions(),
+            )
+        }.exceptionOrNull()
+        assertEquals(
+            ai.oriveo.community.core.model.ProviderServiceError.AttachmentTextOverLimit(listOf("b.txt")),
+            unary,
+        )
+        assertTrue("No request should be sent", bodies.isEmpty())
+    }
+
     @Test
     fun `web route fails closed for disabled web and non exact model`() = runTest {
         injectMiniMaxWebMetadata()

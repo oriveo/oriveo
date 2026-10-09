@@ -1,12 +1,8 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.attachments.AttachmentDelivery
 import ai.oriveo.community.core.attachments.AttachmentInjector
-import ai.oriveo.community.core.attachments.AttachmentRoute
-import ai.oriveo.community.core.attachments.AttachmentRouter
-import ai.oriveo.community.core.attachments.AttachmentWrapperVersion
-import ai.oriveo.community.core.attachments.ExtractionErrorCode
-import ai.oriveo.community.core.attachments.ExtractedText
-import ai.oriveo.community.core.attachments.FileExtractionLimits
+import ai.oriveo.community.core.attachments.AttachmentTransportProfile
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
@@ -16,9 +12,6 @@ import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.ProviderKind
-import java.nio.ByteBuffer
-import java.nio.charset.CodingErrorAction
-import java.util.Base64
 
 /**
  * Shared message-construction helper.
@@ -139,14 +132,16 @@ object MessageBuilder {
         messages: List<ChatMessage>,
         providerKind: ProviderKind,
         systemPrompt: String? = null,
+        activeModel: AIModel? = null,
     ): String {
         val payloads = mutableListOf<String>()
         if (!systemPrompt.isNullOrBlank()) {
             payloads.add("""{"role":"system","content":${escapeJsonString(systemPrompt.trim())}}""")
         }
-        payloads += messages.map { msg ->
+        val currentTurnIndex = AttachmentDelivery.currentTurnIndex(messages)
+        payloads += messages.mapIndexed { index, msg ->
             val role = msg.role.name.lowercase()
-            val parts = buildOpenAIParts(msg, providerKind)
+            val parts = buildOpenAIParts(msg, providerKind, activeModel, isCurrentTurn = index == currentTurnIndex)
             if (parts != null) {
                 """{"role":"$role","content":[$parts]}"""
             } else {
@@ -169,9 +164,10 @@ object MessageBuilder {
         messages: List<ChatMessage>,
         providerKind: ProviderKind,
         systemPrompt: String? = null,
-    ): String = when (providerKind) {
-        ProviderKind.DeepSeek -> buildDeepSeekMessages(messages, systemPrompt)
-        else -> buildOpenAIMessages(messages, providerKind, systemPrompt)
+        activeModel: AIModel? = null,
+    ): String = when (AttachmentTransportResolver.chatCompletions(providerKind)) {
+        AttachmentTransportProfile.DeepSeekChat -> buildDeepSeekMessages(messages, systemPrompt, activeModel)
+        else -> buildOpenAIMessages(messages, providerKind, systemPrompt, activeModel)
     }
 
     /**
@@ -197,14 +193,16 @@ object MessageBuilder {
     fun buildDeepSeekMessages(
         messages: List<ChatMessage>,
         systemPrompt: String? = null,
+        activeModel: AIModel? = null,
     ): String {
         val payloads = mutableListOf<String>()
         if (!systemPrompt.isNullOrBlank()) {
             payloads.add("""{"role":"system","content":${escapeJsonString(systemPrompt.trim())}}""")
         }
-        payloads += messages.map { msg ->
+        val currentTurnIndex = AttachmentDelivery.currentTurnIndex(messages)
+        payloads += messages.mapIndexed { index, msg ->
             val role = msg.role.name.lowercase()
-            val content = buildDeepSeekContent(msg)
+            val content = buildDeepSeekContent(msg, activeModel, isCurrentTurn = index == currentTurnIndex)
             """{"role":"$role","content":${escapeJsonString(content)}}"""
         }
         return payloads.joinToString(",")
@@ -216,10 +214,15 @@ object MessageBuilder {
      * input_text. Passing activeModel enables the [AttachmentRouter] decision, i.e. whether a PDF or
      * an Office document goes up natively or is extracted on the client first.
      */
-    fun buildOpenAIResponsesInput(messages: List<ChatMessage>, activeModel: AIModel? = null): String {
-        return messages.joinToString(",") { msg ->
+    fun buildOpenAIResponsesInput(
+        messages: List<ChatMessage>,
+        activeModel: AIModel? = null,
+        transport: AttachmentTransportProfile = AttachmentTransportProfile.OpenAIResponses,
+    ): String {
+        val currentTurnIndex = AttachmentDelivery.currentTurnIndex(messages)
+        return messages.withIndex().joinToString(",") { (index, msg) ->
             val role = msg.role.name.lowercase()
-            val parts = buildOpenAIResponsesParts(msg, activeModel)
+            val parts = buildOpenAIResponsesParts(msg, activeModel, isCurrentTurn = index == currentTurnIndex, transport = transport)
             val textType = if (msg.role == ChatRole.Assistant) "output_text" else "input_text"
             val canonicalParts = parts
                 ?: """{"type":"$textType","text":${escapeJsonString(msg.text)}}"""
@@ -233,10 +236,15 @@ object MessageBuilder {
      * Passing activeModel enables the router; document and image blocks automatically get
      * cache_control: ephemeral.
      */
-    fun buildAnthropicMessages(messages: List<ChatMessage>, activeModel: AIModel? = null): String {
-        return messages.joinToString(",") { msg ->
+    fun buildAnthropicMessages(
+        messages: List<ChatMessage>,
+        activeModel: AIModel? = null,
+        transport: AttachmentTransportProfile = AttachmentTransportProfile.AnthropicMessages,
+    ): String {
+        val currentTurnIndex = AttachmentDelivery.currentTurnIndex(messages)
+        return messages.withIndex().joinToString(",") { (index, msg) ->
             val role = msg.role.name.lowercase()
-            val parts = buildAnthropicParts(msg, activeModel)
+            val parts = buildAnthropicParts(msg, activeModel, isCurrentTurn = index == currentTurnIndex, transport = transport)
             if (parts != null) {
                 """{"role":"$role","content":[$parts]}"""
             } else {
@@ -251,40 +259,27 @@ object MessageBuilder {
      * Passing activeModel enables the router; when pdfNativeDefault is true every PDF goes up
      * natively.
      */
-    fun buildGeminiContents(messages: List<ChatMessage>, activeModel: AIModel? = null): String {
-        return messages.joinToString(",") { msg ->
+    fun buildGeminiContents(
+        messages: List<ChatMessage>,
+        activeModel: AIModel? = null,
+        transport: AttachmentTransportProfile = AttachmentTransportProfile.GeminiGenerateContent,
+    ): String {
+        val currentTurnIndex = AttachmentDelivery.currentTurnIndex(messages)
+        return messages.withIndex().joinToString(",") { (index, msg) ->
             val role = if (msg.role == ChatRole.Assistant) "model" else "user"
-            val parts = buildGeminiParts(msg, activeModel)
+            val parts = buildGeminiParts(msg, activeModel, isCurrentTurn = index == currentTurnIndex, transport = transport)
             """{"role":"$role","parts":[$parts]}"""
         }
     }
 
-    /**
-     * Buckets file attachments according to the [AttachmentRouter] decision.
-     * When model is null, or the decision cannot be made, everything falls into the text path, which
-     * means client-side extraction.
-     */
-    private fun partitionFileAttachments(
-        attachments: List<Attachment>,
-        provider: ProviderKind,
-        model: AIModel?,
-    ): Pair<List<Attachment>, List<Attachment>> {
-        if (model == null) return Pair(emptyList(), attachments.filter { it.kind == AttachmentKind.File })
-        val files = attachments.filter { it.kind == AttachmentKind.File }
-        val native = mutableListOf<Attachment>()
-        val text = mutableListOf<Attachment>()
-        for (att in files) {
-            when (AttachmentRouter.decide(att, provider, model)) {
-                AttachmentRoute.Native -> native.add(att)
-                AttachmentRoute.ClientExtract -> text.add(att)
-            }
-        }
-        return Pair(native, text)
-    }
-
     // ── OpenAI/OpenRouter Format ──
 
-    private fun buildOpenAIParts(msg: ChatMessage, providerKind: ProviderKind): String? {
+    private fun buildOpenAIParts(
+        msg: ChatMessage,
+        providerKind: ProviderKind,
+        activeModel: AIModel? = null,
+        isCurrentTurn: Boolean = false,
+    ): String? {
         val attachments = msg.attachments
         if (attachments.isNullOrEmpty()) return null
 
@@ -304,23 +299,41 @@ object MessageBuilder {
                     val dataUri = if (base64.startsWith("data:")) base64 else "data:${att.mimeType};base64,$base64"
                     parts.add("""{"type":"video_url","video_url":{"url":"$dataUri"}}""")
                 }
-                AttachmentKind.File -> Unit  // folded into the text part by AttachmentInjector
+                AttachmentKind.File -> Unit  // handled through the delivery plan below
             }
         }
 
-        // File attachments always go through AttachmentInjector; the wrapper flavour (xml-v1 or
-        // markdown-v1) is chosen per provider.
-        val wrapper = AttachmentWrapperVersion.resolve(providerKind)
-        val payloads = toAttachmentPayloads(attachments)
-        val injected = AttachmentInjector.injectAll(msg.text, payloads, wrapper = wrapper)
+        // The transport decides whether an original file may enter the content parts. Only OpenRouter can; every
+        // other Chat Completions upstream receives files as text.
+        val plan = AttachmentDelivery.plan(
+            baseText = msg.text,
+            attachments = attachments,
+            model = activeModel,
+            transport = AttachmentTransportResolver.chatCompletions(providerKind),
+        )
+        AttachmentDelivery.requireDeliverable(plan, isCurrentTurn)
+        // A file judged native is emitted as a file block whatever the role: it is no longer in the text, so
+        // skipping it here would drop it from both places.
+        for (f in plan.native) {
+            val base64 = f.originalBase64Data ?: continue
+            val dataUri = "data:${f.mimeType};base64,$base64"
+            parts.add(
+                """{"type":"file","file":{"filename":${escapeJsonString(f.fileName)},"file_data":"$dataUri"}}""",
+            )
+        }
 
-        if (injected.text.isNotBlank()) {
-            parts.add(0, """{"type":"text","text":${escapeJsonString(injected.text)}}""")
+        if (plan.text.isNotBlank()) {
+            parts.add(0, """{"type":"text","text":${escapeJsonString(plan.text)}}""")
         }
         return if (parts.isNotEmpty()) parts.joinToString(",") else null
     }
 
-    private fun buildOpenAIResponsesParts(msg: ChatMessage, activeModel: AIModel? = null): String? {
+    private fun buildOpenAIResponsesParts(
+        msg: ChatMessage,
+        activeModel: AIModel? = null,
+        isCurrentTurn: Boolean = false,
+        transport: AttachmentTransportProfile = AttachmentTransportProfile.OpenAIResponses,
+    ): String? {
         val attachments = msg.attachments
         if (attachments.isNullOrEmpty()) return null
 
@@ -335,7 +348,13 @@ object MessageBuilder {
         val parts = mutableListOf<String>()
         // The AttachmentRouter decides native versus client extraction, replacing the older
         // hardcoded capabilities.nativePdf check.
-        val (nativeAtts, textFileAtts) = partitionFileAttachments(attachments, ProviderKind.OpenAI, activeModel)
+        val plan = AttachmentDelivery.plan(
+            baseText = msg.text,
+            attachments = attachments,
+            model = activeModel,
+            transport = transport,
+        )
+        AttachmentDelivery.requireDeliverable(plan, isCurrentTurn)
 
         for (att in attachments) {
             when (att.kind) {
@@ -351,35 +370,31 @@ object MessageBuilder {
                     val dataUri = if (base64.startsWith("data:")) base64 else "data:${att.mimeType};base64,$base64"
                     parts.add("""{"type":"input_video","video_url":"$dataUri"}""")
                 }
-                AttachmentKind.File -> Unit // handled below through nativeAtts / textFileAtts
+                AttachmentKind.File -> Unit // handled through the delivery plan
             }
         }
         // Native path: PDF plus the eight Office mime types, with the mime taken from the attachment
         // itself.
-        for (f in nativeAtts) {
+        for (f in plan.native) {
             val base64 = f.originalBase64Data ?: continue
             val dataUri = "data:${f.mimeType};base64,$base64"
             parts.add("""{"type":"input_file","filename":${escapeJsonString(f.fileName)},"file_data":"$dataUri"}""")
         }
 
-        val limits = FileExtractionLimits.resolve(activeModel)
-        val payloads = toAttachmentPayloads(textFileAtts)
-        val injected = AttachmentInjector.injectAll(msg.text, payloads, limits = limits)
-
-        if (injected.text.isNotBlank()) {
-            parts.add(0, """{"type":"input_text","text":${escapeJsonString(injected.text)}}""")
+        if (plan.text.isNotBlank()) {
+            parts.add(0, """{"type":"input_text","text":${escapeJsonString(plan.text)}}""")
         }
 
         return if (parts.isNotEmpty()) parts.joinToString(",") else null
     }
 
-    private fun buildDeepSeekContent(msg: ChatMessage): String {
+    private fun buildDeepSeekContent(msg: ChatMessage, activeModel: AIModel? = null, isCurrentTurn: Boolean = false): String {
         val attachments = msg.attachments.orEmpty()
 
         // DeepSeek is not multimodal, so images and videos are replaced with a placeholder line.
         val imagePlaceholders = attachments
             .filter { it.kind == AttachmentKind.Image }
-            .map { "[Image omitted: unsupported by DeepSeek]" }
+            .mapNotNull { AttachmentTransportProfile.DeepSeekChat.imagePlaceholderText }
         val videoPlaceholders = attachments
             .filter { it.kind == AttachmentKind.Video }
             .map { "[Video omitted: ${it.fileName}]" }
@@ -391,12 +406,14 @@ object MessageBuilder {
         ).joinToString("\n\n")
 
         // File attachments always go through AttachmentInjector; DeepSeek uses the markdown wrapper.
-        val payloads = toAttachmentPayloads(attachments)
-        val injected = AttachmentInjector.injectAll(
-            baseText, payloads,
-            wrapper = AttachmentWrapperVersion.MarkdownV1,
+        val plan = AttachmentDelivery.plan(
+            baseText = baseText,
+            attachments = attachments,
+            model = activeModel,
+            transport = AttachmentTransportProfile.DeepSeekChat,
         )
-        return injected.text
+        AttachmentDelivery.requireDeliverable(plan, isCurrentTurn)
+        return plan.text
     }
 
     /** Test-visible entry point, so tests do not have to reach the private method by reflection. */
@@ -404,14 +421,31 @@ object MessageBuilder {
 
     // ── Anthropic Format ──
 
-    private fun buildAnthropicParts(msg: ChatMessage, activeModel: AIModel? = null): String? {
+    private fun buildAnthropicParts(
+        msg: ChatMessage,
+        activeModel: AIModel? = null,
+        isCurrentTurn: Boolean = false,
+        transport: AttachmentTransportProfile = AttachmentTransportProfile.AnthropicMessages,
+    ): String? {
         val attachments = msg.attachments
         if (attachments.isNullOrEmpty()) return null
 
         val parts = mutableListOf<String>()
-        // The AttachmentRouter decides the route; Anthropic currently takes only PDF natively, so
-        // docx and xlsx fall back to client-side extraction.
-        val (nativeAtts, textFileAtts) = partitionFileAttachments(attachments, ProviderKind.Anthropic, activeModel)
+        // Video placeholders are folded into the text; the delivery plan decides whether each file goes up as a
+        // document block or is injected as text.
+        val videoPlaceholders = attachments.filter { it.kind == AttachmentKind.Video }
+            .map { "[Video omitted: ${it.fileName}]" }
+        val baseText = listOfNotNull(
+            msg.text.takeIf { it.isNotBlank() },
+            *videoPlaceholders.toTypedArray(),
+        ).joinToString("\n\n")
+        val plan = AttachmentDelivery.plan(
+            baseText = baseText,
+            attachments = attachments,
+            model = activeModel,
+            transport = transport,
+        )
+        AttachmentDelivery.requireDeliverable(plan, isCurrentTurn)
         // Document and image blocks automatically get cache_control: ephemeral (a 5 minute TTL),
         // which cuts roughly 70 percent off the cost of asking about the same attachment again.
         val cacheControl = ""","cache_control":{"type":"ephemeral"}"""
@@ -423,71 +457,65 @@ object MessageBuilder {
                     parts.add("""{"type":"image","source":{"type":"base64","media_type":"${att.mimeType}","data":"$base64"}$cacheControl}""")
                 }
                 AttachmentKind.Video -> Unit  // folded into the text part below
-                AttachmentKind.File -> Unit   // handled below through nativeAtts / textFileAtts
+                AttachmentKind.File -> Unit   // handled through the delivery plan
             }
         }
         // Native PDF becomes a document block plus cache_control, with the mime taken from the
         // attachment itself.
-        for (f in nativeAtts) {
+        for (f in plan.native) {
             val base64 = f.originalBase64Data ?: continue
             parts.add("""{"type":"document","source":{"type":"base64","media_type":"${f.mimeType}","data":"$base64"}$cacheControl}""")
         }
 
-        // Video placeholders and the client-extraction path for file attachments both go through
-        // AttachmentInjector.
-        val videoPlaceholders = attachments.filter { it.kind == AttachmentKind.Video }
-            .map { "[Video omitted: ${it.fileName}]" }
-        val baseText = listOfNotNull(
-            msg.text.takeIf { it.isNotBlank() },
-            *videoPlaceholders.toTypedArray(),
-        ).joinToString("\n\n")
-
-        val limits = FileExtractionLimits.resolve(activeModel)
-        val payloads = toAttachmentPayloads(textFileAtts)
-        val injected = AttachmentInjector.injectAll(baseText, payloads, limits = limits)
-
-        if (injected.text.isNotBlank()) {
-            parts.add(0, """{"type":"text","text":${escapeJsonString(injected.text)}}""")
+        if (plan.text.isNotBlank()) {
+            parts.add(0, """{"type":"text","text":${escapeJsonString(plan.text)}}""")
         }
         return if (parts.isNotEmpty()) parts.joinToString(",") else null
     }
 
     // ── Gemini Format ──
 
-    private fun buildGeminiParts(msg: ChatMessage, activeModel: AIModel? = null): String {
+    /**
+     * Image and video parts (inlineData) of a Gemini Content. The `input` of both generateContent and Interactions
+     * is a Content[], so the two transports share this.
+     */
+    fun geminiMediaParts(attachments: List<Attachment>): List<String> = attachments.mapNotNull { att ->
+        val base64 = when (att.kind) {
+            AttachmentKind.Image -> att.base64Data ?: att.thumbnailBase64
+            AttachmentKind.Video -> att.base64Data
+            AttachmentKind.File -> null // handled through the delivery plan
+        } ?: return@mapNotNull null
+        """{"inlineData":{"mimeType":"${att.mimeType}","data":"$base64"}}"""
+    }
+
+    private fun buildGeminiParts(
+        msg: ChatMessage,
+        activeModel: AIModel? = null,
+        isCurrentTurn: Boolean = false,
+        transport: AttachmentTransportProfile = AttachmentTransportProfile.GeminiGenerateContent,
+    ): String {
         val parts = mutableListOf<String>()
         val attachments = msg.attachments.orEmpty()
 
-        // The AttachmentRouter decides the route; with Gemini's pdfNativeDefault set, every PDF goes
-        // up natively.
-        val (nativeAtts, textFileAtts) = partitionFileAttachments(attachments, ProviderKind.Gemini, activeModel)
+        // The delivery plan decides the route; with Gemini's pdfNativeDefault set, every PDF goes up natively.
+        val plan = AttachmentDelivery.plan(
+            baseText = msg.text,
+            attachments = attachments,
+            model = activeModel,
+            transport = transport,
+        )
+        AttachmentDelivery.requireDeliverable(plan, isCurrentTurn)
 
-        for (att in attachments) {
-            when (att.kind) {
-                AttachmentKind.Image -> {
-                    val base64 = att.base64Data ?: att.thumbnailBase64 ?: continue
-                    parts.add("""{"inlineData":{"mimeType":"${att.mimeType}","data":"$base64"}}""")
-                }
-                AttachmentKind.Video -> {
-                    val base64 = att.base64Data ?: continue
-                    parts.add("""{"inlineData":{"mimeType":"${att.mimeType}","data":"$base64"}}""")
-                }
-                AttachmentKind.File -> Unit // handled below through nativeAtts / textFileAtts
-            }
-        }
+        parts += geminiMediaParts(attachments)
         // Native PDF becomes inlineData, with the mime taken from the attachment itself so future
         // Office support needs no change here.
-        for (f in nativeAtts) {
+        for (f in plan.native) {
             val base64 = f.originalBase64Data ?: continue
             parts.add("""{"inlineData":{"mimeType":"${f.mimeType}","data":"$base64"}}""")
         }
 
-        val limits = FileExtractionLimits.resolve(activeModel)
-        val payloads = toAttachmentPayloads(textFileAtts)
-        val injected = AttachmentInjector.injectAll(msg.text, payloads, limits = limits)
-
-        if (injected.text.isNotBlank()) {
-            parts.add(0, """{"text":${escapeJsonString(injected.text)}}""")
+        if (plan.text.isNotBlank()) {
+            parts.add(0, """{"text":${escapeJsonString(plan.text)}}""")
         }
         return parts.joinToString(",")
     }
@@ -570,7 +598,7 @@ object MessageBuilder {
         val support = providerKind?.attachmentSupport ?: return false
         if (support.nativeFile) return true
         if (!support.textFileInline) return false
-        return isTextMimeType(mimeType) && tryDecodeBase64Text(base64Data) != null
+        return isTextMimeType(mimeType) && AttachmentDelivery.tryDecodeBase64Text(base64Data) != null
     }
 
     fun resolveAttachmentMimeType(
@@ -594,31 +622,7 @@ object MessageBuilder {
      */
     internal fun toAttachmentPayloads(
         attachments: List<Attachment>,
-    ): List<AttachmentInjector.AttachmentPayload> {
-        return attachments.filter { it.kind == AttachmentKind.File }.map { att ->
-            val errorCode = att.extractionErrorCode
-                ?.let { raw -> ExtractionErrorCode.entries.firstOrNull { it.raw == raw } }
-            val decoded = if (errorCode == null && att.base64Data != null) {
-                tryDecodeBase64Text(att.base64Data)
-            } else null
-            val extracted = if (decoded != null) {
-                ExtractedText(
-                    content = decoded,
-                    totalLines = att.extractedTotalLines ?: decoded.split("\n").size,
-                    truncated = att.extractedTruncated ?: false,
-                    truncationReason = null,
-                    sizeBytes = att.extractedSizeBytes ?: decoded.toByteArray(Charsets.UTF_8).size,
-                )
-            } else null
-            AttachmentInjector.AttachmentPayload(
-                fileName = att.fileName,
-                mimeType = att.mimeType,
-                sizeBytes = att.extractedSizeBytes ?: 0,
-                extracted = extracted,
-                errorCode = errorCode ?: if (extracted == null && att.base64Data != null) ExtractionErrorCode.ExtractionError else null,
-            )
-        }
-    }
+    ): List<AttachmentInjector.AttachmentPayload> = AttachmentDelivery.toAttachmentPayloads(attachments)
 
     // ── Utilities ──
 
@@ -663,18 +667,6 @@ object MessageBuilder {
             "3gp" -> "video/3gpp"
             "sql" -> "application/sql"
             else -> "application/octet-stream"
-        }
-    }
-
-    private fun tryDecodeBase64Text(base64: String): String? {
-        return try {
-            val decodedBytes = Base64.getDecoder().decode(base64)
-            val decoder = Charsets.UTF_8.newDecoder()
-                .onMalformedInput(CodingErrorAction.REPORT)
-                .onUnmappableCharacter(CodingErrorAction.REPORT)
-            decoder.decode(ByteBuffer.wrap(decodedBytes)).toString()
-        } catch (_: Exception) {
-            null
         }
     }
 

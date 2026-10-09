@@ -309,7 +309,7 @@ class QwenService(
         val options = MessageBuilder.normalizeRequestOptions(requestOptions)
         // Reuse the same message construction as the other OpenAI-compatible providers,
         // attachment injection and image_url parts included.
-        val msgs = MessageBuilder.buildOpenAIMessages(messagesForCapabilityProjection(messages, capabilityProjection), ProviderKind.Qwen, options.systemPrompt)
+        val msgs = MessageBuilder.buildOpenAIMessages(messagesForCapabilityProjection(messages, capabilityProjection), ProviderKind.Qwen, options.systemPrompt, requestOptions.activeModel)
 
         val extras = mutableListOf<String>()
         if (stream) extras.add(""""stream_options":{"include_usage":true}""")

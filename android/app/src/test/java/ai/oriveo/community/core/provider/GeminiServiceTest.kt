@@ -502,4 +502,114 @@ class GeminiServiceTest {
         assertEquals(7, done.result.promptTokens)
         assertEquals(11, done.result.completionTokens)
     }
+
+    // ── File attachments on the Interactions route ──────────────────────────────────
+
+    private fun applyInteractionsMetadata() {
+        val root = File(System.getProperty("user.dir")).absoluteFile.parentFile!!.parentFile!!
+        val registry = json.parseToJsonElement(File(root, "shared/capabilityrecipe/capability_runtime.v1.json").readText()).jsonObject
+        val runtime = JsonObject(registry + mapOf(
+            "revision" to JsonPrimitive("sha256:interactions-test"),
+            "generatedAt" to JsonPrimitive("2026-08-11T00:00:00Z"),
+        ))
+        MetadataTestFixtures.applyRaw(buildJsonObject {
+            put("version", 1); put("capabilityRuntime", runtime)
+            put("providers", buildJsonObject { put("gemini", buildJsonObject {
+                put("resolveMap", buildJsonObject { put("gemini-3-flash", "gemini-3-flash") })
+                put("models", buildJsonObject { put("gemini-3-flash", buildJsonObject {
+                    put("transport", "gemini_generate")
+                    put("capabilityControls", buildJsonObject { put("web", buildJsonObject {
+                        put("state", "auto_available"); put("recipeRef", "gemini.interactions.web.v1")
+                    }) })
+                }) })
+            }) })
+        }.toString())
+    }
+
+    private fun interactionsTextFile(name: String, content: String) = ai.oriveo.community.core.model.Attachment(
+        id = name,
+        kind = AttachmentKind.File,
+        fileName = name,
+        mimeType = "text/plain",
+        base64Data = java.util.Base64.getEncoder().encodeToString(content.toByteArray()),
+    )
+
+    @Test
+    fun `Interactions carries attached files as injected text`() = runTest {
+        applyInteractionsMetadata()
+        val attachments = listOf(interactionsTextFile("notes.txt", "interactions file body"))
+        val message = ProviderTestFixtures.userMessage("read this", ProviderKind.Gemini, "gemini-3-flash")
+            .copy(attachments = attachments)
+        var path = ""
+        var captured = ""
+        val client = mockClient(MockEngine { request ->
+            path = request.url.encodedPath
+            captured = requestBodyText(request.body)
+            respond("""{"id":"int-1","status":"completed","steps":[{"type":"model_output","content":[{"text":"ok"}]}]}""", HttpStatusCode.OK)
+        })
+
+        GeminiService(client, json, transportRegistry).sendMessage(
+            "key", "gemini-3-flash", listOf(message), null, false, ReasoningMode.Automatic, true, ChatRequestOptions(),
+        )
+
+        assertEquals("/v1/interactions", path)
+        val expected = ai.oriveo.community.core.attachments.AttachmentInjector.injectAll(
+            userText = "read this",
+            attachments = MessageBuilder.toAttachmentPayloads(attachments),
+            wrapper = ai.oriveo.community.core.attachments.AttachmentWrapperVersion.XmlV1,
+        ).text
+        assertTrue(expected, expected.contains("interactions file body"))
+        val parts = json.parseToJsonElement(captured).jsonObject["input"]!!.jsonArray.single().jsonObject["parts"]!!.jsonArray
+        assertEquals(expected, parts.single().jsonObject["text"]!!.jsonPrimitive.content)
+    }
+
+    /** `input` is Gemini's Content[]: images arrive as inlineData parts, the same as generateContent, and are no longer silently dropped. */
+    @Test
+    fun `Interactions carries attached images as inlineData parts`() = runTest {
+        applyInteractionsMetadata()
+        val image = ai.oriveo.community.core.model.Attachment(
+            id = "img", kind = AttachmentKind.Image, fileName = "p.png", mimeType = "image/png", base64Data = "aW1hZ2U=",
+        )
+        val message = ProviderTestFixtures.userMessage("what is this", ProviderKind.Gemini, "gemini-3-flash")
+            .copy(attachments = listOf(image, interactionsTextFile("notes.txt", "file body")))
+        var captured = ""
+        val client = mockClient(MockEngine { request ->
+            captured = requestBodyText(request.body)
+            respond("""{"id":"int-1","status":"completed","steps":[{"type":"model_output","content":[{"text":"ok"}]}]}""", HttpStatusCode.OK)
+        })
+
+        GeminiService(client, json, transportRegistry).sendMessage(
+            "key", "gemini-3-flash", listOf(message), null, false, ReasoningMode.Automatic, true, ChatRequestOptions(),
+        )
+
+        val parts = json.parseToJsonElement(captured).jsonObject["input"]!!.jsonArray.single().jsonObject["parts"]!!.jsonArray
+        assertEquals(2, parts.size)
+        assertTrue(parts[0].jsonObject["text"]!!.jsonPrimitive.content.contains("file body"))
+        val inline = parts[1].jsonObject["inlineData"]!!.jsonObject
+        assertEquals("image/png", inline["mimeType"]!!.jsonPrimitive.content)
+        assertEquals("aW1hZ2U=", inline["data"]!!.jsonPrimitive.content)
+        // Character for character the same as the image part on the generateContent route.
+        val generateContent = MessageBuilder.buildGeminiContents(listOf(message.copy(attachments = listOf(image))))
+        assertTrue(generateContent, generateContent.contains(parts[1].toString()))
+    }
+
+    @Test
+    fun `Interactions refuses before the network when an attached file cannot be delivered`() = runTest {
+        applyInteractionsMetadata()
+        val big = "x".repeat(150 * 1024)
+        val message = ProviderTestFixtures.userMessage("read this", ProviderKind.Gemini, "gemini-3-flash")
+            .copy(attachments = listOf(interactionsTextFile("a.txt", big), interactionsTextFile("b.txt", big)))
+        var requests = 0
+        val client = mockClient(MockEngine { requests += 1; respond("{}", HttpStatusCode.OK) })
+
+        try {
+            GeminiService(client, json, transportRegistry).sendMessage(
+                "key", "gemini-3-flash", listOf(message), null, false, ReasoningMode.Automatic, true, ChatRequestOptions(),
+            )
+            org.junit.Assert.fail("A current turn with a file that does not fit should be blocked")
+        } catch (error: ProviderServiceError.AttachmentTextOverLimit) {
+            assertEquals(listOf("b.txt"), error.fileNames)
+        }
+        assertEquals(0, requests)
+    }
 }

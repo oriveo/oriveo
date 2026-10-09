@@ -63,6 +63,10 @@ object CatalogModelBuilder {
             supportsPdfInput = metadata?.supportsPdfInput == true,
             supportsServiceTier = metadata?.supportsServiceTier == true,
             reasoningProfile = metadata?.profiles?.reasoning,
+            attachmentExtraction = metadata?.attachmentExtraction,
+            // Routes that work out attachments from the model-list entry (OpenRouter, subscriptions) decide native upload from it; an entry the catalog does not list means no native upload.
+            nativeFileMimes = metadata?.nativeFileMimes.orEmpty(),
+            pdfNativeDefault = metadata?.pdfNativeDefault == true,
             webSearchProfile = metadata?.profiles?.webSearch,
             imageGenProfile = metadata?.profiles?.imageGen,
             generationProfile = metadata?.profiles?.generation,
@@ -130,6 +134,11 @@ object CatalogModelBuilder {
             } else {
                 metadata.toolCall ?: model.toolCall
             },
+            // When the catalog has the model it wins: once the override is removed, an old locally stored limit must not linger.
+            attachmentExtraction = metadata.attachmentExtraction,
+            // Likewise: once the catalog removes the allowlist, a stored model must not keep using native upload.
+            nativeFileMimes = metadata.nativeFileMimes,
+            pdfNativeDefault = metadata.pdfNativeDefault,
         )
     }
 

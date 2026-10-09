@@ -245,6 +245,71 @@ class AdditionalRequestBodySendChainTest {
         assertTrue("raw=${raw.toByteArray().size}", raw.toByteArray().size <= SseParser.STREAM_ERROR_RAW_MAX_BYTES + 3)
     }
 
+    @Test
+    fun `text attachments over the limit on the message being sent are rejected and send nothing`() = runTest {
+        val bodies = mutableListOf<String>()
+        val current = ProviderTestFixtures.userMessage("summarize", ProviderKind.Groq, "llama-3.3-70b-versatile")
+            .copy(attachments = listOf(textFile("alpha-notes.txt", 150), textFile("beta-notes.txt", 150)))
+        try {
+            groq(bodies, okStream).sendMessageStream(
+                apiKey = API_KEY, modelID = "llama-3.3-70b-versatile", messages = listOf(current),
+                baseUrl = null, supportsImageGen = false, reasoningMode = ReasoningMode.Automatic, webSearchEnabled = false,
+                requestOptions = ChatRequestOptions(),
+            ).collect()
+            fail("a file that cannot be delivered must stop the message on device")
+        } catch (error: ProviderServiceError.AttachmentTextOverLimit) {
+            assertEquals(listOf("beta-notes.txt"), error.fileNames)
+        }
+        assertTrue("request must not be sent", bodies.isEmpty())
+    }
+
+    @Test
+    fun `the same over-limit attachments in history do not block a later turn`() = runTest {
+        val bodies = mutableListOf<String>()
+        val earlier = ProviderTestFixtures.userMessage("summarize", ProviderKind.Groq, "llama-3.3-70b-versatile")
+            .copy(attachments = listOf(textFile("alpha-notes.txt", 150), textFile("beta-notes.txt", 150)))
+        val answer = ProviderTestFixtures.userMessage("done", ProviderKind.Groq, "llama-3.3-70b-versatile")
+            .copy(role = ai.oriveo.community.core.model.ChatRole.Assistant)
+        val current = ProviderTestFixtures.userMessage("and now?", ProviderKind.Groq, "llama-3.3-70b-versatile")
+
+        groq(bodies, okStream).sendMessageStream(
+            apiKey = API_KEY, modelID = "llama-3.3-70b-versatile", messages = listOf(earlier, answer, current),
+            baseUrl = null, supportsImageGen = false, reasoningMode = ReasoningMode.Automatic, webSearchEnabled = false,
+            requestOptions = ChatRequestOptions(),
+        ).collect()
+
+        val body = bodies.single()
+        assertTrue(body.contains("alpha-notes.txt"))
+        assertFalse(body.contains("beta-notes.txt"))
+    }
+
+    @Test
+    fun `text attachments within the limit are all delivered`() = runTest {
+        val bodies = mutableListOf<String>()
+        val current = ProviderTestFixtures.userMessage("summarize", ProviderKind.Groq, "llama-3.3-70b-versatile")
+            .copy(attachments = listOf(textFile("alpha-notes.txt", 50), textFile("beta-notes.txt", 50)))
+
+        groq(bodies, okStream).sendMessageStream(
+            apiKey = API_KEY, modelID = "llama-3.3-70b-versatile", messages = listOf(current),
+            baseUrl = null, supportsImageGen = false, reasoningMode = ReasoningMode.Automatic, webSearchEnabled = false,
+            requestOptions = ChatRequestOptions(),
+        ).collect()
+
+        val body = bodies.single()
+        assertTrue(body.contains("alpha-notes.txt"))
+        assertTrue(body.contains("beta-notes.txt"))
+    }
+
+    private val okStream = ProviderTestFixtures.openAiStream(ProviderTestFixtures.openAiChunk(delta = "ok"))
+
+    private fun textFile(name: String, kilobytes: Int) = ai.oriveo.community.core.model.Attachment(
+        id = name,
+        kind = ai.oriveo.community.core.model.AttachmentKind.File,
+        fileName = name,
+        mimeType = "text/plain",
+        base64Data = java.util.Base64.getEncoder().encodeToString("x".repeat(kilobytes * 1024).toByteArray()),
+    )
+
     private fun assertMergedWithPanel(body: JsonObject, panelKey: String) {
         assertEquals(40, body["top_k"]!!.jsonPrimitive.content.toInt())
         assertEquals("false", body["chat_template_kwargs"]!!.jsonObject["enable_thinking"]!!.jsonPrimitive.content)

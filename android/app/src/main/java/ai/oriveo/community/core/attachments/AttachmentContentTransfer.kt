@@ -18,6 +18,22 @@ object AttachmentHydrator {
         if (hydrated == attachments) msg else msg.copy(attachments = hydrated)
     }
 
+    /**
+     * For the pre-send check: looks at the attachment as if hydration succeeded at send time, without reading the disk.
+     *
+     * Routing only cares whether the original bytes exist, so a file that already has extracted text and whose original bytes are still on disk can be treated as hydrated;
+     * for a file whose extracted text is not hydrated yet, the body size is unknown at this point, so it returns null.
+     */
+    fun assumeHydratedForRouting(attachment: Attachment): Attachment? {
+        if (attachment.kind != AttachmentKind.File || attachment.rawContentRef.isNullOrBlank()) return attachment
+        if (attachment.base64Data == null) return null
+        if (!attachment.originalBase64Data.isNullOrEmpty()) return attachment
+        return attachment.copy(originalBase64Data = PENDING_ORIGINAL_PLACEHOLDER)
+    }
+
+    /** Only means "the original bytes are on disk and will be hydrated at send time"; an attachment carrying it must not be used to build a request body. */
+    internal const val PENDING_ORIGINAL_PLACEHOLDER = "pending"
+
     suspend fun hydrateOne(
         attachment: Attachment,
         loadImageBase64: suspend (String) -> String?,

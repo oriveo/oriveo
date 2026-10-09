@@ -4,6 +4,8 @@ import ai.oriveo.community.core.provider.AdditionalRequestBody
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatRequestOptions
+import ai.oriveo.community.core.attachments.AttachmentDelivery
+import ai.oriveo.community.core.attachments.AttachmentTransportProfile
 import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayImageMode
@@ -52,7 +54,7 @@ internal fun buildResponsesBody(
     val activeModel = MetadataClient.resolveAIModelForRouter(modelID, ProviderKind.OpenAI)
     val sections = mutableListOf<String>()
     sections += """"model":"$modelID""""
-    sections += """"input":[${MessageBuilder.buildOpenAIResponsesInput(messagesForProjection(messages, capabilityProjection), activeModel)}]"""
+    sections += """"input":[${MessageBuilder.buildOpenAIResponsesInput(messagesForProjection(messages, capabilityProjection), activeModel, relayAttachmentTransport(AttachmentTransportProfile.RelayOpenAIResponses, requestOptions))}]"""
     if (stream) sections += """"stream":true"""
     // The Responses transport always advertises the image_generation tool and lets the model decide
     // whether to call it; it is deliberately not gated on a capability toggle or on relayImage being
@@ -150,7 +152,7 @@ internal fun buildOpenAIChatBody(
     val sections = mutableListOf<String>()
     sections += """"model":"$modelID""""
     sections += """"stream":$stream"""
-    sections += """"messages":[${MessageBuilder.buildOpenAIMessages(messagesForProjection(messages, capabilityProjection), ProviderKind.Relay, options.systemPrompt)}]"""
+    sections += """"messages":[${MessageBuilder.buildOpenAIMessages(messagesForProjection(messages, capabilityProjection), ProviderKind.Relay, options.systemPrompt, requestOptions.activeModel)}]"""
     (if (permitsReasoning(capabilityProjection, effectiveReasoning)) {
         reasoningEffortOverride ?: resolveChatReasoningEffort(requestOptions, reasoningMode)
     } else null)?.let { effort ->
@@ -204,14 +206,32 @@ internal fun buildLlamaCppNativeBody(
     ).let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
 }
 
-internal fun buildLlamaCppPrompt(messages: List<ChatMessage>, requestOptions: ChatRequestOptions): String =
-    buildList {
+internal fun buildLlamaCppPrompt(messages: List<ChatMessage>, requestOptions: ChatRequestOptions): String {
+    val currentTurnIndex = AttachmentDelivery.currentTurnIndex(messages)
+    return buildList {
         requestOptions.systemPrompt.trim().takeIf { it.isNotEmpty() }?.let { add("system: $it") }
-        messages.forEach { message ->
-            message.text.trim().takeIf { it.isNotEmpty() }?.let { add("${message.role.name.lowercase()}: $it") }
+        messages.forEachIndexed { index, message ->
+            // The prompt is plain text: an image leaves a one-line placeholder, files are injected as text, and a
+            // current-turn file that does not fit blocks the send.
+            val attachments = message.attachments.orEmpty()
+            val imagePlaceholders = attachments
+                .filter { it.kind == AttachmentKind.Image }
+                .mapNotNull { AttachmentTransportProfile.LlamaCppNative.imagePlaceholderText }
+            val plan = AttachmentDelivery.plan(
+                baseText = (listOfNotNull(message.text.trim().takeIf { it.isNotEmpty() }) + imagePlaceholders)
+                    .joinToString("\n\n"),
+                attachments = attachments,
+                model = requestOptions.activeModel,
+                transport = AttachmentTransportProfile.LlamaCppNative,
+            )
+            AttachmentDelivery.requireDeliverable(plan, isCurrentTurn = index == currentTurnIndex)
+            plan.text.takeIf { it.isNotEmpty() }?.let { add("${message.role.name.lowercase()}: $it") }
         }
         add("assistant:")
-    }.joinToString("\\n")
+        // A real newline: escapeJsonString escapes the request body, so an escape sequence here would reach the
+        // model as a literal backslash followed by n.
+    }.joinToString("\n")
+}
 
 /**
  * Whether this request to a relay Anthropic-compatible connection sends thinking, and at which tier: shared by the builder and the advanced-settings thinking preview,
@@ -254,7 +274,7 @@ internal fun buildAnthropicBody(
     // PDF handling for this request.
     val activeModel = MetadataClient.resolveAIModelForRouter(modelID, ProviderKind.Anthropic)
     return GenerationParameterResolver.apply(
-        """{"model":"$modelID",$maxTokens,"stream":$stream,"messages":[${MessageBuilder.buildAnthropicMessages(messagesForProjection(messages, capabilityProjection), activeModel)}]$extrasJson}""",
+        """{"model":"$modelID",$maxTokens,"stream":$stream,"messages":[${MessageBuilder.buildAnthropicMessages(messagesForProjection(messages, capabilityProjection), activeModel, relayAttachmentTransport(AttachmentTransportProfile.RelayAnthropicMessages, requestOptions))}]$extrasJson}""",
         requestOptions,
         resolved,
         capabilityProjection,
@@ -278,7 +298,7 @@ internal fun buildGeminiBody(
     // when the catalog entry sets pdfNativeDefault.
     val activeModel = MetadataClient.resolveAIModelForRouter(modelID, ProviderKind.Gemini)
     val sections = mutableListOf<String>()
-    sections += """"contents":[${MessageBuilder.buildGeminiContents(messagesForProjection(messages, capabilityProjection), activeModel)}]"""
+    sections += """"contents":[${MessageBuilder.buildGeminiContents(messagesForProjection(messages, capabilityProjection), activeModel, relayAttachmentTransport(AttachmentTransportProfile.RelayGeminiGenerateContent, requestOptions))}]"""
     MessageBuilder.geminiSystemInstructionJson(options.systemPrompt)?.let { sections += it }
 
     val generationConfig = mutableListOf<String>()
@@ -364,3 +384,9 @@ internal fun resolveChatReasoningEffort(
         ?.let { return it.value }
     return reasoningMode.relayOpenAIEffort()
 }
+
+/** The attachment transport this relay request uses: on a fallback resend, or when the connection is known not to accept file blocks, the same transport without file blocks. */
+internal fun relayAttachmentTransport(
+    transport: AttachmentTransportProfile,
+    requestOptions: ChatRequestOptions,
+): AttachmentTransportProfile = if (requestOptions.nativeFilesDisabled) transport.withoutNativeFiles() else transport

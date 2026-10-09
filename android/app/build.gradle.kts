@@ -158,6 +158,12 @@ android {
             it.forkEvery = 1
             it.maxHeapSize = "${testForkHeapGiB}g"
             it.maxParallelForks = testMaxParallelForks
+            // The request-body export (NativeFileRequestExportTest) is switched on by this environment variable. Its
+            // output directory is not a declared task output, so without forcing a rerun the task would be
+            // UP-TO-DATE when the sources are unchanged and nothing would be written.
+            if (!System.getenv("ORIVEO_REQUEST_EXPORT_DIR").isNullOrBlank()) {
+                it.outputs.upToDateWhen { false }
+            }
         }
     }
 }
