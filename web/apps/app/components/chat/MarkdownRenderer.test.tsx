@@ -18,6 +18,18 @@ import { MarkdownRenderer } from './MarkdownRenderer';
  */
 
 describe('MarkdownRenderer LaTeX', () => {
+  // A single tilde is a range marker in CJK text (11~19°C). Treating it as strikethrough, as lenient GFM does,
+  // would strike out everything between two ranges in one sentence.
+  it('a single ~ is a range marker and is not rendered as strikethrough; a paired ~~ is', () => {
+    const range = render(<MarkdownRenderer content="Light rain on Saturday (11~19°C), then a sharp drop (as low as 4~6°C)." />);
+    expect(range.container.querySelector('del')).toBeNull();
+    expect(range.container.textContent).toContain('11~19°C');
+    expect(range.container.textContent).toContain('4~6°C');
+
+    const struck = render(<MarkdownRenderer content="keep ~~drop~~ keep" />);
+    expect(struck.container.querySelector('del')?.textContent).toBe('drop');
+  });
+
   it('renders inline $...$ formulas with KaTeX', () => {
     const { container } = render(<MarkdownRenderer content="Equation $E=mc^2$ end" />);
     expect(container.querySelector('.katex')).not.toBeNull();

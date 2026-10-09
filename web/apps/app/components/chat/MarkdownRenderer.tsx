@@ -352,6 +352,8 @@ const STATIC_COMPONENTS: Components = {
   },
 };
 
+const STRIKETHROUGH_OPTIONS = { singleTilde: false } as const;
+
 export const MarkdownRenderer = memo(function MarkdownRenderer({ content, isStreaming, onSaveCodeBlock, enableCharFade = true }: MarkdownRendererProps) {
   // Formula and marker preprocessing: while streaming, everything after an unclosed delimiter
   // ($ \( ** ` ``` links and so on) is peeled off as a plain tail so half-written markers do not
@@ -429,7 +431,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, isStre
   return (
     <div className={styles.markdown} data-streaming={isStreaming ? 'true' : undefined}>
       <ReactMarkdown
-        remarkPlugins={[remarkCjkFriendly, remarkGfm, remarkCjkFriendlyGfmStrikethrough, remarkMath]}
+        // Strikethrough needs a paired `~~`: a single `~` is a range marker in CJK text (11~19°C), and two of them in one sentence would strike out everything between.
+        remarkPlugins={[remarkCjkFriendly, [remarkGfm, STRIKETHROUGH_OPTIONS], [remarkCjkFriendlyGfmStrikethrough, STRIKETHROUGH_OPTIONS], remarkMath]}
         rehypePlugins={rehypePlugins}
         components={components}
       >
