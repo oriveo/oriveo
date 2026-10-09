@@ -53,6 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -117,6 +118,8 @@ import ai.oriveo.community.ui.theme.OriveoV2ScreenBackground
 import ai.oriveo.community.ui.theme.opacity
 import java.util.Locale
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 
 enum class ModelPickerContext {
@@ -245,22 +248,6 @@ fun ModelPickerSheet(
             )
         }
     }
-    val unfilteredProviderSections = remember(
-        sortedProviders,
-        searchText,
-        isHome,
-        activeProviderId,
-        currentModel,
-    ) {
-        buildProviderSections(
-            context = context,
-            providers = sortedProviders,
-            currentProviderId = activeProviderId,
-            currentModel = currentModel,
-            searchText = searchText,
-        )
-    }
-
     var selectedCapabilityFilters by remember {
         mutableStateOf<Set<ModelPickerCapabilityFilterKind>>(emptySet())
     }
@@ -283,25 +270,42 @@ fun ModelPickerSheet(
         providerRepository.toolCallMemoryVerdict(provider, model)
     }
 
-    val capabilityFilterCounts = remember(
-        unfilteredProviderSections,
-        capabilityObservationRevision,
-        toolCallMemoryRevision,
-    ) {
-        modelPickerCapabilityFilterCounts(unfilteredProviderSections, toolCallMemoryVerdict = toolCallMemoryVerdict)
-    }
-    val providerSections = remember(
-        unfilteredProviderSections,
+    // Grouping, counting and filtering run together off the main thread. Each model needs its
+    // capabilities resolved from metadata, which cost a single 719ms main-thread frame with 700+ models
+    // on a low-end phone, and the search text is an input, so every keystroke used to rerun all of it.
+    // Counts and filtering still come from one function over one input, otherwise the screen says 358
+    // and the list shows 12.
+    //
+    // produceState keeps the previous value while its keys change, so the list keeps showing the old
+    // result during a search or filter change instead of flashing empty. Only the first frame is null
+    // (nothing computed yet), which downstream renders as nothing rather than as an empty state.
+    val sectionsResult: ModelPickerSectionsResult? by produceState<ModelPickerSectionsResult?>(
+        initialValue = null,
+        sortedProviders,
+        activeProviderId,
+        currentModel,
+        searchText,
         selectedCapabilityFilters,
         capabilityObservationRevision,
         toolCallMemoryRevision,
     ) {
-        applyModelPickerCapabilityFilter(
-            unfilteredProviderSections,
-            selectedCapabilityFilters,
-            toolCallMemoryVerdict = toolCallMemoryVerdict,
-        )
+        value = withContext(Dispatchers.Default) {
+            buildModelPickerSectionsResult(
+                context = context,
+                providers = sortedProviders,
+                activeProviderId = activeProviderId,
+                currentModel = currentModel,
+                searchText = searchText,
+                selectedCapabilityFilters = selectedCapabilityFilters,
+                // Read from a background thread: ToolCallMemoryStore.lookup is synchronized and the
+                // metadata table is a volatile immutable snapshot, so both are safe across threads.
+                toolCallMemoryVerdict = { provider, model ->
+                    providerRepository.toolCallMemoryVerdict(provider, model)
+                },
+            )
+        }
     }
+    val providerSections = sectionsResult?.providerSections.orEmpty()
     LaunchedEffect(expansionSignature, isHome, activeProviderId, sortedProviders) {
         expandedProviderIds = defaultExpandedModelPickerProviderIds(
             providers = sortedProviders,
@@ -340,7 +344,8 @@ fun ModelPickerSheet(
                     currentModelName = currentModel?.name,
                     currentProviderName = currentProvider?.displayName,
                     providerSections = providerSections,
-                    capabilityFilterCounts = capabilityFilterCounts,
+                    capabilityFilterCounts = sectionsResult?.capabilityFilterCounts,
+                    isComputing = sectionsResult == null,
                     selectedCapabilityFilters = selectedCapabilityFilters,
                     onToggleCapabilityFilter = { kind ->
                         selectedCapabilityFilters = if (kind in selectedCapabilityFilters) {
@@ -394,7 +399,10 @@ private fun ColumnScope.ModelPickerContent(
     currentModelName: String?,
     currentProviderName: String?,
     providerSections: List<ModelPickerSection>,
-    capabilityFilterCounts: Map<ModelPickerCapabilityFilterKind, Int>,
+    /** Null while the counts are still being computed; blank is better than rendering 0. */
+    capabilityFilterCounts: Map<ModelPickerCapabilityFilterKind, Int>?,
+    /** The first grouping result has not arrived yet; draw neither rows nor the empty state. */
+    isComputing: Boolean,
     selectedCapabilityFilters: Set<ModelPickerCapabilityFilterKind>,
     onToggleCapabilityFilter: (ModelPickerCapabilityFilterKind) -> Unit,
     searchText: String,
@@ -415,6 +423,8 @@ private fun ColumnScope.ModelPickerContent(
     toolCallMemoryVerdict: (Provider, AIModel) -> Boolean?,
 ) {
     val isHome = context == ModelPickerContext.Home
+    // Deliberately kept on the main thread: it only flattens the finished sections into rows, with no
+    // metadata resolution, and expanding, collapsing and searching need it in the same frame.
     val entries = remember(
         providerSections,
         searchText,
@@ -486,7 +496,11 @@ private fun ColumnScope.ModelPickerContent(
                 }
             }
 
-            if (providerSections.isEmpty()) {
+            if (isComputing) {
+                // Still grouping on the background thread. An empty state here would tell the user there
+                // are no models at all, when the real list replaces it a few milliseconds later.
+                Unit
+            } else if (providerSections.isEmpty()) {
 
                 item(key = "empty") {
                     if (selectedCapabilityFilters.isEmpty()) {
@@ -746,13 +760,22 @@ private fun SearchBar(
     }
 }
 
+/**
+ * [counts] is null while the counts are still being computed on a background thread. Only a
+ * placeholder is drawn then: rendering "Web 0" would read as "none available". The placeholder keeps
+ * the row height so the chips appear in place without shifting the layout.
+ */
 @Composable
 private fun ModelPickerCapabilityFilterRow(
-    counts: Map<ModelPickerCapabilityFilterKind, Int>,
+    counts: Map<ModelPickerCapabilityFilterKind, Int>?,
     selected: Set<ModelPickerCapabilityFilterKind>,
     onToggle: (ModelPickerCapabilityFilterKind) -> Unit,
 ) {
     val v2 = rememberV2PickerColors()
+    if (counts == null) {
+        Spacer(modifier = Modifier.height(32.dp))
+        return
+    }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ModelPickerCapabilityFilterKind.entries.forEach { kind ->
             val count = counts[kind] ?: 0
@@ -1585,6 +1608,58 @@ fun shouldRenderModelPickerProviderSection(
     models: List<AIModel>,
 ): Boolean =
     models.isNotEmpty() || (query.isBlank() && provider.canAddModelsInModelPicker())
+
+/**
+ * The output of one sheet recompute. Sections and chip counts must come from the same input and the
+ * same pass; a separate count and filter is how the screen ends up saying 358 while the list shows 12.
+ */
+internal data class ModelPickerSectionsResult(
+    val providerSections: List<ModelPickerSection>,
+    val capabilityFilterCounts: Map<ModelPickerCapabilityFilterKind, Int>,
+)
+
+/**
+ * The whole grouping, capability counting and capability filtering chain as a pure function, so it can
+ * move to a background thread as one piece.
+ *
+ * It runs [modelPickerCapabilityBadges] for every model, which goes through metadata resolution and
+ * capability control resolution; with 700+ models that took 719ms in a single frame on a low-end
+ * phone, and because the search text is an input it reran in full on every keystroke. Nothing in it
+ * reads Compose state or Android resources and every input is immutable, so the result is the same on
+ * the main thread and on Dispatchers.Default.
+ *
+ * `providers` must already be sorted: the sort key (the provider set) does not depend on search or
+ * filters, and keeping it in the caller's remember keeps the expansion effect's keys stable while
+ * searching.
+ */
+internal fun buildModelPickerSectionsResult(
+    context: ModelPickerContext,
+    providers: List<Provider>,
+    activeProviderId: String?,
+    currentModel: AIModel?,
+    searchText: String,
+    selectedCapabilityFilters: Set<ModelPickerCapabilityFilterKind>,
+    toolCallMemoryVerdict: (Provider, AIModel) -> Boolean?,
+): ModelPickerSectionsResult {
+    val unfiltered = buildProviderSections(
+        context = context,
+        providers = providers,
+        currentProviderId = activeProviderId,
+        currentModel = currentModel,
+        searchText = searchText,
+    )
+    return ModelPickerSectionsResult(
+        providerSections = applyModelPickerCapabilityFilter(
+            unfiltered,
+            selectedCapabilityFilters,
+            toolCallMemoryVerdict = toolCallMemoryVerdict,
+        ),
+        capabilityFilterCounts = modelPickerCapabilityFilterCounts(
+            unfiltered,
+            toolCallMemoryVerdict = toolCallMemoryVerdict,
+        ),
+    )
+}
 
 fun defaultExpandedModelPickerProviderIds(
     providers: List<Provider>,
