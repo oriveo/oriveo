@@ -1,4 +1,9 @@
 import type { AIModel, Attachment } from "@oriveo/shared";
+import {
+  type AttachmentLine,
+  attachmentTransportProfile,
+  nativeFileModeOf,
+} from "@oriveo/core/providers/attachment-transport";
 
 /**
  * Attachment routing decision.
@@ -10,9 +15,10 @@ import type { AIModel, Attachment } from "@oriveo/shared";
  *   - client_extract: the client extracts text first and injects it into the prompt as an
  *             ordinary text block
  *
- * The decision inputs come entirely from metadata (`model.nativeFileMimes` +
- * `model.pdfNativeDefault`), so the client hardcodes nothing about which provider is special.
- * Changing those fields through an EffectiveOverride changes routing without a client release.
+ * The inputs are the outbound line plus the model: the line declaration (`attachment-transport.ts`)
+ * says whether this wire accepts native files and how far, while the model's `nativeFileMimes` /
+ * `pdfNativeDefault` come from metadata. The model allowlist alone is not enough: a line of the
+ * same provider that has no native file block only loses the file.
  */
 export type AttachmentRoute = "native" | "client_extract";
 
@@ -20,29 +26,15 @@ const PDF_MIME = "application/pdf";
 const SCANNED_PDF = "scanned_pdf";
 
 /**
- * Per-provider single-file size ceiling on the native path.
- * Files over the threshold are forced to client_extract, which avoids OOM and provider upload
- * failures.
- *
- * - OpenAI Responses API: 32MB (documented input_file per-file limit)
- * - Anthropic Messages: 32MB (measured document content block limit)
- * - Gemini inlineData: 20MB inline (anything larger would have to go through the File API)
- * - default: 32MB
- *
- * In the browser the per-file limit is set by ChatAttachmentPicker.maxInputFileBytes (50MB);
- * this is a further tightening that applies to the native path only.
+ * Size of the original file in bytes. Derived from the raw bytes themselves rather than from
+ * `extractedSizeBytes`, which can be missing (attachments whose extraction failed used to omit it,
+ * so the threshold was skipped entirely).
  */
-export function maxNativeBytesFor(providerKind: string): number {
-  switch (providerKind) {
-    case "openAI":
-      return 32 * 1024 * 1024;
-    case "anthropic":
-      return 32 * 1024 * 1024;
-    case "gemini":
-      return 20 * 1024 * 1024;
-    default:
-      return 32 * 1024 * 1024;
-  }
+export function originalFileBytes(attachment: Attachment): number {
+  const base64 = attachment.originalBase64Data;
+  if (!base64) return 0;
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
 }
 
 /**
@@ -50,21 +42,24 @@ export function maxNativeBytesFor(providerKind: string): number {
  *
  * Order of checks; failing any precondition falls back to client_extract:
  *  1. Only file kind is handled. Images take the separate image_url path and never reach here.
- *  2. The mime must be in the model.nativeFileMimes allowlist.
- *  3. The attachment must still carry originalBase64Data (raw bytes, not truncated by the picker).
- *  4. Byte length <= maxNativeBytesFor(provider.kind).
- *  5. PDF has its own policy:
- *     - extractionErrorCode === 'scanned_pdf' -> native, for every model that supports PDF native
- *     - model.pdfNativeDefault === true -> native (all Gemini models, for example)
- *     - otherwise -> client_extract (the OpenAI / Anthropic default)
- *  6. Any other natively supported mime (docx/xlsx/pptx/rtf/odt) -> native.
+ *  2. The line's native mode is not `off` (also `off` for tool legs without a native block, or a
+ *     connection that already rejected file blocks). `always` and `alwaysWithTextFallback` route
+ *     the same way; they differ only after the upstream rejects (see the line declaration).
+ *  3. The mime must be in the model.nativeFileMimes allowlist.
+ *  4. The attachment must still carry originalBase64Data (raw bytes, not truncated by the picker).
+ *  5. Original byte length <= the line's declared maxNativeBytes.
+ *  6. PDF: scanned_pdf -> native; model.pdfNativeDefault -> native; otherwise client_extract.
+ *  7. Any other allowlisted mime (docx/xlsx/pptx/rtf/odt) -> native.
  */
 export function decideAttachmentRoute(
   attachment: Attachment,
-  providerKind: string,
+  line: AttachmentLine,
   model: AIModel
 ): AttachmentRoute {
   if (attachment.kind !== "file") return "client_extract";
+
+  const mode = nativeFileModeOf(line);
+  if (mode === "off") return "client_extract";
 
   const mime = (attachment.mimeType ?? "").toLowerCase();
   const supported = model.nativeFileMimes ?? [];
@@ -72,8 +67,7 @@ export function decideAttachmentRoute(
 
   if (!attachment.originalBase64Data) return "client_extract";
 
-  const bytes = attachment.extractedSizeBytes ?? 0;
-  if (bytes > 0 && bytes > maxNativeBytesFor(providerKind)) {
+  if (originalFileBytes(attachment) > attachmentTransportProfile(line.transport).maxNativeBytes) {
     return "client_extract";
   }
 

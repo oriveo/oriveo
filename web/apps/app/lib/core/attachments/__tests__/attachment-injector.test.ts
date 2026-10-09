@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   AttachmentInjector,
   attachmentTextBudgetBytes,
-  resolveWrapperVersion,
   type AttachmentPayload,
 } from '../attachment-injector';
+import { attachmentTransportProfile } from '@oriveo/core/providers/attachment-transport';
 import type { ExtractedText } from '../file-text-extractor';
 import { DEFAULT_LIMITS } from '../file-text-extractor';
 
@@ -39,7 +39,19 @@ describe('AttachmentInjector.formatAttachment (xml-v1)', () => {
       sizeBytes: 50000,
       extracted: makeExtracted(content, 700, true),
     });
-    expect(s).toContain('<TRUNCATED>showing first 500 of 700 lines');
+    // The marker carries neither a size cap nor a reason
+    expect(s).toContain('<TRUNCATED>showing first 500 of 700 lines</TRUNCATED>');
+    expect(s).not.toContain('200KB');
+  });
+
+  it('the marker carries no size cap when the truncation reason is bytes either', () => {
+    const content = Array.from({ length: 300 }, (_, i) => `L${i + 1}`).join('\n');
+    const extracted = { ...makeExtracted(content, 700, true), truncationReason: 'bytes' as const };
+    const payload = { fileName: 'big.md', mimeType: 'text/markdown', sizeBytes: 50000, extracted };
+    expect(AttachmentInjector.formatAttachment('xml-v1', 1, payload))
+      .toContain('<TRUNCATED>showing first 300 of 700 lines</TRUNCATED>');
+    expect(AttachmentInjector.formatAttachment('markdown-v1', 1, payload))
+      .toContain('- Lines: 700 (showing first 300)\n');
   });
 
   // The payload rebuilt from a persisted attachment at send time has only the truncated flag, no reason.
@@ -104,7 +116,8 @@ describe('AttachmentInjector.formatAttachment (markdown-v1) truncation note', ()
       sizeBytes: 50000,
       extracted: { ...makeExtracted(content, 700, true), truncationReason: undefined },
     });
-    expect(s).toContain('- Lines: 700 (showing first 500');
+    expect(s).toContain('- Lines: 700 (showing first 500)\n');
+    expect(s).not.toContain('200KB');
   });
 });
 
@@ -220,20 +233,15 @@ describe('AttachmentInjector.injectAll', () => {
   });
 });
 
-describe('resolveWrapperVersion', () => {
-  it('returns markdown-v1 for DeepSeek', () => {
-    expect(resolveWrapperVersion('deepseek')).toBe('markdown-v1');
+describe('the wrapper format is decided by the line declaration', () => {
+  it('Chinese-vendor Chat lines use markdown-v1', () => {
+    for (const transport of ['deepseek_chat', 'qwen_chat', 'moonshot_chat', 'moonshot_browser_direct', 'zhipu_chat', 'minimax_chat', 'minimax_anthropic_messages', 'siliconflow_chat'] as const) {
+      expect(attachmentTransportProfile(transport).wrapper).toBe('markdown-v1');
+    }
   });
-  it('returns xml-v1 for OpenAI', () => {
-    expect(resolveWrapperVersion('openAI')).toBe('xml-v1');
-  });
-  it('returns xml-v1 for Anthropic', () => {
-    expect(resolveWrapperVersion('anthropic')).toBe('xml-v1');
-  });
-  it('returns markdown-v1 for Qwen', () => {
-    expect(resolveWrapperVersion('qwen')).toBe('markdown-v1');
-  });
-  it('returns markdown-v1 for Moonshot', () => {
-    expect(resolveWrapperVersion('moonshot')).toBe('markdown-v1');
+  it('all other lines use xml-v1', () => {
+    for (const transport of ['openai_chat', 'openai_responses', 'anthropic_messages', 'gemini_generate', 'openrouter_chat', 'relay_openai_chat', 'relay_llamacpp_native'] as const) {
+      expect(attachmentTransportProfile(transport).wrapper).toBe('xml-v1');
+    }
   });
 });

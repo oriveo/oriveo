@@ -46,13 +46,13 @@ const pdf = (fileName: string, extractedBytes: number): Attachment => ({
 
 describe('findUnsendableTextAttachments', () => {
   it('no attachments, or all of them fit: empty result', () => {
-    expect(findUnsendableTextAttachments(undefined, model(), 'openAI')).toEqual([]);
-    expect(findUnsendableTextAttachments([textFile('a.txt', 100 * KB), textFile('b.txt', 100 * KB)], model(), 'openAI'))
+    expect(findUnsendableTextAttachments(undefined, model(), { transport: 'openai_responses' })).toEqual([]);
+    expect(findUnsendableTextAttachments([textFile('a.txt', 100 * KB), textFile('b.txt', 100 * KB)], model(), { transport: 'openai_responses' }))
       .toEqual([]);
   });
 
   it('two texts summing past the total budget: reports the one that does not fit', () => {
-    expect(findUnsendableTextAttachments([textFile('a.txt', 150 * KB), textFile('b.txt', 150 * KB)], model(), 'openAI'))
+    expect(findUnsendableTextAttachments([textFile('a.txt', 150 * KB), textFile('b.txt', 150 * KB)], model(), { transport: 'openai_responses' }))
       .toEqual([{ fileName: 'b.txt', reason: 'total_cap_exceeded' }]);
   });
 
@@ -60,24 +60,24 @@ describe('findUnsendableTextAttachments', () => {
     const attachments = [textFile('notes.txt', 150 * KB), pdf('report.pdf', 150 * KB)];
     const nativePdfModel = model({ nativeFileMimes: [PDF], pdfNativeDefault: true });
 
-    expect(resolveFileAttachmentDelivery(attachments[1]!, nativePdfModel, 'gemini').route).toBe('native');
-    expect(findUnsendableTextAttachments(attachments, nativePdfModel, 'gemini')).toEqual([]);
+    expect(resolveFileAttachmentDelivery(attachments[1]!, nativePdfModel, { transport: 'gemini_generate' }).route).toBe('native');
+    expect(findUnsendableTextAttachments(attachments, nativePdfModel, { transport: 'gemini_generate' })).toEqual([]);
 
-    expect(resolveFileAttachmentDelivery(attachments[1]!, model(), 'deepseek').route).toBe('client_extract');
-    expect(findUnsendableTextAttachments(attachments, model(), 'deepseek'))
+    expect(resolveFileAttachmentDelivery(attachments[1]!, model(), { transport: 'deepseek_chat' }).route).toBe('client_extract');
+    expect(findUnsendableTextAttachments(attachments, model(), { transport: 'deepseek_chat' }))
       .toEqual([{ fileName: 'report.pdf', reason: 'total_cap_exceeded' }]);
   });
 
   it('a model whose totalCap is tighter than the default: a file that fits by default is reported on this model', () => {
     const attachments = [textFile('a.txt', 60 * KB), textFile('b.txt', 60 * KB)];
-    expect(findUnsendableTextAttachments(attachments, model(), 'openAI')).toEqual([]);
-    expect(findUnsendableTextAttachments(attachments, model({ attachmentExtraction: { totalCap: 100 * KB } }), 'openAI'))
+    expect(findUnsendableTextAttachments(attachments, model(), { transport: 'openai_responses' })).toEqual([]);
+    expect(findUnsendableTextAttachments(attachments, model({ attachmentExtraction: { totalCap: 100 * KB } }), { transport: 'openai_responses' }))
       .toEqual([{ fileName: 'b.txt', reason: 'total_cap_exceeded' }]);
   });
 
   it('images and videos do not take part in the text budget', () => {
     const image: Attachment = { id: 'i', kind: 'image', fileName: 'i.png', mimeType: 'image/png', base64Data: 'x'.repeat(DEFAULT_LIMITS.totalCap + 1) };
-    expect(findUnsendableTextAttachments([image, textFile('a.txt', 10 * KB)], model(), 'openAI')).toEqual([]);
+    expect(findUnsendableTextAttachments([image, textFile('a.txt', 10 * KB)], model(), { transport: 'openai_responses' })).toEqual([]);
   });
 
   it('matches the injector\'s skipped list for the same payloads item by item', () => {
@@ -89,11 +89,11 @@ describe('findUnsendableTextAttachments', () => {
     ];
     const tight = model({ attachmentExtraction: { totalCap: 190 * KB } });
     const payloads = attachments
-      .map((attachment) => resolveFileAttachmentDelivery(attachment, tight, 'openAI'))
+      .map((attachment) => resolveFileAttachmentDelivery(attachment, tight, { transport: 'openai_responses' }))
       .flatMap((delivery): AttachmentPayload[] => (delivery.route === 'client_extract' ? [delivery.payload] : []));
     const injected = AttachmentInjector.injectAll('question', payloads, resolveFileExtractionLimits(tight));
 
     expect(injected.skipped.length).toBeGreaterThan(0);
-    expect(findUnsendableTextAttachments(attachments, tight, 'openAI')).toEqual(injected.skipped);
+    expect(findUnsendableTextAttachments(attachments, tight, { transport: 'openai_responses' })).toEqual(injected.skipped);
   });
 });

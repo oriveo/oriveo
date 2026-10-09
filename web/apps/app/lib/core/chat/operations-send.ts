@@ -7,7 +7,9 @@ import type { ChatMessage, Conversation, AIModel, Provider, Attachment, Reasonin
 import type { ContentPart } from '../providers/types';
 import type { CapabilityPreferenceInput, GenerationParameterOverrides } from '@oriveo/core/providers/request-builders/types';
 import { networkError, type ProviderError } from '../providers/errors';
-import { buildChatHistory, mapErrorKindKey, sanitizeOutboundMessages } from '../../utils/chat-stream-utils';
+import { mapErrorKindKey, sanitizeOutboundMessages } from '../../utils/chat-stream-utils';
+import { buildOutboundChatHistory } from './outbound-history';
+import { filterCurrentTurnAttachments } from './attachment-policy';
 import { processImageAttachments, backfillStorageRefs } from '../../utils/stream-image-utils';
 import { createUserMessage, createAssistantMessage } from './message-factory';
 import { upsertMessages } from './message-merge';
@@ -37,9 +39,8 @@ import {
 } from './error-reporting';
 import { recalculateConversationCost } from './usage-tracking';
 import {
-  REMINDER_PREFIX,
+  appendAntiForgetReminder,
   buildPromptInjectionContext,
-  fitWrappedSegment,
 } from './prompt-injection';
 import { runStreamPipeline } from './stream-runner';
 import { prepareSendStart, reportSendStartedTelemetry } from './send-start';
@@ -342,13 +343,16 @@ export function sendMessage(
       const mayInjectVision = resolveModelCapabilityEvidence({
         key: 'vision_input', provider, model, streamOptions: attachmentScopeOptions,
       }).support === 'supported';
-      const outboundMessages = mayInjectVision
+      // Run the current turn's attachments through the current model's capabilities again: a retry or an edited resend carries the original message's attachments, possibly from another model.
+      const outboundMessages = filterCurrentTurnAttachments(mayInjectVision
         ? sanitizedOutboundMessages
         : sanitizedOutboundMessages.map((message) => ({
           ...message,
           attachments: message.attachments?.filter((attachment) => attachment.kind !== 'image'),
-        }));
-      const chatHistory = await buildChatHistory(outboundMessages, model, provider.kind);
+        })), userMsg.id, provider, model);
+      const chatHistory = await buildOutboundChatHistory(ctx, {
+        messages: outboundMessages, provider, model, streamOptions: attachmentScopeOptions,
+      });
       const effectiveConversation = conversation ?? initialConversationSnapshot;
 
       // System prompt injection: skill prompt + knowledge files + memory, all handled by buildSystemPromptContent.
@@ -413,24 +417,7 @@ export function sendMessage(
       }
 
       // Anti-forgetting mode: past 10 user turns, append a summary reminder to the last user message.
-      const prefs = store.getState().preferences;
-      if (prefs.memoryAntiForgetEnabled && promptContext.useMemory) {
-        const userMsgCount = chatHistory.filter((m) => m.role === 'user').length;
-        const summaryText = prefs.memoryAntiForgetText?.trim();
-        if (userMsgCount >= 10 && summaryText) {
-          const reminder = fitWrappedSegment(REMINDER_PREFIX, summaryText, ']', promptContext.remainingChars);
-          if (reminder) {
-            for (let i = chatHistory.length - 1; i >= 0; i--) {
-              if (chatHistory[i].role === 'user') {
-                const original = chatHistory[i].content;
-                const textContent = typeof original === 'string' ? original : original.map((p: ContentPart) => p.type === 'text' ? p.text : '').join('');
-                chatHistory[i] = { ...chatHistory[i], content: `${textContent}\n\n${reminder}` };
-                break;
-              }
-            }
-          }
-        }
-      }
+      appendAntiForgetReminder(chatHistory, store.getState().preferences, promptContext);
 
       if (libraryContext) {
         appendTextToLatestUserMessage(chatHistory, libraryContext.userContext);

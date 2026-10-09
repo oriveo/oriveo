@@ -9,6 +9,7 @@
  * this module never touches window/fetch/crypto directly. signal is passed through so that
  * cancellation keeps working.
  */
+import { attachmentTransportProfile } from './attachment-transport';
 import { mapRelayStreamError } from '@oriveo/shared/relay/error-mapping';
 import { redactRelayCredentials } from '@oriveo/shared/relay/endpoint-policy';
 import type { ContentPart, StreamEvent, StreamHandle, StreamOptions } from './types';
@@ -348,6 +349,28 @@ function sendRelayTransportStream(
   }
 }
 
+/**
+ * llama.cpp native folds the whole conversation into one prompt, which can only carry text. Images cannot
+ * be delivered, so the placeholder text from the line declaration stands in for them and tells the model
+ * that this turn had an image that did not arrive (otherwise the user attaches an image, the model never
+ * sees it, and nothing in the UI says so). Files never reach this point: this line has no native file
+ * block, and the client has already injected files into the text.
+ */
+export function buildLlamaCppNativePrompt(messages: RelayMessages): string {
+  const imagePlaceholder = attachmentTransportProfile('relay_llamacpp_native').imagePlaceholderText;
+  return messages.map((message) => {
+    const text = typeof message.content === 'string'
+      ? message.content
+      : message.content
+        .map((part) => part.type === 'text'
+          ? part.text
+          : part.type === 'image_url' ? imagePlaceholder : undefined)
+        .filter((line): line is string => line !== undefined)
+        .join('\n');
+    return `${message.role}: ${text}`;
+  }).join('\n');
+}
+
 /** Native llama.cpp server `/completion`. The model and chat template are managed by the engine, so it must not be disguised as OpenAI Chat. */
 function sendLlamaCppNativeStream(
   apiKey: string,
@@ -359,10 +382,7 @@ function sendLlamaCppNativeStream(
 ): StreamHandle {
   const controller = new AbortController();
   const relayStream = shouldRelayStream(options);
-  const prompt = messages.map((message) => {
-    const text = typeof message.content === 'string' ? message.content : extractText(message.content);
-    return `${message.role}: ${text}`;
-  }).join('\n');
+  const prompt = buildLlamaCppNativePrompt(messages);
   const transport: RelayTransport = 'llamacpp_native';
   const authMode = resolveRelayAuthMode(options, transport, deps.getRelayRuntimeConfig());
   const sensitiveCredentialValues = requestCredentialValues(apiKey, options, authMode);

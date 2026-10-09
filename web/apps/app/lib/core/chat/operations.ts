@@ -9,6 +9,8 @@
  * so call sites do not have to change.
  */
 import type { StoreApi } from 'zustand';
+import type { AIModel } from '@oriveo/shared';
+import type { SkippedAttachment } from '../attachments/attachment-injector';
 import type { AppStore } from '../store/app-store';
 
 /* ── Types ────────────────────────────────────────────── */
@@ -17,6 +19,8 @@ export interface ChatOpCtx {
   store: StoreApi<AppStore>;
   appendChunk: (chunk: string) => void;
   te: (key: string) => string;
+  /** Words this turn's attachments that do not fit as one sentence for the user; without it the failure card body carries only the stable code. */
+  describeAttachmentOverLimit?: (skipped: SkippedAttachment[], model: AIModel) => string;
 }
 
 export interface SendHandle {

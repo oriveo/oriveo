@@ -1,5 +1,10 @@
 import type { AIModel, Attachment, Provider } from '@oriveo/shared';
-import type { ProviderAttachmentSupport } from '../metadata/metadata-client';
+import {
+  type ProviderAttachmentSupport,
+  getProviderAttachmentSupport,
+  getRelayRuntimeConfig,
+} from '../metadata/metadata-client';
+import { resolveRelayAttachmentSupport } from '../providers/relay-runtime-support';
 import { resolveModelCapabilityEvidence } from './capability-evidence';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from './stream-options';
 
@@ -92,4 +97,48 @@ export function buildAcceptAttribute(
     : supportsImage
       ? 'image/*'
       : fileExts;
+}
+
+/** What the current connection supports for each attachment type (the same resolution ChatView computes for the input box). */
+export function resolveProviderAttachmentSupport(
+  provider: Provider,
+  model: AIModel | null | undefined,
+): ProviderAttachmentSupport | null {
+  if (provider.kind === 'relay') return resolveRelayAttachmentSupport(provider, getRelayRuntimeConfig());
+  return getProviderAttachmentSupport(provider.kind);
+}
+
+/**
+ * Filters this turn's user-message attachments by the current model's capabilities, using the same rule
+ * the input box applies when it accepts attachments (`resolveAttachmentCapabilities`: images, videos and
+ * files are each judged by their own capability).
+ *
+ * Attachments of a plain send already passed this gate when they entered the input box. A retry or an
+ * edited resend carries the original message's attachments, and the model back then may have been a
+ * different one, so they go through the current model once more before sending. Only the outbound content
+ * changes; the attachments in the message record stay as they are, and earlier history messages are untouched.
+ */
+export function filterCurrentTurnAttachments<T extends { id: string; attachments?: Attachment[] }>(
+  messages: T[],
+  currentTurnId: string,
+  provider: Provider,
+  model: AIModel,
+  /** Resolved from the current connection by default; tests can pass it directly. */
+  providerAttachmentSupport?: ProviderAttachmentSupport | null,
+): T[] {
+  const turn = messages.find((message) => message.id === currentTurnId);
+  if (!turn?.attachments?.length) return messages;
+  const support = providerAttachmentSupport === undefined
+    ? resolveProviderAttachmentSupport(provider, model)
+    : providerAttachmentSupport;
+  // A support table that has not loaded yet means "unknown", not "unsupported": leave the attachments alone and let the other gates at send time decide.
+  if (!support) return messages;
+  const capabilities = resolveAttachmentCapabilities(provider, model, support);
+  const kept = turn.attachments.filter((attachment) => attachment.kind === 'image'
+    ? capabilities.supportsImage
+    : attachment.kind === 'video' ? capabilities.supportsVideo : capabilities.supportsFile);
+  if (kept.length === turn.attachments.length) return messages;
+  return messages.map((message) => message === turn
+    ? { ...message, attachments: kept.length > 0 ? kept : undefined }
+    : message);
 }

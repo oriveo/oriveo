@@ -16,15 +16,22 @@ import {
 import { imageSizeBytes, loadImageBase64 } from '../infra/storage/image-store';
 import { createCanonicalUUID } from './id-utils';
 import {
-  type AttachmentPayload,
+  type AttachmentLine,
   type AttachmentWrapperVersion,
+  attachmentTransportProfile,
+} from '@oriveo/core/providers/attachment-transport';
+import {
+  type AttachmentPayload,
   AttachmentInjector,
-  resolveWrapperVersion,
 } from '../core/attachments/attachment-injector';
 import {
   resolveFileExtractionLimits,
 } from '../core/attachments/file-text-extractor';
-import { resolveFileAttachmentDelivery } from '../core/attachments/attachment-delivery';
+import {
+  AttachmentOverLimitError,
+  isAttachmentOverLimitCode,
+  resolveFileAttachmentDelivery,
+} from '../core/attachments/attachment-delivery';
 import { applyOutboundAttachmentBudget } from '../core/attachments/outbound-attachment-budget';
 
 /**
@@ -33,16 +40,17 @@ import { applyOutboundAttachmentBudget } from '../core/attachments/outbound-atta
  *
  * @param msgs message list
  * @param currentModel selected model; decides the truncation threshold and the fallback path
- * @param providerKind selected provider kind; decides the wrapper format
+ * @param line the outbound line of this send (`resolveAttachmentLine`); decides native upload vs text
+ *   injection and the wrapper format. Without it, files are always injected as xml text.
  */
 export async function buildChatHistory(
   msgs: ChatMessage[],
   currentModel?: AIModel | null,
-  providerKind?: string,
+  line?: AttachmentLine,
 ): Promise<{ role: 'user' | 'assistant' | 'system'; content: string | ContentPart[] }[]> {
   const limits = resolveFileExtractionLimits(currentModel);
-  const wrapper: AttachmentWrapperVersion = providerKind
-    ? resolveWrapperVersion(providerKind)
+  const wrapper: AttachmentWrapperVersion = line
+    ? attachmentTransportProfile(line.transport).wrapper
     : 'xml-v1';
 
   // Historical attachment budget window (see outbound-attachment-budget.ts): the current turn is
@@ -51,6 +59,17 @@ export async function buildChatHistory(
   // image base64 is only read out of IndexedDB by loadImageBase64 inside that loop, so dropping an
   // attachment earlier means the read never happens at all.
   const budgetedMsgs = await applyOutboundAttachmentBudget(msgs, { imageSizeOf: imageSizeBytes });
+
+  // The current turn is the last user message. If its attachments do not fit, the whole build fails:
+  // sending the text without the missing files would be invisible to the user and the model would not
+  // know a file is absent. Earlier history is not blocked (how that turn was sent is already settled).
+  let currentTurn: ChatMessage | undefined;
+  for (let i = budgetedMsgs.length - 1; i >= 0; i -= 1) {
+    if (budgetedMsgs[i].role === 'user') {
+      currentTurn = budgetedMsgs[i];
+      break;
+    }
+  }
 
   const result: { role: 'user' | 'assistant' | 'system'; content: string | ContentPart[] }[] = [];
   for (const m of budgetedMsgs) {
@@ -86,7 +105,7 @@ export async function buildChatHistory(
           });
         } else if (att.kind === 'file') {
           // Native upload vs text injection is decided by the same function the pre-send check uses (attachment-delivery.ts).
-          const delivery = resolveFileAttachmentDelivery(att, currentModel, providerKind);
+          const delivery = resolveFileAttachmentDelivery(att, currentModel, line);
           if (delivery.route === 'native') {
             parts.push({
               type: 'file',
@@ -105,14 +124,17 @@ export async function buildChatHistory(
       }
 
       // Append filePayloads to the end of userText via AttachmentInjector.
-      // An attachment that does not fit is still skipped here, but only as a safety net: the send
-      // entry point already ran findUnsendableTextAttachments with the same rules and blocked the send.
-      const { text: combinedText } = AttachmentInjector.injectAll(
+      // The send entry point already pre-checked with the same rules; this is the last gate: options the
+      // entry point cannot see, entries without a pre-check, and a model switched after the check all land here.
+      const { text: combinedText, skipped } = AttachmentInjector.injectAll(
         effectiveText ?? '',
         filePayloads,
         limits,
         wrapper,
       );
+      if (m === currentTurn && skipped.length > 0) {
+        throw new AttachmentOverLimitError(skipped);
+      }
 
       // When there are attachments, this message's text already contains the ATTACHMENT_FILE block;
       // the matching system prompt guidance is appended in buildSystemPromptContent in operations.ts.
@@ -211,12 +233,6 @@ export function sanitizeOutboundMessages(
   }
   return merged;
 }
-
-/**
- * Skipped-attachment info from buildChatHistory, for telemetry.
- * Callers receive it through the extension parameter.
- */
-export { resolveWrapperVersion };
 
 /**
  * Streaming read loop: consume the SSE stream and accumulate the result.
@@ -351,6 +367,9 @@ export async function readStream(
  */
 export function mapErrorKindKey(kind: string | undefined): string {
   const k = kind || 'upstream';
+  // The attachments of this turn do not fit: the request was never sent, so this is not a provider failure.
+  // The title is the neutral "request failed" and the body is the stored explanation.
+  if (isAttachmentOverLimitCode(k)) return 'requestFailed';
   if (
     k === 'invalidKey' || k === 'rateLimited' || k === 'network' || k === 'upstream'
     // badRequest (attachment over limit, context too long, and so on) has its own copy. Leaving it out

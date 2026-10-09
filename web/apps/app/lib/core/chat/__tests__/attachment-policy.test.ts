@@ -5,6 +5,7 @@ import {
   resolveAttachmentCapabilities,
   canAcceptDroppedAttachment,
   buildAcceptAttribute,
+  filterCurrentTurnAttachments,
 } from '../attachment-policy';
 
 function makeModel(capabilities: string[]): AIModel {
@@ -174,5 +175,47 @@ describe('buildAcceptAttribute', () => {
     expect(accept).not.toContain('image/*');
     expect(accept).not.toContain('.pdf');
     expect(accept).toContain('.txt');
+  });
+});
+
+// A retry or an edited resend carries the original message's attachments; they go through the current model's capabilities once more before sending.
+describe('filterCurrentTurnAttachments', () => {
+  const image = { ...makeAttachment('image'), id: 'img' };
+  const video = { ...makeAttachment('video'), id: 'vid' };
+  const file = { ...makeAttachment('file'), id: 'doc' };
+  const history = { id: 'old', attachments: [image, video, file] };
+  const turn = { id: 'now', attachments: [image, video, file] };
+
+  it('keeps only the kinds the current model accepts; earlier history is untouched', () => {
+    const out = filterCurrentTurnAttachments(
+      [history, turn], 'now', provider, makeModel(['text']),
+      makeSupport({ image: true, textFileInline: true }),
+    );
+    // The model has no image / video capability: only files remain
+    expect(out[1].attachments).toEqual([file]);
+    expect(out[0]).toBe(history);
+  });
+
+  it('files depend on whether the connection accepts files', () => {
+    const out = filterCurrentTurnAttachments(
+      [turn], 'now', provider, makeModel(['text', 'image']), makeSupport({ image: true }),
+    );
+    expect(out[0].attachments).toEqual([image]);
+  });
+
+  it('support table not loaded yet (null): unknown is not unsupported, returned as is', () => {
+    const messages = [turn];
+    expect(filterCurrentTurnAttachments(messages, 'now', provider, makeModel(['text']), null)).toBe(messages);
+  });
+
+  it('attachments are cleared when none is accepted; the same array is returned unchanged when all are accepted', () => {
+    expect(filterCurrentTurnAttachments(
+      [turn], 'now', provider, makeModel(['text']), makeSupport({}),
+    )[0].attachments).toBeUndefined();
+
+    const messages = [{ id: 'now', attachments: [file] }];
+    expect(filterCurrentTurnAttachments(
+      messages, 'now', provider, makeModel(['text']), makeSupport({ textFileInline: true }),
+    )).toBe(messages);
   });
 });

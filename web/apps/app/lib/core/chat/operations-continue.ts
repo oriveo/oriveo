@@ -8,9 +8,9 @@
  *   - citations go through mergeCitationsWithExisting for deduplicated merging
  */
 import type { ChatMessage, Conversation, AIModel, Provider, ReasoningMode } from '@oriveo/shared';
-import type { ContentPart } from '../providers/types';
 import type { GenerationParameterOverrides } from '@oriveo/core/providers/request-builders/types';
-import { buildChatHistory, mapErrorKindKey, sanitizeOutboundMessages } from '../../utils/chat-stream-utils';
+import { mapErrorKindKey, sanitizeOutboundMessages } from '../../utils/chat-stream-utils';
+import { buildOutboundChatHistory } from './outbound-history';
 import { processImageAttachments, backfillStorageRefs } from '../../utils/stream-image-utils';
 import { customFragmentFailurePatch } from './custom-fragment-rejection';
 import { customFragmentAllowedPaths } from './custom-fragment-allowed-paths';
@@ -38,9 +38,8 @@ import {
 import { recalculateConversationCost, shouldTrackProviderUsage } from './usage-tracking';
 import { runStreamPipeline } from './stream-runner';
 import {
-  REMINDER_PREFIX,
+  appendAntiForgetReminder,
   buildPromptInjectionContext,
-  fitWrappedSegment,
 } from './prompt-injection';
 import type { ChatOpCtx, SendHandle } from './operations';
 import { clearOwnLibraryConfirmation, requestLibraryConfirmation } from '../library/confirmation';
@@ -180,7 +179,9 @@ export function continueAnswering(
           attachments: message.attachments?.filter((attachment) => attachment.kind !== 'image'),
         }));
 
-      const chatHistory = await buildChatHistory(historyUpToInterrupted, model, provider.kind);
+      const chatHistory = await buildOutboundChatHistory(ctx, {
+        messages: historyUpToInterrupted, provider, model, streamOptions: attachmentScopeOptions,
+      });
       const explicitContinueInput = { role: 'user' as const, content: '[Continue from where you left off]' };
       if (continuation?.kind === 'previous_id') {
         // Stateful Responses/Interactions already own the prior context. Sending the full local
@@ -218,26 +219,7 @@ export function continueAnswering(
         appendTextToLatestUserMessage(chatHistory, directContext.userContext);
       }
 
-      const prefs = store.getState().preferences;
-      if (prefs.memoryAntiForgetEnabled && promptContext.useMemory) {
-        const userMsgCount = chatHistory.filter((m) => m.role === 'user').length;
-        const summaryText = prefs.memoryAntiForgetText?.trim();
-        if (userMsgCount >= 10 && summaryText) {
-          const reminder = fitWrappedSegment(REMINDER_PREFIX, summaryText, ']', promptContext.remainingChars);
-          if (reminder) {
-            for (let i = chatHistory.length - 1; i >= 0; i--) {
-              if (chatHistory[i].role === 'user') {
-                const original = chatHistory[i].content;
-                const textContent = typeof original === 'string'
-                  ? original
-                  : original.map((p: ContentPart) => p.type === 'text' ? p.text : '').join('');
-                chatHistory[i] = { ...chatHistory[i], content: `${textContent}\n\n${reminder}` };
-                break;
-              }
-            }
-          }
-        }
-      }
+      appendAntiForgetReminder(chatHistory, store.getState().preferences, promptContext);
 
       const clientControlsAllowed = !providerControlsAreManaged(provider);
       const unresolvedGenerationParameters = clientControlsAllowed ? resolveGenerationParameterOverrides({

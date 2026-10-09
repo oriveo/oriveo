@@ -28,7 +28,9 @@ import { ToolCallLoop, type ToolCallLoopOptions } from '@oriveo/core/tools/tool-
 import { ToolLoopError, type ToolLoopProgressEvent, type ToolLoopResult } from '@oriveo/core/tools/tool-loop-contracts';
 import { ToolRegistry } from '@oriveo/core/tools/tool-registry';
 import { MCP_LOOP_PROMPTS, MCP_LOOP_STOPPED_ERROR_CODE, mcpLoopLimits, mcpSystemPrompt, type McpToolPlan } from '@oriveo/core/mcp/index';
-import { buildChatHistory, mapErrorKindKey, sanitizeOutboundMessages } from '../../utils/chat-stream-utils';
+import { mapErrorKindKey, sanitizeOutboundMessages } from '../../utils/chat-stream-utils';
+import { buildOutboundChatHistory } from './outbound-history';
+import { filterCurrentTurnAttachments } from './attachment-policy';
 import { getActiveUIDSync } from '../../infra/storage/partition';
 import { adoptMcpDraftServers, createMcpSendSession } from '../mcp/mcp-chat';
 import { currentMcpRuntimeConfig } from '../mcp/mcp-store';
@@ -184,13 +186,16 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
       const mayInjectVision = resolveModelCapabilityEvidence({
         key: 'vision_input', provider: params.provider, model: params.model, streamOptions: attachmentScopeOptions,
       }).support === 'supported';
-      const outbound = mayInjectVision
+      const outbound = filterCurrentTurnAttachments(mayInjectVision
         ? sanitizedOutbound
         : sanitizedOutbound.map((message) => ({
           ...message,
           attachments: message.attachments?.filter((attachment) => attachment.kind !== 'image'),
-        }));
-      const history = (await buildChatHistory(outbound, params.model, params.provider.kind)) as ProxyMessage[];
+        })), userMessage.id, params.provider, params.model);
+      const history = (await buildOutboundChatHistory(ctx, {
+        messages: outbound, provider: params.provider, model: params.model,
+        streamOptions: attachmentScopeOptions, toolLoop: true,
+      })) as ProxyMessage[];
       const promptContext = await buildPromptInjectionContext(
         store,
         effectiveConversation,
@@ -456,7 +461,10 @@ function describeFailure(error: unknown): { kind: string; detail: string; source
   const isTransport = error instanceof TypeError;
   return {
     kind: isTransport ? 'network' : kind,
-    detail: error instanceof Error ? error.message : String(error),
+    // A locally generated error (the attachments of this turn do not fit) puts the user-facing sentence in detail; message carries only the stable code.
+    detail: typeof (error as { detail?: unknown } | null)?.detail === 'string'
+      ? (error as { detail: string }).detail
+      : error instanceof Error ? error.message : String(error),
     ...(source ? { source } : isTransport ? { source: 'network' as const } : {}),
   };
 }

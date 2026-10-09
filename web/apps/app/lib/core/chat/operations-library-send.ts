@@ -12,10 +12,10 @@ import type {
 import type { ProxyMessage } from "@oriveo/core/providers/request-builders/runtime";
 import type { GenerationParameterOverrides } from "@oriveo/core/providers/request-builders/types";
 import type { StreamUsage } from "@oriveo/core/providers/types";
-import {
-  buildChatHistory,
-  sanitizeOutboundMessages,
-} from "../../utils/chat-stream-utils";
+import { sanitizeOutboundMessages } from "../../utils/chat-stream-utils";
+import { buildOutboundChatHistory } from "./outbound-history";
+import { filterCurrentTurnAttachments } from "./attachment-policy";
+import { AttachmentOverLimitError } from "../attachments/attachment-delivery";
 import { createAssistantMessage, createUserMessage } from "./message-factory";
 import { prepareSendStart } from "./send-start";
 import {
@@ -305,17 +305,16 @@ export function sendLibraryMessage(
       const mayInjectVision = resolveModelCapabilityEvidence({
         key: 'vision_input', provider: params.provider, model: params.model, streamOptions: attachmentScopeOptions,
       }).support === 'supported';
-      const outbound = mayInjectVision
+      const outbound = filterCurrentTurnAttachments(mayInjectVision
         ? sanitizedOutbound
         : sanitizedOutbound.map((message) => ({
           ...message,
           attachments: message.attachments?.filter((attachment) => attachment.kind !== 'image'),
-        }));
-      const history = (await buildChatHistory(
-        outbound,
-        params.model,
-        params.provider.kind,
-      )) as ProxyMessage[];
+        })), userMessage.id, params.provider, params.model);
+      const history = (await buildOutboundChatHistory(ctx, {
+        messages: outbound, provider: params.provider, model: params.model,
+        streamOptions: attachmentScopeOptions, toolLoop: true,
+      })) as ProxyMessage[];
       const promptContext = await buildPromptInjectionContext(
         store,
         effectiveConversation,
@@ -594,6 +593,8 @@ export function sendLibraryMessage(
         : undefined;
       // Library tools only read and retrieve, so they are not side effects; the decision is the same as in operations-send (see additional-body-retry-tap).
       const additionalBodyRetry = additionalBodyRetryTap?.resolve({ sideEffects: false });
+      // The attachments of this turn do not fit: the request was never sent, so this is not a library failure.
+      const attachmentOverLimit = error instanceof AttachmentOverLimitError ? error : undefined;
       const failed: ChatMessage = {
         ...assistantMessage,
         text:
@@ -602,17 +603,21 @@ export function sendLibraryMessage(
         state: "failed",
         errorTitle: additionalBodyRetry?.eligible
           ? ctx.te("additionalBodyRejected.upstreamTitle")
-          : params.errorTitle,
+          : attachmentOverLimit ? ctx.te("requestFailed.title") : params.errorTitle,
         ...(additionalBodyRetry?.eligible ? { additionalBodyRetryEligible: true } : {}),
         ...(additionalBodyRetry?.eligible && additionalBodyRetry.technicalDetail
           ? { errorTechnicalDetail: additionalBodyRetry.technicalDetail }
           : {}),
-        errorDetail: providerResponse && error instanceof Error
-          ? error.message
-          : readLibraryErrorDetail(error, params),
-        errorKind: providerResponse && typeof rawErrorCode === "string"
-          ? rawErrorCode
-          : readLibraryErrorCode(error),
+        errorDetail: attachmentOverLimit
+          ? attachmentOverLimit.detail ?? attachmentOverLimit.kind
+          : providerResponse && error instanceof Error
+            ? error.message
+            : readLibraryErrorDetail(error, params),
+        errorKind: attachmentOverLimit
+          ? attachmentOverLimit.kind
+          : providerResponse && typeof rawErrorCode === "string"
+            ? rawErrorCode
+            : readLibraryErrorCode(error),
         ...(errorSource ? { errorSource } : {}),
         researchSteps: readResearchSteps(
           store,

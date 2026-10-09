@@ -1,14 +1,15 @@
 /**
  * AttachmentInjector - wraps extracted file content in ATTACHMENT_FILE blocks
  *
- * Two formats are supported:
- * - xml-v1: default for Anthropic/OpenAI/Gemini/OpenRouter/Llama
- * - markdown-v1: default for DeepSeek/Qwen/Moonshot/Zhipu/MiniMax/SiliconFlow
+ * Two formats are supported; which one applies is decided by the line declaration (`attachment-transport.ts`):
+ * - xml-v1: Anthropic/OpenAI/Gemini/OpenRouter/Llama
+ * - markdown-v1: DeepSeek/Qwen/Moonshot/Zhipu/MiniMax/SiliconFlow
  *
  * On failure a strict instruction is emitted so the model does not invent content.
  * Limits: 200KB in total and a hard cap of 3 files.
  */
 
+import type { AttachmentWrapperVersion } from '@oriveo/core/providers/attachment-transport';
 import {
   type ExtractedText,
   type ExtractionErrorCode,
@@ -16,18 +17,7 @@ import {
   DEFAULT_LIMITS,
 } from './file-text-extractor';
 
-export type AttachmentWrapperVersion = 'xml-v1' | 'markdown-v1';
-
-// markdown-v1 family: OpenAI-compatible models trained mainly on Chinese corpora prefer ChatML + Markdown
-const MARKDOWN_V1_PROVIDERS = new Set([
-  'deepseek', 'qwen', 'moonshot', 'zhipu', 'miniMax', 'siliconFlow',
-]);
-
-/** Picks the default wrapper by provider kind */
-export function resolveWrapperVersion(providerKind: string): AttachmentWrapperVersion {
-  if (MARKDOWN_V1_PROVIDERS.has(providerKind)) return 'markdown-v1';
-  return 'xml-v1';
-}
+export type { AttachmentWrapperVersion };
 
 export interface AttachmentPayload {
   fileName: string;
@@ -131,15 +121,8 @@ export const AttachmentInjector = {
     if (p.extracted?.truncated) {
       const n = p.extracted.content.split('\n').length;
       const total = p.extracted.totalLines;
-      if (p.extracted.truncationReason === 'lines') {
-        lines.push(`<TRUNCATED>showing first ${n} of ${total} lines (size cap 200KB)</TRUNCATED>`);
-      } else if (p.extracted.truncationReason === 'bytes') {
-        lines.push(`<TRUNCATED>showing first ${n} of ${total} lines (truncated to fit 200KB cap)</TRUNCATED>`);
-      } else {
-        // A payload rebuilt from a persisted attachment at send time has no truncation reason (only the truncated flag is stored).
-        // The reason may be missing but the marker may not: otherwise the model answers as if the first N lines were the whole file.
-        lines.push(`<TRUNCATED>showing first ${n} of ${total} lines</TRUNCATED>`);
-      }
+      // The marker carries neither a size cap nor a reason: the cap varies by model, so a hardcoded number would be wrong.
+      lines.push(`<TRUNCATED>showing first ${n} of ${total} lines</TRUNCATED>`);
     }
     lines.push('</ATTACHMENT_FILE>');
     return lines.join('\n');
@@ -157,7 +140,7 @@ export const AttachmentInjector = {
     if (p.extracted) {
       if (p.extracted.truncated) {
         const n = p.extracted.content.split('\n').length;
-        lines.push(`- Lines: ${p.extracted.totalLines} (showing first ${n}, size cap 200KB)`);
+        lines.push(`- Lines: ${p.extracted.totalLines} (showing first ${n})`);
       } else {
         lines.push(`- Lines: ${p.extracted.totalLines}`);
       }

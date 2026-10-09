@@ -44,7 +44,8 @@ vi.mock('../../utils/chat-stream-utils', async (importOriginal) => ({
     messages.filter((message) => message.text).map((message) => ({ role: message.role, content: message.text }))),
   sanitizeOutboundMessages: (messages: unknown[]) => messages,
 }));
-vi.mock('./prompt-injection', () => ({
+vi.mock('./prompt-injection', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./prompt-injection')>()),
   buildPromptInjectionContext: vi.fn(async () => ({ systemContent: 'You are helpful.', memoryInjected: false, retrievalCost: 0 })),
 }));
 vi.mock('./stream-options', async (importOriginal) => ({

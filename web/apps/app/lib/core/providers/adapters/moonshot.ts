@@ -524,7 +524,8 @@ function normalizeBaseURL(url: string): string {
   return trimmed;
 }
 
-function buildMoonshotMessages(messages: MoonshotMessage[]) {
+/** @internal Exported only so the line contrast test can read how this line actually handles each kind of part. */
+export function buildMoonshotMessages(messages: MoonshotMessage[]) {
   return messages.map((message) => ({
     role: message.role,
     content: typeof message.content === "string"

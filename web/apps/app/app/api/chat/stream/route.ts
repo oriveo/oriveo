@@ -3,6 +3,14 @@ import { NextRequest } from "next/server";
 import { validateChatStreamRequest } from "./validate";
 import { checkRateLimit, getClientIp, buildRateLimitHeaders } from "./rate-limit";
 import { buildProviderRequest } from "./request-builders/dispatch";
+import {
+  ATTACHMENT_TRANSPORT_MISMATCH,
+  AttachmentTransportMismatchError,
+  assertFilePartsDeliverable,
+  dispatchedAttachmentTransport,
+  messagesCarryFilePart,
+  outboundWireOf,
+} from "@oriveo/core/providers/attachment-transport";
 import { ADDITIONAL_BODY_ERROR_KIND, isAdditionalBodyRejectedError } from "@oriveo/core/providers/request-builders/additional-body";
 import { applyToolCallWireAdapter } from '@oriveo/core/providers/request-builders/tool-call-wire-adapter';
 import {
@@ -143,9 +151,28 @@ export async function POST(request: NextRequest) {
     // Subscription adapters rebuild the entire request after core dispatch. Re-run the canonical
     // protocol adapter at this final boundary so Responses/Anthropic/Gemini retain local tools and
     // continuation messages instead of being rejected or silently losing them.
-    const req = tools?.length
-      ? applyToolCallWireAdapter(providerRequest, { messages, tools, toolChoice })
+    const adaptedReq = tools?.length
+      ? applyToolCallWireAdapter(providerRequest, { providerKind, messages, tools, toolChoice })
       : providerRequest;
+    // A request carrying a native file part does not fall back to another protocol: the Chat Completions
+    // body used for the fallback has no file block.
+    const req: typeof adaptedReq = adaptedReq.fallback && messagesCarryFilePart(messages)
+      ? { ...adaptedReq, fallback: undefined }
+      : adaptedReq;
+    // Last gate for attachment lines: the client built native file parts for the line it predicted, and
+    // this checks them against the line that was actually selected. On a mismatch nothing is sent, because
+    // the builders' fallback branch would otherwise send the file as an image or as placeholder text.
+    assertFilePartsDeliverable(
+      {
+        transport: usesOpenAISubscription
+          ? 'openai_subscription_codex'
+          : usesGrokSubscription
+            ? (outboundWireOf(req) === 'openai_responses' ? 'grok_subscription_responses' : 'grok_subscription_chat')
+            : dispatchedAttachmentTransport(providerKind, outboundWireOf(req)),
+        toolLoop: Boolean(tools?.length),
+      },
+      messages,
+    );
     // Deliberately does not invoke the legacy broad unsupported-parameter
     // self-healer. This runtime revision contains no reviewed locator rules;
     // stripping a field after any generic 400 would violate the one-retry
@@ -268,6 +295,12 @@ export async function POST(request: NextRequest) {
       );
     }
     // Local rejection of the additional body (the second check; the browser already validated it before sending): likewise no request went out, and only the safe code is returned.
+    if (error instanceof AttachmentTransportMismatchError) {
+      return new Response(
+        JSON.stringify({ error: ATTACHMENT_TRANSPORT_MISMATCH, errorKind: ATTACHMENT_TRANSPORT_MISMATCH }),
+        { status: 400, headers: { ...JSON_HEADERS, ...rateLimitHeaders, [ERROR_SOURCE_HEADER]: "oriveo" } },
+      );
+    }
     if (isAdditionalBodyRejectedError(error)) {
       return new Response(
         JSON.stringify({ error: ADDITIONAL_BODY_ERROR_KIND, errorKind: ADDITIONAL_BODY_ERROR_KIND, code: error.code }),

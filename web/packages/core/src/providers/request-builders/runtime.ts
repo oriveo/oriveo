@@ -441,7 +441,15 @@ export function usesOfficialOpenAIAPI(baseURL?: string): boolean {
   return resolveProviderBaseURL('openAI', baseURL) === providerDefaults.openAI.defaultBaseURL;
 }
 
-export function buildOpenAIChatMessages(messages: ProxyMessage[]) {
+/**
+ * @param options.nativeFileBlock This Chat line's request format has a native `file` block (OpenRouter).
+ *   Other Chat lines have no file block: the client delivers files as text according to the line declaration,
+ *   so a `file` part never reaches this point.
+ */
+export function buildOpenAIChatMessages(
+  messages: ProxyMessage[],
+  options?: { nativeFileBlock?: boolean },
+) {
   return messages.map((message) => ({
     role: message.role,
     content: typeof message.content === 'string'
@@ -455,6 +463,12 @@ export function buildOpenAIChatMessages(messages: ProxyMessage[]) {
         }
         if (part.type === 'video_url') {
           return { type: 'video_url' as const, video_url: { url: part.video_url.url } };
+        }
+        if (options?.nativeFileBlock) {
+          return {
+            type: 'file' as const,
+            file: { filename: part.file.filename, file_data: part.file.file_data },
+          };
         }
         return { type: 'image_url' as const, image_url: { url: part.file.file_data } };
       }),

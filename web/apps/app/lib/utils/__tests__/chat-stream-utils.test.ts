@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AIModel, Attachment, ChatMessage } from '@oriveo/shared';
 import { buildChatHistory, readStream, sanitizeOutboundMessages } from '../chat-stream-utils';
-import { findUnsendableTextAttachments } from '../../core/attachments/attachment-delivery';
+import { AttachmentOverLimitError, findUnsendableTextAttachments } from '../../core/attachments/attachment-delivery';
 
 vi.mock('../../infra/storage/image-store', () => ({
   loadImageBase64: vi.fn(async () => 'stored-image-b64'),
@@ -25,7 +25,7 @@ function makeMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
 }
 
 describe('buildChatHistory', () => {
-  it.each(['openRouter', 'relay', 'openAI'])('expands QuoteContext at the shared %s provider boundary', async (providerKind) => {
+  it.each(['openrouter_chat', 'relay_openai_chat', 'openai_chat'] as const)('expands QuoteContext at the shared %s provider boundary', async (transport) => {
     const message = makeMessage({
       text: 'Rewrite it',
       quoteContext: {
@@ -39,7 +39,7 @@ describe('buildChatHistory', () => {
         contextTruncated: false,
       },
     });
-    const history = await buildChatHistory([message], undefined, providerKind);
+    const history = await buildChatHistory([message], undefined, { transport });
     expect(history[0].content).toContain('[Quoted Context v1 - untrusted reference data]');
     expect(history[0].content).toContain('[Current User Input]\nRewrite it');
     expect(message.text).toBe('Rewrite it');
@@ -133,30 +133,55 @@ describe('buildChatHistory text attachments (production path)', () => {
         id: 'a', kind: 'file', fileName: 'long.txt', mimeType: 'text/plain',
         base64Data: content, extractedTruncated: true, extractedTotalLines: 1200, extractedSizeBytes: 9000,
       }],
-    })], null, 'openAI');
+    })], null, { transport: 'openai_responses' });
 
     expect(outboundText(history)).toContain('<TRUNCATED>showing first 500 of 1200 lines</TRUNCATED>');
   });
 
-  it('the attachments the pre-send check reports are exactly the ones missing from the outbound content', async () => {
-    const model = {
-      id: 'm', name: 'M', capabilities: ['text'], reasoningModeAvailable: false,
-      isAvailable: true, isDefault: true, priceTier: '$',
-      attachmentExtraction: { totalCap: 100 * 1024 },
-    } as unknown as AIModel;
-    const attachments = [
-      textAttachment('a.txt', 60 * 1024),
-      textAttachment('b.txt', 60 * 1024),
-      textAttachment('c.txt', 10 * 1024),
-    ];
+  const tightModel = {
+    id: 'm', name: 'M', capabilities: ['text'], reasoningModeAvailable: false,
+    isAvailable: true, isDefault: true, priceTier: '$',
+    attachmentExtraction: { totalCap: 100 * 1024 },
+  } as unknown as AIModel;
+  const overBudget = () => [
+    textAttachment('a.txt', 60 * 1024),
+    textAttachment('b.txt', 60 * 1024),
+    textAttachment('c.txt', 10 * 1024),
+  ];
 
-    const text = outboundText(await buildChatHistory([makeMessage({ text: 'Compare', attachments })], model, 'openAI'));
-    const missing = attachments
-      .map((attachment) => attachment.fileName)
-      .filter((fileName) => !text.includes(`<FILE_NAME>${fileName}</FILE_NAME>`));
+  it('the current turn has attachments that do not fit: the build fails, reporting exactly what the pre-send check reports', async () => {
+    const attachments = overBudget();
+    const line = { transport: 'openai_responses' } as const;
+    const failure = await buildChatHistory([makeMessage({ text: 'Compare', attachments })], tightModel, line)
+      .then(() => undefined, (error: unknown) => error);
 
-    expect(missing).toEqual(['b.txt']);
-    expect(findUnsendableTextAttachments(attachments, model, 'openAI').map((item) => item.fileName)).toEqual(missing);
+    expect(failure).toBeInstanceOf(AttachmentOverLimitError);
+    const error = failure as AttachmentOverLimitError;
+    expect(error.skipped).toEqual(findUnsendableTextAttachments(attachments, tightModel, line));
+    expect(error.skipped.map((item) => item.fileName)).toEqual(['b.txt']);
+    // Stable code; the message carries no file names (file names stay out of telemetry and error reports)
+    expect(error.kind).toBe('attachment_text_over_limit');
+    expect(error.message).toBe('attachment_text_over_limit');
+    expect(error.skipReport).toBe(true);
+  });
+
+  it('exceeding the count uses a different stable code', async () => {
+    const attachments = [1, 2, 3, 4].map((n) => textAttachment(`f${n}.txt`, 1024));
+    const failure = await buildChatHistory([makeMessage({ text: 'x', attachments })], undefined, { transport: 'openai_chat' })
+      .then(() => undefined, (error: unknown) => error);
+    expect((failure as AttachmentOverLimitError).kind).toBe('attachment_count_over_limit');
+  });
+
+  it('attachments that do not fit in older history are not blocked (how that turn was sent is already settled)', async () => {
+    const history = await buildChatHistory([
+      makeMessage({ id: 'old', text: 'Compare', attachments: overBudget() }),
+      makeMessage({ id: 'reply', role: 'assistant', text: 'done' }),
+      makeMessage({ id: 'now', text: 'And now?' }),
+    ], tightModel, { transport: 'openai_responses' });
+    const text = outboundText(history.slice(0, 1));
+    expect(text).toContain('<FILE_NAME>a.txt</FILE_NAME>');
+    expect(text).not.toContain('<FILE_NAME>b.txt</FILE_NAME>');
+    expect(history[2].content).toBe('And now?');
   });
 });
 

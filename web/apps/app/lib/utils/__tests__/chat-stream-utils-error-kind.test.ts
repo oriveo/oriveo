@@ -130,3 +130,12 @@ describe('every ProviderErrorKind renders localized copy', () => {
     expect(resolveErrorCopyKey(kind)).not.toBeNull();
   });
 });
+
+describe('stable codes for attachments that do not fit this turn', () => {
+  it('the title is the neutral "request failed" and skips the render-time copy replacement by kind (the body is the stored sentence)', () => {
+    for (const code of ['attachment_text_over_limit', 'attachment_count_over_limit']) {
+      expect(mapErrorKindKey(code)).toBe('requestFailed');
+      expect(resolveErrorCopyKey(code)).toBeNull();
+    }
+  });
+});

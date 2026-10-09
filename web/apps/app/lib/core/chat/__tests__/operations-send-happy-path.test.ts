@@ -265,7 +265,8 @@ describe('sendMessage happy path', () => {
     expect(mocks.buildChatHistory).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ role: 'user', text: 'hello', quoteContext })]),
       model,
-      'openAI',
+      // The line is not resolved when there are no file attachments
+      undefined,
     );
     expect(mocks.captureException).not.toHaveBeenCalled();
     expect(assistant?.id).toBe(handle.msgId);
@@ -753,6 +754,42 @@ describe('sendMessage happy path', () => {
     });
     expect(assistant?.citations).toBeUndefined();
     expect(mocks.sendStream).not.toHaveBeenCalled();
+  });
+
+  it('attachments of this turn do not fit: no request is sent, it becomes a failed message whose body is the sentence from the UI layer, and telemetry and error reports only see the stable code', async () => {
+    const { AttachmentOverLimitError } = await import('../../attachments/attachment-delivery');
+    mocks.buildChatHistory.mockRejectedValue(
+      new AttachmentOverLimitError([{ fileName: 'secret-plan.txt', reason: 'total_cap_exceeded' }]),
+    );
+    const provider = makeProvider();
+    const model = makeModel();
+    const conversation = makeConversation();
+    const store = createAppStore({ providers: [provider], conversations: [conversation] });
+    const describeAttachmentOverLimit = vi.fn(() => 'secret-plan.txt does not fit');
+
+    const handle = sendMessage(
+      { store, appendChunk: vi.fn(), te: (key) => key, describeAttachmentOverLimit },
+      { text: 'hello', prevMessages: [], conversation, provider, model, reasoningMode: 'automatic' },
+    );
+    await handle.done;
+
+    expect(mocks.sendStream).not.toHaveBeenCalled();
+    const assistant = store.getState().conversations.find((c) => c.id === 'conv-1')!
+      .messages.find((m) => m.role === 'assistant');
+    expect(assistant).toMatchObject({
+      state: 'failed',
+      errorKind: 'attachment_text_over_limit',
+      errorDetail: 'secret-plan.txt does not fit',
+      errorSource: 'oriveo',
+    });
+    expect(describeAttachmentOverLimit).toHaveBeenCalledWith(
+      [{ fileName: 'secret-plan.txt', reason: 'total_cap_exceeded' }], model,
+    );
+    expect(mocks.trackEvent).toHaveBeenCalledWith('chat_message_failed', expect.objectContaining({
+      error_code: 'attachment_text_over_limit',
+    }));
+    expect(JSON.stringify(mocks.trackEvent.mock.calls)).not.toContain('secret-plan');
+    expect(mocks.captureException).not.toHaveBeenCalled();
   });
 
   it('SendHandle.done resolves on completion without taking the failed branch (no errorTitle)', async () => {

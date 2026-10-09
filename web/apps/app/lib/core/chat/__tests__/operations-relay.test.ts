@@ -206,7 +206,8 @@ describe('chat operations with relay image config', () => {
     expect(mocks.buildChatHistory).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ role: 'user', text: 'draw something', quoteContext })]),
       model,
-      'relay',
+      // The line is not resolved when there are no file attachments
+      undefined,
     );
 
     expect(mocks.sendStream).toHaveBeenCalledWith(

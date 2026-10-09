@@ -11,9 +11,9 @@
  */
 
 import type { StoreApi } from 'zustand';
-import type { AIModel, Conversation, Provider, Skill } from '@oriveo/shared';
+import type { AIModel, AppPreference, Conversation, Provider, Skill } from '@oriveo/shared';
 import type { AppStore } from '../store/app-store';
-import type { StreamUsage } from '../providers/types';
+import type { ContentPart, StreamUsage } from '../providers/types';
 import { estimateCost } from './cost';
 import { getSkillById } from '../skills/query';
 import { applySkillKnowledgeBudget } from './skill-knowledge';
@@ -282,4 +282,40 @@ export function resolveSkillPromptBudget(model: AIModel, providerKind: Provider[
   const replyReserveTokens = Math.min(DEFAULT_REPLY_RESERVE_TOKENS, Math.floor(contextLength * 0.25));
   const availablePromptTokens = Math.max(0, contextLength - replyReserveTokens);
   return availablePromptTokens * 4;
+}
+
+/**
+ * Anti-forget mode: once the conversation reaches 10 user turns, appends the summary reminder to the text of
+ * the last user message. Shared by send and continue generating. Message objects are copied by spreading,
+ * so a text fallback version hanging on them travels along.
+ */
+export function appendAntiForgetReminder(
+  chatHistory: Array<{ role: string; content: string | ContentPart[] }>,
+  prefs: Pick<AppPreference, 'memoryAntiForgetEnabled' | 'memoryAntiForgetText'>,
+  promptContext: Pick<PromptInjectionContext, 'useMemory' | 'remainingChars'>,
+): void {
+  if (!prefs.memoryAntiForgetEnabled || !promptContext.useMemory) return;
+  const summaryText = prefs.memoryAntiForgetText?.trim();
+  if (!summaryText) return;
+  if (chatHistory.filter((m) => m.role === 'user').length < 10) return;
+  const reminder = fitWrappedSegment(REMINDER_PREFIX, summaryText, ']', promptContext.remainingChars);
+  if (!reminder) return;
+  for (let i = chatHistory.length - 1; i >= 0; i--) {
+    if (chatHistory[i].role !== 'user') continue;
+    const original = chatHistory[i].content;
+    let content: string | ContentPart[];
+    if (typeof original === 'string') {
+      content = `${original}\n\n${reminder}`;
+    } else {
+      // Only the last text part changes; image and file blocks stay as they are.
+      const lastText = original.map((part) => part.type).lastIndexOf('text');
+      content = lastText < 0
+        ? [...original, { type: 'text', text: reminder }]
+        : original.map((part, index) => (
+          index === lastText && part.type === 'text' ? { ...part, text: `${part.text}\n\n${reminder}` } : part
+        ));
+    }
+    chatHistory[i] = { ...chatHistory[i], content };
+    return;
+  }
 }

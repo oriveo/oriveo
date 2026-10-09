@@ -32,7 +32,7 @@ export function buildOpenRouterRequest(
     model: params.modelID,
     stream: params.stream !== false,
     ...(params.stream !== false ? { stream_options: { include_usage: true } } : {}),
-    messages: buildOpenAIChatMessages(params.messages),
+    messages: buildOpenAIChatMessages(params.messages, { nativeFileBlock: true }),
   };
   if (typeof maxOutputTokens === "number" && Number.isFinite(maxOutputTokens) && maxOutputTokens > 0) {
     body.max_tokens = maxOutputTokens;

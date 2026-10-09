@@ -72,7 +72,9 @@ export type TelemetryEventName =
   // Attachment text extraction
   | 'file_extraction_started'
   | 'file_extraction_completed'
-  | 'file_extraction_failed';
+  | 'file_extraction_failed'
+  | 'attachment_send_blocked'
+  | 'native_file_fallback';
 
 export const TELEMETRY_EVENTS: readonly TelemetryEventName[] = [
   'app_opened',
@@ -124,6 +126,8 @@ export const TELEMETRY_EVENTS: readonly TelemetryEventName[] = [
   'file_extraction_started',
   'file_extraction_completed',
   'file_extraction_failed',
+  'attachment_send_blocked',
+  'native_file_fallback',
 ] as const;
 
 // Property names that must never reach a telemetry sink, whichever client is recording. A

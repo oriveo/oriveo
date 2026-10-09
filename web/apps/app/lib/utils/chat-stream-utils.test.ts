@@ -89,7 +89,7 @@ describe('buildChatHistory', () => {
         ],
       },
     ];
-    const result = await buildChatHistory(msgs, undefined, 'deepseek');
+    const result = await buildChatHistory(msgs, undefined, { transport: 'deepseek_chat' });
     const content = result[0].content;
     const textPart = (content as Array<{ type: string; text?: string }>).find((p) => p.type === 'text');
     expect(textPart?.text).toContain('## Attachment 1: report.md');
@@ -127,7 +127,7 @@ describe('buildChatHistory', () => {
       capabilities: ['text', 'image'],
       nativeFileMimes: ['application/pdf'],
     } as any;
-    const result = await buildChatHistory(msgs, model, 'anthropic');
+    const result = await buildChatHistory(msgs, model, { transport: 'anthropic_messages' });
     const content = result[0].content;
     expect(Array.isArray(content)).toBe(true);
     const filePart = (content as Array<{ type: string }>).find((p) => p.type === 'file');
@@ -161,7 +161,7 @@ describe('buildChatHistory', () => {
     ];
     // model without native_pdf
     const model = { id: 'deepseek-chat', capabilities: ['text'] } as any;
-    const result = await buildChatHistory(msgs, model, 'deepseek');
+    const result = await buildChatHistory(msgs, model, { transport: 'deepseek_chat' });
     const content = result[0].content;
     const textPart = (content as Array<{ type: string; text?: string }>).find((p) => p.type === 'text');
     expect(textPart?.text).toContain('scanned_pdf');
@@ -194,7 +194,7 @@ describe('buildChatHistory', () => {
         ],
       },
     ];
-    const result = await buildChatHistory(msgs, undefined, 'openAI');
+    const result = await buildChatHistory(msgs, undefined, { transport: 'openai_responses' });
     const content = result[0].content;
     const textPart = (content as Array<{ type: string; text?: string }>).find((p) => p.type === 'text');
     expect(textPart?.text).toContain('<ATTACHMENT_FILE>');

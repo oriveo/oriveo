@@ -5,11 +5,14 @@ import { buildOpenAIChatMessages } from './runtime';
 
 type WireProtocol = 'openai_chat' | 'openai_responses' | 'anthropic_messages' | 'gemini_generate';
 
+type ToolCallWireParams = Pick<RequestParams, 'messages' | 'tools' | 'toolChoice'>
+  & Partial<Pick<RequestParams, 'providerKind'>>;
+
 /** Maps the canonical local-tool contract to the selected provider protocol. Server tools already
  * installed by an official recipe remain in the body and are never reclassified as client tools. */
 export function applyToolCallWireAdapter(
   request: ProviderRequest,
-  params: Pick<RequestParams, 'messages' | 'tools' | 'toolChoice'>,
+  params: ToolCallWireParams,
 ): ProviderRequest {
   const adapted = {
     ...request,
@@ -23,11 +26,12 @@ export function applyToolCallWireAdapter(
 function adaptBody(
   protocol: WireProtocol,
   original: Record<string, unknown>,
-  params: Pick<RequestParams, 'messages' | 'tools' | 'toolChoice'>,
+  params: ToolCallWireParams,
 ): Record<string, unknown> {
   const body = { ...original };
   if (protocol === 'openai_chat') {
-    body.messages = openAIChatMessages(params.messages);
+    // OpenRouter's tool leg uses the same Chat request body as a plain send: native `file` blocks are kept as usual.
+    body.messages = openAIChatMessages(params.messages, params.providerKind === 'openRouter');
     appendTools(body, params.tools);
     if (params.tools?.length) body.tool_choice = params.toolChoice ?? 'auto';
     return body;
@@ -69,8 +73,8 @@ function adaptBody(
  * single assistant message whose tool-call identity still matches the neutral history; corrupt or
  * stale sidecars fail closed to the ordinary message shape instead of crossing the provider wire.
  */
-function openAIChatMessages(messages: ProxyMessage[]): Array<Record<string, unknown>> {
-  const ordinary = buildOpenAIChatMessages(messages) as Array<Record<string, unknown>>;
+function openAIChatMessages(messages: ProxyMessage[], nativeFileBlock = false): Array<Record<string, unknown>> {
+  const ordinary = buildOpenAIChatMessages(messages, { nativeFileBlock }) as Array<Record<string, unknown>>;
   return ordinary.map((encoded, index) => {
     const source = messages[index];
     const continuation = source?.providerContinuation;
@@ -95,7 +99,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value != null && !Array.isArray(value);
 }
 
-function protocolForRequest(request: ProviderRequest): WireProtocol {
+export function protocolForRequest(request: ProviderRequest): WireProtocol {
   if (/\/responses(?:\?|$)/.test(request.url)) return 'openai_responses';
   if (/\/messages(?:\?|$)/.test(request.url)) return 'anthropic_messages';
   if (/:streamGenerateContent(?:\?|$)|:generateContent(?:\?|$)/.test(request.url)) return 'gemini_generate';

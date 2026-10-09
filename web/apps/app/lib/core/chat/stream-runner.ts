@@ -11,6 +11,7 @@
  *   - Writing the finished message back (the first turn overwrites, a continuation prepends)
  *   - The catch block, which depends on each caller's closure: sendStartedAt, prevMessages, interruptedMsg
  */
+import { sendWithNativeFileFallback } from '../attachments/native-file-fallback';
 import type { StoreApi } from 'zustand';
 import type { Attachment, Citation, AIModel, Provider } from '@oriveo/shared';
 import type { AppStore } from '../store/app-store';
@@ -266,7 +267,10 @@ export async function runStreamPipeline(
     ? grokSubscriptionFailureHandle(subscription.error)
     : codexSubscription && !codexSubscription.ok
       ? openAISubscriptionFailureHandle(codexSubscription.error)
-      : sendStream(
+      // When the upstream rejects a native file block on a relay or subscription line, resend once with the
+      // file injected as text (see native-file-fallback). Without a fallback version of the history this is
+      // equivalent to calling sendStream directly.
+      : sendWithNativeFileFallback(chatHistory, (history) => sendStream(
         provider.kind,
         subscription?.ok
           ? subscription.value.accessToken
@@ -277,10 +281,10 @@ export async function runStreamPipeline(
         // gpt-image-* is not a chat model, and putting it in body.model gets ignored upstream while
         // polluting the context. The original model has moved to relayImageToolModelID.
         relayStreamOptions?.relayDriverModelID ?? model.id,
-        chatHistory,
+        history,
         provider.baseURLText,
         streamOptions,
-      );
+      ));
   const { stream, abort } = streamHandle;
   setAbortFn(abort);
 
