@@ -164,6 +164,19 @@ internal fun shouldShowAssistantFooterActions(
     isBodyRenderSettled: Boolean,
 ): Boolean = messageState == ChatMessageState.Delivered && hasText && isBodyRenderSettled
 
+/**
+ * Citations wait until the body has finished appearing on screen: after the message is persisted as
+ * delivered the reveal pacer keeps catching up, so gating on message state alone would show the block
+ * first and then push it down. Failed / interrupted messages with no body have no settle signal and
+ * show citations immediately.
+ */
+internal fun shouldShowAssistantCitations(
+    hasCitations: Boolean,
+    isStreaming: Boolean,
+    hasBody: Boolean,
+    isBodyRenderSettled: Boolean,
+): Boolean = hasCitations && !isStreaming && (isBodyRenderSettled || !hasBody)
+
 internal fun shouldShowReasoningBlock(
     reasoningText: String,
     isStreaming: Boolean,
@@ -871,8 +884,14 @@ private fun AssistantMessage(
                     )
                 }
 
-                if (!message.citations.isNullOrEmpty() && (!isStreaming || message.text.isNotEmpty())) {
-                    CitationsBlock(citations = message.citations)
+                if (shouldShowAssistantCitations(
+                        hasCitations = !message.citations.isNullOrEmpty(),
+                        isStreaming = isStreaming,
+                        hasBody = showBody,
+                        isBodyRenderSettled = isBodyRenderSettled,
+                    )
+                ) {
+                    CitationsBlock(citations = message.citations.orEmpty())
                 }
             }
 

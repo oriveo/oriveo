@@ -29,6 +29,8 @@ final class AssistantMessageCell: UICollectionViewCell {
     var configuredImageAttachments: [Attachment] = []
 
     var citationsBlock: CitationsBlock?
+    /// Citations of the currently bound message; used to attach the block once the final streaming render finishes.
+    var boundCitations: [Citation] = []
     let citationsHost = UIView()
 
     // Stream activity status line: directly below the body text, above the tool-call card,
@@ -340,12 +342,12 @@ final class AssistantMessageCell: UICollectionViewCell {
             tearDownAttachmentViews()
         }
 
-        let bodyHasStarted = !isGenerating || !effectiveText.isEmpty
-        if let citations = model.message.citations, !citations.isEmpty, bodyHasStarted {
-            configureCitations(citations, parentViewController: parentViewController)
-        } else {
-            tearDownCitationsBlock()
-        }
+        // Citations appear only once the body has finished rendering on screen. The gate looks at the
+        // rendered state, not at whether the data layer has text: the pacer reveals text at its own
+        // pace, while citations can be attached as soon as they are written to message.citations.
+        // The data itself is kept so retry / edit can still map citations back to documents.
+        boundCitations = model.message.citations ?? []
+        refreshCitationsBlock(parentViewController: parentViewController)
 
         if model.showMetadata {
             let providerName = model.resolvedProviderName ?? model.message.providerName

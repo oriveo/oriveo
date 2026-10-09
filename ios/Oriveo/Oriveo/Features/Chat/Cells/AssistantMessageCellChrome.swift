@@ -116,6 +116,18 @@ extension AssistantMessageCell {
         block.update(citations: citations, parentViewController: parentViewController)
     }
 
+    /// Attaches the citations block only after the body is fully rendered on screen (not generating and
+    /// no pending final streaming render). Shared by configure and final-render completion so citations
+    /// always appear after the last character.
+    func refreshCitationsBlock(parentViewController: UIViewController) {
+        let bodyRenderSettled = currentMessageState != .generating && pendingFinalStreamingRender == nil
+        if !boundCitations.isEmpty, bodyRenderSettled {
+            configureCitations(boundCitations, parentViewController: parentViewController)
+        } else {
+            tearDownCitationsBlock()
+        }
+    }
+
     func tearDownCitationsBlock() {
         guard let block = citationsBlock else { return }
         block.removeFromSuperview()

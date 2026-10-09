@@ -1,6 +1,7 @@
 package ai.oriveo.community.feature.chat
 
 import ai.oriveo.community.core.model.ChatMessageState
+import ai.oriveo.community.feature.chat.components.shouldShowAssistantCitations
 import ai.oriveo.community.feature.chat.components.shouldShowAssistantFooterActions
 import java.io.File
 import org.junit.Assert.assertFalse
@@ -44,6 +45,35 @@ class MessageActionSurfaceContractTest {
         assertTrue(
             "markdown renderer must publish defer-finish phase changes",
             markdownSource.contains("onRenderStreamingChanged?.invoke(renderStreaming)"),
+        )
+    }
+
+    @Test
+    fun `citations wait for visual rendering to settle`() {
+        fun show(isStreaming: Boolean, hasBody: Boolean, settled: Boolean) = shouldShowAssistantCitations(
+            hasCitations = true,
+            isStreaming = isStreaming,
+            hasBody = hasBody,
+            isBodyRenderSettled = settled,
+        )
+        assertFalse("citations must stay hidden while streaming", show(isStreaming = true, hasBody = true, settled = false))
+        assertFalse("citations would be pushed down by the final reveal", show(isStreaming = false, hasBody = true, settled = false))
+        assertTrue(show(isStreaming = false, hasBody = true, settled = true))
+        assertTrue("failed / interrupted messages with an empty body have no settle signal", show(isStreaming = false, hasBody = false, settled = false))
+        assertFalse(
+            shouldShowAssistantCitations(
+                hasCitations = false,
+                isStreaming = false,
+                hasBody = true,
+                isBodyRenderSettled = true,
+            ),
+        )
+
+        val bubbleSource = File("src/main/java/ai/oriveo/community/feature/chat/components/MessageBubble.kt")
+            .readText()
+        assertTrue(
+            "citations block must be gated by the real markdown render phase",
+            bubbleSource.contains("if (shouldShowAssistantCitations("),
         )
     }
 

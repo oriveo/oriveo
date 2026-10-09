@@ -100,6 +100,7 @@ extension AssistantMessageCell {
         unhandledToolCallView.resetForReuse()
         tearDownAttachmentViews()
         tearDownCitationsBlock()
+        boundCitations = []
         tearDownRecoveryCard()
         reasoningBlock.resetForReuse()
         providerBadge.resetForReuse()
@@ -143,6 +144,8 @@ extension AssistantMessageCell {
             parentViewController: parentViewController
         )
         metadataView.markVisualRenderCompleted()
+        // Attach the citations block once the body has settled; must precede notifyContentDidChange so the remeasure includes it.
+        refreshCitationsBlock(parentViewController: parentViewController)
         notifyContentDidChange()
         onFinalStreamingRenderCompleted?()
         OriveoHaptic.tap()
