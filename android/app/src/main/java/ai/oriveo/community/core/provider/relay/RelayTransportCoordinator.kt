@@ -850,10 +850,11 @@ internal class RelayTransportCoordinator(
             ?: throw ProviderServiceError.Network("Invalid llama.cpp response.")
         root["content"]?.jsonPrimitive?.content?.let { return it }
         root["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content?.let {
-            val safeDetail = RelayDebugSnippet.extract(payload, redacting = credentials)
-                .orEmpty()
-                .ifBlank { "The custom LLM returned an error." }
-            throw ProviderServiceError.Upstream(statusCode = 200, detail = safeDetail, streamErrorFrame = true)
+            throw ProviderServiceError.Upstream(
+                statusCode = 200,
+                detail = SseParser.withUpstreamRaw("The custom LLM returned an error.", payload, credentials),
+                streamErrorFrame = true,
+            )
         }
         return ""
     }
@@ -1171,10 +1172,11 @@ internal class RelayTransportCoordinator(
                                                             }
                                                             throw ProviderServiceError.Upstream(
                                                                 statusCode = 200,
-                                                                // The raw message only feeds the
-                                                                // structural classification above; it
-                                                                // is never persisted or shown.
-                                                                detail = "The custom LLM Responses stream reported a failure.",
+                                                                detail = SseParser.withUpstreamRaw(
+                                                                    "The custom LLM Responses stream reported a failure.",
+                                                                    payload,
+                                                                    relayCredentialMaterial(response),
+                                                                ),
                                                                 streamErrorFrame = true,
                                                             )
                                                         }

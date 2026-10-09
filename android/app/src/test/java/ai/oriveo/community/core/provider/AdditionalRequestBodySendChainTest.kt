@@ -225,6 +225,26 @@ class AdditionalRequestBodySendChainTest {
         assertEquals("reasoning", localFieldsRetryOwner(ProviderServiceError.LocalRequestRejected("reasoning", "unknown_path"), null, false, false))
     }
 
+    @Test
+    fun `stream error raw text is redacted and truncated before it reaches technical detail`() = runTest {
+        val bodies = mutableListOf<String>()
+        val long = "y".repeat(5000)
+        val frame = """data: {"error":{"message":"echo Bearer $API_KEY $long","type":"invalid_request_error"}}""" + "\n\n"
+        val error = runCatching {
+            groq(bodies, frame).sendMessageStream(
+                apiKey = API_KEY, modelID = "llama-3.3-70b-versatile",
+                messages = listOf(ProviderTestFixtures.userMessage("hello", ProviderKind.Groq, "llama-3.3-70b-versatile")),
+                baseUrl = null, supportsImageGen = false, reasoningMode = ReasoningMode.Automatic, webSearchEnabled = false,
+                requestOptions = ChatRequestOptions(),
+            ).collect()
+        }.exceptionOrNull() as ProviderServiceError
+        val detail = error.technicalDetail
+        assertTrue(detail, detail.contains("Upstream response: {\"error\""))
+        assertFalse("credential must be redacted", detail.contains(API_KEY))
+        val raw = detail.substringAfter("Upstream response: ")
+        assertTrue("raw=${raw.toByteArray().size}", raw.toByteArray().size <= SseParser.STREAM_ERROR_RAW_MAX_BYTES + 3)
+    }
+
     private fun assertMergedWithPanel(body: JsonObject, panelKey: String) {
         assertEquals(40, body["top_k"]!!.jsonPrimitive.content.toInt())
         assertEquals("false", body["chat_template_kwargs"]!!.jsonObject["enable_thinking"]!!.jsonPrimitive.content)

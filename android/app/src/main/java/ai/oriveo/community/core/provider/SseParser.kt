@@ -156,6 +156,7 @@ object SseParser {
         onChunk: (String) -> StreamEvent?,
         onDone: () -> StreamEvent,
     ): Flow<StreamEvent> = flow {
+        val credentials = requestCredentials(response)
         val reader = response.bodyAsChannel()
             .toInputStream()
             .sseLineReader()
@@ -172,7 +173,7 @@ object SseParser {
                 if (payload == "[DONE]") break
                 if (payload.isEmpty()) continue
 
-                throwIfStreamErrorPayload(json, payload)
+                throwIfStreamErrorPayload(json, payload, credentials = credentials)
                 val event = tolerantParseChunk { onChunk(payload) }
                 if (event != null) emit(event)
             }
@@ -195,6 +196,7 @@ object SseParser {
         onChunk: (String) -> List<StreamEvent>,
         onDone: () -> StreamEvent,
     ): Flow<StreamEvent> = flow {
+        val credentials = requestCredentials(response)
         val reader = response.bodyAsChannel()
             .toInputStream()
             .sseLineReader()
@@ -224,6 +226,7 @@ object SseParser {
                     json = json,
                     payload = payload,
                     topLevelCodeMessageIsProviderError = topLevelCodeMessageIsProviderError,
+                    credentials = credentials,
                 )
                 val events = tolerantParseChunk { onChunk(payload) }
                 if (events != null) for (event in events) emit(event)
@@ -241,6 +244,7 @@ object SseParser {
         response: HttpResponse,
         json: Json,
     ): Flow<String> = flow {
+        val credentials = requestCredentials(response)
         val reader = response.bodyAsChannel()
             .toInputStream()
             .sseLineReader()
@@ -253,7 +257,7 @@ object SseParser {
                 val payload = line.removePrefix("data:").trim()
                 if (payload == "[DONE]") break
                 if (payload.isEmpty()) continue
-                throwIfStreamErrorPayload(json, payload)
+                throwIfStreamErrorPayload(json, payload, credentials = credentials)
                 emit(payload)
             }
         }
@@ -278,6 +282,7 @@ object SseParser {
         onEvent: (eventType: String, data: String) -> StreamEvent?,
         onDone: () -> StreamEvent,
     ): Flow<StreamEvent> = flow {
+        val credentials = requestCredentials(response)
         val reader = response.bodyAsChannel()
             .toInputStream()
             .sseLineReader()
@@ -296,7 +301,7 @@ object SseParser {
                         val data = line.removePrefix("data: ").trim()
                         if (data.isEmpty()) continue
 
-                        throwIfAnthropicErrorEvent(json, currentEvent, data)
+                        throwIfAnthropicErrorEvent(json, currentEvent, data, credentials)
                         val event = tolerantParseChunk { onEvent(currentEvent, data) }
                         if (event != null) emit(event)
                         currentEvent = ""
@@ -320,6 +325,7 @@ object SseParser {
         onEvent: (eventType: String, data: String) -> List<StreamEvent>,
         onDone: () -> StreamEvent,
     ): Flow<StreamEvent> = flow {
+        val credentials = requestCredentials(response)
         val reader = response.bodyAsChannel()
             .toInputStream()
             .sseLineReader()
@@ -338,7 +344,7 @@ object SseParser {
                         val data = line.removePrefix("data: ").trim()
                         if (data.isEmpty()) continue
 
-                        throwIfAnthropicErrorEvent(json, currentEvent, data)
+                        throwIfAnthropicErrorEvent(json, currentEvent, data, credentials)
                         val events = tolerantParseChunk { onEvent(currentEvent, data) }
                         if (events != null) for (event in events) emit(event)
                         currentEvent = ""
@@ -360,6 +366,7 @@ object SseParser {
         onChunk: (String) -> StreamEvent?,
         onDone: () -> StreamEvent,
     ): Flow<StreamEvent> = flow {
+        val credentials = requestCredentials(response)
         val reader = response.bodyAsChannel()
             .toInputStream()
             .sseLineReader()
@@ -373,7 +380,7 @@ object SseParser {
                 val payload = line.removePrefix("data: ").trim()
                 if (payload.isEmpty()) continue
 
-                throwIfStreamErrorPayload(json, payload)
+                throwIfStreamErrorPayload(json, payload, credentials = credentials)
                 val event = tolerantParseChunk { onChunk(payload) }
                 if (event != null) emit(event)
             }
@@ -391,6 +398,7 @@ object SseParser {
         onChunk: (String) -> List<StreamEvent>,
         onDone: () -> StreamEvent,
     ): Flow<StreamEvent> = flow {
+        val credentials = requestCredentials(response)
         val reader = response.bodyAsChannel()
             .toInputStream()
             .sseLineReader()
@@ -404,7 +412,7 @@ object SseParser {
                 val payload = line.removePrefix("data: ").trim()
                 if (payload.isEmpty()) continue
 
-                throwIfStreamErrorPayload(json, payload)
+                throwIfStreamErrorPayload(json, payload, credentials = credentials)
                 val events = tolerantParseChunk { onChunk(payload) }
                 if (events != null) for (event in events) emit(event)
             }
@@ -434,6 +442,7 @@ object SseParser {
         json: Json,
         payload: String,
         topLevelCodeMessageIsProviderError: Boolean = true,
+        credentials: Collection<String> = emptyList(),
     ) {
         if (!payload.contains("\"error\"") && !payload.contains("\"code\"")) return
         val root = runCatching { json.parseToJsonElement(payload) }.getOrNull() as? JsonObject ?: return
@@ -445,18 +454,18 @@ object SseParser {
             val type = (errObj?.get("type") as? JsonPrimitive)?.takeUnless { it is JsonNull }?.contentOrNull
                 ?: (errObj?.get("code") as? JsonPrimitive)?.takeUnless { it is JsonNull }?.contentOrNull
             // Shape we do not recognise at all: let it through to the existing tolerant decode path
-            if (!message.isNullOrBlank() || !type.isNullOrBlank()) throw mapStreamError(type, message)
+            if (!message.isNullOrBlank() || !type.isNullOrBlank()) throw mapStreamError(type, message, payload, credentials)
         }
 
         // DashScope-compatible endpoints can also return a top-level {"code","message"} inside an
         // HTTP 200 stream. That shape collides with the `request.error` domain event of another SSE
         // dialect, so the protocol cannot be guessed from the fields; the caller decides explicitly
-        // according to the protocol it consumes. The text is used for classification only and never
-        // reaches the exception detail.
+        // according to the protocol it consumes. The text is used for classification and is then
+        // attached to the technical detail with credentials redacted and truncated.
         if (topLevelCodeMessageIsProviderError && root["choices"] == null) {
             val type = (root["code"] as? JsonPrimitive)?.takeUnless { it is JsonNull }?.contentOrNull
             val message = (root["message"] as? JsonPrimitive)?.takeUnless { it is JsonNull }?.contentOrNull
-            if (!type.isNullOrBlank() && !message.isNullOrBlank()) throw mapStreamError(type, message)
+            if (!type.isNullOrBlank() && !message.isNullOrBlank()) throw mapStreamError(type, message, payload, credentials)
         }
     }
 
@@ -466,29 +475,67 @@ object SseParser {
      * an error card. Even an unparseable payload must not be let through, or a truncated reply ends
      * up disguised as a normal completion.
      */
-    internal fun throwIfAnthropicErrorEvent(json: Json, eventType: String, data: String) {
+    internal fun throwIfAnthropicErrorEvent(
+        json: Json,
+        eventType: String,
+        data: String,
+        credentials: Collection<String> = emptyList(),
+    ) {
         if (eventType != "error") return
-        throwIfStreamErrorPayload(json, data)
-        throw ProviderServiceError.Upstream(200, "The Anthropic stream reported an unrecognized error.", streamErrorFrame = true)
+        throwIfStreamErrorPayload(json, data, credentials = credentials)
+        throw ProviderServiceError.Upstream(
+            200,
+            withUpstreamRaw("The Anthropic stream reported an unrecognized error.", data, credentials),
+            streamErrorFrame = true,
+        )
     }
 
-    private fun mapStreamError(type: String?, message: String?): ProviderServiceError {
+    private fun mapStreamError(
+        type: String?,
+        message: String?,
+        payload: String,
+        credentials: Collection<String>,
+    ): ProviderServiceError {
         val lower = "${type.orEmpty()} ${message.orEmpty()}".lowercase()
+        fun detail(sentence: String) = withUpstreamRaw(sentence, payload, credentials)
         return when {
             QUOTA_PATTERN.containsMatchIn(lower) -> ProviderServiceError.QuotaExceeded(
-                "The provider stream reported that quota or credit is unavailable.",
+                detail("The provider stream reported that quota or credit is unavailable."),
             )
             bodyIndicatesTransientOverload(lower) ->
-                ProviderServiceError.RateLimited("The provider stream reported a rate limit.")
+                ProviderServiceError.RateLimited(detail("The provider stream reported a rate limit."))
             lower.contains("authentication") || lower.contains("permission") || lower.contains("api key") ->
-                ProviderServiceError.InvalidAPIKey("The provider stream rejected authentication.")
+                ProviderServiceError.InvalidAPIKey(detail("The provider stream rejected authentication."))
             UNAVAILABLE_PATTERN.containsMatchIn(lower) -> ProviderServiceError.ModelUnavailable(
-                "The provider stream reported that the model is unavailable.",
+                detail("The provider stream reported that the model is unavailable."),
             )
             // The stream was already a 2xx, so there is no finer-grained HTTP status to fall back on
-            else -> ProviderServiceError.Upstream(200, "The provider stream reported an error.", streamErrorFrame = true)
+            else -> ProviderServiceError.Upstream(200, detail("The provider stream reported an error."), streamErrorFrame = true)
         }
     }
+
+    /**
+     * Attaches the upstream text of an in-stream error frame to the technical detail: the credentials
+     * of this request are wiped first (some gateways echo request headers into the payload), then the
+     * text is cut to 2 KB.
+     */
+    internal fun withUpstreamRaw(sentence: String, payload: String?, credentials: Collection<String>): String {
+        if (payload.isNullOrBlank()) return sentence
+        val safe = ai.oriveo.community.core.provider.relay.RelayDebugSnippet.truncateUtf8(
+            RelayEndpointPolicy.redactCredentials(payload, credentials),
+            STREAM_ERROR_RAW_MAX_BYTES,
+        )
+        return "$sentence\nUpstream response: $safe"
+    }
+
+    internal const val STREAM_ERROR_RAW_MAX_BYTES = 2048
+
+    internal fun requestCredentials(response: HttpResponse): List<String> = runCatching {
+        RelayEndpointPolicy.credentialMaterial(
+            response.request.headers.entries().flatMap { entry -> entry.value.map { entry.key to it } } +
+                response.request.url.parameters.entries().flatMap { entry -> entry.value.map { entry.key to it } },
+        )
+    }.getOrDefault(emptyList())
 
     @JvmOverloads
     suspend fun mapHttpError(

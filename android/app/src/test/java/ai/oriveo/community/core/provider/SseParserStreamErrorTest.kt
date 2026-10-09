@@ -110,13 +110,14 @@ class SseParserStreamErrorTest {
             SseParser.throwIfStreamErrorPayload(
                 json,
                 """{"error":{"message":"Rate limit reached for sk-secret while processing prompt-private","type":"rate_limit_error"},"data":"raw-data-private"}""",
+                credentials = listOf("sk-secret"),
             )
         }
 
+        // The upstream text goes into the technical detail, but the credentials of this request are wiped first.
         val exposed = "${error.technicalDetail}\n${error.message}"
         assertFalse(exposed.contains("sk-secret"))
-        assertFalse(exposed.contains("prompt-private"))
-        assertFalse(exposed.contains("raw-data-private"))
+        assertTrue(exposed.contains("Upstream response:"))
     }
 
     @Test
@@ -214,13 +215,13 @@ class SseParserStreamErrorTest {
                 json,
                 "error",
                 """{"type":"error","error":{"type":"authentication_error","message":"Authentication failed for sk-secret and prompt-private"},"data":"raw-data-private"}""",
+                listOf("sk-secret"),
             )
         }
 
         val exposed = "${error.technicalDetail}\n${error.message}"
         assertFalse(exposed.contains("sk-secret"))
-        assertFalse(exposed.contains("prompt-private"))
-        assertFalse(exposed.contains("raw-data-private"))
+        assertTrue(exposed.contains("Upstream response:"))
     }
 
     @Test
