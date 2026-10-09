@@ -242,9 +242,16 @@ enum FileTextExtractor {
                     hi = mid - 1
                 }
             }
-            truncatedLines = Array(truncatedLines.prefix(lo))
-            truncatedLines = Self.alignToLogicalBoundary(truncatedLines)
-            joined = truncatedLines.joined(separator: "\n")
+            if lo == 0, let firstLine = truncatedLines.first {
+                // Not even the first line fits (minified JSON, a single-line log, PDF text without newlines):
+                // cutting by whole lines would leave nothing, so cut inside the line on a UTF-8
+                // character boundary and keep the beginning.
+                joined = Self.utf8Prefix(firstLine, maxBytes: limits.maxBytes)
+            } else {
+                truncatedLines = Array(truncatedLines.prefix(lo))
+                truncatedLines = Self.alignToLogicalBoundary(truncatedLines)
+                joined = truncatedLines.joined(separator: "\n")
+            }
             truncated = true
             reason = reason ?? .bytes
         }
@@ -256,6 +263,18 @@ enum FileTextExtractor {
             truncationReason: reason,
             sizeBytes: sizeBytes
         )
+    }
+
+    /// The longest prefix of at most `maxBytes` UTF-8 bytes, never cutting a multi-byte character.
+    static func utf8Prefix(_ text: String, maxBytes: Int) -> String {
+        let utf8 = text.utf8
+        guard utf8.count > maxBytes else { return text }
+        var end = utf8.index(utf8.startIndex, offsetBy: max(0, maxBytes))
+        // Landing on a continuation byte (10xxxxxx) means stepping back to the first byte of that character.
+        while end > utf8.startIndex, utf8[end] & 0xC0 == 0x80 {
+            end = utf8.index(before: end)
+        }
+        return String(decoding: utf8[..<end], as: UTF8.self)
     }
 
     private static func alignToLogicalBoundary(_ lines: [String]) -> [String] {

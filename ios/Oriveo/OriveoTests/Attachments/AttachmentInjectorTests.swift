@@ -43,7 +43,25 @@ final class AttachmentInjectorTests: XCTestCase {
             sizeBytes: 50000,
             extracted: extracted
         )
-        XCTAssertTrue(s.contains("<TRUNCATED>showing first 500 of 700 lines"))
+        // Even with a reason the cap number is no longer written: the marker is identical to the one without a reason.
+        XCTAssertTrue(s.contains("<TRUNCATED>showing first 500 of 700 lines</TRUNCATED>"))
+        XCTAssertFalse(s.contains("200KB"))
+        for reason in [ExtractedText.TruncationReason.lines, .bytes] {
+            let withReason = ExtractedText(
+                content: extracted.content, totalLines: 700, truncated: true, truncationReason: reason, sizeBytes: 50000
+            )
+            let markdown = AttachmentInjector.formatAttachment(
+                wrapper: .markdownV1, index: 1, fileName: "big.md", mimeType: "text/markdown",
+                sizeBytes: 50000, extracted: withReason
+            )
+            XCTAssertTrue(markdown.contains("- Lines: 700 (showing first 500)\n"), "\(reason)")
+            XCTAssertFalse(markdown.contains("200KB"), "\(reason)")
+            let xml = AttachmentInjector.formatAttachment(
+                wrapper: .xmlV1, index: 1, fileName: "big.md", mimeType: "text/markdown",
+                sizeBytes: 50000, extracted: withReason
+            )
+            XCTAssertTrue(xml.contains("<TRUNCATED>showing first 500 of 700 lines</TRUNCATED>"), "\(reason)")
+        }
     }
 
     func testFormatAttachmentXMLError() {
@@ -177,6 +195,46 @@ final class AttachmentInjectorTests: XCTestCase {
             limits: limits
         )
         XCTAssertEqual(over.skipped.map(\.fileName), ["second.txt"])
+    }
+
+    func testFileTooLargeInstructionCoversUnpackedSize() {
+        let s = AttachmentInjector.formatAttachment(
+            wrapper: .xmlV1, index: 1, fileName: "big.docx", mimeType: "application/zip",
+            sizeBytes: 1, extracted: nil, errorCode: .fileTooLarge
+        )
+        XCTAssertTrue(s.contains(
+            "[INSTRUCTION: This file is past the size the local extractor will read, either as stored or once unpacked. DO NOT fabricate content. Tell the user the file is too large and ask them to split or shorten it.]"
+        ))
+    }
+
+    func testFileTypeKnowsOdfRtfAndSvgWithoutAnExtension() {
+        let expected = [
+            "application/vnd.oasis.opendocument.text": "odt",
+            "application/vnd.oasis.opendocument.spreadsheet": "ods",
+            "application/vnd.oasis.opendocument.presentation": "odp",
+            "application/rtf": "rtf",
+            "text/rtf": "rtf",
+            "image/svg+xml": "svg",
+        ]
+        let body = ExtractedText(content: "x", totalLines: 1, truncated: false, truncationReason: nil, sizeBytes: 1)
+        for (mime, type) in expected {
+            let s = AttachmentInjector.formatAttachment(
+                wrapper: .xmlV1, index: 1, fileName: "untitled", mimeType: mime, sizeBytes: 1, extracted: body
+            )
+            XCTAssertTrue(s.contains("<FILE_TYPE>\(type)</FILE_TYPE>"), mime)
+        }
+    }
+
+    func testWhitespaceOnlyUserTextIsNotPrepended() {
+        let body = ExtractedText(content: "x", totalLines: 1, truncated: false, truncationReason: nil, sizeBytes: 1)
+        let blank = AttachmentInjector.injectAll(
+            intoUserText: " \n\t ", fileAttachments: [("a.txt", "text/plain", 1, body, nil)]
+        )
+        XCTAssertTrue(blank.text.hasPrefix("<ATTACHMENT_FILE>"))
+        let kept = AttachmentInjector.injectAll(
+            intoUserText: " hi ", fileAttachments: [("a.txt", "text/plain", 1, body, nil)]
+        )
+        XCTAssertTrue(kept.text.hasPrefix(" hi \n\n<ATTACHMENT_FILE>"))
     }
 
     func testWrapperVersionResolve() {

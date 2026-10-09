@@ -23,7 +23,7 @@ enum AttachmentInjector {
         .passwordProtectedOffice: "This Office file is password-protected and cannot be read. DO NOT fabricate content. Tell the user to remove the password and re-upload.",
         .corruptedFile:           "This file is corrupted and cannot be parsed. DO NOT fabricate content. Tell the user the file may be damaged and ask them to re-upload a valid copy.",
         .unsupportedFormat:       "This file format is not supported by the local extractor. DO NOT fabricate content. Tell the user which formats are supported (PDF / DOCX / XLSX / PPTX / EPUB / HTML / plain text / code files).",
-        .fileTooLarge:            "This file exceeds the maximum size limit. DO NOT fabricate content. Tell the user the file is too large and ask them to split or shorten it.",
+        .fileTooLarge:            "This file is past the size the local extractor will read, either as stored or once unpacked. DO NOT fabricate content. Tell the user the file is too large and ask them to split or shorten it.",
         .extractionTimeout:       "Extraction of this file timed out (over 30 seconds). DO NOT fabricate content. Tell the user the file is too complex; ask them to simplify or split it.",
         .extractionError:         "Extraction failed due to an internal error. DO NOT fabricate content. Tell the user to try again or use a different file.",
     ]
@@ -36,11 +36,16 @@ enum AttachmentInjector {
         case "application/vnd.openxmlformats-officedocument.wordprocessingml.document": return "docx"
         case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": return "xlsx"
         case "application/vnd.openxmlformats-officedocument.presentationml.presentation": return "pptx"
+        case "application/vnd.oasis.opendocument.text": return "odt"
+        case "application/vnd.oasis.opendocument.spreadsheet": return "ods"
+        case "application/vnd.oasis.opendocument.presentation": return "odp"
         case "application/epub+zip": return "epub"
         case "text/html", "application/xhtml+xml": return "html"
         case "text/markdown": return "md"
         case "application/json": return "json"
         case "application/xml", "text/xml": return "xml"
+        case "application/rtf", "text/rtf": return "rtf"
+        case "image/svg+xml": return "svg"
         default:
             let ext = (fileName as NSString).pathExtension.lowercased()
             return ext.isEmpty ? "txt" : ext
@@ -82,16 +87,9 @@ enum AttachmentInjector {
 
         if let extracted = extracted, extracted.truncated {
             let n = extracted.content.components(separatedBy: "\n").count
-            switch extracted.truncationReason {
-            case .lines:
-                lines.append("<TRUNCATED>showing first \(n) of \(extracted.totalLines) lines (size cap 200KB)</TRUNCATED>")
-            case .bytes:
-                lines.append("<TRUNCATED>showing first \(n) of \(extracted.totalLines) lines (truncated to fit 200KB cap)</TRUNCATED>")
-            case .none:
-                // An ExtractedText rebuilt from a persisted attachment at send time has no reason;
-                // the marker must not disappear with it, or the model reads the truncated head as the whole file.
-                lines.append("<TRUNCATED>showing first \(n) of \(extracted.totalLines) lines</TRUNCATED>")
-            }
+            // The marker carries neither a size cap nor a reason: the cap varies per model, so a fixed number
+            // would be wrong, and a rebuilt ExtractedText has no reason to report anyway.
+            lines.append("<TRUNCATED>showing first \(n) of \(extracted.totalLines) lines</TRUNCATED>")
         }
         lines.append("</ATTACHMENT_FILE>")
         return lines.joined(separator: "\n")
@@ -118,11 +116,7 @@ enum AttachmentInjector {
         if let extracted = extracted {
             if extracted.truncated {
                 let n = extracted.content.components(separatedBy: "\n").count
-                if extracted.truncationReason == nil {
-                    lines.append("- Lines: \(extracted.totalLines) (showing first \(n))")
-                } else {
-                    lines.append("- Lines: \(extracted.totalLines) (showing first \(n), size cap 200KB)")
-                }
+                lines.append("- Lines: \(extracted.totalLines) (showing first \(n))")
             } else {
                 lines.append("- Lines: \(extracted.totalLines)")
             }
@@ -171,18 +165,37 @@ enum AttachmentInjector {
         limits: FileExtractionLimits = .default,
         wrapper: AttachmentWrapperVersion = .xmlV1
     ) -> (text: String, skipped: [(fileName: String, reason: SkipReason)]) {
+        let result = injectAllIndexed(
+            intoUserText: userText,
+            fileAttachments: fileAttachments,
+            limits: limits,
+            wrapper: wrapper
+        )
+        return (result.text, result.skipped.map { (fileAttachments[$0.index].fileName, $0.reason) })
+    }
+
+    /// Same logic as `injectAll`, but skipped files are identified by index so files with the same name
+    /// can still be matched back to their attachments.
+    static func injectAllIndexed(
+        intoUserText userText: String,
+        fileAttachments: [(fileName: String, mimeType: String, sizeBytes: Int, extracted: ExtractedText?, errorCode: ExtractionErrorCode?)],
+        limits: FileExtractionLimits = .default,
+        wrapper: AttachmentWrapperVersion = .xmlV1
+    ) -> (text: String, skipped: [(index: Int, reason: SkipReason)]) {
         var parts: [String] = []
-        if !userText.isEmpty {
+        // Whitespace-only text is not placed in front of the attachment blocks; with no files to inject
+        // the text is returned unchanged.
+        if fileAttachments.isEmpty || !userText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             parts.append(userText)
         }
 
         var consumed = 0
-        var skipped: [(fileName: String, reason: SkipReason)] = []
+        var skipped: [(index: Int, reason: SkipReason)] = []
         var emittedIndex = 0
 
-        for (fileName, mime, size, extracted, code) in fileAttachments {
+        for (sourceIndex, (fileName, mime, size, extracted, code)) in fileAttachments.enumerated() {
             if emittedIndex >= limits.maxFiles {
-                skipped.append((fileName, .tooManyFiles))
+                skipped.append((sourceIndex, .tooManyFiles))
                 continue
             }
             let block = formatAttachment(
@@ -199,7 +212,7 @@ enum AttachmentInjector {
             let contentBytes = extracted?.content.utf8.count ?? 0
 
             if consumed + contentBytes > limits.totalCap {
-                skipped.append((fileName, .totalCapExceeded))
+                skipped.append((sourceIndex, .totalCapExceeded))
                 continue
             }
             parts.append(block)

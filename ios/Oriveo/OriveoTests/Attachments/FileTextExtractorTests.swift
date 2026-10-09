@@ -31,6 +31,35 @@ final class FileTextExtractorTests: XCTestCase {
         XCTAssertTrue(r.truncated)
         XCTAssertLessThanOrEqual(r.content.utf8.count, FileExtractionLimits.default.maxBytes)
     }
+    /// A file with a single line over the byte limit: cut inside the line on a character boundary, keeping the beginning instead of truncating to nothing.
+    func testSingleOversizedLineIsCutInsideTheLine() throws {
+        let limits = FileExtractionLimits(maxLines: 500, maxBytes: 10, totalCap: 204_800, maxInputFileBytes: 1_000_000, maxFiles: 3)
+        // Each CJK character is 3 bytes: 10 bytes fit 3 characters, and the 4th must not be cut in half.
+        let r = FileTextExtractor.truncate(rawText: "一二三四五六", sizeBytes: 18, limits: limits)
+        XCTAssertEqual(r.content, "一二三")
+        XCTAssertTrue(r.truncated)
+        XCTAssertEqual(r.truncationReason, .bytes)
+        XCTAssertEqual(r.totalLines, 1)
+
+        let ascii = FileTextExtractor.truncate(rawText: String(repeating: "a", count: 25), sizeBytes: 25, limits: limits)
+        XCTAssertEqual(ascii.content, String(repeating: "a", count: 10))
+
+        // The first line does not fit and more lines follow: the beginning of the first line is kept all the same.
+        let multi = FileTextExtractor.truncate(rawText: String(repeating: "b", count: 25) + "\nsecond", sizeBytes: 32, limits: limits)
+        XCTAssertEqual(multi.content, String(repeating: "b", count: 10))
+        XCTAssertEqual(multi.totalLines, 2)
+
+        // Production path: minified single-line JSON still has content after extract, and the block given to the model carries the truncation marker.
+        let json = "{\"k\":\"" + String(repeating: "v", count: 400_000) + "\"}"
+        let extracted = try FileTextExtractor.extract(data: Data(json.utf8), fileName: "min.json", mimeType: "application/json")
+        XCTAssertEqual(extracted.content.utf8.count, FileExtractionLimits.default.maxBytes)
+        XCTAssertTrue(extracted.truncated)
+        let block = AttachmentInjector.formatAttachment(
+            index: 1, fileName: "min.json", mimeType: "application/json", sizeBytes: extracted.sizeBytes, extracted: extracted
+        )
+        XCTAssertTrue(block.contains("<TRUNCATED>showing first 1 of 1 lines</TRUNCATED>"))
+    }
+
 
     func testCustomLimits() {
         let customLimits = FileExtractionLimits(
