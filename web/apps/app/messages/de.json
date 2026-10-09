@@ -460,11 +460,13 @@
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# Zeilen extrahiert}}",
         "errorPasswordProtected": "{fileName} ist passwortgeschützt. Entferne das Passwort und lade die Datei erneut hoch.",
-        "errorGeneric": "{fileName} konnte nicht verarbeitet werden. Versuchen Sie es erneut oder wählen Sie eine andere Datei.",
+        "errorGeneric": "{fileName} konnte nicht verarbeitet werden. Versuche es erneut oder wähle eine andere Datei.",
         "errorCorrupted": "{fileName} lässt sich nicht öffnen und ist vermutlich beschädigt. Exportiere die Datei neu oder lade sie noch einmal herunter und hänge sie dann wieder an.",
         "errorNoText": "{fileName} enthält keinen markierbaren Text – vermutlich ist es ein Scan. Wähle ein Modell, das Bilder oder PDFs direkt lesen kann.",
         "tooManyFiles": "Für dieses Modell kannst du bis zu {maxFiles} Dateien anhängen.",
         "textBudgetExceeded": "{fileName} wurde nicht hinzugefügt: Damit würde der angehängte Text dieser Nachricht das Limit überschreiten.",
+        "truncatedNotice": "{fileName} ist lang, daher wurden nur die ersten {shown} von {total} Zeilen hinzugefügt.",
+        "sendBlockedTextBudget": "Nicht gesendet: Mit {fileName} überschreitet der angehängte Text das Limit dieses Modells. Entferne eine Datei oder wechsle das Modell.",
         "truncatedCtaKnowledge": "Große Datei abgeschnitten. Zu Skill Knowledge hinzufügen für vollständige Suche →"
       },
       "dropFiles": "Dateien hier ablegen",

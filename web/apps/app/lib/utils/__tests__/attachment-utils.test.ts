@@ -18,6 +18,8 @@ vi.mock('../../core/telemetry', () => ({
 }));
 
 import { validateFile, fileToAttachment, validateAndConvertFiles } from '../../utils/attachment-utils';
+import { parseOfficeFile } from '../../utils/office-parser';
+import { DEFAULT_LIMITS } from '../../core/attachments/file-text-extractor';
 
 describe('validateFile', () => {
   function makeFile(name: string, type: string, size: number): File {
@@ -64,6 +66,74 @@ describe('fileToAttachment', () => {
     expect(attachment.fileName).toBe('paper.docx');
     expect(attachment.base64Data).toBe('Extracted office text');
     expect(attachment.downloadBase64Data).toBe(btoa('PKDOCX'));
+  });
+
+  describe('plain text and Office-extracted text are truncated at import', () => {
+    const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const byteLength = (text: string | undefined) => new TextEncoder().encode(text ?? '').byteLength;
+
+    it('short text is added as is, not marked truncated', async () => {
+      const attachment = await fileToAttachment(new File(['a\nb\nc'], 'note.txt', { type: 'text/plain' }));
+      expect(attachment.base64Data).toBe('a\nb\nc');
+      expect(attachment.extractedTruncated).toBe(false);
+      expect(attachment.extractedTotalLines).toBe(3);
+    });
+
+    it('text over the line cap keeps only the first 500 lines and records the original line count', async () => {
+      const text = Array.from({ length: 600 }, (_, i) => `line ${i + 1}`).join('\n');
+      const attachment = await fileToAttachment(new File([text], 'long.txt', { type: 'text/plain' }));
+      expect(attachment.base64Data?.split('\n')).toHaveLength(DEFAULT_LIMITS.maxLines);
+      expect(attachment.base64Data?.endsWith('line 500')).toBe(true);
+      expect(attachment.extractedTruncated).toBe(true);
+      expect(attachment.extractedTotalLines).toBe(600);
+    });
+
+    it('text over 200KB is truncated by bytes to within the cap', async () => {
+      const text = Array.from({ length: 400 }, () => 'x'.repeat(1023)).join('\n');
+      const file = new File([text], 'big.log', { type: 'text/plain' });
+      expect(file.size).toBeGreaterThan(DEFAULT_LIMITS.maxBytes);
+      const attachment = await fileToAttachment(file);
+      expect(attachment.extractedTruncated).toBe(true);
+      expect(attachment.extractedTotalLines).toBe(400);
+      expect(byteLength(attachment.base64Data)).toBeLessThanOrEqual(DEFAULT_LIMITS.maxBytes);
+      expect(attachment.base64Data?.split('\n')).toHaveLength(200);
+    });
+
+    // The extractor keeps whole lines only: a single-line file over the byte cap yields no content.
+    // Such a file keeps its original text and is not marked truncated, so the import-time total gate rejects it
+    // rather than adding an empty attachment.
+    it('a single line over the byte cap: keeps the original text, not marked truncated', async () => {
+      const text = 'x'.repeat(DEFAULT_LIMITS.maxBytes + 1);
+      const attachment = await fileToAttachment(new File([text], 'min.json', { type: 'application/json' }));
+      expect(attachment.base64Data).toHaveLength(text.length);
+      expect(attachment.extractedTruncated).toBe(false);
+    });
+
+    it('over-long Office-extracted text is truncated while the original bytes are kept', async () => {
+      const text = Array.from({ length: 600 }, (_, i) => `para ${i + 1}`).join('\n');
+      vi.mocked(parseOfficeFile).mockResolvedValueOnce(text);
+      const attachment = await fileToAttachment(new File(['PKDOCX'], 'long.docx', { type: DOCX }));
+      expect(attachment.extractedTruncated).toBe(true);
+      expect(attachment.extractedTotalLines).toBe(600);
+      expect(attachment.base64Data?.split('\n')).toHaveLength(DEFAULT_LIMITS.maxLines);
+      expect(attachment.originalBase64Data).toBe(btoa('PKDOCX'));
+    });
+
+    it('when Office text is truncated by bytes, the cut falls back to a Sheet boundary and no half sheet is left', async () => {
+      const row = 'x'.repeat(1023);
+      const text = [
+        '===Sheet: A',
+        ...Array.from({ length: 190 }, () => row),
+        '===Sheet: B',
+        ...Array.from({ length: 100 }, () => row),
+      ].join('\n');
+      vi.mocked(parseOfficeFile).mockResolvedValueOnce(text);
+      const attachment = await fileToAttachment(new File(['PKXLSX'], 'book.xlsx', { type: XLSX }));
+      expect(attachment.extractedTruncated).toBe(true);
+      expect(attachment.base64Data).not.toContain('===Sheet: B');
+      expect(attachment.base64Data?.split('\n')).toHaveLength(191);
+    });
   });
 
   // A saved web page is mostly markup. Forwarding it verbatim spends the context window on tags,

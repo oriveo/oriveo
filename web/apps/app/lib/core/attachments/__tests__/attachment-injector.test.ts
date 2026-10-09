@@ -42,6 +42,19 @@ describe('AttachmentInjector.formatAttachment (xml-v1)', () => {
     expect(s).toContain('<TRUNCATED>showing first 500 of 700 lines');
   });
 
+  // The payload rebuilt from a persisted attachment at send time has only the truncated flag, no reason.
+  // This case used to emit nothing, and the model took the first 500 lines for the whole file.
+  it('still emits the TRUNCATED marker (generic wording) when truncated but the reason is missing', () => {
+    const content = Array.from({ length: 500 }, (_, i) => `L${i + 1}`).join('\n');
+    const s = AttachmentInjector.formatAttachment('xml-v1', 1, {
+      fileName: 'big.md',
+      mimeType: 'text/markdown',
+      sizeBytes: 50000,
+      extracted: { ...makeExtracted(content, 700, true), truncationReason: undefined },
+    });
+    expect(s).toContain('<TRUNCATED>showing first 500 of 700 lines</TRUNCATED>');
+  });
+
   it('formats error (scanned_pdf)', () => {
     const s = AttachmentInjector.formatAttachment('xml-v1', 1, {
       fileName: 'p.pdf',
@@ -79,6 +92,19 @@ describe('AttachmentInjector.formatAttachment (markdown-v1)', () => {
     expect(s).toContain('## Attachment 1: doc.pdf');
     expect(s).toContain('```');
     expect(s).toContain('Some PDF text');
+  });
+});
+
+describe('AttachmentInjector.formatAttachment (markdown-v1) truncation note', () => {
+  it('likewise says only the first N lines were given when truncated but the reason is missing', () => {
+    const content = Array.from({ length: 500 }, (_, i) => `L${i + 1}`).join('\n');
+    const s = AttachmentInjector.formatAttachment('markdown-v1', 1, {
+      fileName: 'big.md',
+      mimeType: 'text/markdown',
+      sizeBytes: 50000,
+      extracted: { ...makeExtracted(content, 700, true), truncationReason: undefined },
+    });
+    expect(s).toContain('- Lines: 700 (showing first 500');
   });
 });
 

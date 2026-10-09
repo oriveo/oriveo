@@ -465,6 +465,8 @@
         "errorNoText": "{fileName} には選択できるテキストがなく、スキャンした書類のようです。画像や PDF をそのまま読めるモデルに切り替えてください。",
         "tooManyFiles": "このモデルには最大 {maxFiles} 件のファイルを添付できます。",
         "textBudgetExceeded": "{fileName} は追加されませんでした。追加すると、このメッセージに添付できるテキスト量の上限を超えます。",
+        "truncatedNotice": "{fileName} は長いため、全 {total} 行のうち先頭の {shown} 行だけを追加しました。",
+        "sendBlockedTextBudget": "送信できませんでした。{fileName} を含めると、添付テキストがこのモデルの上限を超えます。ファイルを減らすか、モデルを切り替えてください。",
         "truncatedCtaKnowledge": "大きなファイルが切り詰められました。完全な検索のために Skill Knowledge に追加 →"
       },
       "dropFiles": "ここにファイルをドロップ",

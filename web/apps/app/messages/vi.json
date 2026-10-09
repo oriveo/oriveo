@@ -465,6 +465,8 @@
         "errorNoText": "{fileName} không có chữ chọn được, nhiều khả năng là bản quét. Hãy chọn mô hình đọc trực tiếp được ảnh hoặc PDF.",
         "tooManyFiles": "Bạn có thể đính kèm tối đa {maxFiles} tệp cho mô hình này.",
         "textBudgetExceeded": "{fileName} chưa được thêm: nếu thêm, phần văn bản đính kèm tin nhắn này sẽ vượt giới hạn.",
+        "truncatedNotice": "{fileName} khá dài nên chỉ thêm {shown} dòng đầu trong tổng số {total} dòng.",
+        "sendBlockedTextBudget": "Chưa gửi: khi tính cả {fileName}, phần văn bản đính kèm vượt giới hạn của mô hình này. Hãy bỏ bớt tệp hoặc đổi mô hình.",
         "truncatedCtaKnowledge": "Tệp lớn đã bị cắt. Thêm vào Skill Knowledge để tìm kiếm đầy đủ →"
       },
       "dropFiles": "Thả tập tin ở đây",

@@ -465,6 +465,8 @@
         "errorNoText": "{fileName} 裡沒有可選取的文字，多半是掃描檔。換一個能直接讀圖片或 PDF 的模型試試。",
         "tooManyFiles": "這個模型最多可加入 {maxFiles} 個附件。",
         "textBudgetExceeded": "{fileName} 沒有加入：加上它，這則訊息附帶的文字會超過上限。",
+        "truncatedNotice": "{fileName} 內容較長，只加入了前 {shown} 行（共 {total} 行）。",
+        "sendBlockedTextBudget": "未傳送：加上 {fileName} 後，附件文字超出了目前模型的上限。請移除部分檔案或換一個模型。",
         "truncatedCtaKnowledge": "大檔案已截斷。新增到 Skill Knowledge 取得完整檢索 →"
       },
       "dropFiles": "將檔案拖放到此處",

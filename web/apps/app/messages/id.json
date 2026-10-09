@@ -465,6 +465,8 @@
         "errorNoText": "{fileName} tidak berisi teks yang bisa dipilih; kemungkinan hasil pindaian. Pilih model yang bisa membaca gambar atau PDF secara langsung.",
         "tooManyFiles": "Anda dapat melampirkan hingga {maxFiles} berkas untuk model ini.",
         "textBudgetExceeded": "{fileName} tidak ditambahkan: dengan file ini, teks yang dilampirkan pada pesan akan melebihi batas.",
+        "truncatedNotice": "{fileName} panjang, sehingga hanya {shown} baris pertama dari {total} baris yang ditambahkan.",
+        "sendBlockedTextBudget": "Tidak terkirim: dengan {fileName}, teks lampiran melebihi batas model ini. Hapus salah satu file atau ganti model.",
         "truncatedCtaKnowledge": "File besar dipotong. Tambahkan ke Skill Knowledge untuk pencarian lengkap →"
       },
       "dropFiles": "Letakkan file di sini",

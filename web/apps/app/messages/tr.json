@@ -465,6 +465,8 @@
         "errorNoText": "{fileName} içinde seçilebilir metin yok; büyük olasılıkla taranmış bir belge. Görselleri veya PDF’leri doğrudan okuyabilen bir model seçin.",
         "tooManyFiles": "Bu model için en fazla {maxFiles} dosya ekleyebilirsin.",
         "textBudgetExceeded": "{fileName} eklenmedi: eklenseydi bu mesaja iliştirilen metin izin verilen sınırı aşardı.",
+        "truncatedNotice": "{fileName} uzun olduğu için {total} satırın yalnızca ilk {shown} satırı eklendi.",
+        "sendBlockedTextBudget": "Gönderilmedi: {fileName} ile birlikte ekli metin bu modelin sınırını aşıyor. Bir dosyayı kaldırın veya modeli değiştirin.",
         "truncatedCtaKnowledge": "Büyük dosya kısaltıldı. Tam arama için Skill Knowledge'a ekleyin →"
       },
       "dropFiles": "Dosyaları buraya bırakın",

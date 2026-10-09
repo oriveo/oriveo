@@ -465,6 +465,8 @@
         "errorNoText": "{fileName} has no selectable text, so it's probably a scan. Pick a model that reads images or PDFs directly.",
         "tooManyFiles": "You can attach up to {maxFiles} files for this model.",
         "textBudgetExceeded": "{fileName} wasn't added: it would put the text attached to this message over the limit.",
+        "truncatedNotice": "{fileName} is long, so only the first {shown} of {total} lines were added.",
+        "sendBlockedTextBudget": "Not sent: with {fileName}, the attached text is over this model's limit. Remove a file or switch models.",
         "truncatedCtaKnowledge": "Large file truncated. Add to Skill Knowledge for full search →"
       },
       "dropFiles": "Drop files here",

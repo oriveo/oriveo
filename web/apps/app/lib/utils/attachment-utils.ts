@@ -5,6 +5,7 @@ import { compressImage, createImageThumbnail, readFileAsBase64, base64ToBlob } f
 import { parseOfficeFile } from './office-parser';
 import { createCanonicalUUID } from './id-utils';
 import { MAX_CHAT_ATTACHMENT_BYTES, isOversizedChatAttachment } from './attachment-size-policy';
+import { type ExtractedText, FileTextExtractor } from '../core/attachments/file-text-extractor';
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const ALLOWED_VIDEO_TYPES = [
   'video/mp4',
@@ -137,6 +138,22 @@ function fileToKind(file: File): AttachmentKind {
   return ALLOWED_IMAGE_TYPES.includes(file.type) ? 'image' : 'file';
 }
 
+/**
+ * Plain text and Office-extracted text are truncated at import by the extractor's own rules (the same as PDF / EPUB / HTML).
+ *
+ * Exception: when no whole line survives truncation (the file is a single line over the byte cap, such as minified
+ * JSON), the original text is returned and not marked truncated. The extractor keeps whole lines only, so such a file
+ * would come out empty; keeping the original lets the import-time total-size gate reject it and explain why, which
+ * beats adding an empty attachment.
+ */
+function truncateImportedText(raw: string, fileSizeBytes: number): ExtractedText {
+  const extracted = FileTextExtractor.truncate(raw, fileSizeBytes);
+  if (extracted.truncated && extracted.content.length === 0 && raw.length > 0) {
+    return { content: raw, totalLines: extracted.totalLines, truncated: false, sizeBytes: fileSizeBytes };
+  }
+  return extracted;
+}
+
 export async function fileToAttachment(file: File): Promise<Attachment> {
   const rawBase64 = await readFileAsBase64(file);
   const kind = fileToKind(file);
@@ -187,35 +204,38 @@ export async function fileToAttachment(file: File): Promise<Attachment> {
   // Text files: decoded to UTF-8 plain text and sent as a text content part. HTML is excluded
   // deliberately; it is extracted further down instead of being forwarded as markup.
   if (isTextFile(file) && !isHtmlFile(file)) {
-    const textContent = await file.text();
+    const extracted = truncateImportedText(await file.text(), file.size);
     return {
       id: createCanonicalUUID(),
       kind,
       fileName: file.name,
       mimeType: file.type || 'text/plain',
-      base64Data: textContent,
+      base64Data: extracted.content,
       originalSizeBytes: file.size,
+      extractedTotalLines: extracted.totalLines,
+      extractedTruncated: extracted.truncated,
+      extractedSizeBytes: extracted.sizeBytes,
     };
   }
 
   // Office binary formats: plain text is extracted with officeParser.
   if (isOfficeFile(file)) {
     try {
-      const textContent = await parseOfficeFile(file);
+      const extracted = truncateImportedText(await parseOfficeFile(file), file.size);
       return {
         id: createCanonicalUUID(),
         kind,
         fileName: file.name,
         mimeType: file.type || 'application/octet-stream',
-        base64Data: textContent,
+        base64Data: extracted.content,
         downloadBase64Data: rawBase64,
         // Office mime types keep originalBase64Data as well, so AttachmentRouter can choose the
         // native route (only OpenAI Responses accepts docx/xlsx/pptx as an input_file).
         originalBase64Data: rawBase64,
         originalSizeBytes: file.size,
-        extractedTotalLines: textContent.split('\n').length,
-        extractedTruncated: false,
-        extractedSizeBytes: file.size,
+        extractedTotalLines: extracted.totalLines,
+        extractedTruncated: extracted.truncated,
+        extractedSizeBytes: extracted.sizeBytes,
       };
     } catch (e: unknown) {
       const err = e as { name?: string; code?: string; message?: string };

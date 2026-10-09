@@ -135,6 +135,10 @@ export const AttachmentInjector = {
         lines.push(`<TRUNCATED>showing first ${n} of ${total} lines (size cap 200KB)</TRUNCATED>`);
       } else if (p.extracted.truncationReason === 'bytes') {
         lines.push(`<TRUNCATED>showing first ${n} of ${total} lines (truncated to fit 200KB cap)</TRUNCATED>`);
+      } else {
+        // A payload rebuilt from a persisted attachment at send time has no truncation reason (only the truncated flag is stored).
+        // The reason may be missing but the marker may not: otherwise the model answers as if the first N lines were the whole file.
+        lines.push(`<TRUNCATED>showing first ${n} of ${total} lines</TRUNCATED>`);
       }
     }
     lines.push('</ATTACHMENT_FILE>');

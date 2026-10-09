@@ -465,6 +465,8 @@
         "errorNoText": "{fileName} não tem texto selecionável; deve ser uma digitalização. Escolha um modelo que leia imagens ou PDFs diretamente.",
         "tooManyFiles": "Você pode anexar até {maxFiles} arquivos para este modelo.",
         "textBudgetExceeded": "{fileName} não foi adicionado: com ele, o texto anexado a esta mensagem passaria do limite.",
+        "truncatedNotice": "{fileName} é longo, então só as primeiras {shown} de {total} linhas foram adicionadas.",
+        "sendBlockedTextBudget": "Não enviado: com {fileName}, o texto anexado passa do limite deste modelo. Remova um arquivo ou troque de modelo.",
         "truncatedCtaKnowledge": "Arquivo grande truncado. Adicionar ao Skill Knowledge para busca completa →"
       },
       "dropFiles": "Solte os arquivos aqui",

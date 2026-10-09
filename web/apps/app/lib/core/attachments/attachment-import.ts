@@ -185,7 +185,17 @@ async function runImport(request: AttachmentImportRequest): Promise<void> {
     const copyKey = extractionFailureCopyKey(attachment.extractionErrorCode);
     if (copyKey) failures.push(translate(copyKey, { fileName: attachment.fileName ?? '' }));
   }
-  if (failures.length > 0) showImportNotices([...notices, ...failures]);
+  // Say it on the spot when a file was truncated: the ⚠︎ in the attachment bar only says "truncated"; this gives the kept and original line counts.
+  const truncations = incoming
+    .filter((attachment) => attachment.extractedTruncated && !attachment.extractionErrorCode)
+    .map((attachment) => translate('truncatedNotice', {
+      fileName: attachment.fileName ?? '',
+      shown: (attachment.base64Data ?? '').split('\n').length,
+      total: attachment.extractedTotalLines ?? 0,
+    }));
+  if (failures.length > 0 || truncations.length > 0) {
+    showImportNotices([...notices, ...failures, ...truncations]);
+  }
 
   if (incoming.length === 0) return;
   const seen = request.getAttachments();

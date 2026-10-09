@@ -35,6 +35,19 @@ vi.mock('next-intl', () => {
   return { useTranslations: () => translate };
 });
 
+vi.mock('../../telemetry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../telemetry')>()),
+  trackEvent: vi.fn(),
+}));
+
+/** The real "read the files and convert" step. Tests that assert on the production conversion point the mock back at it. */
+const realValidateAndConvertFiles = async (...args: unknown[]) => {
+  const actual = await vi.importActual<typeof import('../../../utils/attachment-utils')>(
+    '../../../utils/attachment-utils',
+  );
+  return (actual.validateAndConvertFiles as (...inner: unknown[]) => Promise<Attachment[]>)(...args);
+};
+
 const file = (name: string) => new File(['x'], name, { type: 'text/plain' });
 const toAttachment = (source: File, extra: Partial<Attachment> = {}): Attachment => ({
   id: `att-${source.name}`,
@@ -185,10 +198,14 @@ describe('importAttachmentFiles', () => {
       expect(mockShowToast).toHaveBeenCalledExactlyOnceWith('textBudgetExceeded({"fileName":"big.txt"})');
     });
 
-    it('rejects a single file that is over the budget by itself, with a notice', async () => {
+    // A multi-line oversized text is now added truncated (see "long text is added truncated" below); the only case the
+    // total gate still rejects is one that cannot be truncated to any content: a single line that is itself over the
+    // budget. Run the real conversion to confirm it does not become an empty attachment.
+    it('rejects a single-line file that is over the budget (nothing can be kept), with a notice', async () => {
       const composer = renderComposer();
-      mockValidateAndConvertFiles.mockImplementationOnce(withText(CAP + 1));
-      await act(async () => { await composer.current.pickFiles([file('huge.txt')]); });
+      mockValidateAndConvertFiles.mockImplementationOnce(realValidateAndConvertFiles);
+      const huge = new File(['x'.repeat(CAP + 1)], 'huge.txt', { type: 'text/plain' });
+      await act(async () => { await composer.current.pickFiles([huge]); });
       await settle();
       expect(composer.current.attachments).toEqual([]);
       expect(mockShowToast).toHaveBeenCalledExactlyOnceWith('textBudgetExceeded({"fileName":"huge.txt"})');
@@ -206,6 +223,67 @@ describe('importAttachmentFiles', () => {
       await act(async () => { await composer.current.pickFiles([file('a.pdf'), file('b.pdf'), file('c.png')]); });
       await settle();
       expect(composer.current.attachments).toHaveLength(3);
+      expect(mockShowToast).not.toHaveBeenCalled();
+    });
+  });
+
+  // This group does not replace "read the files and convert": the attachment objects and the line counts in the notice
+  // both come from what the production conversion path actually produces.
+  describe('long text is added truncated, and the notice says how many lines were kept', () => {
+    const lines = (count: number, width = 8) =>
+      Array.from({ length: count }, (_, i) => `${i + 1}`.padEnd(width, '.')).join('\n');
+    const textFile = (name: string, content: string) => new File([content], name, { type: 'text/plain' });
+
+    beforeEach(() => { mockValidateAndConvertFiles.mockImplementation(realValidateAndConvertFiles); });
+
+    it('text over the line cap: added, marked truncated, one notice', async () => {
+      const composer = renderComposer();
+      await act(async () => { await composer.current.pickFiles([textFile('long.txt', lines(600))]); });
+      await settle();
+      const [attachment] = composer.current.attachments;
+      expect(attachment?.fileName).toBe('long.txt');
+      expect(attachment?.extractedTruncated).toBe(true);
+      expect(attachment?.base64Data?.split('\n')).toHaveLength(DEFAULT_LIMITS.maxLines);
+      expect(mockShowToast).toHaveBeenCalledExactlyOnceWith(
+        'truncatedNotice({"fileName":"long.txt","shown":500,"total":600})',
+      );
+    });
+
+    it('a .txt over 200KB is added truncated instead of rejected', async () => {
+      const composer = renderComposer();
+      const big = textFile('big.txt', lines(400, 1023));
+      expect(big.size).toBeGreaterThan(DEFAULT_LIMITS.totalCap);
+      await act(async () => { await composer.current.pickFiles([big]); });
+      await settle();
+      const [attachment] = composer.current.attachments;
+      expect(attachment?.fileName).toBe('big.txt');
+      expect(attachment?.extractedTruncated).toBe(true);
+      expect(new TextEncoder().encode(attachment?.base64Data ?? '').byteLength)
+        .toBeLessThanOrEqual(DEFAULT_LIMITS.totalCap);
+      expect(mockShowToast).toHaveBeenCalledExactlyOnceWith(
+        'truncatedNotice({"fileName":"big.txt","shown":200,"total":400})',
+      );
+    });
+
+    it('two truncated files in one batch: a single notice, one line per file', async () => {
+      const composer = renderComposer();
+      await act(async () => {
+        await composer.current.pickFiles([textFile('a.txt', lines(600)), textFile('b.txt', lines(700))]);
+      });
+      await settle();
+      expect(composer.current.attachments.map((item) => item.fileName)).toEqual(['a.txt', 'b.txt']);
+      expect(mockShowToast).toHaveBeenCalledTimes(1);
+      expect(mockShowToast.mock.calls[0]?.[0]).toBe([
+        'truncatedNotice({"fileName":"a.txt","shown":500,"total":600})',
+        'truncatedNotice({"fileName":"b.txt","shown":500,"total":700})',
+      ].join('\n'));
+    });
+
+    it('text that was not truncated gets no notice', async () => {
+      const composer = renderComposer();
+      await act(async () => { await composer.current.pickFiles([textFile('short.txt', lines(10))]); });
+      await settle();
+      expect(composer.current.attachments[0]?.extractedTruncated).toBe(false);
       expect(mockShowToast).not.toHaveBeenCalled();
     });
   });
