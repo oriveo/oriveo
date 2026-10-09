@@ -287,12 +287,16 @@ open class OpenAICompatibleService(
                         }
 
                         // Citation parsing; the strategy already wraps this in runCatching.
-                        if (strategy != null) {
-                            val cits = runCatching { strategy.parseCitations(payload, shape) }
-                                .getOrNull()
-                                .orEmpty()
-                            if (cits.isNotEmpty()) events += StreamEvent.Citations(cits)
+                        // Provider-specific shapes come first: when both sides resolve the same
+                        // URL, the one with the more accurate field mapping wins.
+                        val providerCits = root?.let { runCatching { parseProviderCitations(it) }.getOrNull() }.orEmpty()
+                        val strategyCits = if (strategy != null) {
+                            runCatching { strategy.parseCitations(payload, shape) }.getOrNull().orEmpty()
+                        } else {
+                            emptyList()
                         }
+                        val cits = (providerCits + strategyCits).distinctBy { it.url }
+                        if (cits.isNotEmpty()) events += StreamEvent.Citations(cits)
 
                         // Thinking models such as Mistral Magistral send delta.content as an array
                         // of blocks (type=thinking / type=text). The typed StreamChunk only
@@ -1271,6 +1275,13 @@ open class OpenAICompatibleService(
 
     /** Builds the web search JSON fragment; a non-null return replaces the reasoning fragment. */
     protected open fun buildWebSearchJson(enabled: Boolean): String? = null
+
+    /**
+     * Provider-specific search source shapes (those that are neither under `annotations` nor on
+     * the streamShape path). The base class recognises none; subclasses parse only fields that
+     * actually exist in the raw upstream frame and return an empty list otherwise.
+     */
+    protected open fun parseProviderCitations(root: JsonObject): List<ai.oriveo.community.core.model.Citation> = emptyList()
 
     /**
      * Builds the messages array JSON. By default it dispatches per provider (DeepSeek collapses

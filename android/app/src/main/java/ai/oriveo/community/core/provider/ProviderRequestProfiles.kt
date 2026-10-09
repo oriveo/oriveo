@@ -385,7 +385,7 @@ private fun safeCustomFragmentAuthority(
         ?.let { CustomFragmentAuthority(it.owners, it.runtimeRevision) }
 }
 
-private fun ChatRequestOptions.allLocalCustomFragments(): Map<String, String> =
+internal fun ChatRequestOptions.allLocalCustomFragments(): Map<String, String> =
     (localCustomFragments + listOfNotNull(localCustomFragment?.let { localCustomOwner to it })).filterKeys {
         it in setOf("web", "reasoning", "generation")
     }

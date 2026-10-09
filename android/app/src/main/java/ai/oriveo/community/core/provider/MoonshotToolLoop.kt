@@ -89,6 +89,20 @@ internal class MoonshotWebSearchTool(
 
         /** Builtin form: arguments are sent back verbatim. */
         fun builtinResultContent(call: ToolLoopToolCall): String = call.function.arguments
+
+        /**
+         * Evidence that a builtin search actually ran: once Kimi finishes the search server-side it
+         * writes `search_result.search_id` into the arguments of the `$web_search` call. A merely
+         * declared tool, or arguments without a parsable non-empty search_id, do not count.
+         * Returns the search_id as the tool_result summary, or null when there is no evidence.
+         */
+        fun builtinSearchEvidence(call: ToolLoopToolCall): String? {
+            if (call.function.name != BUILTIN_TOOL_NAME) return null
+            val arguments = runCatching { Json.parseToJsonElement(call.function.arguments) }.getOrNull() as? JsonObject
+                ?: return null
+            val searchId = (arguments["search_result"] as? JsonObject)?.get("search_id") as? JsonPrimitive
+            return searchId?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() }
+        }
     }
 }
 

@@ -5,6 +5,7 @@ import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatRequestOptions
+import ai.oriveo.community.core.model.Citation
 import ai.oriveo.community.core.model.ProviderChatResult
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderServiceError
@@ -34,6 +35,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -447,22 +449,39 @@ class GeminiService(
             contentType(ContentType.Application.Json)
             setBody(body)
         }
+        // This channel bypasses applyCapabilityRuntimeRecipes, so the web recipe's execution fact is
+        // recorded here and confirmed before the request goes out; otherwise the message would carry
+        // neither "confirmed" nor "unconfirmed" and parsed search evidence would have nowhere to land.
+        requestOptions.capabilityExecutionCollector?.let { collector ->
+            collector.recordCompiled(
+                owner = recipe.capability,
+                evidenceSignals = recipe.responseEvidenceSignals,
+                revision = recipe.runtimeRevision,
+                recipeRef = recipe.id,
+            )
+            collector.confirmDispatched()
+        }
         statement.execute { response ->
             if (!response.status.isSuccess()) throw SseParser.mapHttpError(response)
             var text = ""
             var promptTokens = 0
             var completionTokens = 0
+            var searchEvidenceIndex = 0
             fun consume(root: JsonObject): List<StreamEvent> {
                 val interaction = root["interaction"] as? JsonObject ?: root
                 val usage = interaction["usage"] as? JsonObject
                 promptTokens = usage?.number("total_input_tokens") ?: promptTokens
                 completionTokens = usage?.number("total_output_tokens") ?: completionTokens
                 if (root.string("event_type") != "step.delta") return emptyList()
-                val step = root["step"] as? JsonObject ?: return emptyList()
-                if (step.string("type") != "model_output") return emptyList()
-                val delta = step["delta"] ?: return emptyList()
+                val step = root["step"] as? JsonObject
+                // Search evidence is keyed on delta.type, not step.type; a delta under the step or at
+                // the top level of the event is read either way.
+                val evidence = listOfNotNull(step?.get("delta") as? JsonObject, root["delta"] as? JsonObject)
+                    .flatMap { interactionsWebEvidence(it, searchEvidenceIndex++) }
+                if (step?.string("type") != "model_output") return evidence
+                val delta = step["delta"] ?: return evidence
                 val chunks = delta.textValues("text")
-                return chunks.filter { it.isNotEmpty() }.map { chunk ->
+                return evidence + chunks.filter { it.isNotEmpty() }.map { chunk ->
                     text += chunk
                     StreamEvent.Delta(chunk)
                 }
@@ -505,6 +524,36 @@ class GeminiService(
                 onDone = { StreamEvent.Done(ProviderChatResult(text = text.trim(), promptTokens = promptTokens, completionTokens = completionTokens)) },
             ).collect { emit(it) }
         }
+    }
+
+    /**
+     * The two kinds of evidence in an Interactions stream that Google Search actually ran:
+     *  - `google_search_result`: `result` is non-empty and `is_error` is not true -> tool_result;
+     *  - `text_annotation_delta`: a `url_citation` in the annotations -> a source.
+     * A search call (`google_search_call`) or plain text is not evidence.
+     */
+    private fun interactionsWebEvidence(delta: JsonObject, index: Int): List<StreamEvent> = when (delta.string("type")) {
+        "google_search_result" -> {
+            val results = (delta["result"] as? JsonArray).orEmpty()
+            val failed = (delta["is_error"] as? JsonPrimitive)?.booleanOrNull == true
+            if (results.isEmpty() || failed) emptyList()
+            else listOf(StreamEvent.ToolResult("google_search", "results=${results.size}", index))
+        }
+        "text_annotation_delta" -> {
+            val citations = (delta["annotations"] as? JsonArray).orEmpty().mapNotNull { element ->
+                val annotation = element as? JsonObject ?: return@mapNotNull null
+                if (annotation.string("type") != "url_citation") return@mapNotNull null
+                val url = annotation.string("url")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                Citation(
+                    url = url,
+                    title = annotation.string("title")?.takeIf { it.isNotBlank() },
+                    startIndex = annotation.number("start_index"),
+                    endIndex = annotation.number("end_index"),
+                )
+            }
+            if (citations.isEmpty()) emptyList() else listOf(StreamEvent.Citations(citations))
+        }
+        else -> emptyList()
     }
 
     private fun JsonObject?.string(key: String): String? = this?.get(key)?.let { (it as? JsonPrimitive)?.contentOrNull }

@@ -214,6 +214,21 @@ class MoonshotService(
                     put("tools", JsonArray(mergeFormulaTools(existing, tools)))
                 })
                 formulaRegistrations = moonshotFormulaRegistrations(tools)
+                // A Formula recipe has no requestOps (tool declarations come from /tools), so the
+                // generic compile step never records an execution fact for it. Record it here once
+                // the tools are merged into the request body; otherwise messages on this channel
+                // could never carry a web search result. Same filter as the generic path: an owner
+                // taken over by a user-defined fragment or dormant is not recorded.
+                if ("web" !in requestOptions.allLocalCustomFragments().keys &&
+                    "web" !in requestOptions.dormantCapabilityOwners
+                ) {
+                    requestOptions.capabilityExecutionCollector?.recordCompiled(
+                        owner = webRecipe.capability,
+                        evidenceSignals = webRecipe.responseEvidenceSignals,
+                        revision = webRecipe.runtimeRevision,
+                        recipeRef = webRecipe.id,
+                    )
+                }
             }
 
             val resolved = MetadataClient.resolveCatalogModel(modelID, ProviderKind.Moonshot)
@@ -249,6 +264,10 @@ class MoonshotService(
                 // Missing/corrupt/recipe-mismatch state intentionally falls through to plain chat.
             }
 
+            // Tools run sequentially in the loop's own coroutine, so the executor emits the
+            // "a search actually happened" evidence straight downstream. Web search counts as
+            // confirmed only on this event: a declared tool, an HTTP 200 or a non-empty body do not.
+            var currentLeg = 0
             // A tool only has an executor while web search is on: the builtin one is always
             // `$web_search`, and a Formula registers whatever `/tools` declares.
             val registry = if (formula != null) {
@@ -256,10 +275,21 @@ class MoonshotService(
                     MoonshotWebSearchTool(
                         name = registration.name,
                         wireType = registration.wireType,
-                    ) { call -> formulaFiberContent(url, formula, apiKey, call) }
+                    ) { call ->
+                        val output = formulaFiberContent(url, formula, apiKey, call)
+                        // The search counts as executed only if the fiber returned a non-empty
+                        // result; the summary carries just the length, not the search text.
+                        if (output.isNotBlank()) {
+                            emit(StreamEvent.ToolResult(call.function.name, "output_chars=${output.length}", currentLeg))
+                        }
+                        output
+                    }
                 })
             } else {
                 ToolRegistry(listOf(MoonshotWebSearchTool { call ->
+                    MoonshotWebSearchTool.builtinSearchEvidence(call)?.let { searchId ->
+                        emit(StreamEvent.ToolResult(MoonshotWebSearchTool.BUILTIN_TOOL_NAME, searchId, currentLeg))
+                    }
                     MoonshotWebSearchTool.builtinResultContent(call)
                 }))
             }
@@ -342,7 +372,10 @@ class MoonshotService(
             var legSawReasoning = false
             loop.run(initialMessages = emptyList()) { event ->
                 when (event) {
-                    is ToolCallLoop.ProgressEvent.LegStarted -> legSawReasoning = false
+                    is ToolCallLoop.ProgressEvent.LegStarted -> {
+                        currentLeg = event.legIndex
+                        legSawReasoning = false
+                    }
                     is ToolCallLoop.ProgressEvent.TextDelta -> {
                         accumulatedText.append(event.text)
                         emit(StreamEvent.Delta(event.text))
