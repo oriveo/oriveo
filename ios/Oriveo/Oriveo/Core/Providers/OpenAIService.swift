@@ -816,7 +816,8 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             guard let function = call.function else { return nil }
             return ProviderToolCall(
                 providerCallID: call.id,
-                name: ToolFunctionNameCodec.decode(function.name ?? ""),
+                // The request side does not encode function names, so they are not decoded here either: the `_fe` of `web_fetch` would be read as an escaped byte and corrupt the name.
+                name: function.name ?? "",
                 rawArguments: function.arguments ?? ""
             )
         }

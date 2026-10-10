@@ -96,7 +96,11 @@ nonisolated final class MoonshotToolLoopLegRunner: ToolLoopLegRunning, @unchecke
                     guard (200 ..< 300).contains(http.statusCode) else {
                         throw ProviderServiceError.upstream(statusCode: http.statusCode, detail: "Moonshot leg failed.")
                     }
-                    var assembler = OpenAICompatibleStreamAssembler(profile: .moonshot)
+                    var assembler = OpenAICompatibleStreamAssembler(
+                        profile: .moonshot,
+                        // Formula tools and `$web_search` are sent verbatim; decoding their names would leave them without an executor.
+                        decodesFunctionNames: false
+                    )
                     var state = OpenAICompatibleStreamState()
                     var kimiCtx = StreamContext()
                     var lastCitationsCount = 0

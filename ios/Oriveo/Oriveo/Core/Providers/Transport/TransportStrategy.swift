@@ -33,7 +33,7 @@ struct StreamContext: Sendable {
     var accumulatedText: String = ""
     var accumulatedReasoning: String = ""
     var citationsAccumulator = CitationAccumulator()
-    var toolCallAccumulator = OpenAICompatibleToolCallAccumulator()
+    var toolCallAccumulator = OpenAICompatibleToolCallAccumulator(decodesFunctionNames: false)
     var protocolToolCallDecoder: (any ToolCallStreamDecoding)?
     var didFinish: Bool = false
 

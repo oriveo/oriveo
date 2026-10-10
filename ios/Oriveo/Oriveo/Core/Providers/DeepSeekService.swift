@@ -130,7 +130,7 @@ final class DeepSeekService: BaseAPIService, ProviderServiceProtocol, BalanceQue
                         throw self.mapHTTPError(statusCode: httpResponse.statusCode, data: errorData)
                     }
 
-                    var assembler = OpenAICompatibleStreamAssembler(profile: .deepSeek)
+                    var assembler = OpenAICompatibleStreamAssembler(profile: .deepSeek, decodesFunctionNames: false)
                     var streamState = OpenAICompatibleStreamState()
 
                     var yieldedAnyEvent = false

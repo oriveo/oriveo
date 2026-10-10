@@ -136,10 +136,11 @@ nonisolated struct OpenAIChatToolAdapter: ToolProtocolAdapter {
 nonisolated struct OpenAIChatToolCallStreamDecoder: ToolCallStreamDecoding {
     private var accumulator: OpenAICompatibleToolCallAccumulator
 
-    /// `decodesFunctionNames`: see `OpenAICompatibleToolCallAccumulator.init`. The tool loop sends
-    /// function names verbatim (`mcp_<server>_<tool>`), so its side must pass `false` to get back
-    /// exactly the names it sent.
-    init(decodesFunctionNames: Bool = true) {
+    /// `decodesFunctionNames`: see `OpenAICompatibleToolCallAccumulator.init`. This app sends every
+    /// function name verbatim (`mcp_<server>_<tool>`, Moonshot Formula tools; nothing in the app
+    /// calls `ToolFunctionNameCodec.encode`), so names are not decoded by default and come back
+    /// exactly as they were sent. Decoding is for a caller whose request side really encoded them.
+    init(decodesFunctionNames: Bool = false) {
         accumulator = OpenAICompatibleToolCallAccumulator(decodesFunctionNames: decodesFunctionNames)
     }
 

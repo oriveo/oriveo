@@ -54,7 +54,7 @@ public struct OpenAICompatibleStreamAssembler {
 
     private let profile: ProviderWireProfile
     private let responseParserKinds: Set<String>
-    private var toolCalls = OpenAICompatibleToolCallAccumulator()
+    private var toolCalls: OpenAICompatibleToolCallAccumulator
     private var usage: ProviderTokenUsage?
     private var finishReason: String?
     private var thinkingParser = ThinkingTagParser()
@@ -62,14 +62,18 @@ public struct OpenAICompatibleStreamAssembler {
     private var reasoningDetailsInvalid = false
     private var nextReasoningDetailIndex = 0
 
-    public init(profile: ProviderWireProfile, responseParserKind: String? = nil) {
+    /// - Parameter decodesFunctionNames: see `OpenAICompatibleToolCallAccumulator.init`. A caller whose
+    ///   request side did not encode function names with `ToolFunctionNameCodec` must pass `false`.
+    public init(profile: ProviderWireProfile, responseParserKind: String? = nil, decodesFunctionNames: Bool = true) {
         self.profile = profile
         self.responseParserKinds = Set(responseParserKind.map { [$0] } ?? [])
+        self.toolCalls = OpenAICompatibleToolCallAccumulator(decodesFunctionNames: decodesFunctionNames)
     }
 
-    public init(profile: ProviderWireProfile, responseParserKinds: Set<String>) {
+    public init(profile: ProviderWireProfile, responseParserKinds: Set<String>, decodesFunctionNames: Bool = true) {
         self.profile = profile
         self.responseParserKinds = responseParserKinds
+        self.toolCalls = OpenAICompatibleToolCallAccumulator(decodesFunctionNames: decodesFunctionNames)
     }
 
     public mutating func ingest(_ line: String) throws -> [ProviderStreamEvent] {
