@@ -45,6 +45,9 @@ function makeMatchedMetadata(
     pricing: overrides.pricing ?? null,
     profiles: overrides.profiles ?? {},
     uiHints: overrides.uiHints,
+    nativeFileMimes: overrides.nativeFileMimes,
+    pdfNativeDefault: overrides.pdfNativeDefault,
+    attachmentExtraction: overrides.attachmentExtraction,
   };
 }
 
@@ -405,6 +408,118 @@ describe('enrichRelayLocalModel', () => {
     expect(enriched.capabilities).toEqual(['text', 'image', 'file', 'reasoning']);
     expect(enriched.relayMatchedProviderKind).toBe('anthropic');
     expect(enriched.relayMatchSource).toBe('cross_provider');
+  });
+});
+
+describe('enrichRelayLocalModel native file allowlist inheritance', () => {
+  const OFFICIAL_NATIVE = {
+    nativeFileMimes: ['application/pdf'],
+    pdfNativeDefault: true,
+    attachmentExtraction: { maxLines: 1234 },
+  };
+  // Stale local values: they prove that "not inherited" means explicitly cleared, not merely absent.
+  const LOCAL_STALE = {
+    nativeFileMimes: ['text/plain'],
+    pdfNativeDefault: false,
+    attachmentExtraction: { maxLines: 1 },
+  };
+
+  function mockClaudeMatch(source: 'transport_first' | 'cross_provider') {
+    resolveMock.mockReturnValueOnce({
+      matchedProviderKind: 'anthropic',
+      canonicalModelId: 'claude-sonnet-4.5',
+      source,
+      metadata: makeMatchedMetadata({
+        canonicalModelId: 'claude-sonnet-4.5',
+        displayName: 'Claude Sonnet 4.5',
+        capabilities: ['text', 'image', 'file', 'reasoning'],
+        ...OFFICIAL_NATIVE,
+      }),
+    });
+  }
+
+  it('inherits the three official fields on a transport_first match (allowlist / PDF native default / extraction limits)', () => {
+    mockClaudeMatch('transport_first');
+    const local = makeLocalModel({ id: 'claude-sonnet-4.5', ...LOCAL_STALE });
+    const enriched = enrichRelayLocalModel(local, 'anthropic_messages', DEFAULT_RELAY_RUNTIME_CONFIG);
+    expect(enriched.nativeFileMimes).toEqual(['application/pdf']);
+    expect(enriched.pdfNativeDefault).toBe(true);
+    expect(enriched.attachmentExtraction).toEqual({ maxLines: 1234 });
+  });
+
+  it('clears all three fields, stale local values included, when the envelope turns nativeFile off', () => {
+    mockClaudeMatch('transport_first');
+    const local = makeLocalModel({ id: 'claude-sonnet-4.5', ...LOCAL_STALE });
+    const runtimeConfig = {
+      ...DEFAULT_RELAY_RUNTIME_CONFIG,
+      transportEnvelopes: {
+        ...DEFAULT_RELAY_RUNTIME_CONFIG.transportEnvelopes,
+        anthropic_messages: {
+          ...DEFAULT_RELAY_RUNTIME_CONFIG.transportEnvelopes.anthropic_messages,
+          nativeFile: false,
+        },
+      },
+    };
+    const enriched = enrichRelayLocalModel(local, 'anthropic_messages', runtimeConfig);
+    expect(enriched.nativeFileMimes).toBeUndefined();
+    expect(enriched.pdfNativeDefault).toBeUndefined();
+    expect(enriched.attachmentExtraction).toBeUndefined();
+  });
+
+  it('carries none of the three fields on a cross_provider match but still resolves the canonical id', () => {
+    mockClaudeMatch('cross_provider');
+    const local = makeLocalModel({ id: 'claude-sonnet-4.5', ...LOCAL_STALE });
+    const enriched = enrichRelayLocalModel(local, 'openai_responses', DEFAULT_RELAY_RUNTIME_CONFIG);
+    expect(enriched.canonicalModelId).toBe('claude-sonnet-4.5');
+    expect(enriched.relayMatchSource).toBe('cross_provider');
+    expect(enriched.nativeFileMimes).toBeUndefined();
+    expect(enriched.pdfNativeDefault).toBeUndefined();
+    expect(enriched.attachmentExtraction).toBeUndefined();
+  });
+
+  it('a manual model also inherits on transport_first while keeping the user\'s name and capabilities', () => {
+    mockClaudeMatch('transport_first');
+    const local = makeLocalModel({
+      id: 'claude-sonnet-4.5',
+      name: 'My Claude',
+      capabilities: ['text', 'image'],
+      isManual: true,
+    });
+    const enriched = enrichRelayLocalModel(local, 'anthropic_messages', DEFAULT_RELAY_RUNTIME_CONFIG);
+    expect(enriched.nativeFileMimes).toEqual(['application/pdf']);
+    expect(enriched.pdfNativeDefault).toBe(true);
+    expect(enriched.attachmentExtraction).toEqual({ maxLines: 1234 });
+    expect(enriched.name).toBe('My Claude');
+    expect(enriched.capabilities).toEqual(['text', 'image']);
+  });
+
+  it('a manual model has the three fields cleared when the envelope turns nativeFile off', () => {
+    mockClaudeMatch('transport_first');
+    const local = makeLocalModel({ id: 'claude-sonnet-4.5', isManual: true, ...LOCAL_STALE });
+    const enriched = enrichRelayLocalModel(local, 'openai_chat_completions', DEFAULT_RELAY_RUNTIME_CONFIG);
+    expect(enriched.nativeFileMimes).toBeUndefined();
+    expect(enriched.pdfNativeDefault).toBeUndefined();
+    expect(enriched.attachmentExtraction).toBeUndefined();
+  });
+
+  it('a manual model carries none of the three fields on cross_provider, stale local values included', () => {
+    mockClaudeMatch('cross_provider');
+    const local = makeLocalModel({ id: 'claude-sonnet-4.5', isManual: true, ...LOCAL_STALE });
+    const enriched = enrichRelayLocalModel(local, 'openai_responses', DEFAULT_RELAY_RUNTIME_CONFIG);
+    expect(enriched.canonicalModelId).toBe('claude-sonnet-4.5');
+    expect(enriched.nativeFileMimes).toBeUndefined();
+    expect(enriched.pdfNativeDefault).toBeUndefined();
+    expect(enriched.attachmentExtraction).toBeUndefined();
+  });
+
+  it('a manual model without a match keeps its local values (returned unchanged)', () => {
+    resolveMock.mockReturnValueOnce(null);
+    const local = makeLocalModel({ id: 'my-private-model', isManual: true, ...LOCAL_STALE });
+    const enriched = enrichRelayLocalModel(local, 'anthropic_messages', DEFAULT_RELAY_RUNTIME_CONFIG);
+    expect(enriched).toEqual({ ...local });
+    expect(enriched.nativeFileMimes).toEqual(['text/plain']);
+    expect(enriched.pdfNativeDefault).toBe(false);
+    expect(enriched.attachmentExtraction).toEqual({ maxLines: 1 });
   });
 });
 

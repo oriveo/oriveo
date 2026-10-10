@@ -114,6 +114,28 @@ function resolvedRelayModelId(modelId: string): string {
 }
 
 /**
+ * Whether the three native-file fields of the same-named official model (allowlist / PDF native
+ * default / extraction limits) carry over.
+ *
+ * The allowlist describes what the vendor's own protocol accepts, so only a transport_first match
+ * qualifies: a cross_provider match means this transport speaks a different protocol. An envelope
+ * that does not take native files disqualifies it too. When not inherited the fields are written
+ * as undefined so they override any stale value spread in from the local model.
+ */
+function inheritedNativeFileFields(
+  match: ResolvedModelMetadata & { source: 'transport_first' | 'cross_provider' },
+  envelope: RelayTransportEnvelope | null,
+): Pick<AIModel, 'nativeFileMimes' | 'pdfNativeDefault' | 'attachmentExtraction'> {
+  const inherits = match.source === 'transport_first'
+    && !(envelope && envelope.nativeFile === false);
+  return {
+    nativeFileMimes: inherits ? match.nativeFileMimes : undefined,
+    pdfNativeDefault: inherits ? match.pdfNativeDefault : undefined,
+    attachmentExtraction: inherits ? match.attachmentExtraction : undefined,
+  };
+}
+
+/**
  * Merge an official match into a local model, constrained by the transport envelope.
  *
  * Merge rules:
@@ -174,10 +196,8 @@ function applyOfficialMatch(
     // request would keep using a withdrawn profile. generation has no matching capability or envelope
     // switch (`RelayTransportEnvelope` has no such dimension), so no capability narrowing is applied.
     generationProfile: match.profiles.generation,
-    // The native file allowlist of the same-named official model; omitted when this protocol's envelope does not take native files.
     // Whether it really goes native still depends on the line level (each relay protocol only tries native when no text can be extracted).
-    nativeFileMimes: envelope && !envelope.nativeFile ? undefined : match.nativeFileMimes,
-    pdfNativeDefault: envelope && !envelope.nativeFile ? undefined : match.pdfNativeDefault,
+    ...inheritedNativeFileFields(match, envelope),
     relayMatchSource: match.source,
     relayMatchedProviderKind: match.matchedProviderKind,
   };
@@ -186,6 +206,7 @@ function applyOfficialMatch(
 function applyManualOfficialPricing(
   localModel: AIModel,
   match: ResolvedModelMetadata & { matchedProviderKind: string; source: 'transport_first' | 'cross_provider' },
+  envelope: RelayTransportEnvelope | null,
 ): RelayEnrichedModel {
   const pricePresentation = resolveModelPricePresentation(match);
   return {
@@ -194,6 +215,8 @@ function applyManualOfficialPricing(
     priceTier: pricePresentation.priceTier || localModel.priceTier,
     promptPrice: pricePresentation.promptPrice ?? localModel.promptPrice,
     completionPrice: pricePresentation.completionPrice ?? localModel.completionPrice,
+    // The name and capabilities of a manual model belong to the user, but the native file allowlist is a protocol fact and follows the catalog.
+    ...inheritedNativeFileFields(match, envelope),
     relayMatchSource: match.source,
     relayMatchedProviderKind: match.matchedProviderKind,
   };
@@ -211,7 +234,7 @@ export function enrichRelayLocalModel(
 ): RelayEnrichedModel {
   // Prefer the `model.isManual` field as the single source of truth.
   // Compatibility fallback: older synced data may still encode the manual flag as a `relay-manual-` prefix.
-  // This branch goes through `applyManualOfficialPricing`, which merges only the official pricing and keeps the user's displayName and capabilities.
+  // This branch goes through `applyManualOfficialPricing`, which merges the official pricing and native-file fields and keeps the user's displayName and capabilities.
   const isRelayManualModel = localModel.isManual === true
     || localModel.id.trim().startsWith('relay-manual-');
   const matchResult = resolveCatalogModelAcrossProvidersWithProvider(resolvedRelayModelId(localModel.id), {
@@ -220,6 +243,7 @@ export function enrichRelayLocalModel(
   if (!matchResult) {
     return { ...localModel };
   }
+  const envelope = pickEnvelope(transport, runtimeConfig);
   if (isRelayManualModel) {
     return applyManualOfficialPricing(
       localModel,
@@ -228,9 +252,9 @@ export function enrichRelayLocalModel(
         matchedProviderKind: matchResult.matchedProviderKind,
         source: matchResult.source,
       },
+      envelope,
     );
   }
-  const envelope = pickEnvelope(transport, runtimeConfig);
   return applyOfficialMatch(
     localModel,
     {

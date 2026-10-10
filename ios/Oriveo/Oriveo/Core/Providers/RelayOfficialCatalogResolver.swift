@@ -13,6 +13,7 @@ enum RelayOfficialCatalogResolver {
             return enrichManualOfficialPricing(
                 localModel: localModel,
                 provider: provider,
+                runtimeConfig: runtimeConfig,
                 metadata: metadata
             )
         }
@@ -46,6 +47,7 @@ enum RelayOfficialCatalogResolver {
             : nil
 
         let pricing = CatalogModelBuilder.pricePresentation(from: match.metadata)
+        let nativeFile = nativeFileInheritance(match: match, envelope: envelope)
 
         return AIModel(
             id: localModel.id,
@@ -68,13 +70,17 @@ enum RelayOfficialCatalogResolver {
             reasoningProfile: reasoningProfile,
             webSearchProfile: webSearchProfile,
             imageGenProfile: imageGenProfile,
-            generationProfile: match.metadata.generationProfile
+            generationProfile: match.metadata.generationProfile,
+            attachmentExtraction: nativeFile.extraction,
+            nativeFileMimes: nativeFile.mimes,
+            pdfNativeDefault: nativeFile.pdfNativeDefault
         )
     }
 
     private static func enrichManualOfficialPricing(
         localModel: AIModel,
         provider: Provider,
+        runtimeConfig: MetadataClient.RelayRuntimeConfig,
         metadata: MetadataClient
     ) -> AIModel {
         let remoteModelID = ModelResolver.resolvedProviderModelIdentifier(
@@ -90,7 +96,14 @@ enum RelayOfficialCatalogResolver {
         }
 
         let pricing = CatalogModelBuilder.pricePresentation(from: match.metadata)
+        let envelope = RelayRuntimeSupport.envelopeKey(for: provider)
+            .flatMap { runtimeConfig.transportEnvelopes[$0] }
+        let nativeFile = nativeFileInheritance(match: match, envelope: envelope)
         var enriched = localModel
+        // Written back even when empty, so a stale allowlist on a stored model is cleared.
+        enriched.nativeFileMimes = nativeFile.mimes
+        enriched.pdfNativeDefault = nativeFile.pdfNativeDefault
+        enriched.attachmentExtraction = nativeFile.extraction
         enriched.canonicalModelId = match.canonicalModelId
         enriched.priceTier = pricing.priceTier.isEmpty ? localModel.priceTier : pricing.priceTier
         enriched.promptPrice = pricing.promptPrice ?? localModel.promptPrice
@@ -122,6 +135,26 @@ enum RelayOfficialCatalogResolver {
         return provider.catalogModels.map { local in
             enrich(localModel: local, provider: provider, runtimeConfig: runtimeConfig, metadata: metadata)
         }
+    }
+
+    // MARK: - Native File Allowlist
+
+    /// The catalog's native-file fields describe what the vendor's own protocol accepts, so they
+    /// only carry over when the match comes from the provider that owns this transport. A
+    /// cross-provider match, or an envelope that turns native files off, yields empty values.
+    /// A missing envelope does not count as off.
+    private static func nativeFileInheritance(
+        match: MetadataClient.RelayCatalogMatchResult,
+        envelope: MetadataClient.RelayTransportEnvelope?
+    ) -> (mimes: [String], pdfNativeDefault: Bool, extraction: AttachmentExtractionLimits?) {
+        guard match.source == .transportFirst, envelope?.nativeFile != false else {
+            return ([], false, nil)
+        }
+        return (
+            match.metadata.nativeFileMimes,
+            match.metadata.pdfNativeDefault,
+            match.metadata.attachmentExtraction
+        )
     }
 
     // MARK: - Capability Intersection

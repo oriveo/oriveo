@@ -484,4 +484,144 @@ struct RelayOfficialCatalogResolverTests {
         #expect(enriched.id == "gpt-5.4")
         #expect(enriched.capabilities.contains(.text))
     }
+
+    // MARK: - Native file allowlist inheritance
+
+    /// Models in the shared fixture carry no native-file fields; they are injected in memory for anthropic claude-sonnet-4.5,
+    /// optionally overriding nativeFile on the anthropic_messages envelope. The fixture file itself is left untouched.
+    private func loadFixtureJSONWithNativeFileWhitelist(
+        anthropicMessagesNativeFile: Bool? = nil
+    ) throws -> String {
+        let data = Data(try loadFixtureJSON().utf8)
+        var root = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        var providers = try #require(root["providers"] as? [String: Any])
+        var anthropic = try #require(providers["anthropic"] as? [String: Any])
+        var models = try #require(anthropic["models"] as? [String: Any])
+        var sonnet = try #require(models["claude-sonnet-4.5"] as? [String: Any])
+        sonnet["nativeFileMimes"] = ["application/pdf"]
+        sonnet["pdfNativeDefault"] = false
+        sonnet["attachmentExtraction"] = ["maxLines": 1234]
+        models["claude-sonnet-4.5"] = sonnet
+        anthropic["models"] = models
+        providers["anthropic"] = anthropic
+        root["providers"] = providers
+        if let anthropicMessagesNativeFile {
+            var runtime = try #require(root["relayRuntimeConfig"] as? [String: Any])
+            var envelopes = try #require(runtime["transportEnvelopes"] as? [String: Any])
+            var envelope = try #require(envelopes["anthropic_messages"] as? [String: Any])
+            envelope["nativeFile"] = anthropicMessagesNativeFile
+            envelopes["anthropic_messages"] = envelope
+            runtime["transportEnvelopes"] = envelopes
+            root["relayRuntimeConfig"] = runtime
+        }
+        let out = try JSONSerialization.data(withJSONObject: root)
+        return String(decoding: out, as: UTF8.self)
+    }
+
+    private func enrichSonnet(
+        transport: RelayTransport,
+        id: String = "claude-sonnet-4.5",
+        isManual: Bool = false
+    ) -> AIModel {
+        let local = AIModel(
+            id: id,
+            name: id,
+            capabilities: [.text],
+            reasoningModeAvailable: false,
+            isAvailable: true,
+            isDefault: false,
+            priceTier: "",
+            isManual: isManual
+        )
+        let provider = makeRelayProvider(transport: transport, catalogModels: [local])
+        return RelayOfficialCatalogResolver.enrich(
+            localModel: local,
+            provider: provider,
+            runtimeConfig: MetadataClient.shared.syncRelayRuntimeConfig()
+        )
+    }
+
+    @Test("A same-provider match (anthropic_messages) inherits the three native-file fields")
+    func inheritsNativeFileWhitelistOnTransportFirstMatch() async throws {
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: loadFixtureJSONWithNativeFileWhitelist())
+
+        let enriched = enrichSonnet(transport: .anthropicMessages)
+
+        #expect(enriched.canonicalModelId == "claude-sonnet-4.5")
+        #expect(enriched.nativeFileMimes == ["application/pdf"])
+        #expect(enriched.pdfNativeDefault == false)
+        #expect(enriched.attachmentExtraction?.maxLines == 1234)
+    }
+
+    @Test("An envelope with nativeFile=false inherits nothing and leaves the three fields empty")
+    func dropsNativeFileWhitelistWhenEnvelopeDisablesNativeFile() async throws {
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(
+            json: loadFixtureJSONWithNativeFileWhitelist(anthropicMessagesNativeFile: false)
+        )
+
+        let enriched = enrichSonnet(transport: .anthropicMessages)
+
+        #expect(enriched.canonicalModelId == "claude-sonnet-4.5")
+        #expect(enriched.nativeFileMimes.isEmpty)
+        #expect(enriched.pdfNativeDefault == false)
+        #expect(enriched.attachmentExtraction == nil)
+    }
+
+    @Test("A cross-provider match (anthropic model over openai_responses) inherits nothing but still resolves the canonical id")
+    func dropsNativeFileWhitelistOnCrossProviderMatch() async throws {
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: loadFixtureJSONWithNativeFileWhitelist())
+
+        let enriched = enrichSonnet(transport: .openaiResponses)
+
+        #expect(enriched.canonicalModelId == "claude-sonnet-4.5")
+        #expect(enriched.nativeFileMimes.isEmpty)
+        #expect(enriched.pdfNativeDefault == false)
+        #expect(enriched.attachmentExtraction == nil)
+    }
+
+    @Test("A manual model inherits on a same-provider match and stays empty without a match")
+    func manualModelInheritsNativeFileWhitelistOnlyWhenMatched() async throws {
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: loadFixtureJSONWithNativeFileWhitelist())
+
+        let matched = enrichSonnet(transport: .anthropicMessages, isManual: true)
+        #expect(matched.canonicalModelId == "claude-sonnet-4.5")
+        #expect(matched.nativeFileMimes == ["application/pdf"])
+        #expect(matched.pdfNativeDefault == false)
+        #expect(matched.attachmentExtraction?.maxLines == 1234)
+
+        let missed = enrichSonnet(transport: .anthropicMessages, id: "my-finetuned-llm-v2", isManual: true)
+        #expect(missed.canonicalModelId == nil)
+        #expect(missed.nativeFileMimes.isEmpty)
+        #expect(missed.pdfNativeDefault == false)
+        #expect(missed.attachmentExtraction == nil)
+    }
+
+    @Test("A manual model with a stale allowlist has it cleared on a cross-provider match")
+    func manualModelStockWhitelistIsClearedOnCrossProviderMatch() async throws {
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: loadFixtureJSONWithNativeFileWhitelist())
+
+        var stock = AIModel(
+            id: "claude-sonnet-4.5", name: "mine", capabilities: [.text],
+            reasoningModeAvailable: false, isAvailable: true, isDefault: false, priceTier: "",
+            isManual: true
+        )
+        stock.nativeFileMimes = ["application/pdf"]
+        stock.pdfNativeDefault = true
+        let provider = makeRelayProvider(transport: .openaiResponses, catalogModels: [stock])
+        let enriched = RelayOfficialCatalogResolver.enrich(
+            localModel: stock,
+            provider: provider,
+            runtimeConfig: MetadataClient.shared.syncRelayRuntimeConfig()
+        )
+
+        #expect(enriched.canonicalModelId == "claude-sonnet-4.5")
+        #expect(enriched.name == "mine")
+        #expect(enriched.nativeFileMimes.isEmpty)
+        #expect(enriched.pdfNativeDefault == false)
+    }
 }

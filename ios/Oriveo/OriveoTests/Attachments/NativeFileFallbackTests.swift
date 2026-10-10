@@ -259,4 +259,72 @@ final class NativeFileFallbackTests: XCTestCase {
         } catch is ProviderServiceError {}
         XCTAssertEqual(ScriptedProtocol.recordedBodies().count, 1)
     }
+
+    // MARK: - Relay models inherit the official allowlist (production path)
+
+    /// The shared fixture with a native-file allowlist injected in memory for anthropic claude-sonnet-4.5; the fixture file itself is left untouched.
+    private func relayFixtureWithNativeFileWhitelist() throws -> String {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // Attachments/
+            .deletingLastPathComponent() // OriveoTests/
+            .deletingLastPathComponent() // Oriveo/
+            .deletingLastPathComponent() // ios/
+            .deletingLastPathComponent() // repository root
+        let url = repoRoot.appendingPathComponent("shared/test-fixtures/relay/metadata-fixture.json")
+        var root = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        var providers = try XCTUnwrap(root["providers"] as? [String: Any])
+        var anthropic = try XCTUnwrap(providers["anthropic"] as? [String: Any])
+        var models = try XCTUnwrap(anthropic["models"] as? [String: Any])
+        var sonnet = try XCTUnwrap(models["claude-sonnet-4.5"] as? [String: Any])
+        sonnet["nativeFileMimes"] = ["application/pdf"]
+        sonnet["pdfNativeDefault"] = false
+        sonnet["attachmentExtraction"] = ["maxLines": 1234]
+        models["claude-sonnet-4.5"] = sonnet
+        anthropic["models"] = models
+        providers["anthropic"] = anthropic
+        root["providers"] = providers
+        return String(decoding: try JSONSerialization.data(withJSONObject: root), as: UTF8.self)
+    }
+
+    /// The model that is sent comes straight out of Relay catalog resolution, with no hand-built allowlist: a scanned PDF must go out as a native block.
+    func testRelayCatalogResolvedModelSendsScannedPdfAsNativeDocumentBlock() async throws {
+        try await MetadataClient.shared.loadForTesting(json: relayFixtureWithNativeFileWhitelist())
+        ProviderCatalogResolver.resetMemoForTesting()
+
+        let local = AIModel(
+            id: "claude-sonnet-4.5", name: "claude-sonnet-4.5", capabilities: [.text],
+            reasoningModeAvailable: false, isAvailable: true, isDefault: true, priceTier: ""
+        )
+        let provider = Provider(
+            id: UUID(), kind: .relay, status: .connected,
+            models: [local], catalogModels: [local],
+            apiKey: "", apiKeyPreview: "",
+            relayRequested: RelayRequestedConfig(transport: .anthropicMessages)
+        )
+        let resolved = try XCTUnwrap(
+            ProviderCatalogResolver.resolve(provider: provider).catalog.first { $0.model.id == local.id }
+        ).model
+        XCTAssertEqual(resolved.canonicalModelId, "claude-sonnet-4.5")
+
+        var requestOptions = ChatRequestOptions()
+        requestOptions.capabilityEvidenceModel = AttachmentTransportResolver.evidenceModel(provider: provider, model: resolved)
+        requestOptions.attachmentConnectionID = provider.id
+
+        ScriptedProtocol.reset([(200, Self.okStream)])
+        let turn = ChatMessage(
+            id: UUID(), role: .user, text: "summarize", providerKind: .relay, providerName: "P",
+            modelID: resolved.id, modelName: resolved.name, state: .delivered, attachments: [scannedPdf()]
+        )
+        let stream = AnthropicService(session: ScriptedProtocol.session()).sendMessageStream(
+            apiKey: "relay-key", modelID: resolved.id, messages: [turn],
+            baseURL: "https://relay.test", requestOptions: requestOptions,
+            relayRequested: RelayRequestedConfig(transport: .anthropicMessages)
+        )
+        // Without the allowlist this may throw outright (no text to extract and no native block allowed); the verdict is taken from the request body either way.
+        do { for try await _ in stream {} } catch {}
+
+        let bodies = ScriptedProtocol.recordedBodies()
+        XCTAssertFalse(bodies.isEmpty, "a scanned PDF should produce a request")
+        XCTAssertTrue(bodies.first.map(hasDocumentBlock) ?? false, "the first request body should carry a native document block")
+    }
 }
