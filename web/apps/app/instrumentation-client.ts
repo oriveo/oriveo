@@ -1,5 +1,6 @@
 import {
   isErrorThrownEntirelyByBrowserExtension,
+  isHydrationErrorEvent,
   isIgnorableBrowserExtensionError,
   isIgnorableCloudflareChallengeError,
   isIgnorableMobileBrowserInjection,
@@ -31,14 +32,20 @@ Sentry.init({
   environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? process.env.NODE_ENV,
   release: process.env.NEXT_PUBLIC_APP_VERSION,
   tracesSampleRate: 0.1,
+  // Replay quota is small on Sentry's free and entry plans, so it is spent on sessions that
+  // hit an error. Randomly sampled sessions carry no error context to debug with.
   replaysOnErrorSampleRate: 1.0,
-  replaysSessionSampleRate: 0.01,
+  replaysSessionSampleRate: 0,
   // The default depth of 3 stops one level above `contexts.<name>.<field>[i]`, and objects below
   // the cut are replaced in place with the literal "[Object]" without any warning. Diagnostic
   // context that lives in an array is invisible at the default.
   normalizeDepth: 5,
   integrations: [
     Sentry.replayIntegration({
+      // Hydration errors are still reported, but do not flush a replay: they fire within a few
+      // seconds of first paint, so the buffer holds little more than the initial snapshot. A
+      // Sentry inbound filter that discards the error would not discard the replay it triggered.
+      beforeErrorSampling: (event) => !isHydrationErrorEvent(event),
       // This control only resets local state. The click and the replay are still recorded; it just
       // should not be reported as a slow or rage click.
       slowClickIgnoreSelectors: [

@@ -14,7 +14,10 @@ describe("Sentry sampling policy", () => {
 
     expect(config).toContain("tracesSampleRate: 0.1");
     expect(config).toContain("replaysOnErrorSampleRate: 1.0");
-    expect(config).toContain("replaysSessionSampleRate: 0.01");
+    expect(config).toContain("replaysSessionSampleRate: 0,");
+    expect(config).toContain(
+      "beforeErrorSampling: (event) => !isHydrationErrorEvent(event)",
+    );
     expect(config).toContain("slowClickIgnoreSelectors");
     expect(config).toContain(
       '[data-sentry-ignore-slow-click="sync-state-reset"]',
