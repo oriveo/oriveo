@@ -116,7 +116,8 @@ object CapabilityControlResolution {
      *
      * Subscription models cannot resolve a catalog transport (they are not in the catalog at
      * all), but this link only ever has **one** road: the Codex backend is pinned to
-     * `/responses` and the Grok CLI proxy to `/chat/completions` (see the two subscription
+     * `/responses`, and the Grok CLI proxy follows the backend each model declares upstream,
+     * defaulting to Responses when nothing is declared (see the two subscription
      * branches in `OpenAICompatibleService.sendMessageStream`). So this is a known value, not
      * an unresolved one. Persisted identity and the capability verdict share this one source.
      */
