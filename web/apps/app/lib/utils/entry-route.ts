@@ -14,6 +14,8 @@ export function sanitizeReturnTo(raw: string | null | undefined): string {
   if (!trimmed.startsWith('/') || trimmed.startsWith('//') || trimmed.startsWith('/\\')) {
     return '/chat';
   }
+  // Browsers strip TAB / newline while parsing URLs, so `/\t/evil.com` becomes `//evil.com`
+  if (/[\u0000-\u001F\u007F]/.test(trimmed)) return '/chat';
   return trimmed;
 }
 

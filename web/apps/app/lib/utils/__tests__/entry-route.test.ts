@@ -21,6 +21,19 @@ describe('sanitizeReturnTo', () => {
     expect(sanitizeReturnTo('/\\evil.com')).toBe('/chat');
   });
 
+  it('rejects control characters that browsers strip into `//`', () => {
+    expect(sanitizeReturnTo('/\t/evil.com')).toBe('/chat');
+    expect(sanitizeReturnTo('/\n/evil.com')).toBe('/chat');
+    expect(sanitizeReturnTo('/\r/evil.com')).toBe('/chat');
+    expect(sanitizeReturnTo('/a\u0000b')).toBe('/chat');
+    expect(sanitizeReturnTo('/a\u007Fb')).toBe('/chat');
+  });
+
+  it('keeps already-encoded control characters as literal paths', () => {
+    expect(sanitizeReturnTo('/%09')).toBe('/%09');
+    expect(sanitizeReturnTo('/%09/evil.com')).toBe('/%09/evil.com');
+  });
+
   it('rejects non-slash and empty inputs', () => {
     expect(sanitizeReturnTo('evil.com')).toBe('/chat');
     expect(sanitizeReturnTo('')).toBe('/chat');
