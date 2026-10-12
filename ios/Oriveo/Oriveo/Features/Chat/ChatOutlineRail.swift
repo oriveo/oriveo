@@ -195,6 +195,8 @@ struct ChatOutlineRail: View {
                             scheduleCollapse()
                         }
                 )
+                // Scrubbing starts on touch down: a slight drift to the right must not become a back swipe.
+                .blocksSwipeBack()
 
                 if active, let idx = pointedIndex, idx >= 0, idx < windowTicks.count {
                     tooltip(text: windowTicks[idx].preview)

@@ -181,12 +181,25 @@ private extension View {
     }
 }
 
+// Swipe back: a pan recognizer on the window drives the system interactive pop transition.
+// Where a swipe may start follows the system: from iOS 26 the system back gesture starts anywhere
+// on screen, so this one does too; earlier systems stay edge-only. With an edge-only gesture, a
+// swipe that starts just outside the edge zone is not a back swipe, and lifting the finger while
+// it is still over a row counts as a tap that pushes that row's page.
+// `SwipeBackStartPolicy` decides when a full-screen start yields to the page's own gestures.
 final class SwipeBackCoordinator: NSObject, UIGestureRecognizerDelegate {
     static let shared = SwipeBackCoordinator()
     private weak var navController: UINavigationController?
     private weak var attachedWindow: UIWindow?
     private weak var attachedGesture: UIPanGestureRecognizer?
     var isBackSwipeEnabled = true
+    /// Areas where SwiftUI handles a horizontal drag itself (registered by `blocksSwipeBack()`).
+    /// Nothing in UIKit backs them, so hit testing cannot find them.
+    private let exclusionZones = NSHashTable<UIView>.weakObjects()
+
+    func registerExclusionZone(_ view: UIView) {
+        exclusionZones.add(view)
+    }
 
     /// Whether the current binding still holds.
     ///
@@ -244,6 +257,9 @@ final class SwipeBackCoordinator: NSObject, UIGestureRecognizerDelegate {
         )
         panGesture.maximumNumberOfTouches = 1
         panGesture.delegate = self
+        panGesture.shouldTrack = { [weak self] touch, startsAtEdge in
+            self?.shouldTrack(touch, startsAtEdge: startsAtEdge) ?? false
+        }
         window.addGestureRecognizer(panGesture)
         attachedWindow = window
         attachedGesture = panGesture
@@ -260,6 +276,20 @@ final class SwipeBackCoordinator: NSObject, UIGestureRecognizerDelegate {
         findNavController(from: vc)
     }
     #endif
+
+    private func shouldTrack(_ touch: UITouch, startsAtEdge: Bool) -> Bool {
+        guard let nav = navController, let hitView = touch.view else { return false }
+        var supportsContentStart = false
+        if #available(iOS 26.0, *) { supportsContentStart = true }
+        return SwipeBackStartPolicy.allowsStart(
+            hitView: hitView,
+            locationInWindow: touch.location(in: nil),
+            startsAtEdge: startsAtEdge,
+            navigationView: nav.view,
+            supportsContentStart: supportsContentStart,
+            exclusionZones: exclusionZones.allObjects
+        )
+    }
 
     // MARK: - UIGestureRecognizerDelegate
 
@@ -291,20 +321,70 @@ final class SwipeBackCoordinator: NSObject, UIGestureRecognizerDelegate {
     }
 }
 
+/// Whether a touch may start a back swipe.
+enum SwipeBackStartPolicy {
+    static func allowsStart(
+        hitView: UIView,
+        locationInWindow: CGPoint,
+        startsAtEdge: Bool,
+        navigationView: UIView,
+        supportsContentStart: Bool,
+        exclusionZones: [UIView]
+    ) -> Bool {
+        // The recognizer sits on the window, so touches inside a sheet or popup pass through it
+        // too, while it drives the navigation stack underneath: without this guard a swipe
+        // inside a sheet pops the page below it.
+        guard hitView.isDescendant(of: navigationView) else { return false }
+        if startsAtEdge { return true }
+        guard supportsContentStart else { return false }
+
+        for zone in exclusionZones where zone.window != nil {
+            if zone.bounds.contains(zone.convert(locationInWindow, from: nil)) { return false }
+        }
+
+        // Yield when the touch lands on the page's own horizontal interaction: a horizontally
+        // scrollable area (pagers included), a slider, or a text input being edited (caret drag).
+        var current: UIView? = hitView
+        while let view = current, view !== navigationView {
+            if view is UISlider { return false }
+            if view is UITextInput, view.isFirstResponder { return false }
+            if let scrollView = view as? UIScrollView, scrollView.isScrollEnabled {
+                let inset = scrollView.adjustedContentInset
+                if scrollView.contentSize.width + inset.left + inset.right > scrollView.bounds.width + 1 {
+                    return false
+                }
+            }
+            current = view.superview
+        }
+        return true
+    }
+}
+
 final class SwipeBackPanGestureRecognizer: UIPanGestureRecognizer {
     var edgeActivationWidth: CGFloat = 24
     var requiredHorizontalTranslation: CGFloat = 12
+    // A start away from the edge counts as scrolling once vertical travel reaches this first.
+    // Edge starts have no such limit: nothing else competes for them there.
+    var contentStartVerticalSlop: CGFloat = 10
+    /// Whether this touch may start a back swipe (`SwipeBackStartPolicy`); the second argument
+    /// is whether it began inside the left edge zone.
+    var shouldTrack: (UITouch, Bool) -> Bool = { _, startsAtEdge in startsAtEdge }
     private var trackingStartLocation: CGPoint?
+    private var startedAtEdge = true
+    private weak var trackedView: UIView?
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
         super.touchesBegan(touches, with: event)
         guard let view, let touch = touches.first else { return }
         let location = touch.location(in: view)
-        if location.x > edgeActivationWidth {
+        let startsAtEdge = location.x <= edgeActivationWidth
+        guard shouldTrack(touch, startsAtEdge) else {
             state = .failed
             return
         }
         trackingStartLocation = location
+        startedAtEdge = startsAtEdge
+        trackedView = touch.view
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
@@ -325,17 +405,57 @@ final class SwipeBackPanGestureRecognizer: UIPanGestureRecognizer {
             state = .failed
             return
         }
+        if !startedAtEdge, abs(dy) > contentStartVerticalSlop {
+            state = .failed
+            return
+        }
         if dx >= requiredHorizontalTranslation {
             super.touchesMoved(touches, with: event)
             if state == .began || state == .changed {
                 setTranslation(.zero, in: view)
+                cancelScrollingUnderTouch()
             }
+        }
+    }
+
+    /// Stops scrolling under the finger once the back swipe begins: the two recognizers run
+    /// simultaneously, so a diagonal swipe would otherwise scroll the page while popping it.
+    private func cancelScrollingUnderTouch() {
+        var current = trackedView
+        while let view = current {
+            if let pan = (view as? UIScrollView)?.panGestureRecognizer, pan.isEnabled {
+                pan.isEnabled = false
+                pan.isEnabled = true
+            }
+            current = view.superview
         }
     }
 
     override func reset() {
         super.reset()
         trackingStartLocation = nil
+        startedAtEdge = true
+        trackedView = nil
+    }
+}
+
+/// Marks an area where SwiftUI handles a horizontal drag itself (a `DragGesture` scrub and the
+/// like): a touch that starts inside it does not start a back swipe. UIKit scroll views and
+/// sliders need no marking; `SwipeBackStartPolicy` finds them by hit testing.
+private struct SwipeBackExclusionZone: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+        SwipeBackCoordinator.shared.registerExclusionZone(view)
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {}
+}
+
+extension View {
+    func blocksSwipeBack() -> some View {
+        background(SwipeBackExclusionZone())
     }
 }
 
