@@ -113,6 +113,13 @@ export function useProviderActions(provider: Provider) {
     // renderer and the sync backend.
     const persistedProvider = store.getState().providers.find((item) => item.id === provider.id);
     if (!persistedProvider) return;
+    // Official providers have no relayRequested, so relay verification throws
+    // "Relay configuration is missing" before sending anything and it surfaces as an offline error.
+    // They use their own three-state validation, which writes the outcome to status and never throws.
+    if (persistedProvider.kind !== 'relay') {
+      await resyncProviderInStore(store, persistedProvider);
+      return;
+    }
     const refreshCatalog = canRefreshRelayCatalog(persistedProvider.relayRequested);
     try {
       const result = await verifyRelayProviderInStore(store, persistedProvider);

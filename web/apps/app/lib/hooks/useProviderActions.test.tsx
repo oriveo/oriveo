@@ -263,6 +263,48 @@ describe('useProviderActions relay edit transaction', () => {
   });
 });
 
+describe('useProviderActions official provider key rotation', () => {
+  beforeEach(() => {
+    const store = createAppStore();
+    store.getState().addProvider({
+      id: 'official-hook',
+      kind: 'openRouter',
+      status: { kind: 'connected' },
+      models: [existingModel],
+      catalogModels: [existingModel],
+      apiKey: 'sk-or-old',
+      apiKeyPreview: '••••',
+    });
+    storeHolder.current = store;
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => (
+      String(input).includes('/api/providers/validate')
+        ? new Response(JSON.stringify({ result: 'valid' }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+        : new Response('{}', { status: 503 })
+    )));
+  });
+
+  it('validates a rotated official key through the official path instead of relay verification', async () => {
+    const store = storeHolder.current as ReturnType<typeof createAppStore>;
+    const view = renderHook(() => useProviderActions(store.getState().providers[0]));
+
+    await act(async () => {
+      await expect(view.result.current.saveKey('sk-or-new')).resolves.toBeUndefined();
+    });
+
+    expect(store.getState().providers[0]).toMatchObject({
+      apiKey: 'sk-or-new',
+      status: { kind: 'connected' },
+      lastError: undefined,
+      models: [existingModel],
+    });
+    const validateCall = vi.mocked(fetch).mock.calls.find((call) => String(call[0]).includes('/api/providers/validate'));
+    expect(JSON.parse((validateCall![1] as RequestInit).body as string)).toMatchObject({
+      providerKind: 'openRouter',
+      apiKey: 'sk-or-new',
+    });
+  });
+});
+
 describe('useProviderActions endpoint editing', () => {
   function officialProvider(): Provider {
     return {
