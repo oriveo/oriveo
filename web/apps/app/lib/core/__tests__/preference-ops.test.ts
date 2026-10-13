@@ -31,10 +31,10 @@ describe('preference-ops', () => {
     expect(mockSyncAdapter.didUpdatePreferences).toHaveBeenCalledWith({ theme: 'dark' });
   });
 
-  it('updateLanguage — setPreferences + sync + setLocaleCookie', () => {
+  it('updateLanguage — setPreferences + setLocaleCookie, nothing goes through the sync port', () => {
     updateLanguage(store, 'ja');
     expect(store.getState().preferences.language).toBe('ja');
-    expect(mockSyncAdapter.didUpdatePreferences).toHaveBeenCalledWith({ language: 'ja' });
+    expect(mockSyncAdapter.didUpdatePreferences).not.toHaveBeenCalled();
     expect(setLocaleCookie).toHaveBeenCalledWith('ja');
   });
 

@@ -181,6 +181,51 @@ describe('persistence.ts', () => {
       expect(store.getState().conversations).toHaveLength(0);
     });
 
+    describe('language follows the NEXT_LOCALE cookie', () => {
+      const clearLocaleCookie = () => {
+        document.cookie = 'NEXT_LOCALE=;path=/;max-age=0';
+      };
+      beforeEach(clearLocaleCookie);
+      afterEach(clearLocaleCookie);
+
+      it('after hydration the cookie decides language (stored preferences were cleared)', async () => {
+        document.cookie = 'NEXT_LOCALE=ja;path=/';
+        const store = createAppStore();
+        await hydrateStore(store);
+        expect(store.getState().preferences.language).toBe('ja');
+      });
+
+      it('the cookie wins when it differs from the stored language (system included)', async () => {
+        localStorage.setItem('oriveo.guest.preferences', JSON.stringify({
+          theme: 'light',
+          themeSetByUser: true,
+          language: 'zh-Hans',
+          sendShortcut: 'cmdEnter',
+        }));
+        document.cookie = 'NEXT_LOCALE=system;path=/';
+        const store = createAppStore();
+        await hydrateStore(store);
+        expect(store.getState().preferences.language).toBe('system');
+        expect(store.getState().preferences.theme).toBe('light');
+      });
+
+      it('keeps the stored language when the cookie is missing or not a supported language', async () => {
+        localStorage.setItem('oriveo.guest.preferences', JSON.stringify({
+          theme: 'dark',
+          language: 'zh-Hans',
+          sendShortcut: 'cmdEnter',
+        }));
+        const store1 = createAppStore();
+        await hydrateStore(store1);
+        expect(store1.getState().preferences.language).toBe('zh-Hans');
+
+        document.cookie = 'NEXT_LOCALE=totally-bogus;path=/';
+        const store2 = createAppStore();
+        await hydrateStore(store2);
+        expect(store2.getState().preferences.language).toBe('zh-Hans');
+      });
+    });
+
     it('should hydrate conversations as summaries and preserve remote message count', async () => {
       const stuckConv = makeConversation({
         id: 'c1',

@@ -18,8 +18,8 @@ export function updateTheme(store: StoreApi<AppStore>, theme: ThemeOption) {
 }
 
 export function updateLanguage(store: StoreApi<AppStore>, language: LanguageOption) {
+  // The interface language is per device: store + NEXT_LOCALE cookie only, never the sync port
   store.getState().setPreferences({ language });
-  getSyncAdapter()?.didUpdatePreferences({ language });
   setLocaleCookie(language as Parameters<typeof setLocaleCookie>[0]);
   trackEvent('settings_changed', { key: 'language', value: language });
 }

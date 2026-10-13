@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   setPreferences: vi.fn(),
   setLastUsedModelRef: vi.fn(),
   setUserSkills: vi.fn(),
+  setLocaleCookie: vi.fn(),
 }));
 
 vi.mock('../../infra/storage/partition', () => ({
@@ -68,6 +69,10 @@ vi.mock('../../core/providers/official-model-sync', () => ({
   buildOfficialEnabledModels: () => ({ models: [] }),
 }));
 vi.mock('../../core/telemetry', () => ({ trackEvent: vi.fn() }));
+vi.mock('../../i18n/locale-utils', () => ({
+  SUPPORTED_LOCALES: ['en', 'zh-Hans', 'ja'],
+  setLocaleCookie: (...args: unknown[]) => mocks.setLocaleCookie(...args),
+}));
 
 import { executeImport } from '../backup-import';
 
@@ -173,5 +178,31 @@ describe('replaceAll account-switch fail-closed windows', () => {
 
     expect(mocks.setPreference).toHaveBeenCalled();
     expect(mocks.setLastUsedModelRef).not.toHaveBeenCalled();
+  });
+});
+
+// The interface language is a per-device preference; on this device its source of truth is the
+// NEXT_LOCALE cookie, and hydration follows it.
+// If an import wrote only preferences and not the cookie, the hydration that follows would
+// overwrite the language that was just restored.
+describe('restoring the interface language on import', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.activeUID = 'user-A';
+    mocks.getAllConversations.mockResolvedValue([]);
+    mocks.replaceAllInOneTx.mockResolvedValue(undefined);
+    mocks.setSessionValue.mockResolvedValue(undefined);
+  });
+
+  it('writes a supported backup language into the locale cookie as well', async () => {
+    await executeImport(preview({ preferences: { theme: 'dark', language: 'ja' } }), 'replaceAll', undefined, 'user-A');
+
+    expect(mocks.setLocaleCookie).toHaveBeenCalledExactlyOnceWith('ja');
+  });
+
+  it('leaves the cookie alone when the backup language is not supported here', async () => {
+    await executeImport(preview(), 'replaceAll', undefined, 'user-A');
+
+    expect(mocks.setLocaleCookie).not.toHaveBeenCalled();
   });
 });

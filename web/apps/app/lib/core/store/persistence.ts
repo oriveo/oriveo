@@ -12,7 +12,8 @@ import {
   getSessionValue,
 } from '../../infra/storage/idb';
 import { getPreference, setPreference } from '../../infra/storage/preferences';
-import type { AppPreference, LastUsedModelRef } from '@oriveo/shared';
+import type { AppPreference, LanguageOption, LastUsedModelRef } from '@oriveo/shared';
+import { getLocaleCookie, SUPPORTED_LOCALES } from '../../i18n/locale-utils';
 import { dedupeConversationsByID, dedupeNotesByID, dedupeProvidersByID } from '../../utils/id-utils';
 import { deduplicateByCanonical, enrichStoredModel } from '../providers/catalog-model';
 import { initMetadata } from '../metadata/metadata-client';
@@ -136,7 +137,7 @@ export async function hydrateStore(store: StoreApi<AppStore>, expectedUID?: stri
     if (hasAnyBackup) clearStreamPartialBackup();
     const conversations = dedupeConversationsByID(sanitizedConversations).map(toConversationSummary);
 
-    const preferences = getPreference<AppPreference>(
+    const storedPreferences = getPreference<AppPreference>(
       'preferences',
       {
         theme: 'dark',
@@ -146,6 +147,17 @@ export async function hydrateStore(store: StoreApi<AppStore>, expectedUID?: stri
       },
       expectedUID,
     );
+    // On this device the language lives in the NEXT_LOCALE cookie (the server renders from it), while
+    // the stored preferences can be cleared independently. Without following the cookie the dropdown
+    // would say System while the interface stays in the cookie's language.
+    const cookieLocale = getLocaleCookie();
+    const cookieLanguage = cookieLocale === 'system'
+      || (cookieLocale !== undefined && (SUPPORTED_LOCALES as readonly string[]).includes(cookieLocale))
+      ? cookieLocale as LanguageOption
+      : undefined;
+    const preferences = cookieLanguage !== undefined && cookieLanguage !== storedPreferences.language
+      ? { ...storedPreferences, language: cookieLanguage }
+      : storedPreferences;
     const storedOnboarding = getPreference<boolean>('hasCompletedOnboarding', false, expectedUID);
     const hasRecoveredSetup = providers.length > 0 || conversations.length > 0;
     const hasCompletedOnboarding = storedOnboarding || hasRecoveredSetup;

@@ -40,6 +40,7 @@ import { ensureProviderCatalogs, getMetadataSnapshot } from '../core/metadata/me
 import { normalizeNoteFolderIDs, normalizeNoteIDs, normalizeUUID } from '../utils/id-utils';
 import type { CatalogMetadataInput } from '../core/providers/catalog-resolver';
 import { getActiveUIDSync } from '../infra/storage/partition';
+import { setLocaleCookie, SUPPORTED_LOCALES, type SupportedLocale } from '../i18n/locale-utils';
 
 /** Abort as soon as the account partition changes mid-import: writes must land in the partition that started it. */
 function assertExpectedImportUID(expectedUID?: string): void {
@@ -253,6 +254,12 @@ export async function executeImport(
         ...restoredPatch,
       }, expectedUID);
       store?.getState().setPreferences(restoredPatch);
+      // On this device the interface language lives in the NEXT_LOCALE cookie and hydration
+      // follows it; without writing it here, the hydration after import would overwrite the
+      // language that was just restored.
+      if (language === 'system' || SUPPORTED_LOCALES.includes(language as SupportedLocale)) {
+        setLocaleCookie(language as SupportedLocale | 'system');
+      }
       result.restoredPreferences = true;
     }
   }
