@@ -164,6 +164,16 @@ android {
             if (!System.getenv("ORIVEO_REQUEST_EXPORT_DIR").isNullOrBlank()) {
                 it.outputs.upToDateWhen { false }
             }
+            // MockK gets its Instrumentation by having ByteBuddy spawn a java process that attaches back to
+            // this JVM. With several forks starting at once that attach fails at random ("Could not
+            // self-attach to current VM"), JvmMockKGateway fails to initialise, and every mockk call left in
+            // that JVM throws NoClassDefFoundError. Loading the same jar with -javaagent at startup hands
+            // ByteBuddyAgent a ready Instrumentation, so nothing attaches. The jar comes from this task's
+            // classpath (same version MockK uses) and is looked up at execution time, because AGP replaces
+            // the classpath after this block runs.
+            it.jvmArgumentProviders.add(CommandLineArgumentProvider {
+                listOf("-javaagent:${it.classpath.single { file -> file.name.startsWith("byte-buddy-agent-") }.absolutePath}")
+            })
         }
     }
 }

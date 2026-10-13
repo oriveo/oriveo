@@ -110,9 +110,12 @@ class ModelDisplayLookupScaleTest {
         fun rowsAfterIndexMs(provider: Provider, rows: List<Conversation>) = medianMillis(warmups = 2, runs = 5) {
             val lookup = ModelDisplayLookup(listOf(provider))
             rows.forEach { resolveConversationModelName(it, provider, lookup) }
+            // One pass takes a few microseconds, the same order as the thread CPU clock's resolution, so
+            // under a parallel full run noise alone pushes the ratio past the threshold (0.008ms -> 0.023ms
+            // observed). Timing many passes and dividing back keeps comparing the cost of a single pass.
             val start = threadCpuNanos()
-            rows.forEach { resolveConversationModelName(it, provider, lookup) }
-            recordNanos(threadCpuNanos() - start)
+            repeat(MARGINAL_PASSES) { rows.forEach { resolveConversationModelName(it, provider, lookup) } }
+            recordNanos((threadCpuNanos() - start) / MARGINAL_PASSES)
         }
 
         // The usual case (1,500 enabled) and "add all" (enabled = the whole catalog; a row with no display name
@@ -575,5 +578,6 @@ class ModelDisplayLookupScaleTest {
     private companion object {
         const val ROWS = 40
         const val ENABLED = 1_500
+        const val MARGINAL_PASSES = 50
     }
 }
