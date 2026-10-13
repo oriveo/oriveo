@@ -1221,7 +1221,10 @@ final class ProviderManager {
     /// brings a deleted Provider back.
     private func scheduleRelayFinalize(for written: Provider) {
         relayFinalizeTasks[written.id]?.cancel()
-        relayFinalizeTasks[written.id] = Task { [weak self] in
+        // `self?.` keeps this object alive across the await but not the unowned AppState; hold AppState too so the
+        // commit never reads a dangling reference.
+        relayFinalizeTasks[written.id] = Task { [weak self, appStateRetainer = appState as AppState?] in
+            _ = appStateRetainer
             let finalized = await Task.detached(priority: .userInitiated) {
                 Self.relayFinalized(written)
             }.value

@@ -64,7 +64,13 @@ struct ProviderDetailView: View {
                 if let provider {
                     ZStack(alignment: .topLeading) {
                         ScrollView {
-                            VStack(alignment: .leading, spacing: OriveoTheme.Spacing.lg) {
+                            // The outer stack must be lazy. The enabled models and the model library are each a
+                            // LazyVStack; inside a non-lazy VStack the outer stack asks both for their full height on
+                            // every layout. Adding models deep in the library inserts rows above the viewport, so every
+                            // tap re-measured all rows above it, and the cost grew with the enabled count and scroll
+                            // depth (150 enabled models: 470ms per tap on a simulator, past the 2s watchdog on an
+                            // iPhone 13). With a lazy outer stack it is about 150ms.
+                            LazyVStack(alignment: .leading, spacing: OriveoTheme.Spacing.lg) {
                                 topBar()
 
                                 if let disabled = subscriptionDisabledNotice(for: provider) {

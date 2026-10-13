@@ -60,7 +60,19 @@ struct ProviderModelAddFeedbackChip: View {
 // MARK: - Frame Capture
 
 final class ProviderDetailFrameBox {
-    var frame: CGRect = .null
+    var frame: CGRect = .null {
+        didSet {
+            #if DEBUG
+            if frame != oldValue { Self.debugFrameChangeCount += 1 }
+            #endif
+        }
+    }
+
+    #if DEBUG
+    /// DEBUG only: how often the enabled-models section frame actually changed. If it keeps changing while the section
+    /// is off screen, the outer container is still laying out off-screen sections.
+    nonisolated(unsafe) static var debugFrameChangeCount = 0
+    #endif
 }
 
 final class CatalogRowFrameStore {
