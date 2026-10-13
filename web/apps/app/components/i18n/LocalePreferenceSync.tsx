@@ -17,9 +17,16 @@
  *
  * `system` is excluded: it means "follow the browser", so the cookie stays `system` and
  * negotiation decides.
+ *
+ * The test is the language the server **actually rendered** (`useLocale()`), not "was this
+ * language handled before". Remembering only the language skips the second pass when the
+ * preference goes zh-Hans -> system -> zh-Hans (choosing System only rewrites the cookie, the
+ * marker stays), which brings back "the dropdown says Simplified Chinese, the interface is
+ * English".
  */
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLocale } from 'next-intl';
 import { useAppStore } from '../../providers/StoreProvider';
 import { getLocaleCookie, setLocaleCookie, SUPPORTED_LOCALES, type SupportedLocale } from '../../lib/i18n/locale-utils';
 
@@ -27,24 +34,30 @@ export function LocalePreferenceSync(): null {
   // Select the single field: this component is mounted for the whole app, and a broader
   // selector would re-render it on every unrelated store write.
   const language = useAppStore((s) => s.preferences?.language);
+  const renderedLocale = useLocale();
   const router = useRouter();
-  // Writing document.cookie is not reactive and router.refresh() re-runs this effect, so latch
-  // what has already been applied instead of refreshing again for the same language.
-  const appliedRef = useRef<string | null>(null);
+  // One re-render per "preference -> rendered language" pair: the effect can run again before
+  // the refresh settles, and a refresh that did not change the language (offline, for example)
+  // must not spin in place.
+  const attemptedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!language || language === 'system') return;
-    if (!SUPPORTED_LOCALES.includes(language as SupportedLocale)) return;
-    if (appliedRef.current === language) return;
-    if (getLocaleCookie() === language) {
-      appliedRef.current = language;
+    if (
+      !language || language === 'system'
+      || !SUPPORTED_LOCALES.includes(language as SupportedLocale)
+      || renderedLocale === language
+    ) {
+      // Nothing to chase, or already caught up: unlock so the next divergence is handled.
+      attemptedRef.current = null;
       return;
     }
-    appliedRef.current = language;
-    setLocaleCookie(language as SupportedLocale);
+    const attempt = `${language}|${renderedLocale}`;
+    if (attemptedRef.current === attempt) return;
+    attemptedRef.current = attempt;
+    if (getLocaleCookie() !== language) setLocaleCookie(language as SupportedLocale);
     // The cookie is read on the server, so the tree has to be re-rendered for it to take effect.
     router.refresh();
-  }, [language, router]);
+  }, [language, renderedLocale, router]);
 
   return null;
 }

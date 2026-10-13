@@ -3,6 +3,7 @@ import type { Conversation } from '@oriveo/shared';
 import type { AppStore } from './app-store';
 import {
   putProvider,
+  putProviderKeepingStoredCredential,
   deleteProvider,
   putConversationPreservingHydratedMessages,
   deleteConversation,
@@ -53,7 +54,19 @@ export function subscribeProviders(store: StoreApi<AppStore>): () => void {
     // Added or updated
     for (const p of state.providers) {
       const old = prevMap.get(p.id);
-      if (!old || old !== p) putProvider(p);
+      if (!old) {
+        // An entry that is new to the store may be a credential-less copy while the row with
+        // the same id on this device still holds the key (the store was filled before it was
+        // hydrated). Keep the stored credential and swap the copy in the store back to that row.
+        void putProviderKeepingStoredCredential(p).then((persisted) => {
+          if (persisted === p) return;
+          const providers = store.getState().providers;
+          if (!providers.includes(p)) return;
+          store.setState({ providers: providers.map((item) => (item === p ? persisted : item)) });
+        }).catch(withErrorReporting('storage.provider.persist'));
+      } else if (old !== p) {
+        putProvider(p);
+      }
     }
     // Deleted
     for (const p of prev) {

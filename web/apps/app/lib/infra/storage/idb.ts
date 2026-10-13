@@ -478,6 +478,38 @@ export async function putProvider(provider: Provider, expectedUID?: string): Pro
   await db.put('providers', provider);
 }
 
+function hasStoredCredential(provider: Provider): boolean {
+  return provider.apiKey.trim().length > 0
+    || Boolean(provider.openAISubscription?.accessToken)
+    || Boolean(provider.grokSubscription?.accessToken);
+}
+
+/**
+ * Writes a provider that is new to the store without letting a credential-less copy replace
+ * the credential already stored on this device.
+ *
+ * Credentials live only on this device. When the store is filled before it has been hydrated
+ * (startup timeout fallback, or a failed hydration read), such a copy is written as a whole
+ * "new" row and permanently erases the key held by the row with the same id. The read and the
+ * write share one transaction: if the stored row has a credential and the incoming one does
+ * not, the stored row is kept and returned so the caller can swap the copy in the store back.
+ */
+export async function putProviderKeepingStoredCredential(
+  provider: Provider,
+  expectedUID?: string,
+): Promise<Provider> {
+  const db = await getDB(expectedUID);
+  const tx = db.transaction('providers', 'readwrite');
+  const stored = await tx.store.get(provider.id);
+  if (stored && hasStoredCredential(stored) && !hasStoredCredential(provider)) {
+    await tx.done;
+    return stored;
+  }
+  await tx.store.put(provider);
+  await tx.done;
+  return provider;
+}
+
 /**
  * Cancellable provider write for the create flow. The guard is re-checked just before the real
  * IDB transaction commits; if the connection attempt is stale the whole transaction aborts so no
