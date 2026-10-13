@@ -451,6 +451,20 @@ describe('resyncProviderInStore', () => {
     expect(store.getState().providers[0].catalogModels).toContainEqual(expect.objectContaining({ id: 'catalog-only' }));
   });
 
+  it('rejects an official provider at the relay verification entry points without sending a request or touching connection status', async () => {
+    const updateProvider = vi.fn();
+    const provider: Provider = {
+      id: 'official-misrouted', kind: 'openRouter', status: { kind: 'connected' },
+      models: [], catalogModels: [], apiKey: 'sk-or-key', apiKeyPreview: '••••',
+    };
+    const store = { getState: () => ({ providers: [provider], updateProvider }) } as never;
+
+    await expect(verifyRelayProviderInStore(store, provider)).rejects.toThrow('only accepts relay connections, got openRouter');
+    await expect(verifyRelayProviderCandidate(provider)).rejects.toThrow('only accepts relay connections, got openRouter');
+    expect(updateProvider).not.toHaveBeenCalled();
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
   it('persists Connected from the production 1-token request without making catalog a connection prerequisite', async () => {
     const updateProvider = vi.fn();
     const fetchMock = vi.mocked(fetch);

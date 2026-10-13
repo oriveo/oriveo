@@ -121,6 +121,7 @@ export async function verifyRelayProviderCandidate(
   provider: Provider,
   options: { refreshCatalog?: boolean } = {},
 ): Promise<RelayCandidateVerification> {
+  assertRelayProvider(provider, 'verifyRelayProviderCandidate');
   let result: RelayPingResult;
   try {
     const requested = provider.relayRequested;
@@ -215,6 +216,17 @@ export function mergeRelayEnabledModels(
 }
 
 /**
+ * Type guard for relay-only entry points. Official providers have no relayRequested, so letting one
+ * in fails before any request and gets classified as an offline error. A misrouted call must fail
+ * as a misrouted call and leave connection status untouched.
+ */
+function assertRelayProvider(provider: Provider, entry: string): void {
+  if (provider.kind !== 'relay') {
+    throw new Error(`${entry} only accepts relay connections, got ${provider.kind}`);
+  }
+}
+
+/**
  * User-initiated relay verification: a 1-token generation over the same transport as chat.
  * Only that evidence moves a connection to connected; a catalog refresh is separate soft state
  * afterwards and must never rewrite the verification verdict.
@@ -223,6 +235,7 @@ export async function verifyRelayProviderInStore(
   store: StoreApi<AppStore>,
   provider: Provider,
 ): Promise<RelayPingResult | null> {
+  assertRelayProvider(provider, 'verifyRelayProviderInStore');
   // The provider entity itself must already exist. A stale detail page must not spend a
   // user key on a request that has no valid persistence target.
   const persistedProvider = store.getState().providers.find((item) => item.id === provider.id);
