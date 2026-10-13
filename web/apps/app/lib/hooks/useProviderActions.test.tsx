@@ -1,11 +1,13 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Provider } from '@oriveo/shared';
 import { createAppStore } from '../core/store/app-store';
 import { PROVIDER_VALIDATION_MESSAGES } from '../core/providers/validation-messages';
 import { useProviderActions } from './useProviderActions';
 
 const storeHolder = vi.hoisted(() => ({ current: null as unknown }));
+// Official provider catalogs are driven by metadata; null falls back to the real implementation.
+const metadataHolder = vi.hoisted(() => ({ current: null as unknown }));
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('../../providers/StoreProvider', () => ({
@@ -17,6 +19,7 @@ vi.mock('../core/metadata/metadata-client', async (importOriginal) => {
   return {
     ...actual,
     getRelayRuntimeConfig: () => actual.DEFAULT_RELAY_RUNTIME_CONFIG,
+    getMetadataSnapshot: () => (metadataHolder.current ?? actual.getMetadataSnapshot()) as ReturnType<typeof actual.getMetadataSnapshot>,
   };
 });
 
@@ -283,6 +286,10 @@ describe('useProviderActions official provider key rotation', () => {
     )));
   });
 
+  afterEach(() => {
+    metadataHolder.current = null;
+  });
+
   it('validates a rotated official key through the official path instead of relay verification', async () => {
     const store = storeHolder.current as ReturnType<typeof createAppStore>;
     const view = renderHook(() => useProviderActions(store.getState().providers[0]));
@@ -302,6 +309,51 @@ describe('useProviderActions official provider key rotation', () => {
       providerKind: 'openRouter',
       apiKey: 'sk-or-new',
     });
+  });
+
+  it('resyncs an official provider through official validation and restores connected status', async () => {
+    const store = storeHolder.current as ReturnType<typeof createAppStore>;
+    store.getState().updateProvider('official-hook', {
+      status: { kind: 'issue', message: PROVIDER_VALIDATION_MESSAGES.unverified },
+      lastError: PROVIDER_VALIDATION_MESSAGES.unverified,
+    });
+    const view = renderHook(() => useProviderActions(store.getState().providers[0]));
+
+    await act(async () => {
+      await view.result.current.resync();
+    });
+
+    expect(store.getState().providers[0]).toMatchObject({
+      status: { kind: 'connected' },
+      lastError: undefined,
+      models: [existingModel],
+    });
+    expect(view.result.current.isSyncing).toBe(false);
+  });
+
+  // Deleting an official connection is covered in provider-ops.test.ts; the hook only forwards the call.
+  it('writes rename, enable all, disable all and single toggles for an official provider to the store', () => {
+    const store = storeHolder.current as ReturnType<typeof createAppStore>;
+    const second = { ...existingModel, id: 'second-model', name: 'Second model', isDefault: false };
+    metadataHolder.current = { providers: { openRouter: { models: { 'existing-model': {}, 'second-model': {} } } } };
+    const current = () => store.getState().providers[0];
+    const actions = () => renderHook(() => useProviderActions(current())).result.current;
+
+    const rename = actions();
+    act(() => rename.saveName('My OpenRouter'));
+    expect(current().customName).toBe('My OpenRouter');
+
+    const enableAll = actions();
+    act(() => enableAll.enableAllModels());
+    expect(current().models.map((model) => model.id).sort()).toEqual(['existing-model', 'second-model']);
+
+    const toggle = actions();
+    act(() => toggle.toggleModel(second));
+    expect(current().models.map((model) => model.id)).toEqual(['existing-model']);
+
+    const disableAll = actions();
+    act(() => disableAll.disableAllModels());
+    expect(current().models).toEqual([]);
   });
 });
 
