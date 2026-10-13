@@ -161,6 +161,7 @@ export {
   isIgnorableMobileBrowserInjection,
   isHydrationErrorEvent,
   isRscNotFoundInvariantEvent,
+  THIRD_PARTY_IFRAME_REPLAY_BLOCK_SELECTORS,
   type SentryEventHintLike,
   type SentryEventLike,
   type SentryExceptionLike,

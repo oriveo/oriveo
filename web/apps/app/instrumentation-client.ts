@@ -4,6 +4,7 @@ import {
   isIgnorableBrowserExtensionError,
   isIgnorableCloudflareChallengeError,
   isIgnorableMobileBrowserInjection,
+  THIRD_PARTY_IFRAME_REPLAY_BLOCK_SELECTORS,
 } from "@oriveo/shared";
 import { installDetachedHoistableGuard } from "@oriveo/shared/browser/detached-hoistable-guard";
 import * as Sentry from "@sentry/nextjs";
@@ -51,6 +52,8 @@ Sentry.init({
       slowClickIgnoreSelectors: [
         '[data-sentry-ignore-slow-click="sync-state-reset"]',
       ],
+      // The App Check reCAPTCHA iframe makes rrweb throw its own cross-origin SecurityError.
+      block: [...THIRD_PARTY_IFRAME_REPLAY_BLOCK_SELECTORS],
     }),
     Sentry.browserTracingIntegration(),
   ],
