@@ -49,8 +49,11 @@ class ProviderSetupStatusPlacementTest {
         assertTrue(!source.contains("RelaySecurityModeControl("))
         assertTrue(local.contains("RelaySecurityModeControl("))
         assertTrue(source.contains("val routeMethod = initialMethod"))
-        assertTrue(source.contains("R.string.provider_setup_relay_title"))
-        assertTrue(source.contains("R.string.local_compute_title"))
+        // The page title is only the Hero; since manual setup became a single page, the top-left
+        // slot reads "use quick setup instead" and carries no title either.
+        assertTrue(!source.contains("R.string.provider_setup_relay_title"))
+        assertTrue(source.contains("val showsManual = routeMethod == CustomLLMConnectionMethod.Relay && viewModel.mode == RelaySetupMode.Manual"))
+        assertTrue(local.contains("title = stringResource(board.heroTitle)"))
     }
 
     @Test
@@ -60,20 +63,23 @@ class ProviderSetupStatusPlacementTest {
         ).readText()
         val quickSetup = source
             .substringAfter("private fun RelayQuickSetupContent")
-            .substringBefore("private fun RelayQuickField")
+            .substringBefore("internal fun RelayQuickField")
         val manualSetup = source
-            .substringAfter("private fun RelaySimpleSection")
-            .substringBefore("private fun RelayStepHeader")
+            .substringAfter("private fun RelayManualSetupContent")
+            .substringBefore("private fun RelayManualAdvancedRow")
 
-        assertTrue(!quickSetup.contains("R.string.relay_field_name"))
-        assertTrue(manualSetup.contains("R.string.relay_field_name"))
+        // The display name is only an optional field of manual setup.
+        assertTrue(!quickSetup.contains("connectionName"))
+        assertTrue(manualSetup.contains("board.connectionNameTitleRes"))
 
         val endpoint = quickSetup.indexOf("R.string.relay_field_endpoint")
         val apiKey = quickSetup.indexOf("R.string.api_key")
-        val defaultModel = quickSetup.indexOf("R.string.relay_default_model_label")
+        val addKey = quickSetup.indexOf("R.string.relay_setup_add_key")
         assertTrue(endpoint >= 0)
         assertTrue(apiKey > endpoint)
-        assertTrue(defaultModel > apiKey)
+        assertTrue(addKey > apiKey)
+        assertTrue(!quickSetup.contains("R.string.relay_default_model_label"))
+        assertTrue(manualSetup.contains("board.modelTitleRes"))
     }
 
     @Test
@@ -90,7 +96,10 @@ class ProviderSetupStatusPlacementTest {
         assertTrue(!fields.contains("LocalComputeScenario.entries"))
         assertTrue(shell.contains("onSizeChanged { actionBarHeightPx = it.height }"))
         assertTrue(shell.contains("actionBarHeightPx.toDp()"))
-        assertTrue(shell.contains("isVerified = localViewModel.isConnectionVerified"))
+        // The bottom bar button's three states come from LocalSetupBoard; the screen no longer
+        // assembles an isVerified condition itself.
+        assertTrue(shell.contains("isWorking = localBoard.isPrimaryLoading"))
+        assertTrue(shell.contains("enabled = localBoard.isPrimaryEnabled"))
         assertTrue(!shell.contains("bottom = 176.dp"))
     }
 

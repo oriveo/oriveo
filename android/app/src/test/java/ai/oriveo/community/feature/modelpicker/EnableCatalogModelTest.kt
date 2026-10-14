@@ -44,6 +44,7 @@ class EnableCatalogModelTest {
         )
         coEvery { providerRepository.getById("relay-1") } returns provider
         coEvery { providerRepository.updateProvider(any()) } returns Unit
+        coEvery { providerRepository.probeEnabledRelayModel(any(), any()) } returns Unit
 
         enableCatalogModelWithFeedback(providerRepository, snackbar, "relay-1", "gpt-4.1")
 
@@ -51,6 +52,11 @@ class EnableCatalogModelTest {
             providerRepository.updateProvider(
                 match { it.models.map(AIModel::id) == listOf("gpt-4o-mini", "gpt-4.1") },
             )
+        }
+        // A single relay enable is persisted first, then lazily probes just that one model.
+        io.mockk.coVerifyOrder {
+            providerRepository.updateProvider(any())
+            providerRepository.probeEnabledRelayModel("relay-1", "gpt-4.1")
         }
         verify(exactly = 1) {
             snackbar.show(
@@ -120,14 +126,14 @@ class EnableCatalogModelTest {
 
     @Test
     fun `a model that already has an equivalent enabled one is idempotent and not reported as a failure`() = runTest {
-        // The snapshot suffix points at the same remote model as the enabled gpt-4.1.
+        // Relay models match by literal ID: ids differing only in case are the same model; a dated snapshot is a different model.
         val provider = relay(
             enabled = listOf(model("gpt-4.1")),
             catalog = listOf(model("gpt-4.1"), model("gpt-4.1-2025-04-14")),
         )
         coEvery { providerRepository.getById("relay-1") } returns provider
 
-        val result = enableCatalogModel(providerRepository, "relay-1", "gpt-4.1-2025-04-14")
+        val result = enableCatalogModel(providerRepository, "relay-1", "GPT-4.1")
 
         assertEquals(EnableCatalogModelResult.AlreadyEnabled, result)
         coVerify(exactly = 0) { providerRepository.updateProvider(any()) }

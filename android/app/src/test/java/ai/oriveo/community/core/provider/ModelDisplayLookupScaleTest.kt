@@ -435,8 +435,16 @@ class ModelDisplayLookupScaleTest {
         } else {
             provider.models
         }
-        return ModelSelectionUtils.matchingModel(localCandidates, targetId)
+        return ModelSelectionUtils.matchingModel(localCandidates, targetId, provider.kind)
     }
+
+    /** Relay stored-value lookup: only among the enabled models, a literal match first, else a unique hit on an old canonical stored value. */
+    private fun referenceStoredModel(provider: Provider, targetId: String): AIModel? =
+        if (provider.kind == ProviderKind.Relay) {
+            ModelSelectionUtils.resolveStoredModel(provider.models, targetId, provider.kind)
+        } else {
+            referenceLocalModel(provider, targetId)
+        }
 
     private fun referenceModelDisplayName(
         provider: Provider,
@@ -447,7 +455,7 @@ class ModelDisplayLookupScaleTest {
         val targetId = modelId?.trim().orEmpty()
         if (targetId.isEmpty()) return fallback
         if (provider.kind == ProviderKind.Relay) {
-            referenceLocalModel(provider, targetId)?.name?.let { return it }
+            referenceStoredModel(provider, targetId)?.name?.let { return it }
         } else {
             val metadataResolved = metadata.resolveCatalogModel(targetId, provider.kind)
             metadataResolved?.displayName?.takeIf { it.isNotBlank() }?.let { return it }
@@ -470,8 +478,8 @@ class ModelDisplayLookupScaleTest {
     ): String? {
         val targetId = modelId?.trim().orEmpty()
         if (targetId.isEmpty()) return null
-        referenceLocalModel(provider, targetId)?.canonicalModelId?.takeIf { it.isNotBlank() }?.let { return it }
-        referenceLocalModel(provider, targetId)?.id?.let { return it }
+        referenceStoredModel(provider, targetId)?.canonicalModelId?.takeIf { it.isNotBlank() }?.let { return it }
+        referenceStoredModel(provider, targetId)?.id?.let { return it }
         if (provider.kind != ProviderKind.Relay) {
             metadata.resolveCatalogModel(targetId, provider.kind)?.canonicalModelId?.let { return it }
         }
@@ -520,8 +528,13 @@ class ModelDisplayLookupScaleTest {
         )
     }
 
-    /** A conversation's stored modelID comes from the production [ProviderSelectionSnapshot.persistedSelection]; one row in 20 points at a retired model. */
+    /**
+     * A conversation's stored modelID comes from the production [ProviderSelectionSnapshot.persistedSelection]; one row in 20
+     * points at a retired model, and one is the old value `gpt-4o` that was stored by canonical id before literal-ID matching
+     * (it exercises the stored-value compatibility read).
+     */
     private fun conversations(provider: Provider, count: Int): List<Conversation> = (0 until count).map { index ->
+        if (index % 20 == 1) return@map conversation(provider, "gpt-4o", id = "conversation-$index")
         val requested = when {
             index % 20 == 3 -> "retired-$index"
             index < 4 -> provider.models[index].id

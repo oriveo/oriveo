@@ -15,6 +15,7 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
+import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
 import ai.oriveo.community.core.provider.GenerationParameterPanelPresentation
 import ai.oriveo.community.core.provider.GenerationParameterResolver
@@ -269,7 +270,7 @@ class GenerationParameterRowModelTest {
             "https://relay.example/v1/chat/completions"
         }
         val identity = CapabilityEvidenceProductionAdapter.dispatchIdentity(
-            CapabilityEvidenceIdentity("test", provider.id, "1", "1", ProviderKind.Relay.rawValue),
+            CapabilityEvidenceIdentity("test", provider.id, "1", "1", ProviderKind.Relay.rawValue, ProviderAuthMode.ApiKey.rawValue),
             model,
             transport,
             finalUrl,

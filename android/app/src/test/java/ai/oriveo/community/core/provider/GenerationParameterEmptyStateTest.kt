@@ -6,6 +6,7 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
+import ai.oriveo.community.core.model.ProviderAuthMode
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.After
@@ -404,7 +405,7 @@ class GenerationParameterEmptyStateTest {
         provider = provider,
         model = model,
         localIdentity = provider.takeIf { it.kind == ProviderKind.Relay }?.let {
-            CapabilityEvidenceIdentity("test", it.id, "1", "1", ProviderKind.Relay.rawValue)
+            CapabilityEvidenceIdentity("test", it.id, "1", "1", ProviderKind.Relay.rawValue, ProviderAuthMode.ApiKey.rawValue)
         },
         parameters = GenerationParameterAvailability.profile(provider, model)?.parameters.orEmpty(),
         values = ai.oriveo.community.core.model.GenerationParameterOverrides(),

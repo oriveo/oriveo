@@ -568,7 +568,29 @@ class ModelControlCapabilityLayoutRulesTest {
         listOf(
             CapabilityControlPresentation.AutomaticAvailable,
             CapabilityControlPresentation.ForceUnsupported,
+            CapabilityControlPresentation.AlwaysOn,
         ).forEach { assertFalse("$it", modelControlShowsSupportedModelsAction(it)) }
+    }
+
+    /**
+     * Subscription web search is always on. It is a capability (no badge, no way out to another model); writable or
+     * clamped, it behaves as read-only: one explanatory row, not tappable, and a stored "search on every message" is kept.
+     */
+    @Test
+    fun `always on web is a read only row that keeps the stored value`() {
+        val status = CapabilityControlPresentation.AlwaysOn
+        assertFalse(status.isConfigurable)
+        assertEquals(ModelControlBadgeClassification.None, ModelControlBadgeClassification.resolve(status))
+        assertEquals(
+            CapabilityWebPreference.Force,
+            ModelControlWebLayout.clamp(CapabilityWebPreference.Force, status, listOf("automatic")),
+        )
+        val row = web(status = status, intents = listOf("automatic"), selection = CapabilityWebPreference.Off)
+        assertEquals(ModelControlWebLayout.Form.StatusRow, row.form)
+        assertEquals(R.string.model_options_always_on, row.statusTextRes)
+        // Not tappable: explanation is null (a status row with a non-null one becomes a tappable row).
+        assertNull(row.explanationRes)
+        assertEquals(ModelControlCapabilityEscape.None, row.escape)
     }
 
     // ── Badges ───────────────────────────────────────────────────────────────
@@ -754,13 +776,14 @@ class ModelControlCapabilityLayoutRulesTest {
     fun `capability titles and status sentences never collide`() {
         assertEquals(R.string.model_control_web_search, modelControlCapabilityTitleRes("web"))
         assertEquals(R.string.model_control_thinking, modelControlCapabilityTitleRes("reasoning"))
-        assertEquals(R.string.generation_model_behavior, modelControlCapabilityTitleRes("generation"))
+        assertEquals(R.string.generation_parameters_section, modelControlCapabilityTitleRes("generation"))
         assertEquals(
             3,
             modelControlOwnerOrder.map(::modelControlCapabilityTitleRes).toSet().size,
         )
         // Every presentation state has its own sentence.
         val byStatus = CapabilityControlPresentation.entries.associateWith(::modelControlStatusTextRes)
+        assertEquals(R.string.model_options_subscription_always_searches, byStatus[CapabilityControlPresentation.AlwaysOn])
         assertEquals(
             "every presentation state must map to its own sentence",
             CapabilityControlPresentation.entries.size,

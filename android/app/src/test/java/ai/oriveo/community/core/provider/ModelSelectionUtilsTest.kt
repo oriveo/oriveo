@@ -35,7 +35,8 @@ class ModelSelectionUtilsTest {
                 model("basic-model"),
                 model("gpt-4o", isDefault = true),
                 model("unknown-model"),
-            )
+            ),
+            ProviderKind.OpenAI,
         )
 
         assertEquals(1, result.size)
@@ -58,7 +59,7 @@ class ModelSelectionUtilsTest {
     @Test
     fun `matchingModel - exact match`() {
         val models = listOf(model("gpt-4o"), model("gpt-3.5"))
-        val result = ModelSelectionUtils.matchingModel(models, "gpt-4o")
+        val result = ModelSelectionUtils.matchingModel(models, "gpt-4o", ProviderKind.OpenAI)
         assertNotNull(result)
         assertEquals("gpt-4o", result!!.id)
     }
@@ -66,7 +67,7 @@ class ModelSelectionUtilsTest {
     @Test
     fun `matchingModel - manual prefix match`() {
         val models = listOf(model("gpt-4o"), model("gpt-3.5"))
-        val result = ModelSelectionUtils.matchingModel(models, "manual-gpt-4o")
+        val result = ModelSelectionUtils.matchingModel(models, "manual-gpt-4o", ProviderKind.OpenAI)
         assertNotNull(result)
         assertEquals("gpt-4o", result!!.id)
     }
@@ -74,7 +75,7 @@ class ModelSelectionUtilsTest {
     @Test
     fun `matchingModel - no match returns null`() {
         val models = listOf(model("gpt-4o"))
-        val result = ModelSelectionUtils.matchingModel(models, "claude-3")
+        val result = ModelSelectionUtils.matchingModel(models, "claude-3", ProviderKind.OpenAI)
         assertNull(result)
     }
 
@@ -87,7 +88,7 @@ class ModelSelectionUtilsTest {
             ),
         )
 
-        val result = ModelSelectionUtils.matchingModel(models, "gpt-5.4")
+        val result = ModelSelectionUtils.matchingModel(models, "gpt-5.4", ProviderKind.OpenAI)
         assertNotNull(result)
         assertEquals("gpt-5.4-2026-03-05", result!!.id)
     }
@@ -101,7 +102,7 @@ class ModelSelectionUtilsTest {
             ),
         )
 
-        val result = ModelSelectionUtils.preferredStoredModelIdentifier(models, "gpt-5.4-2026-03-05")
+        val result = ModelSelectionUtils.preferredStoredModelIdentifier(models, "gpt-5.4-2026-03-05", ProviderKind.OpenAI)
         assertEquals("gpt-5.4", result)
     }
 
@@ -145,7 +146,7 @@ class ModelSelectionUtilsTest {
             model("gpt-5.4-nano", canonicalModelId = "gpt-5.4-nano"),
         )
 
-        val result = ModelSelectionUtils.matchingModel(models, "gpt-5.4-nano")
+        val result = ModelSelectionUtils.matchingModel(models, "gpt-5.4-nano", ProviderKind.OpenAI)
         assertEquals("gpt-5.4-nano", result?.id)
     }
 
@@ -226,6 +227,7 @@ class ModelSelectionUtilsTest {
                 model("gpt-4.1-mini"),
             ),
             preferredDefaultId = "gpt-4o",
+            kind = ProviderKind.OpenAI,
         )
 
         assertEquals(listOf("gpt-4o", "gpt-4.1", "gpt-4.1-mini"), result.map { it.id })
@@ -278,5 +280,52 @@ class ModelSelectionUtilsTest {
 
         assertTrue(result.catalogModels.first { it.id == "gpt-4.1" }.isDefault)
         assertFalse(result.catalogModels.first { it.id == "gpt-4o-mini" }.isDefault)
+    }
+
+    @Test
+    fun `relay catalog refresh keeps model-level transport source and overrides`() {
+        val pinned = AIModel(
+            id = "o3-pro",
+            name = "o3-pro",
+            relayTransport = ai.oriveo.community.core.model.RelayTransport.OpenAIResponses,
+            relayTransportSource = ai.oriveo.community.core.model.RelayTransportSource.Observed,
+            relayCapabilityOverrides = ai.oriveo.community.core.model.RelayCapabilityOverrides(image = true, testedKeys = setOf("image")),
+        )
+        // The original catalog text has no model-level fields: a refresh yields a new object without them.
+        val synced = listOf(AIModel(id = "o3-pro", name = "o3-pro (new)"), AIModel(id = "gpt-4o-mini", name = "gpt-4o-mini"))
+
+        val catalog = ModelSelectionUtils.replaceRelayCatalog(listOf(pinned), synced, ProviderKind.Relay)
+        val enabled = ModelSelectionUtils.retainRelayEnabledModels(listOf(pinned.copy(isDefault = true)), catalog, ProviderKind.Relay)
+
+        for (model in listOf(catalog.single { it.id == "o3-pro" }, enabled.single())) {
+            assertEquals("o3-pro (new)", model.name)
+            assertEquals(pinned.relayTransport, model.relayTransport)
+            assertEquals(pinned.relayTransportSource, model.relayTransportSource)
+            assertEquals(pinned.relayCapabilityOverrides, model.relayCapabilityOverrides)
+        }
+        assertNull(catalog.single { it.id == "gpt-4o-mini" }.relayTransport)
+    }
+
+    @Test
+    fun `relay catalog refresh keeps the old engine declaration unless the refresh brings a new one`() {
+        val old = ai.oriveo.community.core.model.EngineDeclaration(image = true, toolCall = false)
+        val fresh = ai.oriveo.community.core.model.EngineDeclaration(image = false, thinking = true)
+        val existing = listOf(
+            AIModel(id = "kept", name = "kept", engineDeclaration = old),
+            AIModel(id = "replaced", name = "replaced", engineDeclaration = old),
+        )
+        // This time the local engine connector gave only the new declarations for replaced; an ordinary /models refresh carries no declarations.
+        val synced = listOf(
+            AIModel(id = "kept", name = "kept"),
+            AIModel(id = "replaced", name = "replaced", engineDeclaration = fresh),
+        )
+
+        val catalog = ModelSelectionUtils.replaceRelayCatalog(existing, synced, ProviderKind.Relay)
+        val enabled = ModelSelectionUtils.retainRelayEnabledModels(existing, catalog, ProviderKind.Relay)
+
+        for (models in listOf(catalog, enabled)) {
+            assertEquals(old, models.single { it.id == "kept" }.engineDeclaration)
+            assertEquals(fresh, models.single { it.id == "replaced" }.engineDeclaration)
+        }
     }
 }

@@ -316,8 +316,8 @@ class MessageBuilderAttachmentTest {
         assertEquals("[Image omitted: unsupported by DeepSeek]", ai.oriveo.community.core.attachments.AttachmentTransportProfile.DeepSeekChat.imagePlaceholderText)
         // The same literal on all three clients: every new text-only route uses this one sentence.
         assertEquals("[Image omitted: this route sends text only]", ai.oriveo.community.core.attachments.AttachmentTransportProfile.LlamaCppNative.imagePlaceholderText)
+        assertEquals("[Image omitted: this route sends text only]", ai.oriveo.community.core.attachments.AttachmentTransportProfile.GeminiInteractions.imagePlaceholderText)
         // Routes that can carry images have no placeholder.
-        assertNull(ai.oriveo.community.core.attachments.AttachmentTransportProfile.GeminiInteractions.imagePlaceholderText)
         assertNull(ai.oriveo.community.core.attachments.AttachmentTransportProfile.OpenAIResponses.imagePlaceholderText)
         // Removing file blocks does not change how images are sent.
         assertEquals(

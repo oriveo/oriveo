@@ -23,6 +23,49 @@ class ModelIdentityContractTest {
         val dedupeCases: List<DedupeCase> = emptyList(),
         val storedIdentifierCases: List<StoredIdentifierCase> = emptyList(),
         val sameRemoteCases: List<SameRemoteCase> = emptyList(),
+        val relayCases: RelayCases,
+    )
+
+    /** Relay section: identity is decided by the literal ID; date snapshots / canonical / display name do not participate. */
+    @Serializable
+    private data class RelayCases(
+        val providerKind: String,
+        val sameRemoteCases: List<RelaySameRemoteCase>,
+        val lookupCases: List<RelayLookupCase>,
+        val storedIdentifierCases: List<RelayStoredIdentifierCase>,
+        val dedupeCases: List<DedupeCase>,
+        val readCompatCases: List<RelayReadCompatCase>,
+    )
+
+    @Serializable
+    private data class RelaySameRemoteCase(
+        val id: String,
+        val left: ContractModel,
+        val right: ContractModel,
+        val expected: Boolean,
+    )
+
+    @Serializable
+    private data class RelayLookupCase(
+        val id: String,
+        val query: String,
+        val models: List<ContractModel>,
+        val expectedModelId: String? = null,
+    )
+
+    @Serializable
+    private data class RelayStoredIdentifierCase(
+        val id: String,
+        val model: ContractModel,
+        val expectedStoredModelId: String,
+    )
+
+    @Serializable
+    private data class RelayReadCompatCase(
+        val id: String,
+        val storedModelId: String,
+        val enabledModels: List<ContractModel>,
+        val expectedModelId: String? = null,
     )
 
     @Serializable
@@ -87,7 +130,7 @@ class ModelIdentityContractTest {
         contract.lookupCases.forEach { testCase ->
             val kind = providerKind(testCase.providerKind)
             val provider = makeProvider(kind, testCase.models)
-            val resolved = ModelSelectionUtils.matchingModel(provider.allModels, testCase.query)
+            val resolved = ModelSelectionUtils.matchingModel(provider.allModels, testCase.query, kind)
 
             assertEquals(
                 "lookup ${testCase.id}",
@@ -113,7 +156,10 @@ class ModelIdentityContractTest {
     @Test
     fun `stored identifier cases stay aligned`() {
         contract.storedIdentifierCases.forEach { testCase ->
-            val stored = ModelSelectionUtils.preferredStoredModelIdentifier(makeModel(testCase.model))
+            val stored = ModelSelectionUtils.preferredStoredModelIdentifier(
+                makeModel(testCase.model),
+                providerKind(testCase.providerKind),
+            )
             assertEquals("stored ${testCase.id}", testCase.expectedStoredModelId, stored)
         }
     }
@@ -127,6 +173,54 @@ class ModelIdentityContractTest {
                 providerKind(testCase.providerKind),
             )
             assertEquals("same remote ${testCase.id}", testCase.expected, result)
+        }
+    }
+
+    @Test
+    fun `relay same remote cases`() {
+        val kind = providerKind(contract.relayCases.providerKind)
+        contract.relayCases.sameRemoteCases.forEach { testCase ->
+            val left = makeModel(testCase.left)
+            val right = makeModel(testCase.right)
+            assertEquals("relay same remote ${testCase.id}", testCase.expected, ModelSelectionUtils.modelsShareSameRemoteModel(left, right, kind))
+            assertEquals("relay same remote (swapped) ${testCase.id}", testCase.expected, ModelSelectionUtils.modelsShareSameRemoteModel(right, left, kind))
+        }
+    }
+
+    @Test
+    fun `relay lookup cases`() {
+        val kind = providerKind(contract.relayCases.providerKind)
+        contract.relayCases.lookupCases.forEach { testCase ->
+            val provider = makeProvider(kind, testCase.models)
+            val resolved = ModelSelectionUtils.matchingModel(provider.allModels, testCase.query, kind)
+            assertEquals("relay lookup ${testCase.id}", testCase.expectedModelId, resolved?.id)
+        }
+    }
+
+    @Test
+    fun `relay stored identifier cases`() {
+        val kind = providerKind(contract.relayCases.providerKind)
+        contract.relayCases.storedIdentifierCases.forEach { testCase ->
+            val stored = ModelSelectionUtils.preferredStoredModelIdentifier(makeModel(testCase.model), kind)
+            assertEquals("relay stored ${testCase.id}", testCase.expectedStoredModelId, stored)
+        }
+    }
+
+    @Test
+    fun `relay dedupe cases`() {
+        val kind = providerKind(contract.relayCases.providerKind)
+        contract.relayCases.dedupeCases.forEach { testCase ->
+            val deduped = ModelSelectionUtils.deduplicate(testCase.models.map(::makeModel), kind)
+            assertEquals("relay dedupe ${testCase.id}", testCase.expectedModelIds, deduped.map { it.id })
+        }
+    }
+
+    @Test
+    fun `relay read compat cases`() {
+        val kind = providerKind(contract.relayCases.providerKind)
+        contract.relayCases.readCompatCases.forEach { testCase ->
+            val resolved = ModelSelectionUtils.resolveStoredModel(testCase.enabledModels.map(::makeModel), testCase.storedModelId, kind)
+            assertEquals("relay read compat ${testCase.id}", testCase.expectedModelId, resolved?.id)
         }
     }
 

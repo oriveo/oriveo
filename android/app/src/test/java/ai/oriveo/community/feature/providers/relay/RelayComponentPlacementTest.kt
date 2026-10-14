@@ -19,10 +19,7 @@ class RelayComponentPlacementTest {
 
         val movedComposables = listOf(
             "RelayAdvancedSettingsSheet",
-            "RelayPresetModeInfoCard",
-            "RelayWebSearchToolNameCard",
-            "RelayAdvancedHttpDisclosure",
-            "RelayKvSection",
+            "RelayEditFailureDetails",
         )
 
         movedComposables.forEach { name ->

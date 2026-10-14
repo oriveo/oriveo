@@ -143,7 +143,7 @@ class ChatRepositoryRegenerateContinueTest {
     fun `regenerate does not persist a second user message but still sends it to the model`() = runTest {
         val provider = provider()
         val conversation = conv(provider)
-        every { providerRepository.serviceFor(provider) } returns providerService
+        every { providerRepository.serviceFor(provider, any()) } returns providerService
         val messagesSlot = stubStream(
             StreamEvent.Delta("Regenerated answer"),
             StreamEvent.Done(ProviderChatResult(text = "Regenerated answer")),
@@ -177,7 +177,7 @@ class ChatRepositoryRegenerateContinueTest {
     fun `tool-only provider response is delivered as a local fallback card`() = runTest {
         val provider = provider()
         val conversation = conv(provider)
-        every { providerRepository.serviceFor(provider) } returns providerService
+        every { providerRepository.serviceFor(provider, any()) } returns providerService
         stubStream(
             StreamEvent.ToolCallDeltas(
                 listOf(
@@ -218,7 +218,7 @@ class ChatRepositoryRegenerateContinueTest {
         val conversation = conv(provider)
         val retainedUser = userMessage("u1", "My question")
         val failedAssistant = assistantMessage("a1", "", ChatMessageState.Failed)
-        every { providerRepository.serviceFor(provider) } returns providerService
+        every { providerRepository.serviceFor(provider, any()) } returns providerService
         val messagesSlot = stubStream(
             StreamEvent.Delta("Retried answer"),
             StreamEvent.Done(ProviderChatResult(text = "Retried answer")),
@@ -279,7 +279,7 @@ class ChatRepositoryRegenerateContinueTest {
             servedModelID = "gemini-3-pro-image",
             state = ChatMessageState.Failed,
         )
-        every { providerRepository.serviceFor(currentProvider) } returns providerService
+        every { providerRepository.serviceFor(currentProvider, any()) } returns providerService
         stubStream(
             StreamEvent.Done(
                 ProviderChatResult(
@@ -321,7 +321,7 @@ class ChatRepositoryRegenerateContinueTest {
         val provider = provider()
         val conversation = conv(provider)
         val original = assistantMessage("a1", "Part one.", ChatMessageState.Interrupted)
-        every { providerRepository.serviceFor(provider) } returns providerService
+        every { providerRepository.serviceFor(provider, any()) } returns providerService
         val messagesSlot = stubStream(
             StreamEvent.Delta(" Part two."),
             StreamEvent.Done(ProviderChatResult(text = " Part two.")),
@@ -372,7 +372,7 @@ class ChatRepositoryRegenerateContinueTest {
             attachments = listOf(oldAttachment),
             customRetryWithoutFieldsCode = "omit_capability_setting_once:custom:generation:-:L3RlbXBlcmF0dXJl",
         )
-        every { providerRepository.serviceFor(provider) } returns providerService
+        every { providerRepository.serviceFor(provider, any()) } returns providerService
         stubStream(
             StreamEvent.Reasoning(" New reasoning."),
             StreamEvent.Citations(listOf(newCitation)),
@@ -406,7 +406,7 @@ class ChatRepositoryRegenerateContinueTest {
         val provider = provider()
         val conversation = conv(provider)
         val original = assistantMessage("a1", "Original partial.", ChatMessageState.Interrupted)
-        every { providerRepository.serviceFor(provider) } returns providerService
+        every { providerRepository.serviceFor(provider, any()) } returns providerService
         stubStream(
 
             StreamEvent.Done(ProviderChatResult(text = "")),
@@ -447,7 +447,7 @@ class ChatRepositoryRegenerateContinueTest {
         )
         val provider = provider()
         val conversation = conv(provider)
-        every { providerRepository.serviceFor(provider) } returns providerService
+        every { providerRepository.serviceFor(provider, any()) } returns providerService
         var call = 0
         var secondOptions: ChatRequestOptions? = null
         var secondMessages: List<ChatMessage>? = null
@@ -511,7 +511,7 @@ class ChatRepositoryRegenerateContinueTest {
         val conversation = conv(provider)
         val partial = assistantMessage("a-retry", "partial", ChatMessageState.Interrupted)
         store.save("account", conversation.id, partial.id, "previous_id", state)
-        every { providerRepository.serviceFor(provider) } returns providerService
+        every { providerRepository.serviceFor(provider, any()) } returns providerService
         val seen = mutableListOf<JsonObject?>()
         var attempt = 0
         every {
@@ -632,13 +632,13 @@ class ChatRepositoryRegenerateContinueTest {
                             providerLeg += 1
                             val payload = when {
                                 case.transport == "gemini_interactions" -> if (providerLeg == 1) """
-                                    data: {"event_type":"step.delta","step":{"type":"model_output","delta":{"text":"first"}}}
+                                    data: {"event_type":"step.delta","index":0,"delta":{"type":"text","text":"first"}}
 
                                     data: {"event_type":"interaction.completed","interaction":{"id":"interaction-1","status":"completed"}}
 
                                     data: [DONE]
                                 """.trimIndent() else """
-                                    data: {"event_type":"step.delta","step":{"type":"model_output","delta":{"text":"next"}}}
+                                    data: {"event_type":"step.delta","index":0,"delta":{"type":"text","text":"next"}}
 
                                     data: {"event_type":"interaction.completed","interaction":{"status":"completed"}}
 
@@ -764,7 +764,7 @@ class ChatRepositoryRegenerateContinueTest {
                     id = "p-${case.kind.rawValue}", kind = case.kind, status = ProviderConnectionState.Connected,
                     models = emptyList(), catalogModels = emptyList(), apiKey = "sk-test", apiKeyPreview = "sk-...",
                 )
-                every { providerRepository.serviceFor(provider) } returns actualService
+                every { providerRepository.serviceFor(provider, any()) } returns actualService
                 val conversation = Conversation(
                     id = "c-${case.kind.rawValue}", title = "test", providerID = provider.id,
                     providerKind = case.kind, modelID = case.model,
@@ -773,6 +773,20 @@ class ChatRepositoryRegenerateContinueTest {
                     conversation, "question", provider, case.model, emptyList(), reasoningMode = case.reasoning,
                     webSearchEnabled = case.web, outputs = newOutputs(),
                 )
+                // continuationKind=none: no continuable state, nothing is persisted and no continuation event is produced.
+                if (case.expectedKind == "none") {
+                    require(dao.listForAccount("account").isEmpty()) { "${case.recipe} must not persist continuation; events=$parsedEvents" }
+                    require(parsedEvents.none { it is StreamEvent.RecipeContinuation }) { "${case.recipe} emitted continuation: $parsedEvents" }
+                    // Interactions row has selectorExpected=true: production route selection must select Interactions, send the full Step[] every turn and not send previous_interaction_id.
+                    if (case.transport == "gemini_interactions") {
+                        require(captured.last().first.endsWith("/v1beta/interactions")) { "${case.recipe} not routed to Interactions: $captured" }
+                        val firstBody = Json.parseToJsonElement(captured.last().second).jsonObject
+                        require("previous_interaction_id" !in firstBody && firstBody["store"]?.jsonPrimitive?.content == "false") {
+                            "${case.recipe} body=$firstBody"
+                        }
+                    }
+                    return@forEach
+                }
                 val saved = requireNotNull(dao.listForAccount("account").singleOrNull()) {
                     "${case.recipe}/${case.expectedKind} producer did not persist; events=$parsedEvents requests=$captured"
                 }
@@ -798,11 +812,8 @@ class ChatRepositoryRegenerateContinueTest {
                 val replayBody = Json.parseToJsonElement(replayBodyText).jsonObject
                 when (case.expectedKind) {
                     "previous_id" -> {
-                        val key = if (case.transport == "gemini_interactions") "previous_interaction_id" else "previous_response_id"
-                        val expected = if (case.transport == "gemini_interactions") "interaction-1" else "response-1"
-                        require(replayBody[key]?.jsonPrimitive?.content == expected) { "${case.recipe} previous_id replay=$replayBody events=$parsedEvents" }
-                        val inputKey = if (case.transport == "gemini_interactions") "input" else "input"
-                        require(replayBody[inputKey]?.jsonArray?.size == 1) { "${case.recipe} resent represented history: $replayBody" }
+                        require(replayBody["previous_response_id"]?.jsonPrimitive?.content == "response-1") { "${case.recipe} previous_id replay=$replayBody events=$parsedEvents" }
+                        require(replayBody["input"]?.jsonArray?.size == 1) { "${case.recipe} resent represented history: $replayBody" }
                     }
                     "replay_blocks" -> require((replayBody["messages"] as? JsonArray).orEmpty().any {
                         it.jsonObject["role"]?.jsonPrimitive?.content == "assistant" && it.jsonObject["content"] is JsonArray

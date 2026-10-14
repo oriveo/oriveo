@@ -12,6 +12,8 @@ import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
+import ai.oriveo.community.core.model.ChatMessage
+import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
@@ -22,6 +24,7 @@ import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.core.provider.MetadataTestFixtures
 import io.mockk.coEvery
+import kotlinx.serialization.json.jsonObject
 import io.mockk.coVerify
 import io.mockk.mockk
 import java.util.Base64
@@ -64,6 +67,9 @@ class ChatSendCommandCoordinatorAttachmentPreflightTest {
         attachments: List<Attachment>,
         text: String = "read these",
         resolveSendOptions: ((Provider, String) -> AttachmentSendPreflight.SendOptions?)? = null,
+        modelId: String = "relay-model",
+        existing: Conversation? = null,
+        outboundHistory: (suspend (List<ChatMessage>) -> List<ChatMessage>)? = null,
     ): Outcome {
         val outcome = Outcome()
         coEvery { providerRepository.getById(provider.id) } returns provider
@@ -76,19 +82,20 @@ class ChatSendCommandCoordinatorAttachmentPreflightTest {
             modelID = "relay-model",
             messages = emptyList(),
         )
-        coEvery { conversationRepository.getWithMessages(any()) } returns null
+        coEvery { conversationRepository.getWithMessages(any()) } returns existing
         val coordinator = ChatSendCommandCoordinator(
             viewModelScope = this,
             appPreferencesRepository = appPreferencesRepository,
             providerRepository = providerRepository,
             conversationRepository = conversationRepository,
-            currentConversation = { null },
-            currentConversationId = { null },
+            currentConversation = { existing },
+            currentConversationId = { existing?.id },
             onProviderSelectionError = {},
             onProviderResolutionError = {},
             onModelSelectionError = {},
             onDisclosureRequired = { _, _ -> },
             onConversationActivated = {},
+            outboundHistory = outboundHistory ?: { it },
             onAttachmentsUndeliverable = { outcome.blocked = it },
             resolveAttachmentSendOptions = { p, modelId -> resolveSendOptions?.invoke(p, modelId) },
             onComposerConsumed = { outcome.composerConsumed = true },
@@ -99,7 +106,7 @@ class ChatSendCommandCoordinatorAttachmentPreflightTest {
                 outcome.launchedAttachments = sent
             },
         )
-        coordinator.sendMessage(text, attachments, provider.id, "relay-model")
+        coordinator.sendMessage(text, attachments, provider.id, modelId)
         advanceUntilIdle()
         return outcome
     }
@@ -179,6 +186,123 @@ class ChatSendCommandCoordinatorAttachmentPreflightTest {
         )
         assertEquals(listOf("relay-1/relay-model"), asked)
         assertTrue(outcome.launched)
+    }
+
+    /**
+     * When the conversation history contains a video the outbound does not use Gemini Interactions; the preflight reads the whole history and judges the same way -
+     * a file that only generateContent (native PDF upload) can accommodate must not be blocked under Interactions limits.
+     */
+    @Test
+    fun `video earlier in the conversation keeps the preflight on generateContent`() = runTest {
+        applyGeminiInteractionsMetadata()
+        val model = AIModel(id = "gemini-3-flash", name = "Gemini 3 Flash", isDefault = true)
+        val gemini = Provider(
+            id = "gemini-1", kind = ProviderKind.Gemini, status = ProviderConnectionState.Connected,
+            apiKey = "key", models = listOf(model),
+        )
+        coEvery { providerRepository.getById(gemini.id) } returns gemini
+        val pdf = textFile("paper.pdf", 150 * 1024).copy(
+            mimeType = "application/pdf", originalBase64Data = "JVBERi0=", extractedSizeBytes = 8,
+        )
+        val files = listOf(textFile("a.txt", 150 * 1024), pdf)
+        val webOn = { _: Provider, _: String ->
+            AttachmentSendPreflight.SendOptions(ReasoningMode.Automatic, webSearchEnabled = true, toolLoopPossible = false)
+        }
+        fun conversation(history: List<ChatMessage>) = Conversation(
+            id = "conversation-1", title = "Chat", providerID = gemini.id, providerKind = ProviderKind.Gemini,
+            modelID = model.id, messages = history,
+        )
+        val textOnly = ChatMessage(
+            id = "u0", role = ChatRole.User, text = "hi", providerKind = ProviderKind.Gemini, providerName = "Gemini",
+            modelName = model.id, state = ai.oriveo.community.core.model.ChatMessageState.Delivered,
+        )
+        val withVideo = textOnly.copy(
+            id = "u1",
+            attachments = listOf(Attachment(id = "v", kind = AttachmentKind.Video, fileName = "clip.mp4", mimeType = "video/mp4")),
+        )
+
+        val blocked = send(gemini, files, resolveSendOptions = webOn, modelId = model.id, existing = conversation(listOf(textOnly)))
+        assertEquals(ProviderServiceError.AttachmentTextOverLimit(listOf("paper.pdf")), blocked.blocked)
+
+        val sent = send(gemini, files, resolveSendOptions = webOn, modelId = model.id, existing = conversation(listOf(withVideo)))
+        assertNull(sent.blocked)
+        assertTrue(sent.launched)
+    }
+
+    /**
+     * The preflight judges video using the outbound history (the same trimming chain as sending). When a video exists only in early turns and is trimmed away by the attachment budget,
+     * the outbound carries no video and uses Interactions; the preflight judges the same way and blocks files that only generateContent can accommodate under Interactions limits.
+     */
+    @Test
+    fun GI_PREFLIGHT_USES_OUTBOUND_HISTORY() = runTest {
+        applyGeminiInteractionsMetadata()
+        val model = AIModel(id = "gemini-3-flash", name = "Gemini 3 Flash", isDefault = true)
+        val gemini = Provider(
+            id = "gemini-1", kind = ProviderKind.Gemini, status = ProviderConnectionState.Connected,
+            apiKey = "key", models = listOf(model),
+        )
+        coEvery { providerRepository.getById(gemini.id) } returns gemini
+        val pdf = textFile("paper.pdf", 150 * 1024).copy(
+            mimeType = "application/pdf", originalBase64Data = "JVBERi0=", extractedSizeBytes = 8,
+        )
+        val files = listOf(textFile("a.txt", 150 * 1024), pdf)
+        // A large video in an early turn is stored only as a disk reference: 20MiB exceeds the outbound attachment budget and is trimmed to a placeholder line.
+        val earlyVideo = ChatMessage(
+            id = "u0", role = ChatRole.User, text = "clip", providerKind = ProviderKind.Gemini, providerName = "Gemini",
+            modelName = model.id, state = ai.oriveo.community.core.model.ChatMessageState.Delivered,
+            attachments = listOf(
+                Attachment(id = "v", kind = AttachmentKind.Video, fileName = "clip.mp4", mimeType = "video/mp4", rawContentRef = "blob-v"),
+            ),
+        )
+        val answer = earlyVideo.copy(id = "a0", role = ChatRole.Assistant, text = "A ball rolls.", attachments = null)
+        val existing = Conversation(
+            id = "conversation-1", title = "Chat", providerID = gemini.id, providerKind = ProviderKind.Gemini,
+            modelID = model.id, messages = listOf(earlyVideo, answer),
+        )
+        // The same trimming chain as production sending (ChatRepository.sendMessage calls it too).
+        val trim: suspend (List<ChatMessage>) -> List<ChatMessage> = { raw ->
+            ai.oriveo.community.core.data.repository.OutboundHistory.prepare(
+                rawMessages = raw,
+                imageSizeOf = { 0L },
+                blobSizeOf = { ref -> if (ref == "blob-v") 20L * 1024 * 1024 else 0L },
+            )
+        }
+        val webOn = { _: Provider, _: String ->
+            AttachmentSendPreflight.SendOptions(ReasoningMode.Automatic, webSearchEnabled = true, toolLoopPossible = false)
+        }
+
+        // Outbound: the history produced by the same trimming chain no longer has a video, and the wire is Interactions.
+        val outbound = trim(existing.messages + ChatMessage(
+            id = "u1", role = ChatRole.User, text = "read these", providerKind = ProviderKind.Gemini, providerName = "Gemini",
+            modelName = model.id, state = ai.oriveo.community.core.model.ChatMessageState.Delivered, attachments = files,
+        ))
+        assertFalse(ai.oriveo.community.core.provider.GeminiService.hasVideoAttachment(outbound))
+        assertTrue(
+            ai.oriveo.community.core.provider.GeminiService.interactionsRoute(
+                model.id, true, ReasoningMode.Automatic, ai.oriveo.community.core.provider.GeminiService.hasVideoAttachment(outbound),
+            ) != null,
+        )
+        // Preflight: judges Interactions the same way and blocks the PDF accordingly.
+        val outcome = send(gemini, files, resolveSendOptions = webOn, modelId = model.id, existing = existing, outboundHistory = trim)
+        assertEquals(ProviderServiceError.AttachmentTextOverLimit(listOf("paper.pdf")), outcome.blocked)
+    }
+
+    private fun applyGeminiInteractionsMetadata() {
+        val root = java.io.File(System.getProperty("user.dir")).absoluteFile.parentFile!!.parentFile!!
+        val registry = kotlinx.serialization.json.Json.parseToJsonElement(
+            java.io.File(root, "shared/capabilityrecipe/capability_runtime.v1.json").readText(),
+        ).jsonObject
+        val runtime = kotlinx.serialization.json.JsonObject(registry + mapOf(
+            "revision" to kotlinx.serialization.json.JsonPrimitive("sha256:preflight-test"),
+            "generatedAt" to kotlinx.serialization.json.JsonPrimitive("2026-10-13T00:00:00Z"),
+        ))
+        MetadataTestFixtures.applyRaw(
+            """{"version":1,"capabilityRuntime":$runtime,"providers":{"gemini":{
+              "resolveMap":{"gemini-3-flash":"gemini-3-flash"},
+              "models":{"gemini-3-flash":{"nativeFileMimes":["application/pdf"],"pdfNativeDefault":true,
+                "transport":"gemini_interactions",
+                "capabilityControls":{"web":{"state":"auto_available","recipeRef":"gemini.interactions.web.v1"}}}}}}}""",
+        )
     }
 
     @Test

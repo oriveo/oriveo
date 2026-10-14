@@ -63,7 +63,7 @@ class RelayCatalogScaleTest {
     @Test
     fun `catalog match index agrees with the production pairwise matcher`() {
         val catalog = trickyCatalog()
-        val index = ModelSelectionUtils.catalogMatchIndex(catalog)
+        val index = ModelSelectionUtils.catalogMatchIndex(catalog, null)
         val queries = catalog.map { it.id } + listOf(
             "GPT-4O", " gpt-4o ", "manual-gpt-4o", "gpt-4o-2024-08-06", "claude-3-5-sonnet-20241022",
             "claude-3-5-sonnet", "Qwen/QWEN2.5-72B-INSTRUCT", "not-in-catalog", "", "   ", "manual-",
@@ -71,7 +71,7 @@ class RelayCatalogScaleTest {
         queries.forEach { query ->
             assertSame(
                 "match($query) must return the same catalog object as matchingModel",
-                ModelSelectionUtils.matchingModel(catalog, query),
+                ModelSelectionUtils.matchingModel(catalog, query, null),
                 index.match(query),
             )
         }
@@ -109,7 +109,7 @@ class RelayCatalogScaleTest {
         // resolve enriches the catalog itself in production, so the reference must use the same enriched catalog.
         val enrichedCatalog = RelayOfficialCatalogResolver.enrichCatalog(provider, MetadataClient.relayRuntimeConfig())
         val expectedEnabledIds = provider.models
-            .mapNotNull { ModelSelectionUtils.matchingModel(enrichedCatalog, it.id)?.id }
+            .mapNotNull { ModelSelectionUtils.matchingModel(enrichedCatalog, it.id, provider.kind)?.id }
             .toSet()
         val expectedManualIds = provider.models
             .filter { enabled ->

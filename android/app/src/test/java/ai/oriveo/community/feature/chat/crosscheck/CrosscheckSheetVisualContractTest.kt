@@ -127,9 +127,9 @@ class CrosscheckSheetVisualContractTest {
             from = "private fun CommandDock(",
             to = "@Composable\nprivate fun IconCircleButton(",
         )
-        val heroButton = source.requiredSlice(
-            from = "private fun CrosscheckDockHeroButton(",
-            to = "@Composable\nprivate fun Provider.resolvedRelayKind(",
+        // After the avatar moved to ConnectionAvatar, resolvedRelayKind was removed and the primary button is the last function in the file: slice to the end of the file.
+        val heroButton = source.substring(
+            source.indexOf("private fun CrosscheckDockHeroButton(").also { require(it >= 0) { "Missing CrosscheckDockHeroButton" } },
         )
 
         assertTrue(commandDock.contains("CrosscheckDockHeroButton("))

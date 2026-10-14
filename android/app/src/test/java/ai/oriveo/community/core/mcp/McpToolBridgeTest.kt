@@ -15,6 +15,7 @@ import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.model.RelayAuthMode
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
+import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.tools.ToolCallLoop
 import ai.oriveo.community.core.tools.ToolLoopLegEvent
 import ai.oriveo.community.core.tools.ToolLoopLegRequest
@@ -282,6 +283,7 @@ class McpToolBridgeTest {
         capabilityEvidenceIdentity = CapabilityEvidenceIdentity(
             partitionId = "user", connectionInstanceId = "relay", connectionGeneration = "g1", credentialEpoch = "c1",
             providerKind = ProviderKind.Relay.rawValue, metadataRevision = "m1", generationRevision = "g1",
+            authMode = ProviderAuthMode.ApiKey.rawValue,
         ),
     )
 

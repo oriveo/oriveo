@@ -26,6 +26,7 @@ import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
+import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.provider.ProviderTestFixtures
 import ai.oriveo.community.core.provider.RelayService
 import ai.oriveo.community.core.provider.transport.TransportRegistry
@@ -168,6 +169,7 @@ class ChatRepositoryMcpOutboundTest {
                 capabilityEvidenceIdentity = CapabilityEvidenceIdentity(
                     partitionId = LOCAL_PARTITION_ID, connectionInstanceId = "relay-1", connectionGeneration = "g1", credentialEpoch = "c1",
                     providerKind = ProviderKind.Relay.rawValue, metadataRevision = "m1", generationRevision = "g1",
+                    authMode = ProviderAuthMode.ApiKey.rawValue,
                 ),
             ),
             outputs = ConversationStreamingOutputs(streamingText = MutableStateFlow(""), streamingMessageId = MutableStateFlow(null)),
@@ -178,7 +180,7 @@ class ChatRepositoryMcpOutboundTest {
         id = "relay-1", kind = ProviderKind.Relay, status = ProviderConnectionState.Connected, apiKey = "local-key",
         baseUrlText = "https://relay.test/v1",
         relayRequested = RelayRequestedConfig(transport = RelayTransport.OpenAIChatCompletions), models = listOf(model),
-    ).also { every { providerRepository.serviceFor(it) } returns RelayService(client, json, TransportRegistry(json)) }
+    ).also { every { providerRepository.serviceFor(it, any()) } returns RelayService(client, json, TransportRegistry(json)) }
 
     private fun bodies(pathSuffix: String) = requests.toList().filter { it.first.endsWith(pathSuffix) }.map { it.second }
 

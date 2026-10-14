@@ -76,7 +76,7 @@ class SecureFieldAccessibilityContractTest {
     @Test
     fun `relay quick api key field can reveal and mask its text with a labeled toggle`() {
         val code = codeWithoutComments("feature/providers/relay/RelaySetupScreen.kt")
-        val field = code.substringAfter("private fun RelayQuickField(", missingDelimiterValue = "")
+        val field = code.substringAfter("fun RelayQuickField(", missingDelimiterValue = "")
             .substringBefore("\n@Composable")
         assertTrue("RelayQuickField not found", field.isNotEmpty())
 
@@ -84,11 +84,27 @@ class SecureFieldAccessibilityContractTest {
             "the secret transformation must not depend on secure alone: it would stay masked and a pasted key could not be checked",
             field.contains("if (secure) PasswordVisualTransformation()"),
         )
-        assertTrue("a secure field needs a toggleable reveal button", field.contains("IconButton(") && field.contains("Icons.Outlined.Visibility"))
+        // Icons all go through Phosphor now, so the eye icon is R.drawable.ph_eye.
+        assertTrue("a secure field needs a toggleable reveal button", field.contains("IconButton(") && field.contains("R.drawable.ph_eye"))
         assertTrue(
             "the reveal button must pick R.string.$showKey / R.string.$hideKey by its state, like OriveoLabeledField",
             field.contains("R.string.$showKey") && field.contains("R.string.$hideKey"),
         )
+    }
+
+    @Test
+    fun `relay key sheet fields announce the title shown above them`() {
+        // With the title moved outside the box, the input itself has no label; when TalkBack
+        // focuses it, it must read out the title shown above it.
+        val code = codeWithoutComments("feature/providers/detail/RelayKeysPage.kt")
+        val fields = code.substring(code.indexOf("sheet.fields.forEach { field ->")).substringBefore("sheet.noteRes")
+        assertEquals("the name box and the key box both need a semantics label", 2, Regex("OutlinedTextField\\(").findAll(fields).count())
+        assertEquals(
+            "both input boxes take the title above them as contentDescription",
+            2,
+            Regex("semantics \\{ contentDescription = title \\}").findAll(fields).count(),
+        )
+        assertTrue("the title above and the semantics share one source", "val title = stringResource(field.labelRes)" in fields)
     }
 
     private val resDir = File("src/main/res")

@@ -64,6 +64,8 @@ class ModelControlWebLivenessTest {
             CapabilityControlPresentation.Unsupported,
             CapabilityControlPresentation.ExternalConnectorOnly,
             CapabilityControlPresentation.CustomOnly,
+            // Subscription always-on web search is not the user's choice: it does not light the globe.
+            CapabilityControlPresentation.AlwaysOn,
         )
         dark.forEach { status ->
             assertFalse(

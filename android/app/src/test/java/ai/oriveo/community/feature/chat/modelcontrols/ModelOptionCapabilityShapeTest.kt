@@ -47,6 +47,20 @@ class ModelOptionCapabilityShapeTest {
     )
 
     @Test
+    fun `always on web is a read only notice with no escape and reasoning shows the tier read only`() {
+        assertEquals(
+            ModelOptionCapabilityShape.Notice(NoticeStatus.AlwaysOn, NoticeBody.SubscriptionAlwaysSearches, escape = null),
+            ModelOptionCapabilityShape.resolve(input(Capability.Web, CapabilityControlPresentation.AlwaysOn, listOf("automatic"))),
+        )
+        assertEquals(
+            ModelOptionCapabilityShape.Disclosure(DisclosureStatus.ReadOnlyValue, "balanced"),
+            ModelOptionCapabilityShape.resolve(
+                input(Capability.Reasoning, CapabilityControlPresentation.AlwaysOn, listOf("off", "balanced"), "balanced"),
+            ),
+        )
+    }
+
+    @Test
     fun `card 01 only on and off gives a toggle`() {
         val shape = ModelOptionCapabilityShape.resolve(
             input(Capability.Reasoning, CapabilityControlPresentation.AutomaticAvailable, listOf("off", "balanced"), "balanced"),

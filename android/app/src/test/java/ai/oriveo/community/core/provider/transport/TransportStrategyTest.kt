@@ -3,6 +3,7 @@ package ai.oriveo.community.core.provider.transport
 import ai.oriveo.community.core.model.Citation
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -38,10 +39,12 @@ class TransportStrategyTest {
     }
 
     @Test
-    fun `all 12 transport kinds registered`() {
+    fun `all 13 transport kinds registered`() {
         TransportKind.entries.forEach { kind ->
             val strategy = registry.strategy(kind)
-            assertEquals(kind, strategy.kind)
+            // Interactions request / stream parsing lives inside GeminiService; the registry only gives it the generateContent strategy used for fallback.
+            val expected = if (kind == TransportKind.GeminiInteractions) TransportKind.GeminiGenerate else kind
+            assertEquals(expected, strategy.kind)
         }
     }
 
@@ -243,9 +246,9 @@ class TransportStrategyTest {
     }
 
     @Test
-    fun `TransportKind fromWireValue parses all 12 known kinds`() {
+    fun `TransportKind fromWireValue parses all 13 known kinds`() {
         val knownKinds = listOf(
-            "openai_chat", "openai_responses", "anthropic_messages", "gemini_generate",
+            "openai_chat", "openai_responses", "anthropic_messages", "gemini_generate", "gemini_interactions",
             "dashscope_native", "openai_images", "gemini_image", "qwen_image",
             "grok_image", "zhipu_image", "anthropic_files", "openai_files",
         )
@@ -346,9 +349,19 @@ class EndpointResolverTest {
         assertEquals("https://api.openai.com/v1/chat/completions", url)
     }
 
+    /** Without a delivered trustedHosts only the last two labels of the fallback host (siliconflow.cn) are trusted; the international .com site needs the delivered table to be allowed. */
     @Test
-    fun `SiliconFlow international metadata baseUrl is allowlisted`() {
-        val provider = buildProvider(ai.oriveo.community.core.model.ProviderKind.SiliconFlow)
+    fun `SiliconFlow international metadata baseUrl is allowlisted only via downloaded trustedHosts`() {
+        val kind = ai.oriveo.community.core.model.ProviderKind.SiliconFlow
+        assertTrue(
+            EndpointResolver.hostMatches(
+                "api.siliconflow.com",
+                EndpointResolver.trustedHostSuffixes(kind, listOf("siliconflow.cn", "siliconflow.com")),
+            ),
+        )
+        assertFalse(EndpointResolver.hostMatches("api.siliconflow.com", EndpointResolver.trustedHostSuffixes(kind, null)))
+
+        val provider = buildProvider(kind)
         val metadata = ProviderTransportDefinition(
             baseUrl = "https://api.siliconflow.com",
             endpoints = TransportEndpoints(chat = "/v1/chat/completions"),
@@ -360,7 +373,8 @@ class EndpointResolverTest {
             metadata,
         )
 
-        assertEquals("https://api.siliconflow.com/v1/chat/completions", url)
+        // Fails closed when the delivered table is missing and falls back to the built-in domestic site.
+        assertEquals("https://api.siliconflow.cn/v1/chat/completions", url)
     }
 
     @Test

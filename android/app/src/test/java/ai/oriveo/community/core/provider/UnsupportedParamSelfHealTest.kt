@@ -3,6 +3,7 @@ package ai.oriveo.community.core.provider
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderServiceError
+import ai.oriveo.community.core.model.ProviderAuthMode
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -37,6 +38,7 @@ class UnsupportedParamSelfHealTest {
         connectionGeneration = "cg-1",
         credentialEpoch = "ce-1",
         providerKind = provider,
+        authMode = ProviderAuthMode.ApiKey.rawValue,
         modelId = model,
         effectiveTransport = "openai_chat_completions",
         endpointFingerprint = endpoint,

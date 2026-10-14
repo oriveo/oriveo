@@ -26,6 +26,8 @@ import ai.oriveo.community.core.provider.RelayEndpointCandidateEvidence
 import ai.oriveo.community.core.provider.RelayEndpointResolver
 import ai.oriveo.community.feature.providers.CustomLLMConnectionMethod
 import ai.oriveo.community.feature.providers.CustomLLMVerificationEvidence
+import ai.oriveo.community.core.model.RelayKeyAccessOutcome
+import ai.oriveo.community.core.provider.relay.RelayKeyBinding
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -70,27 +72,28 @@ class RelaySetupViewModelTest {
         val viewModel = createViewModel()
 
         assertEquals(RelaySetupMode.Quick, viewModel.mode)
+        assertEquals(RelaySetupStep.Address, viewModel.step)
         assertEquals(RelayConnectionSecurityMode.RemoteHttps, viewModel.securityMode)
         assertEquals(RelayConnectionSecurityMode.RemoteHttps, viewModel.formDraft.securityMode)
-        assertEquals(RelayQuickAction.Detect, viewModel.quickAction)
-        assertFalse(viewModel.canRunQuickAction)
+        assertNull(viewModel.board.detection)
+        assertFalse(viewModel.board.isPrimaryEnabled)
 
         viewModel.updateEndpoint("https://relay.example/v1")
         viewModel.updateApiKey("sk-test")
-        assertTrue(viewModel.canRunQuickAction)
+        assertTrue(viewModel.board.isPrimaryEnabled)
     }
 
     @Test
     fun `public relay create flow always rejects cleartext endpoints`() {
         val viewModel = createViewModel()
         viewModel.showManualSetup()
-        viewModel.selectRelayKind(RelayKind.Custom)
         viewModel.updateEndpoint("http://192.168.1.20:1234/v1")
         viewModel.updateApiKey("sk-secret")
+        viewModel.updateDefaultModel("model")
 
         assertEquals(RelayConnectionSecurityMode.RemoteHttps, viewModel.securityMode)
         assertEquals(RelayConnectionSecurityMode.RemoteHttps, viewModel.formDraft.securityMode)
-        assertFalse(viewModel.canSubmit)
+        assertFalse(viewModel.manualBoard.primary.enabled)
 
         val relayScreen = File(
             "src/main/java/ai/oriveo/community/feature/providers/relay/RelaySetupScreen.kt",
@@ -102,8 +105,13 @@ class RelaySetupViewModelTest {
         assertTrue(localScreen.contains("RelaySecurityModeControl("))
     }
 
+    /**
+     * Detection sends no 1-token request; at save time only the first checked model in display order is probed
+     * across the candidates, the first protocol that passes is recorded on that model, and the connection
+     * protocol stays auto.
+     */
     @Test
-    fun `catalog detection tests real chat paths and selects first protocol that passes`() = runTest {
+    fun `save probes the first selected model by candidate order and keeps the first pass`() = runTest {
         val result = catalogResult(
             RelayDetectedConfiguration(
                 transport = RelayTransport.OpenAIChatCompletions,
@@ -122,14 +130,18 @@ class RelaySetupViewModelTest {
                 generationVerified = false,
             ),
         )
+        family = { if (it == "model-first") "openai" else null }
         coEvery { discoveryService.discover(any(), any(), any(), any(), any(), any()) } returns result
         coEvery {
             providerRepository.pingRelayConnection(
                 apiKey = "sk-test",
                 baseUrl = "https://relay.example/v1",
                 modelID = "model-first",
-                relayRequested = match { it.transport == RelayTransport.OpenAIChatCompletions },
+                relayRequested = match {
+                    it.transport == RelayTransport.Auto && it.resolvedAPIBaseURL == "https://relay.example/v1"
+                },
                 relayKind = RelayKind.OpenAICompatible,
+                modelTransport = RelayTransport.OpenAIResponses,
             )
         } throws ProviderServiceError.Upstream(404, "missing")
         coEvery {
@@ -137,39 +149,42 @@ class RelaySetupViewModelTest {
                 apiKey = "sk-test",
                 baseUrl = "https://relay.example/v1",
                 modelID = "model-first",
-                relayRequested = match {
-                    it.transport == RelayTransport.OpenAIResponses &&
-                        it.resolvedAPIBaseURL == "https://relay.example/v1"
-                },
-                relayKind = RelayKind.CodexStyle,
+                relayRequested = match { it.transport == RelayTransport.Auto },
+                relayKind = RelayKind.OpenAICompatible,
+                modelTransport = RelayTransport.OpenAIChatCompletions,
             )
         } returns Unit
+        val registrations = stubRegister { Provider(id = "relay-first", kind = ProviderKind.Relay, status = ProviderConnectionState.Connected) }
 
         val viewModel = readyQuickViewModel()
-        viewModel.runQuickAction()
+        viewModel.next()
         advanceUntilIdle()
-
-        assertEquals("model-first", viewModel.defaultModel)
-        assertEquals(RelayTransport.OpenAIResponses, viewModel.selectedDetection?.transport)
-        assertEquals(RelayQuickAction.ConnectAndSave, viewModel.quickAction)
-        // The evidence here comes from production discovery plus a 1-token chat path, not a test-authored fixture.
+        assertEquals(RelaySetupStep.Models, viewModel.step)
+        coVerify(exactly = 0) { providerRepository.pingRelayConnection(any(), any(), any(), any(), any(), any()) }
+        // Only after detection is there evidence to commit (verified at save time); the generation request has not been sent yet.
         assertEquals(
-            CustomLLMVerificationEvidence.GenerationVerified,
+            CustomLLMVerificationEvidence.ManualModelRequired,
             viewModel.customLLMCoordinator.evidence?.verification,
         )
-        assertTrue(viewModel.customLLMCoordinator.canCommit)
-        val persistAttempt = requireNotNull(
-            viewModel.customLLMCoordinator.beginCommit(CustomLLMConnectionMethod.Relay),
-        )
-        assertFalse(viewModel.customLLMCoordinator.canCommit)
-        assertTrue(viewModel.customLLMCoordinator.canPersist(persistAttempt))
-        assertFalse(viewModel.customLLMCoordinator.canNavigate(CustomLLMConnectionMethod.Relay))
-        assertTrue(viewModel.customLLMCoordinator.finishCommit(persistAttempt))
+
+        viewModel.toggleModel("model-second")
+        viewModel.toggleModel("model-first")
+        viewModel.save()
+        advanceUntilIdle()
+
+        coVerify(exactly = 2) { providerRepository.pingRelayConnection(any(), any(), any(), any(), any(), any()) }
+        val saved = registrations.single()
+        assertEquals(listOf("model-first", "model-second"), saved.enabledModelIDs)
+        assertEquals("model-first", saved.preferredModelID)
+        assertEquals(RelayTransport.OpenAIChatCompletions, saved.pass?.transport)
+        assertEquals(RelayTransport.Auto, saved.requested.transport)
+        assertTrue(saved.verified)
+        assertEquals(RelaySetupCompletionTarget.ProviderDetail("relay-first", addedModelCount = 2), viewModel.completionTarget)
         assertTrue(viewModel.customLLMCoordinator.canNavigate(CustomLLMConnectionMethod.Relay))
     }
 
     @Test
-    fun `empty catalog exposes save and continue and persists issue state`() = runTest {
+    fun `empty catalog stops on step one and a manual model is verified before saving`() = runTest {
         val detection = RelayDetectedConfiguration(
             transport = RelayTransport.OpenAIResponses,
             authMode = RelayAuthMode.Bearer,
@@ -180,35 +195,31 @@ class RelaySetupViewModelTest {
             detectionEvidence = RelayDetectionEvidence.GenerationProbe,
         )
         coEvery { discoveryService.discover(any(), any(), any(), any(), any(), any()) } returns catalogResult(detection)
-        val provider = Provider(
-            id = "relay-1",
-            kind = ProviderKind.Relay,
-            status = ProviderConnectionState.Issue(ProviderRepository.RELAY_UNVERIFIED_MESSAGE),
-        )
-        coEvery {
-            providerRepository.registerRelayProvider(
-                apiKey = "sk-test",
-                baseUrl = "https://relay.example/v1",
-                customName = null,
-                relayKind = RelayKind.CodexStyle,
-                relayRequested = match { it.resolvedAPIBaseURL == "https://relay.example/v1" },
-                catalogModelIDs = emptyList(),
-                preferredModelID = null,
-                preferredCapabilities = emptySet(),
-                connectionVerified = false,
-                commitGuard = any(),
-            )
-        } returns provider
+        coEvery { providerRepository.pingRelayConnection(any(), any(), any(), any(), any(), any()) } returns Unit
+        val registrations = stubRegister { Provider(id = "relay-1", kind = ProviderKind.Relay, status = ProviderConnectionState.Connected) }
 
         val viewModel = readyQuickViewModel()
-        viewModel.runQuickAction()
+        viewModel.next()
         advanceUntilIdle()
-        assertEquals(RelayQuickAction.SaveAndContinue, viewModel.quickAction)
+        assertEquals(RelaySetupStep.Address, viewModel.step)
+        assertEquals(RelaySetupFailureKind.ModelsEmpty, viewModel.board.detection?.keyLines?.single()?.failure)
 
-        viewModel.runQuickAction()
+        viewModel.next()
+        assertEquals(RelaySetupStep.Models, viewModel.step)
+        viewModel.addManualModel("manual-model")
+        viewModel.save()
         advanceUntilIdle()
 
-        assertEquals(RelaySetupCompletionTarget.ManualModelEntry("relay-1"), viewModel.completionTarget)
+        val saved = registrations.single()
+        // An auto connection with no chosen protocol is saved as fully custom by connection protocol; it is not pinned to the Codex preset by the detected protocol.
+        assertEquals(RelayKind.Custom, saved.relayKind)
+        // The discovered protocol (Responses) differs from the connection's actual default (auto means chat), so the root is recorded only in the per-protocol table.
+        assertNull(saved.requested.resolvedAPIBaseURL)
+        assertEquals(mapOf("openai_responses" to "https://relay.example/v1"), saved.requested.resolvedAPIBaseURLs)
+        assertEquals(emptyList<String>(), saved.catalogIDs)
+        assertEquals(listOf("manual-model"), saved.enabledModelIDs)
+        assertTrue(saved.verified)
+        assertEquals(RelaySetupCompletionTarget.ProviderDetail("relay-1", addedModelCount = 1), viewModel.completionTarget)
         assertTrue(viewModel.customLLMCoordinator.canNavigate(CustomLLMConnectionMethod.Relay))
 
         // Simulates the user switching to the local scenario after the DB save completed but before the Compose navigation effect has run.
@@ -218,49 +229,125 @@ class RelaySetupViewModelTest {
     }
 
     @Test
-    fun `generation verified empty catalog saves connected instead of manual issue`() = runTest {
+    fun `a discovery root on a protocol other than the connection default stays out of the single root`() = runTest {
         val detection = RelayDetectedConfiguration(
-            transport = RelayTransport.OpenAIResponses,
-            authMode = RelayAuthMode.Bearer,
-            apiBaseUrl = "https://relay.example/v1",
-            modelIDs = emptyList(),
+            transport = RelayTransport.GeminiGenerateContent,
+            authMode = RelayAuthMode.XGoogApiKey,
+            apiBaseUrl = "https://relay.example/v1beta",
+            modelIDs = listOf("gemini-2.5-pro"),
             endpointEvidence = RelayEndpointCandidateEvidence.DefaultVersion,
-            generationVerified = true,
-            detectionEvidence = RelayDetectionEvidence.GenerationProbe,
+            generationVerified = false,
         )
-        coEvery { discoveryService.discover(any(), any(), any(), any(), any(), any()) } returns catalogResult(detection)
-        val provider = Provider(id = "relay-verified-empty", kind = ProviderKind.Relay)
-        coEvery {
-            providerRepository.registerRelayProvider(
-                apiKey = "sk-test",
-                baseUrl = "https://relay.example/v1",
-                customName = null,
-                relayKind = RelayKind.CodexStyle,
-                relayRequested = any(),
-                catalogModelIDs = emptyList(),
-                preferredModelID = null,
-                preferredCapabilities = emptySet(),
-                connectionVerified = true,
-                commitGuard = any(),
-            )
-        } returns provider
+        coEvery { discoveryService.discover(any(), any(), any(), any(), any(), any()) } returns RelayDiscoveryResult(
+            descriptor = RelayEndpointResolver.describe("https://relay.example"),
+            detections = listOf(detection),
+            attempts = emptyList(),
+            blockingFailure = null,
+        )
+        family = { if (it == "gemini-2.5-pro") "google" else null }
+        coEvery { providerRepository.pingRelayConnection(any(), any(), any(), any(), any(), any()) } returns Unit
+        val registrations = stubRegister { Provider(id = "relay-gemini", kind = ProviderKind.Relay) }
 
-        val viewModel = readyQuickViewModel()
-        viewModel.runQuickAction()
+        val viewModel = createViewModel().apply {
+            updateEndpoint("https://relay.example")
+            updateApiKey("sk-test")
+        }
+        viewModel.next()
+        advanceUntilIdle()
+        assertEquals(RelaySetupStep.Models, viewModel.step)
+        viewModel.toggleModel("gemini-2.5-pro")
+        viewModel.save()
         advanceUntilIdle()
 
-        assertEquals(RelayQuickAction.ConnectAndSave, viewModel.quickAction)
-        assertEquals(CustomLLMVerificationEvidence.GenerationVerified, viewModel.customLLMCoordinator.evidence?.verification)
-        viewModel.runQuickAction()
-        advanceUntilIdle()
-        // A 2xx on generation is evidence the connection works; an empty catalog only affects the
-        // model list shown on the detail page, and must not divert completion to the manual
-        // recovery path meant for an unverified connection.
-        assertEquals(RelaySetupCompletionTarget.ProviderDetail("relay-verified-empty"), viewModel.completionTarget)
+        val saved = registrations.single()
+        val requested = saved.requested
+        assertEquals(RelayTransport.Auto, requested.transport)
+        assertNull(requested.resolvedAPIBaseURL)
+        assertEquals("https://relay.example/v1beta", requested.resolvedAPIBaseURLs?.get("gemini_generate_content"))
+        assertEquals(RelayTransport.GeminiGenerateContent, saved.pass?.transport)
+        // A model that follows the connection (auto means chat) must not pick up Gemini's v1beta root.
+        val followRoot = RelayEndpointResolver.effectiveAPIRoot(requested, "https://relay.example", AIModel(id = "gpt-4o-mini", name = "gpt-4o-mini"))
+        assertEquals("https://relay.example/v1", followRoot)
     }
 
     @Test
-    fun `generation probe verified with user model skips duplicate ping`() = runTest {
+    fun `an unverified generation route discovery does not count and the default model is probed`() = runTest {
+        val detection = RelayDetectedConfiguration(
+            transport = RelayTransport.OpenAIResponses,
+            authMode = RelayAuthMode.Bearer,
+            apiBaseUrl = "https://relay.example/v1",
+            modelIDs = emptyList(),
+            endpointEvidence = RelayEndpointCandidateEvidence.DefaultVersion,
+            generationVerified = false,
+            detectionEvidence = RelayDetectionEvidence.GenerationProbe,
+        )
+        coEvery { discoveryService.discover(any(), any(), any(), any(), any(), any()) } returns catalogResult(detection)
+        coEvery {
+            providerRepository.pingRelayConnection(
+                apiKey = "sk-test",
+                baseUrl = "https://relay.example/v1",
+                modelID = "model-x",
+                relayRequested = any(),
+                relayKind = any(),
+                modelTransport = RelayTransport.OpenAIResponses,
+            )
+        } returns Unit
+        val registrations = stubRegister { Provider(id = "relay-x", kind = ProviderKind.Relay) }
+
+        val viewModel = readyQuickViewModel()
+        viewModel.next()
+        advanceUntilIdle()
+        // A working generation route (probed with a sentinel model) does not count as a model passing: step 1 does not probe,
+        // and step 2 probes the first checked model at save time.
+        coVerify(exactly = 0) { providerRepository.pingRelayConnection(any(), any(), any(), any(), any(), any()) }
+        viewModel.next()
+        viewModel.addManualModel("model-x")
+        viewModel.save()
+        advanceUntilIdle()
+
+        // The protocol found by the generation route probe (Responses) goes first, so the first attempt passes.
+        assertEquals(RelayTransport.OpenAIResponses, registrations.single().pass?.transport)
+        coVerify(exactly = 1) { providerRepository.pingRelayConnection(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `a failed detection after a successful one leaves no stale key catalogs for the manual save`() = runTest {
+        coEvery { discoveryService.discover(any(), any(), any(), any(), any(), any()) } returns catalogResult(
+            RelayDetectedConfiguration(
+                transport = RelayTransport.OpenAIChatCompletions,
+                authMode = RelayAuthMode.Bearer,
+                apiBaseUrl = "https://relay.example/v1",
+                modelIDs = listOf("gpt-x"),
+                endpointEvidence = RelayEndpointCandidateEvidence.DefaultVersion,
+                generationVerified = false,
+            ),
+        )
+        coEvery { providerRepository.pingRelayConnection(any(), any(), any(), any(), any(), any()) } returns Unit
+        val registrations = stubRegister { Provider(id = "relay-stale", kind = ProviderKind.Relay) }
+
+        val viewModel = readyQuickViewModel()
+        viewModel.next()
+        advanceUntilIdle()
+        assertEquals(RelaySetupStep.Models, viewModel.step)
+
+        coEvery { discoveryService.discover(any(), any(), any(), any(), any(), any()) } returns catalogResult()
+        viewModel.backToAddress()
+        viewModel.updateApiKey("sk-other")
+        viewModel.next()
+        advanceUntilIdle()
+        assertEquals(RelayCheckState.Failed, viewModel.board.detection?.rows?.first()?.state)
+        viewModel.next()
+        viewModel.addManualModel("manual-only")
+        viewModel.save()
+        advanceUntilIdle()
+
+        val saved = registrations.single()
+        assertTrue("the previous round's per-key catalogs must not carry into the manual-add save", saved.keyCatalogs.isEmpty())
+        assertEquals(emptyList<String>(), saved.catalogIDs)
+    }
+
+    @Test
+    fun `detection never sends a 1-token request even when the generation route answered`() = runTest {
         val detection = RelayDetectedConfiguration(
             transport = RelayTransport.OpenAIResponses,
             authMode = RelayAuthMode.Bearer,
@@ -273,12 +360,13 @@ class RelaySetupViewModelTest {
         coEvery { discoveryService.discover(any(), any(), any(), any(), any(), any()) } returns catalogResult(detection)
 
         val viewModel = readyQuickViewModel()
-        viewModel.updateDefaultModel("codex-model")
-        viewModel.runQuickAction()
+        viewModel.next()
         advanceUntilIdle()
 
-        assertEquals(RelayQuickAction.ConnectAndSave, viewModel.quickAction)
-        coVerify(exactly = 0) { providerRepository.pingRelayConnection(any(), any(), any(), any(), any()) }
+        // Step 1 carries no model: the discovery service probes the generation endpoint with a sentinel model only (as before), so the model hint is always empty.
+        coVerify { discoveryService.discover(any(), any(), modelHint = null, any(), any(), any()) }
+        coVerify(exactly = 0) { providerRepository.pingRelayConnection(any(), any(), any(), any(), any(), any()) }
+        assertEquals(RelayCheckState.Done, viewModel.board.detection?.rows?.first()?.state)
     }
 
     @Test
@@ -287,7 +375,7 @@ class RelaySetupViewModelTest {
         coEvery { discoveryService.discover(any(), any(), any(), any(), any(), any()) } coAnswers { resultGate.await() }
 
         val viewModel = readyQuickViewModel()
-        viewModel.runQuickAction()
+        viewModel.next()
         runCurrent()
         assertTrue(viewModel.isDiscovering)
 
@@ -297,7 +385,8 @@ class RelaySetupViewModelTest {
 
         assertFalse(viewModel.isDiscovering)
         assertNull(viewModel.discoveryResult)
-        assertNull(viewModel.selectedDetection)
+        assertNull(viewModel.board.detection)
+        assertEquals(RelaySetupStep.Address, viewModel.step)
     }
 
     @Test
@@ -306,7 +395,7 @@ class RelaySetupViewModelTest {
         coEvery { discoveryService.discover(any(), any(), any(), any(), any(), any()) } coAnswers { resultGate.await() }
 
         val viewModel = readyQuickViewModel()
-        viewModel.runQuickAction()
+        viewModel.next()
         runCurrent()
         assertTrue(viewModel.isDiscovering)
 
@@ -322,114 +411,148 @@ class RelaySetupViewModelTest {
     }
 
     @Test
-    fun `changing input cancels in flight connection test and clears stale success`() = runTest {
+    fun `step one failure sentence classes follow the address key permission network split`() {
+        val candidate = RelayEndpointResolver.candidates(
+            RelayEndpointResolver.describe("https://relay.example/v1"),
+            RelayTransport.OpenAIChatCompletions,
+        ).first()
+        fun result(failure: RelayDiscoveryFailureKind, status: Int?) = RelayDiscoveryResult(
+            descriptor = RelayEndpointResolver.describe("https://relay.example/v1"),
+            detections = emptyList(),
+            attempts = listOf(RelayDiscoveryAttempt(candidate, "https://relay.example/v1/models", status, failure)),
+            blockingFailure = failure,
+        )
+        assertEquals(RelaySetupFailureKind.Address, relaySetupFailureKind(result(RelayDiscoveryFailureKind.RouteUnavailable, 404)))
+        assertEquals(RelaySetupFailureKind.Address, relaySetupFailureKind(result(RelayDiscoveryFailureKind.InvalidResponse, 200)))
+        assertEquals(RelaySetupFailureKind.InvalidKey, relaySetupFailureKind(result(RelayDiscoveryFailureKind.AuthenticationRejected, 401)))
+        assertEquals(RelaySetupFailureKind.Permission, relaySetupFailureKind(result(RelayDiscoveryFailureKind.AuthenticationRejected, 403)))
+        assertEquals(RelaySetupFailureKind.Network, relaySetupFailureKind(result(RelayDiscoveryFailureKind.Network, null)))
+        assertEquals(RelaySetupFailureKind.Other, relaySetupFailureKind(result(RelayDiscoveryFailureKind.RateLimited, 429)))
+        // Failures when fetching the catalog of each extra key go through the same classification.
+        assertEquals(RelaySetupFailureKind.InvalidKey, relaySetupFailureKind(RelayKeyBinding.CatalogFetch.Failed(401, RelayKeyAccessOutcome.KeyInvalid)))
+        assertEquals(RelaySetupFailureKind.Permission, relaySetupFailureKind(RelayKeyBinding.CatalogFetch.Failed(403, RelayKeyAccessOutcome.None)))
+        assertEquals(RelaySetupFailureKind.Network, relaySetupFailureKind(RelayKeyBinding.CatalogFetch.Failed(null, RelayKeyAccessOutcome.None)))
+    }
+
+    @Test
+    fun `quick save failure stays visible on step two instead of the manual-only error card`() = runTest {
+        coEvery { discoveryService.discover(any(), any(), any(), any(), any(), any()) } returns catalogResult(
+            RelayDetectedConfiguration(
+                transport = RelayTransport.OpenAIChatCompletions,
+                authMode = RelayAuthMode.Bearer,
+                apiBaseUrl = "https://relay.example/v1",
+                modelIDs = listOf("gpt-x"),
+                endpointEvidence = RelayEndpointCandidateEvidence.DefaultVersion,
+                generationVerified = false,
+            ),
+        )
+        coEvery { providerRepository.pingRelayConnection(any(), any(), any(), any(), any(), any()) } returns Unit
+        coEvery {
+            providerRepository.registerRelayProvider(
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+            )
+        } throws ProviderServiceError.InvalidAPIKey("bad key")
+
+        val viewModel = readyQuickViewModel()
+        viewModel.next()
+        advanceUntilIdle()
+        viewModel.toggleModel("gpt-x")
+        viewModel.save()
+        advanceUntilIdle()
+
+        assertEquals(RelaySetupStep.Models, viewModel.step)
+        assertTrue(viewModel.modelsBoard.saveFailure != null)
+        assertTrue(viewModel.modelsBoard.isSaveEnabled)
+        assertNull(viewModel.completionTarget)
+    }
+
+    @Test
+    fun `changing input cancels in flight manual validation and the stale result is dropped`() = runTest {
         val pingGate = CompletableDeferred<Unit>()
-        coEvery { providerRepository.pingRelayConnection(any(), any(), any(), any(), any()) } coAnswers {
+        coEvery { providerRepository.pingRelayConnection(any(), any(), any(), any(), any(), any()) } coAnswers {
             pingGate.await()
         }
         val viewModel = createViewModel()
         viewModel.showManualSetup()
-        viewModel.selectRelayKind(RelayKind.OpenAICompatible)
+        viewModel.selectManualTransport(RelayTransport.OpenAIChatCompletions)
         viewModel.updateEndpoint("https://relay.example/v1")
         viewModel.updateApiKey("sk-test")
         viewModel.updateDefaultModel("model-a")
 
-        viewModel.testConnection()
+        viewModel.validateManual()
         runCurrent()
-        assertTrue(viewModel.isTestingConnection)
+        assertTrue(viewModel.isValidatingManual)
 
         viewModel.updateEndpoint("https://new.example/v1")
         pingGate.complete(Unit)
         advanceUntilIdle()
 
-        assertFalse(viewModel.isTestingConnection)
-        assertNull(viewModel.testConnectionResult)
+        assertFalse(viewModel.isValidatingManual)
+        assertNull(viewModel.manualBoard.status)
+        assertNull(viewModel.completionTarget)
     }
 
     @Test
-    fun `manual protocol save fetches catalog after ping and keeps only text capability`() = runTest {
-        val catalog = catalogResult(
-            RelayDetectedConfiguration(
-                transport = RelayTransport.AnthropicMessages,
-                authMode = RelayAuthMode.XApiKey,
-                apiBaseUrl = "https://relay.example/v1",
-                modelIDs = listOf("claude-model", "claude-other"),
-                endpointEvidence = RelayEndpointCandidateEvidence.DefaultVersion,
-                generationVerified = false,
-            ),
-        )
-        coEvery { providerRepository.pingRelayConnection(any(), any(), any(), any(), any()) } returns Unit
-        coEvery { discoveryService.discover(any(), any(), any(), any(), any(), any()) } returns catalog
-        val provider = Provider(
-            id = "relay-manual",
-            kind = ProviderKind.Relay,
-            models = listOf(AIModel(id = "claude-model", name = "claude-model")),
-        )
+    fun `manual setup with a chosen protocol pings once and registers only the typed model`() = runTest {
+        coEvery { providerRepository.pingRelayConnection(any(), any(), any(), any(), any(), any()) } returns Unit
+        coEvery { providerRepository.refreshRelayCatalogOnly(any()) } returns mockk(relaxed = true)
+        val args = mutableListOf<Any?>()
         coEvery {
             providerRepository.registerRelayProvider(
-                apiKey = "sk-ant-test",
-                baseUrl = "https://relay.example/v1",
-                customName = null,
-                relayKind = RelayKind.AnthropicCompatible,
-                relayRequested = any(),
-                catalogModelIDs = listOf("claude-model", "claude-other"),
-                preferredModelID = "claude-model",
-                preferredCapabilities = setOf(ModelCapability.Text),
-                connectionVerified = true,
-                commitGuard = any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
             )
-        } returns provider
+        } answers {
+            args.addAll(invocation.args)
+            Provider(id = "relay-manual", kind = ProviderKind.Relay, models = listOf(AIModel(id = "claude-model", name = "claude-model")))
+        }
 
         val viewModel = createViewModel()
         viewModel.showManualSetup()
-        viewModel.selectRelayKind(RelayKind.AnthropicCompatible)
+        viewModel.selectManualTransport(RelayTransport.AnthropicMessages)
         viewModel.updateEndpoint("https://relay.example/v1")
         viewModel.updateApiKey("sk-ant-test")
         viewModel.updateDefaultModel("claude-model")
-        viewModel.submit()
+        viewModel.validateManual()
         advanceUntilIdle()
 
-        assertEquals(RelaySetupCompletionTarget.ProviderDetail("relay-manual"), viewModel.completionTarget)
+        coVerify(exactly = 1) { providerRepository.pingRelayConnection(any(), any(), "claude-model", any(), any(), any()) }
+        coVerify(exactly = 0) { discoveryService.discover(any(), any(), any(), any(), any(), any()) }
+        assertEquals(RelayKind.AnthropicCompatible, args[3])
+        assertEquals(emptyList<String>(), args[5])
+        assertEquals("claude-model", args[6])
+        assertEquals(setOf(ModelCapability.Text), args[7])
+        assertEquals(true, args[9])
+        assertEquals(listOf("claude-model"), args[16])
+        assertEquals(RelaySetupCompletionTarget.ProviderDetail("relay-manual", addedModelCount = 1), viewModel.completionTarget)
     }
 
     @Test
     fun `manual protocol rejects embedded query before any request`() = runTest {
         val viewModel = createViewModel()
         viewModel.showManualSetup()
-        viewModel.selectRelayKind(RelayKind.OpenAICompatible)
+        viewModel.selectManualTransport(RelayTransport.OpenAIChatCompletions)
         viewModel.updateEndpoint("https://relay.example/v1?key=must-not-be-tried")
         viewModel.updateApiKey("sk-test")
         viewModel.updateDefaultModel("model")
 
-        // This address is now caught by shared validation at the form layer itself (the save
-        // button is disabled outright), rather than waiting for submit() to catch it after the
-        // save button is pressed. The reason is still broken out by reason slug rather than
-        // collapsed into a generic "enter a valid HTTPS address" message.
-        assertFalse(viewModel.canSubmit)
+        // This address is caught by shared validation at the form layer itself (the primary button is
+        // disabled outright), and the reason is broken out by reason slug.
+        assertFalse(viewModel.manualBoard.primary.enabled)
         assertEquals(
             listOf(R.string.relay_quick_embedded_query),
             viewModel.displayableFormIssues.map { it.messageRes },
         )
 
-        viewModel.submit()
+        viewModel.validateManual()
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { providerRepository.pingRelayConnection(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { providerRepository.pingRelayConnection(any(), any(), any(), any(), any(), any()) }
         coVerify(exactly = 0) { discoveryService.discover(any(), any(), any(), any(), any(), any()) }
         coVerify(exactly = 0) {
             providerRepository.registerRelayProvider(
-                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
             )
         }
-    }
-
-    @Test
-    fun `completion uses connected evidence rather than catalog size`() {
-        val provider = Provider(id = "relay-empty", kind = ProviderKind.Relay)
-        assertEquals(
-            RelaySetupCompletionTarget.ProviderDetail("relay-empty"),
-            relaySetupCompletionTarget(provider),
-        )
     }
 
     @Test
@@ -506,59 +629,90 @@ class RelaySetupViewModelTest {
         assertEquals(2, relayRetryCount(attempts))
     }
 
+    private data class Registration(
+        val relayKind: RelayKind,
+        val requested: RelayRequestedConfig,
+        val catalogIDs: List<String>,
+        val preferredModelID: String?,
+        val verified: Boolean,
+        val pass: ai.oriveo.community.core.provider.relay.RelayModelProbePass?,
+        val enabledModelIDs: List<String>?,
+        val keyCatalogs: Map<String, RelayKeyBinding.CatalogFetch>,
+    )
+
+    private fun stubRegister(answer: () -> Provider): List<Registration> {
+        val captured = mutableListOf<Registration>()
+        coEvery {
+            providerRepository.registerRelayProvider(
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+            )
+        } answers {
+            captured += Registration(
+                relayKind = arg(3),
+                requested = arg(4),
+                catalogIDs = arg(5),
+                preferredModelID = arg(6),
+                verified = arg(9),
+                pass = arg(11),
+                enabledModelIDs = arg(16),
+                keyCatalogs = arg(15),
+            )
+            answer()
+        }
+        return captured
+    }
+
     private fun readyQuickViewModel(): RelaySetupViewModel = createViewModel().apply {
         updateEndpoint("https://relay.example/v1")
         updateApiKey("sk-test")
     }
 
     @Test
-    fun `an explicit no-auth relay can be tested and saved without an api key`() {
+    fun `an explicit no-auth relay can be validated without an api key`() {
         val viewModel = createViewModel()
         viewModel.showManualSetup()
-        viewModel.selectRelayKind(RelayKind.Custom)
-        // The address uses HTTPS: the add-connection page has no UI yet for choosing a
-        // connection method, so it is always saved as remote_https. Storing a LAN http address
-        // here would just create a zombie connection that saves fine but hard-fails on every
-        // send, which the form layer now blocks outright (locked down by
+        // The address uses HTTPS: the add-connection page always saves as remote_https (locked down by
         // RelayFormValidationTest). What this case is meant to prove is the credential gate.
         viewModel.updateEndpoint("https://relay.example/v1")
+        viewModel.updateDefaultModel("model")
 
         // Auth mode = none -> this connection never had a key field to fill in, so it shouldn't be blocked by the apiKey-not-empty gate
-        viewModel.customAuthMode = RelayAuthMode.None
+        viewModel.selectManualAuthMode(RelayAuthMode.None)
         assertFalse(viewModel.requiresCredential)
-        assertTrue(viewModel.canSubmit)
-        assertTrue(viewModel.canTestConnection)
+        assertTrue(viewModel.manualBoard.primary.enabled)
 
         // Switching back to an auth mode that requires a credential must bring the gate back immediately
-        viewModel.customAuthMode = RelayAuthMode.Bearer
+        viewModel.selectManualAuthMode(RelayAuthMode.Bearer)
         assertTrue(viewModel.requiresCredential)
-        assertFalse(viewModel.canSubmit)
-        assertFalse(viewModel.canTestConnection)
+        assertFalse(viewModel.manualBoard.primary.enabled)
     }
 
     @Test
-    fun `built-in protocols keep requiring a key and quick setup stays fail-safe`() {
+    fun `credentialed auth modes keep requiring a key and quick setup stays fail-safe`() {
         val viewModel = createViewModel()
 
         // Quick setup hasn't detected the protocol yet -> auth mode is undetermined, treated as auto, and still requires a key
         viewModel.updateEndpoint("https://relay.example/v1")
         assertTrue(viewModel.requiresCredential)
-        assertFalse(viewModel.canRunQuickAction)
+        assertFalse(viewModel.board.isPrimaryEnabled)
 
         viewModel.showManualSetup()
-        // The default configuration the production factory produces uses auth modes such as Bearer/x-api-key that require a credential
-        RelayKind.entries.filter { it != RelayKind.Custom }.forEach { kind ->
-            viewModel.selectRelayKind(kind)
-            viewModel.updateEndpoint("https://relay.example/v1")
-            assertTrue("$kind should be judged to require a credential by default", viewModel.requiresCredential)
-            assertFalse("$kind should not allow saving without a key", viewModel.canSubmit)
+        viewModel.updateDefaultModel("model")
+        RelayAuthMode.entries.filter { it != RelayAuthMode.None }.forEach { mode ->
+            viewModel.selectManualAuthMode(mode)
+            assertTrue("$mode should be judged to require a credential", viewModel.requiresCredential)
+            assertFalse("$mode should not allow validation without a key", viewModel.manualBoard.primary.enabled)
         }
     }
+
+    /** The family lookup answers "unknown" by default; cases that need a family supply their own. Unit tests never hit production metadata. */
+    private var family: (String) -> String? = { null }
 
     private fun createViewModel() = RelaySetupViewModel(
         context = context,
         providerRepository = providerRepository,
         discoveryService = discoveryService,
+        modelFamily = { family(it) },
     )
 
     private fun catalogResult(vararg detections: RelayDetectedConfiguration): RelayDiscoveryResult =

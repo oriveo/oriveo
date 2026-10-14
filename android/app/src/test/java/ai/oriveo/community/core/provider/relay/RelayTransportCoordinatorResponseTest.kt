@@ -43,13 +43,15 @@ class RelayTransportCoordinatorResponseTest {
     }
 
     @Test
-    fun `malformed success response uses localized fallback when guidance code is absent`() = runTest {
+    fun `HTML success response localizes to the web page guidance`() = runTest {
+        // A web page returned with status 200 reports the web page sentence (it used to fall to the generic "upstream error").
         val error = captureMalformedSuccessResponse(RelayTransport.OpenAIChatCompletions)
         val context: Context = mockk()
-        every { context.getString(R.string.error_upstream_message) } returns "localized upstream error"
+        every { context.getString(R.string.relay_guidance_web_page_returned) } returns "localized web page sentence"
 
+        assertEquals(ai.oriveo.community.core.model.RelayGuidanceCode.WebPageReturned, error.guidanceCode)
         assertEquals(
-            "localized upstream error",
+            "localized web page sentence",
             ErrorMapper.localizeProviderErrorMessage(error, context),
         )
     }

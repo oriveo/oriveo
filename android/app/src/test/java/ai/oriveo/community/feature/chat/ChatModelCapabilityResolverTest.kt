@@ -272,6 +272,42 @@ class ChatModelCapabilityResolverTest {
         assertEquals("unknown", declared.reasoningState)
     }
 
+    @Test
+    fun `relay photo entry needs the connection identity and shows unknown vision`() {
+        val resolver = ChatModelCapabilityResolver(
+            metadata = MetadataClient(),
+            negativeCache = ai.oriveo.community.core.provider.relay.RelayNegativeCache(
+                ai.oriveo.community.core.provider.relay.RelayNegativeCache.MemoryStore(),
+            ),
+        )
+        val provider = Provider(
+            id = "relay-image",
+            kind = ProviderKind.Relay,
+            status = ProviderConnectionState.Connected,
+            relayRequested = RelayRequestedConfig(
+                transport = RelayTransport.OpenAIChatCompletions,
+                resolvedAPIBaseURL = "https://relay.example.com/v1",
+            ),
+        )
+        val identity = ai.oriveo.community.core.model.CapabilityEvidenceIdentity(
+            partitionId = "partition",
+            connectionInstanceId = provider.id,
+            connectionGeneration = "generation",
+            credentialEpoch = "epoch",
+            providerKind = provider.kind.rawValue,
+            authMode = provider.authMode.rawValue,
+        )
+        val vision = AIModel(id = "vision", name = "vision", capabilities = listOf(ModelCapability.Text, ModelCapability.Image))
+        val text = AIModel(id = "text", name = "text", capabilities = listOf(ModelCapability.Text))
+
+        // Root cause: the image entry check did not carry the relay connection identity, so a relay model that declared vision was always unknown and the entry was hidden.
+        assertTrue(resolver.supportsImage(provider, vision, identity))
+        // Undeclared relay vision (unknown) still shows the entry; if the upstream really rejects it, the negative cache and the notice card take over.
+        assertTrue(resolver.supportsImage(provider, text, identity))
+        // Without an identity it still fails closed.
+        assertFalse(resolver.supportsImage(provider, vision, null))
+    }
+
     private fun relayProvider(transport: RelayTransport): Provider = Provider(
         id = "relay",
         kind = ProviderKind.Relay,

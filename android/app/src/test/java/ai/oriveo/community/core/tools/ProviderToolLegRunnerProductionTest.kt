@@ -5,6 +5,7 @@ import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.CapabilityEvidenceIdentity
 import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayAuthMode
 import ai.oriveo.community.core.model.RelayRequestedConfig
@@ -182,6 +183,7 @@ class ProviderToolLegRunnerProductionTest {
                 connectionGeneration = "g1",
                 credentialEpoch = "c1",
                 providerKind = ProviderKind.Relay.rawValue,
+                authMode = ProviderAuthMode.ApiKey.rawValue,
                 metadataRevision = "m1",
                 generationRevision = "g1",
             )),

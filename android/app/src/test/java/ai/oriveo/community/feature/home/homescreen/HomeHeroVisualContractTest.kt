@@ -153,8 +153,8 @@ class HomeHeroVisualContractTest {
             barSource.contains("contentDescription = stringResource(R.string.send)"),
         )
         assertTrue(
-            "The model pill stays a picker with provider logo, cleaned model name and provider subtitle.",
-            barSource.contains("ProviderBadgeIcon(") &&
+            "The model pill stays a picker with connection avatar, cleaned model name and provider subtitle.",
+            barSource.contains("ConnectionAvatar(") &&
                 barSource.contains("active.provider.displayName") &&
                 barSource.contains("homeHeroPillModelName(") &&
                 barSource.contains("stringResource(R.string.select_model)") &&

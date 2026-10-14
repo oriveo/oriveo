@@ -52,6 +52,8 @@ class ProviderCatalogGroupingTest {
     @Test
     fun `buildProviderCatalogGroups groups openrouter catalog by vendor with fixed weight order`() {
         val provider = makeProvider(
+            // Relays are now grouped uniformly by family and no longer read metadata groupKey; assertions on grouping by groupKey are verified on aggregate providers instead.
+            kind = ProviderKind.OpenRouter,
             catalogModels = listOf(
                 makeModel(
                     "qwen/qwen-max",
@@ -92,6 +94,8 @@ class ProviderCatalogGroupingTest {
     @Test
     fun `enabled default supplier no longer pushes its own catalog group to the top`() {
         val provider = makeProvider(
+            // Relays are now grouped uniformly by family and no longer read metadata groupKey; assertions on grouping by groupKey are verified on aggregate providers instead.
+            kind = ProviderKind.OpenRouter,
             models = listOf(
                 makeModel(
                     "openai/gpt-4.1",
@@ -143,6 +147,8 @@ class ProviderCatalogGroupingTest {
     @Test
     fun `search query narrows groups and auto expands`() {
         val provider = makeProvider(
+            // Relays are now grouped uniformly by family and no longer read metadata groupKey; assertions on grouping by groupKey are verified on aggregate providers instead.
+            kind = ProviderKind.OpenRouter,
             catalogModels = listOf(
                 makeModel("openai/gpt-4.1", name = "GPT-4.1", groupKey = "openai", groupName = "OpenAI"),
                 makeModel("anthropic/claude-3.7-sonnet", name = "Claude 3.7 Sonnet", groupKey = "anthropic", groupName = "Anthropic"),
@@ -160,6 +166,8 @@ class ProviderCatalogGroupingTest {
     @Test
     fun `supplier query keeps the whole supplier group`() {
         val provider = makeProvider(
+            // Relays are now grouped uniformly by family and no longer read metadata groupKey; assertions on grouping by groupKey are verified on aggregate providers instead.
+            kind = ProviderKind.OpenRouter,
             catalogModels = listOf(
                 makeModel(
                     "anthropic/claude-3.7-sonnet",
@@ -347,6 +355,25 @@ class ProviderCatalogGroupingTest {
         assertEquals(listOf("high-rank", "low-rank"), sortedEnabledModels(provider).map { it.id })
     }
 
+    /** RL2-ORDER-01: enabled relay rows keep the stored (enable) order and are not re-ranked by model name / sortRank scoring. */
+    @Test
+    fun `RL2-ORDER-01 relay enabled models keep stored order`() {
+        val models = listOf(
+            makeModel("gpt-5.6-sol"),
+            makeModel("claude-sonnet-5", sortRank = 200),
+            makeModel("relay-chat-large"),
+            makeModel("claude-sonnet-5-extended-thinking-preview-20261001", sortRank = 180),
+        )
+        val relay = makeProvider(models = models)
+
+        assertEquals(models.map { it.id }, sortedEnabledModels(relay).map { it.id })
+        // Non-Relay behavior is unchanged: still scored by sortRank.
+        assertEquals(
+            "claude-sonnet-5",
+            sortedEnabledModels(relay.copy(kind = ProviderKind.OpenRouter)).first().id,
+        )
+    }
+
     @Test
     fun `sortedProvidersForModelPicker prioritizes stronger providers`() {
         val openAI = makeProvider(
@@ -374,6 +401,8 @@ class ProviderCatalogGroupingTest {
 
     @Test
     fun `catalog hides a model that shares the remote model of an enabled one`() {
+        // Official semantics (OpenRouter with the local catalog is used here): the snapshot and the enabled base are the same remote model.
+        // Relays decide identity by the literal ID, so the snapshot is a different model; see RelayModelIdentityTest RL2-IDENT-01 / 03.
         val provider = makeProvider(
             models = listOf(makeModel("gpt-4.1")),
             catalogModels = listOf(
@@ -382,6 +411,7 @@ class ProviderCatalogGroupingTest {
                 makeModel("gpt-4.1-2025-04-14", name = "GPT-4.1 (snapshot)"),
                 makeModel("gpt-4o", name = "GPT-4o"),
             ),
+            kind = ProviderKind.OpenRouter,
         )
 
         val ids = buildProviderCatalogGroups(
@@ -392,7 +422,8 @@ class ProviderCatalogGroupingTest {
     }
 
     @Test
-    fun `catalog hides a model that only shares the display name with an enabled one`() {
+    fun `relay catalog keeps a model that only shares the display name with an enabled one`() {
+        // Relays decide identity by the literal ID: the same display name does not mean the same model, so both rows stay in the model library.
         val provider = makeProvider(
             models = listOf(makeModel("vendor-a/model-x", name = "Model X")),
             catalogModels = listOf(
@@ -406,7 +437,7 @@ class ProviderCatalogGroupingTest {
             provider, resolvedCatalog = resolvedCatalogFor(provider), searchQuery = "",
         ).flatMap { it.models }.map { it.id }
 
-        assertEquals(listOf("vendor-b/other"), ids)
+        assertEquals(setOf("vendor-b/model-x", "vendor-b/other"), ids.toSet())
     }
 
     @Test

@@ -14,11 +14,9 @@ class ProviderSetupCatalogTest {
         assertEquals(ProviderKind.OpenAI, catalog.directProviders.first())
         assertTrue(catalog.aggregatorProviders.contains(ProviderKind.OpenRouter))
         assertEquals("api.openai.com/v1", catalog.defaultBaseUrl(ProviderKind.OpenAI))
-        assertEquals(listOf("cn", "intl"), catalog.regionOptions(ProviderKind.SiliconFlow).map { it.id })
-        assertEquals(
-            "https://api.siliconflow.com/v1",
-            catalog.regionOptions(ProviderKind.SiliconFlow).last().baseURL,
-        )
+        // Falling back to the built-in table also goes through trusted matching, and when a field is missing only the last two segments of the fallback host are trusted (siliconflow.cn)
+        assertEquals(listOf("cn"), catalog.regionOptions(ProviderKind.SiliconFlow).map { it.id })
+        assertEquals("https://api.siliconflow.cn/v1", catalog.regionOptions(ProviderKind.SiliconFlow).single().baseURL)
     }
 
     @Test

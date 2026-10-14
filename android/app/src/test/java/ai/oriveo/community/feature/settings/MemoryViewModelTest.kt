@@ -170,7 +170,7 @@ class MemoryViewModelTest {
         coEvery { conversationRepository.getRecentConversationsWithMessages(limit = 5) } returns listOf(
             sampleConversationWithMessages(),
         )
-        every { providerRepository.serviceFor(ProviderKind.OpenAI) } returns providerService
+        every { providerRepository.serviceFor(match<Provider> { it.kind == ProviderKind.OpenAI }, any()) } returns providerService
         coEvery {
             providerService.sendMessage(any(), any(), any(), any(), any(), any(), any(), any())
         } returns StreamEvent.Done(
@@ -202,8 +202,8 @@ class MemoryViewModelTest {
 
         val failService = mockk<ProviderService>()
         val okService = mockk<ProviderService>()
-        every { providerRepository.serviceFor(ProviderKind.OpenAI) } returns failService
-        every { providerRepository.serviceFor(ProviderKind.Anthropic) } returns okService
+        every { providerRepository.serviceFor(match<Provider> { it.kind == ProviderKind.OpenAI }, any()) } returns failService
+        every { providerRepository.serviceFor(match<Provider> { it.kind == ProviderKind.Anthropic }, any()) } returns okService
 
         coEvery {
             failService.sendMessage(any(), any(), any(), any(), any(), any(), any(), any())
@@ -235,8 +235,8 @@ class MemoryViewModelTest {
 
         val failOne = mockk<ProviderService>()
         val failTwo = mockk<ProviderService>()
-        every { providerRepository.serviceFor(ProviderKind.OpenAI) } returns failOne
-        every { providerRepository.serviceFor(ProviderKind.Anthropic) } returns failTwo
+        every { providerRepository.serviceFor(match<Provider> { it.kind == ProviderKind.OpenAI }, any()) } returns failOne
+        every { providerRepository.serviceFor(match<Provider> { it.kind == ProviderKind.Anthropic }, any()) } returns failTwo
         coEvery { failOne.sendMessage(any(), any(), any(), any(), any(), any(), any(), any()) } throws RuntimeException("oops")
         coEvery { failTwo.sendMessage(any(), any(), any(), any(), any(), any(), any(), any()) } throws RuntimeException("final boom")
 
@@ -268,7 +268,7 @@ class MemoryViewModelTest {
             coEvery { conversationRepository.getRecentConversationsWithMessages(limit = 5) } returns listOf(
                 sampleConversationWithMessages(),
             )
-            every { providerRepository.serviceFor(ProviderKind.OpenAI) } returns providerService
+            every { providerRepository.serviceFor(match<Provider> { it.kind == ProviderKind.OpenAI }, any()) } returns providerService
             coEvery {
                 providerService.sendMessage(any(), any(), any(), any(), any(), any(), any(), any())
             } throws ProviderServiceError.RateLimited("upstream throttled")
@@ -297,7 +297,7 @@ class MemoryViewModelTest {
         coEvery { conversationRepository.getRecentConversationsWithMessages(limit = 5) } returns listOf(
             sampleConversationWithMessages(),
         )
-        every { providerRepository.serviceFor(ProviderKind.OpenAI) } returns providerService
+        every { providerRepository.serviceFor(match<Provider> { it.kind == ProviderKind.OpenAI }, any()) } returns providerService
         coEvery {
             providerService.sendMessage(any(), any(), any(), any(), any(), any(), any(), any())
         } throws ProviderServiceError.RateLimited("upstream throttled")
@@ -325,7 +325,7 @@ class MemoryViewModelTest {
         coEvery { conversationRepository.getRecentConversationsWithMessages(limit = 5) } returns listOf(
             sampleConversationWithMessages(),
         )
-        every { providerRepository.serviceFor(ProviderKind.OpenAI) } returns providerService
+        every { providerRepository.serviceFor(match<Provider> { it.kind == ProviderKind.OpenAI }, any()) } returns providerService
         coEvery {
             providerService.sendMessage(any(), any(), any(), any(), any(), any(), any(), any())
         } coAnswers {

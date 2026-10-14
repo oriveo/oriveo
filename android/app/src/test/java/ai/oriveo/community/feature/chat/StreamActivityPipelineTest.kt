@@ -222,7 +222,7 @@ class StreamActivityPipelineTest {
             json,
             TransportRegistry(json),
         )
-        every { providerRepository.serviceFor(provider) } returns object : ProviderService by production {
+        every { providerRepository.serviceFor(provider, any()) } returns object : ProviderService by production {
             override fun sendMessageStream(
                 apiKey: String,
                 modelID: String,

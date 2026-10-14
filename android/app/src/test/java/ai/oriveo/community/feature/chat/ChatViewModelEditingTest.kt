@@ -34,6 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -127,7 +128,7 @@ class ChatViewModelEditingTest {
         coEvery { conversationRepository.deleteMessagesAfter(any(), any()) } returns Unit
         coEvery { conversationRepository.updateDraft(any(), any()) } returns Unit
         coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<String>()) } returns Unit
-        coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>()) } returns Unit
+        coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>(), any()) } returns Unit
         coEvery { appPreferencesRepository.hasAcceptedProviderDisclosure(any()) } returns true
         coEvery { appPreferencesRepository.markProviderDisclosureAccepted(any()) } returns Unit
         coEvery {
@@ -217,6 +218,30 @@ class ChatViewModelEditingTest {
         val restored = viewModel.pendingAttachments.single()
         assertEquals("notes.txt", restored.fileName)
         assertEquals("bm90ZXM=", restored.base64Data)
+    /**
+     * The model panel's file card predicts the route from the outbound history. Videos in earlier turns not trimmed by the attachment budget -> true;
+     * trimmed (history videos exceeding the 10MiB budget are downgraded to placeholder lines) -> false.
+     */
+    @Test
+    fun `outbound history video flag follows the outbound trim`() = runTest {
+        fun video(bytes: Int) = Attachment(
+            id = "video-1", kind = AttachmentKind.Video, fileName = "clip.mp4", mimeType = "video/mp4",
+            base64Data = "A".repeat(bytes),
+        )
+
+        editingConversationWith(listOf(video(16)))
+        val kept = editingViewModel()
+        backgroundScope.launch { kept.outboundHistoryHasVideo.collect {} }
+        advanceUntilIdle()
+        assertTrue("earlier video that was not trimmed should count toward the outbound history", kept.outboundHistoryHasVideo.value)
+
+        editingConversationWith(listOf(video(11 * 1024 * 1024)))
+        val trimmed = editingViewModel()
+        backgroundScope.launch { trimmed.outboundHistoryHasVideo.collect {} }
+        advanceUntilIdle()
+        org.junit.Assert.assertFalse("video trimmed by the budget is not in the outbound history", trimmed.outboundHistoryHasVideo.value)
+    }
+
         // The original message was deleted by the edit: the copy in the composer is a new attachment with its own id.
         assertTrue(restored.id != "attachment-1")
     }

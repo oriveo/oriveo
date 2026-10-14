@@ -403,7 +403,7 @@ class CrosscheckCoordinatorTest {
         val provider = provider("openai", ProviderKind.OpenAI, "key", listOf(model("gpt")))
         val service = CapturingProviderService()
         val providerRepository = mockk<ProviderRepository>()
-        every { providerRepository.serviceFor(provider) } returns service
+        every { providerRepository.serviceFor(provider, any()) } returns service
         val coordinator = CrosscheckCoordinator(
             scope = this,
             providerRepository = providerRepository,
@@ -430,7 +430,7 @@ class CrosscheckCoordinatorTest {
         val provider = provider("managed", ProviderKind.OpenAI, "", listOf(model("managed-model")))
         val service = CapturingProviderService()
         val providerRepository = mockk<ProviderRepository>()
-        every { providerRepository.serviceFor(provider) } returns service
+        every { providerRepository.serviceFor(provider, any()) } returns service
         val coordinator = CrosscheckCoordinator(
             scope = this,
             providerRepository = providerRepository,

@@ -79,7 +79,7 @@ class SkillViewModelTest {
 
         every { providerRepository.observeAll() } returns providersFlow
         every { appPreferencesRepository.lastUsedModelRef } returns lastUsedModelFlow
-        coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>()) } returns Unit
+        coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>(), any()) } returns Unit
         every { globalSnackbarManager.show(any()) } just runs
 
         coEvery {
@@ -300,6 +300,7 @@ class SkillViewModelTest {
             appPreferencesRepository.setLastUsedModel(
                 "provider-1",
                 match<AIModel> { it.id == "gpt-5.4-2026-03-05" && it.canonicalModelId == "gpt-5.4" },
+                any(),
             )
         }
         coVerify(exactly = 1) {

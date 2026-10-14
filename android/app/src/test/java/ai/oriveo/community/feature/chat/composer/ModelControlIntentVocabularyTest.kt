@@ -61,7 +61,7 @@ class ModelControlIntentVocabularyTest {
     /** Entry point / parameter screen naming. */
     private val frozenEntryNamesZhHans = mapOf(
         "model_controls" to "\u6a21\u578b\u9009\u9879",
-        "generation_model_behavior" to "\u9ad8\u7ea7\u8bbe\u7f6e",
+        "generation_parameters_section" to "\u53c2\u6570",
     )
 
     private val resourceRoot = File("src/main/res")
@@ -142,7 +142,7 @@ class ModelControlIntentVocabularyTest {
         assertEquals(webText("auto"), zh["model_control_web_search_when_needed"])
         assertEquals(webText("force"), zh["model_control_web_search_every_message"])
         assertEquals(commonText("modelControls"), zh["model_controls"])
-        assertEquals(commonText("modelBehavior"), zh["generation_model_behavior"])
+        assertEquals(commonText("generationParameters"), zh["generation_parameters_section"])
         mapOf(
             "model_control_reasoning_note_off" to "capabilityControlReasoningNoteOff",
             "model_control_reasoning_note_automatic" to "capabilityControlReasoningNoteAutomatic",
@@ -194,7 +194,7 @@ class ModelControlIntentVocabularyTest {
             "model_control_applied_to_conversation",
             "model_control_set_as_model_default",
             "model_control_model_default_saved",
-            "model_control_go_to_advanced_settings",
+            "model_control_go_to_parameters",
             "model_control_custom_field_not_allowed",
             "model_control_custom_fields_footer",
             "model_control_custom_scope_conversation",
@@ -379,7 +379,7 @@ class ModelControlIntentVocabularyTest {
                 .toList()
 
         val unreferenced = keys.filter { key ->
-            val rx = Regex("""(R\.string\.|@string/)${Regex.escape(key)}(?![A-Za-z0-9_])""")
+            val rx = Regex("""(R\.string\.|R\.plurals\.|@string/)${Regex.escape(key)}(?![A-Za-z0-9_])""")
             sources.none { rx.containsMatchIn(it) }
         }
         assertEquals(

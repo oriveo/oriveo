@@ -7,6 +7,7 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
+import ai.oriveo.community.core.model.ProviderAuthMode
 import java.io.File
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -122,6 +123,7 @@ class CapabilityEvidenceContractTest {
             connectionGeneration = "generation-a",
             credentialEpoch = "credential-a",
             providerKind = ProviderKind.Relay.rawValue,
+            authMode = ProviderAuthMode.ApiKey.rawValue,
         )
         fun actual(transport: RelayTransport, stream: Boolean? = null, base: String? = "https://relay.test/custom") =
             CapabilityEvidenceProductionAdapter.uiDispatchIdentity(
@@ -137,12 +139,13 @@ class CapabilityEvidenceContractTest {
         fun expected(transport: RelayTransport, url: String) =
             CapabilityEvidenceProductionAdapter.dispatchIdentity(local, model, transport, url)
 
+        // With no probed root address, Chat / Responses append /v1 just like outbound does (effectiveAPIRoot)
         assertEquals(
-            expected(RelayTransport.OpenAIChatCompletions, "https://relay.test/custom/chat/completions"),
+            expected(RelayTransport.OpenAIChatCompletions, "https://relay.test/custom/v1/chat/completions"),
             actual(RelayTransport.OpenAIChatCompletions),
         )
         assertEquals(
-            expected(RelayTransport.OpenAIResponses, "https://relay.test/custom/responses"),
+            expected(RelayTransport.OpenAIResponses, "https://relay.test/custom/v1/responses"),
             actual(RelayTransport.OpenAIResponses),
         )
         assertEquals(
@@ -387,6 +390,7 @@ class CapabilityEvidenceContractTest {
         connectionGeneration = requiredString("connectionGeneration"),
         credentialEpoch = requiredString("credentialEpoch"),
         providerKind = requiredString("providerKind"),
+        authMode = optionalString("authMode") ?: ProviderAuthMode.ApiKey.rawValue,
         modelId = requiredString("modelId"),
         canonicalModelId = optionalString("canonicalModelId"),
         effectiveTransport = requiredString("effectiveTransport"),
@@ -401,6 +405,7 @@ class CapabilityEvidenceContractTest {
         connectionGeneration = "cg3",
         credentialEpoch = "ce8",
         providerKind = "relay",
+        authMode = ProviderAuthMode.ApiKey.rawValue,
         modelId = "local-model",
         effectiveTransport = "openai_chat_completions",
         endpointFingerprint = "ep_fixture",

@@ -14,6 +14,7 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderSyncResult
 import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.RelayAuthMode
+import ai.oriveo.community.core.model.RelayKeyValue
 import ai.oriveo.community.core.model.RelayKind
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
@@ -102,6 +103,8 @@ class ProviderRepositoryMetadataAuthoritativeTest {
         coEvery { dao.getAll(any()) } returns emptyList()
         coEvery { conversationDao.getAll(any()) } returns emptyList()
         coEvery { secureKeyStore.getApiKey(any(), any()) } returns ""
+        // Writing the key state for a single key materializes a list and persists non-primary key values as usual: with a one-entry list there is no value to store.
+        every { secureKeyStore.saveRelayKeySecrets(any(), any(), any()) } returns Unit
         coEvery { secureKeyStore.saveApiKey(any(), any(), any()) } returns Unit
         every { secureKeyStore.beginCapabilityConnection(any(), any()) } returns SecureKeyStore.CapabilityEpochs("cg-test", "ce-test")
         every { secureKeyStore.advanceCapabilityConnection(any(), any()) } returns SecureKeyStore.CapabilityEpochs("cg-next", "ce-next")
@@ -633,7 +636,8 @@ class ProviderRepositoryMetadataAuthoritativeTest {
             .map { it.toDomain() }
             .filter { it.apiKeyPreview == SecureKeyStore.maskApiKey("sk-new-relay") }
         assertTrue("Relay rotation must have an observable fail-closed first write", newKeyWrites.isNotEmpty())
-        assertTrue("Relay rotation must invalidate the old catalog immediately", newKeyWrites.first().catalogModels.isEmpty())
+        // Changing only the Key does not clear the catalog (the earlier "changing the Key immediately invalidates the catalog" rule was overturned).
+        assertEquals(listOf("manual-relay-model"), newKeyWrites.first().catalogModels.map { it.id })
         val persisted = newKeyWrites.last()
         assertEquals(SecureKeyStore.maskApiKey("sk-new-relay"), persisted.apiKeyPreview)
         assertTrue(persisted.status is ProviderConnectionState.Issue)
@@ -800,7 +804,8 @@ class ProviderRepositoryMetadataAuthoritativeTest {
         val persisted = storedEntity.toDomain(storedKey)
         assertEquals(ProviderConnectionState.Connected, persisted.status)
         assertEquals(ProviderRepository.RELAY_CATALOG_UNAVAILABLE_MESSAGE, persisted.lastError)
-        assertTrue(persisted.catalogModels.isEmpty())
+        // Changing the Key does not clear the catalog, and a failed catalog refresh does not empty the existing catalog either.
+        assertEquals(listOf("old-catalog"), persisted.catalogModels.map { it.id })
         assertFalse(storedEntity.toString().contains("secret-catalog-detail"))
     }
 
@@ -1176,6 +1181,381 @@ class ProviderRepositoryMetadataAuthoritativeTest {
      * stage must leave the calling thread, or saving a relay with thousands of models, or
      * switching its model, stalls the main thread in proportion to the catalog size.
      */
+    // ── RL2-PROBESTATE-09/10/11: when an edit-save collides with changes elsewhere, fields are merged per field ──
+
+    /** The connection when the edit page was opened (baseline); the key used for probing is read by the repository from the live KeyStore. */
+    private fun relayEditBaseline(id: String): Provider = provider(
+        id = id,
+        kind = ProviderKind.Relay,
+        models = listOf(model("relay-model")),
+    ).copy(
+        customName = "My Relay",
+        baseUrlText = "https://relay.example/v1",
+        relayKind = RelayKind.Custom,
+        lastCheckedAt = 111L,
+        relayRequested = RelayRequestedConfig(
+            transport = RelayTransport.OpenAIChatCompletions,
+            authMode = RelayAuthMode.Bearer,
+            headers = listOf(RelayKeyValue("X-Team", "a")),
+        ),
+    )
+
+    private fun stubRelayEditStore(baseline: Provider): () -> ProviderEntity {
+        var stored = baseline.toEntity(accountId)
+        coEvery { dao.getById(accountId, baseline.id) } answers { stored }
+        coEvery { dao.upsert(any()) } answers { stored = firstArg(); Unit }
+        coEvery { secureKeyStore.getApiKey(any(), baseline.id) } returns "sk-live"
+        every { secureKeyStore.advanceCapabilityConnectionGeneration(any(), any()) } returns
+            SecureKeyStore.CapabilityEpochs("cg-next", "ce-next")
+        storedRelayEditSetter = { stored = it }
+        return { stored }
+    }
+
+    private var storedRelayEditSetter: (ProviderEntity) -> Unit = {}
+
+    private fun syncWrite(current: ProviderEntity, change: (Provider) -> Provider) {
+        storedRelayEditSetter(change(current.toDomain()).toEntity(accountId))
+    }
+
+    @Test
+    fun `RL2-PROBESTATE-09 sync renaming and adding a model during verification merges and still writes the verified state`() = runTest {
+        val baseline = relayEditBaseline("123e4567-e89b-12d3-a456-426614174201")
+        val stored = stubRelayEditStore(baseline)
+        var probes = 0
+        coEvery { relayService.verifyGeneration(any(), any(), any(), any(), any()) } answers {
+            probes += 1
+            // Cloud sync changed the name and models (non-verification fields) while verification was in flight.
+            syncWrite(stored()) { it.copy(customName = "Synced name", models = it.models + model("synced-model")) }
+        }
+        val edited = baseline.copy(baseUrlText = "https://relay-two.example/v1")
+
+        val outcome = repository.verifyAndPersistRelayEdit(
+            candidate = edited,
+            refreshCatalog = false,
+            commitGuard = { true },
+            baseline = baseline,
+        )
+
+        assertFalse("not silently invalidated", outcome.stale)
+        assertTrue(outcome.persisted)
+        assertTrue(outcome.verificationSucceeded)
+        assertEquals("only non-verification fields collided: no further probing", 1, probes)
+        val persisted = stored().toDomain()
+        assertEquals("address edited by the user", "https://relay-two.example/v1", persisted.baseUrlText)
+        assertEquals("name changed by sync", "Synced name", persisted.customName)
+        assertTrue("model added by sync", persisted.models.any { it.id == "synced-model" })
+        assertEquals(ProviderConnectionState.Connected, persisted.status)
+        assertTrue("this verification result is written", (persisted.lastCheckedAt ?: 0L) > 111L)
+    }
+
+    @Test
+    fun `RL2-PROBESTATE-10 sync changing an untouched auth mode and header during verification re-probes the merged record`() = runTest {
+        val baseline = relayEditBaseline("123e4567-e89b-12d3-a456-426614174202")
+        val stored = stubRelayEditStore(baseline)
+        val probed = mutableListOf<Pair<String?, RelayRequestedConfig>>()
+        coEvery { relayService.verifyGeneration(any(), any(), any(), any(), any()) } answers {
+            probed += secondArg<String?>() to arg<RelayRequestedConfig>(3)
+            if (probed.size == 1) {
+                syncWrite(stored()) {
+                    it.copy(
+                        relayRequested = it.relayRequested!!.copy(
+                            authMode = RelayAuthMode.XApiKey,
+                            headers = listOf(RelayKeyValue("X-Team", "b")),
+                        ),
+                    )
+                }
+            }
+        }
+        val edited = baseline.copy(baseUrlText = "https://relay-two.example/v1")
+
+        val outcome = repository.verifyAndPersistRelayEdit(
+            candidate = edited,
+            refreshCatalog = false,
+            commitGuard = { true },
+            baseline = baseline,
+        )
+
+        assertEquals("the first verification is voided and the merged values are verified once more", 2, probed.size)
+        val (secondUrl, secondRequested) = probed[1]
+        assertEquals("https://relay-two.example/v1", secondUrl)
+        assertEquals(RelayAuthMode.XApiKey, secondRequested.authMode)
+        assertEquals(listOf(RelayKeyValue("X-Team", "b")), secondRequested.headers)
+        assertTrue(outcome.persisted)
+        assertTrue(outcome.verificationSucceeded)
+        val persisted = stored().toDomain()
+        assertEquals("https://relay-two.example/v1", persisted.baseUrlText)
+        assertEquals(RelayAuthMode.XApiKey, persisted.relayRequested?.authMode)
+        assertEquals(listOf(RelayKeyValue("X-Team", "b")), persisted.relayRequested?.headers)
+        assertEquals(ProviderConnectionState.Connected, persisted.status)
+    }
+
+    @Test
+    fun `RL2-PROBESTATE-10 a second collision persists the merged record without writing verification state`() = runTest {
+        val baseline = relayEditBaseline("123e4567-e89b-12d3-a456-426614174203")
+        val stored = stubRelayEditStore(baseline)
+        var probes = 0
+        coEvery { relayService.verifyGeneration(any(), any(), any(), any(), any()) } answers {
+            probes += 1
+            syncWrite(stored()) {
+                it.copy(relayRequested = it.relayRequested!!.copy(headers = listOf(RelayKeyValue("X-Team", "v$probes"))))
+            }
+        }
+        val edited = baseline.copy(baseUrlText = "https://relay-two.example/v1")
+
+        val outcome = repository.verifyAndPersistRelayEdit(
+            candidate = edited,
+            refreshCatalog = false,
+            commitGuard = { true },
+            baseline = baseline,
+        )
+
+        assertEquals("verified at most once more", 2, probes)
+        assertFalse(outcome.stale)
+        assertTrue("persisted as merged", outcome.persisted)
+        assertFalse("verification state is not written", outcome.verificationSucceeded)
+        assertNull(outcome.error)
+        val persisted = stored().toDomain()
+        assertEquals("https://relay-two.example/v1", persisted.baseUrlText)
+        assertEquals(listOf(RelayKeyValue("X-Team", "v2")), persisted.relayRequested?.headers)
+        assertEquals("the live verification time is kept", 111L, persisted.lastCheckedAt)
+    }
+
+    @Test
+    fun `RL2-PROBESTATE-11 a sync change landing between opening the page and saving keeps the synced value`() = runTest {
+        val baseline = relayEditBaseline("123e4567-e89b-12d3-a456-426614174204")
+        val stored = stubRelayEditStore(baseline)
+        // After opening the page and before tapping save: sync changed the request headers and name the user did not edit.
+        syncWrite(stored()) {
+            it.copy(
+                customName = "Synced name",
+                relayRequested = it.relayRequested!!.copy(headers = listOf(RelayKeyValue("X-Team", "synced"))),
+            )
+        }
+        val probedHeaders = mutableListOf<List<RelayKeyValue>?>()
+        coEvery { relayService.verifyGeneration(any(), any(), any(), any(), any()) } answers {
+            probedHeaders += arg<RelayRequestedConfig>(3).headers
+        }
+        val edited = baseline.copy(baseUrlText = "https://relay-two.example/v1")
+
+        val outcome = repository.verifyAndPersistRelayEdit(
+            candidate = edited,
+            refreshCatalog = false,
+            commitGuard = { true },
+            baseline = baseline,
+        )
+
+        assertTrue(outcome.persisted)
+        assertEquals("the probe is sent with the merged values", listOf(listOf(RelayKeyValue("X-Team", "synced"))), probedHeaders)
+        val persisted = stored().toDomain()
+        assertEquals("https://relay-two.example/v1", persisted.baseUrlText)
+        assertEquals(listOf(RelayKeyValue("X-Team", "synced")), persisted.relayRequested?.headers)
+        assertEquals("Synced name", persisted.customName)
+    }
+
+    @Test
+    fun `RL2-PROBESTATE-11 zero network save merges the user's field onto the live record`() = runTest {
+        val baseline = relayEditBaseline("123e4567-e89b-12d3-a456-426614174205")
+        val stored = stubRelayEditStore(baseline)
+        syncWrite(stored()) {
+            it.copy(
+                customName = "Synced name",
+                relayRequested = it.relayRequested!!.copy(headers = listOf(RelayKeyValue("X-Team", "synced"))),
+            )
+        }
+        val edited = baseline.copy(relayRequested = baseline.relayRequested!!.copy(customUserAgent = "Bot/2"))
+
+        val outcome = repository.persistRelayEditWithoutVerification(
+            candidate = edited,
+            baseline = baseline,
+            commitGuard = { true },
+        )
+
+        assertTrue(outcome.persisted)
+        coVerify(exactly = 0) { relayService.verifyGeneration(any(), any(), any(), any(), any()) }
+        val persisted = stored().toDomain()
+        assertEquals("Bot/2", persisted.relayRequested?.customUserAgent)
+        assertEquals(listOf(RelayKeyValue("X-Team", "synced")), persisted.relayRequested?.headers)
+        assertEquals("Synced name", persisted.customName)
+        assertEquals(ProviderConnectionState.Connected, persisted.status)
+    }
+
+    @Test
+    fun `RL2-PROBESTATE-11 save anyway after a failed verification merges instead of going stale`() = runTest {
+        val baseline = relayEditBaseline("123e4567-e89b-12d3-a456-426614174206")
+        val stored = stubRelayEditStore(baseline)
+        coEvery { relayService.verifyGeneration(any(), any(), any(), any(), any()) } throws
+            ProviderServiceError.RelayUpstream(503, "unavailable", "upstream-detail")
+        val edited = baseline.copy(baseUrlText = "https://relay-two.example/v1")
+        val failed = repository.verifyAndPersistRelayEdit(
+            candidate = edited,
+            refreshCatalog = false,
+            commitGuard = { true },
+            baseline = baseline,
+        )
+        assertFalse(failed.persisted)
+        // Sync changed the name while the failure card was shown.
+        syncWrite(stored()) { it.copy(customName = "Synced name") }
+
+        val outcome = repository.persistRelayEditUnverified(
+            candidate = edited,
+            failureRevision = requireNotNull(failed.failureRevision),
+            commitGuard = { true },
+            baseline = baseline,
+        )
+
+        assertFalse(outcome.stale)
+        assertTrue(outcome.persisted)
+        val persisted = stored().toDomain()
+        assertEquals("https://relay-two.example/v1", persisted.baseUrlText)
+        assertEquals("Synced name", persisted.customName)
+        assertTrue(persisted.status is ProviderConnectionState.Issue)
+    }
+
+    @Test
+    fun `RL2-PROBESTATE-12 a failed first probe re-verifies once when an unedited verification field changed meanwhile`() = runTest {
+        val baseline = relayEditBaseline("123e4567-e89b-12d3-a456-426614174207")
+        val stored = stubRelayEditStore(baseline)
+        val probedAuth = mutableListOf<RelayAuthMode>()
+        coEvery { relayService.verifyGeneration(any(), any(), any(), any(), any()) } answers {
+            probedAuth += arg<RelayRequestedConfig>(3).authMode
+            if (probedAuth.size == 1) {
+                // During the first probe failure, sync changed the auth mode the user did not edit.
+                syncWrite(stored()) { it.copy(relayRequested = it.relayRequested!!.copy(authMode = RelayAuthMode.XApiKey)) }
+                throw ProviderServiceError.RelayUpstream(401, "unauthorized", "first-probe")
+            }
+        }
+        val edited = baseline.copy(baseUrlText = "https://relay-two.example/v1")
+
+        val outcome = repository.verifyAndPersistRelayEdit(
+            candidate = edited,
+            refreshCatalog = false,
+            commitGuard = { true },
+            baseline = baseline,
+        )
+
+        assertEquals("the first failure does not show the failure card directly: verify once more with the merged values", listOf(RelayAuthMode.Bearer, RelayAuthMode.XApiKey), probedAuth)
+        assertTrue("the result follows the second attempt", outcome.persisted)
+        assertTrue(outcome.verificationSucceeded)
+        assertNull(outcome.error)
+        val persisted = stored().toDomain()
+        assertEquals(RelayAuthMode.XApiKey, persisted.relayRequested?.authMode)
+        assertEquals("https://relay-two.example/v1", persisted.baseUrlText)
+        assertEquals(ProviderConnectionState.Connected, persisted.status)
+    }
+
+    @Test
+    fun `RL2-PROBESTATE-12 the second probe failing shows the failure and writes nothing`() = runTest {
+        val baseline = relayEditBaseline("123e4567-e89b-12d3-a456-426614174208")
+        val stored = stubRelayEditStore(baseline)
+        var probes = 0
+        coEvery { relayService.verifyGeneration(any(), any(), any(), any(), any()) } answers {
+            probes += 1
+            if (probes == 1) {
+                syncWrite(stored()) { it.copy(relayRequested = it.relayRequested!!.copy(authMode = RelayAuthMode.XApiKey)) }
+            }
+            throw ProviderServiceError.RelayUpstream(401, "unauthorized", "probe-$probes")
+        }
+        val edited = baseline.copy(baseUrlText = "https://relay-two.example/v1")
+
+        val outcome = repository.verifyAndPersistRelayEdit(
+            candidate = edited,
+            refreshCatalog = false,
+            commitGuard = { true },
+            baseline = baseline,
+        )
+
+        assertEquals(2, probes)
+        assertFalse(outcome.persisted)
+        assertNotNull(outcome.error)
+        assertNotNull("after a failure \"Save anyway\" is still available", outcome.failureRevision)
+        assertEquals("https://relay.example/v1", stored().toDomain().baseUrlText)
+    }
+
+    @Test
+    fun `RL2-PROBESTATE-10 a second collision still clears the catalog when the connection changed at commit`() = runTest {
+        val baseline = relayEditBaseline("123e4567-e89b-12d3-a456-426614174209")
+            .copy(catalogModels = listOf(model("old-catalog")))
+        val stored = stubRelayEditStore(baseline)
+        var probes = 0
+        coEvery { relayService.verifyGeneration(any(), any(), any(), any(), any()) } answers {
+            probes += 1
+            syncWrite(stored()) {
+                it.copy(relayRequested = it.relayRequested!!.copy(headers = listOf(RelayKeyValue("X-Team", "v$probes"))))
+            }
+        }
+        val edited = baseline.copy(baseUrlText = "https://relay-two.example/v1")
+
+        val outcome = repository.verifyAndPersistRelayEdit(
+            candidate = edited,
+            refreshCatalog = true,
+            commitGuard = { true },
+            baseline = baseline,
+        )
+
+        assertTrue(outcome.persisted)
+        assertFalse(outcome.verificationSucceeded)
+        assertTrue("the address changed at persist time: clear the catalog and require a refresh", outcome.catalogInvalidated)
+        assertTrue(stored().toDomain().catalogModels.isEmpty())
+    }
+
+    @Test
+    fun `RL2-PROBESTATE-11 catalog is kept when the live record already carries the user's endpoint at commit`() = runTest {
+        val baseline = relayEditBaseline("123e4567-e89b-12d3-a456-426614174210")
+            .copy(catalogModels = listOf(model("old-catalog")))
+        val stored = stubRelayEditStore(baseline)
+        coEvery { relayService.verifyGeneration(any(), any(), any(), any(), any()) } answers {
+            // During verification sync already changed the address to the same value the user entered: the connection identity did not change at persist time.
+            syncWrite(stored()) { it.copy(baseUrlText = "https://relay-two.example/v1") }
+        }
+        val edited = baseline.copy(baseUrlText = "https://relay-two.example/v1")
+
+        val outcome = repository.verifyAndPersistRelayEdit(
+            candidate = edited,
+            refreshCatalog = true,
+            commitGuard = { true },
+            baseline = baseline,
+        )
+
+        assertTrue(outcome.persisted)
+        assertFalse("judged by merged-at-persist vs live: unchanged so the catalog is not cleared", outcome.catalogInvalidated)
+        assertEquals(listOf("old-catalog"), stored().toDomain().catalogModels.map { it.id })
+    }
+
+    @Test
+    fun `RL2-PROBESTATE-13 a failing second probe that collides again saves the merged record without verification state`() = runTest {
+        val baseline = relayEditBaseline("123e4567-e89b-12d3-a456-426614174211")
+        val stored = stubRelayEditStore(baseline)
+        var probes = 0
+        coEvery { relayService.verifyGeneration(any(), any(), any(), any(), any()) } answers {
+            probes += 1
+            // Sync changed the request headers the user did not edit during every probe; the second probe itself also fails.
+            syncWrite(stored()) {
+                it.copy(relayRequested = it.relayRequested!!.copy(headers = listOf(RelayKeyValue("X-Team", "v$probes"))))
+            }
+            if (probes == 2) throw ProviderServiceError.RelayUpstream(401, "unauthorized", "second-probe")
+        }
+        val edited = baseline.copy(baseUrlText = "https://relay-two.example/v1")
+
+        val outcome = repository.verifyAndPersistRelayEdit(
+            candidate = edited,
+            refreshCatalog = false,
+            commitGuard = { true },
+            baseline = baseline,
+        )
+
+        assertEquals(2, probes)
+        assertFalse(outcome.stale)
+        assertTrue("collision takes precedence: persisted as merged", outcome.persisted)
+        assertFalse(outcome.verificationSucceeded)
+        assertNull("no failure card", outcome.error)
+        val persisted = stored().toDomain()
+        assertEquals("https://relay-two.example/v1", persisted.baseUrlText)
+        assertEquals(listOf(RelayKeyValue("X-Team", "v2")), persisted.relayRequested?.headers)
+        assertEquals("verification state is not written", 111L, persisted.lastCheckedAt)
+        assertEquals(ProviderConnectionState.Connected, persisted.status)
+    }
+
+
     @Test
     fun `relay writes finalize the catalog off the calling thread`() = runTest {
         val callerExecutor = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "fake-main") }

@@ -85,6 +85,13 @@ class RelayPortableConfigContractTest {
             for (entry in contract.localOnlyFields) {
                 assertNull("${case.caseId}: ${entry.field} must never leave the device", portable[entry.field])
             }
+            // An expect that does not list a root address means "must be dropped": comparing only the keys in expect would miss a root that should have been dropped but was not.
+            for (rootKey in listOf("resolvedAPIBaseURL", "resolvedAPIBaseURLs")) {
+                if (rootKey !in case.expect) {
+                    val leaked = portable[rootKey]?.takeUnless { it is kotlinx.serialization.json.JsonNull }
+                    assertNull("${case.caseId}: $rootKey must be dropped, not synced raw", leaked)
+                }
+            }
             val unexpected = portable.keys - contract.portableFields.toSet()
             assertTrue("${case.caseId}: unregistered outbound fields $unexpected", unexpected.isEmpty())
             // Fixture secrets are always written as literals containing "secret"; none may survive into the outbound copy.

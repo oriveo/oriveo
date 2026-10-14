@@ -15,6 +15,7 @@ import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayReasoningEffort
 import ai.oriveo.community.core.model.RelayTransport
+import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
 import ai.oriveo.community.core.provider.GenerationAccess
 import ai.oriveo.community.core.provider.GenerationParameterAvailability
@@ -180,7 +181,9 @@ class GenerationParameterContractTest {
     }
 
     @Test
-    fun `persisted relay High effort is gated by the same final reasoning projection`() {
+    fun `persisted connection level High effort never goes out`() {
+        // Connection-level reasoning tier is retired: for a legacy connection with reasoningEffort=high, the outbound body carries no connection-level tier,
+        // and only the chat tier of this turn applies (auto = no thinking tier).
         val model = AIModel(
             id = "reasoning-model",
             name = "reasoning-model",
@@ -194,30 +197,31 @@ class GenerationParameterContractTest {
                 reasoningEffort = RelayReasoningEffort.High,
             ),
         )
-        val missing = json.parseToJsonElement(buildOpenAIChatBody(
-            "reasoning-model", emptyList(), true, ReasoningMode.Automatic, options,
-            capabilityProjection = null,
-        )).jsonObject
-        assertEquals(null, missing["reasoning_effort"])
-
         val completeProjection = relayProjection(
             model,
             RelayTransport.OpenAIChatCompletions,
             setOf("reasoning_level/deep"),
             setOf("reasoning_level/deep"),
         )
-        val complete = json.parseToJsonElement(buildOpenAIChatBody(
+        val chat = json.parseToJsonElement(buildOpenAIChatBody(
             "reasoning-model", emptyList(), true, ReasoningMode.Automatic, options,
             capabilityProjection = completeProjection,
         )).jsonObject
-        assertEquals("high", complete["reasoning_effort"]?.jsonPrimitive?.content)
+        assertEquals(null, chat["reasoning_effort"])
 
-        val responsesMissing = json.parseToJsonElement(buildResponsesBody(
+        val responses = json.parseToJsonElement(buildResponsesBody(
             "reasoning-model", emptyList(), true, false, ReasoningMode.Automatic, false, options,
-            capabilityProjection = null,
+            capabilityProjection = completeProjection,
         )).jsonObject
-        assertEquals(null, responsesMissing["reasoning"]?.jsonObject?.get("effort"))
-        assertEquals("auto", responsesMissing["reasoning"]?.jsonObject?.get("summary")?.jsonPrimitive?.content)
+        assertEquals(null, responses["reasoning"]?.jsonObject?.get("effort"))
+
+        // When this turn's chat selects a tier it is sent as usual by the chat tier, regardless of the legacy value on the connection.
+        val chatDeep = json.parseToJsonElement(buildOpenAIChatBody(
+            "reasoning-model", emptyList(), true, ReasoningMode.Deep,
+            options.copy(relayRequested = options.relayRequested!!.copy(reasoningEffort = RelayReasoningEffort.Low)),
+            capabilityProjection = completeProjection,
+        )).jsonObject
+        assertEquals("high", chatDeep["reasoning_effort"]?.jsonPrimitive?.content)
     }
 
     @Test
@@ -734,7 +738,7 @@ class GenerationParameterContractTest {
             relayRequested = RelayRequestedConfig(transport = transport),
         )
         val identity = CapabilityEvidenceProductionAdapter.dispatchIdentity(
-            CapabilityEvidenceIdentity("test", provider.id, "1", "1", ProviderKind.Relay.rawValue),
+            CapabilityEvidenceIdentity("test", provider.id, "1", "1", ProviderKind.Relay.rawValue, ProviderAuthMode.ApiKey.rawValue),
             model,
             transport,
             relayFinalUrl(transport, model.id),

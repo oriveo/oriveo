@@ -49,7 +49,8 @@ class ModelFactsToolCallPolicyTest {
         )
         val firstPartyFalse = AIModel(id = "grok-4.6", name = "Grok 4.6", toolCall = false)
         val firstParty = CapabilityEvidenceProductionAdapter.toolCallProjection(grok, firstPartyFalse)
-        assertEquals("server_profile", firstParty.decision("tool_call")?.resolution?.source)
+        // The first-hand declaration source of a subscription snapshot is upstream_declaration; support and the outbound policy are unchanged.
+        assertEquals("upstream_declaration", firstParty.decision("tool_call")?.resolution?.source)
         assertFalse(firstParty.permitsOutbound("tool_call"))
 
         val gemini = Provider(id = "gemini-manual", kind = ProviderKind.Gemini)

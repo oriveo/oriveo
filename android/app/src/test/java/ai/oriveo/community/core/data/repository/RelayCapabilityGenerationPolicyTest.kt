@@ -41,6 +41,8 @@ class RelayCapabilityGenerationPolicyTest {
     @Test
     fun `name and enabled model edits do not advance connection generation`() {
         assertFalse(relayConnectionSemanticsChanged(relay, relay.copy(customName = "Renamed")))
+        // relayKind is a display value derived from the default protocol at save time; the outbound path does not read it, and it is not part of the connection identity.
+        assertFalse(relayConnectionSemanticsChanged(relay, relay.copy(relayKind = ai.oriveo.community.core.model.RelayKind.CodexStyle)))
         assertFalse(relayConnectionSemanticsChanged(relay, relay.copy(
             models = listOf(AIModel(id = "another", name = "another")),
         )))

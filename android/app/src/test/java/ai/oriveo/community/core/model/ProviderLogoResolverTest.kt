@@ -8,8 +8,12 @@ class ProviderLogoResolverTest {
     @Before
     fun resetCache() = resetRelayLogoCache()
 
+    // A relay connection no longer infers a brand from the upstream name in its name / model id / relayKind; it only takes
+    // aggregator brands from the avatar table and otherwise falls back to Relay (the UI draws an initial letter or the relay icon).
+    // The earlier assertions here (Moonshot / Anthropic inference) are obsolete and have been rewritten.
+
     @Test
-    fun `relay logo resolves from provider name base url and model hints`() {
+    fun `relay connection no longer infers a brand from name host or model ids`() {
         val provider = Provider(
             id = "relay-kimi",
             kind = ProviderKind.Relay,
@@ -25,11 +29,11 @@ class ProviderLogoResolverTest {
             ),
         )
 
-        assertEquals(ProviderKind.Moonshot, resolveProviderLogoKind(provider))
+        assertEquals(ProviderKind.Relay, resolveProviderLogoKind(provider))
     }
 
     @Test
-    fun `relay logo falls back to relay kind when hints are unknown`() {
+    fun `relay connection no longer falls back to the relay kind protocol logo`() {
         val provider = Provider(
             id = "relay-anthropic",
             kind = ProviderKind.Relay,
@@ -37,7 +41,22 @@ class ProviderLogoResolverTest {
             relayKind = RelayKind.AnthropicCompatible,
         )
 
-        assertEquals(ProviderKind.Anthropic, resolveProviderLogoKind(provider))
+        assertEquals(ProviderKind.Relay, resolveProviderLogoKind(provider))
+    }
+
+    @Test
+    fun `relay connection takes the aggregator brand from the shared avatar resolver`() {
+        val provider = Provider(
+            id = "relay-openrouter",
+            kind = ProviderKind.Relay,
+            customName = "My backup",
+            baseUrlText = "https://openrouter.ai/api/v1",
+            relayKind = RelayKind.OpenAICompatible,
+        )
+        val before = relayLogoScanCount.get()
+
+        assertEquals(ProviderKind.OpenRouter, resolveProviderLogoKind(provider))
+        assertEquals("a relay connection no longer scans model hints", 0, relayLogoScanCount.get() - before)
     }
 
     // ── In-process cache ────────────────────────────────────────────────────
@@ -47,11 +66,13 @@ class ProviderLogoResolverTest {
     // Assertions use the **delta**, so other tests in the same JVM fork calling the resolver cannot
     // interfere.
 
+    // The cache only serves local connections (local ones still infer by the original rules).
     private fun relayProvider(id: String, name: String, models: List<AIModel>) = Provider(
         id = id,
         kind = ProviderKind.Relay,
         customName = name,
-        baseUrlText = "https://relay.example.com/v1",
+        baseUrlText = "http://192.168.1.20:11434/v1",
+        relayRequested = RelayRequestedConfig(engineProfile = "ollama"),
         models = models,
     )
 

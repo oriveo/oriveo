@@ -99,7 +99,9 @@ class ProviderRepositoryConversationNormalizationTest {
             .mapIndexed { index, model -> model.copy(isDefault = index == 0) }
         val relay = provider(
             id = relayId,
-            kind = ProviderKind.Relay,
+            // A relay connection's conversation models are never rewritten, so the catalog-scale normalization is measured on an OpenAI-kind
+            // connection that carries the same large catalog.
+            kind = ProviderKind.OpenAI,
             models = enabled,
             catalogModels = catalog,
         ).copy(baseUrlText = "https://relay.example.test/v1")
@@ -113,7 +115,7 @@ class ProviderRepositoryConversationNormalizationTest {
                 title = "Conversation $index",
                 hasCustomTitle = false,
                 providerID = relayId,
-                providerKind = ProviderKind.Relay.rawValue,
+                providerKind = ProviderKind.OpenAI.rawValue,
                 modelID = stored,
                 previewText = "",
                 estimatedCost = 0.0,
@@ -152,11 +154,11 @@ class ProviderRepositoryConversationNormalizationTest {
         // Reference: the per-conversation matchingModel scan over allModels as it was (normalization sees the
         // finalized provider that was written).
         val persisted = prepareProviderForUpsert(relay)
-        val defaultStored = ModelSelectionUtils.preferredStoredModelIdentifier(persisted.defaultModel!!)
+        val defaultStored = ModelSelectionUtils.preferredStoredModelIdentifier(persisted.defaultModel!!, persisted.kind)
         val availableIds = persisted.allModels.map { it.id }.toSet()
         val expected = many.mapNotNull { entity ->
-            val resolved = ModelSelectionUtils.matchingModel(persisted.allModels, entity.modelID)
-                ?.let(ModelSelectionUtils::preferredStoredModelIdentifier)
+            val resolved = ModelSelectionUtils.matchingModel(persisted.allModels, entity.modelID, persisted.kind)
+                ?.let { ModelSelectionUtils.preferredStoredModelIdentifier(it, persisted.kind) }
                 ?: if (entity.modelID in availableIds) entity.modelID else defaultStored
             if (resolved != entity.modelID) entity.copy(modelID = resolved) else null
         }

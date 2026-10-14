@@ -342,7 +342,7 @@ class GeminiServiceTest {
     }
 
     @Test
-    fun `Interactions GA uses Content wire and completed-only continuation for stream and nonstream`() = runTest {
+    fun `Interactions sends full Step history without continuation for stream and nonstream`() = runTest {
         val root = File(System.getProperty("user.dir")).absoluteFile.parentFile!!.parentFile!!
         val registry = json.parseToJsonElement(File(root, "shared/capabilityrecipe/capability_runtime.v1.json").readText()).jsonObject
         val runtime = JsonObject(registry + mapOf(
@@ -354,7 +354,7 @@ class GeminiServiceTest {
             put("providers", buildJsonObject { put("gemini", buildJsonObject {
                 put("resolveMap", buildJsonObject { put("gemini-3-flash", "gemini-3-flash") })
                 put("models", buildJsonObject { put("gemini-3-flash", buildJsonObject {
-                    put("transport", "gemini_generate")
+                    put("transport", "gemini_interactions")
                     put("capabilityControls", buildJsonObject { put("web", buildJsonObject {
                         put("state", "auto_available"); put("recipeRef", "gemini.interactions.web.v1")
                     }) })
@@ -370,15 +370,15 @@ class GeminiServiceTest {
         suspend fun run(stream: Boolean): Pair<JsonObject, List<StreamEvent>> {
             var captured = ""
             val client = mockClient(MockEngine { request ->
-                assertEquals("/v1/interactions", request.url.encodedPath)
+                assertEquals("/v1beta/interactions", request.url.encodedPath)
                 captured = requestBodyText(request.body)
                 if (stream) respond(
                     """
-                        data: {"event_type":"interaction.in_progress","interaction":{"id":"early","status":"in_progress"},"delta":{"text":"wrong"}}
+                        data: {"event_type":"interaction.created","interaction":{"id":"early","status":"in_progress"}}
 
-                        data: {"event_type":"step.delta","step":{"type":"thought","delta":{"text":"hidden"}}}
+                        data: {"event_type":"step.delta","index":0,"delta":{"type":"thought_signature","signature":"sig"}}
 
-                        data: {"event_type":"step.delta","step":{"type":"model_output","delta":{"text":"streamed"}}}
+                        data: {"event_type":"step.delta","index":1,"delta":{"type":"text","text":"streamed"}}
 
                         data: {"event_type":"interaction.completed","interaction":{"id":"int-stream","status":"completed","usage":{"total_input_tokens":2,"total_output_tokens":3}}}
 
@@ -407,13 +407,18 @@ class GeminiServiceTest {
         val (streamBody, streamEvents) = run(true)
         assertEquals(true, streamBody["stream"]!!.jsonPrimitive.content.toBoolean())
         assertEquals("system", streamBody["system_instruction"]!!.jsonPrimitive.content)
-        assertEquals("model", streamBody["input"]!!.jsonArray[1].jsonObject["role"]!!.jsonPrimitive.content)
-        assertEquals("prior", streamBody["input"]!!.jsonArray[1].jsonObject["parts"]!!.jsonArray.single().jsonObject["text"]!!.jsonPrimitive.content)
+        val steps = streamBody["input"]!!.jsonArray.map { it.jsonObject }
+        assertEquals(listOf("user_input", "model_output", "user_input"), steps.map { it["type"]!!.jsonPrimitive.content })
+        assertEquals("prior", steps[1]["content"]!!.jsonArray.single().jsonObject["text"]!!.jsonPrimitive.content)
+        assertEquals("false", streamBody["store"]!!.jsonPrimitive.content)
+        assertFalse(streamBody.toString(), "previous_interaction_id" in streamBody || "role" in steps[1] || "parts" in steps[1])
         assertEquals("streamed", streamEvents.filterIsInstance<StreamEvent.Delta>().joinToString("") { it.text })
-        assertEquals(1, streamEvents.filterIsInstance<StreamEvent.RecipeContinuation>().size)
+        assertTrue(streamEvents.none { it is StreamEvent.RecipeContinuation })
 
         val (nonstreamBody, nonstreamEvents) = run(false)
         assertEquals(false, nonstreamBody["stream"]!!.jsonPrimitive.content.toBoolean())
+        assertEquals(3, nonstreamBody["input"]!!.jsonArray.size)
+        assertFalse("previous_interaction_id" in nonstreamBody)
         assertEquals("complete", (nonstreamEvents.last() as StreamEvent.Done).result.text)
     }
 
@@ -517,7 +522,7 @@ class GeminiServiceTest {
             put("providers", buildJsonObject { put("gemini", buildJsonObject {
                 put("resolveMap", buildJsonObject { put("gemini-3-flash", "gemini-3-flash") })
                 put("models", buildJsonObject { put("gemini-3-flash", buildJsonObject {
-                    put("transport", "gemini_generate")
+                    put("transport", "gemini_interactions")
                     put("capabilityControls", buildJsonObject { put("web", buildJsonObject {
                         put("state", "auto_available"); put("recipeRef", "gemini.interactions.web.v1")
                     }) })
@@ -552,20 +557,20 @@ class GeminiServiceTest {
             "key", "gemini-3-flash", listOf(message), null, false, ReasoningMode.Automatic, true, ChatRequestOptions(),
         )
 
-        assertEquals("/v1/interactions", path)
+        assertEquals("/v1beta/interactions", path)
         val expected = ai.oriveo.community.core.attachments.AttachmentInjector.injectAll(
             userText = "read this",
             attachments = MessageBuilder.toAttachmentPayloads(attachments),
             wrapper = ai.oriveo.community.core.attachments.AttachmentWrapperVersion.XmlV1,
         ).text
         assertTrue(expected, expected.contains("interactions file body"))
-        val parts = json.parseToJsonElement(captured).jsonObject["input"]!!.jsonArray.single().jsonObject["parts"]!!.jsonArray
-        assertEquals(expected, parts.single().jsonObject["text"]!!.jsonPrimitive.content)
+        val content = json.parseToJsonElement(captured).jsonObject["input"]!!.jsonArray.single().jsonObject["content"]!!.jsonArray
+        assertEquals(expected, content.single().jsonObject["text"]!!.jsonPrimitive.content)
     }
 
-    /** `input` is Gemini's Content[]: images arrive as inlineData parts, the same as generateContent, and are no longer silently dropped. */
+    /** The Interactions route sends text only: images are rewritten to a placeholder and no inlineData is sent. */
     @Test
-    fun `Interactions carries attached images as inlineData parts`() = runTest {
+    fun `Interactions writes a placeholder for attached images instead of inlineData parts`() = runTest {
         applyInteractionsMetadata()
         val image = ai.oriveo.community.core.model.Attachment(
             id = "img", kind = AttachmentKind.Image, fileName = "p.png", mimeType = "image/png", base64Data = "aW1hZ2U=",
@@ -582,15 +587,105 @@ class GeminiServiceTest {
             "key", "gemini-3-flash", listOf(message), null, false, ReasoningMode.Automatic, true, ChatRequestOptions(),
         )
 
-        val parts = json.parseToJsonElement(captured).jsonObject["input"]!!.jsonArray.single().jsonObject["parts"]!!.jsonArray
-        assertEquals(2, parts.size)
-        assertTrue(parts[0].jsonObject["text"]!!.jsonPrimitive.content.contains("file body"))
-        val inline = parts[1].jsonObject["inlineData"]!!.jsonObject
-        assertEquals("image/png", inline["mimeType"]!!.jsonPrimitive.content)
-        assertEquals("aW1hZ2U=", inline["data"]!!.jsonPrimitive.content)
-        // Character for character the same as the image part on the generateContent route.
-        val generateContent = MessageBuilder.buildGeminiContents(listOf(message.copy(attachments = listOf(image))))
-        assertTrue(generateContent, generateContent.contains(parts[1].toString()))
+        val content = json.parseToJsonElement(captured).jsonObject["input"]!!.jsonArray.single().jsonObject["content"]!!.jsonArray
+        val text = content.single().jsonObject["text"]!!.jsonPrimitive.content
+        assertTrue(text, text.contains("what is this\n\n[Image omitted: this route sends text only]"))
+        assertTrue(text, text.contains("file body"))
+        assertFalse(captured, captured.contains("inlineData"))
+        assertFalse(captured, captured.contains("aW1hZ2U="))
+    }
+
+    /** Usage accounting: input includes cached tokens, cached tokens are recorded separately (not written when unreported), output = output + thought. */
+    @Test
+    fun `Interactions usage splits cached input and counts thought tokens as output`() = runTest {
+        applyInteractionsMetadata()
+        suspend fun done(usage: String): StreamEvent.Done {
+            val client = mockClient(MockEngine {
+                respond(
+                    """
+                        data: {"event_type":"step.delta","index":0,"delta":{"type":"text","text":"ok"}}
+
+                        data: {"event_type":"interaction.completed","interaction":{"id":"i","status":"completed","usage":$usage}}
+
+                        data: [DONE]
+                    """.trimIndent(), HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "text/event-stream"),
+                )
+            })
+            return GeminiService(client, json, transportRegistry).sendMessageStream(
+                "key", "gemini-3-flash", listOf(ProviderTestFixtures.userMessage("Hi", ProviderKind.Gemini, "gemini-3-flash")),
+                null, false, ReasoningMode.Automatic, true, ChatRequestOptions(),
+            ).toList().last() as StreamEvent.Done
+        }
+
+        val cached = done("""{"total_input_tokens":100,"total_cached_tokens":40,"total_output_tokens":10,"total_thought_tokens":5}""")
+        assertEquals(100, cached.result.promptTokens)
+        assertEquals(40, cached.result.cachedInputTokens)
+        assertEquals(15, cached.result.completionTokens)
+
+        val unreported = done("""{"total_input_tokens":100,"total_output_tokens":10}""")
+        assertEquals(null, unreported.result.cachedInputTokens)
+        assertEquals(10, unreported.result.completionTokens)
+    }
+
+    /** The non-streaming path shares the stream's wrap-up: same usage accounting, and a non-completed status throws even when it carries text. */
+    @Test
+    fun `Interactions nonstream shares usage and terminal status with the stream parser`() = runTest {
+        applyInteractionsMetadata()
+        suspend fun send(body: String): Result<StreamEvent.Done> {
+            val client = mockClient(MockEngine { respond(body, HttpStatusCode.OK) })
+            return runCatching {
+                GeminiService(client, json, transportRegistry).sendMessage(
+                    "key", "gemini-3-flash", listOf(ProviderTestFixtures.userMessage("Hi", ProviderKind.Gemini, "gemini-3-flash")),
+                    null, false, ReasoningMode.Automatic, true, ChatRequestOptions(),
+                )
+            }
+        }
+        val steps = """"steps":[{"type":"thought","content":[{"text":"hidden"}]},{"type":"model_output","content":[{"type":"text","text":"answer"}]}]"""
+
+        val done = send("""{"id":"i","status":"completed",$steps,"usage":{"total_input_tokens":11,"total_cached_tokens":0,"total_output_tokens":90,"total_thought_tokens":245}}""").getOrThrow()
+        assertEquals("answer", done.result.text)
+        assertEquals(11, done.result.promptTokens)
+        assertEquals(90 + 245, done.result.completionTokens)
+        assertEquals(0, done.result.cachedInputTokens)
+
+        listOf(
+            "failed" to "interaction_failed",
+            "cancelled" to "interaction_cancelled",
+            "requires_action" to "interaction_requires_action",
+            "mystery" to "interaction_stream_closed",
+        ).forEach { (status, code) ->
+            val error = send("""{"id":"i","status":"$status",$steps}""").exceptionOrNull()
+            assertTrue("$status -> $error", error is ProviderServiceError.Upstream && error.toString().contains(code))
+        }
+    }
+
+    /** A request carrying a video does not take the Interactions route (it does not accept video at first release): the whole request stays on generateContent and the video arrives as inlineData. */
+    @Test
+    fun `video attachment keeps the request on generateContent with inline video`() = runTest {
+        applyInteractionsMetadata()
+        val video = ai.oriveo.community.core.model.Attachment(
+            id = "vid", kind = AttachmentKind.Video, fileName = "clip.mp4", mimeType = "video/mp4", base64Data = "dmlkZW8=",
+        )
+        val message = ProviderTestFixtures.userMessage("watch this", ProviderKind.Gemini, "gemini-3-flash")
+            .copy(attachments = listOf(video))
+        var captured = ""
+        var path = ""
+        val client = mockClient(MockEngine { request ->
+            captured = requestBodyText(request.body)
+            path = request.url.encodedPath
+            respond("""{"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]},"finishReason":"STOP"}]}""", HttpStatusCode.OK)
+        })
+
+        GeminiService(client, json, transportRegistry).sendMessage(
+            "key", "gemini-3-flash", listOf(message), null, false, ReasoningMode.Automatic, true, ChatRequestOptions(),
+        )
+
+        assertTrue(path, path.endsWith(":generateContent"))
+        val body = json.parseToJsonElement(captured).jsonObject
+        assertFalse(captured, "input" in body || "store" in body)
+        val inline = body["contents"]!!.jsonArray.flatMap { it.jsonObject["parts"]!!.jsonArray }
+            .mapNotNull { it.jsonObject["inlineData"]?.jsonObject }
+        assertEquals(listOf("video/mp4" to "dmlkZW8="), inline.map { it["mimeType"]!!.jsonPrimitive.content to it["data"]!!.jsonPrimitive.content })
     }
 
     @Test

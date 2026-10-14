@@ -111,7 +111,7 @@ class HomeRecompositionScopeTest {
         coEvery { folderRepository.migrateColorTags() } returns Unit
         coEvery { skillRepository.refreshAll() } returns Unit
         coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<String>()) } returns Unit
-        coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>()) } returns Unit
+        coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>(), any()) } returns Unit
         coEvery { conversationRepository.currentMonthlyCostTotal() } returns 0.0
     }
 
@@ -195,7 +195,8 @@ class HomeRecompositionScopeTest {
         val lookup = viewModel.modelDisplayLookup.value
         assertTrue("after providers emit, the lookup should be built on defaultDispatcher", lookup.isReady)
         assertTrue("the first screen shows content once providers, conversations, folders and the lookup are all ready", viewModel.initialContentLoaded.value)
-        assertEquals("Model B", lookup.modelDisplayName("relay-1", "vendor/model-b", fallback = null))
+        // The relay display name is resolved only within the enabled list (same on all clients); the not-enabled model-b in the catalog no longer takes part
+        assertEquals("Model A", lookup.modelDisplayName("relay-1", "vendor/model-a", fallback = null))
         assertTrue(
             "the lookup must be built through the injected defaultDispatcher (no new dispatches means it moved back to the collector's thread)",
             recordingDefaultDispatcher.dispatchCount.get() > before,

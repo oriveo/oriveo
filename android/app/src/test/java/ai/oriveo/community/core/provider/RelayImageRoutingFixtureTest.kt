@@ -129,6 +129,33 @@ class RelayImageRoutingFixtureTest {
         }
     }
 
+    /** Production Provider overload: with two keys the driver model is chosen by each model's effective key (PC-08); a single key carries no key (PC-09, same list falls back to the first). */
+    @Test
+    fun `PC-08 production overload picks the driver model by bound key, single key unchanged`() {
+        val models = listOf(
+            AIModel(id = "gpt-image-2", name = "gpt-image-2", capabilities = listOf(ModelCapability.Text, ModelCapability.ImageGen), relayKeyID = "k-openai"),
+            AIModel(id = "claude-4-haiku", name = "claude-4-haiku", capabilities = listOf(ModelCapability.Text), relayKeyID = "k-claude"),
+            AIModel(id = "gpt-5.4", name = "gpt-5.4", capabilities = listOf(ModelCapability.Text), relayKeyID = "k-openai"),
+        )
+        val multi = ai.oriveo.community.core.model.Provider(
+            id = "p",
+            kind = ai.oriveo.community.core.model.ProviderKind.Relay,
+            relayKeys = listOf(
+                ai.oriveo.community.core.model.RelayKey("k-openai"),
+                ai.oriveo.community.core.model.RelayKey("k-claude", apiKey = "sk-c"),
+            ),
+            models = models,
+        )
+        assertEquals(
+            RelayRuntimeSupport.PickChatDriverResult.Success("gpt-5.4"),
+            RelayRuntimeSupport.pickChatDriverModelID(multi, "gpt-image-2"),
+        )
+        assertEquals(
+            RelayRuntimeSupport.PickChatDriverResult.Success("claude-4-haiku"),
+            RelayRuntimeSupport.pickChatDriverModelID(multi.copy(relayKeys = null), "gpt-image-2"),
+        )
+    }
+
     @Test
     fun `pickChatDriverModelID agrees with the shared fixture`() {
         for (case in cases("pickChatDriverModelID")) {
@@ -145,10 +172,15 @@ class RelayImageRoutingFixtureTest {
                     isDefault = obj["isDefault"]!!.jsonPrimitive.boolean,
                 )
             }
+            // PC-08 / PC-09: a multi-key connection carries the current model and each model's effective key; other cases do not.
             val result = RelayRuntimeSupport.pickChatDriverModelID(
                 currentModelID = case["currentModelID"]!!.jsonPrimitive.content,
                 models = models,
-                defaultModelID = models.firstOrNull { it.isDefault }?.id,
+                currentKeyID = case["currentKeyID"]?.jsonPrimitive?.content,
+                modelKeyIDs = case["models"]!!.jsonArray.mapNotNull { element ->
+                    val obj = element.jsonObject
+                    obj["keyID"]?.jsonPrimitive?.content?.let { obj["id"]!!.jsonPrimitive.content to it }
+                }.toMap(),
             )
 
             val expectedSuccess = case["expectedSuccess"]?.jsonPrimitive?.content

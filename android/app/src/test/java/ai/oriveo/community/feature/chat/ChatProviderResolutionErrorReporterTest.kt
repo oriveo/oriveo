@@ -20,10 +20,10 @@ class ChatProviderResolutionErrorReporterTest {
     fun `relay error produced by classifier reaches snackbar through stable guidance code`() {
         val context: Context = mockk()
         val snackbarManager: GlobalSnackbarManager = mockk(relaxed = true)
-        every { context.getString(R.string.relay_guidance_rate_limited) } returns "Localized rate limit guidance"
+        every { context.getString(R.string.relay_guidance_upstream_unreachable) } returns "Localized upstream unreachable guidance"
         val error = RelayErrorMapper.classify(
-            status = 429,
-            body = """{"error":{"message":"rate limit"}}""",
+            status = 502,
+            body = """{"error":{"message":"upstream_error: Upstream authentication failed"}}""",
         )
         assertTrue(error is ProviderServiceError.RelayUpstream)
 
@@ -32,7 +32,7 @@ class ChatProviderResolutionErrorReporterTest {
         verify(exactly = 1) {
             snackbarManager.show(
                 GlobalSnackbarMessage(
-                    message = UiText.Dynamic("Localized rate limit guidance"),
+                    message = UiText.Dynamic("Localized upstream unreachable guidance"),
                     style = GlobalToastStyle.Error,
                 ),
             )

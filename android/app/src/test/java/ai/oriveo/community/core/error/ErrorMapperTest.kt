@@ -122,7 +122,7 @@ class ErrorMapperTest {
         }
     }
 
-    // Drives all 12 branches of the production classify function, then hands the real error object to ErrorMapper.
+    // Drives all 14 branches of the production classify function, then hands the real error object to ErrorMapper.
     // This pins the stable semantic code -> Android resource mapping, instead of self-verifying by matching the English guidance string.
     @Test
     fun `map localizes every relay guidance produced by RelayErrorMapper classify`() {
@@ -134,8 +134,12 @@ class ErrorMapperTest {
             transport = RelayTransport.OpenAIResponses,
         )
         val classified = listOf(
-            RelayErrorMapper.classify(403, codexBody, null, RelayErrorContext()) to
-                R.string.relay_guidance_codex_identity_switch_type,
+            RelayErrorMapper.classify(
+                403,
+                codexBody,
+                null,
+                RelayErrorContext(transport = RelayTransport.OpenAIChatCompletions),
+            ) to R.string.relay_guidance_codex_identity_switch_type,
             RelayErrorMapper.classify(403, codexBody, null, codexContext) to
                 R.string.relay_guidance_codex_identity_still_rejected,
             RelayErrorMapper.classify(
@@ -176,8 +180,20 @@ class ErrorMapperTest {
                 null,
                 RelayErrorContext(transport = RelayTransport.AnthropicMessages, modelID = "gpt-5.4"),
             ) to R.string.relay_guidance_image_schema_mismatch,
-            RelayErrorMapper.classify(429, """{"error":{"message":"rate limit"}}""") to
-                R.string.relay_guidance_rate_limited,
+            RelayErrorMapper.classify(
+                404,
+                """{"error":{"message":"Not Found"}}""",
+                "https://relay.example.com/v1/images/generations",
+            ) to R.string.relay_guidance_images_endpoint_unavailable,
+            RelayErrorMapper.classify(
+                400,
+                """{"error":{"message":"Unknown parameter: 'response_format'."}}""",
+                "https://relay.example.com/v1/images/generations",
+            ) to R.string.relay_guidance_image_response_format_rejected,
+            RelayErrorMapper.classify(
+                403,
+                """{"error":{"message":"This API endpoint is only accessible via the official Claude CLI"}}""",
+            ) to R.string.relay_guidance_client_gated,
         )
 
         val guidanceCodes = classified.mapIndexed { index, (error, expectedRes) ->
@@ -195,12 +211,26 @@ class ErrorMapperTest {
             )
             relayError.guidanceCode
         }
-        // All 12 branches must each be hit (guards against two cases colliding on the same branch and faking coverage).
-        assertEquals(12, guidanceCodes.filterNotNull().distinct().size)
+        // All 14 branches must each be hit (guards against two cases colliding on the same branch and faking coverage);
+        // 429 no longer yields relay guidance, and the web-page sentence is produced by the streaming / non-streaming send paths.
+        assertEquals(14, guidanceCodes.filterNotNull().distinct().size)
     }
 
     // A key stored by older versions for a switch the mobile apps do not have must render as the
     // current Advanced HTTP guidance, never as the raw key.
+    // The retired relay rate-limit guidance was persisted before: render it as the generic "rate limited" message.
+    @Test
+    fun `retired relay rate limited persistence key localizes to generic rate limited`() {
+        every { context.getString(any()) } answers { "mapped-resource-${firstArg<Int>()}" }
+        val legacyKey = "relay_guidance:rate_limited"
+
+        assertTrue(ErrorMapper.hasLocalizedProviderMessage(legacyKey))
+        assertEquals(
+            "mapped-resource-${R.string.error_rate_limited_message}",
+            ErrorMapper.localizeProviderErrorMessage(legacyKey, context),
+        )
+    }
+
     @Test
     fun `legacy enable compat persistence key localizes to still rejected guidance`() {
         every { context.getString(any()) } answers { "mapped-resource-${firstArg<Int>()}" }
@@ -243,10 +273,24 @@ class ErrorMapperTest {
     }
 
     @Test
-    fun `localizeProviderErrorTitle maps relay upstream title with status code`() {
-        every { context.getString(R.string.error_relay_upstream_title, 502) } returns "relay error (502)"
+    fun `localizeProviderErrorTitle maps relay upstream title to provider request failed without status code`() {
+        // The relay guidance-type error title is "Provider Request Failed" with no status code; a historically persisted "Relay Error (502)" maps the same way.
+        every { context.getString(R.string.error_request_failed) } returns "provider request failed"
         val error = ProviderServiceError.RelayUpstream(statusCode = 502, guidance = "g", detail = "d")
-        assertEquals("relay error (502)", ErrorMapper.localizeProviderErrorTitle(error.title, context))
+        assertEquals("provider request failed", ErrorMapper.localizeProviderErrorTitle(error.title, context))
+    }
+
+    @Test
+    fun `client gated 403 is titled provider request failed not invalid key`() {
+        every { context.getString(any()) } answers { "res:${firstArg<Int>()}" }
+        val error = RelayErrorMapper.classify(
+            403,
+            """{"error":{"message":"This API endpoint is only accessible via the official Claude CLI"}}""",
+        )
+        assertTrue(error is ProviderServiceError.RelayUpstream)
+        val result = ErrorMapper.map(error!!, context)
+        assertEquals("res:${R.string.error_request_failed}", result.title)
+        assertTrue(result.title != "res:${R.string.error_invalid_api_key}")
     }
 
     @Test

@@ -194,11 +194,11 @@ class WebSearchEvidenceProducerTest {
 
     @Test
     fun `Gemini Interactions non-empty google_search_result emits tool_result and url_citation emits sources`() = runTest {
-        applyWebRecipe("gemini", "gemini-3-flash", "gemini.interactions.web.v1", transport = "gemini_generate")
+        applyWebRecipe("gemini", "gemini-3-flash", "gemini.interactions.web.v1", transport = "gemini_interactions")
         val (events, collector) = runGeminiInteractions(
-            """data: {"event_type":"step.delta","step":{"type":"google_search_result","delta":{"type":"google_search_result","result":[{"url":"https://g.example/1","title":"G1"}],"is_error":false}}}""",
-            """data: {"event_type":"step.delta","step":{"type":"model_output","delta":{"type":"text","text":"answer"}}}""",
-            """data: {"event_type":"step.delta","step":{"type":"model_output","delta":{"type":"text_annotation_delta","annotations":[{"type":"url_citation","url":"https://g.example/1","title":"G1","start_index":0,"end_index":6},{"type":"file_citation","url":"https://ignored.example"},{"type":"url_citation","url":""}]}}}""",
+            """data: {"event_type":"step.delta","index":1,"delta":{"type":"google_search_result","result":[{"url":"https://g.example/1","title":"G1"}],"is_error":false}}""",
+            """data: {"event_type":"step.delta","index":3,"delta":{"type":"text","text":"answer"}}""",
+            """data: {"event_type":"step.delta","index":3,"delta":{"type":"text_annotation_delta","annotations":[{"type":"url_citation","url":"https://g.example/1","title":"G1","start_index":0,"end_index":6},{"type":"file_citation","url":"https://ignored.example"},{"type":"url_citation","url":""}]}}""",
             """data: {"event_type":"interaction.completed","interaction":{"id":"int-1","status":"completed"}}""",
         )
 
@@ -211,11 +211,12 @@ class WebSearchEvidenceProducerTest {
     }
 
     @Test
-    fun `Gemini Interactions events with the delta at the top level are parsed the same way`() = runTest {
-        applyWebRecipe("gemini", "gemini-3-flash", "gemini.interactions.web.v1", transport = "gemini_generate")
+    fun `Gemini Interactions official stream counts a search result without a result field as executed`() = runTest {
+        applyWebRecipe("gemini", "gemini-3-flash", "gemini.interactions.web.v1", transport = "gemini_interactions")
         val (events, collector) = runGeminiInteractions(
-            """data: {"event_type":"step.delta","index":0,"delta":{"type":"google_search_result","result":[{"url":"https://g.example/1"}]}}""",
+            """data: {"event_type":"step.delta","index":0,"delta":{"type":"google_search_result","signature":"...","is_error":false}}""",
             """data: {"event_type":"step.delta","index":1,"delta":{"type":"text_annotation_delta","annotations":[{"type":"url_citation","url":"https://g.example/2","title":"G2"}]}}""",
+            """data: {"event_type":"interaction.completed","interaction":{"id":"int-1","status":"completed"}}""",
         )
 
         assertEquals(1, events.filterIsInstance<StreamEvent.ToolResult>().size)
@@ -227,13 +228,13 @@ class WebSearchEvidenceProducerTest {
     }
 
     @Test
-    fun `Gemini Interactions search error or empty result emits nothing and stays unconfirmed`() = runTest {
-        applyWebRecipe("gemini", "gemini-3-flash", "gemini.interactions.web.v1", transport = "gemini_generate")
+    fun `Gemini Interactions search error or search call only emits nothing and stays unconfirmed`() = runTest {
+        applyWebRecipe("gemini", "gemini-3-flash", "gemini.interactions.web.v1", transport = "gemini_interactions")
         val (events, collector) = runGeminiInteractions(
-            """data: {"event_type":"step.delta","step":{"type":"google_search_result","delta":{"type":"google_search_result","result":[{"url":"https://g.example/1"}],"is_error":true}}}""",
-            """data: {"event_type":"step.delta","step":{"type":"google_search_result","delta":{"type":"google_search_result","result":[]}}}""",
-            """data: {"event_type":"step.delta","step":{"type":"google_search_call","delta":{"type":"google_search_call","arguments":{"queries":["q"]}}}}""",
-            """data: {"event_type":"step.delta","step":{"type":"model_output","delta":{"type":"text","text":"answer"}}}""",
+            """data: {"event_type":"step.delta","index":1,"delta":{"type":"google_search_result","result":[{"url":"https://g.example/1"}],"is_error":true}}""",
+            """data: {"event_type":"step.delta","index":0,"delta":{"type":"google_search_call","arguments":{"queries":["q"]}}}""",
+            """data: {"event_type":"step.delta","index":2,"delta":{"type":"text","text":"answer"}}""",
+            """data: {"event_type":"interaction.completed","interaction":{"id":"int-1","status":"completed"}}""",
         )
 
         assertTrue(events.none { it is StreamEvent.Citations || it is StreamEvent.ToolResult })
@@ -305,7 +306,7 @@ class WebSearchEvidenceProducerTest {
 
     private suspend fun runGeminiInteractions(vararg frames: String): Pair<List<StreamEvent>, CapabilityExecutionCollector> {
         val client = client(MockEngine { request ->
-            assertEquals("/v1/interactions", request.url.encodedPath)
+            assertEquals("/v1beta/interactions", request.url.encodedPath)
             sse(*frames)
         })
         val collector = CapabilityExecutionCollector()

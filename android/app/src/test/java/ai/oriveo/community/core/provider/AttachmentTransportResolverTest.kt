@@ -16,6 +16,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -268,8 +269,37 @@ class AttachmentTransportResolverTest {
             resolve(provider(ProviderKind.Gemini), m, web = true),
         )
         // Outbound dispatch asks the same function.
-        assertTrue(GeminiService.interactionsRoute("gemini-3-flash", true, ReasoningMode.Automatic) != null)
-        assertNull(GeminiService.interactionsRoute("gemini-3-flash", false, ReasoningMode.Automatic))
+        assertTrue(GeminiService.interactionsRoute("gemini-3-flash", true, ReasoningMode.Automatic, historyHasVideo = false) != null)
+        assertNull(GeminiService.interactionsRoute("gemini-3-flash", false, ReasoningMode.Automatic, historyHasVideo = false))
+    }
+
+    /** When the request history carries video, outbound does not pick Interactions; the pre-send route resolution lands on generateContent the same way. */
+    @Test
+    fun `gemini with video in history stays on generateContent even when web routes to interactions`() {
+        applyGeminiInteractionsFixture()
+        val m = model("gemini-3-flash")
+        val gemini = provider(ProviderKind.Gemini)
+        assertEquals(
+            AttachmentTransportProfile.GeminiGenerateContent,
+            AttachmentTransportResolver.resolve(gemini, m, true, ReasoningMode.Automatic, historyHasVideo = true)?.transport,
+        )
+        assertEquals(
+            listOf<AttachmentTransportProfile>(AttachmentTransportProfile.GeminiGenerateContent),
+            AttachmentTransportResolver.routesFor(gemini, m, true, ReasoningMode.Deep, false, historyHasVideo = true)!!
+                .map { it.transport },
+        )
+        val video = ai.oriveo.community.core.model.Attachment(
+            id = "v", kind = ai.oriveo.community.core.model.AttachmentKind.Video, fileName = "clip.mp4", mimeType = "video/mp4",
+        )
+        val earlier = ProviderTestFixtures.userMessage("clip", ProviderKind.Gemini, "gemini-3-flash").copy(attachments = listOf(video))
+        val current = ProviderTestFixtures.userMessage("and then?", ProviderKind.Gemini, "gemini-3-flash")
+        assertTrue(GeminiService.hasVideoAttachment(listOf(earlier, current)))
+        assertFalse(GeminiService.hasVideoAttachment(listOf(current)))
+        assertNull(
+            GeminiService.interactionsRoute(
+                "gemini-3-flash", true, ReasoningMode.Automatic, GeminiService.hasVideoAttachment(listOf(earlier, current)),
+            ),
+        )
     }
 
     @Test
@@ -339,6 +369,14 @@ class AttachmentTransportResolverTest {
         )
         // When the tool loop may take over, the leg route still counts as a possibility: block only if both fail to fit.
         assertNull(preflight(AttachmentSendPreflight.SendOptions(ReasoningMode.Automatic, webSearchEnabled = false, toolLoopPossible = true)))
+        // Conversation history carries video: outbound stays on generateContent (native PDF upload fits), and the pre-check likewise does not block.
+        assertNull(
+            preflight(
+                AttachmentSendPreflight.SendOptions(
+                    ReasoningMode.Automatic, webSearchEnabled = true, toolLoopPossible = false, historyHasVideo = true,
+                ),
+            ),
+        )
     }
 
     // ── Cases that cannot be decided ──
@@ -382,14 +420,14 @@ class AttachmentTransportResolverTest {
 
     @Test
     fun `relay transport treats auto and missing config as chat completions`() {
-        assertEquals(RelayTransport.OpenAIChatCompletions, AttachmentTransportResolver.relayTransport(null))
+        assertEquals(RelayTransport.OpenAIChatCompletions, AttachmentTransportResolver.relayTransport(null, null))
         assertEquals(
             RelayTransport.OpenAIChatCompletions,
-            AttachmentTransportResolver.relayTransport(RelayRequestedConfig(transport = RelayTransport.Auto)),
+            AttachmentTransportResolver.relayTransport(RelayRequestedConfig(transport = RelayTransport.Auto), null),
         )
         assertEquals(
             RelayTransport.LlamaCppNative,
-            AttachmentTransportResolver.relayTransport(RelayRequestedConfig(transport = RelayTransport.LlamaCppNative)),
+            AttachmentTransportResolver.relayTransport(RelayRequestedConfig(transport = RelayTransport.LlamaCppNative), null),
         )
     }
 
@@ -413,7 +451,7 @@ class AttachmentTransportResolverTest {
         MetadataTestFixtures.applyRaw(
             """{"version":1,"capabilityRuntime":$runtime,"providers":{"gemini":{
               "resolveMap":{"gemini-3-flash":"gemini-3-flash"},
-              "models":{"gemini-3-flash":{$native"transport":"gemini_generate",
+              "models":{"gemini-3-flash":{$native"transport":"gemini_interactions",
                 "capabilityControls":{"web":{"state":"auto_available","recipeRef":"gemini.interactions.web.v1"}}}}}}}""",
         )
     }

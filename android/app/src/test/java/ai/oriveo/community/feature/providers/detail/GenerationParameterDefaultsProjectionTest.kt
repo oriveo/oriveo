@@ -11,6 +11,7 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
+import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
 import kotlinx.serialization.json.JsonNull
 import org.junit.Assert.assertFalse
@@ -76,6 +77,7 @@ class GenerationParameterDefaultsProjectionTest {
         connectionGeneration = "connection-1",
         credentialEpoch = "credential-1",
         providerKind = ProviderKind.Relay.rawValue,
+        authMode = ProviderAuthMode.ApiKey.rawValue,
         canonicalModelId = "relay-model",
         metadataRevision = "metadata-1",
         generationRevision = "generation-1",

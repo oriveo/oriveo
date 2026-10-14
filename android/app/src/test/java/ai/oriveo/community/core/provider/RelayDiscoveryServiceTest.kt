@@ -8,6 +8,7 @@ import ai.oriveo.community.core.model.RelayTransport
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
+import io.ktor.client.engine.mock.toByteArray
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -218,8 +219,10 @@ class RelayDiscoveryServiceTest {
 
     @Test
     fun `user model accepts an SSE success response`() = runTest {
+        var responsesProbeBody: String? = null
         val service = service { request ->
             if (request.url.encodedPath.endsWith("/responses")) {
+                responsesProbeBody = String(request.body.toByteArray(), Charsets.UTF_8)
                 respond(
                     "data: {\"output\":[]}\n\ndata: [DONE]\n\n",
                     HttpStatusCode.OK,
@@ -238,6 +241,10 @@ class RelayDiscoveryServiceTest {
 
         assertEquals(RelayTransport.OpenAIResponses, result.detections.single().transport)
         assertTrue(result.detections.single().generationVerified)
+        assertTrue(
+            responsesProbeBody.orEmpty()
+                .contains("\"prompt_cache_key\":\"${RelayRuntimeSupport.promptCacheKey("gpt-relay", "", "ping")}\""),
+        )
     }
 
     @Test

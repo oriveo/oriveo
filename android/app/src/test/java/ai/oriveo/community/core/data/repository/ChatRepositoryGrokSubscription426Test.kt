@@ -108,7 +108,7 @@ class ChatRepositoryGrokSubscription426Test {
                 )
             },
         )
-        every { providerRepository.serviceFor(provider) } returns
+        every { providerRepository.serviceFor(provider, any()) } returns
             GrokService(client, json, TransportRegistry(json))
         coEvery { providerRepository.prepareGrokSubscription(provider.id) } returns
             GrokSubscriptionRuntime.PrepareResult.Success(

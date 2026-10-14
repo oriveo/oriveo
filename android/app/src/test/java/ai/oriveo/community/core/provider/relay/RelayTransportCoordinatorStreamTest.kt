@@ -267,4 +267,68 @@ class RelayTransportCoordinatorStreamTest {
             // Expected: the error card semantics stay unchanged.
         }
     }
+    // MARK: - RL2-WEBPAGE: streaming 200 + text/event-stream, but the first non-empty line of the body is a web page; report the web-page sentence before output starts and treat it as a route-level rejection.
+
+    private fun chatStreamEvents(stream: String) = coordinator(stream).sendMessageStream(
+        apiKey = "sk-relay",
+        modelID = "gpt-5.4",
+        messages = listOf(ProviderTestFixtures.userMessage("Hi", ProviderKind.Relay, "gpt-5.4")),
+        baseUrl = "https://relay.example.com/v1",
+        supportsImageGen = false,
+        reasoningMode = ReasoningMode.Automatic,
+        webSearchEnabled = false,
+        requestOptions = ChatRequestOptions(
+            relayRequested = RelayRequestedConfig(
+                transport = RelayTransport.OpenAIChatCompletions,
+                authMode = RelayAuthMode.Bearer,
+            ),
+        ),
+    )
+
+    private val webPageStreams = mapOf(
+        "chat" to "<!doctype html><html><head><title>Relay</title></head><body><div id=\"root\"></div></body></html>",
+        "responses" to "\n\r\n  <HTML lang=\"en\"><body>gateway</body></HTML>",
+        "messages" to "<head><meta charset=\"utf-8\"></head>",
+        "gemini" to "\n\n<Body>not found</Body>",
+    )
+
+    private fun streamFor(protocol: String, stream: String) = when (protocol) {
+        "chat" -> chatStreamEvents(stream)
+        "responses" -> responsesStreamEvents(stream)
+        "messages" -> anthropicStreamEvents(stream)
+        else -> geminiStreamEvents(stream)
+    }
+
+    @Test
+    fun `RL2-WEBPAGE-01 four protocols streaming body first non-empty line is a web page reports web-page sentence before output as route-level rejection`() = runTest {
+        webPageStreams.forEach { (protocol, stream) ->
+            val received = mutableListOf<StreamEvent>()
+            val thrown = runCatching { streamFor(protocol, stream).collect { received += it } }.exceptionOrNull()
+            assertTrue("$protocol: $thrown", thrown is ProviderServiceError.RelayUpstream)
+            val error = thrown as ProviderServiceError.RelayUpstream
+            assertEquals(protocol, "web_page_returned", error.guidanceCode?.stableKey)
+            assertEquals(protocol, 200, error.statusCode)
+            assertTrue(protocol, RelayProtocolFallback.isRouteRejection(error))
+            assertTrue("$protocol output has not started", received.none { it is StreamEvent.Delta || it is StreamEvent.Done })
+        }
+    }
+
+    @Test
+    fun `RL2-WEBPAGE-02 normal data first line does not trigger and blank lines do not count as the first line`() = runTest {
+        val chat = "\n\n" + """data: {"choices":[{"delta":{"content":"ok"}}]}""" + "\n\ndata: [DONE]\n\n"
+        assertEquals("ok", (chatStreamEvents(chat).toList().last() as StreamEvent.Done).result.text)
+        val messages = ProviderTestFixtures.anthropicStream(
+            ProviderTestFixtures.anthropicEvent("message_start", "{\"message\":{\"usage\":{\"input_tokens\":5}}}"),
+            ProviderTestFixtures.anthropicEvent("content_block_delta", "{\"delta\":{\"type\":\"text_delta\",\"text\":\"<html> is a tag\"}}"),
+            ProviderTestFixtures.anthropicEvent("message_delta", "{\"usage\":{\"output_tokens\":3}}"),
+        )
+        assertEquals("<html> is a tag", (anthropicStreamEvents("\n" + messages).toList().last() as StreamEvent.Done).result.text)
+        // Word boundary: <htmlx / <header / <bodyguard are not web-page tags and do not trigger (same rule as the iOS / Web `<html\b`).
+        listOf("<htmlx>", "<header>", "<bodyguard>").forEach { head ->
+            assertEquals(head, false, RelayProtocolFallback.streamHeadIsWebPage("$head\n"))
+        }
+        val notPage = "<htmlx>\n" + """data: {"choices":[{"delta":{"content":"ok"}}]}""" + "\n\ndata: [DONE]\n\n"
+        val thrown = runCatching { chatStreamEvents(notPage).toList() }.exceptionOrNull()
+        assertTrue("<htmlx should not report the web-page sentence: $thrown", (thrown as? ProviderServiceError.RelayUpstream)?.guidanceCode?.stableKey != "web_page_returned")
+    }
 }

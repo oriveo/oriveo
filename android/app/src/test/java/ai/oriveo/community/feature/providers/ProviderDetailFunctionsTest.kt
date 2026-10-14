@@ -144,7 +144,7 @@ class ProviderDetailFunctionsTest {
             catalogModels = emptyList(),
         )
         ProviderCatalogResolver.debugResolveCallCount = 0
-        val count = providerSummaryAvailableModelCount(provider)
+        val count = providerSummaryAvailableModelCount(provider, null)
 
         assertEquals(1, count)
         assertEquals(0, ProviderCatalogResolver.debugResolveCallCount)

@@ -19,6 +19,7 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
+import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.provider.transport.TransportKind
 import ai.oriveo.community.core.provider.relay.buildAnthropicBody
 import ai.oriveo.community.core.provider.relay.buildOpenAIChatBody
@@ -656,7 +657,7 @@ class GenerationParameterLifecycleTest {
             RelayTransport.Auto -> error("lifecycle test must select a concrete transport")
         }
         val identity = CapabilityEvidenceProductionAdapter.dispatchIdentity(
-            CapabilityEvidenceIdentity("test", provider.id, "1", "1", ProviderKind.Relay.rawValue),
+            CapabilityEvidenceIdentity("test", provider.id, "1", "1", ProviderKind.Relay.rawValue, ProviderAuthMode.ApiKey.rawValue),
             requestModel,
             transport,
             finalUrl,
@@ -715,7 +716,7 @@ class GenerationParameterLifecycleTest {
                 generationProfile = declaredProfile(parameterId, support, wire),
             )
             val identity = CapabilityEvidenceProductionAdapter.dispatchIdentity(
-                CapabilityEvidenceIdentity("test", provider.id, "1", "1", ProviderKind.Relay.rawValue),
+                CapabilityEvidenceIdentity("test", provider.id, "1", "1", ProviderKind.Relay.rawValue, ProviderAuthMode.ApiKey.rawValue),
                 model,
                 RelayTransport.OpenAIChatCompletions,
                 "https://relay.example/v1/chat/completions",

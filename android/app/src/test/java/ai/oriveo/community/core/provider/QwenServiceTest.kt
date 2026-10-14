@@ -205,9 +205,10 @@ class QwenServiceTest {
     // ═══════════════════════════════════════════
 
     @Test
-    fun `regionOptions has 4 entries`() {
+    fun `regionOptions has 3 selectable entries after us retired`() {
+        // us is retired and no longer selectable (the identity table still keeps us, see the resolveRegionOption cases)
         val regions = ProviderKind.Qwen.regionOptions
-        assertEquals(4, regions.size)
+        assertEquals(3, regions.size)
     }
 
     @Test

@@ -100,6 +100,8 @@ class RelayCredentialStateMachineTest {
         assertEquals("", SecureKeyStore.maskApiKey("   "))
         // <=12 chars are masked entirely -- for a short key, revealing 4 leading and trailing characters would print most of the key on screen (same rule across all three platforms: 8 mask dots)
         assertEquals("••••••••", SecureKeyStore.maskApiKey("sk-123456789"))
-        assertEquals("sk-1••••wxyz", SecureKeyStore.maskApiKey("sk-1234567890wxyz"))
+        assertEquals("sk-1…wxyz", SecureKeyStore.maskApiKey("sk-1234567890wxyz"))
+        assertEquals("the middle is a single U+2026", "sk-1\u2026wxyz", SecureKeyStore.maskApiKey("  sk-1234567890wxyz "))
+        assertEquals("13 chars and up show the first and last 4", "abcd…wxyz", SecureKeyStore.maskApiKey("abcd12345wxyz"))
     }
 }

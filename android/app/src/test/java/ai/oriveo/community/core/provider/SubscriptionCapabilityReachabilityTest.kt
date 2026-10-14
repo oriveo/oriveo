@@ -2,12 +2,17 @@ package ai.oriveo.community.core.provider
 
 import ai.oriveo.community.core.data.remote.canonicalCapabilityTransport
 import ai.oriveo.community.core.model.AIModel
+import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.model.ReasoningMode
+import ai.oriveo.community.core.provider.openai.OpenAISubscriptionRequestContext
+import ai.oriveo.community.core.provider.openai.codexReasoningEffort
 import ai.oriveo.community.core.provider.transport.TransportKind
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -112,14 +117,18 @@ class SubscriptionCapabilityReachabilityTest {
     }
 
     @Test
-    fun `a Grok subscription on Responses that declares web search offers automatic only`() {
-        val verdict = CapabilityControlResolution.resolve(
-            provider = subscriptionProvider(kind = ProviderKind.Grok),
-            model = subscriptionModel(id = "grok-4.6", apiBackend = "responses"),
-            capability = "web",
-        )
+    fun `a Grok subscription on Responses that declares web search offers automatic only and presents as always on`() {
+        val provider = subscriptionProvider(kind = ProviderKind.Grok)
+        val model = subscriptionModel(id = "grok-4.6", apiBackend = "responses")
+        val verdict = CapabilityControlResolution.resolve(provider = provider, model = model, capability = "web")
         assertEquals("auto_available", verdict.state)
         assertEquals(listOf("automatic"), verdict.intents)
+        // Upstream always carries web_search and the user cannot turn it off: the verdict is unchanged, the reasonCode becomes "always on".
+        assertEquals("subscription_web_always_on", verdict.reasonCode)
+        val presentation = CapabilityControlPresentationResolver.presentation(provider, model, "web")
+        assertEquals(CapabilityControlPresentation.AlwaysOn, presentation)
+        // It is not the user's choice: the globe stays dark.
+        assertFalse(CapabilityWebPreferenceLiveness.reachesTheWire(presentation, customIsActive = false))
     }
 
     @Test
@@ -224,6 +233,131 @@ class SubscriptionCapabilityReachabilityTest {
     }
 
     // ── The API key mode is not caught in the crossfire ──
+
+    // ── Truth adapter (the projection copies the subscription snapshot) ──
+
+    private val reasoningModes = ReasoningMode.entries.filter { it != ReasoningMode.Automatic }
+    private val truthKeys = setOf("vision_input", "web_search", "tool_call") +
+        reasoningModes.map { "reasoning_level/${it.rawValue}" }
+
+    private fun truthProjection(provider: Provider, model: AIModel) =
+        CapabilityEvidenceProductionAdapter.capabilityProjection(
+            provider = provider,
+            model = model,
+            keys = truthKeys,
+            explicitKeys = truthKeys,
+        )
+
+    @Test
+    fun `a model in the subscription snapshot projects as upstream_declaration and levels are filtered by the same function the outbound path uses`() {
+        // Only minimal is declared: fast can land on it, while balanced / deep / max have no match in their candidate order, so they are filtered out.
+        val levels = listOf("minimal")
+        val model = subscriptionModel(
+            capabilities = listOf(ModelCapability.Text, ModelCapability.Web, ModelCapability.Reasoning, ModelCapability.Image),
+            declaredLevels = levels,
+        )
+        val provider = subscriptionProvider().copy(catalogModels = listOf(model))
+
+        val projection = truthProjection(provider, model)
+        assertEquals(
+            CapabilityControlResolution.subscriptionFinalTransport(provider, model),
+            projection.identity?.effectiveTransport,
+        )
+        listOf("vision_input", "web_search").forEach { key ->
+            val decision = projection.decision(key)!!
+            assertEquals(key, "supported", decision.resolution.support)
+            assertEquals(key, "upstream_declaration", decision.resolution.source)
+            assertEquals(key, "declared", decision.resolution.grade)
+            assertTrue(key, decision.permitsOutbound)
+        }
+        // Every level shown in the UI must land on a value upstream actually accepts in the request: the same answer as codexReasoningEffort.
+        val expectedSupported = reasoningModes.filter { codexReasoningEffort(it.rawValue, levels) != null }.toSet()
+        assertTrue(expectedSupported.isNotEmpty() && expectedSupported.size < reasoningModes.size)
+        reasoningModes.forEach { mode ->
+            val decision = projection.decision("reasoning_level/${mode.rawValue}")!!
+            val supported = mode in expectedSupported
+            assertEquals(mode.rawValue, if (supported) "supported" else "unsupported", decision.resolution.support)
+            assertEquals(mode.rawValue, "upstream_declaration", decision.resolution.source)
+            assertEquals(mode.rawValue, supported, decision.permitsOutbound)
+        }
+    }
+
+    @Test
+    fun `subscription tool_call only trusts the snapshot model's own first-party declaration, and with no declaration and no facts there is no candidate`() {
+        val declared = subscriptionModel().copy(toolCall = true)
+        val provider = subscriptionProvider().copy(catalogModels = listOf(declared))
+        val firstParty = truthProjection(provider, declared).decision("tool_call")!!
+        assertEquals("supported", firstParty.resolution.support)
+        assertEquals("upstream_declaration", firstParty.resolution.source)
+        assertTrue(firstParty.permitsOutbound)
+
+        val silent = subscriptionModel()
+        val undeclared = truthProjection(provider.copy(catalogModels = listOf(silent)), silent).decision("tool_call")!!
+        assertFalse(undeclared.visible)
+        assertEquals("unknown", undeclared.resolution.support)
+    }
+
+    @Test
+    fun `a subscription snapshot not yet fetched is missing_evidence, and fetched but without this model is catalog_absent`() {
+        val model = subscriptionModel()
+        val unfetched = truthProjection(subscriptionProvider(), model)
+        val absent = truthProjection(
+            subscriptionProvider().copy(catalogModels = listOf(model)),
+            model.copy(id = "gpt-not-in-snapshot", canonicalModelId = "gpt-not-in-snapshot"),
+        )
+        (truthKeys - "tool_call").forEach { key ->
+            val unfetchedDecision = unfetched.decision(key)!!
+            assertEquals(key, "unknown", unfetchedDecision.resolution.support)
+            assertEquals(key, "missing_evidence", unfetchedDecision.resolution.reasonCode)
+            assertFalse(key, unfetchedDecision.permitsOutbound)
+
+            val absentDecision = absent.decision(key)!!
+            assertEquals(key, "unknown", absentDecision.resolution.support)
+            assertEquals(key, "catalog_absent", absentDecision.resolution.source)
+            assertEquals(key, "catalog_absent", absentDecision.resolution.reasonCode)
+            assertFalse(key, absentDecision.permitsOutbound)
+        }
+    }
+
+    @Test
+    fun `the subscription outbound projection and the UI projection share one shape and one source of truth`() {
+        val model = subscriptionModel(
+            capabilities = listOf(ModelCapability.Text, ModelCapability.Web, ModelCapability.Image),
+        )
+        val options = ChatRequestOptions(
+            openAISubscription = OpenAISubscriptionRequestContext(
+                responsesUrl = "https://chatgpt.test/backend-api/codex/responses",
+                accountId = "acct",
+                requiredHeaders = emptyMap(),
+            ),
+            activeModel = model,
+        )
+        val outbound = officialRequestCapabilityProjection(
+            providerKind = ProviderKind.OpenAI,
+            modelID = model.id,
+            options = options,
+            messages = emptyList(),
+            finalTransport = TransportKind.OpenAIResponses.wireValue,
+        )
+        val ui = truthProjection(subscriptionProvider().copy(catalogModels = listOf(model)), model)
+        listOf("vision_input", "web_search").forEach { key ->
+            assertEquals(key, ui.decision(key)!!.resolution.support, outbound.decision(key)!!.resolution.support)
+            assertEquals(key, "upstream_declaration", outbound.decision(key)!!.resolution.source)
+        }
+        // Vision is the only outbound gate on this path that the projection lets through; web search is still decided by CapabilityControlResolution.
+        assertTrue(outbound.permitsOutbound("vision_input"))
+        assertFalse(outbound.permitsOutbound("web_search"))
+
+        // With no catalog object it is state 1: no guessing, and no letting an explicit intent through.
+        val unfetched = officialRequestCapabilityProjection(
+            providerKind = ProviderKind.OpenAI,
+            modelID = model.id,
+            options = options.copy(activeModel = null),
+            finalTransport = TransportKind.OpenAIResponses.wireValue,
+        )
+        assertEquals("unknown", unfetched.decision("vision_input")!!.resolution.support)
+        assertEquals("missing_evidence", unfetched.decision("vision_input")!!.resolution.reasonCode)
+    }
 
     @Test
     fun `the same OpenAI provider in API key mode does not enter the subscription branch`() {

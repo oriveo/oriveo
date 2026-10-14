@@ -74,7 +74,7 @@ class HomeViewModelBehaviorTest {
         coEvery { folderRepository.migrateColorTags() } returns Unit
         coEvery { skillRepository.refreshAll() } returns Unit
         coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<String>()) } returns Unit
-        coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>()) } returns Unit
+        coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>(), any()) } returns Unit
         every { appPreferencesRepository.primeLastUsedModel(any(), any()) } returns Unit
         coEvery { conversationRepository.currentMonthlyCostTotal() } returns 0.0
         coEvery { conversationRepository.deleteMultiple(any()) } returns Unit
@@ -108,6 +108,7 @@ class HomeViewModelBehaviorTest {
             skillRepository = skillRepository,
             chatStreamingManager = chatStreamingManager,
             ioDispatcher = dispatcher,
+            defaultDispatcher = dispatcher,
         )
         viewModel.showModelPicker = true
 
@@ -125,7 +126,7 @@ class HomeViewModelBehaviorTest {
             )
         }
         coVerify(exactly = 0) { appPreferencesRepository.setLastUsedModel(any<String>(), any<String>()) }
-        coVerify(exactly = 0) { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>()) }
+        coVerify(exactly = 0) { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>(), any()) }
         // Tapping "+" in the picker must give visible feedback.
         verify(exactly = 1) {
             globalSnackbarManager.show(match { it.style == GlobalToastStyle.Success })
@@ -155,6 +156,7 @@ class HomeViewModelBehaviorTest {
             skillRepository = skillRepository,
             chatStreamingManager = chatStreamingManager,
             ioDispatcher = dispatcher,
+            defaultDispatcher = dispatcher,
         )
 
         viewModel.enableModel("provider-1", "gpt-4.1")
@@ -169,7 +171,7 @@ class HomeViewModelBehaviorTest {
             )
         }
         coVerify(exactly = 0) { appPreferencesRepository.setLastUsedModel(any<String>(), any<String>()) }
-        coVerify(exactly = 0) { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>()) }
+        coVerify(exactly = 0) { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>(), any()) }
     }
 
     @Test
@@ -212,6 +214,7 @@ class HomeViewModelBehaviorTest {
             skillRepository = skillRepository,
             chatStreamingManager = chatStreamingManager,
             ioDispatcher = dispatcher,
+            defaultDispatcher = dispatcher,
         )
 
         viewModel.enableModel("provider-1", "gpt-4.1")
@@ -271,6 +274,7 @@ class HomeViewModelBehaviorTest {
             skillRepository = skillRepository,
             chatStreamingManager = chatStreamingManager,
             ioDispatcher = dispatcher,
+            defaultDispatcher = dispatcher,
         )
 
         ProviderCatalogResolver.debugResolveCallCount = 0
@@ -283,6 +287,7 @@ class HomeViewModelBehaviorTest {
                 match<AIModel> {
                     it.id == "gpt-5.4-2026-03-05" && it.canonicalModelId == "gpt-5.4"
                 },
+                any(),
             )
         }
         assertEquals(0, ProviderCatalogResolver.debugResolveCallCount)
@@ -300,6 +305,7 @@ class HomeViewModelBehaviorTest {
             skillRepository = skillRepository,
             chatStreamingManager = chatStreamingManager,
             ioDispatcher = dispatcher,
+            defaultDispatcher = dispatcher,
         )
         viewModel.enterSearch()
         viewModel.setSearchQuery("quota")
@@ -475,6 +481,7 @@ class HomeViewModelBehaviorTest {
             appPreferencesRepository.setLastUsedModel(
                 "provider-1",
                 match<AIModel> { it.id == "gpt-4o" },
+                any(),
             )
         }
         coVerify {
@@ -556,6 +563,7 @@ class HomeViewModelBehaviorTest {
         skillRepository = skillRepository,
         chatStreamingManager = chatStreamingManager,
         ioDispatcher = dispatcher,
+        defaultDispatcher = dispatcher,
     )
 
     @Test

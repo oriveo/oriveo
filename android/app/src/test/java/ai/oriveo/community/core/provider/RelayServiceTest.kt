@@ -4,6 +4,7 @@ import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.CapabilityEvidenceIdentity
 import ai.oriveo.community.core.model.ModelCapability
+import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.RelayAuthMode
@@ -30,6 +31,8 @@ import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
@@ -48,6 +51,7 @@ class RelayServiceTest {
         connectionGeneration = "1",
         credentialEpoch = "1",
         providerKind = ProviderKind.Relay.rawValue,
+        authMode = ProviderAuthMode.ApiKey.rawValue,
         canonicalModelId = modelId,
     )
 
@@ -67,6 +71,8 @@ class RelayServiceTest {
     @After
     fun tearDown() {
         UnsupportedParamCache.resetForTest()
+        // A reasoning tier rejection is recorded in the shared relay negative cache; without clearing it, later cases would already be downgraded before sending.
+        ai.oriveo.community.core.provider.relay.RelayNegativeCache.shared.clearConnection("relay-test")
     }
 
     @Test
@@ -266,7 +272,8 @@ class RelayServiceTest {
         assertEquals("Bearer sk-relay", request.headers[HttpHeaders.Authorization])
         assertTrue(body.contains("\"service_tier\":\"fast\""))
         assertTrue(body.contains("\"store\":false"))
-        assertTrue(body.contains("\"effort\":\"xhigh\""))
+        // The connection-level reasoning tier is void: a stored xhigh is not sent.
+        assertFalse(body.contains("\"effort\":\"xhigh\""))
         assertTrue(body.contains("\"model\":\"gpt-image-2\""))
 
         assertEquals("hello", (events[0] as StreamEvent.Delta).text)
@@ -313,6 +320,7 @@ class RelayServiceTest {
         val body = (request.body as TextContent).text
         assertTrue(request.url.toString().endsWith("/chat/completions"))
         assertTrue(body.contains("\"service_tier\":\"priority\""))
+        assertFalse(body.contains("prompt_cache_key"))
         assertEquals("hello", done.result.text)
     }
 
@@ -392,6 +400,105 @@ class RelayServiceTest {
         assertEquals(null, request.headers["Originator"])
         assertEquals(null, request.headers["session_id"])
         assertEquals(null, request.headers["OpenAI-Beta"])
+        assertFalse((request.body as TextContent).text.contains("prompt_cache_key"))
+    }
+
+    @Test
+    fun `prompt cache key pure function matches the cross-end expected values`() {
+        assertEquals(
+            "2290bbc6e2bae08a11ede516e419f3c6",
+            RelayRuntimeSupport.promptCacheKey("golden-relay-model", "You are a golden fixture.", "Hello"),
+        )
+        assertEquals("cd6af1a9ab51099a01ed5bf53656a023", RelayRuntimeSupport.promptCacheKey("gpt-6-sol", "", "ping"))
+        assertEquals("c1417132a678c57242b1b6476f059be0", RelayRuntimeSupport.promptCacheKey("m", "", "\u4f60\u597d 👋"))
+    }
+
+    @Test
+    fun `responses relay chat body carries prompt_cache_key and keeps it on the second turn`() = runTest {
+        val seenRequests = mutableListOf<HttpRequestData>()
+        val client = HttpClient(
+            MockEngine { request ->
+                seenRequests += request
+                respond(
+                    content = """{"output_text":"ok","usage":{"input_tokens":1,"output_tokens":1}}""",
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                )
+            },
+        )
+        val service = RelayService(client = client, json = json, transportRegistry = transportRegistry)
+        val first = ProviderTestFixtures.userMessage("Hi", ProviderKind.Relay, "gpt-5.4")
+        val secondTurn = listOf(
+            first,
+            first.copy(id = "a1", role = ai.oriveo.community.core.model.ChatRole.Assistant, text = "Hello."),
+            first.copy(id = "u2", text = "And then?"),
+        )
+        val options = ChatRequestOptions(
+            systemPrompt = "Be brief.",
+            relayRequested = RelayRequestedConfig(
+                transport = RelayTransport.OpenAIResponses,
+                authMode = RelayAuthMode.Bearer,
+                codexCompatIdentity = true,
+            ),
+        )
+
+        listOf(listOf(first), secondTurn).forEach { messages ->
+            service.sendMessage(
+                apiKey = "sk-relay",
+                modelID = "gpt-5.4",
+                messages = messages,
+                baseUrl = "https://relay.example.com/v1",
+                supportsImageGen = false,
+                reasoningMode = ReasoningMode.Automatic,
+                webSearchEnabled = false,
+                requestOptions = options,
+            )
+        }
+
+        val keys = seenRequests.map { request ->
+            json.parseToJsonElement((request.body as TextContent).text).jsonObject["prompt_cache_key"]?.jsonPrimitive?.content
+        }
+        assertEquals(2, keys.size)
+        assertEquals(RelayRuntimeSupport.promptCacheKey("gpt-5.4", "Be brief.", "Hi"), keys[0])
+        assertEquals(keys[0], keys[1])
+        assertEquals("codex_cli_rs/0.162.1 (Oriveo Android)", seenRequests.first().headers[HttpHeaders.UserAgent])
+    }
+
+    @Test
+    fun `responses relay keeps a user supplied prompt_cache_key`() = runTest {
+        val seenRequests = mutableListOf<HttpRequestData>()
+        val client = HttpClient(
+            MockEngine { request ->
+                seenRequests += request
+                respond(
+                    content = """{"output_text":"ok","usage":{"input_tokens":1,"output_tokens":1}}""",
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                )
+            },
+        )
+        val service = RelayService(client = client, json = json, transportRegistry = transportRegistry)
+
+        service.sendMessage(
+            apiKey = "sk-relay",
+            modelID = "gpt-5.4",
+            messages = listOf(ProviderTestFixtures.userMessage("Hi", ProviderKind.Relay, "gpt-5.4")),
+            baseUrl = "https://relay.example.com/v1",
+            supportsImageGen = false,
+            reasoningMode = ReasoningMode.Automatic,
+            webSearchEnabled = false,
+            requestOptions = ChatRequestOptions(
+                relayRequested = RelayRequestedConfig(
+                    transport = RelayTransport.OpenAIResponses,
+                    authMode = RelayAuthMode.Bearer,
+                ),
+                additionalRequestBody = """{"prompt_cache_key":"mine"}""",
+            ),
+        )
+
+        val body = (seenRequests.single().body as TextContent).text
+        assertEquals("mine", json.parseToJsonElement(body).jsonObject["prompt_cache_key"]?.jsonPrimitive?.content)
+        assertEquals(1, Regex("prompt_cache_key").findAll(body).count())
     }
 
     @Test
@@ -428,6 +535,10 @@ class RelayServiceTest {
         assertTrue(body.contains("\"max_output_tokens\":1"))
         assertTrue(body.contains("\"store\":false"))
         assertEquals("codex_cli_rs", request.headers["Originator"])
+        assertEquals(
+            RelayRuntimeSupport.promptCacheKey("gpt-5.4", "", "ping"),
+            json.parseToJsonElement(body).jsonObject["prompt_cache_key"]?.jsonPrimitive?.content,
+        )
     }
 
     @Test
@@ -527,7 +638,7 @@ class RelayServiceTest {
     }
 
     @Test
-    fun `responses relay surfaces xhigh 4xx after one unchanged attempt`() = runTest {
+    fun `responses relay max rejected before output is resent once without a tier when the panel set is empty`() = runTest {
         val seenRequests = mutableListOf<HttpRequestData>()
         val client = HttpClient(
             MockEngine { request ->
@@ -567,14 +678,14 @@ class RelayServiceTest {
             ),
         ) }.exceptionOrNull()
 
-        assertTrue(failure is ProviderServiceError.Upstream)
-        assertEquals(1, seenRequests.size)
-        val body = (seenRequests.single().body as TextContent).text
-        assertTrue(body.contains("\"effort\":\"xhigh\""))
+        assertEquals(null, failure)
+        assertEquals(2, seenRequests.size)
+        assertTrue((seenRequests[0].body as TextContent).text.contains("\"effort\":\"xhigh\""))
+        assertFalse((seenRequests[1].body as TextContent).text.contains("\"effort\""))
     }
 
     @Test
-    fun `chat completions relay surfaces xhigh 4xx after one unchanged attempt`() = runTest {
+    fun `chat completions relay max rejected before output is resent once without a tier when the panel set is empty`() = runTest {
         val seenRequests = mutableListOf<HttpRequestData>()
         val client = HttpClient(
             MockEngine { request ->
@@ -614,10 +725,10 @@ class RelayServiceTest {
             ),
         ) }.exceptionOrNull()
 
-        assertTrue(failure is ProviderServiceError.Upstream)
-        assertEquals(1, seenRequests.size)
-        val body = (seenRequests.single().body as TextContent).text
-        assertTrue(body.contains("\"reasoning_effort\":\"xhigh\""))
+        assertEquals(null, failure)
+        assertEquals(2, seenRequests.size)
+        assertTrue((seenRequests[0].body as TextContent).text.contains("\"reasoning_effort\":\"xhigh\""))
+        assertFalse((seenRequests[1].body as TextContent).text.contains("reasoning_effort"))
     }
 
     @Test
@@ -662,6 +773,7 @@ class RelayServiceTest {
         assertTrue(request.url.toString().endsWith("/messages"))
         assertEquals("anth-key", request.headers["x-api-key"])
         assertEquals("2023-06-01", request.headers["anthropic-version"])
+        assertFalse((request.body as TextContent).text.contains("prompt_cache_key"))
         assertEquals("hello", (events[0] as StreamEvent.Delta).text)
         assertEquals("hello", (events.last() as StreamEvent.Done).result.text)
     }
@@ -754,7 +866,7 @@ class RelayServiceTest {
     }
 
     @Test
-    fun `anthropic relay non stream surfaces unsupported thinking without retry`() = runTest {
+    fun `anthropic relay non stream thinking rejected before output is resent once without thinking when the panel set is empty`() = runTest {
         val seenRequests = mutableListOf<HttpRequestData>()
         val client = HttpClient(
             MockEngine { request ->
@@ -799,14 +911,14 @@ class RelayServiceTest {
             ),
         ) }.exceptionOrNull()
 
-        assertTrue(failure is ProviderServiceError.Upstream)
-        assertEquals(1, seenRequests.size)
-        val body = (seenRequests.single().body as TextContent).text
-        assertTrue("the only attempt should include thinking: $body", body.contains("\"thinking\""))
+        assertEquals(null, failure)
+        assertEquals(2, seenRequests.size)
+        assertTrue((seenRequests[0].body as TextContent).text.contains("\"budget_tokens\":16384"))
+        assertFalse((seenRequests[1].body as TextContent).text.contains("\"thinking\""))
     }
 
     @Test
-    fun `anthropic relay stream surfaces unsupported thinking without retry`() = runTest {
+    fun `anthropic relay stream thinking rejected before output is resent once without thinking when the panel set is empty`() = runTest {
         val seenRequests = mutableListOf<HttpRequestData>()
         val stream = ProviderTestFixtures.anthropicStream(
             ProviderTestFixtures.anthropicEvent("message_start", "{\"message\":{\"usage\":{\"input_tokens\":5}}}"),
@@ -851,10 +963,10 @@ class RelayServiceTest {
             ),
         ).toList() }.exceptionOrNull()
 
-        assertTrue(failure is ProviderServiceError.Upstream)
-        assertEquals(1, seenRequests.size)
-        val body = (seenRequests.single().body as TextContent).text
-        assertTrue("the only attempt should include thinking: $body", body.contains("\"thinking\""))
+        assertEquals(null, failure)
+        assertEquals(2, seenRequests.size)
+        assertTrue((seenRequests[0].body as TextContent).text.contains("\"budget_tokens\":16384"))
+        assertFalse((seenRequests[1].body as TextContent).text.contains("\"thinking\""))
     }
 
     @Test
@@ -895,6 +1007,7 @@ class RelayServiceTest {
         val request = seenRequests.single()
         assertTrue(request.url.toString().contains(":streamGenerateContent"))
         assertEquals("goog-key", request.headers["x-goog-api-key"])
+        assertFalse((request.body as TextContent).text.contains("prompt_cache_key"))
         assertEquals("hello", (events[0] as StreamEvent.Delta).text)
         val done = events.last() as StreamEvent.Done
         assertEquals(1, done.result.attachments?.size)
@@ -902,7 +1015,7 @@ class RelayServiceTest {
     }
 
     @Test
-    fun `gemini relay non stream surfaces unsupported thinkingConfig without retry`() = runTest {
+    fun `gemini relay non stream thinkingConfig rejected before output is resent once without thinking when the panel set is empty`() = runTest {
         val seenRequests = mutableListOf<HttpRequestData>()
         val client = HttpClient(
             MockEngine { request ->
@@ -948,14 +1061,14 @@ class RelayServiceTest {
             ),
         ) }.exceptionOrNull()
 
-        assertTrue(failure is ProviderServiceError.Upstream)
-        assertEquals(1, seenRequests.size)
-        val body = (seenRequests.single().body as TextContent).text
-        assertTrue("the only attempt should include thinkingConfig: $body", body.contains("thinkingConfig"))
+        assertEquals(null, failure)
+        assertEquals(2, seenRequests.size)
+        assertTrue((seenRequests[0].body as TextContent).text.contains("\"thinkingBudget\":16384"))
+        assertFalse((seenRequests[1].body as TextContent).text.contains("thinkingConfig"))
     }
 
     @Test
-    fun `gemini relay stream surfaces unsupported thinkingConfig without retry`() = runTest {
+    fun `gemini relay stream thinkingConfig rejected before output is resent once without thinking when the panel set is empty`() = runTest {
         val seenRequests = mutableListOf<HttpRequestData>()
         val stream = ProviderTestFixtures.geminiChunk(text = "hello", promptTokens = 4, completionTokens = 5) + "\n"
         val client = HttpClient(
@@ -997,10 +1110,10 @@ class RelayServiceTest {
             ),
         ).toList() }.exceptionOrNull()
 
-        assertTrue(failure is ProviderServiceError.Upstream)
-        assertEquals(1, seenRequests.size)
-        val body = (seenRequests.single().body as TextContent).text
-        assertTrue("the only attempt should include thinkingConfig: $body", body.contains("thinkingConfig"))
+        assertEquals(null, failure)
+        assertEquals(2, seenRequests.size)
+        assertTrue((seenRequests[0].body as TextContent).text.contains("\"thinkingBudget\":16384"))
+        assertFalse((seenRequests[1].body as TextContent).text.contains("thinkingConfig"))
     }
 
     @Test
@@ -1044,7 +1157,7 @@ class RelayServiceTest {
     }
 
     @Test
-    fun `responses relay emits image_generation and default web_search tools together`() = runTest {
+    fun `responses relay emits image_generation and no automatic web_search tool`() = runTest {
         val seenRequests = mutableListOf<HttpRequestData>()
         val client = HttpClient(
             MockEngine { request ->
@@ -1085,22 +1198,13 @@ class RelayServiceTest {
 
         val request = seenRequests.single()
         val body = (request.body as TextContent).text
-        // The default protocol name is web_search, which is what upstream recommends and what
-        // the common relays accept; image_generation has to coexist with it.
+        // The builder no longer adds a web tool from the chat web preference (web search only comes from the connection-level fragment, injected by the chat send path).
         assertTrue("tools should contain image_generation: $body", body.contains("\"type\":\"image_generation\""))
-        assertTrue("tools should contain web_search (no _preview): $body", body.contains("\"type\":\"web_search\""))
-        assertFalse("tools should NOT contain legacy web_search_preview by default: $body", body.contains("\"type\":\"web_search_preview\""))
-        // Structurally confirm they are in one tools array rather than two tools fields.
-        val toolsStart = body.indexOf("\"tools\":[")
-        assertTrue("tools field missing: $body", toolsStart >= 0)
-        val toolsEnd = body.indexOf(']', toolsStart)
-        val toolsSlice = body.substring(toolsStart, toolsEnd + 1)
-        assertTrue("image_generation inside tools: $toolsSlice", toolsSlice.contains("image_generation"))
-        assertTrue("web_search inside tools: $toolsSlice", toolsSlice.contains("web_search"))
+        assertFalse("no automatic web_search tool: $body", body.contains("web_search"))
     }
 
     @Test
-    fun `responses relay uses legacy web_search_preview when webSearchToolName=WebSearchPreview`() = runTest {
+    fun `responses relay appends the connection web fragment after image_generation`() = runTest {
         val seenRequests = mutableListOf<HttpRequestData>()
         val client = HttpClient(
             MockEngine { request ->
@@ -1132,12 +1236,16 @@ class RelayServiceTest {
                 ),
                 activeModel = relayModel("gpt-5.4", web = true),
                 capabilityEvidenceIdentity = relayIdentity("gpt-5.4"),
+                relayWebFragments = mapOf(
+                    RelayTransport.OpenAIResponses.value to
+                        Json.parseToJsonElement("""{"tools":[{"type":"web_search_preview"}]}""").jsonObject,
+                ),
             ),
         )
 
         val body = (seenRequests.single().body as TextContent).text
-        assertTrue("legacy web_search_preview should be used: $body", body.contains("\"type\":\"web_search_preview\""))
-        assertFalse("new web_search should NOT appear: $body", body.contains("\"type\":\"web_search\","))
+        assertTrue("fragment web_search_preview is merged: $body", body.contains("\"type\":\"web_search_preview\""))
+        assertTrue("fragment tool comes after image_generation: $body", body.indexOf("image_generation") < body.indexOf("web_search_preview"))
     }
 
     @Test
@@ -1303,8 +1411,10 @@ class RelayServiceTest {
             // The throw is expected.
         }
 
-        // The point of the test: no retry was triggered, only one request went out.
-        assertEquals(1, seenRequests.size)
+        // The point of the test: the Responses route did not trigger an xhigh retry, only one request went out.
+        // model_not_found means no access: once it is judged as no access before any output, nothing is resent
+        // automatically, and the protocol fallback does not fire either.
+        assertEquals(listOf("/v1/responses"), seenRequests.map { it.url.encodedPath })
     }
 
     @Test
@@ -1400,5 +1510,53 @@ class RelayServiceTest {
         // Second half: the "partial" delta did go out before the stream terminated.
         assertTrue("expected partial delta in $events",
             events.any { it is StreamEvent.Delta && it.text == "partial" })
+    }
+
+    // Catalog refresh address: the fixture catalogCases run through the production RelayService.syncProvider, and the actual request URL is asserted.
+
+    @Test fun `refresh-host_only_connection_refreshes_v1_models`() = refreshCase("host_only_connection_refreshes_v1_models")
+    @Test fun `refresh-verified_root_from_detection_wins`() = refreshCase("verified_root_from_detection_wins")
+    @Test fun `refresh-versionless_verified_root_is_not_versioned_again`() = refreshCase("versionless_verified_root_is_not_versioned_again")
+    @Test fun `refresh-per_transport_root_of_the_connection_transport_wins`() = refreshCase("per_transport_root_of_the_connection_transport_wins")
+    @Test fun `refresh-existing_v4_segment_is_not_versioned_again`() = refreshCase("existing_v4_segment_is_not_versioned_again")
+    @Test fun `refresh-stored_chat_route_is_trimmed_before_models`() = refreshCase("stored_chat_route_is_trimmed_before_models")
+    @Test fun `refresh-messages_connection_refreshes_its_v1_root`() = refreshCase("messages_connection_refreshes_its_v1_root")
+    @Test fun `refresh-gemini_connection_refreshes_its_v1beta_root`() = refreshCase("gemini_connection_refreshes_its_v1beta_root")
+
+    @Test
+    fun `every catalog fixture case has a refresh test`() {
+        val declared = RelayServiceTest::class.java.declaredMethods.map { it.name }.toSet()
+        assertEquals(
+            emptyList<String>(),
+            AddressNormalizeFixture.catalogIds().map { "refresh-$it" }.filterNot(declared::contains),
+        )
+    }
+
+    private fun refreshCase(caseId: String) = runTest {
+        val (requested, baseUrl, expectURL) = AddressNormalizeFixture.catalogCase(caseId)
+        val seenRequests = mutableListOf<HttpRequestData>()
+        val client = HttpClient(
+            MockEngine { request ->
+                seenRequests += request
+                respond(
+                    content = ByteReadChannel("""{"data":[{"id":"m1"}]}"""),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                )
+            },
+        )
+        val service = RelayService(client = client, json = json, transportRegistry = transportRegistry)
+
+        // Only the request address is asserted; whether the catalog parses for each protocol is not this case's concern.
+        runCatching {
+            service.syncProvider(
+                apiKey = "sk-test",
+                preferredModelID = null,
+                baseUrl = baseUrl,
+                relayRequested = requested,
+            )
+        }
+
+        assertEquals(caseId, listOf(expectURL), seenRequests.map { it.url.toString() })
     }
 }

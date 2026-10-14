@@ -9,6 +9,7 @@ import ai.oriveo.community.core.model.GenerationParameterOverrides
 import ai.oriveo.community.core.model.GenerationParameterRef
 import ai.oriveo.community.core.model.GenerationProfileRef
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.RelayAuthMode
@@ -489,6 +490,7 @@ class ProviderToolLegRunnerTest {
             connectionGeneration = "generation-1",
             credentialEpoch = "credential-1",
             providerKind = ProviderKind.Relay.rawValue,
+            authMode = ProviderAuthMode.ApiKey.rawValue,
             metadataRevision = "local-1",
             generationRevision = "local-1",
         ),

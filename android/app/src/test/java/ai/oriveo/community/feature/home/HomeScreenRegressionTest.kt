@@ -201,7 +201,7 @@ class HomeScreenRegressionTest {
         coEvery { folderRepository.migrateColorTags() } returns Unit
         coEvery { skillRepository.refreshAll() } returns Unit
         coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<String>()) } returns Unit
-        coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>()) } returns Unit
+        coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>(), any()) } returns Unit
         every { appPreferencesRepository.primeLastUsedModel(any(), any()) } returns Unit
         coEvery { conversationRepository.currentMonthlyCostTotal() } returns 0.0
     }

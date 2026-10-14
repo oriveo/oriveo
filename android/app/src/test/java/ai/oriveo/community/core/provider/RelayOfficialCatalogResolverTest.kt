@@ -8,8 +8,16 @@ import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
+import ai.oriveo.community.core.provider.relay.relayRouterModel
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -85,7 +93,7 @@ class RelayOfficialCatalogResolverTest {
     }
 
     @Test
-    fun `a manual model (bare id plus isManual=true) keeps user fields but takes catalog pricing`() {
+    fun `a manual model (bare id plus isManual=true) keeps user fields and inherits capabilities and pricing`() {
         injectFixture()
         val local = AIModel(
             id = "gpt-5.4",
@@ -110,7 +118,12 @@ class RelayOfficialCatalogResolverTest {
 
         assertEquals("gpt-5.4", enriched.id)
         assertEquals("gpt-5.4 (manual)", enriched.name)
-        assertEquals(listOf(ModelCapability.Text, ModelCapability.Image), enriched.capabilities)
+        // An exact manual hit inherits capabilities (union) the same way a catalog model does, not just pricing.
+        assertEquals(
+            setOf(ModelCapability.Text, ModelCapability.Image, ModelCapability.File, ModelCapability.Web, ModelCapability.Reasoning),
+            enriched.capabilities.toSet(),
+        )
+        assertEquals("openaiReasoning", enriched.reasoningProfile)
         assertEquals("gpt-5.4", enriched.canonicalModelId)
         assertEquals(0.000002, enriched.promptPrice ?: 0.0, 0.0000000001)
         assertEquals(0.000008, enriched.completionPrice ?: 0.0, 0.0000000001)
@@ -141,7 +154,9 @@ class RelayOfficialCatalogResolverTest {
         )
 
         assertEquals("gpt-5.4 (manual legacy)", enriched.name)
-        assertEquals(listOf(ModelCapability.Text, ModelCapability.Image), enriched.capabilities)
+        // Inherited capabilities (union).
+        assertTrue(ModelCapability.Reasoning in enriched.capabilities)
+        assertTrue(ModelCapability.Image in enriched.capabilities)
         assertEquals("gpt-5.4", enriched.canonicalModelId)
     }
 
@@ -286,6 +301,111 @@ class RelayOfficialCatalogResolverTest {
         assertEquals("claude-sonnet-4.5", enriched[2].id)
         assertEquals("claude-sonnet-4.5", enriched[2].canonicalModelId)
         assertEquals("Claude Sonnet 4.5", enriched[2].name)
+    }
+
+    @Test
+    fun `inherit 01 same-vendor hit carries capabilities, profile, pricing and the three whitelist fields, nulled when the envelope has no native file`() {
+        injectInheritFixture(responsesNativeFile = true)
+        val provider = makeRelayProvider(transport = RelayTransport.OpenAIResponses)
+        val enriched = RelayOfficialCatalogResolver.enrich(
+            localModel = localModel("gpt-5.4"),
+            provider = provider,
+            runtimeConfig = MetadataClient.relayRuntimeConfig(),
+        )
+        assertTrue(ModelCapability.Image in enriched.capabilities)
+        assertTrue(ModelCapability.File in enriched.capabilities)
+        assertEquals("openaiReasoning", enriched.reasoningProfile)
+        assertEquals(0.000002, enriched.promptPrice ?: 0.0, 1e-10)
+        // The whitelist comes from the router model fetched at send time (the same function the production request-body builder uses).
+        val router = relayRouterModel("gpt-5.4", ProviderKind.OpenAI, enriched)
+        assertEquals(listOf("application/pdf"), router?.nativeFileMimes)
+        assertTrue(router?.pdfNativeDefault == true)
+        assertEquals(321, router?.attachmentExtraction?.maxLines)
+
+        // This protocol's envelope has nativeFile=false: all three (including attachmentExtraction) are nulled together.
+        injectInheritFixture(responsesNativeFile = false)
+        val gated = relayRouterModel("gpt-5.4", ProviderKind.OpenAI, enriched)
+        assertEquals(emptyList<String>(), gated?.nativeFileMimes)
+        assertFalse(gated?.pdfNativeDefault == true)
+        assertNull(gated?.attachmentExtraction)
+    }
+
+    @Test
+    fun `inherit 02 cross-vendor hit carries capabilities, profile and pricing but empty whitelist, and an exact manual hit inherits the same way`() {
+        injectInheritFixture(responsesNativeFile = true)
+        val provider = makeRelayProvider(transport = RelayTransport.OpenAIResponses)
+        val runtime = MetadataClient.relayRuntimeConfig()
+        val enriched = RelayOfficialCatalogResolver.enrich(localModel("claude-sonnet-4.5"), provider, runtime)
+        assertTrue(ModelCapability.Image in enriched.capabilities)
+        assertEquals("anthropicReasoning", enriched.reasoningProfile)
+        assertEquals(0.000003, enriched.promptPrice ?: 0.0, 1e-10)
+        val router = relayRouterModel("claude-sonnet-4.5", ProviderKind.OpenAI, enriched)
+        assertTrue(router?.nativeFileMimes.orEmpty().isEmpty())
+        assertFalse(router?.pdfNativeDefault == true)
+        assertNull(router?.attachmentExtraction)
+
+        // A manual model matching exactly after stripping the date suffix inherits capabilities (union), profile and pricing
+        // the same way a catalog model does, and keeps the user's name.
+        val manual = AIModel(
+            id = "claude-sonnet-4-5-2026-04-01",
+            name = "my claude",
+            capabilities = listOf(ModelCapability.Text, ModelCapability.ToolCall),
+            isManual = true,
+        )
+        val manualEnriched = RelayOfficialCatalogResolver.enrich(manual, provider, runtime)
+        assertEquals("my claude", manualEnriched.name)
+        assertEquals("claude-sonnet-4-5-2026-04-01", manualEnriched.id)
+        assertTrue(ModelCapability.Image in manualEnriched.capabilities)
+        assertTrue(ModelCapability.Reasoning in manualEnriched.capabilities)
+        assertTrue(ModelCapability.ToolCall in manualEnriched.capabilities)
+        assertEquals("anthropicReasoning", manualEnriched.reasoningProfile)
+        assertTrue(manualEnriched.reasoningModeAvailable)
+        assertEquals(0.000003, manualEnriched.promptPrice ?: 0.0, 1e-10)
+        assertTrue(
+            relayRouterModel(manual.id, ProviderKind.OpenAI, manualEnriched)?.nativeFileMimes.orEmpty().isEmpty(),
+        )
+    }
+
+    /** On top of the shared metadata fixture: add the three whitelist fields and cross-vendor pricing, and turn off native file for openai_responses on demand. */
+    private fun injectInheritFixture(responsesNativeFile: Boolean) {
+        val moduleDir = File(System.getProperty("user.dir") ?: ".").absoluteFile
+        val repoRoot = moduleDir.parentFile!!.parentFile!!
+        val raw = Json.parseToJsonElement(
+            File(repoRoot, "shared/test-fixtures/relay/metadata-fixture.json").readText(Charsets.UTF_8),
+        ).jsonObject
+        val whitelist = buildJsonObject {
+            put("nativeFileMimes", buildJsonArray { add(JsonPrimitive("application/pdf")) })
+            put("pdfNativeDefault", JsonPrimitive(true))
+            put("attachmentExtraction", buildJsonObject { put("maxLines", JsonPrimitive(321)) })
+        }
+        fun patchModel(providers: JsonObject, provider: String, model: String, extra: JsonObject): JsonObject {
+            val p = providers.getValue(provider).jsonObject
+            val models = p.getValue("models").jsonObject
+            val patched = JsonObject(models.getValue(model).jsonObject + extra)
+            return JsonObject(providers + (provider to JsonObject(p + ("models" to JsonObject(models + (model to patched))))))
+        }
+        var providers = raw.getValue("providers").jsonObject
+        providers = patchModel(providers, "openAI", "gpt-5.4", whitelist)
+        providers = patchModel(
+            providers,
+            "anthropic",
+            "claude-sonnet-4.5",
+            JsonObject(
+                whitelist + ("pricing" to buildJsonObject {
+                    put("promptPerMToken", JsonPrimitive(3.0))
+                    put("completionPerMToken", JsonPrimitive(15.0))
+                }) + ("pricingStatus" to JsonPrimitive("priced")),
+            ),
+        )
+        val relay = raw.getValue("relayRuntimeConfig").jsonObject
+        val envelopes = relay.getValue("transportEnvelopes").jsonObject
+        val responses = JsonObject(
+            envelopes.getValue("openai_responses").jsonObject + ("nativeFile" to JsonPrimitive(responsesNativeFile)),
+        )
+        val patchedRelay = JsonObject(
+            relay + ("transportEnvelopes" to JsonObject(envelopes + ("openai_responses" to responses))),
+        )
+        injectJson(JsonObject(raw + ("providers" to providers) + ("relayRuntimeConfig" to patchedRelay)).toString())
     }
 
     @Test

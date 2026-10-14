@@ -50,7 +50,7 @@ class ToolCallMemoryStoreTest {
     }
 
     @Test
-    fun `negative memory overrides unknown and positive memory requires a native adapter`() {
+    fun `relay negative memory is ignored and positive memory requires a native adapter`() {
         val relay = relayProvider()
         val model = manualModel().copy(toolCall = null)
         val identity = relayIdentity(model)
@@ -69,8 +69,9 @@ class ToolCallMemoryStoreTest {
             identity = identity,
             memoryVerdict = false,
         )
-        assertFalse(negative.permitsOutbound("tool_call"))
-        assertEquals("connection_memory", negative.decision("tool_call")?.resolution?.source)
+        // Ruling (same on all clients): Relay's "tools unsupported" is recognized only from the negative cache, and a false in the old tool memory is treated as no value.
+        assertEquals("unknown", negative.decision("tool_call")?.resolution?.support)
+        assertTrue(negative.decision("tool_call")?.resolution?.source != "connection_memory")
 
         val positive = CapabilityEvidenceProductionAdapter.toolCallProjection(
             relay,
@@ -105,6 +106,7 @@ class ToolCallMemoryStoreTest {
         connectionGeneration = "generation-1",
         credentialEpoch = "credential-1",
         providerKind = ProviderKind.Relay.rawValue,
+        authMode = ProviderAuthMode.ApiKey.rawValue,
         modelId = model.id,
         effectiveTransport = "openai_chat",
         endpointFingerprint = "relay-endpoint",

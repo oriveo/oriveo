@@ -154,7 +154,8 @@ class ProviderCatalogResolverTest {
 
     @Test
     fun `default model resolves from user existing default`() {
-        val provider = relayProvider(
+        // Relay has no default model; the user default applies only to official providers.
+        val provider = officialProvider(
             models = listOf(
                 model("model-a"),
                 model("model-b", isDefault = true),

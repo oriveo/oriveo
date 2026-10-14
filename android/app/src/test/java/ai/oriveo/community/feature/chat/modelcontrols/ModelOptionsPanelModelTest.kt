@@ -196,7 +196,8 @@ class ModelOptionsPanelModelTest {
     @Test
     fun `shape semantics map to the registered copy`() {
         assertEquals(
-            listOf(R.string.reasoning_auto, R.string.model_control_off, R.string.reasoning_fast, R.string.reasoning_balanced, R.string.reasoning_deep, R.string.reasoning_max),
+            // The auto tier uses "Automatic" (model_control_supplier_default), no longer "Auto".
+            listOf(R.string.model_control_supplier_default, R.string.model_control_off, R.string.reasoning_fast, R.string.reasoning_balanced, R.string.reasoning_deep, R.string.reasoning_max),
             listOf("automatic", "off", "low", "balanced", "deep", "max").map(ModelOptionsRender::tierLabelRes),
         )
         assertEquals(R.string.model_control_reasoning_note_automatic, ModelOptionsRender.tierNoteRes("automatic"))

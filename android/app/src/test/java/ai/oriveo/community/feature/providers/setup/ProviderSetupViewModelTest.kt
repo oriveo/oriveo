@@ -178,6 +178,11 @@ class ProviderSetupViewModelTest {
                 customName = null,
             )
         } returns provider
+        // The China-region site is selectable only when the issued trusted table contains minimaxi.com
+        MetadataTestFixtures.applyRaw(
+            """{"version":1,"providers":{},"providerConfigs":[{"kind":"miniMax","displayName":"MiniMax",""" +
+                """"defaultBaseURL":"https://api.minimax.io/v1","trustedHosts":["minimax.io","minimaxi.com"]}]}""",
+        )
 
         val viewModel = createViewModel()
         viewModel.selectKind(ProviderKind.OpenAI)
@@ -293,6 +298,11 @@ class ProviderSetupViewModelTest {
                 customName = null,
             )
         } returns provider
+        // The China-region site is selectable only when the issued trusted table contains minimaxi.com
+        MetadataTestFixtures.applyRaw(
+            """{"version":1,"providers":{},"providerConfigs":[{"kind":"miniMax","displayName":"MiniMax",""" +
+                """"defaultBaseURL":"https://api.minimax.io/v1","trustedHosts":["minimax.io","minimaxi.com"]}]}""",
+        )
 
         val viewModel = createViewModel()
         viewModel.selectKind(ProviderKind.MiniMax)

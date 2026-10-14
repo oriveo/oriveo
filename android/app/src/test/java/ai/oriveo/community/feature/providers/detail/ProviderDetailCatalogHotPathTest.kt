@@ -40,7 +40,7 @@ class ProviderDetailCatalogHotPathTest {
         val catalog = ProviderCatalogResolver.resolve(provider).catalog.map { it.model }
         assertTrue("the resolver must actually produce a catalog, or this test checks nothing", catalog.size >= 8)
 
-        val index = ModelSelectionUtils.catalogMembershipIndex(catalog)
+        val index = ModelSelectionUtils.catalogMembershipIndex(catalog, provider.kind)
 
         // In the catalog, enabled, case variants, dated suffixes, the manual- prefix, and ids that
         // do not exist at all.
@@ -53,8 +53,8 @@ class ProviderDetailCatalogHotPathTest {
         probes.forEach { probe ->
             assertEquals(
                 "the index and matchingModel must agree on `$probe`",
-                ModelSelectionUtils.matchingModel(catalog, probe) != null,
-                ModelSelectionUtils.catalogIndexContains(index, probe),
+                ModelSelectionUtils.matchingModel(catalog, probe, provider.kind) != null,
+                ModelSelectionUtils.catalogIndexContains(index, probe, provider.kind),
             )
         }
     }
@@ -63,8 +63,8 @@ class ProviderDetailCatalogHotPathTest {
     fun `empty confirmed catalog still reports every model as missing`() {
         // An empty catalog (RelayCatalogUiState.Empty) passes an empty index, not null: "confirmed
         // and empty" is not "unconfirmed", and only the latter must suppress the missing badge.
-        val index = ModelSelectionUtils.catalogMembershipIndex(emptyList())
-        assertFalse(ModelSelectionUtils.catalogIndexContains(index, "anthropic/claude-sonnet"))
+        val index = ModelSelectionUtils.catalogMembershipIndex(emptyList(), ProviderKind.Relay)
+        assertFalse(ModelSelectionUtils.catalogIndexContains(index, "anthropic/claude-sonnet", ProviderKind.Relay))
     }
 
     // ---- 2. sortedEnabledModels with frozen scores matches item by item ----
@@ -73,8 +73,9 @@ class ProviderDetailCatalogHotPathTest {
     fun `sorted enabled models match the pre-freeze comparator item by item`() {
         val provider = relayProviderWithProductionCatalog().let { relay ->
             // The whole catalog as enabled models: what "add all" produces, and exactly where the
-            // in-comparator scoring shows up.
-            relay.copy(models = ProviderCatalogResolver.resolve(relay).catalog.map { it.model })
+            // in-comparator scoring shows up. A relay now keeps its stored order, so only BYOK
+            // aggregators go through the scored sort; switch to OpenRouter to push the same data through it.
+            relay.copy(models = ProviderCatalogResolver.resolve(relay).catalog.map { it.model }, kind = ProviderKind.OpenRouter)
         }
 
         // Reference: the comparator as it was before scores were frozen, scoring on every
@@ -115,9 +116,22 @@ class ProviderDetailCatalogHotPathTest {
             "scanning the whole catalog again for every row is what drops frames on large relay catalogs",
             enabledModels.contains("ModelSelectionUtils.matchingModel("),
         )
+        // The check is shared by the old detail rows and the model library board rows through
+        // RelayCatalogBoardModel; the rows call it.
+        val boardModel = File(
+            "src/main/java/ai/oriveo/community/feature/providers/detail/RelayCatalogBoardModel.kt",
+        ).readText().withoutComments()
+        assertTrue(
+            "rows may only go through the shared check",
+            enabledModels.contains("RelayCatalogBoardModel.isMissingFromConfirmedCatalog("),
+        )
         assertTrue(
             "rows may only look the index up",
-            enabledModels.contains("ModelSelectionUtils.catalogIndexContains("),
+            boardModel.contains("ModelSelectionUtils.catalogIndexContains("),
+        )
+        assertFalse(
+            "scanning the whole catalog again for every row is what drops frames on large relay catalogs",
+            boardModel.contains("ModelSelectionUtils.matchingModel("),
         )
         assertTrue(
             "the index must be built once in remember, not rebuilt on every composition",

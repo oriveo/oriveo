@@ -35,6 +35,7 @@ import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.core.model.StreamActivity
 import ai.oriveo.community.core.model.UnhandledToolCall
 import ai.oriveo.community.core.provider.ToolCallMemoryStore
+import ai.oriveo.community.core.provider.relay.RelayNegativeCache
 import ai.oriveo.community.core.streaming.ConversationStreamingOutputs
 import ai.oriveo.community.core.tools.ToolCallLoop
 import ai.oriveo.community.core.tools.ToolLoopLegEvent
@@ -76,6 +77,7 @@ class ChatRepositoryMcpTest {
     private val attachmentStore = mockk<AttachmentStore>(relaxed = true)
     private val mcpRunner = mockk<McpChatToolRunner>()
     private val memory = mockk<ToolCallMemoryStore>(relaxed = true)
+    private val negativeCache = RelayNegativeCache(RelayNegativeCache.MemoryStore(), clock = { 1_000L })
     private val mcp = McpScriptedTransport()
     private val savedPayloadUpdates = mutableListOf<McpToolStepUpdate>()
     private val limitReachedMessageIds = mutableListOf<String>()
@@ -191,7 +193,7 @@ class ChatRepositoryMcpTest {
         assertEquals("the lead-in text of the tool_calls leg stays out of the final body", "It is 72F.", delivered.captured.text)
         assertTrue("usage of both legs is billed", delivered.captured.estimatedCost > 0.0)
         assertEquals("the tool really was called once", 1, mcp.requests("tools/call").size)
-        verify(exactly = 0) { providerRepository.serviceFor(any<Provider>()) }
+        verify(exactly = 0) { providerRepository.serviceFor(any<Provider>(), any()) }
         verify { memory.record(LOCAL_PARTITION_ID, any(), any(), toolCall = true, reason = "structured_tool_calls_observed") }
     }
 
@@ -441,8 +443,9 @@ class ChatRepositoryMcpTest {
     }
 
     @Test
-    fun `a first-leg tools rejection is remembered for the connection and fails this message with the upstream error`() = runTest {
+    fun `RL2_NEGCACHE_01 Relay first-leg tools rejection writes the toolCall negative cache under the read key`() = runTest {
         arrange()
+        stubBareResend()
         coEvery {
             mcpRunner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } throws ToolsUnsupportedError(ProviderServiceError.Upstream(400, "tools is not supported"))
@@ -452,11 +455,191 @@ class ChatRepositoryMcpTest {
             existingMessages = emptyList(), outputs = outputs(),
         )
 
+        // A false for the Relay shape goes into the negative cache (the same keyFor as the read-side toolCallVerdict); the old tool memory is no longer written.
+        val key = RelayNegativeCache.keyFor(provider(), provider().models.single())!!
+        assertEquals(listOf(key to RelayNegativeCache.Kind.ToolCall), negativeCache.entries().map { it.key to it.kind })
+        verify(exactly = 0) { memory.record(any(), any(), any(), toolCall = false, reason = any()) }
+    }
+
+    /** An unverified Claude-family model on an auto connection sends via Messages first, so the tools-rejected negative cache is written under Messages. */
+    @Test
+    fun `RL2-FIRSTSEND-07 tools rejection writes the negative cache under Messages with no Chat entry and the tool verdict is false`() = runTest {
+        arrange()
+        stubBareResend()
+        coEvery {
+            mcpRunner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } throws ToolsUnsupportedError(ProviderServiceError.Upstream(400, "tools is not supported"))
+        val claude = "claude-sonnet-4"
+        val model = AIModel(id = claude, name = claude, toolCall = true)
+        val auto = provider().copy(relayRequested = RelayRequestedConfig(transport = RelayTransport.Auto), models = listOf(model))
+        val field = ai.oriveo.community.core.data.remote.RelayModelFamilyLookup::class.java.getDeclaredField("families")
+            .apply { isAccessible = true }
+        val shared = ai.oriveo.community.core.data.remote.RelayModelFamilyLookup.shared
+        val previous = field.get(shared)
+        field.set(shared, mapOf(claude to "anthropic"))
+        try {
+            repository().sendMessage(
+                conversation = conversation().copy(modelID = claude), text = "Weather?", provider = auto, modelID = claude,
+                existingMessages = emptyList(), outputs = outputs(),
+            )
+
+            val messagesKey = RelayNegativeCache.Key("relay-1", claude, RelayTransport.AnthropicMessages.value)
+            assertEquals(listOf(messagesKey to RelayNegativeCache.Kind.ToolCall), negativeCache.entries().map { it.key to it.kind })
+            val chatKey = RelayNegativeCache.Key("relay-1", claude, RelayTransport.OpenAIChatCompletions.value)
+            assertTrue(negativeCache.entries().none { it.key == chatKey })
+            assertEquals(
+                false,
+                ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter.toolCallVerdict(auto, model, negativeCache = negativeCache),
+            )
+            // Capability verdict: goes through the evidence layer with the outbound identity of the first-send protocol Messages (candidates from RelayTruthAdapter); tools are judged unsupported and not let through.
+            val local = ai.oriveo.community.core.model.CapabilityEvidenceIdentity(
+                partitionId = "partition", connectionInstanceId = auto.id, connectionGeneration = "generation",
+                credentialEpoch = "epoch", providerKind = auto.kind.rawValue, authMode = auto.authMode.rawValue,
+            )
+            val identity = ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter.dispatchIdentity(
+                local, model, ai.oriveo.community.core.provider.relay.RelayFirstSendTransport.resolve(auto, model),
+                "https://relay.test/v1/messages",
+            )!!
+            assertEquals(RelayTransport.AnthropicMessages.value, identity.effectiveTransport)
+            val decision = ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
+                .toolCallProjection(auto, model, identity, negativeCache = negativeCache).decision("tool_call")!!
+            assertEquals("unsupported", decision.resolution.support)
+            assertTrue(!decision.permitsOutbound)
+        } finally {
+            field.set(shared, previous)
+        }
+    }
+
+    /**
+     * The first send via Messages falls back to Chat because of a file (no extracted text and Messages cannot send it natively), and tools are rejected:
+     * the key is written for the protocol actually sent, Chat, and the Messages key has no entry (the UI read point still reads Messages for a no-attachment first send; that is not in this case).
+     */
+    @Test
+    fun `RL2-FIRSTSEND-08 Messages first send falls back to Chat because of a file and the negative cache lands on the Chat key`() = runTest {
+        arrange()
+        stubBareResend()
+        coEvery {
+            mcpRunner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } throws ToolsUnsupportedError(ProviderServiceError.Upstream(400, "tools is not supported"))
+        val claude = "claude-sonnet-4"
+        val model = AIModel(id = claude, name = claude, toolCall = true)
+        val auto = provider().copy(relayRequested = RelayRequestedConfig(transport = RelayTransport.Auto), models = listOf(model))
+        val scanned = ai.oriveo.community.core.model.Attachment(
+            id = "f1", kind = ai.oriveo.community.core.model.AttachmentKind.File, fileName = "scan.pdf",
+            mimeType = "application/pdf", extractionErrorCode = "no_text",
+        )
+        val field = ai.oriveo.community.core.data.remote.RelayModelFamilyLookup::class.java.getDeclaredField("families")
+            .apply { isAccessible = true }
+        val shared = ai.oriveo.community.core.data.remote.RelayModelFamilyLookup.shared
+        val previous = field.get(shared)
+        field.set(shared, mapOf(claude to "anthropic"))
+        try {
+            // Precondition: a no-attachment first send goes via Messages, while with this file it actually goes via Chat.
+            assertEquals(RelayTransport.AnthropicMessages, ai.oriveo.community.core.provider.relay.RelayFirstSendTransport.resolve(auto, model))
+            repository().sendMessage(
+                conversation = conversation().copy(modelID = claude), text = "Weather?", provider = auto, modelID = claude,
+                existingMessages = emptyList(), attachments = listOf(scanned), outputs = outputs(),
+            )
+
+            val chatKey = RelayNegativeCache.Key("relay-1", claude, RelayTransport.OpenAIChatCompletions.value)
+            assertEquals(listOf(chatKey to RelayNegativeCache.Kind.ToolCall), negativeCache.entries().map { it.key to it.kind })
+            val messagesKey = RelayNegativeCache.Key("relay-1", claude, RelayTransport.AnthropicMessages.value)
+            assertTrue(negativeCache.entries().none { it.key == messagesKey })
+        } finally {
+            field.set(shared, previous)
+        }
+    }
+
+    /** A deterministic tools 4xx on the first leg of remote MCP: resend once without tools in the same turn, no error card; only an eligible model id (manually entered) records false. */
+    @Test
+    fun `MCP_TOOLS_4XX_resend_once_without_tools`() = runTest {
+        arrange()
+        val providerService = stubBareResend()
+        coEvery {
+            mcpRunner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } throws ToolsUnsupportedError(ProviderServiceError.Upstream(400, "tools is not supported"))
+        val official = officialProviderWithManualModel()
+
+        repository().sendMessage(
+            conversation = conversation().copy(providerID = official.id, providerKind = official.kind, modelID = MANUAL_MODEL),
+            text = "Weather?", provider = official, modelID = MANUAL_MODEL,
+            existingMessages = emptyList(), outputs = outputs(),
+        )
+
         val updates = mutableListOf<ChatMessage>()
         coVerify { conversationRepository.updateMessage(eq("conversation-1"), capture(updates)) }
-        assertEquals(ChatMessageState.Failed, updates.last().state)
-        verify { memory.record(LOCAL_PARTITION_ID, any(), any(), toolCall = false, reason = "tools_rejected_4xx") }
-        verify(exactly = 0) { providerRepository.serviceFor(any<Provider>()) }
+        assertEquals(ChatMessageState.Delivered, updates.last().state)
+        assertEquals("Bare answer", updates.last().text)
+        // The MCP loop runs once (the first leg with tools); the resend goes through the plain send, carries no tools, and happens only once.
+        coVerify(exactly = 1) { mcpRunner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 1) { providerService.sendMessageStream(any(), any(), any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 1) {
+            memory.record(LOCAL_PARTITION_ID, official, match { it.id == MANUAL_MODEL }, toolCall = false, reason = "tools_rejected_4xx")
+        }
+        assertTrue(negativeCache.entries().isEmpty())
+    }
+
+    @Test
+    fun `MCP_TOOLS_4XX later leg or after tool_calls still fails as a normal error`() = runTest {
+        arrange()
+        val providerService = stubBareResend()
+        listOf(
+            ToolsUnsupportedError(ProviderServiceError.Upstream(400, "tools is not supported"), legIndex = 1),
+            ToolsUnsupportedError(ProviderServiceError.Upstream(400, "tools is not supported"), receivedStructuredToolCalls = true),
+        ).forEach { rejection ->
+            coEvery {
+                mcpRunner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            } throws rejection
+            val updates = mutableListOf<ChatMessage>()
+            coEvery { conversationRepository.updateMessage(eq("conversation-1"), capture(updates)) } returns Unit
+
+            repository().sendMessage(
+                conversation = conversation(), text = "Weather?", provider = provider(), modelID = "relay-model",
+                existingMessages = emptyList(), outputs = outputs(),
+            )
+
+            assertEquals(ChatMessageState.Failed, updates.last().state)
+        }
+        verify(exactly = 0) { providerService.sendMessageStream(any(), any(), any(), any(), any(), any(), any(), any()) }
+        assertTrue(negativeCache.entries().isEmpty())
+        verify(exactly = 0) { memory.record(any(), any(), any(), toolCall = false, reason = any()) }
+    }
+
+    /** The plain send chain the tools-free resend goes through: a service that replies with a single piece of text. */
+    private fun stubBareResend(): ai.oriveo.community.core.provider.ProviderService {
+        val service = mockk<ai.oriveo.community.core.provider.ProviderService>()
+        every { providerRepository.serviceFor(any<Provider>(), any()) } returns service
+        every {
+            service.sendMessageStream(any(), any(), any(), any(), any(), any(), any(), any())
+        } returns kotlinx.coroutines.flow.flowOf(
+            ai.oriveo.community.core.model.StreamEvent.Delta("Bare answer"),
+            ai.oriveo.community.core.model.StreamEvent.Done(ai.oriveo.community.core.model.ProviderChatResult(text = "Bare answer")),
+        )
+        return service
+    }
+
+    /** A manually entered model id on an official BYOK connection (eligible to write connection memory). */
+    private fun officialProviderWithManualModel(): Provider = Provider(
+        id = "official-openai",
+        kind = ProviderKind.OpenAI,
+        apiKey = "local-key",
+        models = listOf(AIModel(id = MANUAL_MODEL, name = MANUAL_MODEL, isManual = true)),
+    )
+
+    @Test
+    fun `RL2_NEGCACHE_01 Relay tools rejection that is not a rejected signal writes nothing`() = runTest {
+        arrange()
+        coEvery {
+            mcpRunner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } throws ToolsUnsupportedError(ProviderServiceError.Upstream(413, "tools is not supported"))
+
+        repository().sendMessage(
+            conversation = conversation(), text = "Weather?", provider = provider(), modelID = "relay-model",
+            existingMessages = emptyList(), outputs = outputs(),
+        )
+
+        assertTrue(negativeCache.entries().isEmpty())
+        verify(exactly = 0) { memory.record(any(), any(), any(), toolCall = false, reason = any()) }
     }
 
     @Test
@@ -490,6 +673,7 @@ class ChatRepositoryMcpTest {
         attachmentStore = attachmentStore,
         toolCallMemoryStore = memory,
         mcpChatToolRunner = mcpRunner,
+        relayNegativeCache = negativeCache,
     )
 
     private fun provider(): Provider {
@@ -517,5 +701,6 @@ class ChatRepositoryMcpTest {
         const val SERVER_ID = "aaaaaaaa-0000-4000-8000-000000000001"
         const val ENDPOINT = "https://mcp.example.com/mcp"
         const val OUTBOUND = "mcp_weather_get_weather"
+        const val MANUAL_MODEL = "my-handfilled-model"
     }
 }

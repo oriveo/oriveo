@@ -19,6 +19,7 @@ import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.core.model.StreamEvent
+import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.provider.relay.buildAnthropicBody
 import ai.oriveo.community.core.provider.relay.buildLlamaCppNativeBody
 import ai.oriveo.community.core.provider.relay.buildOpenAIChatBody
@@ -355,7 +356,7 @@ class AdditionalRequestBodySendChainTest {
             model = model,
             relayRequested = provider.relayRequested,
             identity = CapabilityEvidenceProductionAdapter.dispatchIdentity(
-                CapabilityEvidenceIdentity("test", provider.id, "1", "1", ProviderKind.Relay.rawValue),
+                CapabilityEvidenceIdentity("test", provider.id, "1", "1", ProviderKind.Relay.rawValue, ProviderAuthMode.ApiKey.rawValue),
                 model,
                 transport,
                 finalUrl,

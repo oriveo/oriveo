@@ -187,7 +187,8 @@ class CostSummaryCalculatorTest {
             ),
         )
 
-        assertEquals(ProviderKind.Anthropic, augmented.providers.first().logoProviderKind)
+        // Relay connections no longer draw a protocol logo from relayKind (the old Anthropic assertion was stale).
+        assertEquals(ProviderKind.Relay, augmented.providers.first().logoProviderKind)
     }
 
     @Test
@@ -218,7 +219,8 @@ class CostSummaryCalculatorTest {
             now = instant("2026-03-26T10:00:00Z"),
         )
 
-        assertEquals(ProviderKind.Anthropic, summary.providers.first().logoProviderKind)
+        // Relay connections no longer draw a protocol logo from relayKind (the old Anthropic assertion was stale).
+        assertEquals(ProviderKind.Relay, summary.providers.first().logoProviderKind)
     }
 
     // ── monthlyCostByProvider ──

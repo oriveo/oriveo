@@ -9,6 +9,7 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
+import ai.oriveo.community.core.model.ProviderAuthMode
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -470,6 +471,7 @@ class McpChatSurfaceTest {
         val IDENTITY = CapabilityEvidenceIdentity(
             partitionId = "user", connectionInstanceId = "relay", connectionGeneration = "g1", credentialEpoch = "c1",
             providerKind = ProviderKind.Relay.rawValue, metadataRevision = "m1", generationRevision = "g1",
+            authMode = ProviderAuthMode.ApiKey.rawValue,
         )
         const val CONV = "conversation-a"
         const val DRAFT = "draft-session-1"

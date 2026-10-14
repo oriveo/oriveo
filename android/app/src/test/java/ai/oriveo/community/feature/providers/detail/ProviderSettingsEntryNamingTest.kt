@@ -11,9 +11,9 @@ import org.junit.Test
  * 1. **Two rows in the same settings card both labeled "advanced settings"**: it was already
  *    known that an official provider would show two rows with the same name and icon, and only
  *    the icon was changed (`Tune` to `Settings`) at the time, leaving the label collision in
- *    place -- a non-relay provider uses `advanced_settings`, while the next row,
- *    `generation_model_behavior`, resolves to the same label. So all 15 official providers
- *    really do show two identically named rows, and tapping the first one actually opens the
+ *    place -- a non-relay provider uses `advanced_settings`, while the next row, the parameters
+ *    page entry, then had the same label (it has since been renamed "Parameters"). So all 15
+ *    official providers really do show two identically named rows, and tapping the first one actually opens the
  *    connection info sheet.
  * 2. **`OriveoCard`'s content lambda is a Box scope**: dropping multiple `Text` calls straight
  *    into the card makes them all stack on top of each other in the top-left corner, and any
@@ -77,7 +77,7 @@ class ProviderSettingsEntryNamingTest {
         val collisions = valuesDirs().mapNotNull { dir ->
             val strings = File(dir, "strings.xml").takeIf { it.exists() }?.readText() ?: return@mapNotNull null
             val connection = stringValue(strings, "provider_detail_connection_settings")
-            val advanced = stringValue(strings, "generation_model_behavior")
+            val advanced = stringValue(strings, "generation_parameters_section")
             if (connection != null && advanced != null && connection == advanced) {
                 "${dir.name}: both rows are labeled \"$connection\""
             } else {
