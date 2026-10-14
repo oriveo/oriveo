@@ -29,6 +29,7 @@ import { BackButton } from '@oriveo/ui';
 import { relayFormFieldMessage } from '../../../../lib/core/providers/relay-form-messages';
 import { relayDomainNameFromEndpoint } from '../../../../lib/core/providers/provider-display';
 import { createCanonicalUUID } from '../../../../lib/utils/id-utils';
+import { relayShotSeed } from '../../../../lib/dev/relay-shots-mode';
 import { consumeRelayHandoff } from '../../new/relay-handoff';
 import { RelaySetupStepOne } from './RelaySetupStepOne';
 import { RelaySetupStepTwo } from './RelaySetupStepTwo';
@@ -83,7 +84,8 @@ export function RelaySetup() {
   const tc = useTranslations('common');
   const router = useRouter();
   // Relay step 2 (the SetupModels board) has no Hero; its back button sits in its own title row. Manual setup draws its own header and Hero from the board.
-  const [cloudMode, setCloudMode] = useState<RelayCloudMode>('quick');
+  // Screenshot preset (dev builds only, always null in production).
+  const [cloudMode, setCloudMode] = useState<RelayCloudMode>(() => relayShotSeed()?.setup?.cloudMode ?? 'quick');
   // The topBar keeps only the back button; the page title lives only in the Hero.
   const [labelKey, titleKey, subtitleKey] = scenario === 'local' ? LOCAL_SETUP_HERO_KEYS : RELAY_SETUP_HERO_KEYS;
   const HeroIcon = scenario === 'local' ? Plug : HardDrives;
@@ -153,12 +155,17 @@ function RelayCloudSetup({ connection, onModeChange }: {
   // The id of the connection this page will create: step 1 per-key catalog and step 2 save use the same one.
   const [providerID] = useState(() => createCanonicalUUID());
   // The address and all keys (including names) are shared between quick connect and manual setup.
-  const [endpoint, setEndpoint] = useState('');
-  const [keys, setKeys] = useState<RelayKeyDraft[]>(initialRelayKeyDrafts);
+  // Screenshot preset (dev builds only, always null in production): the screenshot page may give initial values, everything else is unchanged.
+  const [shotSetup] = useState(() => relayShotSeed()?.setup);
+  const [endpoint, setEndpoint] = useState(shotSetup?.endpoint ?? '');
+  const [keys, setKeys] = useState<RelayKeyDraft[]>(() => {
+    const initial = initialRelayKeyDrafts();
+    return shotSetup?.apiKey ? [{ ...initial[0]!, apiKey: shotSetup.apiKey }] : initial;
+  });
   const apiKey = keys[0]!.apiKey; // key-choke: not-provider
-  const [manualMode, setManualMode] = useState(false);
+  const [manualMode, setManualMode] = useState(shotSetup?.cloudMode === 'manual');
   // Inputs owned by the manual page: they are still there when the user re-enters.
-  const [manualDraft, setManualDraft] = useState<ManualSetupDraft>(initialManualSetupDraft);
+  const [manualDraft, setManualDraft] = useState<ManualSetupDraft>(() => ({ ...initialManualSetupDraft(), ...shotSetup?.manualDraft }));
   const [manualAdvancedChoice, setManualAdvancedChoice] = useState<boolean | undefined>(undefined);
   const [endpointNormalizationVersion, setEndpointNormalizationVersion] = useState(0);
   const [showKey, setShowKey] = useState(false);

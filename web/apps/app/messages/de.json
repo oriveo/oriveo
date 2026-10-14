@@ -430,6 +430,7 @@
     "welcome": {
       "title": "Willkommen bei Oriveo",
       "tagline": "Alle Modelle, eine App.",
+      "slogan": "Deine Schlüssel, deine Kosten, deine Daten.",
       "description": "Richte deinen ersten KI-Anbieter ein, um Multi-Modell-Unterhaltungen zu starten.",
       "addProvider": "Anbieter hinzufügen",
       "enterHome": "Weiter zur App"

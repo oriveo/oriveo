@@ -17,6 +17,7 @@ import { useTheme } from '../lib/hooks/useTheme';
 import { bootstrapApp, type BootstrapResult } from '../lib/core/bootstrap';
 import { Skeleton } from '../components/Skeleton';
 import { trackEvent } from '../lib/core/telemetry';
+import { isRelayShotsPath } from '../lib/dev/relay-shots-mode';
 
 type Store = ReturnType<typeof createAppStore>;
 
@@ -57,6 +58,21 @@ export function StoreProvider({ children }: StoreProviderProps) {
   }, [store]);
 
   useEffect(() => {
+    // Screenshot routes (dev builds only): skip hydration and persistence, install the isolation fence first, then let rendering through.
+    if (process.env.NODE_ENV !== 'production') {
+      if (isRelayShotsPath(window.location.pathname)) {
+        const shotSignal = { cancelled: false };
+        void import('../app/dev/relay-shots/relay-shots-fence').then(({ installRelayShotsFence }) => {
+          if (shotSignal.cancelled) return;
+          installRelayShotsFence();
+          store.setState({ hydrationPhase: 'ready' });
+          setHydrated(true);
+        });
+        return () => {
+          shotSignal.cancelled = true;
+        };
+      }
+    }
     const signal = { cancelled: false };
     const startedAt = Date.now();
     const timeoutId = globalThis.setTimeout(() => {

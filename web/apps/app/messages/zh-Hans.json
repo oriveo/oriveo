@@ -430,6 +430,7 @@
     "welcome": {
       "title": "欢迎使用 Oriveo",
       "tagline": "所有模型，一个应用。",
+      "slogan": "你的密钥，你的成本，你的数据。",
       "description": "配置你的第一个 AI 供应商，开始多模型对话。",
       "addProvider": "添加供应商",
       "enterHome": "进入首页"

@@ -49,7 +49,7 @@ function uniqueModels(models: AIModel[]): AIModel[] {
 export function enrichRelayProviderModels(provider: Provider, models: AIModel[]): AIModel[] {
   if (provider.kind !== 'relay') return models;
   const runtimeConfig = getRelayRuntimeConfig();
-  // Enrich each model per its own protocol (Relay 2.0: protocol is an attribute of the model).
+  // Enrich each model per its own protocol (protocol is an attribute of the model).
   return models.flatMap((model) => enrichRelayCatalog([model], resolveRelaySelectionTransport(provider, model), runtimeConfig));
 }
 

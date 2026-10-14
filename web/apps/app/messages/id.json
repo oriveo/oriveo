@@ -430,6 +430,7 @@
     "welcome": {
       "title": "Selamat datang di Oriveo",
       "tagline": "Semua Model Anda, Satu Aplikasi.",
+      "slogan": "Kunci Anda, Biaya Anda, Data Anda.",
       "description": "Siapkan penyedia AI pertama Anda untuk memulai percakapan multi-model.",
       "addProvider": "Tambahkan Penyedia",
       "enterHome": "Lanjut ke Aplikasi"

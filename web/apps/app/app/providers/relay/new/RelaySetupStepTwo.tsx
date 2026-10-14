@@ -8,6 +8,7 @@ import type { ModelBrowserGroup } from '../../[providerId]/model-browser-groups'
 import type { RelayDiscoveryResult } from '../../../../lib/core/providers/probe/probe-runner';
 
 import styles from './RelaySetup.module.css';
+import { relayShotSeed } from '../../../../lib/dev/relay-shots-mode';
 import { failureMessageKey } from './RelaySimpleForm';
 import { relayFlagshipModelID } from './manual-setup-board';
 import { ProtocolDot } from './setup-board-parts';
@@ -44,7 +45,8 @@ interface RelaySetupStepTwoProps {
 export function RelaySetupStepTwo(props: RelaySetupStepTwoProps) {
   const t = useTranslations('pages.relaySetup');
   const tc = useTranslations('common');
-  const [adding, setAdding] = useState(false);
+  // Screenshot preset (dev builds only, always null in production): open the inline manual add on entry.
+  const [adding, setAdding] = useState(() => relayShotSeed()?.setup?.addManualOpen ?? false);
   const [manualID, setManualID] = useState('');
   const manualTitleID = useId();
   const closeManual = () => {

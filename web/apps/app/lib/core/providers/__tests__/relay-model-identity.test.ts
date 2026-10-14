@@ -1,4 +1,4 @@
-// Unit 6-7 relay literal-ID identity: RL2-IDENT-01 to 08.
+// Relay literal-ID identity: RL2-IDENT-01 to 08.
 // Contract source: shared model-contracts/model_identity_contract.v1.json relayCases (primitives are covered by model-identity-contract.test.ts);
 // this file locks the production-path behavior (load enrich / selection / enable-disable / catalog refresh / read compatibility / parameter keys).
 import 'fake-indexeddb/auto';

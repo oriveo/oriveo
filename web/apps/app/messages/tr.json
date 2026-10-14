@@ -430,6 +430,7 @@
     "welcome": {
       "title": "Oriveo'ye hoş geldiniz",
       "tagline": "Tüm Modelleriniz, Tek Uygulama.",
+      "slogan": "Anahtarlarınız, Maliyetleriniz, Verileriniz.",
       "description": "Çok modelli görüşmelere başlamak için ilk yapay zeka sağlayıcınızı kurun.",
       "addProvider": "Sağlayıcı Ekle",
       "enterHome": "Uygulamaya Git"

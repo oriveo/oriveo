@@ -430,6 +430,7 @@
     "welcome": {
       "title": "Bienvenido a Oriveo",
       "tagline": "Todos tus modelos, una sola app.",
+      "slogan": "Tus claves, tus costos, tus datos.",
       "description": "Configura tu primer proveedor de IA para comenzar conversaciones multimodelo.",
       "addProvider": "Agregar proveedor",
       "enterHome": "Ir a la app"

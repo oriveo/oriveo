@@ -250,7 +250,7 @@ type RelayRuntimeProvider = Pick<Provider, 'kind' | 'baseURLText' | 'relayReques
 
 /**
  * Merge the Relay runtime resolved per (provider, model) and the relayRequested fields into StreamOptions.
- * Transport and API root come only from `resolveRelayModelRuntime` (the Relay 2.0 resolver); the orchestrator consumes only the values injected here.
+ * Transport and API root come only from `resolveRelayModelRuntime` (the relay resolver); the orchestrator consumes only the values injected here.
  * Field mapping only (no IO, no capability computation); supportsWebSearch is intersected with
  * the transport envelope by the caller.
  */

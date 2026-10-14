@@ -430,6 +430,7 @@
     "welcome": {
       "title": "Oriveo へようこそ",
       "tagline": "すべてのモデルを、ひとつのアプリで。",
+      "slogan": "あなたのキー、あなたのコスト、あなたのデータ。",
       "description": "最初の AI プロバイダーを設定して、マルチモデル会話を始めましょう。",
       "addProvider": "プロバイダーを追加",
       "enterHome": "アプリへ進む"

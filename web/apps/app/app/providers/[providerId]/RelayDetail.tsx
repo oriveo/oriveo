@@ -83,6 +83,7 @@ import {
 } from '../../../lib/core/relay-model-probe-ops';
 import { refreshRelayCatalogInStore } from '../../../lib/core/providers/provider-sync';
 import { RelayAvatar } from '../../../components/RelayAvatar';
+import { relayShotSeed } from '../../../lib/dev/relay-shots-mode';
 import { ModelBrowser } from './ModelBrowser';
 import { ProviderDetailNoticeView, useProviderDetailNotice } from './provider-detail-notice';
 import {
@@ -213,7 +214,8 @@ export function RelayDetail({ provider }: RelayDetailProps) {
   const [page, setPage] = useState<RelayDetailPage>(() => (
     parseRelayDetailPage(typeof window === 'undefined' ? '' : window.location.search)
   ));
-  const [isEditing, setIsEditing] = useState(false);
+  // Screenshot preset (dev builds only, always null in production): open the page already editing the connection.
+  const [isEditing, setIsEditing] = useState(() => relayShotSeed()?.detail?.editing ?? false);
   const [, setWebSearchRevision] = useState(0);
   /** Query strings this page pushed into history itself: only then does it call router.back(); when a link with parameters was opened directly there are none, so it replaces to the level above. */
   const pushedQueriesRef = useRef<string[]>([]);
@@ -415,6 +417,27 @@ export function RelayDetail({ provider }: RelayDetailProps) {
   const closeCapabilityTest = useCallback(() => setCapabilityTestPanel(null), []);
 
   useEffect(() => () => capabilityTestAbortRef.current?.abort(), []);
+
+  // Screenshot preset (dev builds only): the advanced page opens with the capability-test panel already in its running state, built like the initial state of runCapabilityTest.
+  const shotCapabilityTestAppliedRef = useRef(false);
+  useEffect(() => {
+    const seeded = relayShotSeed()?.detail?.capabilityTest;
+    if (!seeded || shotCapabilityTestAppliedRef.current || !advancedModel || !advancedBoard) return;
+    shotCapabilityTestAppliedRef.current = true;
+    setCapabilityTestPanel({
+      modelName: advancedModel.name,
+      state: {
+        transport: relayCapabilityTestTransport(provider, advancedModel) ?? 'chat',
+        items: relayCapabilityTestPlan(advancedModel),
+        keyName: advancedBoard.keySection?.current.title ?? null,
+        phase: 'running',
+        results: seeded.results,
+        running: { kind: seeded.running, startedAt: Date.now() },
+        written: false,
+        stopReason: null,
+      },
+    });
+  });
   useEffect(() => () => advancedProbeAbortRef.current?.abort(), []);
 
   const resetAdvancedProbe = () => {
@@ -1010,8 +1033,8 @@ export function RelayDetail({ provider }: RelayDetailProps) {
           className={boardStyles.editConnectionButton}
           onClick={() => { void refreshRelayCatalog(); }}
           disabled={isSyncing || catalogLoadState === 'loading'}
-          aria-label={tRoot('pages.managed.modelCatalog.refresh')}
-          title={tRoot('pages.managed.modelCatalog.refresh')}
+          aria-label={tRoot('pages.relayDetail.detectAgain')}
+          title={tRoot('pages.relayDetail.detectAgain')}
         >
           <ArrowClockwiseIcon size={18} weight="bold" aria-hidden="true" />
         </button>

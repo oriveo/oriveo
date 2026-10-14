@@ -430,6 +430,7 @@
     "welcome": {
       "title": "Oriveo에 오신 것을 환영합니다",
       "tagline": "모든 모델, 하나의 앱.",
+      "slogan": "당신의 키, 당신의 비용, 당신의 데이터.",
       "description": "첫 AI 제공업체를 설정하고 멀티모델 대화를 시작하세요.",
       "addProvider": "제공업체 추가",
       "enterHome": "앱으로 이동"

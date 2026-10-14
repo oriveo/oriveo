@@ -430,6 +430,7 @@
     "welcome": {
       "title": "Chào mừng đến với Oriveo",
       "tagline": "Tất cả mô hình của bạn, một ứng dụng.",
+      "slogan": "Khóa API của bạn, chi phí của bạn, dữ liệu của bạn.",
       "description": "Thiết lập nhà cung cấp AI đầu tiên của bạn để bắt đầu cuộc trò chuyện đa mô hình.",
       "addProvider": "Thêm nhà cung cấp",
       "enterHome": "Vào ứng dụng"
