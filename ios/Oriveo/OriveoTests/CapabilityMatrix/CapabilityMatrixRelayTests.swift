@@ -208,7 +208,7 @@ struct CapabilityMatrixRelayTests {
         let options = try #require(chatBody["web_search_options"] as? [String: Any], "\(Self.text(chatBody))")
         #expect(options["search_context_size"] as? String == "low")
 
-        // Responses: fragment tools are appended after the builder tools; they are always sent even when the in-chat web preference is off.
+        // Responses: fragment tools are appended after the builder tools; with the in-chat web switch never set and a saved fragment present, it defaults to on.
         let responsesModel = Self.model(.openaiResponses)
         let responses = Self.provider(RelayRequestedConfig(transport: .openaiResponses), model: responsesModel)
         defer { RelayWebFragmentStore.shared.deleteConnection(responses.id) }
@@ -220,7 +220,7 @@ struct CapabilityMatrixRelayTests {
         #expect(types == ["image_generation", "web_search"], "\(Self.text(responsesBody))")
     }
 
-    @Test("CAP-RELAY-WEB-02: no fragment and no legacy field -> the request body has no web-search field at all (web preference on, model inherits the official web profile)")
+    @Test("CAP-RELAY-WEB-02: no fragment and no legacy field, in-chat web switch never set (default off) -> the request body has no web-search field at all (neither the UI choice being on nor the model inheriting the official web profile counts)")
     func CAP_RELAY_WEB_02_no_fragment_no_web_fields() async throws {
         for transport in [RelayTransport.openaiResponses, .geminiGenerateContent, .openaiChatCompletions] {
             let model = Self.model(transport, inheritsOfficialWeb: true)
@@ -230,8 +230,8 @@ struct CapabilityMatrixRelayTests {
             let text = Self.text(body)
             #expect(!body.isEmpty, "Precondition: a request was actually sent (\(transport.rawValue))")
             #expect(!text.contains("web_search"), "\(transport.rawValue) must not carry a web-search tool: \(text)")
-            #expect(!text.contains("googleSearch") && !text.contains("google_search"), "\(transport.rawValue)：\(text)")
-            #expect(body["plugins"] == nil, "\(transport.rawValue)：\(text)")
+            #expect(!text.contains("googleSearch") && !text.contains("google_search"), "\(transport.rawValue): \(text)")
+            #expect(body["plugins"] == nil, "\(transport.rawValue): \(text)")
         }
     }
 

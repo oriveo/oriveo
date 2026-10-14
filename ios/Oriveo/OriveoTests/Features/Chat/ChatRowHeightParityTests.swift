@@ -58,10 +58,12 @@ struct ChatRowHeightParityTests {
     }
 
     private static func projection(
-        _ message: ChatMessage
+        _ message: ChatMessage, replyNotice: RelayWebReplyNotice? = nil
     ) -> (row: ChatCollectionProjectionBuilder.MessageRow,
           model: ChatCollectionProjectionBuilder.MessageRenderModel)? {
-        let rows = ChatCollectionProjectionBuilder.makeRows(from: [message], metadata: .empty)
+        let rows = ChatCollectionProjectionBuilder.makeRows(
+            from: [message], metadata: .empty, replyNotices: replyNotice.map { [message.id: $0] } ?? [:]
+        )
         let plan = ChatCollectionProjectionBuilder.makeSnapshotPlan(
             from: rows, providerMetadataVersion: 0
         )
@@ -70,7 +72,13 @@ struct ChatRowHeightParityTests {
     }
 
     private static func measureAssistant(_ message: ChatMessage) -> (estimated: CGFloat, real: CGFloat) {
-        guard let (row, model) = projection(message) else { return (0, 0) }
+        measureAssistant(message, replyNotice: nil)
+    }
+
+    private static func measureAssistant(
+        _ message: ChatMessage, replyNotice: RelayWebReplyNotice?
+    ) -> (estimated: CGFloat, real: CGFloat) {
+        guard let (row, model) = projection(message, replyNotice: replyNotice) else { return (0, 0) }
         let estimated = ChatListViewController.estimatedRowHeight(for: row, width: width)
         let cell = AssistantMessageCell(frame: CGRect(x: 0, y: 0, width: width, height: 100))
         cell.configure(
@@ -238,6 +246,16 @@ struct ChatRowHeightParityTests {
         ], band: Self.strictBand, measure: Self.measureAssistant)
     }
 
+    @Test("Reply Notice Parity")
+    func replyNoticeParity() {
+        let cjkPara = "このあいのうえについておかします。きくをけこしてからさしします。\n"
+        Self.assertParity([
+            ("reply notice/short answer", Self.assistant(text: "はい。")),
+            ("reply notice/3 paragraphs", Self.assistant(text: String(repeating: cjkPara, count: 3))),
+            ("reply notice/3 citations", Self.assistant(text: "はい。", citations: (1...3).map(Self.citation))),
+        ], band: Self.strictBand, measure: { Self.measureAssistant($0, replyNotice: .webNotUsed) })
+    }
+
     @Test("Recovery Card Parity")
     func recoveryCardParity() {
         Self.assertParity(
@@ -311,6 +329,8 @@ struct ChatRowHeightParityTests {
     /// message is complete it is always collapsed to zero height. While shown, streaming
     /// self-sizing adds its height, and when it hides the streaming height floor absorbs the drop
     /// (covered by `StreamActivityPipelineTests`).
-    private static let expectedContentSlots = 9
+    ///
+    /// The reply notice row is part of `estimatedRowHeight` (`replyNoticeHeight`); see the reply notice case in the matrix.
+    private static let expectedContentSlots = 10
     private static let expectedBodySlots = 4
 }

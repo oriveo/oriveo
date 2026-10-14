@@ -84,9 +84,11 @@ struct ModelControlsPanelStructureTests {
         ] {
             #expect(!panel.contains(forbidden), "the panel view contains \(forbidden)")
         }
-        // No grayed-out options: the only `.disabled` in the panel is the button while a refetch is running.
-        #expect(panel.components(separatedBy: ".disabled(").count == 2)
+        // No grayed-out options: the only `.disabled` calls in the panel are the button while a refetch is running and the greyed-out
+        // relay web toggle when it is overridden off (the `Toggle.isEnabled` shape comes from a pure function; the View only draws it, with a status line and a retest exit).
+        #expect(panel.components(separatedBy: ".disabled(").count == 3)
         #expect(panel.contains(".disabled(banner.isBusy)"))
+        #expect(panel.contains(".disabled(!toggle.isEnabled)"))
     }
 
     @Test("the main panel's order is fixed: header, capabilities, parameters")

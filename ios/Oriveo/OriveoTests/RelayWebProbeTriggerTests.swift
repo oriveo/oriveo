@@ -36,7 +36,7 @@ struct RelayWebProbeTriggerTests {
         #expect(Self.caseIds.count >= 20)
     }
 
-    @Test("RL2-WEBPROBE-TRIG", arguments: caseIds)
+    @Test("RL2-WEBPROBE-07 TRIG", arguments: caseIds)
     func trigger(caseId: String) throws {
         let label = "RL2-WEBPROBE-TRIG-\(caseId)"
         let testCase = try #require(Self.cases.first { $0["caseId"] as? String == caseId }, "\(label)")

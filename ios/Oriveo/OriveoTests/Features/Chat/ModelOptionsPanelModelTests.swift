@@ -60,6 +60,39 @@ struct ModelOptionsPanelModelTests {
         }
     }
 
+    @Test("The relay web row does not count toward the seal: with a real rejected record the header stays unverified (a rejected toggle is not greyed out)")
+    func relayWebRowDoesNotMakeOfficialSeal() throws {
+        var model = TestFactories.makeModel(id: "relay-seal-model", capabilities: [.text], isDefault: true)
+        model.relayTransport = .openaiChatCompletions
+        model.relayTransportSource = .reachable
+        var provider = TestFactories.makeProvider(kind: .relay, models: [model], catalogModels: [model], apiKey: "sk-test",
+                                                  apiKeyPreview: "sk-…test", baseURLText: "https://relay-seal.test/v1")
+        provider.relayRequested = RelayRequestedConfig(transport: .openaiChatCompletions)
+        let suite = "relay-seal-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let fragments = RelayWebFragmentStore(defaults: defaults)
+        let records = RelayWebProbeStore(defaults: defaults)
+        let template = try #require(RelayWebFragments.template(for: .openaiChatCompletions))
+        let object = try #require(try JSONSerialization.jsonObject(with: Data(template.utf8)) as? [String: Any])
+        records.record(
+            connectionID: provider.id.uuidString, modelID: model.id, transport: RelayTransport.openaiChatCompletions.rawValue,
+            result: .rejected, source: .tested, fragmentHash: RelayWebProbe.fragmentHash(object)
+        )
+        let relayWeb = RelayWebProbe.panelFact(
+            provider: provider, model: model, preference: true, fragments: fragments, records: records
+        )
+        guard case let .relay(fact) = relayWeb else { Issue.record("should be in scope: \(relayWeb)"); return }
+        #expect(fact.probe == .rejected && fact.row == .toggle && fact.isOn, "precondition: a rejected model still has an enabled toggle that is on")
+        let web = Input(
+            capability: .web,
+            presentation: CapabilityControlPresentationResolver.presentation(provider: provider, model: model, capability: "web"),
+            connection: .custom, relayWeb: relayWeb
+        )
+        let panel = ModelOptionsPanelModel.make(Self.facts(web: web, reasoning: Self.custom(.reasoning)))
+        #expect(panel.seal == .unverified)
+    }
+
     // MARK: - Rows and order
 
     @Test("official connection: the order is fixed as web search, thinking, and the header carries connection, protocol and seal as they are")

@@ -150,7 +150,7 @@ struct RelayModelAdvancedBoardTests {
 
     // MARK: - BOARD-ADVANCED-01
 
-    @Test("BOARD-ADVANCED-01 page structure: Relay has five sections and four rows, the footer states that changes apply immediately and are stored on this device only, and the legend follows the connection; a local Channel is read-only, and only llama.cpp has a footnote")
+    @Test("BOARD-ADVANCED-01 page structure: Relay has five sections and five rows (web search added), the footer states that changes apply immediately and are stored on this device only, and the legend follows the connection; a local Channel is read-only, and only llama.cpp has a footnote")
     func advanced01Structure() throws {
         let relay = Self.relayProvider(models: [Self.model("gpt-4o-mini", isDefault: true)])
         let board = try Self.board(relay, "gpt-4o-mini")
@@ -161,7 +161,7 @@ struct RelayModelAdvancedBoardTests {
             return
         }
         #expect(selected == .auto)
-        #expect(board.capabilityRows.map(\.capability) == [.image, .file, .imageGeneration, .toolCall])
+        #expect(board.capabilityRows.map(\.capability) == [.image, .file, .imageGeneration, .toolCall, .web])
         #expect(Board.footerKey == "Changes apply right away and are saved only on this device.")
         #expect(board.legend == [.catalog, .detected, .tested, .user])
         #expect(board.modelName == "gpt-4o-mini")
@@ -172,7 +172,7 @@ struct RelayModelAdvancedBoardTests {
         #expect(ollamaBoard.protocolRow == .local(channel: .openaiChatCompletions, showsChannelHint: false))
         #expect(ollamaBoard.legend == [.engine, .user])
         #expect(ollamaBoard.thinking == nil, "A local engine shows no thinking section")
-        #expect(ollamaBoard.capabilityRows.count == 4)
+        #expect(ollamaBoard.capabilityRows.count == 5)
 
         let llama = Self.relayProvider(
             transport: .llamacppNative, models: [Self.model("qwen-local", isDefault: true)], engineProfile: "llamacpp"
@@ -331,7 +331,8 @@ struct RelayModelAdvancedBoardTests {
         #expect(try Self.row(Self.board(provider, "rejected", now: later), .image).source == nil)
 
         let catalogBoard = try Self.board(provider, "catalog")
-        for capability in Board.Capability.allCases {
+        // The web row does not inherit from the catalog (only overrides and probe records count).
+        for capability in Board.Capability.allCases where capability != .web {
             #expect(try Self.row(catalogBoard, capability).source == .catalog, "\(capability)")
         }
         #expect(try Self.row(catalogBoard, .imageGeneration).state == .supported)
@@ -881,5 +882,91 @@ struct RelayModelAdvancedBoardTests {
         let writable = try Self.board(provider, "claude-opus-4")
         #expect(!writable.isReadOnly)
         #expect(writable.showsFooter)
+    }
+
+    // MARK: - RL2-WEBPROBE-15
+
+    @Test("RL2-WEBPROBE-15 advanced page web row: after tool calling, globe, Web search; status follows the current record, source user > tested; Auto / On / Off write the web override (user), while Auto and restore-all-automatic clear it; a local engine is Unknown")
+    func rl2WebProbe15AdvancedWebRow() throws {
+        let model = Self.model("m-web", transport: .openaiChatCompletions, isDefault: true)
+        let provider = Self.relayProvider(transport: .openaiChatCompletions, models: [model])
+        defer {
+            RelayWebFragmentStore.shared.deleteConnection(provider.id)
+            RelayWebProbeStore.shared.clearConnection(provider.id.uuidString)
+        }
+        #expect(Board.Capability.web.icon == .globe)
+        #expect(Board.Capability.web.titleKey == "Web search")
+        #expect(Board.Capability.web.titleTable == .providers)
+
+        // Never tested: untested, no source, Auto.
+        let bare = try Self.row(Self.board(provider, "m-web"), .web)
+        #expect(bare.webStatus == .untested)
+        #expect(bare.source == nil)
+        #expect(bare.control == .auto)
+        #expect(bare.state == .unknown)
+
+        // Searched under the template (the probe also mirrors tested web = true): Search confirmed · Tested, control On (same convention as the image / tool rows).
+        let template = try #require(RelayWebFragments.template(for: .openaiChatCompletions))
+        let templateObject = try #require(try JSONSerialization.jsonObject(with: Data(template.utf8)) as? [String: Any])
+        RelayWebProbeStore.shared.record(
+            connectionID: provider.id.uuidString, modelID: "m-web", transport: RelayTransport.openaiChatCompletions.rawValue,
+            result: .searched, source: .tested, fragmentHash: RelayWebProbe.fragmentHash(templateObject)
+        )
+        #expect(try Self.row(Self.board(provider, "m-web"), .web).control == .auto, "a record without an override value = Auto")
+        var mirrored = provider
+        mirrored.models[0].relayCapabilityOverrides = RelayWebProbe.merged(nil, with: .searched)
+        let searched = try Self.row(Self.board(mirrored, "m-web"), .web)
+        #expect(searched.webStatus == .searched)
+        #expect(searched.source == .tested)
+        #expect(searched.state == .supported)
+        #expect(searched.control == .on, "tested true -> On, same convention as the image / tool rows")
+        var mirroredOff = provider
+        mirroredOff.models[0].relayCapabilityOverrides = RelayWebProbe.merged(nil, with: .rejected)
+        #expect(try Self.row(Self.board(mirroredOff, "m-web"), .web).control == .off, "tested false -> Off")
+
+        // Off: writes user to both tables; status still follows the record, source is user; model options are greyed out and the badge shows unsupported.
+        let state = Self.makeState(provider)
+        let manager = state.providerManager
+        manager.setRelayCapabilityOverride(providerID: provider.id, modelID: "m-web", key: .web, value: false)
+        var stored = try Self.stored(state, provider.id)
+        for models in [stored.models, stored.catalogModels] {
+            #expect(models.first?.relayCapabilityOverrides?.web == false)
+            #expect(models.first?.relayCapabilityOverrides?.sources[.web] == .user)
+        }
+        let off = try Self.row(Self.board(stored, "m-web"), .web)
+        #expect(off.webStatus == .searched)
+        #expect(off.source == .user)
+        #expect(off.control == .off)
+        #expect(off.state == .unsupported)
+        #expect(try Self.board(stored, "m-web").restoreAllEnabled)
+        let storedModel = try #require(stored.models.first)
+        let fact = try #require(RelayWebProbe.fact(provider: stored, model: storedModel, preference: true))
+        #expect(fact.statusId == .userOff)
+        #expect(fact.row == .toggleDisabled)
+        #expect(!fact.sendsFragment)
+
+        // Auto: clears the key.
+        manager.setRelayCapabilityOverride(providerID: provider.id, modelID: "m-web", key: .web, value: nil)
+        stored = try Self.stored(state, provider.id)
+        #expect(stored.models.first?.relayCapabilityOverrides?.web == nil)
+        #expect(try Self.row(Self.board(stored, "m-web"), .web).source == .tested)
+        #expect(try Self.row(Self.board(stored, "m-web"), .web).control == .auto)
+
+        // On, then restore all to automatic: cleared.
+        manager.setRelayCapabilityOverride(providerID: provider.id, modelID: "m-web", key: .web, value: true)
+        stored = try Self.stored(state, provider.id)
+        #expect(try Self.row(Self.board(stored, "m-web"), .web).control == .on)
+        manager.restoreRelayModelAllAutomatic(providerID: provider.id, modelID: "m-web")
+        stored = try Self.stored(state, provider.id)
+        #expect(stored.models.first?.relayCapabilityOverrides?.web == nil)
+        #expect(stored.catalogModels.first?.relayCapabilityOverrides?.web == nil)
+
+        // Local engine: Unknown, no source.
+        let local = Self.relayProvider(models: [Self.model("llama3", isDefault: true)], engineProfile: "ollama")
+        let localRow = try Self.row(Self.board(local, "llama3"), .web)
+        #expect(localRow.webStatus == nil)
+        #expect(localRow.state == .unknown)
+        #expect(localRow.source == nil)
+        #expect(Board.Capability.web.unknownKey == "Unknown")
     }
 }

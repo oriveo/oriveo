@@ -442,7 +442,7 @@ struct RelayWebSearchBoardTests {
         )
     }
 
-    @Test("RL2-WEBPROBE-RETEST the rejected section lists only enabled models currently recorded as rejected (in enable order, by stored snippet); retest = a manual probe that stays out of the auto history, and the row disappears after searched / silent")
+    @Test("RL2-WEBPROBE-12 RETEST the rejected section lists only enabled models currently recorded as rejected (in enable order, by stored snippet); retest = a manual probe that stays out of the auto history, and the row disappears after searched / silent")
     func RL2_WEBPROBE_RETEST() async throws {
         let provider = Self.probeProvider(enabled: ["zeta", "alpha", "beta", "gamma"], catalogOnly: ["off"])
         let fragments = Self.isolatedStore()

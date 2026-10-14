@@ -274,7 +274,7 @@ struct RelayWebProbeContractTests {
 
     // MARK: - SHAPE
 
-    @Test("RL2-WEBPROBE-SHAPE", arguments: shapeCaseIds)
+    @Test("RL2-WEBPROBE-03 SHAPE", arguments: shapeCaseIds)
     func shape(caseId: String) async throws {
         let label = "RL2-WEBPROBE-SHAPE-\(caseId)"
         let testCase = try Self.item(Self.fixture["requestShapes"] as? [[String: Any]], caseId)
@@ -314,7 +314,7 @@ struct RelayWebProbeContractTests {
 
     // MARK: - EV
 
-    @Test("RL2-WEBPROBE-EV", arguments: evidenceCaseIds)
+    @Test("RL2-WEBPROBE-04 EV", arguments: evidenceCaseIds)
     func evidence(caseId: String) async throws {
         let label = "RL2-WEBPROBE-EV-\(caseId)"
         let testCase = try Self.item(Self.fixture["evidenceCases"] as? [[String: Any]], caseId)
@@ -358,7 +358,7 @@ struct RelayWebProbeContractTests {
 
     // MARK: - GW
 
-    @Test("RL2-WEBPROBE-GW", arguments: gatewayKeys)
+    @Test("RL2-WEBPROBE-09 GW", arguments: gatewayKeys)
     func gateway(key: String) async throws {
         let label = "RL2-WEBPROBE-GW-\(key)"
         let recordings = try #require(Self.fixture["gatewayRecordings"] as? [String: Any])
@@ -384,7 +384,7 @@ struct RelayWebProbeContractTests {
 
     // MARK: - HASH
 
-    @Test("RL2-WEBPROBE-HASH", arguments: hashCaseIds)
+    @Test("RL2-WEBPROBE-05 HASH", arguments: hashCaseIds)
     func hash(caseId: String) throws {
         let label = "RL2-WEBPROBE-HASH-\(caseId)"
         let cases = (Self.fixture["fragmentHash"] as? [String: Any])?["cases"] as? [[String: Any]]
@@ -396,7 +396,7 @@ struct RelayWebProbeContractTests {
 
     // MARK: - MERGE
 
-    @Test("RL2-WEBPROBE-MERGE", arguments: mergeCaseIds)
+    @Test("RL2-WEBPROBE-06 MERGE", arguments: mergeCaseIds)
     func merge(caseId: String) throws {
         let label = "RL2-WEBPROBE-MERGE-\(caseId)"
         let cases = (Self.fixture["record"] as? [String: Any])?["mergeCases"] as? [[String: Any]]
@@ -439,7 +439,7 @@ struct RelayWebProbeContractTests {
 
     // MARK: - FORMS
 
-    @Test("RL2-WEBPROBE-FORMS")
+    @Test("RL2-WEBPROBE-13 FORMS")
     func forms() async throws {
         let forms = try #require(Self.fixture["forms"] as? [String: Any])
         #expect(forms["probe"] as? [String] == ["RELAY"])
@@ -481,7 +481,7 @@ struct RelayWebProbeContractTests {
         )
     }
 
-    @Test("RL2-WEBPROBE-OVERRIDE")
+    @Test("RL2-WEBPROBE-10 OVERRIDE")
     func override() async throws {
         #expect(RelayCapabilityOverrides.Key.allCases.last == .web, "web is appended at the end of the override keys")
 
@@ -603,76 +603,150 @@ extension RelayWebProbeContractTests {
     nonisolated private static let presentationCaseIds = ((fixture["presentationCases"] as? [String: Any])?["cases"] as? [[String: Any]] ?? [])
         .compactMap { $0["caseId"] as? String }
 
-    /// statusId -> each client's own copy (Chat table).
-    private static let statusCopy: [String: String] = [
-        "web_probe_searched": "Search confirmed",
-        "web_probe_silent": "Didn’t search when tested",
-        "web_probe_unverified": "Set · not verified",
-        "web_probe_rejected": "This model rejects the web search settings",
-        "needs_manual_setup": "Needs manual setup",
+    /// statusId -> each client's own copy and table (web_user_on = the source badge "Set by you").
+    private static let statusCopy: [String: (key: String, table: L10n.Table)] = [
+        "web_probe_searched": ("Search confirmed", .chat),
+        "web_probe_silent": ("Didn’t search when tested", .chat),
+        "web_probe_unverified": ("Set · not verified", .chat),
+        "web_probe_rejected": ("This model rejects the web search settings", .chat),
+        "web_probe_untested": ("Not tested yet", .providers),
+        "web_user_off": ("Turned off in this model’s Advanced settings", .providers),
+        "web_user_on": ("Set by you", .providers),
     ]
 
-    // MARK: PRES
+    /// A saved fragment that differs from the template: tells whether the request body carries the saved one or the template.
+    private static let savedChatFragment = #"{"web_search_options":{"search_context_size":"low"}}"#
 
-    /// Production panel entry (`RelayWebProbe.panelFact`, the same call as the model options panel) + the record store -> shape of the web row;
-    /// sendsFragment reads the chat attach decision (`RelayWebProbe.chatFragments`, the same call chat sending uses).
-    @Test("RL2-WEBPROBE-PRES", arguments: presentationCaseIds)
-    func presentation(caseId: String) throws {
-        let label = "RL2-WEBPROBE-PRES-\(caseId)"
+    private struct PresentationScenario {
+        let provider: Provider
+        let model: AIModel
+        let fragments: RelayWebFragmentStore
+        let records: RelayWebProbeStore
+        let preference: Bool?
+        let expect: [String: Any]
+        let savedObject: [String: Any]
+        let templateObject: [String: Any]
+    }
+
+    /// One fixture presentationCase -> isolated fragment / record / preference stores; the switch is resolved through the production `RelayWebSwitch` (preference store + default layer).
+    private static func presentationScenario(_ caseId: String) throws -> PresentationScenario {
         let section = try #require(Self.fixture["presentationCases"] as? [String: Any])
         let testCase = try Self.item(section["cases"] as? [[String: Any]], caseId)
-        let expect = try #require(testCase["expect"] as? [String: Any])
         let transport = RelayTransport.openaiChatCompletions
-        let model = TestFactories.makeModel(id: "relay-model", capabilities: [.text], isDefault: true)
+        var model = TestFactories.makeModel(id: "relay-model", capabilities: [.text], isDefault: true)
+        if let userOverride = testCase["userOverride"] as? Bool {
+            model.relayCapabilityOverrides = RelayCapabilityOverrides(web: userOverride, source: .user)
+        }
         let provider = Self.provider(transport: transport, model: model)
         let fragments = RelayWebFragmentStore(defaults: Self.isolatedDefaults())
         let records = RelayWebProbeStore(defaults: Self.isolatedDefaults(), clock: { Self.fixedNow })
-        let fragment = try Self.template(transport)
-        if testCase["hasFragment"] as? Bool == true {
-            let raw = try #require(String(data: Self.json(fragment), encoding: .utf8))
-            #expect(fragments.save(connectionID: provider.id, transport: transport, raw: raw) == nil, "\(label)")
+        let settings = GenerationParameterSettingsStore(defaults: Self.isolatedDefaults())
+        let templateObject = try Self.template(transport)
+        let savedObject = try #require(try JSONSerialization.jsonObject(with: Data(savedChatFragment.utf8)) as? [String: Any])
+        let saved = testCase["savedFragment"] as? Bool == true
+        if saved {
+            #expect(fragments.save(connectionID: provider.id, transport: transport, raw: savedChatFragment) == nil, "\(caseId)")
         }
         if let record = testCase["record"] as? [String: Any] {
             let result = try #require(RelayWebProbeRecord.Result(rawValue: record["result"] as? String ?? ""))
-            let hash = record["fragmentHash"] as? String == "current" ? RelayWebProbe.fragmentHash(fragment) : "other"
+            let hash = record["fragmentHash"] as? String == "current"
+                ? RelayWebProbe.fragmentHash(saved ? savedObject : templateObject) : "other"
             records.record(
                 connectionID: provider.id.uuidString, modelID: model.id, transport: transport.rawValue,
                 result: result, source: .tested, fragmentHash: hash
             )
         }
+        let conversationID = UUID()
+        if let preference = testCase["webPreference"] as? String {
+            RelayWebSwitch.write(
+                preference != "off", provider: provider, model: model, conversationID: conversationID, store: settings
+            )
+        }
+        let resolved = RelayWebSwitch.isOn(
+            provider: provider, model: model, conversationID: conversationID, store: settings, fragments: fragments
+        )
+        return PresentationScenario(
+            provider: provider, model: model, fragments: fragments, records: records, preference: resolved,
+            expect: try #require(testCase["expect"] as? [String: Any]),
+            savedObject: savedObject, templateObject: templateObject
+        )
+    }
 
-        let fact = RelayWebProbe.panelFact(provider: provider, model: model, fragments: fragments, records: records)
-        #expect(fact.state.rawValue == expect["state"] as? String, "\(label) state：\(fact)")
-        let sends = RelayWebProbe.chatFragments(provider: provider, model: model, fragments: fragments, records: records)?
-            .object(for: transport) != nil
-        #expect(sends == expect["sendsFragment"] as? Bool, "\(label) sendsFragment")
+    // MARK: PRES
 
+    /// The production fact (`RelayWebProbe.fact`, shared by the panel / sending / badge / advanced page) is compared field by field against the fixture;
+    /// the request body fragment reads the same call chat sending uses (`RelayWebProbe.chatFragments`).
+    @Test("RL2-WEBPROBE-08 PRES", arguments: presentationCaseIds)
+    func presentation(caseId: String) throws {
+        let label = "RL2-WEBPROBE-PRES-\(caseId)"
+        #expect(Self.presentationCaseIds.count == 12, "\(label) fixture case count")
+        let scenario = try Self.presentationScenario(caseId)
+        let expect = scenario.expect
+        let fact = try #require(RelayWebProbe.fact(
+            provider: scenario.provider, model: scenario.model, preference: scenario.preference,
+            fragments: scenario.fragments, records: scenario.records
+        ), "\(label) in scope")
+        #expect(fact.row.rawValue == expect["row"] as? String, "\(label) row: \(fact)")
+        #expect(fact.isOn == expect["isOn"] as? Bool, "\(label) isOn: \(fact)")
+        #expect(fact.statusId.rawValue == expect["statusId"] as? String, "\(label) statusId: \(fact)")
+        let retest: String? = switch fact.retestLink {
+        case .openConnectionWebSearch?: "openConnectionWebSearch"
+        case .openTestCapabilities?: "testCapabilities"
+        default: nil
+        }
+        #expect(retest == expect["retestLink"] as? String, "\(label) retestLink")
+        #expect(fact.sendsFragment == expect["sendsFragment"] as? Bool, "\(label) sendsFragment")
+        #expect(fact.replyNotice?.rawValue == expect["replyNotice"] as? String, "\(label) replyNotice: \(fact)")
+        #expect(fact.truth.rawValue == expect["truth"] as? String, "\(label) truth")
+        let advanced = try #require(expect["advanced"] as? [String: Any])
+        #expect(fact.probeStatus.rawValue == advanced["statusId"] as? String, "\(label) advanced.statusId")
+        #expect(fact.advancedSource?.rawValue == advanced["source"] as? String, "\(label) advanced.source")
+
+        let sent = RelayWebProbe.chatFragments(
+            provider: scenario.provider, model: scenario.model, webOn: scenario.preference ?? false,
+            fragments: scenario.fragments, records: scenario.records
+        )?.object(for: .openaiChatCompletions)
+        switch expect["sentFragment"] as? String {
+        case "saved"?:
+            #expect(sent.map { NSDictionary(dictionary: $0) } == NSDictionary(dictionary: scenario.savedObject), "\(label) carries the saved fragment")
+        case "template"?:
+            #expect(sent.map { NSDictionary(dictionary: $0) } == NSDictionary(dictionary: scenario.templateObject), "\(label) carries the template")
+        default:
+            #expect(sent == nil, "\(label) carries no fragment")
+        }
+    }
+
+    /// Model options web row (production `RelayWebProbe.panelFact` -> `ModelOptionCapabilityShape.resolve`): toggle / greyed out, default on or off, status line, retest exit.
+    @Test("RL2-WEBPROBE-14 ROW", arguments: presentationCaseIds)
+    func optionsRow(caseId: String) throws {
+        let label = "RL2-WEBPROBE-14-\(caseId)"
+        let scenario = try Self.presentationScenario(caseId)
+        let expect = scenario.expect
         let shape = ModelOptionCapabilityShape.resolve(.init(
             capability: .web,
-            presentation: .automaticAvailable,
-            availableIntents: ["off", "automatic"],
-            selectedIntent: "automatic",
+            // The presentation state given by the catalog must not affect the relay web row.
+            presentation: .customOnly,
             connection: .custom,
             protocolUndecided: false,
-            relayWeb: fact
+            relayWeb: RelayWebProbe.panelFact(
+                provider: scenario.provider, model: scenario.model, preference: scenario.preference,
+                fragments: scenario.fragments, records: scenario.records
+            )
         ))
+        guard case let .toggle(toggle) = shape else { Issue.record("\(label): \(shape)"); return }
+        #expect(toggle.isEnabled == (expect["row"] as? String == "toggle"), "\(label) row")
+        #expect(toggle.isOn == expect["isOn"] as? Bool, "\(label) isOn")
+        #expect(toggle.target == .capabilityPreference(on: "automatic", off: "off"), "\(label) target")
         let statusId = try #require(expect["statusId"] as? String)
-        let status = L10n.tr(try #require(Self.statusCopy[statusId], "\(label) unknown statusId"), table: .chat)
-        switch statusId {
-        case "web_probe_rejected":
-            guard case let .notice(notice) = shape else { Issue.record("\(label)：\(shape)"); return }
-            #expect(notice.status == status, "\(label)")
-            #expect(expect["retestLink"] as? String == "openConnectionWebSearch")
-            #expect(notice.link?.action == .openConnectionWebSearch, "\(label) retestLink")
-            #expect(notice.link?.title == L10n.tr("Test again in Web Search", table: .chat), "\(label) retestLink")
-        case "needs_manual_setup":
-            guard case let .notice(notice) = shape else { Issue.record("\(label)：\(shape)"); return }
-            #expect(notice.status == status, "\(label)")
-            #expect(notice.link?.action == .openConnectionWebSearch, "\(label)")
+        let copy = try #require(Self.statusCopy[statusId], "\(label) unknown statusId")
+        #expect(toggle.caption == L10n.tr(copy.key, table: copy.table), "\(label) status row")
+        switch expect["retestLink"] as? String {
+        case "openConnectionWebSearch"?:
+            #expect(toggle.link == .init(title: L10n.tr("Test again in Web Search", table: .chat), action: .openConnectionWebSearch), "\(label)")
+        case "testCapabilities"?:
+            #expect(toggle.link == .init(title: L10n.tr("Test capabilities", table: .providers), action: .openTestCapabilities), "\(label)")
         default:
-            guard case let .disclosure(disclosure) = shape else { Issue.record("\(label)：\(shape)"); return }
-            #expect(disclosure.status == status, "\(label)")
-            #expect(disclosure.action == .openConnectionWebSearch, "\(label)")
+            #expect(toggle.link == nil, "\(label) no retest")
         }
     }
 
@@ -781,7 +855,7 @@ extension RelayWebProbeContractTests {
         return lines.joined(separator: "\n") + "\n"
     }
 
-    @Test("RL2-WEBPROBE-CHAT-01: with the current fragment, rejected -> chat does not attach the fragment; silent / untested / stale hash attach as usual")
+    @Test("RL2-WEBPROBE-09 CHAT-01: with the current fragment, rejected -> chat does not attach the fragment; silent / untested / stale hash attach as usual")
     func chat01() async throws {
         let template = try Self.template(.openaiChatCompletions)
         let raw = try #require(String(data: Self.json(template), encoding: .utf8))
@@ -815,7 +889,77 @@ extension RelayWebProbeContractTests {
         }
     }
 
-    @Test("RL2-WEBPROBE-CHAT-02: delivered with a fragment and the parser yields citations -> searched / observed; no citations or an error writes nothing")
+    @Test("RL2-WEBPROBE-02 the switch decides the request body (production sendMessage): off without a fragment / on without a saved one -> template / on with a saved one -> saved / override off or rejected -> none")
+    func chatSwitchDecidesBody() async throws {
+        let template = try Self.template(.openaiChatCompletions)
+        let variants: [(name: String, saved: Bool, switchOn: Bool?, userOff: Bool, rejected: Bool, expect: String?)] = [
+            ("unset_no_saved_off", false, nil, false, false, nil),
+            ("on_no_saved_template", false, true, false, false, "template"),
+            ("off_saved_nothing", true, false, false, false, nil),
+            ("unset_saved_default_on", true, nil, false, false, "saved"),
+            ("on_saved", true, true, false, false, "saved"),
+            ("on_user_off", true, true, true, false, nil),
+            ("on_template_rejected", false, true, false, true, nil),
+        ]
+        for variant in variants {
+            let label = "RL2-WEBPROBE-02-\(variant.name)"
+            var model = Self.chatModel()
+            if variant.userOff { model.relayCapabilityOverrides = RelayCapabilityOverrides(web: false, source: .user) }
+            let provider = Self.chatProvider(model)
+            defer { Self.cleanUp(provider) }
+            if variant.saved {
+                #expect(RelayWebFragmentStore.shared.save(
+                    connectionID: provider.id, transport: .openaiChatCompletions, raw: Self.savedChatFragment
+                ) == nil, "\(label)")
+            }
+            if variant.rejected {
+                RelayWebProbeStore.shared.record(
+                    connectionID: provider.id.uuidString, modelID: model.id,
+                    transport: RelayTransport.openaiChatCompletions.rawValue,
+                    result: .rejected, source: .tested, fragmentHash: RelayWebProbe.fragmentHash(template)
+                )
+            }
+            // Write the switch at the model-default scope: the conversation layer is unset, so the ladder falls to this layer.
+            if let on = variant.switchOn {
+                RelayWebSwitch.write(on, provider: provider, model: model, conversationID: nil)
+            }
+            let sent = try await Self.sendChat(provider: provider, modelID: model.id)
+            let body = try #require(sent.bodies.first, "\(label) the production send chain sent no request")
+            #expect(body["model"] as? String == model.id, "\(label) precondition")
+            let options = body["web_search_options"] as? [String: Any]
+            switch variant.expect {
+            case "template"?:
+                #expect(options != nil && options?.isEmpty == true, "\(label) carries the template: \(String(describing: options))")
+            case "saved"?:
+                #expect(options?["search_context_size"] as? String == "low", "\(label) carries the saved one: \(String(describing: options))")
+            default:
+                #expect(body["web_search_options"] == nil, "\(label) carries no fragment")
+            }
+        }
+    }
+
+    @Test("RL2-WEBPROBE-14 nometa: a relay model without a metadata identity gets the switch turned on -> still on after re-entering -> the request body carries the fragment; still on after the first-send protocol changes")
+    func switchWithoutMetadataIdentity() async throws {
+        var model = Self.chatModel()
+        let provider = Self.chatProvider(model)
+        defer { Self.cleanUp(provider) }
+        #expect(CapabilityPreferenceRuntimeIdentity.make(provider: provider, model: model) == nil, "precondition: no metadata identity")
+        #expect(RelayWebSwitch.isOn(provider: provider, model: model, conversationID: nil) == false, "never set and no saved fragment = off")
+        RelayWebSwitch.write(true, provider: provider, model: model, conversationID: nil)
+        #expect(RelayWebSwitch.isOn(provider: provider, model: model, conversationID: nil) == true, "reads back on after re-entering")
+        let sent = try await Self.sendChat(provider: provider, modelID: model.id)
+        #expect(sent.bodies.first?["web_search_options"] != nil, "the request body carries the template fragment")
+        // The model's first-send protocol changes to Responses: the switch is still the same record.
+        model.relayTransport = .openaiResponses
+        model.relayTransportSource = .user
+        var switched = provider
+        switched.models = [model]
+        #expect(RelayWebSwitch.isOn(provider: switched, model: model, conversationID: nil) == true, "still on after the first-send protocol switch")
+        #expect(RelayWebProbe.chatFragments(provider: switched, model: model, webOn: true)?.object(for: .openaiResponses) != nil,
+                "the first-send protocol's section is present")
+    }
+
+    @Test("RL2-WEBPROBE-09 CHAT-02: delivered with a fragment and the parser yields citations -> searched / observed; no citations or an error writes nothing")
     func chat02() async throws {
         let template = try Self.template(.openaiChatCompletions)
         let raw = try #require(String(data: Self.json(template), encoding: .utf8))
@@ -855,7 +999,7 @@ extension RelayWebProbeContractTests {
 
     // MARK: First-send transport
 
-    @Test("RL2-WEBPROBE-PRES-first_send: the panel judges fragment and record by the first-send transport (a Claude-family model whose first send is Messages on an auto connection)")
+    @Test("RL2-WEBPROBE-PRES-first_send: the panel judges the saved fragment, the effective fragment and the record by the first-send transport (a Claude-family model whose first send is Messages on an auto connection)")
     func presentationFirstSend() throws {
         let (provider, model) = Self.firstSendMessagesProvider()
         defer { Self.cleanUp(provider) }
@@ -863,36 +1007,32 @@ extension RelayWebProbeContractTests {
         #expect(RelayWebProbe.transport(provider: provider, model: model) == .anthropicMessages, "precondition: first send is Messages")
         let records = RelayWebProbeStore(defaults: Self.isolatedDefaults(), clock: { Self.fixedNow })
 
-        func shape(_ fragments: RelayWebFragmentStore) -> ModelOptionCapabilityShape {
-            ModelOptionCapabilityShape.resolve(.init(
-                capability: .web, presentation: .automaticAvailable, availableIntents: ["off", "automatic"],
-                selectedIntent: "automatic", connection: .custom, protocolUndecided: false,
-                relayWeb: RelayWebProbe.panelFact(provider: provider, model: model, fragments: fragments, records: records)
-            ))
+        func fact(_ fragments: RelayWebFragmentStore) -> RelayWebFact? {
+            RelayWebProbe.fact(provider: provider, model: model, preference: nil, fragments: fragments, records: records)
         }
 
-        // Store only the Messages fragment and write searched -> Search confirmed.
+        // Store only the Messages fragment and write searched -> Search confirmed, on by default.
         let messagesOnly = RelayWebFragmentStore(defaults: Self.isolatedDefaults())
         try Self.saveTemplate(.anthropicMessages, for: provider, in: messagesOnly)
         records.record(
             connectionID: provider.id.uuidString, modelID: model.id, transport: RelayTransport.anthropicMessages.rawValue,
             result: .searched, source: .tested, fragmentHash: RelayWebProbe.fragmentHash(try Self.template(.anthropicMessages))
         )
-        guard case let .disclosure(disclosure) = shape(messagesOnly) else {
-            Issue.record("Messages fragment + searched: \(shape(messagesOnly))"); return
-        }
-        #expect(disclosure.status == L10n.tr("Search confirmed", table: .chat))
+        #expect(fact(messagesOnly)?.statusId == .searched)
+        #expect(fact(messagesOnly)?.isOn == true)
 
-        // Store only the Chat fragment -> Needs manual setup.
+        // Store only the Chat fragment -> nothing saved for first-send Messages: the effective fragment is the Messages template; the template was never tested, so the existing searched record still applies; off by default.
         let chatOnly = RelayWebFragmentStore(defaults: Self.isolatedDefaults())
         try Self.saveTemplate(.openaiChatCompletions, for: provider, in: chatOnly)
-        guard case let .notice(notice) = shape(chatOnly) else {
-            Issue.record("Chat fragment only: \(shape(chatOnly))"); return
-        }
-        #expect(notice.status == L10n.tr("Needs manual setup", table: .chat))
+        #expect(fact(chatOnly)?.savedFragment == false)
+        #expect(fact(chatOnly)?.statusId == .searched, "record hash = Messages template hash")
+        #expect(fact(chatOnly)?.isOn == false)
+        let empty = RelayWebFragmentStore(defaults: Self.isolatedDefaults())
+        let fresh = RelayWebProbeStore(defaults: Self.isolatedDefaults(), clock: { Self.fixedNow })
+        #expect(RelayWebProbe.fact(provider: provider, model: model, preference: nil, fragments: empty, records: fresh)?.statusId == .untested)
     }
 
-    @Test("RL2-WEBPROBE-CHAT-02-first_send: first send on Messages delivered with citations -> searched / observed under Messages; citations after a protocol-level fallback -> not written")
+    @Test("RL2-WEBPROBE-CHAT-02-first_send: first send on Messages delivered with citations -> searched / observed under Messages; after a protocol-level fallback the Chat fragment is attached and the record is written under Chat")
     func chat02FirstSend() async throws {
         let messagesSSE = try Self.sseText("messages_web_search_tool_result_searched")
         let chatSSE = try Self.sseText("chat_url_citation_searched")
@@ -922,17 +1062,21 @@ extension RelayWebProbeContractTests {
             )
             #expect(sent.bodies.count == 2, "precondition: after Messages is rejected it falls back to Chat")
             #expect(sent.message?.state == .delivered, "precondition: delivered \(sent.message?.errorDetail ?? "")")
-            #expect(sent.message?.citations?.isEmpty == false, "precondition: citations exist after the fallback")
-            for transport in [RelayTransport.anthropicMessages, .openaiChatCompletions] {
-                let record = RelayWebProbeStore.shared.record(
-                    connectionID: provider.id.uuidString, modelID: model.id, transport: transport.rawValue
-                )
-                #expect(record == nil, "not written after a protocol-level fallback (\(transport.rawValue)): \(String(describing: record))")
-            }
+            #expect(sent.bodies.first?["tools"] != nil, "the first-send Messages request carries the first-send protocol's fragment")
+            #expect(sent.bodies.last?["web_search_options"] != nil, "a protocol fallback attaches the fragment of the target protocol")
+            let messages = RelayWebProbeStore.shared.record(
+                connectionID: provider.id.uuidString, modelID: model.id, transport: RelayTransport.anthropicMessages.rawValue
+            )
+            #expect(messages == nil, "the first-send protocol was not delivered, nothing written: \(String(describing: messages))")
+            let chat = RelayWebProbeStore.shared.record(
+                connectionID: provider.id.uuidString, modelID: model.id, transport: RelayTransport.openaiChatCompletions.rawValue
+            )
+            #expect(chat?.result == .searched && chat?.source == .observed, "written under the protocol actually used: \(String(describing: chat))")
+            #expect(chat?.fragmentHash == RelayWebProbe.fragmentHash(try Self.template(.openaiChatCompletions)))
         }
     }
 
-    @Test("RL2-WEBPROBE-STALE: the fragment changed while the probe was sending -> neither a record nor an override is written")
+    @Test("RL2-WEBPROBE-10 STALE: the fragment changed while the probe was sending -> neither a record nor an override is written")
     func probeFragmentChangedDuringSend() async throws {
         let model = TestFactories.makeModel(id: "relay-model", capabilities: [.text], isDefault: true)
         let provider = Self.provider(transport: .openaiChatCompletions, model: model)
@@ -1037,7 +1181,7 @@ extension RelayWebProbeContractTests {
         return draft
     }
 
-    @Test("RL2-WEBPROBE-WIRE-save: saving a fragment -> the selected models run the production probe serially in enable order, write history before sending, and write records; untested ones get zero requests")
+    @Test("RL2-WEBPROBE-11 WIRE-save: saving a fragment -> the selected models run the production probe serially in enable order, write history before sending, and write records; untested ones get zero requests")
     func wireSave() async throws {
         let ids = (1...7).map { "m\($0)" }
         let models = ids.map { TestFactories.makeModel(id: $0, capabilities: [.text], isDefault: $0 == "m1") }
@@ -1086,7 +1230,7 @@ extension RelayWebProbeContractTests {
         #expect(log.models == ids, "WIRE-save saving again probes only m6, m7")
     }
 
-    @Test("RL2-WEBPROBE-WIRE-resave: save B while the probe after saving A is in progress -> the rest of A's models are not sent and write no history; B is selected as usual")
+    @Test("RL2-WEBPROBE-11 WIRE-resave: save B while the probe after saving A is in progress -> the rest of A's models are not sent and write no history; B is selected as usual")
     func wireSaveThenResave() async throws {
         let ids = ["m1", "m2", "m3"]
         let models = ids.map { TestFactories.makeModel(id: $0, capabilities: [.text], isDefault: $0 == "m1") }
@@ -1129,7 +1273,7 @@ extension RelayWebProbeContractTests {
         #expect(history.filter { $0.fragmentHash == hashB }.map(\.modelID) == ids, "B history")
     }
 
-    @Test("RL2-WEBPROBE-WIRE-enable: probe once after the lazy verification really passes; 0 times if the lazy verification fails or did not run")
+    @Test("RL2-WEBPROBE-11 WIRE-enable: probe once after the lazy verification really passes; 0 times if the lazy verification fails or did not run")
     func wireEnable() async throws {
         for scenario in ["passed", "failed", "notRun"] {
             let label = "RL2-WEBPROBE-WIRE-enable-\(scenario)"
@@ -1180,7 +1324,7 @@ extension RelayWebProbeContractTests {
         }
     }
 
-    @Test("RL2-WEBPROBE-OVERRIDE-clear: fragment hash changed / probe silent -> remove tested web; undetermined untouched; user entries untouched")
+    @Test("RL2-WEBPROBE-10 OVERRIDE-clear: fragment hash changed / probe silent -> remove tested web; undetermined untouched; user entries untouched")
     func overrideClear() async throws {
         // 1. Saving changed some transport's fragment: models whose first-send transport is that one lose the tested web; user entries and unchanged fragments are kept.
         var testedTrue = RelayCapabilityOverrides(source: .tested)

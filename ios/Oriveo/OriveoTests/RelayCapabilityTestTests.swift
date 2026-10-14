@@ -172,6 +172,7 @@ struct RelayCapabilityTestTests {
     /// Classifies a test request by its body: tool name present = tool, built-in image present = image, anything else = text.
     private static func kind(of body: Data?, markers: (image: String, tool: String)) -> String {
         let text = body.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        if text.contains(RelayWebProbe.prompt) { return "web" }
         if text.contains(markers.tool) { return "tool" }
         if contains(text, markers.image) { return "image" }
         return "text"
@@ -202,6 +203,10 @@ struct RelayCapabilityTestTests {
             seedDemoData: false,
             sessionUID: "relay-capability-test-\(UUID().uuidString)",
             providerSession: RelayCapabilityFakeServer.session()
+        )
+        // Even without a fragment the web probe now uses the template: fragments and probe records use isolated stores and never touch .standard.
+        state.providerManager.relayWebProbeAutoContext = RelayWebProbeAutoContext(
+            fragments: RelayWebFragmentStore(defaults: isolatedDefaults()), records: RelayWebProbeStore(defaults: isolatedDefaults())
         )
         retainedStates.append(state)
         return state
@@ -267,8 +272,12 @@ struct RelayCapabilityTestTests {
         for (kind, responseKind) in responseTable {
             replies[kind] = try reply(fixture, kind: responseKind, short: short)
         }
+        // After text passes, the 4th item probes web with the template. The fixture scenarios only cover text / image / tool,
+        // so the web request gets a plain text success reply (no search evidence = silent, no override written) and is excluded from the comparison.
         RelayCapabilityFakeServer.install { _, body in
-            replies[kind(of: body, markers: markers)] ?? .http(status: 404, contentType: "application/json", body: Data())
+            let requestKind = kind(of: body, markers: markers)
+            return replies[requestKind] ?? (requestKind == "web" ? replies["text"] : nil)
+                ?? .http(status: 404, contentType: "application/json", body: Data())
         }
 
         var model = TestFactories.makeModel(id: modelID, capabilities: [.text], isDefault: true)
@@ -291,7 +300,13 @@ struct RelayCapabilityTestTests {
         )
 
         // Requests actually sent (production request objects): kind, order, path, query and body shape all match the fixture.
-        let sent = RelayCapabilityFakeServer.captured()
+        let captured = RelayCapabilityFakeServer.captured()
+        let webSent = captured.filter { kind(of: $0.1, markers: markers) == "web" }
+        #expect(webSent.count <= 1, "\(caseId) web is sent at most once")
+        if !webSent.isEmpty {
+            #expect(kind(of: captured.last?.1, markers: markers) == "web", "\(caseId) web comes last")
+        }
+        let sent = captured.filter { kind(of: $0.1, markers: markers) != "web" }
         #expect(sent.map { kind(of: $0.1, markers: markers) } == expect["requests"] as? [String], "\(caseId)")
         if let total = expect["totalHttpRequests"] as? Int {
             #expect(sent.count == total, "\(caseId)")
@@ -329,7 +344,7 @@ struct RelayCapabilityTestTests {
         #expect(result.stopReason == nil, "\(caseId)")
         let expectedItems = expect["items"] as? [String: String] ?? [:]
         #expect(
-            Dictionary(uniqueKeysWithValues: result.items.map { ($0.key.rawValue, $0.value.rawValue) }) == expectedItems,
+            Dictionary(uniqueKeysWithValues: result.items.filter { $0.key != .web }.map { ($0.key.rawValue, $0.value.rawValue) }) == expectedItems,
             "\(caseId)"
         )
         for (key, reason) in expect["reasons"] as? [String: String] ?? [:] {
@@ -636,9 +651,11 @@ struct RelayCapabilityTestTests {
         "stopped_model_unavailable", "completed_not_observed_single_key",
         "running_web_after_not_observed", "running_text_named_key_with_web", "completed_web_searched",
         "completed_web_silent_nothing_saved", "completed_web_rejected", "text_failed_web_not_run",
+        "running_web_template", "completed_web_template_searched",
+        "completed_web_template_silent", "completed_web_template_rejected",
     ]
 
-    @Test("RD4-PANEL fixture panelCases is exactly these 18 entries")
+    @Test("RD4-PANEL fixture panelCases is exactly these 22 entries")
     func rd4PanelCaseList() throws {
         let cases = try #require((try Self.fixture()["panelCases"] as? [String: Any])?["cases"] as? [[String: Any]])
         #expect(cases.compactMap { $0["caseId"] as? String } == Self.panelCaseIDs)
@@ -692,7 +709,8 @@ struct RelayCapabilityTestTests {
             results: results,
             running: running,
             written: testCase["written"] as? Bool ?? false,
-            stopReason: (testCase["stopReason"] as? String).flatMap(RelayCapabilityTest.StopReason.init(rawValue:))
+            stopReason: (testCase["stopReason"] as? String).flatMap(RelayCapabilityTest.StopReason.init(rawValue:)),
+            webSource: try (testCase["webSource"] as? String).map { try #require(RelayCapabilityTest.WebSource(rawValue: $0)) } ?? .saved
         )
         let state = RelayCapabilityTestPanel.make(input)
         let expect = try #require(testCase["expect"] as? [String: Any])
@@ -716,6 +734,8 @@ struct RelayCapabilityTestTests {
             #expect(row.subtitle?.rawValue == expectedRow["subtitle"] as? String, "\(label) subtitle")
             #expect(row.subtitleArg?.fixtureValue == expectedRow["subtitleArg"] as? String, "\(label) subtitleArg")
             #expect(row.trailing?.fixtureValue == expectedRow["trailing"] as? String, "\(label) trailing")
+            // The one-tap enable is gone: fixture rows no longer carry action / note.
+            #expect(expectedRow["action"] == nil && expectedRow["note"] == nil, "\(label) fixture has no action / note")
         }
         #expect(
             NSDictionary(dictionary: footerObject(state.footer)) == NSDictionary(dictionary: try #require(expect["footer"] as? [String: Any])),
@@ -743,6 +763,10 @@ struct RelayCapabilityTestTests {
     @Test("RD4-PANEL-completed_web_silent_nothing_saved") func rd4PanelCompletedWebSilent() throws { try Self.assertPanelCase("completed_web_silent_nothing_saved") }
     @Test("RD4-PANEL-completed_web_rejected") func rd4PanelCompletedWebRejected() throws { try Self.assertPanelCase("completed_web_rejected") }
     @Test("RD4-PANEL-text_failed_web_not_run") func rd4PanelTextFailedWebNotRun() throws { try Self.assertPanelCase("text_failed_web_not_run") }
+    @Test("RD4-PANEL-running_web_template") func rd4PanelRunningWebTemplate() throws { try Self.assertPanelCase("running_web_template") }
+    @Test("RD4-PANEL-completed_web_template_searched") func rd4PanelCompletedWebTemplateSearched() throws { try Self.assertPanelCase("completed_web_template_searched") }
+    @Test("RD4-PANEL-completed_web_template_silent") func rd4PanelCompletedWebTemplateSilent() throws { try Self.assertPanelCase("completed_web_template_silent") }
+    @Test("RD4-PANEL-completed_web_template_rejected") func rd4PanelCompletedWebTemplateRejected() throws { try Self.assertPanelCase("completed_web_template_rejected") }
 
     // MARK: - RD4-WEB (the fourth item, web search = manual probe)
 
@@ -789,7 +813,7 @@ struct RelayCapabilityTestTests {
         return (state, provider, model, records)
     }
 
-    @Test("RD4-WEB-01 when the first-send protocol has a stored fragment, step 4 is the manual web probe; without a fragment it is not listed and a text failure sends nothing; the first frame already contains web")
+    @Test("RD4-WEB-01 when the first-send protocol has a stored fragment, step 4 is the manual web probe; without a fragment the built-in template is listed too and a text failure sends nothing; the first frame already contains web")
     func rd4Web01ManualProbeAsFourthStep() async throws {
         let replies = try Self.evidenceResponses(short: "chat")
         let searched = try Self.webSearchedResponse()
@@ -818,15 +842,15 @@ struct RelayCapabilityTestTests {
         #expect(written.web == true)
         #expect(records.autoHistory().isEmpty, "manual probes do not enter the automatic history")
 
-        // Without a fragment: web is not listed and no web request is sent.
+        // Without a fragment: web is still listed and tested temporarily with the built-in template, see RL2-WEBPROBE-01.
         let (bareState, bareProvider, bareModel, _) = try Self.webScenario(fragment: false)
         let bareSent = Box<[RelayCapabilityTest.Kind]>([])
         let bare = try #require(await bareState.providerManager.runRelayCapabilityTest(
             providerID: bareProvider.id, modelID: bareModel.id,
-            send: { kind, _ in bareSent.value.append(kind); return replies[kind] ?? Self.ok }
+            send: { kind, _ in bareSent.value.append(kind); return kind == .web ? searched : (replies[kind] ?? Self.ok) }
         ))
-        #expect(bareSent.value == [.text, .image, .tool])
-        #expect(bare.itemResults[.web] == nil)
+        #expect(bareSent.value == [.text, .image, .tool, .web])
+        #expect(bare.itemResults[.web]?.verdict == .searched)
 
         // Text fails: web is not sent.
         let (failState, failProvider, failModel, _) = try Self.webScenario(fragment: true)
@@ -898,6 +922,68 @@ struct RelayCapabilityTestTests {
         #expect(!second.written, "neither override value nor source changed = nothing written")
     }
 
+    // MARK: - RL2-WEBPROBE-01 (temporary test with default settings; the template is the effective fragment)
+
+    private static func requestBody(_ request: URLRequest) -> [String: Any] {
+        parsed(request.httpBody) ?? [:]
+    }
+
+    @Test("RL2-WEBPROBE-01 template probe: without a fragment, web is listed, the request body carries the template via the production builder, the record hash equals the template hash, and the web override is written as usual (tested, counted as written); with a fragment, the stored fragment is used")
+    func rl2WebProbeTemplate() async throws {
+        let searched = try Self.webSearchedResponse()
+        let template = try #require(RelayWebFragments.template(for: .openaiChatCompletions))
+        let templateObject = try #require(Self.parsed(Data(template.utf8)))
+
+        let (state, provider, model, records) = try Self.webScenario(fragment: false)
+        let manager = state.providerManager
+        let fragments = manager.relayWebProbeAutoContext.fragments
+        #expect(RelayCapabilityTest.plannedKinds(provider: provider, model: model, fragments: fragments) == [.text, .image, .tool, .web])
+        #expect(RelayCapabilityTest.webSource(provider: provider, model: model, fragments: fragments) == .template)
+        let webBodies = Box<[[String: Any]]>([])
+        let result = try #require(await manager.runRelayCapabilityTest(
+            providerID: provider.id, modelID: model.id,
+            send: { kind, request in
+                if kind == .text { return Self.ok }
+                guard kind == .web else { throw URLError(.timedOut) }
+                webBodies.value.append(Self.requestBody(request))
+                return searched
+            }
+        ))
+        #expect(result.outcome == .completed)
+        #expect(result.itemResults[.web]?.verdict == .searched)
+        #expect(webBodies.value.count == 1)
+        #expect(webBodies.value.first?["web_search_options"] != nil, "the request body contains the chat template fragment")
+        #expect(result.written, "the template is the effective fragment: the probe writes the web override as usual and counts as written")
+        let overrides = state.provider(for: provider.id)?.models.first?.relayCapabilityOverrides
+        #expect(overrides?.web == true)
+        #expect(overrides?.sources[.web] == .tested)
+        #expect(fragments.stored(connectionID: provider.id).isEmpty, "the template is not stored")
+        let record = records.current(
+            connectionID: provider.id.uuidString, modelID: model.id,
+            transport: RelayTransport.openaiChatCompletions.rawValue, fragmentHash: RelayWebProbe.fragmentHash(templateObject)
+        )
+        #expect(record?.result == .searched)
+
+        // With a fragment: the stored fragment is used (not the template).
+        let (savedState, savedProvider, savedModel, _) = try Self.webScenario(fragment: false)
+        let savedFragments = savedState.providerManager.relayWebProbeAutoContext.fragments
+        let custom = #"{"web_search_options":{"search_context_size":"low"}}"#
+        #expect(savedFragments.save(connectionID: savedProvider.id, transport: .openaiChatCompletions, raw: custom) == nil)
+        #expect(RelayCapabilityTest.webSource(provider: savedProvider, model: savedModel, fragments: savedFragments) == .saved)
+        let savedBodies = Box<[[String: Any]]>([])
+        _ = try #require(await savedState.providerManager.runRelayCapabilityTest(
+            providerID: savedProvider.id, modelID: savedModel.id,
+            send: { kind, request in
+                if kind == .text { return Self.ok }
+                guard kind == .web else { throw URLError(.timedOut) }
+                savedBodies.value.append(Self.requestBody(request))
+                return searched
+            }
+        ))
+        let options = savedBodies.value.first?["web_search_options"] as? [String: Any]
+        #expect(options?["search_context_size"] as? String == "low", "uses the stored fragment")
+    }
+
     // MARK: - BOARD-CAPTEST-01
 
     @Test("BOARD-CAPTEST-01 the Advanced page 'Test capabilities' opens the bottom panel whose first state is already in progress (cannot be swiped away, only Cancel); when done it stays on the finished state and writes")
@@ -906,7 +992,8 @@ struct RelayCapabilityTestTests {
         let markers = try Self.builtinMarkers(fixture)
         // Image / tool items count as accepted only when the response carries evidence; each item answers with the fixture's image_ok / tool_ok.
         var replies: [String: RelayCapabilityFakeServer.Reply] = [:]
-        for (kind, name) in [("text", "ok"), ("image", "image_ok"), ("tool", "tool_ok")] {
+        // The 4th item probes web with the template and gets a plain text success reply (no search evidence = silent).
+        for (kind, name) in [("text", "ok"), ("image", "image_ok"), ("tool", "tool_ok"), ("web", "ok")] {
             replies[kind] = try Self.reply(fixture, kind: name, short: "messages")
         }
         RelayCapabilityFakeServer.install { _, body in
@@ -926,10 +1013,10 @@ struct RelayCapabilityTestTests {
         controller.start(appState: state, providerID: provider.id, modelID: model.id)
         #expect(controller.isPresented)
         let first = try #require(controller.state(at: Date()))
-        #expect(first.header == .progress(current: 1, total: 3))
-        #expect(first.rows.map(\.icon) == [.running, .waiting, .waiting])
+        #expect(first.header == .progress(current: 1, total: 4))
+        #expect(first.rows.map(\.icon) == [.running, .waiting, .waiting, .waiting])
         #expect(first.rows.first?.subtitle == .runningText)
-        #expect(first.footer == .info(count: 3, keyName: "Claude group", web: false))
+        #expect(first.footer == .info(count: 4, keyName: "Claude group", web: true))
         #expect(first.keyName == "Claude group")
         #expect(first.button == .cancel)
         #expect(!first.dismissible)
@@ -939,11 +1026,11 @@ struct RelayCapabilityTestTests {
         await controller.waitUntilFinished()
         let done = try #require(controller.state(at: Date()))
         #expect(done.header == .done)
-        #expect(done.rows.map(\.icon) == [.accepted, .accepted, .accepted])
+        #expect(done.rows.map(\.icon) == [.accepted, .accepted, .accepted, .undetermined])
         #expect(done.footer == .saved)
         #expect(done.button == .done)
         #expect(done.dismissible)
-        #expect(RelayCapabilityFakeServer.captured().map { Self.kind(of: $0.1, markers: markers) } == ["text", "image", "tool"])
+        #expect(RelayCapabilityFakeServer.captured().map { Self.kind(of: $0.1, markers: markers) } == ["text", "image", "tool", "web"])
         controller.dismiss()
         #expect(!controller.isPresented)
     }
@@ -1003,8 +1090,8 @@ struct RelayCapabilityTestTests {
         #expect(RelayFirstSendTransport.current(provider: provider, model: model) == .anthropicMessages, "precondition: first send Messages")
         #expect(RelayCapabilityTest.isEligible(provider: provider, model: model))
         #expect(shown == .anthropicMessages, "the panel shows the first-send protocol")
-        #expect(paths.count == 3, "\(paths)")
-        #expect(paths.allSatisfy { $0.hasSuffix("/messages") }, "test requests go out via the first-send Messages protocol：\(paths)")
+        #expect(paths.count == 4, "text / image / tool + template web: \(paths)")
+        #expect(paths.allSatisfy { $0.hasSuffix("/messages") }, "test requests go out via the first-send Messages protocol: \(paths)")
         #expect(!Self.cached(provider, modelID, .anthropicMessages, .image))
         #expect(!Self.cached(provider, modelID, .anthropicMessages, .toolCall))
         #expect(Self.cached(provider, modelID, .openaiChatCompletions, .image), "the Chat key is untouched")
@@ -1023,7 +1110,7 @@ struct RelayCapabilityTestTests {
         }
         #expect(RelayFirstSendTransport.current(provider: provider, model: model) == .openaiChatCompletions)
         #expect(shown == .openaiChatCompletions)
-        #expect(paths.count == 3, "\(paths)")
+        #expect(paths.count == 4, "text / image / tool + template web: \(paths)")
         #expect(paths.allSatisfy { $0.hasSuffix("/chat/completions") }, "\(paths)")
         #expect(!Self.cached(provider, modelID, .openaiChatCompletions, .image))
         #expect(!Self.cached(provider, modelID, .openaiChatCompletions, .toolCall))
@@ -1071,7 +1158,8 @@ struct RelayCapabilityTestTests {
 
         model.relayCapabilityOverrides = RelayCapabilityOverrides(image: true, toolCall: false, source: .user)
         let empty = RelayWebFragmentStore(defaults: Self.isolatedDefaults())
-        #expect(!RelayCapabilityTest.showsEntry(provider: chat, model: model, fragments: empty))
+        // Even with no stored fragment web can be tested with the template, so once the first-send protocol is set there is still something to test.
+        #expect(RelayCapabilityTest.showsEntry(provider: chat, model: model, fragments: empty))
 
         // Image and tools are both user-set, but the first-send protocol has a stored web fragment -> web can still be tested, so the entry stays visible.
         let fragments = RelayWebFragmentStore(defaults: Self.isolatedDefaults())

@@ -24,7 +24,7 @@ struct RelayLayoutRulesTests {
         ("Model library enabled row", "RelayCatalogBoardViews.swift", "enabled row"),
         ("Model library catalog row", "RelayCatalogBoardViews.swift", "catalog row"),
         ("Detail row", "RelayDetailBoardView.swift", "trailing hint and chevron"),
-        ("Edit / manual-setup menu row", "RelayEditBoardView.swift", "The right column is vertically centered"),
+        ("Edit / manual-setup menu row", "RelayEditBoardView.swift", "are both vertically centered"),
         ("Step 1 check row", "RelaySetupStepViews.swift", "Elapsed time is its own column"),
         ("Advanced key row", "RelayModelAdvancedPage.swift", "picker menu"),
         ("Capability test header", "RelayCapabilityTestPanel.swift", "capability test header"),
@@ -218,6 +218,53 @@ struct RelayLayoutRulesTests {
         let menu = try #require(Self.declaration(in: lines, "private func menuRow("), "\(file) cannot find menuRow")
         let menuText = menu.map { lines[$0] }.joined(separator: "\n")
         #expect(menuText.contains("rowBody(row)") && menuText.contains("caretDown"), "The menuRow chevron is not drawn through the rowBody trailing control")
+    }
+
+    /// The "indent by icon width" pattern: `textInset` used as a padding / inset argument, the root-cause signature of an icon pinned to the title line.
+    private static let iconInsetPattern = try! NSRegularExpression(pattern: "\\.padding\\([^)]*textInset|inset:[^)]*textInset")
+
+    /// Existing explicit exceptions: the input indent of the edit / manual-setup address row and its footnote indent.
+    private static let rowLeadTopExceptions = 2
+
+    @Test("RL2-LAYOUT-ROW-10 the leading icon is vertically centered on the whole title + footnote block; places that indent by icon width must carry row-lead: top")
+    func rowLeadIconCentersOnWholeBlock() throws {
+        var exceptions: [String] = []
+        for file in Self.files {
+            let lines = try Self.lines(of: file)
+            for index in lines.indices where !Self.isComment(lines[index]) {
+                let line = lines[index]
+                guard Self.iconInsetPattern.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil else { continue }
+                let above = lines[max(0, index - 3)..<index]
+                let marked = above.contains { Self.isComment($0) && $0.contains("row-lead: top") }
+                #expect(
+                    marked,
+                    "\(file):\(index + 1) a footnote / note indented by icon width pins the icon to the title line: make the icon its own column centered on the whole block, or put `row-lead: top` with the reason in a comment within the 3 lines above"
+                )
+                if marked { exceptions.append("\(file):\(index + 1)") }
+            }
+        }
+        #expect(
+            exceptions.count == Self.rowLeadTopExceptions,
+            "row-lead: top allows \(exceptions.count) places (expected exactly \(Self.rowLeadTopExceptions)): \(exceptions.joined(separator: ", ")); if the scan broke or an exception was added, update this gate"
+        )
+
+        let file = "RelayEditBoardView.swift"
+        let lines = try Self.lines(of: file)
+        let body = try #require(Self.declaration(in: lines, "private func rowBody<Trailing"), "\(file) cannot find rowBody")
+        let icon = try #require(
+            body.first { !Self.isComment(lines[$0]) && lines[$0].contains("leadingIcon(") },
+            "\(file) cannot find leadingIcon in rowBody"
+        )
+        let stack = try #require(Self.innermostStack(in: lines, enclosing: icon), "\(file) leadingIcon in rowBody is not inside any Stack")
+        let opening = lines[stack.lowerBound]
+        #expect(
+            opening.contains("HStack(alignment: .center"),
+            "\(file):\(stack.lowerBound + 1) the innermost container around leadingIcon is not HStack(alignment: .center: \(opening.trimmingCharacters(in: .whitespaces))"
+        )
+        #expect(
+            stack.contains { !Self.isComment(lines[$0]) && lines[$0].contains("rowFootnote(") },
+            "\(file) the rowBody footnote is not in the HStack holding leadingIcon: the icon would center on the title line only and be pinned to it"
+        )
     }
 
     @Test("RL2-LAYOUT-ROW-01 chip flow: a chip that does not fit wraps as a whole; only a single chip wider than the column is cut to the column width")

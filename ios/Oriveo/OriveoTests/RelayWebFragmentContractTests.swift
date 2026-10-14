@@ -166,7 +166,8 @@ struct RelayWebFragmentContractTests {
     @Test("RELAY-WEBFRAG-presentation: shape of the web row in the model options panel")
     func RELAY_WEBFRAG_presentation() throws {
         let items = try Self.cases("presentationCases")
-        #expect(items.count == 5)
+        // Only the local-engine and undecided-transport rows remain here; the rest live in web-probe.v1.json presentationCases.
+        #expect(items.count == 2)
         for item in items {
             let caseId = try #require(item["caseId"] as? String)
             let fragments = try #require(item["fragments"] as? [String: [String: Any]])
@@ -197,11 +198,6 @@ struct RelayWebFragmentContractTests {
                 if expect["action"] as? String == "openConnectionWebSearch" {
                     #expect(disclosure.action == .openConnectionWebSearch, "\(label)")
                 }
-            case "notice":
-                guard case let .notice(notice) = shape else { Issue.record("\(label)：\(shape)"); continue }
-                #expect(notice.status == L10n.tr(expect["status"] as? String ?? "", table: .chat), "\(label)")
-                #expect(notice.link?.action == .openConnectionWebSearch, "\(label)")
-                #expect(notice.link?.title == L10n.tr("Open web search settings", table: .chat), "\(label)")
             default:
                 Issue.record("\(label): unknown fixture shape")
             }
@@ -230,7 +226,7 @@ struct RelayWebFragmentContractTests {
         let row = try #require(board.modelRows.first { $0.id == .webSearch })
         #expect(row.destination == .webSearch)
         #expect(row.titleKey == "Web Search")
-        #expect(row.value == .key("Set this up if the service behind this connection runs its own web search"))
+        #expect(row.value == .key("Optional: replace the default web search settings"))
 
         var local = Self.relayProvider(RelayRequestedConfig(transport: .openaiChatCompletions, engineProfile: "ollama"))
         local.baseURLText = "http://127.0.0.1:11434"
@@ -242,16 +238,16 @@ struct RelayWebFragmentContractTests {
     func RELAY_WEBFRAG_detail_row_status() throws {
         let provider = Self.relayProvider()
         defer { RelayWebFragmentStore.shared.deleteConnection(provider.id) }
-        #expect(Self.webSearchRow(provider)?.trailingKey == "Not set up")
+        #expect(Self.webSearchRow(provider)?.trailingKey == "Default")
         RelayWebFragmentStore.shared.save(connectionID: provider.id, transport: .openaiResponses, raw: #"{"tools":[{"type":"web_search"}]}"#)
-        #expect(Self.webSearchRow(provider)?.trailingKey == "Set up")
+        #expect(Self.webSearchRow(provider)?.trailingKey == "Custom")
 
         RelayWebFragmentStore.shared.deleteConnection(provider.id)
         var legacy = RelayRequestedConfig(transport: .openaiResponses)
         legacy = try JSONDecoder().decode(
             RelayRequestedConfig.self, from: Data(#"{"transport":"openai_responses","hasWebSearch":true}"#.utf8)
         )
-        #expect(Self.webSearchRow(Self.relayProvider(legacy))?.trailingKey == "Set up")
+        #expect(Self.webSearchRow(Self.relayProvider(legacy))?.trailingKey == "Custom")
     }
 
     // MARK: - Saving from the web settings page

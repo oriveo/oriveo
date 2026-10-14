@@ -51,6 +51,86 @@ struct RelayFamilyShotsManifestTests {
         #expect(record?.result == .rejected && record?.source == .tested)
     }
 
+    /// Temporary stores: fragments / records / preferences, the same types as production.
+    private static func webStores() -> (RelayWebFragmentStore, RelayWebProbeStore, GenerationParameterSettingsStore) {
+        let suite = "relay-shots-model-options-\(UUID().uuidString)"
+        return (
+            RelayWebFragmentStore(defaults: UserDefaults(suiteName: suite + "-fragments")!),
+            RelayWebProbeStore(defaults: UserDefaults(suiteName: suite + "-records")!),
+            GenerationParameterSettingsStore(defaults: UserDefaults(suiteName: suite + "-preferences")!)
+        )
+    }
+
+    /// After the stores are seeded from the shot presets, the panel web row is computed by the production `RelayWebSwitch.isOn` + `RelayWebProbe.panelFact`.
+    private static func modelOptionsFact(_ shot: Shots.Shot) throws -> RelayWebFact {
+        let staged = try Self.stage(shot)
+        let modelID = try #require(staged.presets.chatModelID)
+        #expect(modelID == "gpt-5.6-sol")
+        let model = try #require(staged.relay.models.first { $0.id == modelID })
+        let (fragments, records, preferences) = Self.webStores()
+        Shots.seedWebProbeState(staged, fragments: fragments, records: records)
+        Shots.seedChatWebPreference(staged, store: preferences)
+        // No saved fragment: the effective fragment is the first-send protocol (Responses) template.
+        #expect(fragments.chatFragments(for: staged.relay) == nil)
+        #expect(RelayWebProbe.transport(provider: staged.relay, model: model) == .openaiResponses)
+        let isOn = RelayWebSwitch.isOn(
+            provider: staged.relay, model: model, conversationID: UUID(), store: preferences, fragments: fragments
+        )
+        let shape = RelayWebProbe.panelFact(
+            provider: staged.relay, model: model, preference: isOn, fragments: fragments, records: records
+        )
+        guard case let .relay(fact) = shape else {
+            Issue.record("the panel web row is not a relay fact: \(shape)")
+            throw ShapeMismatch()
+        }
+        return fact
+    }
+
+    private struct ShapeMismatch: Error {}
+
+    @Test("shotsManifestModelOptionsWeb: template hash searched + chat web on -> toggle on, Search confirmed")
+    func shotsManifestModelOptionsWeb() throws {
+        let fact = try Self.modelOptionsFact(.relayModelOptionsWeb)
+        #expect(fact.savedFragment == false)
+        #expect(fact.probe == .searched)
+        #expect(fact.preference == true)
+        #expect(fact.row == .toggle)
+        #expect(fact.isOn)
+        #expect(fact.statusId == .searched)
+        #expect(fact.retestLink == nil)
+        #expect(try Self.stage(.relayModelOptionsWeb).path.isEmpty)
+    }
+
+    @Test("shotsManifestModelOptionsWebRejected: template hash rejected, preference unset -> still an operable toggle, rejected, Test capabilities")
+    func shotsManifestModelOptionsWebRejected() throws {
+        let staged = try Self.stage(.relayModelOptionsWebRejected)
+        #expect(staged.presets.chatWebSearch == false)
+        let fact = try Self.modelOptionsFact(.relayModelOptionsWebRejected)
+        #expect(fact.savedFragment == false)
+        #expect(fact.probe == .rejected)
+        #expect(fact.row == .toggle)
+        #expect(fact.isOn == false)
+        #expect(fact.statusId == .rejected)
+        #expect(fact.retestLink == .openTestCapabilities)
+    }
+
+    @Test("shotsManifestAdvancedWebRow: relayAdvanced template hash searched + tested web override -> Search confirmed · Tested")
+    func shotsManifestAdvancedWebRow() throws {
+        let staged = try Self.stage(.relayAdvanced)
+        let model = try #require(staged.relay.models.first { $0.id == "gpt-5.6-sol" })
+        #expect(model.relayCapabilityOverrides?.web == true)
+        #expect(model.relayCapabilityOverrides?.sources[.web] == .tested)
+        #expect(staged.relay.catalogModels.first { $0.id == model.id } == model)
+        let (fragments, records, _) = Self.webStores()
+        Shots.seedWebProbeState(staged, fragments: fragments, records: records)
+        let fact = try #require(RelayWebProbe.fact(
+            provider: staged.relay, model: model, preference: nil, fragments: fragments, records: records
+        ))
+        #expect(fact.probeStatus == .searched)
+        #expect(fact.advancedSource == .tested)
+        #expect(fact.userOverride == nil)
+    }
+
     @Test("shotsManifestBuildsDemoRelay: the demo connection built matches the pre-manifest one field by field")
     func shotsManifestBuildsDemoRelay() throws {
         let staged = try Self.stage(.relayDetail)

@@ -3,9 +3,9 @@ import Testing
 @testable import Oriveo
 
 /// RL2-WEBPROBE-STATE: web_search truth for relays, driven by `shared/test-fixtures/relay/web-probe.v1.json`
-/// presentationCases: fragments and probe records are really written into the production shared store, and the web_search state is read from the production capability projection
-/// (the model library globe and the capability badge share one entry point, `ChatView.capabilityProjection` -> RelayTruthAdapter),
-/// while sendsFragment is read from the production decision of the input bar web control, `CapabilityControlResolution.resolve`.
+/// presentationCases: saved fragments, probe records and user overrides are really written into the production shared store / model, and the web_search state is read from the production capability projection
+/// (the model library globe and the capability badge share one entry point, `ChatView.capabilityProjection` -> RelayTruthAdapter).
+/// Truth = user override > record for the current (effective fragment hash) > unknown, independent of the chat web toggle.
 @Suite("RL2-WEBPROBE-STATE - relay web truth", .serialized)
 @MainActor
 struct RelayWebSearchTruthTests {
@@ -31,13 +31,14 @@ struct RelayWebSearchTruthTests {
 
     private static let transport = RelayTransport.openaiChatCompletions
 
-    private static func model() -> AIModel {
+    private static func model(userOverride: Bool?) -> AIModel {
         var model = AIModel(
             id: "relay-web-truth-model", name: "relay-web-truth-model", capabilities: [.text],
             reasoningModeAvailable: false, isAvailable: true, isDefault: true, priceTier: ""
         )
         model.relayTransport = transport
         model.relayTransportSource = .reachable
+        if let userOverride { model.relayCapabilityOverrides = RelayCapabilityOverrides(web: userOverride, source: .user) }
         return model
     }
 
@@ -49,21 +50,24 @@ struct RelayWebSearchTruthTests {
         )
     }
 
-    @Test("RL2-WEBPROBE-STATE", arguments: caseIds)
+    private static let savedRaw = #"{"web_search_options":{"search_context_size":"low"}}"#
+
+    @Test("RL2-WEBPROBE-08 STATE", arguments: caseIds)
     func state(caseId: String) throws {
         let label = "RL2-WEBPROBE-STATE-\(caseId)"
-        #expect(Self.caseIds.count == 6, "\(label) fixture case count")
+        #expect(Self.caseIds.count == 12, "\(label) fixture case count")
         let testCase = try #require(Self.cases.first { $0["caseId"] as? String == caseId }, "\(label)")
         let expect = try #require(testCase["expect"] as? [String: Any], "\(label)")
-        let model = Self.model()
+        let model = Self.model(userOverride: testCase["userOverride"] as? Bool)
         let provider = Self.provider(model)
         defer {
             RelayWebFragmentStore.shared.deleteConnection(provider.id)
             RelayWebProbeStore.shared.clearConnection(provider.id.uuidString)
         }
-        let raw = try #require(RelayWebFragments.template(for: Self.transport), "\(label) template")
+        let saved = testCase["savedFragment"] as? Bool == true
+        let raw = saved ? Self.savedRaw : try #require(RelayWebFragments.template(for: Self.transport), "\(label) template")
         let fragment = try #require(JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any])
-        if testCase["hasFragment"] as? Bool == true {
+        if saved {
             #expect(
                 RelayWebFragmentStore.shared.save(connectionID: provider.id, transport: Self.transport, raw: raw) == nil,
                 "\(label) store fragment"
@@ -84,17 +88,15 @@ struct RelayWebSearchTruthTests {
             provider: provider, model: model, partitionID: "relay-web-search-truth-tests"
         )
         let support = projection.resolution(for: "web_search")?.support
-        let state: String = switch support {
+        let truth: String = switch support {
         case .supported?: "supported"
         case .unsupported?: "unsupported"
         case .unknown?, nil: "unknown"
         }
-        #expect(state == expect["state"] as? String, "\(label) state：\(String(describing: support))")
+        #expect(truth == expect["truth"] as? String, "\(label) truth: \(String(describing: support))")
 
+        // Production decision of the input bar web control: every in-scope relay model has the toggle (whether it is on is decided separately by the preference).
         let verdict = CapabilityControlResolution.resolve(provider: provider, model: model, capability: "web")
-        #expect(
-            (verdict.state == .customOnly) == (expect["sendsFragment"] as? Bool),
-            "\(label) sendsFragment：\(verdict.state) \(verdict.reasonCode ?? "nil")"
-        )
+        #expect(verdict.state == .customOnly, "\(label) toggle available: \(verdict.state) \(verdict.reasonCode ?? "nil")")
     }
 }
