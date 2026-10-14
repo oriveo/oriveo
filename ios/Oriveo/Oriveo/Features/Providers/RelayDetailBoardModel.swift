@@ -104,9 +104,10 @@ struct RelayDetailBoardModel: Equatable, Sendable {
     static let addMoreKeysKey = "Add more keys"
     /// The "Web Search" row: the title reuses "Web Search" from the Chat table, and the rest of the copy is in the Providers table.
     static let webSearchTitleKey = "Web Search"
-    static let webSearchSubtitleKey = "Set this up if the service behind this connection runs its own web search"
-    static let webSearchNotSetKey = "Not set up"
-    static let webSearchSetKey = "Set up"
+    static let webSearchSubtitleKey = "Optional: replace the default web search settings"
+    /// Value on the right of the web-search row: no custom fragment saved = the protocol's default web search settings; saved = Custom (shares its key with the provider category).
+    static let webSearchNotSetKey = "Default"
+    static let webSearchSetKey = "Custom"
     static let editConnectionKey = "Edit connection"
     static let parametersKey = "Parameters"
     /// The top-right "Edit connection" already uses slidersHorizontal, so the same screen does not get a second slider icon.

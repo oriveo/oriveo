@@ -1834,7 +1834,7 @@ final class ProviderManager {
             switch check() {
             case let .success((current, currentModel)):
                 probeTransport = RelayWebProbe.transport(provider: current, model: currentModel)
-                fragmentHash = Self.relayWebFragmentHash(current, probeTransport, store: webContext.fragments)
+                fragmentHash = Self.relayWebProbeHash(current, probeTransport, store: webContext.fragments)
             case let .failure(failure): return stopped(failure.reason)
             }
             guard fragmentHash != nil else { return stopped(.protocolChanged) }
@@ -1843,7 +1843,7 @@ final class ProviderManager {
             let probe = await probeRelayWeb(
                 providerID: providerID, modelID: modelID, deadline: deadline,
                 send: { request in try await probeSend.send(.web, request) },
-                fragments: webContext.fragments, records: webContext.records
+                fragments: webContext.fragments, records: webContext.records, template: true
             )
             guard case let .probed(outcome) = probe?.run else {
                 if case let .failure(failure) = check() { return stopped(failure.reason) }
@@ -1863,7 +1863,7 @@ final class ProviderManager {
             itemResults[.web] = item
             switch check() {
             case let .success((current, _)):
-                if Self.relayWebFragmentHash(current, probeTransport, store: webContext.fragments) != fragmentHash {
+                if Self.relayWebProbeHash(current, probeTransport, store: webContext.fragments) != fragmentHash {
                     return stopped(.protocolChanged)
                 }
             case let .failure(failure): return stopped(failure.reason)
@@ -1897,6 +1897,11 @@ final class ProviderManager {
         return result
     }
 
+    /// Fragment hash of the capability test web item: the saved fragment, otherwise the built-in template.
+    private static func relayWebProbeHash(_ provider: Provider, _ transport: RelayTransport, store: RelayWebFragmentStore) -> String? {
+        relayWebProbeFragment(provider, transport, store: store, template: true).map { RelayWebProbe.fragmentHash($0.object) }
+    }
+
     private struct CheckFailure: Error {
         let reason: RelayCapabilityTest.StopReason
     }
@@ -1910,8 +1915,16 @@ final class ProviderManager {
         }
     }
 
-    private static func relayWebFragmentHash(_ provider: Provider, _ transport: RelayTransport, store: RelayWebFragmentStore) -> String? {
-        store.chatFragments(for: provider).flatMap { relayWebFragmentHash($0, transport) }
+    /// The fragment used by the web probe: the one saved on the first-send protocol; if none and `template` is set, that protocol's built-in template is put into this request's fragment set (not saved).
+    private static func relayWebProbeFragment(
+        _ provider: Provider, _ transport: RelayTransport, store: RelayWebFragmentStore, template: Bool
+    ) -> (set: RelayWebFragmentSet, object: [String: Any])? {
+        let saved = store.chatFragments(for: provider)
+        if let saved, let object = saved.object(for: transport) { return (saved, object) }
+        guard template, let raw = RelayWebFragments.template(for: transport) else { return nil }
+        var set = saved ?? RelayWebFragmentSet()
+        set.raw[transport.rawValue] = raw
+        return set.object(for: transport).map { (set, $0) }
     }
 
     /// Relay web-search probe: only does the call, with no UI and no automatic trigger.
@@ -1928,31 +1941,37 @@ final class ProviderManager {
     ) async -> RelayWebProbe.Run? {
         await probeRelayWeb(
             providerID: providerID, modelID: modelID, deadline: deadline, send: injectedSend,
-            fragments: fragments, records: records
+            fragments: fragments, records: records, template: false
         )?.run
     }
 
     /// Same as `runRelayWebProbe`, and also reports whether the web override was actually written (value or source changed, following the Web probe's overrideWritten).
+    /// `template` (for the capability test panel only): when the first-send protocol has no saved fragment, that protocol's built-in template is used for a temporary test and is not saved;
+    /// the template is that protocol's effective fragment: the record is still written (hash = template hash), and the web override is mirrored and counted as written as usual.
     private func probeRelayWeb(
         providerID: UUID,
         modelID: String,
         deadline: Duration,
         send injectedSend: RelayWebProbe.Send?,
         fragments: RelayWebFragmentStore,
-        records: RelayWebProbeStore
+        records: RelayWebProbeStore,
+        template: Bool
     ) async -> (run: RelayWebProbe.Run, overrideWritten: Bool)? {
         guard let provider = provider(for: providerID),
               let model = provider.models.first(where: { $0.id == modelID }) else { return nil }
         guard RelayWebProbe.isEligible(provider: provider, model: model) else { return (.notListed, false) }
         let transport = RelayWebProbe.transport(provider: provider, model: model)
-        guard let set = fragments.chatFragments(for: provider), let fragment = set.object(for: transport) else {
+        guard let picked = Self.relayWebProbeFragment(provider, transport, store: fragments, template: template) else {
             return (.notListed, false)
         }
+        let set = picked.set
+        let fragment = picked.object
         let fragmentHash = RelayWebProbe.fragmentHash(fragment)
         let connectionIdentity = Self.relayProbeWriteIdentity(provider, modelID: modelID)
         let session = providerSession
+        // Production send judges while reading: the request is cancelled as soon as web-search evidence is seen, without waiting for the stream to end.
         let send: RelayWebProbe.Send = injectedSend ?? { request in
-            try await RelayCapabilityTest.perform(request, session: session)
+            try await RelayWebProbe.perform(request, session: session, transport: transport, fragment: fragment)
         }
         let outcome: RelayWebProbe.Outcome
         do {
@@ -1974,7 +1993,8 @@ final class ProviderManager {
               Self.relayProbeWriteIdentity(current, modelID: modelID) == connectionIdentity,
               RelayWebProbe.transport(provider: current, model: currentModel) == transport,
               // The fragment changed during the send: the result belongs to the old fragment, so neither the record nor the override is written.
-              fragments.chatFragments(for: current)?.object(for: transport).map(RelayWebProbe.fragmentHash) == fragmentHash
+              Self.relayWebProbeFragment(current, transport, store: fragments, template: template)
+                .map({ RelayWebProbe.fragmentHash($0.object) }) == fragmentHash
         else { return (.probed(outcome), false) }
         // The override mirrors the merged current record (silent does not erase searched); undetermined writes no record and leaves the override alone.
         var mirrored = outcome.result
@@ -2017,8 +2037,10 @@ final class ProviderManager {
         let context = relayWebProbeAutoContext
         guard var provider = provider(for: providerID), ProviderForm.of(provider) == .relay else { return }
         let after = context.fragments.chatFragments(for: provider) ?? RelayWebFragmentSet()
-        let changed = Set(RelayWebFragments.transports.filter {
-            Self.relayWebFragmentHash(before, $0) != Self.relayWebFragmentHash(after, $0)
+        // Compare by effective fragment (saved ?? template): when what is saved is exactly the template, the effective fragment is unchanged, so the tested web result is not cleared.
+        let changed = Set(RelayWebFragments.transports.filter { transport in
+            RelayWebProbe.effectiveFragment(before, transport: transport).map(RelayWebProbe.fragmentHash)
+                != RelayWebProbe.effectiveFragment(after, transport: transport).map(RelayWebProbe.fragmentHash)
         })
         let unchanged = provider
         RelayWebProbe.clearTestedWeb(transports: changed, in: &provider)

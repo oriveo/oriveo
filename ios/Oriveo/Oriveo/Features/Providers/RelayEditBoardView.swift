@@ -241,8 +241,8 @@ struct RelayEditBoardView: View {
             .padding(.leading, inset)
     }
 
-    /// Left column: icon + title, with the footnote on the next line indented to line up with the title; right column: the current value and the trailing control.
-    /// The right column is vertically centered on the whole row: pinned to the title line, a row with a footnote would leave its lower right empty and out of step with the row height.
+    /// Left column: icon in its own column + a title / footnote column; right column: the current value and the trailing control.
+    /// The icon and the right column are both vertically centered on the whole row: pinned to the title line, a row with a footnote would leave its lower part empty and out of step with the row height.
     private func rowBody<Trailing: View>(
         _ row: Board.Row,
         @ViewBuilder trailing: () -> Trailing
@@ -250,17 +250,18 @@ struct RelayEditBoardView: View {
         HStack(alignment: .center, spacing: OriveoTheme.Spacing.md) {
             // The value column takes at most 45%, so the title + footnote column is not squeezed to a sliver by a long value.
             RelayMenuRowColumns(spacing: OriveoTheme.Spacing.md) {
-                VStack(alignment: .leading, spacing: OriveoTheme.Spacing.xs) {
-                    HStack(alignment: .center, spacing: OriveoTheme.Spacing.md) {
-                        leadingIcon(row)
+                // The icon is its own column, vertically centered on the whole title + footnote block rather than pinned to the title line (layout rule: multi-line rows center as a whole).
+                HStack(alignment: .center, spacing: OriveoTheme.Spacing.md) {
+                    leadingIcon(row)
+                    VStack(alignment: .leading, spacing: OriveoTheme.Spacing.xs) {
                         Text(rowTitle(row))
                             .font(OriveoTheme.Typography.body)
                             .foregroundStyle(OriveoTheme.Palette.textPrimary)
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
-                    }
-                    if let footnote = row.footnote {
-                        rowFootnote(footnote, inset: row.icon == nil ? 0 : Self.textInset)
+                        if let footnote = row.footnote {
+                            rowFootnote(footnote, inset: 0)
+                        }
                     }
                 }
                 if let value = row.value {
@@ -335,9 +336,11 @@ struct RelayEditBoardView: View {
             .relayFillSlot(isFocused: focus == .endpoint, isHighlighted: isEndpointHighlighted)
             .contentShape(Rectangle())
             .onTapGesture { focus = .endpoint }
+            // row-lead: top. The input sits below the endpoint row, the icon follows the title line, and the input is indented by the icon width to line up with the title.
             .padding(.leading, Self.textInset)
 
             if let footnote = row.footnote {
+                // row-lead: top, same as above: the footnote sits below the input, indented like the input, and does not center on the icon.
                 rowFootnote(footnote, inset: Self.textInset)
                     .lineLimit(2)
                     .truncationMode(.middle)

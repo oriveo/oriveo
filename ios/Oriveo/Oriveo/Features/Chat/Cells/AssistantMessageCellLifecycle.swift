@@ -98,6 +98,8 @@ extension AssistantMessageCell {
         runningToolStepCaption = nil
         presentedStreamActivityText = nil
         unhandledToolCallView.resetForReuse()
+        replyNoticeLabel.text = nil
+        replyNoticeLabel.isHidden = true
         tearDownAttachmentViews()
         tearDownCitationsBlock()
         boundCitations = []

@@ -374,11 +374,14 @@ struct RelayModelAdvancedPage: View {
         case .file: return CapabilityPalette.attachment
         case .imageGeneration: return OriveoTheme.Palette.primary
         case .toolCall: return CapabilityPalette.tools
+        case .web: return CapabilityPalette.webSearch
         }
     }
 
     private func stateText(_ row: Board.CapabilityRow) -> String {
-        switch row.state {
+        // Web row: the status line shares its copy with the model options panel.
+        if let webStatus = row.webStatus { return ModelOptionCapabilityShape.relayWebStatusText(webStatus) }
+        return switch row.state {
         case .supported: L10n.tr("Supported", table: .providers)
         case .unsupported: L10n.tr("Not supported", table: .providers)
         case .unknown: L10n.tr(row.capability.unknownKey, table: row.capability.unknownTable)

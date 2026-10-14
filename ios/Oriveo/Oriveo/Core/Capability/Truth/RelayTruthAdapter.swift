@@ -40,13 +40,17 @@ enum RelayTruthAdapter: CapabilityTruthAdapter {
                 support = declared ? .unknown : .unsupported
             }
         case "web_search":
-            // Relay web search looks only at the connection-level fragment and the local probe record (capability spec, RELAY x web search):
-            // with a fragment and a current record, searched -> supported, rejected -> unsupported; silent / untested / stale hash / no fragment -> unknown.
-            // It does not look at the catalog, the profile inherited by the model, or the web-search preference in chat.
-            switch relay.webFragment?.probe {
-            case .searched?: support = .supported
-            case .rejected?: support = .unsupported
-            case .silent?, nil: support = .unknown
+            // Relay web search truth: user override of web > current record (under the effective fragment hash) searched / rejected > unknown.
+            // The effective fragment = the saved fragment ?? the first-send protocol's template; it does not look at the catalog, the profile inherited by the model, or the web switch in chat.
+            guard let webFragment = relay.webFragment else { return nil }
+            if RelayCapabilityTest.isUserSet(overrides, .web), let overridden = overrides?.web {
+                support = overridden ? .supported : .unsupported
+            } else {
+                switch webFragment.probe {
+                case .searched?: support = .supported
+                case .rejected?: support = .unsupported
+                case .silent?, nil: support = .unknown
+                }
             }
         case "vision_input":
             if !envelopeCapabilities.contains(.image) { support = .unsupported }

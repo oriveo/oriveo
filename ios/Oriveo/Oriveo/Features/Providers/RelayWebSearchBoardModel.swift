@@ -196,7 +196,10 @@ struct RelayWebSearchBoardModel: Equatable, Sendable {
     ) -> [RejectedModel] {
         let set = fragments.chatFragments(for: provider)
         return provider.models.compactMap { model in
-            guard RelayWebProbe.currentResult(provider: provider, model: model, fragments: set, records: records) == .rejected
+            // When the first-choice transport has no saved fragment the effective fragment is the template; a rejected template goes through the capability retest and does not belong in this section.
+            guard RelayWebProbe.isEligible(provider: provider, model: model),
+                  set?.object(for: RelayWebProbe.transport(provider: provider, model: model)) != nil,
+                  RelayWebProbe.currentResult(provider: provider, model: model, fragments: set, records: records) == .rejected
             else { return nil }
             return RejectedModel(modelID: model.id, name: model.name.isEmpty ? model.id : model.name)
         }

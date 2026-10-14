@@ -96,6 +96,8 @@ nonisolated enum ChatCollectionProjectionBuilder {
         var renderHint: MarkdownRenderHint?
         let topPadding: CGFloat
         let isLastInConversation: Bool
+        /// Secondary note under the reply (relay web search was not used); comes only from ChatManager in-process memory, not stored on the message.
+        var replyNotice: RelayWebReplyNotice? = nil
 
         nonisolated var id: UUID { message.id }
     }
@@ -126,6 +128,8 @@ nonisolated enum ChatCollectionProjectionBuilder {
         let isStreaming: Bool
         let providerMetadataVersion: UInt
         let isLastInConversation: Bool
+        /// Secondary note under the reply (passed through from MessageRow).
+        let replyNotice: RelayWebReplyNotice?
 
         init(
             messageID: UUID,
@@ -145,7 +149,8 @@ nonisolated enum ChatCollectionProjectionBuilder {
             textHash: Int,
             isStreaming: Bool,
             providerMetadataVersion: UInt,
-            isLastInConversation: Bool = true
+            isLastInConversation: Bool = true,
+            replyNotice: RelayWebReplyNotice? = nil
         ) {
             self.messageID = messageID
             self.message = message
@@ -165,6 +170,7 @@ nonisolated enum ChatCollectionProjectionBuilder {
             self.isStreaming = isStreaming
             self.providerMetadataVersion = providerMetadataVersion
             self.isLastInConversation = isLastInConversation
+            self.replyNotice = replyNotice
         }
     }
 
@@ -194,7 +200,8 @@ nonisolated enum ChatCollectionProjectionBuilder {
     nonisolated static func makeRows(
         from messages: [ChatMessage],
         metadata: ChatCollectionProviderMetadata,
-        noteReferencesByMessageID: [UUID: [NoteSummary]] = [:]
+        noteReferencesByMessageID: [UUID: [NoteSummary]] = [:],
+        replyNotices: [UUID: RelayWebReplyNotice] = [:]
     ) -> [MessageRow] {
         var rows: [MessageRow] = []
         rows.reserveCapacity(messages.count)
@@ -229,7 +236,8 @@ nonisolated enum ChatCollectionProjectionBuilder {
                     topPadding: previousRole == message.role
                         ? compactTopPadding
                         : groupedTopPadding,
-                    isLastInConversation: isLastInConversation
+                    isLastInConversation: isLastInConversation,
+                    replyNotice: message.role == .assistant ? replyNotices[message.id] : nil
                 )
             )
         }
@@ -279,7 +287,8 @@ nonisolated enum ChatCollectionProjectionBuilder {
                 textHash: effectiveText.hashValue,
                 isStreaming: row.message.state == .generating,
                 providerMetadataVersion: providerMetadataVersion,
-                isLastInConversation: row.isLastInConversation
+                isLastInConversation: row.isLastInConversation,
+                replyNotice: row.replyNotice
             )
         }
 

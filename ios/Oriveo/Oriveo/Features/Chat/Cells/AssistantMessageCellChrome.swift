@@ -2,6 +2,25 @@ import SwiftUI
 import UIKit
 
 extension AssistantMessageCell {
+    // MARK: - Reply notice
+
+    /// A secondary-color line under the reply; the copy is localized.
+    func configureReplyNotice(_ notice: RelayWebReplyNotice?) {
+        let text = notice.map(Self.replyNoticeText)
+        guard replyNoticeLabel.text != text || replyNoticeLabel.isHidden != (text == nil) else { return }
+        replyNoticeLabel.text = text
+        replyNoticeLabel.isHidden = text == nil
+        notifyContentDidChange()
+    }
+
+    static func replyNoticeText(_ notice: RelayWebReplyNotice) -> String {
+        switch notice {
+        case .webNotUsed:
+            L10n.tr("Answered without web search. This connection doesn’t support web search for this model.", table: .providers)
+        }
+    }
+
+    // MARK: - Error recovery card
 
     func embedRecoveryCard(_ config: UIKitRecoveryCard.Config) {
         tearDownRecoveryCard()
@@ -278,6 +297,14 @@ extension AssistantMessageCell {
 
         citationsHost.isHidden = true
         contentStack.addArrangedSubview(citationsHost)
+
+        // Permanent slot for the reply notice (after the citations).
+        replyNoticeLabel.isHidden = true
+        replyNoticeLabel.numberOfLines = 0
+        replyNoticeLabel.font = UIFont.preferredFont(forTextStyle: .footnote)
+        replyNoticeLabel.adjustsFontForContentSizeCategory = true
+        replyNoticeLabel.textColor = UIColor(OriveoTheme.Palette.textSecondary)
+        contentStack.addArrangedSubview(replyNoticeLabel)
 
         recoveryCardHost.isHidden = true
         contentStack.addArrangedSubview(recoveryCardHost)

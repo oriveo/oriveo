@@ -73,10 +73,12 @@ final class ChatManager {
         var switchedTo: RelayTransport? = nil
         /// This message fell back at protocol level. Re-routing the first send (`switchedTo` = the first-send protocol) does not count.
         var protocolFallback = false
-        /// The protocol the probe record is written under (the first-send protocol) and the hash of the fragment attached on it this turn:
-        /// when the message is delivered, did not fall back, was sent on this protocol and has citations, they are used to record searched / observed.
-        var webTransport: RelayTransport? = nil
-        var webFragmentHash: String? = nil
+        /// The relay web switch is on this turn (and in the relay web scope): if the delivering attempt carried no fragment, a notice is attached to the reply.
+        var webOn = false
+        /// The hash of the fragment carried on each protocol this turn: on delivery it is looked up by the protocol actually used, and with citations searched / observed is written.
+        var webFragmentHashes: [RelayTransport: String] = [:]
+        /// Protocols whose fragment was rejected with 400 / 422 and resent without it: delivering on one of them writes rejected / tested.
+        var webStripped: Set<RelayTransport> = []
     }
 
     private struct StreamingSession {
@@ -133,6 +135,14 @@ final class ChatManager {
     private var activitySubjects: [UUID: PassthroughSubject<StreamActivityState, Never>] = [:]
 
     private(set) var streamingConversationIDs: Set<UUID> = []
+
+    /// Relay web reply notice: an assistant message delivered with the switch on but no fragment on the delivering attempt gets a one-line secondary-colour note under the reply.
+    /// It lives only in this process's memory: not in `ChatMessage`, not persisted, not synced; it is gone after the app is reopened.
+    private(set) var relayWebReplyNotices: [UUID: RelayWebReplyNotice] = [:]
+
+    func relayWebReplyNotice(messageID: UUID) -> RelayWebReplyNotice? {
+        relayWebReplyNotices[messageID]
+    }
 
     /// Successful explicit continuation is compare-and-delete: it consumes the snapshot which
     /// was actually injected, without deleting a new opaque state produced by that same response.
@@ -873,7 +883,8 @@ final class ChatManager {
             capabilitySelection,
             preservingLibraryModeFrom: continuingMessage,
             model: model,
-            provider: provider
+            provider: provider,
+            conversationID: conversationID
         ) else { return }
         guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }),
               let msgIndex = conversations[convIndex].messages.firstIndex(where: { $0.id == messageID })
@@ -940,7 +951,8 @@ final class ChatManager {
             capabilitySelection,
             preservingLibraryModeFrom: originalMessage,
             model: model,
-            provider: provider
+            provider: provider,
+            conversationID: conversationID
         ) else { return }
         guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }),
               let msgIndex = conversations[convIndex].messages.firstIndex(where: { $0.id == messageID })
@@ -1031,7 +1043,8 @@ final class ChatManager {
             capabilitySelection,
             preservingLibraryModeFrom: originalMessage,
             model: model,
-            provider: provider
+            provider: provider,
+            conversationID: conversationID
         ) else { return }
         guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }),
               let msgIndex = conversations[convIndex].messages.firstIndex(where: { $0.id == messageID })
@@ -1146,13 +1159,33 @@ final class ChatManager {
         )
     }
 
+    /// The relay's web intent this turn: the switch (preference store + default layer) is on and not overridden off by the user. A rejected current record does not count:
+    /// whether each attempt carries a fragment is decided by that attempt's protocol (`RelayWebProbe.chatFragments`), and when none is carried the reply gets a notice.
+    /// False when out of scope (local engine / undecided protocol).
+    private static func relayWebIsOn(
+        provider: Provider, model: AIModel, conversationID: UUID?, skillID: UUID?
+    ) -> Bool {
+        guard RelayWebProbe.inScope(provider: provider, model: model) else { return false }
+        let preference = RelayWebSwitch.isOn(provider: provider, model: model, conversationID: conversationID, skillID: skillID)
+        return RelayWebProbe.fact(provider: provider, model: model, preference: preference)?.isOn ?? false
+    }
+
     private func gatedRecoveryCapabilitySelection(
         _ requested: ChatCapabilitySelection,
         preservingLibraryModeFrom message: ChatMessage,
         model: AIModel,
-        provider: Provider
+        provider: Provider,
+        conversationID: UUID? = nil
     ) async -> ChatCapabilitySelection? {
-        recoveryCapabilitySelection(
+        // Relay web search: the recovery path resolves it from the switch (default layer included) the same as the first send; library recovery is switched off as usual below.
+        var requested = requested
+        if ProviderForm.of(provider) == .relay {
+            requested.webSearchEnabled = Self.relayWebIsOn(
+                provider: provider, model: model, conversationID: conversationID,
+                skillID: conversationID.flatMap { id in conversations.first(where: { $0.id == id })?.skillId }
+            )
+        }
+        return recoveryCapabilitySelection(
             requested,
             preservingLibraryModeFrom: message,
             model: model
@@ -1213,6 +1246,13 @@ final class ChatManager {
             )
             if runtimeIdentity != nil {
                 requestedCapabilitySelection.webSearchEnabled = typed.web != .off
+            }
+            // Relay web search: this turn's web intent = the web row fact isOn (the switch with the default layer, and not overridden off by the user);
+            // whether each attempt carries a fragment is decided by that attempt's protocol. The library / custom takeover below still turns it off for this turn.
+            if ProviderForm.of(provider) == .relay {
+                requestedCapabilitySelection.webSearchEnabled = Self.relayWebIsOn(
+                    provider: provider, model: model, conversationID: conversationID, skillID: skillID
+                )
             }
             let displayedIntent = CapabilityPreferenceValueResolver.displaySelection(
                 conversation: conversationValues,
@@ -1576,15 +1616,21 @@ final class ChatManager {
             }
             requestOptions.capabilityEvidenceModel = AttachmentTransportResolver.evidenceModel(provider: provider, model: model)
             requestOptions.attachmentConnectionID = provider.id
-            // Relay web-search fragment: sent whenever there is one, independent of the chat's web-search preference.
-            // A protocol whose probe record is `rejected` for the current fragment is not attached.
-            requestOptions.relayWebFragments = RelayWebProbe.chatFragments(provider: provider, model: model)
+            // Relay web search: with the switch on, one effective fragment (saved ?? that protocol's template) is prepared per protocol, except the one whose current record is
+            // rejected (not counted when the user override is on); the builders for the first send, a re-routed first send and a protocol fallback each take the fragment of their own protocol.
+            // This turn's web intent was already resolved from the switch in requestedCapabilitySelection; the library / auxiliary sends turn it off.
+            let relayWebOn = capabilitySelection.webSearchEnabled
+            requestOptions.relayWebFragments = RelayWebProbe.chatFragments(provider: provider, model: model, webOn: relayWebOn)
             if self.sessions[conversationID]?.relayDeliveryRoute != nil {
-                let webTransport = RelayWebProbe.transport(provider: provider, model: model)
-                if let fragment = requestOptions.relayWebFragments?.object(for: webTransport) {
-                    self.sessions[conversationID]?.relayDeliveryRoute?.webTransport = webTransport
-                    self.sessions[conversationID]?.relayDeliveryRoute?.webFragmentHash = RelayWebProbe.fragmentHash(fragment)
+                self.sessions[conversationID]?.relayDeliveryRoute?.webOn = relayWebOn
+                    && RelayWebProbe.inScope(provider: provider, model: model)
+                var hashes: [RelayTransport: String] = [:]
+                for transport in RelayWebProbe.fragmentTransports {
+                    if let fragment = requestOptions.relayWebFragments?.object(for: transport) {
+                        hashes[transport] = RelayWebProbe.fragmentHash(fragment)
+                    }
                 }
+                self.sessions[conversationID]?.relayDeliveryRoute?.webFragmentHashes = hashes
             }
             // Built before dispatch, so `endpointFingerprint` is still unknown here. The final
             // endpoint is folded in later, once the production builder has chosen a URL.
@@ -2870,6 +2916,9 @@ final class ChatManager {
                         selected: capabilitySelection.reasoningMode
                     )
                     var relayTierRetryError: (any Error)?
+                    // Protocols whose fragment was rejected with 400 / 422 and resent without it; if the resend fails again, this original error is reported.
+                    var relayWebStripped: Set<RelayTransport> = []
+                    var relayWebRetryError: (any Error)?
                     // One relay send attempt. The outer protocol fallback may switch protocol and call it again;
                     // the inner native-file fallback (NativeFileFallback) first goes out on the original protocol in each attempt.
                     @MainActor func sendRelayAttempt(_ route: ProviderServiceRouter.ProtocolRoute) async throws {
@@ -2879,6 +2928,9 @@ final class ChatManager {
                         let relayRequested = route.requested
                         var relayRequestOptions = requestOptions
                         relayRequestOptions.relayRequested = relayRequested
+                        if relayWebStripped.contains(relayTransport) {
+                            relayRequestOptions.relayWebFragments?.raw[relayTransport.rawValue] = nil
+                        }
 
                         // Image generation on a relay depends on the transport. Chat Completions posts
                         // to the images endpoint, Responses carries an inline `image_generation` tool on
@@ -3174,7 +3226,7 @@ final class ChatManager {
                                 }
                                 if access == .modelAccessDenied {
                                     relayKeyAccessDenied = true
-                                    throw relayTierRetryError ?? error
+                                    throw relayTierRetryError ?? relayWebRetryError ?? error
                                 }
                             }
                             // Reasoning level rejected: record it in the negative cache and resend once at the nearest level;
@@ -3188,18 +3240,30 @@ final class ChatManager {
                                 relayReasoningMode = fallback ?? .automatic
                                 continue
                             }
+                            // Web fragment rejected: a fragment was carried, 400 / 422 before any output, and not a route-level rejection (no-access already failed directly above)
+                            // -> resend once on the same protocol without the fragment; on delivery that protocol is recorded rejected / tested, and if it fails again the original error is reported and nothing is written.
+                            if relayWebRetryError == nil, !Task.isCancelled, !outputStarted,
+                               let rejection = recorder.rejection, [400, 422].contains(rejection.status),
+                               !RelayProtocolFallback.isRouteRejection(rejection),
+                               !relayWebStripped.contains(relayRoute.transport),
+                               requestOptions.relayWebFragments?.object(for: relayRoute.transport) != nil {
+                                relayWebRetryError = error
+                                relayWebStripped.insert(relayRoute.transport)
+                                self.sessions[conversationID]?.relayDeliveryRoute?.webStripped.insert(relayRoute.transport)
+                                continue
+                            }
                             guard !Task.isCancelled,
                                   let rejection = recorder.rejection,
                                   let next = await self.relayProtocolFallbackTarget(
                                       provider: provider, model: model, current: relayRoute.transport,
                                       rejection: rejection, outputStarted: outputStarted, alreadySwitched: relaySwitched,
                                       attachments: requestMessages.flatMap { $0.attachments ?? [] }
-                                  ) else { throw relayTierRetryError ?? error }
+                                  ) else { throw relayTierRetryError ?? relayWebRetryError ?? error }
                             var switchedModel = model
                             switchedModel.relayTransport = next
                             guard case let .byProtocol(rerouted) = ProviderServiceRouter.route(
                                 provider: provider, model: switchedModel
-                            ) else { throw relayTierRetryError ?? error }
+                            ) else { throw relayTierRetryError ?? relayWebRetryError ?? error }
                             relaySwitched = true
                             relayRoute = rerouted
                             // On success this is written back as observed under the switched-to protocol (the same write-back path as the "already used" promotion).
@@ -4297,6 +4361,14 @@ final class ChatManager {
         updated.messages[mi].state = state
         updated.messages[mi].errorTitle = errorTitle
         updated.messages[mi].errorDetail = errorDetail
+        // Relay web reply notice: the switch is on and the delivering attempt carried no fragment -> attach it under this assistant message (in this process's memory only).
+        // This runs before the conversation is published below, so the list rows rebuilt by that publish already include it.
+        if state == .delivered, let route = carriedRelayDeliveryRoute, route.webOn {
+            let delivered = route.switchedTo ?? route.transport
+            if route.webStripped.contains(delivered) || route.webFragmentHashes[delivered] == nil {
+                relayWebReplyNotices[messageID] = .webNotUsed
+            }
+        }
         updated.updatedAt = ConversationListMetadata.computeActivityAt(for: updated)
         ConversationListMetadata.apply(to: &updated)
         appState.upsertConversationProjection(updated)
@@ -4342,16 +4414,23 @@ final class ChatManager {
                     providerID: route.providerID, modelID: route.modelID, keyID: route.keyID,
                     sentIdentity: route.keyWriteIdentity
                 )
-                // Passive recording: this turn attached a fragment on the first-send protocol, made no protocol-level
-                // fallback (re-routing the first send does not count), and the production parser produced web
-                // citations -> searched / observed. It writes only the local record and does not upgrade any
+                // Web search: look at whether this delivery carried a fragment, by the protocol actually delivered on (a re-routed first send or a protocol fallback counts).
+                let deliveredTransport = route.switchedTo ?? route.transport
+                let stripped = route.webStripped.contains(deliveredTransport)
+                let carriedHash = stripped ? nil : route.webFragmentHashes[deliveredTransport]
+                // Delivered with a fragment and the production parser produced web citations -> searched / observed. It writes only the local record and does not upgrade any
                 // message-level execution fact.
-                if !route.protocolFallback, let webTransport = route.webTransport, let hash = route.webFragmentHash,
-                   (route.switchedTo ?? route.transport) == webTransport,
-                   !carriedCitations.isEmpty {
+                if let carriedHash, !carriedCitations.isEmpty {
                     RelayWebProbeStore.shared.record(
                         connectionID: route.providerID.uuidString, modelID: route.modelID,
-                        transport: webTransport.rawValue, result: .searched, source: .observed, fragmentHash: hash
+                        transport: deliveredTransport.rawValue, result: .searched, source: .observed, fragmentHash: carriedHash
+                    )
+                }
+                // Delivered after resending without the fragment -> rejected / tested for that protocol x the current hash.
+                if stripped, let hash = route.webFragmentHashes[deliveredTransport] {
+                    RelayWebProbeStore.shared.record(
+                        connectionID: route.providerID.uuidString, modelID: route.modelID,
+                        transport: deliveredTransport.rawValue, result: .rejected, source: .tested, fragmentHash: hash
                     )
                 }
             }

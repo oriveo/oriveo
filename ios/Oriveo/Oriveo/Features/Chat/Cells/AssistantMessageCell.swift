@@ -65,6 +65,8 @@ final class AssistantMessageCell: UICollectionViewCell {
     /// step started) the view still has to refresh.
     var presentedStreamActivityText: String?
     let unhandledToolCallView = UIKitUnhandledToolCallView()
+    // One secondary-colour line under the reply (e.g. the relay did not use web search): a permanent slot, hidden when there is no notice.
+    let replyNoticeLabel = UILabel()
 
     var recoveryCard: UIKitRecoveryCard?
     let recoveryCardHost = UIView()
@@ -349,6 +351,7 @@ final class AssistantMessageCell: UICollectionViewCell {
         // The data itself is kept so retry / edit can still map citations back to documents.
         boundCitations = model.message.citations ?? []
         refreshCitationsBlock(parentViewController: parentViewController)
+        configureReplyNotice(isGenerating ? nil : model.replyNotice)
 
         if model.showMetadata {
             let providerName = model.resolvedProviderName ?? model.message.providerName

@@ -219,7 +219,8 @@ struct ChatMessageList: View, Equatable {
         return ChatCollectionProjectionBuilder.makeRows(
             from: projection.messages,
             metadata: Self.providerMetadata(in: appState),
-            noteReferencesByMessageID: noteReferencesByMessageID()
+            noteReferencesByMessageID: noteReferencesByMessageID(),
+            replyNotices: appState.chatManager.relayWebReplyNotices
         )
     }
 
@@ -712,7 +713,8 @@ struct ChatMessageList: View, Equatable {
         cachedRows = ChatCollectionProjectionBuilder.makeRows(
             from: projection.messages,
             metadata: Self.providerMetadata(in: appState),
-            noteReferencesByMessageID: noteReferencesByMessageID()
+            noteReferencesByMessageID: noteReferencesByMessageID(),
+            replyNotices: appState.chatManager.relayWebReplyNotices
         )
     }
 

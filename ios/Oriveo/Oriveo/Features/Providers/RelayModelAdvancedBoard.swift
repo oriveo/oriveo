@@ -140,10 +140,10 @@ struct RelayModelAdvancedBoard: Equatable {
         }
     }
 
-    // MARK: Four capability rows
+    // MARK: Five capability rows (web search comes after tool calls)
 
     enum Capability: CaseIterable, Equatable, Sendable {
-        case image, file, imageGeneration, toolCall
+        case image, file, imageGeneration, toolCall, web
 
         var overrideKey: RelayCapabilityOverrides.Key {
             switch self {
@@ -151,6 +151,7 @@ struct RelayModelAdvancedBoard: Equatable {
             case .file: .file
             case .imageGeneration: .imageGeneration
             case .toolCall: .toolCall
+            case .web: .web
             }
         }
 
@@ -160,6 +161,7 @@ struct RelayModelAdvancedBoard: Equatable {
             case .file: .paperclip
             case .imageGeneration: .image
             case .toolCall: .wrench
+            case .web: .globe
             }
         }
 
@@ -169,6 +171,7 @@ struct RelayModelAdvancedBoard: Equatable {
             case .file: "Files"
             case .imageGeneration: "Image generation"
             case .toolCall: "Tool calls"
+            case .web: "Web search"
             }
         }
 
@@ -176,13 +179,13 @@ struct RelayModelAdvancedBoard: Equatable {
             self == .image ? .chat : .providers
         }
 
-        /// Image generation has no remember-after-send mechanism, so unknown just says "Unknown".
+        /// Image generation has no remember-after-send mechanism, so unknown just says "Unknown"; web search (local engine or protocol not decided) likewise just says "Unknown".
         var unknownKey: String {
-            self == .imageGeneration ? "Unknown" : "Unknown · remembered after sending"
+            self == .imageGeneration || self == .web ? "Unknown" : "Unknown · remembered after sending"
         }
 
         var unknownTable: L10n.Table {
-            self == .imageGeneration ? .localizable : .chat
+            self == .imageGeneration || self == .web ? .localizable : .chat
         }
     }
 
@@ -229,6 +232,8 @@ struct RelayModelAdvancedBoard: Equatable {
         /// nil = no source (unknown draws no badge).
         let source: Source?
         let control: Control
+        /// Status of the web-search row (fixture presentationCases `advanced.statusId`); nil = another row, or a local engine / undecided protocol (shows Unknown).
+        var webStatus: RelayWebFact.StatusID? = nil
     }
 
     // MARK: Five thinking cells
@@ -417,9 +422,12 @@ struct RelayModelAdvancedBoard: Equatable {
         negativeCache: RelayNegativeCache,
         toolMemory: ToolCallMemoryStore
     ) -> CapabilityRow {
+        if capability == .web { return webRow(provider: provider, model: model) }
         let overridden = model.relayCapabilityOverrides?.value(for: capability.overrideKey)
         let state: Support
         switch capability {
+        case .web:
+            preconditionFailure("web row is built by webRow")
         case .image, .toolCall:
             // The existing tri-state functions already factor overrides in (the highest source for vision / tools).
             state = RelayCatalogBoardModel.support(
@@ -445,6 +453,31 @@ struct RelayModelAdvancedBoard: Equatable {
         )
     }
 
+    /// Web search row: the state follows the current record under the effective fragment (overrides are ignored); the source is user > tested (a recorded searched / rejected) > none.
+    /// The icon's shade follows the web-search truth; the control follows the same convention as the vision / tool rows on the same card:
+    /// override true -> On, false -> Off (both tested and user count), no value -> Auto, and choosing Auto clears the override.
+    /// A local engine or an undecided protocol is Unknown.
+    static func webRow(provider: Provider, model: AIModel) -> CapabilityRow {
+        guard let fact = RelayWebProbe.fact(provider: provider, model: model, preference: nil) else {
+            return CapabilityRow(capability: .web, state: .unknown, source: nil, control: .auto)
+        }
+        let state: Support = switch fact.truth {
+        case .supported: .supported
+        case .unsupported: .unsupported
+        case .unknown: .unknown
+        }
+        let source: Source? = switch fact.advancedSource {
+        case .user?: .user
+        case .tested?: .tested
+        case nil: nil
+        }
+        return CapabilityRow(
+            capability: .web, state: state, source: source,
+            control: model.relayCapabilityOverrides?.web.map { $0 ? .on : .off } ?? .auto,
+            webStatus: fact.probeStatus
+        )
+    }
+
     /// Take the first hit in the fixed order: user > tested > engine declaration (engineProfile only) > negative cache / tool memory > official catalog > none.
     static func source(
         _ capability: Capability,
@@ -462,7 +495,7 @@ struct RelayModelAdvancedBoard: Equatable {
             let declared: Bool? = switch capability {
             case .image: model.engineDeclaration?.image
             case .toolCall: model.engineDeclaration?.toolCall
-            case .file, .imageGeneration: nil
+            case .file, .imageGeneration, .web: nil
             }
             // A local connection draws only engine declaration / manual / tested (the same scope as the legend).
             return declared != nil ? .engine : nil
@@ -471,7 +504,7 @@ struct RelayModelAdvancedBoard: Equatable {
         case .image: .image
         case .file: .file
         case .toolCall: .toolCall
-        case .imageGeneration: nil
+        case .imageGeneration, .web: nil
         }
         if let cacheKind, negativeCache.isRejected(
             connectionID: provider.id.uuidString, modelID: model.id,
@@ -488,6 +521,7 @@ struct RelayModelAdvancedBoard: Equatable {
         case .file: !model.nativeFileMimes.isEmpty
         case .imageGeneration: model.capabilities.contains(.imageGen)
         case .toolCall: model.toolCall != nil
+        case .web: false
         }
         return inherited ? .catalog : nil
     }

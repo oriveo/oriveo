@@ -70,8 +70,8 @@ struct ModelCapabilityEvidencePresentation {
     private let reasoningControlAvailable: Bool
     private let toolCallDecision: ToolCallCapabilityPolicy.Decision
     private let isSubscriptionLink: Bool
-    /// The relay web badge only looks at the connection-level fragment, using the same verdict as the outbound request and the panel; nil means this is not a relay.
-    private let relayWebFragmentSaved: Bool?
+    /// The relay web badge follows the web search truth (user override > current record > unknown) and lights up only when supported; nil means this is not a relay.
+    private let relayWebSupported: Bool?
 
     #if DEBUG
     private static let constructionCountsLock = NSLock()
@@ -140,8 +140,8 @@ struct ModelCapabilityEvidencePresentation {
             provider: provider, model: model, capability: "web"
         )
         webControlAvailable = webVerdict.isAvailable
-        relayWebFragmentSaved = ProviderForm.of(provider) == .relay
-            ? webVerdict.reasonCode == "relay_web_fragment_saved"
+        relayWebSupported = ProviderForm.of(provider) == .relay
+            ? RelayWebProbe.fact(provider: provider, model: model, preference: nil)?.truth == .supported
             : nil
         reasoningControlAvailable = CapabilityControlResolution.resolve(
             provider: provider, model: model, capability: "reasoning"
@@ -160,7 +160,7 @@ struct ModelCapabilityEvidencePresentation {
         case .image:
             return permitsDisplay("vision_input")
         case .web:
-            if let relayWebFragmentSaved { return relayWebFragmentSaved }
+            if let relayWebSupported { return relayWebSupported }
             if isSubscriptionLink { return webControlAvailable }
             return webControlAvailable && permitsDisplay("web_search")
         default:

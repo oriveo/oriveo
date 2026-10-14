@@ -33,6 +33,8 @@ struct ModelControlsEntrySheet: View {
     let onOpenConnectionSettings: () -> Void
     /// The way out of the relay web search row: as with the protocol, the composer dismisses the modal and then pushes the connection's web search settings page.
     let onOpenConnectionWebSearch: () -> Void
+    /// Re-test after the relay web template was rejected: the composer dismisses the sheet, then opens that model's Advanced page.
+    var onOpenTestCapabilities: () -> Void = {}
 
     @ViewBuilder
     var body: some View {
@@ -50,7 +52,8 @@ struct ModelControlsEntrySheet: View {
                 reasoningIntentSelection: $reasoningIntentSelection,
                 onChooseConnection: onChooseConnection,
                 onOpenConnectionSettings: onOpenConnectionSettings,
-                onOpenConnectionWebSearch: onOpenConnectionWebSearch
+                onOpenConnectionWebSearch: onOpenConnectionWebSearch,
+                onOpenTestCapabilities: onOpenTestCapabilities
             )
         } else {
             ModelControlsMissingModelSheet(provider: provider, onChooseConnection: onChooseConnection)
@@ -177,6 +180,8 @@ struct ModelControlsSheet: View {
     let onOpenConnectionSettings: () -> Void
     /// See `ModelControlsEntrySheet.onOpenConnectionWebSearch`.
     let onOpenConnectionWebSearch: () -> Void
+    /// See `ModelControlsEntrySheet.onOpenTestCapabilities`.
+    var onOpenTestCapabilities: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
     @Environment(AppState.self) private var appState
@@ -360,10 +365,10 @@ struct ModelControlsSheet: View {
                 connection: connection,
                 isWritable: editability.canPersist && !webOverridden,
                 protocolUndecided: protocolUndecided,
-                // Relay web search depends only on the connection-level fragment, and its state comes from the local probe record;
-                // the outbound gate and the badge read the same storage.
+                // Relay web search is a chat switch: the switch reads the official preference store (default layer included), and its state comes from the
+                // local probe record under the effective fragment plus the Advanced page override; the outbound path and the badge read the same fact.
                 relayWeb: provider.kind == .relay
-                    ? RelayWebProbe.panelFact(provider: provider, model: model)
+                    ? RelayWebProbe.panelFact(provider: provider, model: model, preference: web != .off)
                     : nil
             ),
             reasoning: .init(
@@ -515,6 +520,15 @@ struct ModelControlsSheet: View {
         case let .capabilityPreference(on, off):
             switch capability {
             case .web:
+                if provider.kind == .relay {
+                    // Relay web search has no timing row; it can still be written under the fallback key when no full runtime identity is available.
+                    guard !runtimeIsReadOnly else { return }
+                    RelayWebSwitch.write(isOn, provider: provider, model: model, conversationID: conversationID)
+                    web = isOn ? .automatic : .off
+                    storedSettingsRevision += 1
+                    publishSelection()
+                    return
+                }
                 // The toggle only expresses on and off; switching to "search every message" while on is the timing row's job.
                 web = CapabilityWebPreference(rawValue: isOn ? on : off) ?? (isOn ? .automatic : .off)
             case .reasoning:
@@ -549,6 +563,8 @@ struct ModelControlsSheet: View {
         case .openConnectionWebSearch:
             // As with the protocol way out, the panel does not push by itself: the composer dismisses the modal and routes to the web search settings page through appState.
             onOpenConnectionWebSearch()
+        case .openTestCapabilities:
+            onOpenTestCapabilities()
         }
     }
 
@@ -736,8 +752,16 @@ struct ModelControlsSheet: View {
     }
 
     private func restoreStoredSelection() {
+        // The relay web switch reads through its own addressing (default layer included) and is not gated by a full runtime identity.
+        let relayWebOn = provider.kind == .relay
+            ? RelayWebSwitch.isOn(provider: provider, model: model, conversationID: conversationID)
+            : nil
         // Reading and writing both use `effectiveTransportIdentity`: after an in-panel refetch unlocks the panel, the parameter passed in by the parent
         // is still nil, and using it would split "can tap" from "can store": the controls unlock, yet changes are silently lost.
+        if let relayWebOn, effectiveTransportIdentity == nil {
+            web = relayWebOn ? .automatic : .off
+            publishSelection()
+        }
         guard let transportIdentity = effectiveTransportIdentity else { return }
         // The read ladder has the same source as the send path (conversation → model default → connection): if the panel kept its own copy,
         // "Set as this model's default" would write a value that no screen could read back.
@@ -745,7 +769,7 @@ struct ModelControlsSheet: View {
             providerID: provider.id, modelID: capabilityModelID, conversationID: conversationID,
             skillID: nil, transportIdentity: transportIdentity
         )
-        web = restored.web
+        web = relayWebOn.map { $0 ? .automatic : .off } ?? restored.web
         reasoningIntent = restored.reasoningIntent
         for owner in RequestPreferenceOwner.allCases.map(\.rawValue) {
             let configuration = GenerationParameterSettingsStore.shared.effectiveLocalCustomConfiguration(
@@ -821,9 +845,12 @@ struct ModelControlsSheet: View {
         // go out depends on the current metadata: after a model generation change, a removal or a transport change the storage is byte for byte the same, the globe on the chip
         // would stay lit, and the request would carry no web search field at all. Storage is not rewritten (switching back to a usable model restores it); the globe
         // just is not lit for a preference that will not go out.
-        let nextWebEnabled = web != .off && CapabilityWebPreferenceLiveness.reachesTheWire(
-            status: presentation(for: "web"), customIsActive: isCustomActive("web")
-        )
+        // Relay web search follows the web row's fact (not lit when overridden off or rejected).
+        let nextWebEnabled = provider.kind == .relay
+            ? RelayWebProbe.fact(provider: provider, model: model, preference: web != .off)?.isOn ?? false
+            : web != .off && CapabilityWebPreferenceLiveness.reachesTheWire(
+                status: presentation(for: "web"), customIsActive: isCustomActive("web")
+            )
         if webEnabled != nextWebEnabled { webEnabled = nextWebEnabled }
         // The intent vocabulary and the local level enum use different names (`low` ↔ `fast`), so the single reverse mapping is required;
         // a plain `ReasoningMode(rawValue:)` would silently turn "Fast" into automatic, that is, send nothing.
@@ -1185,6 +1212,7 @@ struct ModelOptionsPanel: View {
                 )
                 .labelsHidden()
                 .tint(OriveoTheme.Palette.primaryTextSafe)
+                .disabled(!toggle.isEnabled)
                 .accessibilityLabel(Text(tile.title))
             }
         case .levelCount:

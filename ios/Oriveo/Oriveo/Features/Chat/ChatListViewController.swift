@@ -1452,6 +1452,11 @@ extension ChatListViewController: ChatLayoutDelegate {
             height += estimatedCitationsHeight(count: citations.count)
         }
 
+        // After the citations: the reply notice line (relay web search was not used; footnote, wraps to two lines at common widths).
+        if !isUser, row.replyNotice != nil {
+            height += replyNoticeHeight
+        }
+
         if !isUser, message.state == .failed, row.isLastInConversation {
             height += estimatedRecoveryCardHeight(
                 charsPerLine: max(1, contentWidth / proseFullCharWidth)
@@ -1527,6 +1532,8 @@ extension ChatListViewController: ChatLayoutDelegate {
     /// Collapsed height of the MCP step block (`UIKitToolStepsView`: a 46pt header plus the 8pt stack spacing
     /// to the body), whatever the number of steps.
     nonisolated static let toolStepsCollapsedHeight: CGFloat = 54
+    /// Reply notice line (two footnote lines plus the slot spacing).
+    nonisolated static let replyNoticeHeight: CGFloat = 44
 
     nonisolated static let citationsHeaderHeight: CGFloat = 25
     nonisolated static let citationsRowHeight: CGFloat = 53

@@ -9,7 +9,7 @@ import SwiftUI
 
 /// The draft and save logic of the settings page; the view only renders the results from here.
 struct RelayWebSearchDraft: Equatable {
-    static let introKey = "Only for services that run web search themselves. What you enter here is added to every request this connection sends over that protocol."
+    static let introKey = "Optional. Each protocol already has default web search settings; what you enter here replaces them. Either way, they’re sent only when web search is on in chat."
     static let useTemplateKey = "Use template"
     static let clearKey = "Clear"
     static let chatNoteKey = "Chat Completions has no standard web search field. The template only works with search models; check the service’s docs."

@@ -696,6 +696,13 @@ struct ChatView: View {
             transportIdentity: runtimeIdentity?.wireValue ?? ""
         )
         webEnabled = values.web != .off
+        // The relay web switch reads through its own addressing (default layer included: a saved fragment means on); it stays off only when the advanced page overrides it off, and a rejected model still shows on.
+        if provider.kind == .relay {
+            let preference = RelayWebSwitch.isOn(
+                provider: provider, model: model, conversationID: conversationID ?? generationParameterDraftSessionID
+            )
+            webEnabled = RelayWebProbe.fact(provider: provider, model: model, preference: preference)?.isOn ?? false
+        }
         reasoningIntentSelection = values.reasoningIntent
         reasoningMode = ReasoningMode.fromIntent(values.reasoningIntent) ?? .automatic
     }

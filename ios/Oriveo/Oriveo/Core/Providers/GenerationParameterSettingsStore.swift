@@ -698,6 +698,49 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         writeCapabilityRecordsLocked(records)
     }
 
+    /// Read-compat for the relay web switch: when a scope has no record under `fixedIdentity`, take the newest
+    /// web value stored under any older identity for the same connection x model and the same scope, and write
+    /// it once under the fixed identity. Only web moves; reasoning levels stay under their own transport identity.
+    /// Returns whether anything was written.
+    @discardableResult
+    func adoptLegacyWebPreference(
+        providerID: UUID, modelID: String, conversationID: UUID?, skillID: UUID?, fixedIdentity: String
+    ) -> Bool {
+        guard !modelID.isEmpty, CapabilityPreferenceRuntimeIdentity.decode(fixedIdentity) != nil else { return false }
+        typealias Slot = (scope: CapabilityPreferenceScope, conversationID: UUID?, skillID: UUID?)
+        var slots: [Slot] = []
+        if let conversationID { slots.append((.conversationConnectionModel, conversationID, nil)) }
+        if let skillID { slots.append((.skillAgent, nil, skillID)) }
+        slots.append((.connectionModel, nil, nil))
+        slots.append((.connection, nil, nil))
+        let adopted: [(slot: Slot, web: CapabilityWebPreference)] = {
+            lock.lock()
+            defer { lock.unlock() }
+            let records = capabilityRecordsLocked().filter { $0.providerID == providerID && $0.modelID == modelID }
+            return slots.compactMap { slot in
+                let inSlot = records.filter {
+                    $0.scope == slot.scope && $0.conversationID == slot.conversationID && $0.skillID == slot.skillID
+                }
+                guard !inSlot.contains(where: { $0.transportIdentity == fixedIdentity }),
+                      let newest = inSlot.filter({ $0.values.web != .inherit }).max(by: { $0.updatedAt < $1.updatedAt })
+                else { return nil }
+                return (slot, newest.values.web)
+            }
+        }()
+        for (slot, web) in adopted {
+            let values = CapabilityPreferenceValues(web: web)
+            if slot.scope == .connection {
+                setConnectionCapabilityPreferences(values, providerID: providerID, modelID: modelID, transportIdentity: fixedIdentity)
+            } else {
+                setCapabilityPreferences(
+                    values, providerID: providerID, modelID: modelID, conversationID: slot.conversationID,
+                    skillID: slot.skillID, transportIdentity: fixedIdentity
+                )
+            }
+        }
+        return !adopted.isEmpty
+    }
+
     func connectionCapabilityPreferences(
         providerID: UUID, modelID: String, transportIdentity: String
     ) -> CapabilityPreferenceValues? {

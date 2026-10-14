@@ -179,8 +179,13 @@ enum RelayCapabilityTest {
         RelayFirstSendTransport.current(provider: provider, model: model)
     }
 
+    /// Source of the fragment for the web item: saved = the fragment already saved on the first-send protocol; template = none saved, so the built-in template is used for a temporary test and is not saved.
+    enum WebSource: String, Equatable, Sendable {
+        case saved, template
+    }
+
     /// The "Test capabilities" entry: in scope, and image and tool do not both already have a `user` override (if both do, there is nothing to test);
-    /// it is still shown when both are `user` but a web item can be listed (the first-send protocol has a stored fragment).
+    /// it is still shown when both are `user` but a web item can be listed (listable once the first-send protocol is decided).
     static func showsEntry(provider: Provider, model: AIModel, fragments: RelayWebFragmentStore = .shared) -> Bool {
         isEligible(provider: provider, model: model)
             && (!(isUserSet(model.relayCapabilityOverrides, .image) && isUserSet(model.relayCapabilityOverrides, .toolCall))
@@ -194,14 +199,22 @@ enum RelayCapabilityTest {
         }
     }
 
-    /// Items shared by the panel and execution: if the first-send protocol has a stored web fragment, web is then placed last.
+    /// Items shared by the panel and execution: web is placed last when it can be listed.
     static func plannedKinds(provider: Provider, model: AIModel, fragments: RelayWebFragmentStore) -> [Kind] {
         plannedKinds(model.relayCapabilityOverrides) + (listsWeb(provider: provider, model: model, fragments: fragments) ? [.web] : [])
     }
 
+    /// Which fragment the web item uses; returns nil when web is not listed.
+    static func webSource(provider: Provider, model: AIModel, fragments: RelayWebFragmentStore) -> WebSource? {
+        guard RelayWebProbe.isEligible(provider: provider, model: model) else { return nil }
+        let transport = RelayWebProbe.transport(provider: provider, model: model)
+        if fragments.hasEffectiveFragment(provider: provider, transport: transport) { return .saved }
+        return RelayWebFragments.template(for: transport) == nil ? nil : .template
+    }
+
+    /// Listable = probe shape + model testable + first-send protocol decided (a saved fragment, or a built-in template for that protocol); a saved fragment is not required.
     static func listsWeb(provider: Provider, model: AIModel, fragments: RelayWebFragmentStore) -> Bool {
-        RelayWebProbe.isEligible(provider: provider, model: model)
-            && fragments.hasEffectiveFragment(provider: provider, transport: RelayWebProbe.transport(provider: provider, model: model))
+        webSource(provider: provider, model: model, fragments: fragments) != nil
     }
 
     // MARK: T1 Verdict

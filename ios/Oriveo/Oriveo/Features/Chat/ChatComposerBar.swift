@@ -314,6 +314,9 @@ struct ChatComposerBar: View {
     @State private var opensConnectionSettingsAfterControls = false
     /// Same idea: after "Open web search settings" is tapped on a relay's web row, push the connection's web search settings page.
     @State private var opensConnectionWebSearchAfterControls = false
+    /// Same idea: when the relay web template is rejected and "Test capabilities" is tapped, open that model's Advanced page once the
+    /// sheet is dismissed (the verdict stays on that row with the test button beside it; no test is started automatically).
+    @State private var opensTestCapabilitiesAfterControls = false
     @State private var webPreferenceSelection: CapabilityWebPreference = .off
 
     private var visibleRelatedNotes: [NoteRecallEngine.Suggestion] {
@@ -678,6 +681,17 @@ struct ChatComposerBar: View {
             guard !isOpen else { return }
             syncStoredCapabilitySelection()
         }
+        #if DEBUG
+        // Screenshot-only: open the model options panel once the input bar of a relay family sample page is mounted
+        // (wait for the push animation to finish before presenting the sheet).
+        .onAppear {
+            guard RelayFamilyDebugShots.takeModelOptions(providerID: provider.id, modelID: currentModel?.id) else { return }
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                showsModelControls = true
+            }
+        }
+        #endif
         .onChange(of: reasoningMode) { _, _ in triggerHighlightPulse() }
         .onChange(of: webEnabled) { _, _ in triggerHighlightPulse() }
         .onChange(of: pendingAttachmentCount) { old, new in
@@ -822,6 +836,13 @@ struct ChatComposerBar: View {
                     appState.openRelayWebSearch(providerID: provider.id)
                     return
                 }
+                if opensTestCapabilitiesAfterControls {
+                    opensTestCapabilitiesAfterControls = false
+                    if let testedModel = currentModel {
+                        appState.openRelayModelAdvanced(providerID: provider.id, modelID: testedModel.id, readOnly: false)
+                    }
+                    return
+                }
                 guard opensModelPickerAfterControls else { return }
                 opensModelPickerAfterControls = false
                 onChooseModel()
@@ -849,6 +870,10 @@ struct ChatComposerBar: View {
                     },
                     onOpenConnectionWebSearch: {
                         opensConnectionWebSearchAfterControls = true
+                        showsModelControls = false
+                    },
+                    onOpenTestCapabilities: {
+                        opensTestCapabilitiesAfterControls = true
                         showsModelControls = false
                     }
                 )

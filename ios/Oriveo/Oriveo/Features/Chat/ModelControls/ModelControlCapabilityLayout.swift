@@ -276,7 +276,8 @@ extension ModelOptionsPanelModel {
             protocolLabel: ModelOptionsSubject.detail(apiRoot: facts.apiRoot, protocolLabel: facts.protocolLabel),
             seal: ModelOptionsSeal.resolve(
                 connection: facts.web.connection,
-                presentations: [facts.web.presentation, facts.reasoning.presentation]
+                // The relay web row is the connection's own switch, not an official configuration: it is left out of the seal (a rejected, dimmed row must not flip the header to official configuration).
+                presentations: [facts.web.relayWeb == nil ? facts.web.presentation : .unknown, facts.reasoning.presentation]
             ),
             // With a control the user can flip in the panel, the "settings are read-only" banner is not shown: next to a working toggle it would be false.
             banner: card.hasWritableControl ? nil : facts.banner,

@@ -12,6 +12,8 @@ nonisolated enum ModelOptionCapabilityAction: Hashable, Sendable, CaseIterable {
     case switchConnection
     /// The relay connection's web search settings page.
     case openConnectionWebSearch
+    /// The relay model's Advanced page (re-test after the template is rejected; the test button is on that page and no test starts automatically).
+    case openTestCapabilities
 }
 
 /// **What to draw** for one capability (web search / thinking) in the model options panel.
@@ -78,6 +80,8 @@ nonisolated enum ModelOptionCapabilityShape: Equatable, Sendable {
         let target: ToggleTarget
         /// A secondary destination attached to this row.
         let link: Link?
+        /// false = dimmed and not tappable (relay web search overridden off or rejected).
+        var isEnabled: Bool = true
     }
 
     nonisolated struct Tiers: Equatable, Sendable {
@@ -119,29 +123,14 @@ nonisolated enum ModelOptionCapabilityShape: Equatable, Sendable {
         let link: Link
     }
 
-    /// Facts behind a relay connection's web search row (fixture `presentationCases`), supplied by `RelayWebFragments.panelFact`.
+    /// Facts behind a relay connection's web search row (fixture web-probe.v1.json `presentationCases`), supplied by `RelayWebProbe.panelFact`.
     nonisolated enum RelayWeb: Equatable, Sendable {
         /// Local engine connection: web search does not apply.
         case localEngine
-        /// The effective protocol has a saved web search fragment. `probe` is the local probe record for the current
-        /// fragment (nil = never tested, or the fragment hash is stale). On `rejected` chat stops attaching the fragment;
-        /// in every other case it is sent on every turn as usual.
-        case saved(probe: RelayWebProbeRecord.Result?)
-        /// The effective protocol has no fragment.
-        case notSaved
-
-        /// The three states of the web search row (web-probe.v1.json presentationCases.state).
-        nonisolated enum WebState: String, Sendable {
-            case supported, unsupported, unknown
-        }
-
-        var state: WebState {
-            switch self {
-            case .saved(probe: .searched): return .supported
-            case .saved(probe: .rejected): return .unsupported
-            case .saved, .localEngine, .notSaved: return .unknown
-            }
-        }
+        /// The first protocol is not decided yet (outside the probe's scope).
+        case undecided
+        /// A chat switch plus a status line.
+        case relay(RelayWebFact)
     }
 
     nonisolated struct Input: Equatable, Sendable {
@@ -457,32 +446,35 @@ extension ModelOptionCapabilityShape {
         switch relayWeb {
         case .localEngine:
             return connectionCannot()
-        case .saved(probe: .rejected):
-            // Same shape as "Needs manual setup": a notice plus a link to the connection's web search page. The card shows
-            // the body text, so the body carries the link wording.
-            let retest = L10n.tr("Test again in Web Search", table: .chat)
-            return .notice(.init(
-                status: L10n.tr("This model rejects the web search settings", table: .chat),
-                body: retest,
-                link: .init(title: retest, action: .openConnectionWebSearch)
-            ))
-        case let .saved(probe):
-            let status: String
-            switch probe {
-            case .searched: status = L10n.tr("Search confirmed", table: .chat)
-            case .silent: status = L10n.tr("Didn’t search when tested", table: .chat)
-            case .rejected, nil: status = L10n.tr("Set · not verified", table: .chat)
+        case .undecided:
+            return .protocolUndecided(protocolCallout())
+        case let .relay(fact):
+            let link: Link? = fact.retestLink.map { action in
+                action == .openConnectionWebSearch
+                    ? .init(title: L10n.tr("Test again in Web Search", table: .chat), action: action)
+                    : .init(title: L10n.tr("Test capabilities", table: .providers), action: action)
             }
-            return .disclosure(.init(status: status, action: .openConnectionWebSearch))
-        case .notSaved:
-            return .notice(.init(
-                status: L10n.tr("Needs manual setup", table: .chat),
-                body: L10n.tr(
-                    "This connection has no standard switch for web search. Set it up in the connection’s web search settings.",
-                    table: .chat
-                ),
-                link: .init(title: L10n.tr("Open web search settings", table: .chat), action: .openConnectionWebSearch)
+            return .toggle(.init(
+                isOn: fact.isOn,
+                caption: relayWebStatusText(fact.statusId),
+                target: .capabilityPreference(on: CapabilityWebPreference.automatic.rawValue, off: CapabilityWebPreference.off.rawValue),
+                link: link,
+                isEnabled: fact.row == .toggle
             ))
+        }
+    }
+
+    /// Relay web search status id to copy (web_user_on uses the source badge "Set by you").
+    @MainActor
+    static func relayWebStatusText(_ status: RelayWebFact.StatusID) -> String {
+        switch status {
+        case .searched: L10n.tr("Search confirmed", table: .chat)
+        case .silent: L10n.tr("Didn’t search when tested", table: .chat)
+        case .rejected: L10n.tr("This model rejects the web search settings", table: .chat)
+        case .unverified: L10n.tr("Set · not verified", table: .chat)
+        case .untested: L10n.tr("Not tested yet", table: .providers)
+        case .userOff: L10n.tr("Turned off in this model’s Advanced settings", table: .providers)
+        case .userOn: L10n.tr("Set by you", table: .providers)
         }
     }
 

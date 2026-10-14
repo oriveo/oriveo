@@ -56,6 +56,8 @@ enum RelayCapabilityTestPanel {
         var running: Running?
         var written: Bool
         var stopReason: RelayCapabilityTest.StopReason?
+        /// Where the web-search item's fragment comes from: when the first protocol has no saved fragment, the built-in template is used for a one-off test.
+        var webSource: RelayCapabilityTest.WebSource = .saved
     }
 
     enum Header: Equatable, Sendable {
@@ -74,6 +76,7 @@ enum RelayCapabilityTestPanel {
         case runningImage = "relay_cap_test_running_image"
         case runningTool = "relay_cap_test_running_tool"
         case runningWeb = "relay_cap_test_running_web"
+        case runningWebDefault = "relay_cap_test_running_web_default"
         case webSearchConfirmed = "model_options_relay_web_search_confirmed"
         case webNoSearch = "model_options_relay_web_no_search_in_test"
         case webRejected = "model_options_relay_web_rejected"
@@ -117,6 +120,7 @@ enum RelayCapabilityTestPanel {
             case .runningImage: "Uploading a tiny 8×8 image"
             case .runningTool: "Sending one tool definition"
             case .runningWeb: "Sending one request with your web search settings"
+            case .runningWebDefault: "Sending one request with the default web search settings"
             case .webSearchConfirmed: "Search confirmed"
             case .webNoSearch: "Didn’t search when tested"
             case .webRejected: "This model rejects the web search settings"
@@ -276,7 +280,8 @@ enum RelayCapabilityTestPanel {
             return Row(item: item, icon: icon(result.verdict), subtitle: subtitle, subtitleArg: arg, trailing: .elapsed(tenths: tenths(result.elapsedMs)))
         }
         if input.phase == .running, let running = input.running, running.item == item {
-            return Row(item: item, icon: .running, subtitle: item.runningCopy, subtitleArg: nil, trailing: .running(tenths: tenths(running.elapsedMs)))
+            let copy = item == .web && input.webSource == .template ? .runningWebDefault : item.runningCopy
+            return Row(item: item, icon: .running, subtitle: copy, subtitleArg: nil, trailing: .running(tenths: tenths(running.elapsedMs)))
         }
         switch input.phase {
         case .running:
@@ -400,6 +405,8 @@ final class RelayCapabilityTestController {
     /// Start time of the item currently running; the panel refreshes the elapsed time from it every 0.1 seconds.
     private(set) var runningSince: Date?
     private var task: Task<Void, Never>?
+    /// "Turn on web search" has to return to the same connection and model.
+    private var target: (manager: ProviderManager, providerID: UUID, modelID: String)?
 
     var isPresented: Bool { input != nil }
 
@@ -407,10 +414,10 @@ final class RelayCapabilityTestController {
         guard input == nil,
               let provider = appState.provider(for: providerID),
               let model = provider.models.first(where: { $0.id == modelID }) else { return }
-        // On the first frame, list the web-search item and the web-search description according to whether the first protocol has a saved web fragment (the same decision the run uses).
-        let items = RelayCapabilityTest.plannedKinds(
-            provider: provider, model: model, fragments: appState.providerManager.relayWebProbeAutoContext.fragments
-        ).map(RelayCapabilityTestPanel.Item.init)
+        // On the first frame, list the web-search item and the web-search description according to whether the first protocol has a saved web fragment (the same decision the run uses); without a saved fragment the template is used.
+        let fragments = appState.providerManager.relayWebProbeAutoContext.fragments
+        let items = RelayCapabilityTest.plannedKinds(provider: provider, model: model, fragments: fragments)
+            .map(RelayCapabilityTestPanel.Item.init)
         modelName = model.name
         input = RelayCapabilityTestPanel.Input(
             transport: RelayCapabilityTest.transport(provider: provider, model: model),
@@ -420,10 +427,12 @@ final class RelayCapabilityTestController {
             results: [:],
             running: .init(item: .text, elapsedMs: 0),
             written: false,
-            stopReason: nil
+            stopReason: nil,
+            webSource: RelayCapabilityTest.webSource(provider: provider, model: model, fragments: fragments) ?? .saved
         )
         runningSince = Date()
         let manager = appState.providerManager
+        target = (manager, providerID, modelID)
         task = Task { [weak self] in
             let result = await manager.runRelayCapabilityTest(providerID: providerID, modelID: modelID) { event in
                 self?.apply(event)
@@ -441,6 +450,7 @@ final class RelayCapabilityTestController {
         guard input?.phase != .running else { return }
         input = nil
         task = nil
+        target = nil
     }
 
     /// For tests: wait until this run finishes.

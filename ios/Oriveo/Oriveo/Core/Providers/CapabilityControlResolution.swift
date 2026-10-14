@@ -45,18 +45,13 @@ enum CapabilityControlResolution {
             return subscriptionVerdict(provider: provider, model: model, capability: capability)
         }
         if capability == "web", ProviderForm.of(provider) == .relay {
-            // A relay does not derive web search from the official recipe: only the connection-level fragment counts. The fragment is a
-            // restricted field the user saved explicitly and takes effect on save, with no switch in chat, so it is custom_only rather than auto_available.
-            // When the probe record under the current fragment is rejected, it is treated as having no effective fragment (the same criterion as the chat attachment `RelayWebProbe.chatFragments`).
-            let saved = RelayWebFragmentStore.shared.hasEffectiveFragment(
-                provider: provider, transport: RelayEndpointResolver.effectiveTransport(provider: provider, model: model)
-            ) && RelayWebProbe.currentResult(
-                provider: provider, model: model,
-                fragments: RelayWebFragmentStore.shared.chatFragments(for: provider), records: .shared
-            ) != .rejected
+            // A relay does not derive web search from the official recipe: web search is a switch in the chat, and only when it is on
+            // is an effective fragment sent (the saved fragment, else the template of the first-choice protocol). The scope follows the first-choice
+            // protocol: a local engine or an undecided protocol has no such switch.
+            let eligible = RelayWebProbe.effectiveFragments(provider: provider, model: model) != nil
             return Verdict(
-                state: saved ? .customOnly : .unknown, intents: [],
-                reasonCode: saved ? "relay_web_fragment_saved" : "relay_web_fragment_missing",
+                state: eligible ? .customOnly : .unknown, intents: [],
+                reasonCode: eligible ? "relay_web_toggle" : "relay_web_unavailable",
                 viaLegacyProfile: false
             )
         }

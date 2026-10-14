@@ -20,7 +20,7 @@ struct CapabilityTruthInput {
         /// Whether `model.engineDeclaration` may be used as evidence: entry points that hold a Provider require the connection to have an
         /// engineProfile; entry points without a Provider trust the declaration on the model (declarations are only written by the local connector).
         var consumesEngineDeclaration = false
-        /// Input for web-search truth: nil when there is no fragment; otherwise carries the local probe result recorded for the current fragment (untested / stale hash = nil).
+        /// Input for web-search truth: nil when out of scope (local engine / undecided protocol); otherwise carries the local probe result recorded under the effective fragment (untested / stale hash = nil).
         var webFragment: WebFragment?
 
         struct WebFragment: Equatable {

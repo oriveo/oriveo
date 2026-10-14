@@ -1631,6 +1631,11 @@ final class AppState {
                 to: targetConversationID,
                 transportIdentity: capabilityIdentity?.wireValue ?? ""
             )
+            // The relay web switch is addressed by its own fixed identity, which the move above cannot reach.
+            RelayWebSwitch.migrateSession(
+                provider: provider, model: model, from: generationParameterDraftSessionID, to: targetConversationID
+            )
+            // The on-device custom configuration is also keyed by conversationID; without moving it, it would vanish (neither sent nor readable back).
             GenerationParameterSettingsStore.shared.migrateLocalCustomConfiguration(
                 providerID: provider.id,
                 modelID: capabilityIdentity?.canonicalModelID ?? "",

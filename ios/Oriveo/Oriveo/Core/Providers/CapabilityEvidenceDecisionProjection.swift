@@ -429,12 +429,9 @@ extension CapabilityEvidenceProductionAdapter {
     /// Input for relay web-search truth: the fragment decision and the record lookup always use the model's first-send protocol,
     /// resolved the same way as `RelayWebProbe.chatFragments` / `panelFact`; when a fragment exists it carries the probe record result under the current fragment.
     private static func relayWebFragment(provider: Provider, model: AIModel) -> CapabilityTruthInput.Relay.WebFragment? {
-        guard ProviderForm.of(provider) == .relay, RelayWebProbe.isEligible(provider: provider, model: model) else { return nil }
-        let fragments = RelayWebFragmentStore.shared.chatFragments(for: provider)
-        guard fragments?.object(for: RelayWebProbe.transport(provider: provider, model: model)) != nil else { return nil }
-        return .init(probe: RelayWebProbe.currentResult(
-            provider: provider, model: model, fragments: fragments, records: .shared
-        ))
+        guard ProviderForm.of(provider) == .relay,
+              let fact = RelayWebProbe.fact(provider: provider, model: model, preference: nil) else { return nil }
+        return .init(probe: fact.probe)
     }
 
     private static func resolveRelayCapabilities(
@@ -569,7 +566,10 @@ struct CapabilityEvidenceFinalChatIntent: Sendable, Equatable {
     let reasoningMode: ReasoningMode?
 }
 
-enum CapabilityEvidenceDispatchContext {
+/// Side channel fired only after the final serializer confirms web_search actually goes out.
+/// The TaskLocal lets a request rebuilt by retry / self-heal keep using the same send's dedup gate,
+/// so telemetry never becomes a condition of capability judgement.
+nonisolated enum CapabilityEvidenceDispatchContext {
     @TaskLocal static var onWebSearchDispatched: (@Sendable () -> Void)?
 }
 

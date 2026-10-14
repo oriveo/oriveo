@@ -58,6 +58,7 @@ enum RelayFamilyDebugShots {
         case relayEdit, relayEditFailure, localEdit
         case relayManualSetup, relayManualSetupFailure
         case relaySetupModels, relaySetupModelsAlert, relaySetup
+        case relayModelOptionsWeb, relayModelOptionsWebRejected
     }
 
     /// The launch argument named a page of this family. `OriveoApp.init` uses this to decide whether to use the in-memory AppState.
@@ -187,6 +188,7 @@ enum RelayFamilyDebugShots {
         // Saved web-search fragments and probe records (preset webFragments / webProbeRecords) must exist before the page opens, so the first frame lists them.
         let probeContext = appState.providerManager.relayWebProbeAutoContext
         seedWebProbeState(staged, fragments: probeContext.fragments, records: probeContext.records)
+        seedChatWebPreference(staged, store: .shared)
         appState.navigation.reset(to: staged.path)
         await settle(shot, staged: staged, appState: appState)
     }
@@ -244,6 +246,10 @@ enum RelayFamilyDebugShots {
             return [detail, .relayWebSearch(providerID: relayID)]
         case .relaySetup, .relayManualSetup, .relayManualSetupFailure, .relaySetupModels, .relaySetupModelsAlert:
             return [.relaySetup(entryPoint: .providers)]
+        case .relayModelOptionsWeb, .relayModelOptionsWebRejected:
+            // The chat page is opened through the production entry point openChat after settle builds the conversation; the panel comes up from the composer bar's own sheet.
+            guard presets.chatModelID != nil else { throw ManifestError.invalid("\(page.name).model is missing") }
+            return []
         }
     }
 
@@ -284,9 +290,53 @@ enum RelayFamilyDebugShots {
         case .relayManualSetup:
             _ = await waitForSetupFlows(shot)
 
+        case .relayModelOptionsWeb, .relayModelOptionsWebRejected:
+            await openModelOptions(shot, staged: staged, appState: appState)
+
         default:
             break
         }
+    }
+
+    /// Production host: one empty conversation (in memory, not persisted) plus the chat page; the panel opens through the composer bar's own sheet.
+    /// The open is triggered by the composer bar's deterministic attach callback (`ChatComposerBar.onAppear` -> `takeModelOptions`), not by re-posting a notification on a timer.
+    private static func openModelOptions(_ shot: Shot, staged: Staged, appState: AppState) async {
+        guard let modelID = staged.presets.chatModelID,
+              let model = staged.relay.models.first(where: { $0.id == modelID }) else { return }
+        let conversation = Conversation(
+            id: UUID(),
+            title: L10n.tr("New Chat"),
+            providerID: staged.relay.id,
+            providerKind: staged.relay.kind,
+            modelID: modelID,
+            previewText: "",
+            estimatedCost: 0,
+            isDraft: false,
+            messages: [],
+            draftText: ""
+        )
+        appState.upsertConversationProjection(conversation)
+        pendingModelOptions = (staged.relay.id, model.id)
+        // The chat page lives on the home stack: switch back to home first, and open the conversation through the production entry point once the home stack is attached (a push right at launch would be overwritten by the root view's first-frame stack).
+        appState.selectedTab = .home
+        appState.navigation.reset(to: [])
+        guard await waitUntil({ appState.navigation.path.isEmpty && appState.selectedTab == .home }) else { return }
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        appState.openChat(conversationID: conversation.id)
+        guard await waitUntil({ pendingModelOptions == nil }) else {
+            report("\(shot.rawValue): the chat composer bar did not attach, so the model-options panel did not open")
+            return
+        }
+    }
+
+    /// Shot: waits for the composer bar of this relay model to attach, then opens the model-options panel.
+    private static var pendingModelOptions: (providerID: UUID, modelID: String)?
+
+    /// Called when the composer bar attaches: if it is the connection and model the shot names, takes the marker and returns true.
+    static func takeModelOptions(providerID: UUID, modelID: String?) -> Bool {
+        guard let pending = pendingModelOptions, pending.providerID == providerID, pending.modelID == modelID else { return false }
+        pendingModelOptions = nil
+        return true
     }
 
     private static func waitForSetupFlows(_ shot: Shot) async -> SetupFlows? {
@@ -513,6 +563,10 @@ enum RelayFamilyDebugShots {
             let webFragments: [String: AnyJSON]?
             /// Web-search probe records written to the device before opening; the hash is that protocol's current fragment.
             let webProbeRecords: [WebProbeRecord]?
+            /// Model web override (value + source user / tested), written on the same row for the enabled model and the catalog.
+            let webOverrides: [WebOverride]?
+            /// Chat web-search switch: "on" = write "on" through the production switch write entry before opening (model default scope); absent = never set.
+            let webPreference: String?
             let draftFromTemplate: [String]?
             let editConnection: Bool?
             let saveFailure: SaveFailure?
@@ -523,6 +577,12 @@ enum RelayFamilyDebugShots {
             let model: String
             let transport: String
             let result: String
+            let source: String
+        }
+
+        struct WebOverride: Decodable {
+            let model: String
+            let value: Bool
             let source: String
         }
 
@@ -597,6 +657,12 @@ enum RelayFamilyDebugShots {
         var webSearchTemplates: [RelayTransport]?
         /// Entries written to the local probe records before opening (the hash is that protocol's current fragment).
         var webProbeRecords: [WebProbeRecordSeed] = []
+        /// Model-options panel pages: the model the chat session uses.
+        var chatModelID: String?
+        /// Before opening, write that model's chat web-search switch to "on".
+        var chatWebSearch = false
+        /// Web overrides written onto the model when the demo connection is built.
+        var webOverrides: [WebOverrideSeed] = []
         /// Present only when the add page needs the no-network flows (manual setup / the pages whose catalog was detected).
         var setup: SetupScript?
     }
@@ -608,7 +674,14 @@ enum RelayFamilyDebugShots {
         let source: RelayWebProbeRecord.Source
     }
 
-    /// Saved web-search fragments and probe records (preset webFragments / webProbeRecords) are written before the page opens.
+    struct WebOverrideSeed: Equatable {
+        let modelID: String
+        let value: Bool
+        let source: RelayCapabilityOverrides.Source
+    }
+
+    /// Saved web-search fragments and probe records (preset webFragments / webProbeRecords) are written before the page opens;
+    /// a record's hash uses that protocol's effective fragment (the saved one, or the protocol template when none is saved; the same function as production `RelayWebProbe.effectiveFragment`).
     static func seedWebProbeState(_ staged: Staged, fragments: RelayWebFragmentStore, records: RelayWebProbeStore) {
         let relay = staged.relay
         fragments.deleteConnection(relay.id)
@@ -620,8 +693,8 @@ enum RelayFamilyDebugShots {
         }
         let set = fragments.chatFragments(for: relay)
         for seed in staged.presets.webProbeRecords {
-            guard let fragment = set?.object(for: seed.transport) else {
-                report("preset webProbeRecords: \(seed.transport.rawValue) has no stored fragment; record not written")
+            guard let fragment = RelayWebProbe.effectiveFragment(set, transport: seed.transport) else {
+                report("preset webProbeRecords: \(seed.transport.rawValue) has neither a stored fragment nor a template; record not written")
                 continue
             }
             records.record(
@@ -629,6 +702,15 @@ enum RelayFamilyDebugShots {
                 result: seed.result, source: seed.source, fragmentHash: RelayWebProbe.fragmentHash(fragment)
             )
         }
+    }
+
+    /// Chat web-search switch (preset webPreference): first clear the switch records on the demo relay (never set = default), then write per the manifest through the production write entry.
+    static func seedChatWebPreference(_ staged: Staged, store: GenerationParameterSettingsStore) {
+        let relay = staged.relay
+        store.removeCapabilityScopes(providerID: relay.id)
+        guard staged.presets.chatWebSearch, let modelID = staged.presets.chatModelID,
+              let model = relay.models.first(where: { $0.id == modelID }) else { return }
+        RelayWebSwitch.write(true, provider: relay, model: model, conversationID: nil, store: store)
     }
 
     struct Staged {
@@ -640,11 +722,28 @@ enum RelayFamilyDebugShots {
 
         init(shot: Shot, page: Manifest.Page, manifest: Manifest) throws {
             let keys = try Demo.keyIDs(manifest.relay)
-            let relay = try Demo.relay(page: page, manifest: manifest, keyIDs: keys)
+            var relay = try Demo.relay(page: page, manifest: manifest, keyIDs: keys)
             let local = try Demo.local(manifest)
+            let presets = try Demo.presets(page: page, relay: relay, manifest: manifest, keyIDs: keys)
+            // preset webOverrides: tested goes through `RelayWebProbe.apply`, the production mirror of the probe write-back; user writes the override by source, the same as a manual setting on the advanced page.
+            for seed in presets.webOverrides {
+                switch seed.source {
+                case .tested:
+                    RelayWebProbe.apply(seed.value ? .searched : .rejected, modelID: seed.modelID, to: &relay)
+                case .user:
+                    func write(_ models: inout [AIModel]) {
+                        for index in models.indices where models[index].id == seed.modelID {
+                            var overrides = models[index].relayCapabilityOverrides ?? RelayCapabilityOverrides()
+                            overrides.setValue(seed.value, for: .web, source: seed.source)
+                            models[index].relayCapabilityOverrides = overrides
+                        }
+                    }
+                    write(&relay.models)
+                    write(&relay.catalogModels)
+                }
+            }
             self.relay = relay
             self.local = local
-            let presets = try Demo.presets(page: page, relay: relay, manifest: manifest, keyIDs: keys)
             self.presets = presets
             path = try RelayFamilyDebugShots.path(
                 for: shot, page: page, relayID: relay.id, localID: local.id, presets: presets
@@ -871,6 +970,12 @@ enum RelayFamilyDebugShots {
             page: Manifest.Page, relay: Provider, manifest: Manifest, keyIDs: [String: String]
         ) throws -> Presets {
             var presets = Presets()
+            if page.view == "modelOptions" {
+                guard let model = page.model, relay.models.contains(where: { $0.id == model }) else {
+                    throw ManifestError.invalid("\(page.name).model is missing or not an enabled model")
+                }
+                presets.chatModelID = model
+            }
             guard let preset = page.preset else { return presets }
             presets.fetchingKeyIDs = Set(try (preset.fetchingKeys ?? []).map { try keyID($0, in: keyIDs, "preset.fetchingKeys") })
             presets.presentsAddKey = preset.addKeyOpen == true
@@ -918,14 +1023,34 @@ enum RelayFamilyDebugShots {
                 guard relay.models.contains(where: { $0.id == record.model }) else {
                     throw ManifestError.invalid("preset.webProbeRecords.model is not an enabled model: \(record.model)")
                 }
-                guard presets.webFragments[transport] != nil else {
-                    throw ManifestError.invalid("preset.webProbeRecords.\(record.transport) has no matching webFragments")
+                // With no fragment stored for the protocol, the record hangs under the template hash (effective fragment = stored ?? template).
+                guard presets.webFragments[transport] != nil || RelayWebFragments.template(for: transport) != nil else {
+                    throw ManifestError.invalid("preset.webProbeRecords.\(record.transport) has neither webFragments nor a template")
                 }
                 presets.webProbeRecords.append(WebProbeRecordSeed(
                     modelID: record.model, transport: transport,
                     result: try parse(record.result, "preset.webProbeRecords.result"),
                     source: try parse(record.source, "preset.webProbeRecords.source")
                 ))
+            }
+            for override in preset.webOverrides ?? [] {
+                guard relay.models.contains(where: { $0.id == override.model }) else {
+                    throw ManifestError.invalid("preset.webOverrides.model is not an enabled model: \(override.model)")
+                }
+                presets.webOverrides.append(WebOverrideSeed(
+                    modelID: override.model, value: override.value,
+                    source: try parse(override.source, "preset.webOverrides.source")
+                ))
+            }
+            switch preset.webPreference {
+            case nil: break
+            case "on":
+                guard page.view == "modelOptions" else {
+                    throw ManifestError.invalid("\(page.name).webPreference is only for modelOptions pages")
+                }
+                presets.chatWebSearch = true
+            case let other?:
+                throw ManifestError.invalid("\(page.name).webPreference is not recognized: \(other)")
             }
             if let test = preset.capabilityTest {
                 guard let model = page.model else { throw ManifestError.invalid("\(page.name) has capabilityTest but no model") }

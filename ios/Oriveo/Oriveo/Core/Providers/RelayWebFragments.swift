@@ -2,7 +2,7 @@ import Foundation
 
 /// Connection-level web-search fragments for relays (capability spec: "RELAY x web search").
 ///
-/// A connection stores one JSON object per protocol; once stored, it is always sent with every chat request on that protocol, merged in after the builder's output
+/// A connection stores one JSON object per protocol, replacing that protocol's built-in template; it is sent only while the chat web switch is on, merged in after the builder's output
 /// and before the extra request body is attached. Auxiliary requests such as capability tests and titles do not carry it. The rules for validation, merging and citation inference match
 /// the shared fixture `shared/test-fixtures/relay/web-fragment.v1.json` case by case.
 nonisolated enum RelayWebFragments {
@@ -125,6 +125,9 @@ nonisolated enum RelayWebFragments {
         _ set: RelayWebFragmentSet?, transport: RelayTransport, to body: inout [String: Any]
     ) -> [String: Any]? {
         guard let fragment = set?.object(for: transport) else { return nil }
+        // Merging the effective fragment this round means web search goes out with the request (the dispatch semantics of the web_search_used telemetry);
+        // within one send the ChatManager dedup gate guarantees at most one, and continuation goes through the same gate.
+        CapabilityEvidenceDispatchContext.onWebSearchDispatched?()
         return merge(transport: transport, into: &body, fragment: fragment)
     }
 
@@ -167,13 +170,16 @@ nonisolated enum RelayWebFragments {
 
     // MARK: - Presentation
 
-    /// Web-search facts read jointly by the model options panel and the outbound gate (fixture `presentationCases`).
+    /// Pure facts for the web row of the model options panel (presentationCases in web-fragment.v1.json keep only the local-engine and undecided-protocol rows;
+    /// the other rows are in web-probe.v1.json presentationCases and `RelayWebProbe.panelFact`). `transport` = the first-send protocol.
     static func panelFact(
-        engineProfile: String?, effectiveTransport: RelayTransport, fragments: RelayWebFragmentSet,
+        engineProfile: String?, effectiveTransport transport: RelayTransport, fragments: RelayWebFragmentSet,
         probe: RelayWebProbeRecord.Result? = nil
     ) -> ModelOptionCapabilityShape.RelayWeb {
         if engineProfile?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false { return .localEngine }
-        return fragments.object(for: effectiveTransport) != nil ? .saved(probe: probe) : .notSaved
+        return .relay(RelayWebFact(
+            savedFragment: fragments.object(for: transport) != nil, probe: probe, userOverride: nil, preference: nil
+        ))
     }
 }
 
