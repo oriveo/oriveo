@@ -45,7 +45,7 @@
         "accept": "text/event-stream, application/json",
         "authorization": "Bearer sk-golden-0000",
         "content-type": "application/json",
-        "http-referer": "https://oriveoai.com",
+        "http-referer": "https://github.com/oriveo/oriveo",
         "x-title": "Oriveo"
       },
       "body": "{\"model\":\"openai/gpt-4o\",\"stream\":true,\"stream_options\":{\"include_usage\":true},\"messages\":[{\"role\":\"system\",\"content\":\"You are a golden fixture.\"},{\"role\":\"user\",\"content\":\"Hello\"},{\"role\":\"assistant\",\"content\":\"Hi there.\"},{\"role\":\"user\",\"content\":\"Summarize in one word.\"}]}"

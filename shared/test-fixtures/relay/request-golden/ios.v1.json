@@ -47,7 +47,7 @@
         "authorization" : "Bearer sk-golden-0000",
         "content-length" : "277",
         "content-type" : "application/json",
-        "http-referer" : "https://oriveoai.com",
+        "http-referer" : "https://github.com/oriveo/oriveo",
         "user-agent" : "Oriveo/<app-version> (iOS <os-version>)",
         "x-title" : "Oriveo"
       },
