@@ -1076,7 +1076,7 @@ struct RelayEditBoardStructureTests {
         #expect(source.contains("status != .reconnecting else { return }"))
     }
 
-    // MARK: - RL2-EDITFAIL-01 (same name on all three platforms from R-7; iOS is the golden reference)
+    // MARK: - RL2-EDITFAIL-01 (same name on all three platforms; iOS is the golden reference)
 
     @Test("RL2-EDITFAIL-01 Failure card for a failed edit-connection verification: warning tone, title = the error kind's title, localized guidance body without the upstream raw text, and the primary button is still Save (unverified)")
     func editFailureCardFollowsErrorKind() {

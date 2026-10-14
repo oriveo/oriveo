@@ -21,7 +21,7 @@ struct IconButtonAccessibilityTests {
         Case(file: "Features/Skills/SkillEditView.swift", callee: "Button", inner: "Text(\"?\")"),
         Case(file: "Features/Skills/SkillsListView.swift", callee: "navToneButton", inner: "navToneButton(systemName: \"plus\""),
         Case(file: "Features/Notes/NoteDetailView.swift", callee: "Button", inner: "Image(systemName: \"arrow.up.circle.fill\")"),
-        Case(file: "Features/Providers/ProviderEnabledModels.swift", callee: "Button", inner: "Image(systemName: \"bubble.left.and.bubble.right.fill\")"),
+        Case(file: "Features/Providers/ProviderEnabledModels.swift", callee: "Button", inner: "chatGlyph"),  // the icon lives in the chatGlyph property; its first mention is inside the chat Button
         // The "…" control is a Menu; find it from its first item
         Case(file: "Features/Providers/ProviderEnabledModels.swift", callee: "Menu", inner: "L10n.tr(\"Set as Default\", table: .providers)"),
         Case(file: "Features/Chat/ChatAttachmentPicker.swift", callee: "Button", inner: "onRemove(attachment.id)"),

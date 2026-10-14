@@ -143,7 +143,6 @@ struct CapabilityMatrixRelayTests {
         defer { ProviderAPIKeyStore.useInMemoryBackendForTesting(false) }
         await MetadataClient.shared.resetForTesting()
         try await MetadataClient.shared.loadForTesting(json: try metadataJSON ?? metadataFixture())
-        defer { Task { await MetadataClient.shared.resetForTesting() } }
         RelayMatrixScriptedProtocol.reset(replies)
 
         let state = AppState(
@@ -443,7 +442,6 @@ struct CapabilityMatrixRelayTests {
     func CAP_RELAY_ATTACH_03_unknown_vision_entry_hides_after_rejection() async throws {
         await MetadataClient.shared.resetForTesting()
         try await MetadataClient.shared.loadForTesting(json: try Self.metadataFixture())
-        defer { Task { await MetadataClient.shared.resetForTesting() } }
         var model = AIModel(
             id: "relay-vision-unknown", name: "relay-vision-unknown", capabilities: [.text],
             reasoningModeAvailable: false, isAvailable: true, isDefault: false, priceTier: ""
@@ -484,7 +482,6 @@ struct CapabilityMatrixRelayTests {
     func CAP_RELAY_TOOL_01_negative_cache_drops_tools() async throws {
         await MetadataClient.shared.resetForTesting()
         try await MetadataClient.shared.loadForTesting(json: try Self.metadataFixture())
-        defer { Task { await MetadataClient.shared.resetForTesting() } }
         var model = AIModel(
             id: "relay-tool-model", name: "relay-tool-model", capabilities: [.text],
             reasoningModeAvailable: false, isAvailable: true, isDefault: true, priceTier: ""

@@ -272,8 +272,8 @@ struct CapabilityMatrixByokTests {
     /// Shared relay metadata fixture + a native-file allowlist added in memory for claude-sonnet-4.5; the fixture file is not modified.
     private static func loadFixtureMetadata(nativeFileMimes: [String]?) async throws {
         var url = URL(fileURLWithPath: #filePath)
-        for _ in 0..<6 { url.deleteLastPathComponent() }
-                url.appendPathComponent("shared/test-fixtures/relay/metadata-fixture.json")
+        for _ in 0..<5 { url.deleteLastPathComponent() }
+        url.appendPathComponent("shared/test-fixtures/relay/metadata-fixture.json")
         var root = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
         if let nativeFileMimes {
             var providers = try #require(root["providers"] as? [String: Any])

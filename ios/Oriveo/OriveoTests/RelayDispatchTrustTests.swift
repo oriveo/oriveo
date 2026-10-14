@@ -7,7 +7,7 @@ import Testing
 /// and the trusted host table read from delivered values (E2-TRUST-01 / 02). Requests are always built through the production entry point `ProviderServiceRouter`,
 /// and the URLProtocol seam of HTTP captures the url / headers / body actually sent.
 @Suite("Relay 2.0 · per-model dispatch and the trusted host table", .serialized)
-struct Relay2DispatchTrustTests {
+struct RelayDispatchTrustTests {
 
     // MARK: - Outbound capture
 
@@ -227,7 +227,6 @@ struct Relay2DispatchTrustTests {
         try await MetadataClient.shared.loadForTesting(json: Self.providerConfigsJSON(
             Self.miniMaxConfig(apiProtocol: "anthropic", trustedHosts: #"["minimax.io", "minimaxi.com"]"#)
         ))
-        defer { Task { await MetadataClient.shared.resetForTesting() } }
         let model = TestFactories.makeModel(id: "MiniMax-M2", capabilities: [.text], isDefault: true)
         let provider = TestFactories.makeProvider(kind: .miniMax, models: [model], apiKey: "mm-key")
 
@@ -293,7 +292,6 @@ struct Relay2DispatchTrustTests {
             {"kind": "openAI", "displayName": "OpenAI", "defaultBaseURL": "https://api.openai.com/v1",
              "apiProtocol": "openai", "trustedHosts": ["openai.com", "openai-proxy.example"]}
             """))
-        defer { Task { await MetadataClient.shared.resetForTesting() } }
         func resolvedBase(_ baseURL: String) throws -> String {
             try EndpointResolver.resolve(
                 providerKind: .openAI, kind: .chat,

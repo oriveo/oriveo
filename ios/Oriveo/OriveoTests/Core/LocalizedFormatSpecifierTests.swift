@@ -13,6 +13,10 @@ import Testing
 /// specifiers against the English baseline. Length modifiers and conversion characters are kept,
 /// positional indexes such as `%1$` are ignored because a translation may legitimately reorder
 /// its arguments, and `%%` is a literal percent sign that consumes nothing.
+///
+/// Two legitimate shapes are not mismatches: a `%#@x@` substitution is expanded per plural branch before
+/// comparing (a translation may flatten it into `%1$lld … %2$@`), and a plural zero/one/two branch may
+/// write the count as a word and drop the integer specifier (see `isCompatible`).
 @Suite("Localized Format Specifiers")
 struct LocalizedFormatSpecifierTests {
 
@@ -36,18 +40,18 @@ struct LocalizedFormatSpecifierTests {
                 // The baseline is the English text. Symbolic keys such as
                 // `file_extraction_error_generic` keep their English under `en`; only catalogs
                 // whose keys are the English text itself fall back to the key.
-                let englishBaseline = localizedValues(in: localizations["en"]).first ?? key
+                let englishBaseline = localizedValues(in: localizations["en"]).first?.text ?? key
                 let expected = normalizedSpecifiers(in: englishBaseline)
 
                 for (locale, rawLocalization) in localizations where locale != "en" {
                     for value in localizedValues(in: rawLocalization) {
                         #expect(
-                            normalizedSpecifiers(in: value) == expected,
+                            isCompatible(value, with: expected),
                             """
                             \(table).xcstrings: the \(locale) translation does not match the English specifiers (String(format:) would read past its arguments):
                             key      = \(key)
                             english  = \(englishBaseline) → \(expected)
-                            \(locale) = \(value) → \(normalizedSpecifiers(in: value))
+                            \(locale) = \(value.text) → \(normalizedSpecifiers(in: value.text))
                             """
                         )
                     }
@@ -58,27 +62,85 @@ struct LocalizedFormatSpecifierTests {
 
     // MARK: - Helpers
 
+    private struct LocalizedValue {
+        let text: String
+        /// The CLDR category (zero/one/two/few/many/other) when the value comes from a plural branch, nil for a plain translation.
+        let pluralCase: String?
+    }
+
     /// Every translated value under one locale: the plain `stringUnit` plus each branch of a
     /// plural or device `variations` block, because each branch is formatted on its own.
-    private func localizedValues(in rawLocalization: Any?) -> [String] {
+    private func localizedValues(in rawLocalization: Any?) -> [LocalizedValue] {
         guard let localization = rawLocalization as? [String: Any] else { return [] }
-        var values: [String] = []
+        var values: [LocalizedValue] = []
         if let unit = localization["stringUnit"] as? [String: Any],
            let value = unit["value"] as? String {
-            values.append(value)
+            values.append(LocalizedValue(text: value, pluralCase: nil))
         }
         if let variations = localization["variations"] as? [String: Any] {
-            for (_, rawAxis) in variations {
+            for (axisName, rawAxis) in variations {
                 guard let axis = rawAxis as? [String: Any] else { continue }
-                for (_, rawCase) in axis {
+                for (caseName, rawCase) in axis {
                     guard let variantCase = rawCase as? [String: Any],
                           let unit = variantCase["stringUnit"] as? [String: Any],
                           let value = unit["value"] as? String else { continue }
-                    values.append(value)
+                    values.append(LocalizedValue(text: value, pluralCase: axisName == "plural" ? caseName : nil))
                 }
             }
         }
-        return values
+        let substitutions = (localization["substitutions"] as? [String: Any]) ?? [:]
+        return substitutions.isEmpty ? values : values.flatMap { expand($0, substitutions: substitutions) }
+    }
+
+    /// Expands `%#@name@` through each plural branch of its substitution into the string that is really formatted:
+    /// Foundation replaces `%arg` in the branch text with `%<argNum>$<formatSpecifier>`, embeds it in the outer
+    /// string and formats the whole. Without expanding, the outer string holds a lone `%#@` read as `%@`, and the
+    /// English baseline could never match a translation that flattens the substitution.
+    private func expand(_ value: LocalizedValue, substitutions: [String: Any]) -> [LocalizedValue] {
+        var results = [value]
+        for (name, rawSubstitution) in substitutions {
+            let token = "%#@\(name)@"
+            guard let substitution = rawSubstitution as? [String: Any],
+                  let argNum = substitution["argNum"] as? Int,
+                  let specifier = substitution["formatSpecifier"] as? String,
+                  let plural = (substitution["variations"] as? [String: Any])?["plural"] as? [String: Any]
+            else { continue }
+            results = results.flatMap { current -> [LocalizedValue] in
+                guard current.text.contains(token) else { return [current] }
+                return plural.compactMap { caseName, rawCase in
+                    guard let variantCase = rawCase as? [String: Any],
+                          let unit = variantCase["stringUnit"] as? [String: Any],
+                          let branch = unit["value"] as? String else { return nil }
+                    let resolved = branch.replacingOccurrences(of: "%arg", with: "%\(argNum)$\(specifier)")
+                    return LocalizedValue(
+                        text: current.text.replacingOccurrences(of: token, with: resolved),
+                        pluralCase: caseName
+                    )
+                }
+            }
+        }
+        return results
+    }
+
+    /// Equal to the English baseline, or a plural zero/one/two branch that writes the count as a word (Arabic
+    /// "one more key", "two models") and so drops the integer specifier. A trailing unused argument is ignored by
+    /// `String(format:)` and does not read out of bounds, but only if every remaining specifier carries `%n$`;
+    /// otherwise dropping an earlier argument would shift a later specifier onto the count.
+    private func isCompatible(_ value: LocalizedValue, with expected: [String]) -> Bool {
+        let actual = normalizedSpecifiers(in: value.text)
+        if actual == expected { return true }
+        guard let pluralCase = value.pluralCase, ["zero", "one", "two"].contains(pluralCase) else { return false }
+        var missing = expected
+        for token in actual {
+            guard let index = missing.firstIndex(of: token) else { return false }
+            missing.remove(at: index)
+        }
+        let integerConversions: Set<Character> = ["d", "D", "i", "u", "U"]
+        guard missing.allSatisfy({ integerConversions.contains($0.last!) }) else { return false }
+        return Self.specifierPattern.matches(in: value.text, range: NSRange(value.text.startIndex..., in: value.text))
+            .map { (value.text as NSString).substring(with: $0.range) }
+            .filter { $0 != "%%" }
+            .allSatisfy { $0.range(of: #"^%\d+\$"#, options: .regularExpression) != nil }
     }
 
     private static let specifierPattern = try! NSRegularExpression(

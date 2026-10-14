@@ -108,7 +108,7 @@ struct ManualModelBoardTests {
         }
         #expect(providers.contains("For example: claude-4-sonnet or gpt-4o"))
 
-        // The retry-sync action and its telemetry event are kept unchanged.
+        // The retry-sync action is kept unchanged.
         let source = try ProductionSource.read(Self.viewPath)
         #expect(source.contains("Task { await retrySync() }"))
         #expect(source.contains("try await appState.resyncProvider(providerID: provider.id)"))

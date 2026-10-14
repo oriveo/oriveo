@@ -149,7 +149,6 @@ struct EndpointSourceContractTests {
             baseURLText: stored["baseURLText"] as? String,
             source: stored["endpointSource"] as? String
         )
-        defer { Task { await MetadataClient.shared.resetForTesting() } }
 
         if item["classifyWithBaseMetadataFirst"] as? Bool == true {
             // The production startup write-back: classify against the metadata of that moment and edit the array directly, leaving updatedAt alone.
@@ -222,7 +221,6 @@ struct EndpointSourceContractTests {
         let expect = try #require(item["expect"] as? [String: Any])
         let expectRequest = try #require(item["expectRequestBaseURL"] as? String)
         try await Self.applyMetadata(item, config)
-        defer { Task { await MetadataClient.shared.resetForTesting() } }
 
         let original = Self.provider(
             kind: kind,
@@ -252,7 +250,6 @@ struct EndpointSourceContractTests {
         let expectBase = try #require(item["expectRequestBaseURL"] as? String)
         let expectHost = try #require(URL(string: expectBase)?.host)
         try await Self.applyMetadata(item, config)
-        defer { Task { await MetadataClient.shared.resetForTesting() } }
 
         let model = TestFactories.makeModel(id: modelID, capabilities: [.text], isDefault: true)
         var provider = TestFactories.makeProvider(kind: kind, models: [model], apiKey: "sk-endpoint-source-test")
@@ -479,7 +476,6 @@ struct EndpointSourceContractTests {
         try await Self.loadMetadata([
             Self.patched(config, ["regionOptions.bj.baseURL": "https://cn-beijing.dashscope.aliyuncs.com"])
         ])
-        defer { Task { await MetadataClient.shared.resetForTesting() } }
         EndpointSourceCaptureProtocol.reset()
         defer { EndpointSourceCaptureProtocol.reset() }
 

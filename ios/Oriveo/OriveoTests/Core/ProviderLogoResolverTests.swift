@@ -7,7 +7,8 @@ import Testing
 struct ProviderLogoResolverTests {
     /// The hero card reads the logo a dozen times per body and re-reads it on every providers write.
     /// Unchanged inference inputs must not re-run the substring search, and any changed input must
-    /// recompute immediately instead of returning the previous logo.
+    /// recompute immediately instead of returning the previous logo. A relay connection takes its logo from the
+    /// aggregator brand table only; the inference and its memo are kept for local-engine connections.
     @Test("relay logo inference is memoized by its inputs and recomputes when any of them change")
     func relayLogoResolverRecomputesOnlyWhenInputsChange() {
         var provider = TestFactories.makeProvider(
@@ -17,6 +18,12 @@ struct ProviderLogoResolverTests {
             customName: "Work Relay"
         )
         provider.relayKind = .custom
+        provider.relayRequested = RelayRequestedConfig(
+            transport: .openaiChatCompletions,
+            authMode: .none,
+            securityMode: .localHTTP,
+            engineProfile: "ollama"
+        )
         let id = provider.id
 
         #expect(ProviderLogoResolver.logoKind(for: provider) == .openAI)
@@ -65,6 +72,12 @@ struct ProviderLogoResolverTests {
             customName: "Oriveo Home Relay"
         )
         provider.relayKind = .custom
+        provider.relayRequested = RelayRequestedConfig(
+            transport: .openaiChatCompletions,
+            authMode: .none,
+            securityMode: .localHTTP,
+            engineProfile: "ollama"
+        )
         #expect(ProviderLogoResolver.logoKind(for: provider) == .relay)
 
         provider.relayKind = .anthropicCompatible

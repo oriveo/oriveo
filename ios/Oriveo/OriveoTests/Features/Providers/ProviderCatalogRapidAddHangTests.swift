@@ -81,7 +81,6 @@ struct ProviderCatalogRapidAddHangTests {
     func rapidAddDeepInLibrary() async throws {
         await MetadataClient.shared.resetForTesting()
         try await MetadataClient.shared.loadForTesting(json: metadataJSON(), metadataETag: "rapid-etag")
-        defer { Task { await MetadataClient.shared.resetForTesting() } }
         let catalog = (0..<Self.catalogCount).map { index in
             TestFactories.makeModel(
                 id: modelID(index), name: "Rapid Model \(index) Long Enough Display Name",

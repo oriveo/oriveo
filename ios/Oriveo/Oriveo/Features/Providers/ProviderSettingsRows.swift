@@ -32,7 +32,7 @@ nonisolated enum ProviderSettingsRow: String, CaseIterable, Sendable {
     static func rows(for provider: Provider, hasEndpointOptions: Bool) -> [ProviderSettingsRow] {
         // Relay and local connections have their edit-connection and delete entries in the detail
         // page's header and bottom buttons, so the settings section does not repeat them.
-        // Every community connection allows advanced settings and deletion (only managed kinds opt out),
+        // Every community connection allows advanced settings and deletion,
         // so the section is never empty here; `hasEndpointOptions` only decides the endpoint row.
         let isCustomLLM = ProviderForm.of(provider) == .relay
         var rows: [ProviderSettingsRow] = []

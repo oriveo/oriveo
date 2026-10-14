@@ -153,7 +153,6 @@ struct RelayReasoningTierFixtureTests {
             "modelFactsRevision": "rev-tier",
         ]
         await MetadataClient.shared.resetForTesting()
-        defer { Task { await MetadataClient.shared.resetForTesting() } }
         try await MetadataClient.shared.loadForTesting(
             json: String(decoding: try JSONSerialization.data(withJSONObject: document), as: UTF8.self)
         )
@@ -195,7 +194,6 @@ struct RelayReasoningTierFixtureTests {
         ProviderAPIKeyStore.useInMemoryBackendForTesting(true)
         defer { ProviderAPIKeyStore.useInMemoryBackendForTesting(false) }
         await MetadataClient.shared.resetForTesting()
-        defer { Task { await MetadataClient.shared.resetForTesting() } }
         try await MetadataClient.shared.loadForTesting(
             json: String(decoding: try JSONSerialization.data(withJSONObject: document), as: UTF8.self)
         )

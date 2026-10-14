@@ -136,7 +136,6 @@ struct EndpointResolverTests {
     @Test("The international siliconflow.com base URL is accepted by the delivered trusted table")
     func siliconFlowInternationalBaseURLAllowed() async throws {
         try await loadTrustedHosts(kind: "siliconFlow", hosts: ["siliconflow.cn", "siliconflow.com"])
-        defer { Task { await MetadataClient.shared.resetForTesting() } }
         let resolved = try resolvedChat(kind: .siliconFlow, metadataBaseURL: "https://api.siliconflow.com/v1")
         #expect(resolved.baseURL == "https://api.siliconflow.com/v1")
         #expect(resolved.url.absoluteString == "https://api.siliconflow.com/v1/chat/completions")
