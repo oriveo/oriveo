@@ -8,6 +8,7 @@ import ai.oriveo.community.core.provider.relay.RelayCapabilityTestKind
 import ai.oriveo.community.core.provider.relay.RelayCapabilityTestReason
 import ai.oriveo.community.core.provider.relay.RelayCapabilityTestStopReason
 import ai.oriveo.community.core.provider.relay.RelayCapabilityVerdict
+import ai.oriveo.community.core.provider.relay.RelayWebSource
 
 enum class RelayCapTestPhase { Running, Completed, Stopped }
 
@@ -76,6 +77,8 @@ data class RelayCapTestPanelInput(
     val runningElapsedMs: Long = 0L,
     val written: Boolean = false,
     val stopReason: RelayCapabilityTestStopReason? = null,
+    /** The fragment source of the web item: it only decides the in-progress subtitle; a template is also an effective fragment and writes the override as usual. */
+    val webSource: RelayWebSource = RelayWebSource.Saved,
 )
 
 /** Pure display rules of the "Test capabilities" bottom panel (fixture `panelCases`). */
@@ -89,8 +92,13 @@ object RelayCapabilityTestPanelModel {
             val result = results[kind]
             when {
                 result != null -> finishedRow(result, input.written)
-                input.phase == RelayCapTestPhase.Running && kind == input.running ->
-                    RelayCapTestRow(kind, RelayCapTestIcon.Running, runningRes(kind), null, RelayCapTestTrailing.Running(tenths(input.runningElapsedMs)))
+                input.phase == RelayCapTestPhase.Running && kind == input.running -> RelayCapTestRow(
+                    kind,
+                    RelayCapTestIcon.Running,
+                    runningRes(kind, input.webSource),
+                    null,
+                    RelayCapTestTrailing.Running(tenths(input.runningElapsedMs)),
+                )
                 input.phase == RelayCapTestPhase.Running ->
                     RelayCapTestRow(kind, RelayCapTestIcon.Waiting, null, null, RelayCapTestTrailing.Waiting)
                 input.phase == RelayCapTestPhase.Completed && textFailed ->
@@ -240,11 +248,14 @@ object RelayCapabilityTestPanelModel {
     }
 
     @StringRes
-    private fun runningRes(kind: RelayCapabilityTestKind): Int = when (kind) {
+    private fun runningRes(kind: RelayCapabilityTestKind, webSource: RelayWebSource): Int = when (kind) {
         RelayCapabilityTestKind.Text -> R.string.relay_cap_test_running_text
         RelayCapabilityTestKind.Image -> R.string.relay_cap_test_running_image
         RelayCapabilityTestKind.Tool -> R.string.relay_cap_test_running_tool
-        RelayCapabilityTestKind.Web -> R.string.relay_cap_test_running_web
+        RelayCapabilityTestKind.Web -> when (webSource) {
+            RelayWebSource.Saved -> R.string.relay_cap_test_running_web
+            RelayWebSource.Template -> R.string.relay_cap_test_running_web_default
+        }
     }
 
     @StringRes

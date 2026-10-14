@@ -360,6 +360,12 @@ data class ChatRequestOptions(
     @kotlinx.serialization.Transient val localCustomFragments: Map<String, String> = emptyMap(),
     /** The additional request body text that actually went out with this request; stays in process, never serialized or sent to telemetry. */
     @kotlinx.serialization.Transient val additionalRequestBody: String? = null,
+    /**
+     * Called with the transport when an attempt carrying the web fragment is rejected with 400 / 422 before any output and the same-transport
+     * resend without the fragment succeeds; ChatRepository writes a rejected record for that transport and attaches a reply notice.
+     * Set only inside the outbound chain, never serialized.
+     */
+    @kotlinx.serialization.Transient val relayWebFragmentDropped: ((RelayTransport) -> Unit)? = null,
     /** Local request lifecycle carrier; never persisted, synced, logged, or serialized. */
     @kotlinx.serialization.Transient val capabilityExecutionCollector: CapabilityExecutionCollector? = null,
     /** Typed UI intent. Process-local only; the recipe compiler remains the wire authority. */

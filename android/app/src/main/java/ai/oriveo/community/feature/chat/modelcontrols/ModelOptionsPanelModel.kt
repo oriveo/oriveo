@@ -223,6 +223,14 @@ internal object ModelOptionsPanelInput {
         provider.kind == ProviderKind.Relay &&
             RelayEndpointResolver.declaredTransport(provider, model) == null
 
+    /**
+     * The "protocol undecided" criterion of the model options web row (the panel and the tests read the same one). The relay web row follows the first-send protocol,
+     * which can always be determined (an unverified model on an auto connection has one too), so a relay model with web facts ([relayWeb] non-null) is not undecided; the switch listens only to the user.
+     */
+    fun webProtocolUndecided(provider: Provider, model: AIModel? = null): Boolean =
+        protocolUndecided(provider, model) &&
+            (model == null || ai.oriveo.community.core.provider.relay.RelayWebChat.of(provider, model) == null)
+
     /** The stored web-search preference to the intent the shape function understands; a tier taken over by custom fields is drawn as on. */
     fun webIntent(preference: CapabilityWebPreference): String = when (preference) {
         CapabilityWebPreference.Off -> ModelOptionCapabilityShape.OFF
@@ -250,9 +258,9 @@ internal object ModelOptionsPanelInput {
     }
 
     /**
-     * Relay web row facts (fixture `presentationCases`): local engine -> the connection cannot do it; the effective protocol has a fragment (legacy fields mapped included) ->
-     * split into 4 states by the local probe record of this model x protocol under the current fragment; otherwise -> needs manual setup. Returns null for a non-relay.
-     * The protocol is the same resolution that the first chat send and the probe's record writing use ([ai.oriveo.community.core.provider.relay.RelayFirstSendTransport.resolve]).
+     * Relay web row facts: local engine -> the connection cannot do it; otherwise the first-send protocol's
+     * [ai.oriveo.community.core.provider.relay.RelayWebChat] yields the switch / a greyed-out switch. Returns null for a non-relay or without a model.
+     * [webPreference] = the resolved chat web preference (default layer included); null = never set, follows the default.
      */
     fun relayWeb(
         provider: Provider,
@@ -261,32 +269,44 @@ internal object ModelOptionsPanelInput {
             ai.oriveo.community.core.provider.relay.RelayWebFragmentStore.shared,
         records: ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore =
             ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore.shared,
+        webPreference: CapabilityWebPreference? = null,
     ): ModelOptionCapabilityShape.RelayWeb? {
         if (provider.kind != ProviderKind.Relay) return null
-        val transport = ai.oriveo.community.core.provider.relay.RelayFirstSendTransport.resolve(provider, model).value
-        val fragments = store.effective(provider)
-        return relayWeb(
-            localEngine = !provider.relayRequested?.engineProfile.isNullOrBlank(),
-            effectiveTransport = transport,
-            fragments = fragments,
-            probe = model?.let { m -> fragments[transport]?.let { records.currentResult(provider.id, m.id, transport, it) } },
-        )
+        if (!provider.relayRequested?.engineProfile.isNullOrBlank()) return ModelOptionCapabilityShape.RelayWeb.LocalEngine
+        val chat = model?.let { ai.oriveo.community.core.provider.relay.RelayWebChat.of(provider, it, store, records) } ?: return null
+        return relayWebToggle(chat, webPreference)
     }
 
-    /** [probe] is the probe result under the current fragment; null means not tested or the hash is stale. */
+    /** Entry for the local-engine and protocol-undecided rows (web-fragment presentationCases): only a fragment, no record and no override. */
     fun relayWeb(
         localEngine: Boolean,
         effectiveTransport: String,
         fragments: Map<String, kotlinx.serialization.json.JsonObject>,
-        probe: ai.oriveo.community.core.provider.relay.RelayWebProbeResult? = null,
-    ): ModelOptionCapabilityShape.RelayWeb = when {
-        localEngine -> ModelOptionCapabilityShape.RelayWeb.LocalEngine
-        !fragments.containsKey(effectiveTransport) -> ModelOptionCapabilityShape.RelayWeb.NeedsSetup
-        probe == ai.oriveo.community.core.provider.relay.RelayWebProbeResult.Searched -> ModelOptionCapabilityShape.RelayWeb.Searched
-        probe == ai.oriveo.community.core.provider.relay.RelayWebProbeResult.Silent -> ModelOptionCapabilityShape.RelayWeb.Silent
-        probe == ai.oriveo.community.core.provider.relay.RelayWebProbeResult.Rejected -> ModelOptionCapabilityShape.RelayWeb.Rejected
-        else -> ModelOptionCapabilityShape.RelayWeb.Unverified
+    ): ModelOptionCapabilityShape.RelayWeb {
+        if (localEngine) return ModelOptionCapabilityShape.RelayWeb.LocalEngine
+        val transport = RelayTransport.entries.first { it.value == effectiveTransport }
+        val saved = fragments[effectiveTransport]
+        return relayWebToggle(
+            ai.oriveo.community.core.provider.relay.RelayWebChat(
+                transport = transport,
+                saved = saved,
+                effective = saved ?: ai.oriveo.community.core.provider.relay.RelayWebFragments.template(transport),
+                record = null,
+                userOverride = null,
+            ),
+            webPreference = null,
+        )
     }
+
+    fun relayWebToggle(
+        chat: ai.oriveo.community.core.provider.relay.RelayWebChat,
+        webPreference: CapabilityWebPreference?,
+    ): ModelOptionCapabilityShape.RelayWebToggle = ModelOptionCapabilityShape.RelayWebToggle(
+        isOn = chat.isOn(webPreference),
+        enabled = !chat.userDisabled,
+        status = chat.status,
+        retest = chat.retest,
+    )
 
     /** Vision card "unknown": a Relay form and the model has no positive vision evidence at all (the same predicate as the record check). */
     fun visionUnknown(provider: Provider, model: AIModel): Boolean =
@@ -378,7 +398,6 @@ internal object ModelOptionsRender {
         ModelOptionCapabilityShape.NoticeStatus.NeedsOwnConfiguration -> R.string.model_options_needs_manual_setup
         ModelOptionCapabilityShape.NoticeStatus.NotAvailableYet -> R.string.model_options_not_available_yet
         ModelOptionCapabilityShape.NoticeStatus.AlwaysOn -> R.string.model_options_always_on
-        ModelOptionCapabilityShape.NoticeStatus.RelayWebRejected -> R.string.model_options_relay_web_rejected
     }
 
     @StringRes fun noticeBodyRes(body: ModelOptionCapabilityShape.NoticeBody): Int = when (body) {
@@ -389,15 +408,11 @@ internal object ModelOptionsRender {
         -> R.string.model_options_reasoning_no_generic_switch
         ModelOptionCapabilityShape.NoticeBody.WebNoGenericSwitch -> R.string.model_options_web_no_generic_switch
         ModelOptionCapabilityShape.NoticeBody.SubscriptionAlwaysSearches -> R.string.model_options_subscription_always_searches
-        ModelOptionCapabilityShape.NoticeBody.RelayWebManual -> R.string.model_options_relay_web_manual_body
-        ModelOptionCapabilityShape.NoticeBody.RelayWebRetest -> R.string.model_options_relay_web_retest
     }
 
     @StringRes fun escapeRes(escape: ModelOptionCapabilityShape.Escape): Int = when (escape) {
         ModelOptionCapabilityShape.Escape.SupportedModels -> R.string.model_options_see_adjustable_models
         ModelOptionCapabilityShape.Escape.AdditionalBody -> R.string.model_options_open_additional_body
-        ModelOptionCapabilityShape.Escape.ConnectionWebSearch -> R.string.model_options_relay_web_open_settings
-        ModelOptionCapabilityShape.Escape.RelayWebRetest -> R.string.model_options_relay_web_retest
     }
 
     /** [ModelOptionCapabilityShape.DisclosureStatus.ReadOnlyValue] shows the tier itself and does not go through here. */
@@ -405,9 +420,6 @@ internal object ModelOptionsRender {
         ModelOptionCapabilityShape.DisclosureStatus.ModelDoesNotThink -> R.string.model_options_no_thinking_mode
         ModelOptionCapabilityShape.DisclosureStatus.ModelCannotSearch -> R.string.model_options_cannot_search
         ModelOptionCapabilityShape.DisclosureStatus.ConnectionCannotSearch -> R.string.model_options_connection_cannot
-        ModelOptionCapabilityShape.DisclosureStatus.RelayWebSearchConfirmed -> R.string.model_options_relay_web_search_confirmed
-        ModelOptionCapabilityShape.DisclosureStatus.RelayWebNoSearchInTest -> R.string.model_options_relay_web_no_search_in_test
-        ModelOptionCapabilityShape.DisclosureStatus.RelayWebUnverified -> R.string.model_options_relay_web_set_unverified
         ModelOptionCapabilityShape.DisclosureStatus.FixedLevel,
         ModelOptionCapabilityShape.DisclosureStatus.ReadOnlyValue,
         -> R.string.model_options_cant_switch_here
@@ -417,15 +429,26 @@ internal object ModelOptionsRender {
     fun disclosureOffersSupportedModels(status: ModelOptionCapabilityShape.DisclosureStatus): Boolean =
         status == ModelOptionCapabilityShape.DisclosureStatus.ModelDoesNotThink ||
             status == ModelOptionCapabilityShape.DisclosureStatus.ModelCannotSearch
-    /** The whole row is tappable: the two rows that lead to switching models, plus the relay states with a fragment that lead to the connection's web search settings page. */
+    /** The whole row is tappable: the two rows that lead to switching models. */
     fun disclosureTappable(status: ModelOptionCapabilityShape.DisclosureStatus): Boolean =
-        disclosureOffersSupportedModels(status) || opensConnectionWebSearch(status)
+        disclosureOffersSupportedModels(status)
 
-    /** The three relay web states with a fragment that are not rejected: tapping opens this connection's web search settings page. */
-    fun opensConnectionWebSearch(status: ModelOptionCapabilityShape.DisclosureStatus): Boolean =
-        status == ModelOptionCapabilityShape.DisclosureStatus.RelayWebSearchConfirmed ||
-            status == ModelOptionCapabilityShape.DisclosureStatus.RelayWebNoSearchInTest ||
-            status == ModelOptionCapabilityShape.DisclosureStatus.RelayWebUnverified
+    /** The status line under the relay web switch (fixture statusId -> this platform's copy). */
+    @StringRes fun relayWebStatusRes(status: ai.oriveo.community.core.provider.relay.RelayWebChat.Status): Int = when (status) {
+        ai.oriveo.community.core.provider.relay.RelayWebChat.Status.Searched -> R.string.model_options_relay_web_search_confirmed
+        ai.oriveo.community.core.provider.relay.RelayWebChat.Status.Silent -> R.string.model_options_relay_web_no_search_in_test
+        ai.oriveo.community.core.provider.relay.RelayWebChat.Status.Rejected -> R.string.model_options_relay_web_rejected
+        ai.oriveo.community.core.provider.relay.RelayWebChat.Status.Unverified -> R.string.model_options_relay_web_set_unverified
+        ai.oriveo.community.core.provider.relay.RelayWebChat.Status.Untested -> R.string.model_options_relay_web_untested
+        ai.oriveo.community.core.provider.relay.RelayWebChat.Status.UserOff -> R.string.model_options_relay_web_user_off
+        ai.oriveo.community.core.provider.relay.RelayWebChat.Status.UserOn -> R.string.relay_catalog_status_set_by_you
+    }
+
+    /** The retest link on a greyed-out row: a rejected stored fragment -> "Test again in web search settings", a rejected template -> "Test capabilities". */
+    @StringRes fun relayWebRetestRes(retest: ai.oriveo.community.core.provider.relay.RelayWebChat.Retest): Int = when (retest) {
+        ai.oriveo.community.core.provider.relay.RelayWebChat.Retest.OpenConnectionWebSearch -> R.string.model_options_relay_web_retest
+        ai.oriveo.community.core.provider.relay.RelayWebChat.Retest.TestCapabilities -> R.string.relay_capability_test
+    }
 }
 
 /**
@@ -541,6 +564,9 @@ internal object ModelOptionsTiles {
                 Tile(kind, Corner.Switch, toggleBlockedNoteRes ?: ModelOptionsRender.toggleNoteRes(capability, shape.kind))
             is ModelOptionCapabilityShape.ToggleWithTiming ->
                 Tile(kind, Corner.Switch, ModelOptionsRender.toggleNoteRes(capability, ModelOptionCapabilityShape.ToggleKind.Capability))
+            // Relay web switch: the status line is the test verdict / source; when greyed out the switch cannot be toggled and the UI layer wires the retest link.
+            is ModelOptionCapabilityShape.RelayWebToggle ->
+                Tile(kind, Corner.Switch, ModelOptionsRender.relayWebStatusRes(shape.status))
             // With no selected tier the status line uses the shape's top-right status sentence; the rejected-tier warning stays below the grid.
             is ModelOptionCapabilityShape.Tiers -> Tile(
                 kind = kind,
@@ -588,7 +614,8 @@ internal object ModelOptionsTiles {
 
     /** The web switch is on right now (including the "every message" timing row). */
     fun webIsOn(web: ModelOptionCapabilityShape): Boolean =
-        web is ModelOptionCapabilityShape.ToggleWithTiming || (web as? ModelOptionCapabilityShape.Toggle)?.isOn == true
+        web is ModelOptionCapabilityShape.ToggleWithTiming || (web as? ModelOptionCapabilityShape.Toggle)?.isOn == true ||
+            (web as? ModelOptionCapabilityShape.RelayWebToggle)?.isOn == true
 
     /**
      * "This turn actually sends" lists only the choices that rewrite the request right now, in the fixed order web -> thinking: web on; a non-automatic thinking tier that is selected ("off" included);

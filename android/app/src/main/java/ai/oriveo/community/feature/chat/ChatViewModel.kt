@@ -481,8 +481,10 @@ class ChatViewModel(
         val model = conversationState.model ?: return
         val conversationID = currentConversation?.id ?: generationParameterDraftSessionId
         val isExisting = currentConversation != null
-        val modelControlIdentity = ai.oriveo.community.core.provider.ModelControlRuntimeIdentityResolver
-            .resolve(provider, model) ?: return
+        // The relay web switch lives under the fixed identity; everything else uses the protocol-bearing identity.
+        val modelControlIdentity = ai.oriveo.community.core.provider.RelayWebPreferenceIdentity.resolve(provider, model)
+            ?: ai.oriveo.community.core.provider.ModelControlRuntimeIdentityResolver.resolve(provider, model)
+            ?: return
         val transportIdentity = modelControlIdentity.storageIdentity
         val current = capabilityPreferenceStore.resolvedForRequest(
             providerID = provider.id,
@@ -493,6 +495,8 @@ class ChatViewModel(
             transportIdentity = transportIdentity,
             isExistingConversation = isExisting,
             legacyModelID = modelControlIdentity.legacyModelId,
+            // The relay default layer (stored fragment -> on) must also be switched off by the library exclusion.
+            webDefault = ai.oriveo.community.core.provider.relay.RelayWebChat.of(provider, model)?.defaultPreference,
         )
         if (current.web == CapabilityWebPreference.Off) return
 

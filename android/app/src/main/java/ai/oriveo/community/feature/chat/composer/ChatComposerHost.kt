@@ -63,6 +63,8 @@ internal fun ChatComposerHost(
     onNavigateToProviderSetup: () -> Unit,
     onNavigateToProviderDetail: (providerId: String) -> Unit,
     onNavigateToConnectionWebSearch: (providerId: String) -> Unit = {},
+    /** "Test capability" for a rejected web template: opens this model's advanced page in this connection. */
+    onNavigateToRelayModelAdvanced: (providerId: String, modelId: String) -> Unit = { _, _ -> },
     onNavigateToSkillEdit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -184,6 +186,7 @@ internal fun ChatComposerHost(
             onNavigateToProviderSetup = onNavigateToProviderSetup,
             onNavigateToProviderDetail = onNavigateToProviderDetail,
             onNavigateToConnectionWebSearch = onNavigateToConnectionWebSearch,
+            onNavigateToRelayModelAdvanced = onNavigateToRelayModelAdvanced,
             onNavigateToSkillEdit = onNavigateToSkillEdit,
             isGenerating = streamingMessageId != null,
             // Loading states (skeleton, backfilling) and stalled all block writing: allowing a send

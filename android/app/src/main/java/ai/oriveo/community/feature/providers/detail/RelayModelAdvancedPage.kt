@@ -433,6 +433,7 @@ private fun capabilityIcon(capability: RelayAdvancedCapability): Int = when (cap
     RelayAdvancedCapability.File -> R.drawable.ph_paperclip
     RelayAdvancedCapability.ImageGeneration -> R.drawable.ph_image
     RelayAdvancedCapability.ToolCall -> R.drawable.ph_wrench
+    RelayAdvancedCapability.Web -> R.drawable.ph_globe
 }
 
 @Composable
@@ -442,6 +443,7 @@ private fun capabilityTint(capability: RelayAdvancedCapability): Color = when (c
     // Image generation is not in the five-color capability palette, so a neutral color is used.
     RelayAdvancedCapability.ImageGeneration -> OriveoTheme.colors.textSecondary
     RelayAdvancedCapability.ToolCall -> CapabilityPalette.tools
+    RelayAdvancedCapability.Web -> CapabilityPalette.webSearch
 }
 
 @DrawableRes

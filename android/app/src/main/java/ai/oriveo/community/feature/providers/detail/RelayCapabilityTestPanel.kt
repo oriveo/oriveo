@@ -209,6 +209,7 @@ private fun HeaderBadge(header: RelayCapTestHeader) {
 private fun RowView(row: RelayCapTestRow) {
     val colors = OriveoTheme.colors
     val dim = row.icon == RelayCapTestIcon.Waiting || row.icon == RelayCapTestIcon.NotRun
+    Column {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -241,6 +242,7 @@ private fun RowView(row: RelayCapTestRow) {
                 },
             )
         }
+    }
     }
 }
 

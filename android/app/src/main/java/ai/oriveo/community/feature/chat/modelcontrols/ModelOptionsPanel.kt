@@ -160,6 +160,8 @@ internal class CapabilityRowActions(
     @StringRes val toggleBlockedNoteRes: Int? = null,
     /** Only when the protocol of this row is undecided does the whole card lead to choosing a protocol. */
     val onChooseProtocol: () -> Unit = {},
+    /** The retest link shown when relay web is greyed out by a rejection. */
+    val onRelayWebRetest: (ai.oriveo.community.core.provider.relay.RelayWebChat.Retest) -> Unit = {},
 )
 
 /**
@@ -207,10 +209,10 @@ internal fun ModelOptionCapabilityRow(
         corner = {
             when (tile.corner) {
                 ModelOptionsTiles.Corner.Switch -> Switch(
-                    checked = shape is ModelOptionCapabilityShape.ToggleWithTiming ||
+                    checked = ModelOptionsTiles.webIsOn(shape) ||
                         (shape as? ModelOptionCapabilityShape.Toggle)?.isOn == true,
                     onCheckedChange = actions.onToggle,
-                    enabled = actions.toggleEnabled,
+                    enabled = actions.toggleEnabled && (shape as? ModelOptionCapabilityShape.RelayWebToggle)?.enabled != false,
                     modifier = Modifier.semantics { contentDescription = title },
                 )
                 ModelOptionsTiles.Corner.Levels -> Text(
@@ -240,6 +242,16 @@ internal fun ModelOptionCapabilityRow(
                 level = { null },
                 onSelect = actions.onSelectTiming,
             )
+            // Relay web greyed out by a rejection: a retest link under the switch.
+            is ModelOptionCapabilityShape.RelayWebToggle -> shape.retest?.let { retest ->
+                TextButton(
+                    colors = modelControlTextButtonColors(),
+                    onClick = { actions.onRelayWebRetest(retest) },
+                    // Drop the button's own horizontal padding so the link text lines up with the status line above.
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 0.dp),
+                    modifier = Modifier.heightIn(min = 44.dp),
+                ) { Text(stringResource(ModelOptionsRender.relayWebRetestRes(retest))) }
+            }
             is ModelOptionCapabilityShape.Toggle -> actions.toggleEscape?.let { escape ->
                 TextButton(
                     colors = modelControlTextButtonColors(),

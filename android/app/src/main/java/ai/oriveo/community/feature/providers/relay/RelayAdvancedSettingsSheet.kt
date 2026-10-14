@@ -590,7 +590,10 @@ private fun RowIcon(row: RelayEditRow) {
     }
 }
 
-/** Indent footnotes / input slots to the start of the title (iOS textInset): with an icon, skip past the icon and its spacing. */
+/**
+ * Indent input slots to the start of the title (iOS textInset): with an icon, skip past the icon and its spacing.
+ * Only for blocks with an input below (the address row), and the call site must be marked `row-lead: top`; the icon of an ordinary multi-line row is centered on the whole block and does not indent the footnote with this (RL2-LAYOUT-ROW-10).
+ */
 private fun textInset(row: RelayEditRow) = if (row.icon != null) ROW_ICON + ROW_ICON_GAP else 0.dp
 
 /** Icon + title (body primary) on one line. */
@@ -603,9 +606,9 @@ private fun RowTitle(row: RelayEditRow, title: String) {
 }
 
 /**
- * iOS rowBody: left column [icon + first title line; footnote (secondary) indented to the title] | value (body secondary, at most 2 lines, tail-truncated) + trailing control,
+ * iOS rowBody: left column [icon in its own column, centered on the whole block of "title + footnote (secondary)"] | value (body secondary, at most 2 lines, tail-truncated) + trailing control,
  * with the value and the control in one column, centered on the whole row; 14h / 10v, minimum height 56. Shared by menu rows and the connection security action row.
- * The value column (the value plus trailing actions such as "Change") takes at most 45% of the row content width excluding the trailing arrow; the arrow [chevron] sits outside the value column; the footnote is not truncated.
+ * The value column (the value plus trailing actions such as "Change") takes at most 45% of the row content width excluding the trailing arrow; the arrow [chevron] sits outside the value column; the footnote is not truncated (RL2-LAYOUT-ROW-06).
  */
 @Composable
 private fun EditRowBody(
@@ -633,15 +636,18 @@ private fun EditRowBody(
             horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                RowTitle(row, title)
-                footnote?.let {
-                    Text(
-                        text = it,
-                        style = OriveoTheme.typography.footnote,
-                        color = colors.textSecondary,
-                        modifier = Modifier.padding(start = textInset(row)),
-                    )
+            // The icon sits in its own column, vertically centered on the whole "title + footnote" block instead of pinned to the title line.
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(ROW_ICON_GAP),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RowIcon(row)
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(text = title, style = OriveoTheme.typography.body, color = colors.textPrimary)
+                    footnote?.let {
+                        Text(text = it, style = OriveoTheme.typography.footnote, color = colors.textSecondary)
+                    }
                 }
             }
             Row(
@@ -702,6 +708,7 @@ private fun AddressRow(
     ) {
         RowTitle(row, stringResource(row.titleRes))
         // The input slot and the footnote are indented to the start of the title (iOS addressRow).
+        // row-lead: top -- there is an input below, so the icon follows the title line instead of being centered on the whole block.
         Column(modifier = Modifier.padding(start = textInset(row)), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             BasicTextField(
                 value = fieldValue,

@@ -414,6 +414,16 @@ fun OriveoNavHost(
                         PageTrace.begin("ProviderDetail")
                         navController.navigate(AppRoute.ProviderDetail(providerID, initialLayer = AppRoute.ProviderDetail.LAYER_WEB_SEARCH))
                     },
+                    onNavigateToRelayModelAdvanced = { providerID, modelID ->
+                        PageTrace.begin("ProviderDetail")
+                        navController.navigate(
+                            AppRoute.ProviderDetail(
+                                providerID,
+                                initialLayer = AppRoute.ProviderDetail.LAYER_MODEL_ADVANCED,
+                                initialModelID = modelID,
+                            ),
+                        )
+                    },
                     onNavigateToSkillEdit = {
 
                         navController.navigate(AppRoute.SkillEdit())
@@ -540,6 +550,9 @@ fun OriveoNavHost(
                 ProviderDetailScreen(
                     onBack = { navController.popBackStack() },
                     initialWebSearchLayer = route.initialLayer == AppRoute.ProviderDetail.LAYER_WEB_SEARCH,
+                    initialRelayLayers = route.initialModelID
+                        ?.takeIf { route.initialLayer == AppRoute.ProviderDetail.LAYER_MODEL_ADVANCED }
+                        ?.let { listOf(ai.oriveo.community.feature.providers.detail.RelayDetailLayer.Advanced(it, readOnly = false)) },
                     onStartChat = { providerID, modelID ->
                         appViewModel.setActiveModel(providerID, modelID)
                         PageTrace.begin("Chat")

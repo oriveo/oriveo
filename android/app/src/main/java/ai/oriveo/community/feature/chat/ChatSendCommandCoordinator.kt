@@ -250,6 +250,16 @@ internal class ChatSendCommandCoordinator(
                 toConversationID = conv.id,
                 profileFingerprint = GenerationParameterProfileFingerprint.make(provider, selectedModel),
             )
+            // The draft record of the relay web switch moves to the real conversation with the first send.
+            ai.oriveo.community.core.provider.RelayWebPreferenceIdentity.resolve(provider, selectedModel)?.let { webIdentity ->
+                capabilityPreferenceStore?.migrateDraftConversation(
+                    providerID = provider.id,
+                    modelID = webIdentity.canonicalModelId,
+                    draftSessionID = generationParameterDraftSessionId(),
+                    conversationID = conv.id,
+                    transportIdentity = webIdentity.storageIdentity,
+                )
+            }
             modelControlIdentity?.let { identity ->
                 capabilityPreferenceStore?.migrateDraftConversation(
                     providerID = provider.id,

@@ -26,7 +26,8 @@ import kotlinx.serialization.json.putJsonObject
 
 /**
  * The capability test items, in send order; [wire] matches the keys of the fixture `requests` / `mustContain`.
- * [Web] is the 4th item: listed only when the first protocol has a stored snippet, and the repository runs a manual web probe after the first three.
+ * [Web] is the 4th item: listed once the first protocol is known, and the repository runs a manual web probe after the first three,
+ * probing temporarily with that protocol's built-in template when no snippet is stored.
  */
 enum class RelayCapabilityTestKind(val wire: String) {
     Text("text"),
@@ -127,6 +128,8 @@ data class RelayCapabilityTestRun(
     val items: List<RelayCapabilityTestItemResult> = emptyList(),
     val stopReason: RelayCapabilityTestStopReason? = null,
     val written: Boolean = false,
+    /** The fragment source carried when the web item is listed; null when it is not listed. */
+    val webSource: RelayWebSource? = null,
 ) {
     /** Whether there are readings to write (image / tool accepted or rejected). */
     val hasWritableResult: Boolean
@@ -229,7 +232,7 @@ object RelayCapabilityTest {
 
     /**
      * Items to test: text is always first; image / tool items that already have a user override are skipped;
-     * [web] = the first protocol has a stored web snippet, and web goes last.
+     * [web] = the web item is listed ([listsWeb]), and web goes last.
      */
     fun plannedKinds(existing: RelayCapabilityOverrides?, web: Boolean = false): List<RelayCapabilityTestKind> = buildList {
         add(RelayCapabilityTestKind.Text)
@@ -239,12 +242,30 @@ object RelayCapabilityTest {
     }
 
     /**
-     * Whether the 4th web item is listed: relay form, testable, and the model's first protocol has a stored snippet.
-     * The panel's first frame and the orchestration use the same criterion, so the web item is disclosed truthfully before any request is sent.
+     * Whether the 4th web item is listed: relay form, testable (the first protocol is known and is one of the four generation protocols);
+     * a stored snippet is no longer required. The panel's first frame and the orchestration use the same criterion, so the web item is disclosed truthfully before any request is sent.
      */
-    fun listsWeb(provider: Provider, model: AIModel, fragments: RelayWebFragmentStore = RelayWebFragmentStore.shared): Boolean =
-        RelayWebProbe.isProbeForm(provider) && isTestable(provider, model) &&
-            fragments.effective(provider)[RelayFirstSendTransport.resolve(provider, model).value] != null
+    fun listsWeb(provider: Provider, model: AIModel): Boolean =
+        RelayWebProbe.isProbeForm(provider) && isTestable(provider, model)
+
+    /** The fragment source of the web item: the first-send protocol has a stored fragment = saved, otherwise = the built-in template; null when not listed. */
+    fun webSource(provider: Provider, model: AIModel, fragments: RelayWebFragmentStore = RelayWebFragmentStore.shared): RelayWebSource? {
+        if (!listsWeb(provider, model)) return null
+        val transport = RelayFirstSendTransport.resolve(provider, model)
+        return if (fragments.effective(provider)[transport.value] != null) RelayWebSource.Saved else RelayWebSource.Template
+    }
+
+    /** The fragment carried by this web probe: a stored fragment first, otherwise that protocol's built-in template; [source] follows. Null when not listed. */
+    fun webProbeFragment(
+        provider: Provider,
+        model: AIModel,
+        fragments: RelayWebFragmentStore = RelayWebFragmentStore.shared,
+    ): Pair<RelayWebSource, JsonObject>? {
+        if (!listsWeb(provider, model)) return null
+        val transport = RelayFirstSendTransport.resolve(provider, model)
+        fragments.effective(provider)[transport.value]?.let { return RelayWebSource.Saved to it }
+        return RelayWebFragments.template(transport)?.let { RelayWebSource.Template to it }
+    }
 
     /** Protocol short name (chat / responses / messages / gemini); other protocols do not support testing and return null. */
     fun shortName(transport: RelayTransport): String? = when (transport) {
@@ -263,12 +284,12 @@ object RelayCapabilityTest {
 
     /**
      * Entry condition for "Test capabilities": testable, and there are still items to test, meaning image and tool do not both already have user overrides,
-     * or the 4th web item can be listed ([listsWeb], the first protocol has a stored snippet; consistent across all clients).
+     * or the 4th web item can be listed ([listsWeb], it is enough that the first protocol is known).
      */
-    fun offersTest(provider: Provider, model: AIModel, fragments: RelayWebFragmentStore = RelayWebFragmentStore.shared): Boolean {
+    fun offersTest(provider: Provider, model: AIModel): Boolean {
         if (!isTestable(provider, model)) return false
         val overrides = model.relayCapabilityOverrides
-        return !(overrides.isUserSet(IMAGE_KEY) && overrides.isUserSet(TOOL_KEY)) || listsWeb(provider, model, fragments)
+        return !(overrides.isUserSet(IMAGE_KEY) && overrides.isUserSet(TOOL_KEY)) || listsWeb(provider, model)
     }
 
     /**

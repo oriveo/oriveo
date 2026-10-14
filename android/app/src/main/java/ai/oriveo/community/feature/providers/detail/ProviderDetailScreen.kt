@@ -193,6 +193,8 @@ fun ProviderDetailScreen(
     manualEntryContext: ManualModelEntryContext = ManualModelEntryContext.ProviderDetail,
     onNavigateToManualEntry: (providerID: String) -> Unit = {},
     onNavigateToAdvancedSettings: (providerID: String) -> Unit = {},
+    /** Preset layers for the first frame (opening a model's advanced page from outside); null = the usual stack. */
+    initialRelayLayers: List<RelayDetailLayer>? = null,
     /** Filter for the first frame of the model library; null = follow the library layer in the stack (a layer with a key filter opens with it). */
     initialRelayCatalogFilter: RelayCatalogFilter? = null,
     viewModel: ProviderDetailViewModel = koinViewModel(),
@@ -213,7 +215,7 @@ fun ProviderDetailScreen(
     // Sub-page layers of the relay / local board: detail -> model library -> advanced, and detail -> keys page.
     // A saveable stack: restored as is after rotation or process recreation; one BackHandler pops one layer at a time.
     var relayNavStack by rememberSaveable(stateSaver = RelayDetailNavStack.Saver) {
-        mutableStateOf(RelayDetailNavStack(listOfNotNull(RelayDetailLayer.WebSearch.takeIf { initialWebSearchLayer })))
+        mutableStateOf(RelayDetailNavStack(initialRelayLayers ?: listOfNotNull(RelayDetailLayer.WebSearch.takeIf { initialWebSearchLayer })))
     }
     val showModelLibrary = relayNavStack.showsLibrary
     fun popRelayLayer() {

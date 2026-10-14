@@ -8,6 +8,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
 import ai.oriveo.community.core.provider.ModelControlRuntimeIdentity
+import ai.oriveo.community.core.provider.RelayWebPreferenceIdentity
 import java.util.UUID
 
 /**
@@ -107,10 +108,10 @@ data class CapabilityScopeValues(
      * visible the first time they open the panel after switching to any new
      * model. This only answers "which layer actually stored a value first".
      */
-    fun displaySelection(): CapabilityPreferenceValues {
+    fun displaySelection(webDefault: CapabilityWebPreference? = null): CapabilityPreferenceValues {
         val ordered = ordered()
         return CapabilityPreferenceValues(
-            web = ordered.firstOrNull()?.web ?: CapabilityWebPreference.Off,
+            web = ordered.firstOrNull()?.web ?: webDefault ?: CapabilityWebPreference.Off,
             reasoningIntent = ordered.firstNotNullOfOrNull { it.reasoningIntent },
         )
     }
@@ -153,12 +154,17 @@ fun CapabilityPreferenceStore.resolvedForRequest(
     transportIdentity: String?,
     isExistingConversation: Boolean = true,
     legacyModelID: String? = null,
+    webDefault: CapabilityWebPreference? = null,
 ): CapabilityPreferenceValues {
-    if (!capabilityPreferenceReadIsPermitted(providerKind, transportIdentity)) return CapabilityPreferenceValues()
+    // When the store cannot be read (missing identity) the default layer still applies: a relay with a stored fragment -> on.
+    if (!capabilityPreferenceReadIsPermitted(providerKind, transportIdentity)) {
+        return CapabilityPreferenceValues(web = webDefault ?: CapabilityWebPreference.Off)
+    }
     return resolved(
         providerID, modelID, conversationID, skillID, requireNotNull(transportIdentity),
         isDraftConversation = !isExistingConversation,
         legacyModelID = legacyModelID,
+        webDefault = webDefault,
     )
 }
 
@@ -181,12 +187,17 @@ fun CapabilityPreferenceStore.displayedForUi(
     transportIdentity: String?,
     isExistingConversation: Boolean = true,
     legacyModelID: String? = null,
+    webDefault: CapabilityWebPreference? = null,
 ): CapabilityPreferenceValues {
-    if (!capabilityPreferenceReadIsPermitted(providerKind, transportIdentity)) return CapabilityPreferenceValues()
+    // When the store cannot be read (missing identity) the default layer still applies: a relay with a stored fragment -> on.
+    if (!capabilityPreferenceReadIsPermitted(providerKind, transportIdentity)) {
+        return CapabilityPreferenceValues(web = webDefault ?: CapabilityWebPreference.Off)
+    }
     return displaySelection(
         providerID, modelID, conversationID, skillID, requireNotNull(transportIdentity),
         isDraftConversation = !isExistingConversation,
         legacyModelID = legacyModelID,
+        webDefault = webDefault,
     )
 }
 
@@ -278,9 +289,10 @@ class CapabilityPreferenceStore internal constructor(
         transportIdentity: String,
         isDraftConversation: Boolean = false,
         legacyModelID: String? = null,
+        webDefault: CapabilityWebPreference? = null,
     ): CapabilityPreferenceValues = scopeValues(
         providerID, modelID, conversationID, skillID, transportIdentity, isDraftConversation, legacyModelID,
-    ).displaySelection()
+    ).displaySelection(webDefault)
 
     fun resolved(
         providerID: String,
@@ -291,6 +303,8 @@ class CapabilityPreferenceStore internal constructor(
         singleSend: CapabilityPreferenceValues? = null,
         isDraftConversation: Boolean = false,
         legacyModelID: String? = null,
+        /** The web value of the default layer (provider_default): a relay whose first-send protocol has a stored fragment -> on; null = off. */
+        webDefault: CapabilityWebPreference? = null,
     ): CapabilityPreferenceValues {
         val scopes = scopeValues(
             providerID, modelID, conversationID, skillID, transportIdentity, isDraftConversation, legacyModelID,
@@ -314,7 +328,10 @@ class CapabilityPreferenceStore internal constructor(
             "connection_model" to model, "connection" to connection,
             "provider_recipe" to null, "provider_default" to null,
         )
-        val web = RequestPreferenceResolver.resolveLayers(scoped.map { RequestPreferenceResolver.ScopeLayer(it.first, webOverride(it.second)) })
+        val webLayers = scoped.map { (scope, values) ->
+            scope to (if (scope == "provider_default" && webDefault != null) CapabilityPreferenceValues(web = webDefault) else values)
+        }
+        val web = RequestPreferenceResolver.resolveLayers(webLayers.map { RequestPreferenceResolver.ScopeLayer(it.first, webOverride(it.second)) })
         val reasoning = RequestPreferenceResolver.resolveLayers(scoped.map { RequestPreferenceResolver.ScopeLayer(it.first, reasoningOverride(it.second)) })
         val webValue = (web.value as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
             ?.let { raw -> CapabilityWebPreference.entries.firstOrNull { it.name.equals(raw, true) } }
@@ -351,11 +368,16 @@ class CapabilityPreferenceStore internal constructor(
      * contract with new field names, tier options, and schema, so carrying
      * the old value forward would just be guessing on the user's behalf. It
      * resets instead.
+     *
+     * Exception: the fixed identity of the relay web switch ([RelayWebPreferenceIdentity]). When no record exists under it, within the same scope
+     * the last record written for the same connection x model under any older identity (with a protocol / metadata version) counts as the same line,
+     * and only the web value is carried forward (see [forwardedValues]).
      */
     private fun isSameTransportLineage(current: String, candidate: String): Boolean {
         if (current == candidate) return false
         val currentIdentity = ModelControlRuntimeIdentity.decodeStorageIdentity(current) ?: return false
         val candidateIdentity = ModelControlRuntimeIdentity.decodeStorageIdentity(candidate) ?: return false
+        if (current == RelayWebPreferenceIdentity.STORAGE_IDENTITY) return true
         return currentIdentity.first == candidateIdentity.first &&
             currentIdentity.second != candidateIdentity.second
     }
@@ -437,7 +459,7 @@ class CapabilityPreferenceStore internal constructor(
         // Narrowed tiers (a new recipe dropping a tier) aren't handled here: `ModelControlWebLayout.clamp`,
         // the reasoning tier's stale-intent fallback, and the outbound compile gate each handle their own
         // case; forward-porting only carries the user's expressed choice across the version line.
-        replace(scope, candidate.values, providerID, modelID, conversationID, skillID, transportIdentity)
+        replace(scope, forwardedValues(candidate.values, transportIdentity), providerID, modelID, conversationID, skillID, transportIdentity)
     }
 
     /**
@@ -463,8 +485,12 @@ class CapabilityPreferenceStore internal constructor(
         val candidate = drafts.lastOrNull {
             matches(it) && isSameTransportLineage(transportIdentity, it.transportIdentity)
         } ?: return@synchronized
-        setDraftConversation(candidate.values, providerID, modelID, draftSessionID, transportIdentity)
+        setDraftConversation(forwardedValues(candidate.values, transportIdentity), providerID, modelID, draftSessionID, transportIdentity)
     }
+
+    /** The values carried forward: the fixed relay web identity carries only web (the thinking tier stays on the protocol-bearing identity). */
+    private fun forwardedValues(values: CapabilityPreferenceValues, transportIdentity: String): CapabilityPreferenceValues =
+        if (transportIdentity == RelayWebPreferenceIdentity.STORAGE_IDENTITY) CapabilityPreferenceValues(web = values.web) else values
 
     fun setConversation(
         values: CapabilityPreferenceValues?, providerID: String, modelID: String, conversationID: String,

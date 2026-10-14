@@ -53,11 +53,14 @@ sealed interface AppRoute {
     data class ProviderDetail(
         val providerID: String,
         val entryPoint: ProviderSetupEntryPoint? = null,
-        /** Pushes a subpage on entry; currently used only by the chat model options "Open web settings". */
+        /** Pushes a subpage on entry: the chat model options "Open web settings" and the rejected-template "Test capability" link. */
         val initialLayer: String? = null,
+        /** Which model's advanced page [LAYER_MODEL_ADVANCED] opens. */
+        val initialModelID: String? = null,
     ) : AppRoute {
         companion object {
             const val LAYER_WEB_SEARCH = "web_search"
+            const val LAYER_MODEL_ADVANCED = "model_advanced"
         }
     }
 

@@ -12,6 +12,8 @@ fun ChatScreen(
     onNavigateToMemory: () -> Unit = {},
     onNavigateToProviderSetup: () -> Unit = {},
     onNavigateToProviderDetail: (providerId: String) -> Unit = {},
+    /** "Test capability" for a rejected web template: opens this model's advanced page in this connection. */
+    onNavigateToRelayModelAdvanced: (providerId: String, modelId: String) -> Unit = { _, _ -> },
     onNavigateToSkillEdit: () -> Unit = {},
     onNavigateToNoteDetail: (String) -> Unit = {},
     /**
@@ -30,6 +32,7 @@ fun ChatScreen(
         onNavigateToProviderSetup = onNavigateToProviderSetup,
         onNavigateToProviderDetail = onNavigateToProviderDetail,
         onNavigateToConnectionWebSearch = onNavigateToConnectionWebSearch,
+        onNavigateToRelayModelAdvanced = onNavigateToRelayModelAdvanced,
         onNavigateToSkillEdit = onNavigateToSkillEdit,
         onNavigateToNoteDetail = onNavigateToNoteDetail,
         onNavigateToMcpServers = onNavigateToMcpServers,

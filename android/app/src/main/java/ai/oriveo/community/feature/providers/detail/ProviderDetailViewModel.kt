@@ -269,6 +269,9 @@ class ProviderDetailViewModel(
         val runningStartedAtMillis: Long = 0L,
         val written: Boolean = false,
         val stopReason: ai.oriveo.community.core.provider.relay.RelayCapabilityTestStopReason? = null,
+        /** The fragment source of the web item: with no stored fragment the protocol's built-in template (the effective fragment) is probed. */
+        val webSource: ai.oriveo.community.core.provider.relay.RelayWebSource =
+            ai.oriveo.community.core.provider.relay.RelayWebSource.Saved,
     ) {
         fun panelInput(nowMillis: Long): RelayCapTestPanelInput = RelayCapTestPanelInput(
             transport = transport,
@@ -280,6 +283,7 @@ class ProviderDetailViewModel(
             runningElapsedMs = if (running != null) nowMillis - runningStartedAtMillis else 0L,
             written = written,
             stopReason = stopReason,
+            webSource = webSource,
         )
     }
 
@@ -1210,8 +1214,9 @@ class ProviderDetailViewModel(
     ) {
         if (relayCapabilityTest?.phase == RelayCapTestPhase.Running) return
         // The first frame already lists the web search items by the same criterion as the orchestration, so the footer tells the truth before any request is sent.
-        val web = provider.value?.let { ai.oriveo.community.core.provider.relay.RelayCapabilityTest.listsWeb(it, model) } == true
-        val items = ai.oriveo.community.core.provider.relay.RelayCapabilityTest.plannedKinds(model.relayCapabilityOverrides, web)
+        // With no stored fragment the web item is tested temporarily with the protocol's built-in template; the in-progress subtitle follows the source.
+        val webSource = provider.value?.let { ai.oriveo.community.core.provider.relay.RelayCapabilityTest.webSource(it, model) }
+        val items = ai.oriveo.community.core.provider.relay.RelayCapabilityTest.plannedKinds(model.relayCapabilityOverrides, webSource != null)
         relayCapabilityTest = RelayCapabilityTestPanelState(
             model = model,
             transport = transport,
@@ -1220,6 +1225,7 @@ class ProviderDetailViewModel(
             phase = RelayCapTestPhase.Running,
             running = items.first(),
             runningStartedAtMillis = relayCapabilityTestClockMillis(),
+            webSource = webSource ?: ai.oriveo.community.core.provider.relay.RelayWebSource.Saved,
         )
         relayCapabilityTestJob = viewModelScope.launch {
             val run = try {
@@ -1260,6 +1266,7 @@ class ProviderDetailViewModel(
                         phase = if (run.stopReason != null) RelayCapTestPhase.Stopped else RelayCapTestPhase.Completed,
                         written = run.written,
                         stopReason = run.stopReason,
+                        webSource = run.webSource ?: current.webSource,
                     )
                 }
             }

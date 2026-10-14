@@ -290,6 +290,7 @@ internal class ChatSendCoordinator(
             ?.let(::omitLocalFieldsOnceOwner)
         // Same resolution the composer chip and the model-control panel use. What goes out on the
         // wire and what the UI shows must always come from one conclusion, never two.
+        val relayWebDefault = selectedModel?.let { ai.oriveo.community.core.provider.relay.RelayWebChat.of(provider, it)?.defaultPreference }
         val storedTypedPreferences = capabilityPreferenceStore?.resolvedForRequest(
             providerID = provider.id,
             providerKind = provider.kind,
@@ -298,7 +299,24 @@ internal class ChatSendCoordinator(
             skillID = skillId,
             transportIdentity = modelControlIdentity?.storageIdentity,
             legacyModelID = modelControlIdentity?.legacyModelId,
-        ) ?: CapabilityPreferenceValues()
+            // Default layer when relay web search is unset: the first-send protocol has a stored fragment -> on.
+            webDefault = relayWebDefault,
+        )?.let { values ->
+            // The relay web switch reads the fixed identity, the same one as the composer; the thinking tier still uses the protocol-bearing identity.
+            val relayWebIdentity = selectedModel?.let { ai.oriveo.community.core.provider.RelayWebPreferenceIdentity.resolve(provider, it) }
+                ?: return@let values
+            values.copy(
+                web = capabilityPreferenceStore?.resolvedForRequest(
+                    providerID = provider.id,
+                    providerKind = provider.kind,
+                    modelID = relayWebIdentity.canonicalModelId,
+                    conversationID = conversationId,
+                    skillID = skillId,
+                    transportIdentity = relayWebIdentity.storageIdentity,
+                    webDefault = relayWebDefault,
+                )?.web ?: values.web,
+            )
+        } ?: CapabilityPreferenceValues()
         // A custom fragment goes out on exactly one condition: this owner's custom entry is
         // enabled right now. Schema availability filtering already happens inside
         // `fragmentsByOwner`, so there is deliberately no second `capabilityCustomFragmentAvailable`

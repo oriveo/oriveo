@@ -3272,8 +3272,18 @@ class ProviderRepository(
         // When the first send changed the protocol, the root is taken for the first-send protocol (the same way as the first send in ChatRepository).
         val rootModel = model.takeIf { transport != ai.oriveo.community.core.provider.RelayEndpointResolver.effectiveTransport(provider, it) }
             ?.copy(relayTransport = transport) ?: model
-        // The fourth item, web search, is listed only if the first-send protocol has a stored fragment (the same criterion as runRelayWebProbe).
-        val webListed = capabilityTest.listsWeb(provider, model, relayWebFragmentStore)
+        // The fourth item, web search, is listed once the first-send protocol is known; without a stored fragment it carries that protocol's built-in template.
+        // Remember the (source, fragment hash) at the start of the test: a fragment saved / edited / deleted afterwards interrupts the run as a protocol change.
+        val webProbe = capabilityTest.webProbeFragment(provider, model, relayWebFragmentStore)
+            ?.let { (source, fragment) -> source to ai.oriveo.community.core.provider.relay.RelayWebProbe.fragmentHash(fragment) }
+        val webListed = webProbe != null
+        suspend fun currentWebProbe(): Pair<ai.oriveo.community.core.provider.relay.RelayWebSource, String>? {
+            val latest = getById(targetAccountId, normalizedId) ?: return null
+            val target = latest.models.firstOrNull { it.id == modelID } ?: return null
+            return capabilityTest.webProbeFragment(latest, target, relayWebFragmentStore)
+                ?.takeIf { it.second.isNotEmpty() }
+                ?.let { (source, fragment) -> source to ai.oriveo.community.core.provider.relay.RelayWebProbe.fragmentHash(fragment) }
+        }
         // The same request options as a relay send in ChatRepository: the connection copy, the protocol and root resolved per model, the evidence model and the connection identity.
         val requestOptions = ai.oriveo.community.core.model.ChatRequestOptions(
             relayRequested = provider.relayRequested,
@@ -3369,20 +3379,19 @@ class ProviderRepository(
         // The fourth item, web search: after the first three it runs the manual web search probe, with no cap, no de-duplication and not entered into the automatic history.
         val web = ai.oriveo.community.core.provider.relay.RelayCapabilityTestKind.Web
         stopReason().first?.let { return afterWrite.copy(stopReason = it) }
+        val protocolStop = ai.oriveo.community.core.provider.relay.RelayCapabilityTestStopReason.Protocol
+        // The fragment was saved / edited / deleted during the first three items: this item is no longer the setup shown when the test started, so interrupt as a protocol change.
+        if (currentWebProbe() != webProbe) return afterWrite.copy(stopReason = protocolStop)
         onProgress(ai.oriveo.community.core.provider.relay.RelayCapabilityTestProgress(afterWrite.planned, afterWrite.items, web))
         val started = System.nanoTime()
-        val outcome = runRelayWebProbe(id, modelID, deadlineMillis)
+        val outcome = runRelayWebProbe(id, modelID, deadlineMillis, allowTemplate = true)
         val elapsed = ((System.nanoTime() - started) / 1_000_000L).coerceAtLeast(0L)
         // The probe did not finish or the pre-write re-check failed (fragment changed / deleted, connection / protocol changed): the panel is interrupted, first with the re-check reason, otherwise with "protocol changed" (same as iOS / Web).
-        val protocolStop = ai.oriveo.community.core.provider.relay.RelayCapabilityTestStopReason.Protocol
         val completed = outcome as? ai.oriveo.community.core.provider.relay.RelayWebProbeOutcome.Completed
             ?: return afterWrite.copy(stopReason = stopReason().first ?: protocolStop)
         // Undetermined does not go through the pre-write re-check: check once more here, and if the configuration already changed, do not report this item's result.
         stopReason().first?.let { return afterWrite.copy(stopReason = it) }
-        val currentFragment = getById(targetAccountId, normalizedId)
-            ?.let { relayWebFragmentStore.effective(it)[transport.value] }
-            ?.takeIf { it.isNotEmpty() }
-        if (currentFragment == null || ai.oriveo.community.core.provider.relay.RelayWebProbe.fragmentHash(currentFragment) != completed.fragmentHash) {
+        if (currentWebProbe() != (completed.source to completed.fragmentHash)) {
             return afterWrite.copy(stopReason = protocolStop)
         }
         val verdict = when (completed.result) {
@@ -3395,19 +3404,27 @@ class ProviderRepository(
             web, verdict, completed.reason, completed.status, elapsed,
         )
         onProgress(ai.oriveo.community.core.provider.relay.RelayCapabilityTestProgress(afterWrite.planned, items, null))
-        // written includes the web override write: only an actual rewrite of the web override counts (a web set by the user is left alone and does not count as written).
-        return afterWrite.copy(sent = afterWrite.sent + web, items = items, written = afterWrite.written || completed.overrideWritten)
+        // written includes the web override write: only an actual rewrite of the web override counts (a web set by the user is left alone and a template probe writes nothing; neither counts as written).
+        return afterWrite.copy(
+            sent = afterWrite.sent + web,
+            items = items,
+            written = afterWrite.written || completed.overrideWritten,
+            webSource = completed.source,
+        )
     }
 
     /**
      * Relay web search probe: sent only for a relay whose model is testable and whose first-send protocol has a fragment; otherwise it is not listed and zero requests are made.
      * The result is written to the local probe record (connection x model x protocol); searched / rejected also write the web override (source tested, user entries untouched).
      * silent / undetermined remove the tested web. For the automatic triggers see [relayWebFragmentsSaved] and [probeEnabledRelayModel].
+     * [allowTemplate] (given only by the capability test panel): with no stored fragment, probe once with that protocol's built-in template;
+     * the template is the effective fragment, so the record and the web override are written as usual; automatic triggers never pass it.
      */
     suspend fun runRelayWebProbe(
         id: String,
         modelID: String,
         deadlineMillis: Long = ai.oriveo.community.core.provider.relay.RelayWebProbe.TIMEOUT_MILLIS,
+        allowTemplate: Boolean = false,
     ): ai.oriveo.community.core.provider.relay.RelayWebProbeOutcome {
         val probe = ai.oriveo.community.core.provider.relay.RelayWebProbe
         val notListed = ai.oriveo.community.core.provider.relay.RelayWebProbeOutcome.NotListed
@@ -3420,8 +3437,15 @@ class ProviderRepository(
         }
         // The same way as capability testing: the model's first-send protocol, with the root taken for it.
         val transport = ai.oriveo.community.core.provider.relay.RelayFirstSendTransport.resolve(provider, model)
-        // No fragment = not listed, zero requests.
-        val fragment = relayWebFragmentStore.effective(provider)[transport.value] ?: return notListed
+        // No fragment = not listed, zero requests; the panel's manual probe uses the protocol's built-in template instead (not saved).
+        val template = ai.oriveo.community.core.provider.relay.RelayWebFragments.template(transport).takeIf { allowTemplate }
+        val savedFragment = relayWebFragmentStore.effective(provider)[transport.value]
+        val fragment = savedFragment ?: template ?: return notListed
+        val source = if (savedFragment != null) {
+            ai.oriveo.community.core.provider.relay.RelayWebSource.Saved
+        } else {
+            ai.oriveo.community.core.provider.relay.RelayWebSource.Template
+        }
         val rootModel = model.takeIf { transport != ai.oriveo.community.core.provider.RelayEndpointResolver.effectiveTransport(provider, it) }
             ?.copy(relayTransport = transport) ?: model
         val requestOptions = ai.oriveo.community.core.model.ChatRequestOptions(
@@ -3433,17 +3457,21 @@ class ProviderRepository(
             capabilityEvidenceIdentity = capabilityEvidenceIdentity(provider, modelID),
             relayWebFragments = mapOf(transport.value to fragment),
         )
-        val outcome = probe.run(fragment, deadlineMillis, relayWebProbeRecords::now) {
+        // Judge while receiving: the send site writes the evidence received so far into progress, so a deadline that hits after evidence appeared still yields searched.
+        val progress = ai.oriveo.community.core.provider.relay.RelayWebProbe.Progress()
+        val outcome = probe.run(fragment, deadlineMillis, relayWebProbeRecords::now, progress) {
             withContext(Dispatchers.IO) {
                 relayService.sendWebProbe(
                     apiKey = ProviderCredentialResolver.apiKey(provider, modelID),
                     modelID = modelID,
                     baseUrl = provider.baseUrlText,
                     requestOptions = requestOptions,
+                    progress = progress,
                 )
             }
         }
-        val completed = outcome as? ai.oriveo.community.core.provider.relay.RelayWebProbeOutcome.Completed ?: return outcome
+        val completed = (outcome as? ai.oriveo.community.core.provider.relay.RelayWebProbeOutcome.Completed)
+            ?.copy(source = source) ?: return outcome
         // Undetermined writes no record and changes no override; otherwise mirror the tested web by the merged current record.
         val record = probe.recordOf(completed) ?: return completed
         var merged: ai.oriveo.community.core.provider.relay.RelayWebProbeResult? = null
@@ -3464,7 +3492,8 @@ class ProviderRepository(
             if (ai.oriveo.community.core.provider.relay.RelayFirstSendTransport.resolve(latest, target) != transport) {
                 return stopped(ai.oriveo.community.core.provider.relay.RelayWebProbeStopReason.Protocol)
             }
-            val latestFragment = relayWebFragmentStore.effective(latest)[transport.value]?.takeIf { it.isNotEmpty() }
+            val latestSaved = relayWebFragmentStore.effective(latest)[transport.value]?.takeIf { it.isNotEmpty() }
+            val latestFragment = latestSaved ?: template
             if (latestFragment == null || probe.fragmentHash(latestFragment) != completed.fragmentHash) {
                 return stopped(ai.oriveo.community.core.provider.relay.RelayWebProbeStopReason.Fragment)
             }
@@ -3505,7 +3534,10 @@ class ProviderRepository(
      * After the Web Search page is saved successfully: [changedTransports] = the protocols whose fragment hash changed (`RelayTransport.value`).
      * Run serially in the repository scope (closing the page does not cancel it): clear the tested web of models whose first-send protocol's fragment changed, prune the automatic history, then auto-probe one by one by selection.
      */
-    fun relayWebFragmentsSaved(id: String, changedTransports: Set<String>): kotlinx.coroutines.Job =
+    fun relayWebFragmentsSaved(
+        id: String,
+        changedTransports: Set<String>,
+    ): kotlinx.coroutines.Job =
         relayProbeScope.launch {
             relayWebAutoProbeMutex.withLock {
                 val targetAccountId = accountId

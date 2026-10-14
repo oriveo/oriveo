@@ -173,8 +173,10 @@ internal fun ModelControlsEntrySheet(
     onAdvancedSettingsClosed: () -> Unit,
     onChooseAnotherModel: () -> Unit,
     onOpenConnectionSettings: () -> Unit,
-    /** Relay web row "Open web search settings" / "Set by you": go to this connection's web search settings page. */
+    /** Relay web row, rejected with a stored fragment: go to this connection's web search settings page to test again. */
     onOpenConnectionWebSearch: () -> Unit,
+    /** Relay web rejected on the template: go to this model's advanced page to test capabilities. */
+    onOpenRelayModelAdvanced: (modelId: String) -> Unit = {},
     onNavigateToProviderSetup: () -> Unit,
     onSelectModel: (providerId: String, modelId: String) -> Unit,
     onDismiss: () -> Unit,
@@ -216,6 +218,7 @@ internal fun ModelControlsEntrySheet(
                 onChooseAnotherModel = onChooseAnotherModel,
                 onOpenConnectionSettings = onOpenConnectionSettings,
                 onOpenConnectionWebSearch = onOpenConnectionWebSearch,
+                onOpenRelayModelAdvanced = onOpenRelayModelAdvanced,
                 onSelectModel = onSelectModel,
                 onDismiss = onDismiss,
             )
@@ -313,6 +316,7 @@ private fun ModelControlsPanel(
     onOpenConnectionSettings: () -> Unit,
     /** Relay web row "Open web search settings" / "Set by you": go to this connection's web search settings page. */
     onOpenConnectionWebSearch: () -> Unit,
+    onOpenRelayModelAdvanced: (modelId: String) -> Unit,
     onSelectModel: (providerId: String, modelId: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -429,7 +433,9 @@ private fun ModelControlsPanel(
         onSelectionChange(
             clamped,
             nextIntent,
-            CapabilityWebPreferenceLiveness.reachesTheWire(presentation("web"), isCustomActive("web")),
+            CapabilityWebPreferenceLiveness.reachesTheWire(presentation("web"), isCustomActive("web")) ||
+                // Relay web switch: unless an override-off or a rejected record blocks it, the effective fragment goes out.
+                (ModelOptionsPanelInput.relayWeb(provider, model) as? ModelOptionCapabilityShape.RelayWebToggle)?.enabled == true,
         )
         if (!editability.canPersist || identity == null) return
         onPersist(CapabilityPreferenceValues(clamped, nextIntent))
@@ -532,9 +538,9 @@ private fun ModelControlsPanel(
             selectedIntent = ModelOptionsPanelInput.webIntent(web),
             connection = optionsConnection,
             isWritable = editability.canPersist && !isCustomActive("web"),
-            protocolUndecided = protocolUndecided,
+            protocolUndecided = ModelOptionsPanelInput.webProtocolUndecided(provider, model),
             customProtocol = customProtocol,
-            relayWeb = ModelOptionsPanelInput.relayWeb(provider, model),
+            relayWeb = ModelOptionsPanelInput.relayWeb(provider, model, webPreference = web),
         ),
     )
     val reasoningShape = ModelOptionCapabilityShape.resolve(
@@ -573,17 +579,11 @@ private fun ModelControlsPanel(
                 behaviorInitialSubPage = AdvancedSubPage.AdditionalBody
                 openRoute(ModelControlsRoute.Parameters)
             }
-            ModelOptionCapabilityShape.Escape.ConnectionWebSearch,
-            ModelOptionCapabilityShape.Escape.RelayWebRetest,
-            -> { onDismiss(); onOpenConnectionWebSearch() }
         }
     }
 
     fun disclosureAction(capability: String, shape: ModelOptionCapabilityShape): (() -> Unit)? {
-        val disclosure = (shape as? ModelOptionCapabilityShape.Disclosure)?: return null
-        if (ModelOptionsRender.opensConnectionWebSearch(disclosure.status)) {
-            return { onDismiss(); onOpenConnectionWebSearch() }
-        }
+        val disclosure = (shape as? ModelOptionCapabilityShape.Disclosure) ?: return null
         if (!ModelOptionsRender.disclosureOffersSupportedModels(disclosure.status)) return null
         return { openSupportedModels(capability, ModelOptionsRender.disclosureRes(disclosure.status)) }
     }
@@ -594,6 +594,13 @@ private fun ModelControlsPanel(
         onSelectTiming = { id -> persist(ModelOptionsPanelInput.webPreference(id), reasoningIntent) },
         onEscape = escapeAction("web", webShape),
         onDisclosure = disclosureAction("web", webShape),
+        onRelayWebRetest = { retest ->
+            onDismiss()
+            when (retest) {
+                ai.oriveo.community.core.provider.relay.RelayWebChat.Retest.OpenConnectionWebSearch -> onOpenConnectionWebSearch()
+                ai.oriveo.community.core.provider.relay.RelayWebChat.Retest.TestCapabilities -> onOpenRelayModelAdvanced(model.id)
+            }
+        },
     )
     val isTemplateToggle = (reasoningShape as? ModelOptionCapabilityShape.Toggle)?.kind ==
         ModelOptionCapabilityShape.ToggleKind.ChatTemplateThinking

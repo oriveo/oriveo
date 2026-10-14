@@ -96,6 +96,8 @@ enum class RelayAdvancedCapability(val key: String, @StringRes val titleRes: Int
     File("file", R.string.capability_file, RelayNegativeCache.Kind.File),
     ImageGeneration("imageGeneration", R.string.relay_model_advanced_image_generation, null),
     ToolCall("toolCall", R.string.relay_model_advanced_tool_calls, RelayNegativeCache.Kind.ToolCall),
+    /** Web search: status and source come from the probe record under the first-send protocol's effective fragment; there is no negative-cache tier. */
+    Web("web", R.string.relay_cap_test_item_web, null),
 }
 
 /** Source badges (in the contract's order); Gateway / Server facts are not drawn in this unit. */
@@ -114,10 +116,15 @@ data class RelayAdvancedCapabilityRow(
     val state: RelayCatalogCapabilityState,
     val source: RelayAdvancedSource?,
     val control: RelayAdvancedControl,
+    /** The record status of the web row (fixture presentationCases advanced.statusId); null = local engine / protocol undecided (shown as unknown) or not the web row. */
+    val webStatus: ai.oriveo.community.core.provider.relay.RelayWebChat.Status? = null,
 ) {
     @get:StringRes
     val statusRes: Int
-        get() = when (state) {
+        get() = if (capability == RelayAdvancedCapability.Web) {
+            webStatus?.let(ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsRender::relayWebStatusRes)
+                ?: R.string.relay_model_advanced_unknown
+        } else when (state) {
             RelayCatalogCapabilityState.Supported -> R.string.relay_capability_test_supported
             RelayCatalogCapabilityState.Unsupported -> R.string.relay_capability_test_unsupported
             // Image generation has no remember-after-send mechanism, so it does not say "remembered after send".
@@ -182,6 +189,10 @@ data class RelayModelAdvancedBoard(
             automaticReasoning: List<ReasoningMode>,
             readOnly: Boolean = false,
             family: (String) -> String? = RelayKeyBinding::cachedFamily,
+            webFragments: ai.oriveo.community.core.provider.relay.RelayWebFragmentStore =
+                ai.oriveo.community.core.provider.relay.RelayWebFragmentStore.shared,
+            webRecords: ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore =
+                ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore.shared,
         ): RelayModelAdvancedBoard {
             val local = RelayDetailBoardModel.isLocal(provider)
             val keySection = if (local) null else keySection(provider, model.id, readOnly, family)
@@ -189,6 +200,7 @@ data class RelayModelAdvancedBoard(
             fun automatic(capability: RelayCatalogCapability) = automaticStates[capability.ordinal]
             val overrides = model.relayCapabilityOverrides
             val capabilities = RelayAdvancedCapability.entries.map { capability ->
+                if (capability == RelayAdvancedCapability.Web) return@map webRow(provider, model, webFragments, webRecords)
                 val override = overrides.valueOf(capability)
                 val state = when (override) {
                     true -> RelayCatalogCapabilityState.Supported
@@ -203,6 +215,7 @@ data class RelayModelAdvancedBoard(
                             } else {
                                 RelayCatalogCapabilityState.Unknown
                             }
+                        RelayAdvancedCapability.Web -> RelayCatalogCapabilityState.Unknown
                     }
                 }
                 RelayAdvancedCapabilityRow(
@@ -367,6 +380,43 @@ data class RelayModelAdvancedBoard(
             )
         }
 
+        /**
+         * The web row (fixture presentationCases advanced): status = the current record under the effective fragment (overrides are not consulted),
+         * source = user (user override) / tested (record searched / rejected) / none; the status color follows the truth (user override > record).
+         * The control follows the other capability rows: an override value (user / tested) true -> On, false -> Off, no value -> Auto (choosing Auto clears the override).
+         * Local engine / protocol undecided -> unknown, no source.
+         */
+        private fun webRow(
+            provider: Provider,
+            model: AIModel,
+            fragments: ai.oriveo.community.core.provider.relay.RelayWebFragmentStore,
+            records: ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore,
+        ): RelayAdvancedCapabilityRow {
+            val chat = ai.oriveo.community.core.provider.relay.RelayWebChat.of(provider, model, fragments, records)
+                ?.takeUnless { ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsPanelInput.protocolUndecided(provider, model) }
+            val advanced = chat?.advanced
+            return RelayAdvancedCapabilityRow(
+                capability = RelayAdvancedCapability.Web,
+                state = when (chat?.truth) {
+                    "supported" -> RelayCatalogCapabilityState.Supported
+                    "unsupported" -> RelayCatalogCapabilityState.Unsupported
+                    else -> RelayCatalogCapabilityState.Unknown
+                },
+                source = when (advanced?.source) {
+                    RelayCapabilityOverrides.SOURCE_USER -> RelayAdvancedSource.User
+                    RelayCapabilityOverrides.SOURCE_TESTED -> RelayAdvancedSource.Tested
+                    else -> null
+                },
+                // The same convention as the other capability rows in the card: an override value (user or tested) true -> On, false -> Off, no value -> Auto.
+                control = when (model.relayCapabilityOverrides?.web) {
+                    true -> RelayAdvancedControl.On
+                    false -> RelayAdvancedControl.Off
+                    null -> RelayAdvancedControl.Auto
+                },
+                webStatus = advanced?.status,
+            )
+        }
+
         /** Takes the first hit in the fixed order: user > tested > engine declaration > negative cache / tool memory > official catalog > none (local engines stop at the engine declaration). */
         private fun source(
             provider: Provider,
@@ -389,7 +439,7 @@ data class RelayModelAdvancedBoard(
             val engineDeclared = when (capability) {
                 RelayAdvancedCapability.Image -> declaration?.image
                 RelayAdvancedCapability.ToolCall -> declaration?.toolCall
-                RelayAdvancedCapability.File, RelayAdvancedCapability.ImageGeneration -> null
+                RelayAdvancedCapability.File, RelayAdvancedCapability.ImageGeneration, RelayAdvancedCapability.Web -> null
             }
             if (engineDeclared != null) return RelayAdvancedSource.Engine
             // Local connections draw only Set by you / Tested / Engine declared (same scope as the local legend).
@@ -405,6 +455,7 @@ data class RelayModelAdvancedBoard(
                 RelayAdvancedCapability.File -> model.nativeFileMimes.isNotEmpty()
                 RelayAdvancedCapability.ImageGeneration -> ModelCapability.ImageGen in model.capabilities
                 RelayAdvancedCapability.ToolCall -> model.toolCall != null
+                RelayAdvancedCapability.Web -> false
             }
             return if (catalog) RelayAdvancedSource.Catalog else null
         }
@@ -427,6 +478,7 @@ internal fun RelayCapabilityOverrides?.valueOf(capability: RelayAdvancedCapabili
     RelayAdvancedCapability.File -> this?.file
     RelayAdvancedCapability.ImageGeneration -> this?.imageGeneration
     RelayAdvancedCapability.ToolCall -> this?.toolCall
+    RelayAdvancedCapability.Web -> this?.web
 }
 
 /**
@@ -464,6 +516,7 @@ object RelayModelAdvancedEdits {
                 RelayAdvancedCapability.File -> current.copy(file = value)
                 RelayAdvancedCapability.ImageGeneration -> current.copy(imageGeneration = value)
                 RelayAdvancedCapability.ToolCall -> current.copy(toolCall = value)
+                RelayAdvancedCapability.Web -> current.copy(web = value)
             }.let { it.copy(testedKeys = it.testedKeys - capability.key) }
             model.copy(relayCapabilityOverrides = next.takeUnless { it.isEmpty })
         }

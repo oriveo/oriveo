@@ -1,6 +1,7 @@
 package ai.oriveo.community.feature.chat.modelcontrols
 
 import ai.oriveo.community.core.provider.CapabilityControlPresentation
+import ai.oriveo.community.core.provider.relay.RelayWebChat
 
 /**
  * What one capability card in the model options panel looks like; the shape follows only from facts that are already resolved.
@@ -51,6 +52,18 @@ sealed interface ModelOptionCapabilityShape {
     /** The custom connection's protocol is still "automatic": the whole card collapses to one ask, choose a protocol first. */
     data object ProtocolUndecided : ModelOptionCapabilityShape
 
+    /**
+     * The relay web switch (fixture web-probe presentationCases row / isOn / statusId / retestLink):
+     * [enabled] = false means toggleDisabled (greyed out, [isOn] always false); [status] is the status line under the switch;
+     * [retest] exists only when greyed out by a rejection (a stored fragment -> the web search settings page, a template -> this model's capability test).
+     */
+    data class RelayWebToggle(
+        val isOn: Boolean,
+        val enabled: Boolean,
+        val status: RelayWebChat.Status,
+        val retest: RelayWebChat.Retest?,
+    ) : ModelOptionCapabilityShape, RelayWeb
+
     enum class Capability { Web, Reasoning }
     enum class ConnectionCategory { CustomLLM, Other }
     enum class CustomProtocol { ChatCompletions, Other }
@@ -62,8 +75,6 @@ sealed interface ModelOptionCapabilityShape {
         NeedsOwnConfiguration,
         NotAvailableYet,
         AlwaysOn,
-        /** The relay web probe was rejected: chat no longer attaches the fragment. */
-        RelayWebRejected,
     }
     enum class NoticeBody {
         ReasoningNotCatalogued,
@@ -72,28 +83,19 @@ sealed interface ModelOptionCapabilityShape {
         WebNoGenericSwitch,
         CustomThinkingUseAdditionalBody,
         SubscriptionAlwaysSearches,
-        /** A relay has no generic web switch: configure a fragment in the connection's web search settings. */
-        RelayWebManual,
-        /** After the relay web probe was rejected, the link row: go to the connection's web search settings page and test again. */
-        RelayWebRetest,
     }
-    /** [RelayWebRetest] is the only way out of a rejected relay web row; it also opens the connection's web search settings page, but its copy says "test again" rather than "open web search settings". */
-    enum class Escape { SupportedModels, AdditionalBody, ConnectionWebSearch, RelayWebRetest }
+    enum class Escape { SupportedModels, AdditionalBody }
     /**
-     * The facts of a relay web row. With a fragment present, the local probe record under the current fragment decides between
-     * [Searched] / [Silent] / [Rejected] / [Unverified] (not tested yet, or the hash is stale).
+     * The facts of a relay web row: a local engine -> the connection cannot do it (web-fragment presentationCases);
+     * otherwise -> [RelayWebToggle] (web-probe presentationCases).
      */
-    enum class RelayWeb { LocalEngine, Unverified, Searched, Silent, Rejected, NeedsSetup }
+    sealed interface RelayWeb {
+        data object LocalEngine : RelayWeb
+    }
     enum class DisclosureStatus {
         ModelDoesNotThink,
         ModelCannotSearch,
         ConnectionCannotSearch,
-        /** The effective protocol has a connection-level web fragment and the probe confirmed it searched: tapping opens the web search settings page. */
-        RelayWebSearchConfirmed,
-        /** A fragment is set and the probe reply was normal but showed no sign of searching: tapping opens the web search settings page. */
-        RelayWebNoSearchInTest,
-        /** A fragment is set but not tested yet (or the fragment changed): sends as usual, tapping opens the web search settings page. */
-        RelayWebUnverified,
         FixedLevel,
         ReadOnlyValue,
     }
@@ -170,16 +172,10 @@ sealed interface ModelOptionCapabilityShape {
             }
         }
 
-        /** A relay has no web switch in chat: a fragment means it is always sent. */
+        /** Relay web search is a chat switch: a local-engine connection cannot do it, otherwise the switch is shown on or greyed out by the facts. */
         private fun relayWeb(fact: RelayWeb): ModelOptionCapabilityShape = when (fact) {
             RelayWeb.LocalEngine -> Disclosure(DisclosureStatus.ConnectionCannotSearch)
-            RelayWeb.Searched -> Disclosure(DisclosureStatus.RelayWebSearchConfirmed)
-            RelayWeb.Silent -> Disclosure(DisclosureStatus.RelayWebNoSearchInTest)
-            RelayWeb.Unverified -> Disclosure(DisclosureStatus.RelayWebUnverified)
-            RelayWeb.Rejected ->
-                Notice(NoticeStatus.RelayWebRejected, NoticeBody.RelayWebRetest, Escape.RelayWebRetest)
-            RelayWeb.NeedsSetup ->
-                Notice(NoticeStatus.NeedsOwnConfiguration, NoticeBody.RelayWebManual, Escape.ConnectionWebSearch)
+            is RelayWebToggle -> fact
         }
 
         /** Writable: the existing chat-template switch; native channel: today's non-Chat hint; declared not thinking: unsupported; otherwise: follows the model default. */

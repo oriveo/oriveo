@@ -143,21 +143,11 @@ internal object RelayTruthAdapter : CapabilityTruthAdapter {
     }
 
     /**
-     * Relay web truth: when the first-send protocol has a connection-level segment (including read-time mapping of legacy fields), judge by the model x protocol
-     * local probe record under the current segment: searched -> supported, rejected -> unsupported, silent / untested / stale hash -> unknown; no segment -> unknown.
-     * Protocol and record lookup share one resolution with the model options panel relayWeb ([ai.oriveo.community.core.provider.relay.RelayFirstSendTransport.resolve]).
+     * Relay web truth: a user override of web wins; otherwise the current record under the first-send transport's effective segment
+     * (stored ?? template) decides (searched -> supported, rejected -> unsupported); otherwise unknown. A tested override is only a mirror
+     * of the record and is never read on its own.
+     * Same fact as the model options web row and the advanced page: [ai.oriveo.community.core.provider.relay.RelayWebChat].
      */
-    private fun webSearchDeclaration(provider: Provider, model: AIModel): String? {
-        val transport = ai.oriveo.community.core.provider.relay.RelayFirstSendTransport.resolve(provider, model).value
-        val fragment = ai.oriveo.community.core.provider.relay.RelayWebFragmentStore.shared.effective(provider)[transport]
-            ?: return null
-        return when (
-            ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore.shared
-                .currentResult(provider.id, model.id, transport, fragment)
-        ) {
-            ai.oriveo.community.core.provider.relay.RelayWebProbeResult.Searched -> "supported"
-            ai.oriveo.community.core.provider.relay.RelayWebProbeResult.Rejected -> "unsupported"
-            else -> null
-        }
-    }
+    private fun webSearchDeclaration(provider: Provider, model: AIModel): String? =
+        ai.oriveo.community.core.provider.relay.RelayWebChat.of(provider, model)?.truth
 }

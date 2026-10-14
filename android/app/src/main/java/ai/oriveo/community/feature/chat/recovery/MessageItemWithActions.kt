@@ -23,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -97,6 +98,7 @@ internal fun MessageItemWithActions(
     onOpenSavedNote: (String) -> Unit = {},
 ) {
     val colors = OriveoTheme.colors
+    val relayWebNotices by ai.oriveo.community.core.provider.relay.RelayWebReplyNotices.shared.all.collectAsState()
     var showMenu by remember(message.id) { mutableStateOf(false) }
     var selectionToolbarVisible by remember(message.id) { mutableStateOf(false) }
     var selectionGestureActive by remember(message.id) { mutableStateOf(false) }
@@ -283,6 +285,18 @@ internal fun MessageItemWithActions(
                         }
                     }
                 }
+            }
+
+            // Relay web reply notice: the switch is on but the delivered attempt carried no web parameter, so a secondary-color line sits under the reply; in-process memory only.
+            if (message.role == ChatRole.Assistant && message.state == ChatMessageState.Delivered &&
+                relayWebNotices[message.id] == ai.oriveo.community.core.provider.relay.RelayWebReplyNotices.Notice.WebNotUsed
+            ) {
+                Text(
+                    text = stringResource(R.string.relay_web_reply_not_used),
+                    style = OriveoTheme.typography.footnote,
+                    color = colors.textTertiary,
+                    modifier = Modifier.padding(vertical = AssistantMessageFooterMetrics.StatusVerticalPadding),
+                )
             }
 
             // Failed recovery card, shown only on the conversation's last message

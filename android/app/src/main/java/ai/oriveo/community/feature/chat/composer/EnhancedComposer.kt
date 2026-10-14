@@ -214,6 +214,8 @@ internal fun EnhancedComposer(
     onNavigateToProviderDetail: (providerId: String) -> Unit = {},
     /** Relay web search settings page (Detail > Web search). */
     onNavigateToConnectionWebSearch: (providerId: String) -> Unit = {},
+    /** "Test capability" for a rejected web template: opens this model's advanced page in this connection. */
+    onNavigateToRelayModelAdvanced: (providerId: String, modelId: String) -> Unit = { _, _ -> },
     onNavigateToSkillEdit: () -> Unit = {},
     isGenerating: Boolean,
     isReadOnly: Boolean,
@@ -250,6 +252,10 @@ internal fun EnhancedComposer(
     val metadataRevision = MetadataClient.instance.currentMetadataRevision()
     val modelControlRuntimeIdentity = generationParameterProvider?.let { provider ->
         currentModel?.let { model -> ModelControlRuntimeIdentityResolver.resolve(provider, model) }
+    }
+    // The fixed identity of the relay web switch: it does not change with the protocol or metadata version; the thinking tier still uses the protocol-bearing identity above.
+    val relayWebIdentity = generationParameterProvider?.let { provider ->
+        currentModel?.let { model -> ai.oriveo.community.core.provider.RelayWebPreferenceIdentity.resolve(provider, model) }
     }
     val providerRepository = koinInject<ProviderRepository>()
     val generationCapabilityPartition = providerRepository.currentCapabilityPartitionId()
@@ -325,8 +331,22 @@ internal fun EnhancedComposer(
     fun restoredCapabilityPreferences(): CapabilityPreferenceValues {
         val provider = generationParameterProvider ?: return CapabilityPreferenceValues()
         currentModel ?: return CapabilityPreferenceValues()
-        val identity = modelControlRuntimeIdentity ?: return CapabilityPreferenceValues()
-
+        val relayWebDefault = currentModel?.let { ai.oriveo.community.core.provider.relay.RelayWebChat.of(provider, it)?.defaultPreference }
+        // The relay web switch reads the fixed identity.
+        val relayWeb = relayWebIdentity?.let { webIdentity ->
+            capabilityPreferenceStore.displayedForUi(
+                providerID = provider.id,
+                providerKind = provider.kind,
+                modelID = webIdentity.canonicalModelId,
+                conversationID = generationParameterConversationId,
+                skillID = conversationSkillId,
+                transportIdentity = webIdentity.storageIdentity,
+                isExistingConversation = isExistingConversation,
+                webDefault = relayWebDefault,
+            ).web
+        }
+        val identity = modelControlRuntimeIdentity
+            ?: return CapabilityPreferenceValues(web = relayWeb ?: CapabilityWebPreference.Off)
         return capabilityPreferenceStore.displayedForUi(
             providerID = provider.id,
             providerKind = provider.kind,
@@ -336,7 +356,9 @@ internal fun EnhancedComposer(
             transportIdentity = identity.storageIdentity,
             isExistingConversation = isExistingConversation,
             legacyModelID = identity.legacyModelId,
-        )
+            // Default layer when relay web search is unset: the first-send protocol has a stored fragment -> on.
+            webDefault = relayWebDefault,
+        ).let { values -> relayWeb?.let { values.copy(web = it) } ?: values }
     }
 
     fun restoredCustomOwners(): Set<String> {
@@ -361,6 +383,19 @@ internal fun EnhancedComposer(
     fun persistCapabilityPreferences(values: CapabilityPreferenceValues) {
         val provider = generationParameterProvider ?: return
         currentModel ?: return
+        // The relay web switch is stored under a separate fixed identity; the protocol-bearing one still stores the thinking tier.
+        relayWebIdentity?.let { webIdentity ->
+            val web = CapabilityPreferenceValues(web = values.web)
+            if (isExistingConversation) {
+                capabilityPreferenceStore.setConversation(
+                    web, provider.id, webIdentity.canonicalModelId, generationParameterConversationId, webIdentity.storageIdentity,
+                )
+            } else {
+                capabilityPreferenceStore.setDraftConversation(
+                    web, provider.id, webIdentity.canonicalModelId, generationParameterConversationId, webIdentity.storageIdentity,
+                )
+            }
+        }
         val identity = modelControlRuntimeIdentity ?: return
         if (isExistingConversation) {
             capabilityPreferenceStore.setConversation(
@@ -385,6 +420,12 @@ internal fun EnhancedComposer(
         val provider = generationParameterProvider ?: return
         currentModel ?: return
         val identity = modelControlRuntimeIdentity ?: return
+        // The relay web switch is stored separately under the fixed identity.
+        relayWebIdentity?.let { webIdentity ->
+            capabilityPreferenceStore.setConnectionModel(
+                CapabilityPreferenceValues(web = values.web), provider.id, webIdentity.canonicalModelId, webIdentity.storageIdentity,
+            )
+        }
         capabilityPreferenceStore.setConnectionModel(
             values,
             provider.id,
@@ -567,6 +608,9 @@ internal fun EnhancedComposer(
             },
             onOpenConnectionWebSearch = {
                 generationParameterProvider?.id?.let(onNavigateToConnectionWebSearch)
+            },
+            onOpenRelayModelAdvanced = { modelId ->
+                generationParameterProvider?.id?.let { onNavigateToRelayModelAdvanced(it, modelId) }
             },
             onNavigateToProviderSetup = onNavigateToProviderSetup,
             onSelectModel = onSelectModel,

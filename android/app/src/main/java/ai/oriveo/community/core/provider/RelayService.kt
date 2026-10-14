@@ -173,6 +173,7 @@ class RelayService(
         modelID: String,
         baseUrl: String?,
         requestOptions: ChatRequestOptions,
+        progress: ai.oriveo.community.core.provider.relay.RelayWebProbe.Progress? = null,
     ): RelayWebProbeReply = coordinator.sendRelayWebProbe(
         apiKey = apiKey,
         modelID = modelID,
@@ -180,6 +181,7 @@ class RelayService(
         baseUrl = requireConfigured(baseUrl, apiKey, requestOptions.relayRequested),
         requestOptions = routed(requestOptions, baseUrl, apiKey),
         extras = RelayWebProbe.buildExtras(),
+        progress = progress,
     )
 
     /** URL and request body of this chat streaming send (same address validation and routing as [sendCapabilityTest]); sends no request. */

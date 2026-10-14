@@ -151,12 +151,15 @@ class ChatRepository(
     /** Negative cache for upstream rejections on a relay: rejected image input / tools are recorded here, and the read side uses the same one. */
     private val relayNegativeCache: ai.oriveo.community.core.provider.relay.RelayNegativeCache =
         ai.oriveo.community.core.provider.relay.RelayNegativeCache.shared,
-    /** Connection-level web search fragments of a relay: every chat request sends the fragment for the effective protocol. */
+    /** Connection-level web search fragments of a relay: merged under the first-send protocol while the chat web switch is on. */
     private val relayWebFragmentStore: ai.oriveo.community.core.provider.relay.RelayWebFragmentStore =
         ai.oriveo.community.core.provider.relay.RelayWebFragmentStore.shared,
     /** Relay web search probe records: a chat on a protocol recorded as rejected does not attach the fragment; a delivered reply with citations writes an observed record. */
     private val relayWebProbeRecords: ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore =
         ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore.shared,
+    /** Relay web reply notices: in memory only, keyed by the assistant message id. */
+    private val relayWebReplyNotices: ai.oriveo.community.core.provider.relay.RelayWebReplyNotices =
+        ai.oriveo.community.core.provider.relay.RelayWebReplyNotices.shared,
 ) {
     /**
      * Sends [text] to [provider] and streams the answer back into [outputs].
@@ -349,19 +352,30 @@ class ChatRepository(
         val relayFirstSend = (model ?: requestOptions.activeModel)?.takeIf { provider.kind == ProviderKind.Relay }?.let { routeModel ->
             ai.oriveo.community.core.provider.relay.RelayFirstSendTransport.forSend(provider, routeModel, allMessages)
         }
-        // The web search fragment actually attached this round under the first-send protocol: when delivered with citations, the observed record is written from it.
-        var relayWebSentFragment: kotlinx.serialization.json.JsonObject? = null
+        // The web fragments to carry this round, per protocol (key = protocol value): the first send and each protocol fallback within the same send each take the fragment of the protocol being tried.
+        var relayWebFragmentsForSend: Map<String, kotlinx.serialization.json.JsonObject> = emptyMap()
+        // The web switch is on (and the user has not overridden it off in the advanced page): if the delivered attempt carried no fragment, a reply notice is attached.
+        var relayWebSwitchOn = false
         var relayWebSentTransport: RelayTransport? = null
+        // The protocol of the delivered attempt: the first-send protocol, or the target protocol after a switch; also the protocol whose resend without the fragment succeeded.
+        val relayDeliveredTransport = java.util.concurrent.atomic.AtomicReference<RelayTransport?>(null)
+        val relayWebDroppedTransport = java.util.concurrent.atomic.AtomicReference<RelayTransport?>(null)
         var effectiveRequestOptions = if (provider.kind == ProviderKind.Relay) {
             // Protocol and root are resolved for this model (a model-level protocol wins); RelayService runs the safe-mode check again before sending.
             val routeModel = model ?: requestOptions.activeModel
             val transport = relayFirstSend ?: RelayEndpointResolver.effectiveTransport(provider, routeModel)
-            // A protocol recorded as rejected under the current fragment gets no fragment (silent / untested / stale-hash records are treated as usual).
-            val effectiveFragments = relayWebFragmentStore.effective(provider)
-            val sendableFragments = routeModel?.let { relayWebProbeRecords.sendable(provider.id, it.id, effectiveFragments) }
-                ?: effectiveFragments
-            relayWebSentFragment = sendableFragments[transport.value]
+            // Web search = the chat switch: when on and not overridden off by the user, every protocol that may be tried gets its own fragment (stored ?? template);
+            // a protocol whose current record is rejected (and not overridden on by the user) carries none; when the switch is off, none at all.
+            val webOn = webSearchEnabled
+            relayWebFragmentsForSend = routeModel?.let {
+                ai.oriveo.community.core.provider.relay.RelayWebChat.fragmentsForSend(provider, it, webOn, relayWebFragmentStore, relayWebProbeRecords)
+            }.orEmpty()
+            relayWebSwitchOn = webOn && routeModel?.let {
+                ai.oriveo.community.core.provider.relay.RelayWebChat.of(provider, it, relayWebFragmentStore, relayWebProbeRecords, transport)
+            }?.userDisabled == false
+            val sendableFragments = relayWebFragmentsForSend
             relayWebSentTransport = transport
+            relayDeliveredTransport.set(transport)
             // When the first send changed the protocol, the root is taken for the first-send protocol (the same way as a protocol-fallback switch).
             val rootModel = routeModel?.takeIf { transport != RelayEndpointResolver.effectiveTransport(provider, it) }
                 ?.copy(relayTransport = transport) ?: routeModel
@@ -379,7 +393,11 @@ class ChatRepository(
                     }
                     switched
                 },
-                relayProtocolSwitchStarted = { relayProtocolSwitchStarted.set(true) },
+                relayProtocolSwitchStarted = { next ->
+                    relayProtocolSwitchStarted.set(true)
+                    relayDeliveredTransport.set(next)
+                },
+                relayWebFragmentDropped = { dropped -> relayWebDroppedTransport.set(dropped) },
                 relayFileRejected = { relayFileRejected.set(true) },
             )
         } else {
@@ -395,11 +413,17 @@ class ChatRepository(
         var receivedUpstreamEvent = false
 
         val effectiveReasoning = reasoningMode
-        val effectiveWebSearchEnabled = shouldEnableWebSearchForSend(
-            provider = provider,
-            requested = webSearchEnabled,
-            model = model ?: requestOptions.activeModel,
-        )
+        // A relay's "web search this round" = the first send actually merged the effective fragment: false when the switch is on but the user overrode it off,
+        // or the current record is rejected; protocol fallback and the resend without the fragment are rewritten by the outbound layer per attempt.
+        val effectiveWebSearchEnabled = if (provider.kind == ProviderKind.Relay) {
+            relayWebSentTransport?.let { relayWebFragmentsForSend[it.value] } != null
+        } else {
+            shouldEnableWebSearchForSend(
+                provider = provider,
+                requested = webSearchEnabled,
+                model = model ?: requestOptions.activeModel,
+            )
+        }
         var providerMessages = if (appendToAssistant != null) {
             // The target UI partial is presentation state, not protocol continuation state.
             // Services insert the opaque sidecar block before the new user turn.
@@ -967,9 +991,28 @@ class ChatRepository(
                         recordRelayProtocolFallback(provider, requireNotNull(model), sent, observed)
                     }
                     recordRelayKeyAccessSuccess(provider, runtimeModelId)
-                    // A relay chat was delivered, this round attached a fragment without switching protocol, and the parser produced citations: searched / observed (the message-level execution fact is not upgraded).
-                    if (relayWebCitationSeen && !relayProtocolSwitchStarted.get()) {
-                        recordRelayWebObserved(provider, model ?: requestOptions.activeModel, relayWebSentTransport, relayWebSentFragment)
+                    if (provider.kind == ProviderKind.Relay) {
+                        val webModel = model ?: requestOptions.activeModel
+                        val deliveredTransport = relayDeliveredTransport.get()
+                        val droppedTransport = relayWebDroppedTransport.get()
+                        // The fragment the delivered attempt carried: the one of that protocol, none for a protocol that was resent without it.
+                        val deliveredFragment = deliveredTransport
+                            ?.takeIf { it != droppedTransport }
+                            ?.let { relayWebFragmentsForSend[it.value] }
+                        // The web parameter was rejected and the resend without it succeeded: record rejected for that protocol x current fragment hash (tested), the same as a probe verdict.
+                        droppedTransport?.let { dropped ->
+                            recordRelayWebRejected(provider, webModel, dropped, relayWebFragmentsForSend[dropped.value])
+                        }
+                        // Delivered with a fragment and the parser produced citations: write searched / observed for the actual protocol (including after a protocol fallback).
+                        if (relayWebCitationSeen) {
+                            recordRelayWebObserved(provider, webModel, deliveredTransport, deliveredFragment)
+                        }
+                        // The switch is on but the delivered attempt carried no fragment: attach a one-line notice under the reply (in memory only).
+                        relayWebReplyNotices.set(
+                            deliveredMessage.id,
+                            ai.oriveo.community.core.provider.relay.RelayWebReplyNotices.Notice.WebNotUsed
+                                .takeIf { relayWebSwitchOn && deliveredFragment == null },
+                        )
                     }
                 }
                 conversationRepository.refreshCost(conversation.id)
@@ -1244,6 +1287,25 @@ class ChatRepository(
         } catch (_: Exception) {
             // The next identical 404 / 415 switches again.
         }
+    }
+
+    /** The resend without the web fragment succeeded: a failed write-back does not affect the delivered message. */
+    private fun recordRelayWebRejected(
+        provider: Provider,
+        model: AIModel?,
+        transport: RelayTransport,
+        fragment: kotlinx.serialization.json.JsonObject?,
+    ) {
+        if (provider.kind != ProviderKind.Relay || model == null || fragment == null) return
+        relayWebProbeRecords.record(
+            ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore.Key(provider.id, model.id, transport.value),
+            ai.oriveo.community.core.provider.relay.RelayWebProbeRecord(
+                result = ai.oriveo.community.core.provider.relay.RelayWebProbeResult.Rejected,
+                source = ai.oriveo.community.core.provider.relay.RelayWebProbeSource.Tested,
+                at = relayWebProbeRecords.now(),
+                fragmentHash = ai.oriveo.community.core.provider.relay.RelayWebProbe.fragmentHash(fragment),
+            ),
+        )
     }
 
     /** A failed write-back does not affect the delivered message. */

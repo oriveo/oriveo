@@ -30,6 +30,15 @@ enum class RelayWebProbeResult(val wire: String) {
     Undetermined("undetermined"),
 }
 
+/**
+ * Where the fragment used by a web probe comes from (fixture panelCases `webSource`):
+ * [Saved] = the fragment stored for the first-send protocol, [Template] = that protocol's built-in template (probed temporarily, not saved).
+ */
+enum class RelayWebSource(val wire: String) {
+    Saved("saved"),
+    Template("template"),
+}
+
 /** Record source: derived by a probe (tested) or observed in a real chat (observed). */
 enum class RelayWebProbeSource(val wire: String) {
     Tested("tested"),
@@ -43,7 +52,7 @@ data class RelayWebProbeEvidence(val searched: Boolean, val urls: List<String>) 
     }
 }
 
-/** The response after the probe request is read in full, together with the evidence decoded by the production parser for that protocol (decoded only on 2xx). */
+/** The response of a probe request (a 2xx stream stops reading as soon as evidence or an error frame appears; anything else is read in full), together with the evidence decoded by the production parser for that protocol (decoded only on 2xx). */
 data class RelayWebProbeReply(val response: RelayCapabilityTestResponse.Http, val evidence: RelayWebProbeEvidence)
 
 sealed interface RelayWebProbeOutcome {
@@ -63,6 +72,8 @@ sealed interface RelayWebProbeOutcome {
         val at: Long,
         val written: Boolean = false,
         val overrideWritten: Boolean = false,
+        /** Where the fragment of this probe came from; a template probe writes only the record, not the override. */
+        val source: RelayWebSource = RelayWebSource.Saved,
     ) : RelayWebProbeOutcome
 
     /** Re-check failed after sending and before write-back (model gone / connection / first-send protocol / fragment changed): neither the record nor the override is written. */
@@ -135,23 +146,73 @@ object RelayWebProbe {
 
     /** Feed the response to this protocol's production parser event by event; a non-SSE 2xx body counts as one event. */
     internal fun evidence(body: String, contentType: String?, strategy: TransportStrategy, shape: StreamShape?): RelayWebProbeEvidence {
-        val chunks = if (contentType.orEmpty().lowercase().contains("text/event-stream")) {
-            body.lineSequence()
-                .map { it.trimEnd('\r') }
-                .filter { it.startsWith("data:") }
-                .map { it.removePrefix("data:").trim() }
-                .filter { it.isNotEmpty() && it != "[DONE]" }
-                .toList()
-        } else {
-            listOf(body)
+        val scan = EvidenceScan(strategy, shape)
+        if (isEventStream(contentType)) body.lineSequence().forEach(scan::feedLine) else scan.feedEvent(body)
+        return scan.evidence
+    }
+
+    internal fun isEventStream(contentType: String?): Boolean = contentType.orEmpty().lowercase().contains("text/event-stream")
+
+    /**
+     * The status code and evidence received so far during a probe: a streaming 2xx writes as it receives; if the overall deadline hits after evidence appeared -> still judged searched.
+     */
+    class Progress {
+        @Volatile var status: Int? = null
+        @Volatile var evidence: RelayWebProbeEvidence = RelayWebProbeEvidence.None
+    }
+
+    /**
+     * Judging while receiving (fixture `earlyStopCases`): SSE lines are fed one by one to this protocol's production parser (parseCitations / parseSearchRan).
+     * As soon as evidence appears (the search ran, or the first citation URL) the verdict is fixed as searched; [feedLine] returning true = no need to read further: a citation URL is already in hand,
+     * or an error frame came before any evidence. If only "search ran" is seen, reading continues until the first citation URL, the end of the stream or the overall deadline (a deadline still yields searched, see [run]),
+     * and citation URLs are collected per evidenceCases.
+     */
+    internal class EvidenceScan(
+        private val strategy: TransportStrategy,
+        private val shape: StreamShape?,
+        private val progress: Progress? = null,
+    ) {
+        private var ran = false
+        private val urls = LinkedHashSet<String>()
+
+        val evidence: RelayWebProbeEvidence
+            get() = RelayWebProbeEvidence(searched = ran || urls.isNotEmpty(), urls = urls.toList())
+
+        fun feedLine(line: String): Boolean {
+            val trimmed = line.trimEnd('\r')
+            if (!trimmed.startsWith("data:")) return false
+            val data = trimmed.removePrefix("data:").trim()
+            if (data.isEmpty() || data == "[DONE]") return false
+            if (!evidence.searched && RelayCapabilityTest.sseHasErrorEvent("data: $data")) return true
+            feedEvent(data)
+            return urls.isNotEmpty()
         }
-        var ran = false
-        val urls = LinkedHashSet<String>()
-        chunks.forEach { chunk ->
-            strategy.parseCitations(chunk, shape).forEach { citation -> citation.url.trim().takeIf { it.isNotEmpty() }?.let(urls::add) }
-            if (strategy.parseSearchRan(chunk)) ran = true
+
+        fun feedEvent(event: String) {
+            strategy.parseCitations(event, shape).forEach { citation -> citation.url.trim().takeIf { it.isNotEmpty() }?.let(urls::add) }
+            if (strategy.parseSearchRan(event)) ran = true
+            progress?.evidence = evidence
         }
-        return RelayWebProbeEvidence(searched = ran || urls.isNotEmpty(), urls = urls.toList())
+    }
+
+    /** Server-class errors: they cannot show that "this model does not support web search", so the probe yields undetermined (server) and writes no record. */
+    private val SERVER_ERROR_TYPES = setOf("overloaded_error", "api_error", "server_error", "rate_limit_error")
+
+    /**
+     * Whether the first error frame before any output / evidence is server-class (error.type, see [SERVER_ERROR_TYPES]); the others (invalid_request_error,
+     * an untyped `{"error":…}`, response.failed) are not, and still count as a rejection. Used only by web probes; the three capability test items still use [RelayCapabilityTest.classify].
+     */
+    private fun sseFirstErrorIsServerSide(body: String): Boolean {
+        val error = body.lineSequence()
+            .map { it.trimEnd('\r') }
+            .filter { it.startsWith("data:") }
+            .map { it.removePrefix("data:").trim() }
+            .filter { it.isNotEmpty() && it != "[DONE]" }
+            .firstOrNull { RelayCapabilityTest.sseHasErrorEvent("data: $it") }
+            ?: return false
+        val event = runCatching { kotlinx.serialization.json.Json.parseToJsonElement(error) as? JsonObject }.getOrNull() ?: return false
+        val type = ((event["error"] as? JsonObject)?.get("type") as? JsonPrimitive)?.takeIf { it.isString }?.content
+        return type in SERVER_ERROR_TYPES
     }
 
     private sealed interface Sent {
@@ -161,13 +222,15 @@ object RelayWebProbe {
     }
 
     /**
-     * Run one probe (no write): [fragment] null = not listed, zero requests. [send] reads the full body and decodes evidence;
+     * Run one probe (no write): [fragment] null = not listed, zero requests. [send] sends the request and decodes evidence (a stream stops and cancels the request once evidence appears);
      * beyond [deadlineMillis] counts as timeout, a thrown error (except cancellation) counts as a network error; [now] supplies the record time.
      */
     suspend fun run(
         fragment: JsonObject?,
         deadlineMillis: Long = TIMEOUT_MILLIS,
         now: () -> Long = { System.currentTimeMillis() },
+        /** Progress that [send] writes as it receives: a deadline that hits after evidence appeared -> searched. */
+        progress: Progress = Progress(),
         send: suspend () -> RelayWebProbeReply,
     ): RelayWebProbeOutcome {
         if (fragment == null) return RelayWebProbeOutcome.NotListed
@@ -183,10 +246,18 @@ object RelayWebProbe {
             RelayWebProbeOutcome.Completed(result, reason, status, urls, hash, now())
         return when (sent) {
             Sent.Network -> outcome(RelayWebProbeResult.Undetermined, RelayCapabilityTestReason.Network, null)
-            Sent.Timeout -> outcome(RelayWebProbeResult.Undetermined, RelayCapabilityTestReason.Timeout, null)
+            Sent.Timeout -> progress.evidence.takeIf { it.searched }?.let { evidence ->
+                outcome(RelayWebProbeResult.Searched, RelayCapabilityTestReason.Ok, progress.status, evidence.urls)
+            } ?: outcome(RelayWebProbeResult.Undetermined, RelayCapabilityTestReason.Timeout, null)
             is Sent.Reply -> {
                 val http = sent.reply.response
                 val classified = RelayCapabilityTest.classify(http.status, http.contentType, http.body)
+                // An error frame in a 2xx stream before output / evidence (classified as rejected) is split further by error.type.
+                if (classified.verdict == RelayCapabilityVerdict.Rejected && http.status in 200..299 &&
+                    isEventStream(http.contentType) && !sent.reply.evidence.searched && sseFirstErrorIsServerSide(http.body)
+                ) {
+                    return outcome(RelayWebProbeResult.Undetermined, RelayCapabilityTestReason.Server, http.status)
+                }
                 when (classified.verdict) {
                     RelayCapabilityVerdict.Rejected -> outcome(RelayWebProbeResult.Rejected, classified.reason, http.status)
                     // classify never yields notObserved (that is the evidence step of capability testing), so treat it as undetermined.
@@ -194,12 +265,12 @@ object RelayWebProbe {
                     RelayCapabilityVerdict.Searched, RelayCapabilityVerdict.Silent,
                     -> outcome(RelayWebProbeResult.Undetermined, classified.reason, http.status)
                     RelayCapabilityVerdict.Accepted -> when {
-                        // An error frame after output has started is not a rejection: undetermined, write nothing.
-                        http.contentType.orEmpty().lowercase().contains("text/event-stream") &&
-                            RelayCapabilityTest.sseHasErrorEvent(http.body) ->
-                            outcome(RelayWebProbeResult.Undetermined, RelayCapabilityTestReason.Server, http.status)
+                        // Once evidence has appeared the verdict is fixed: later error frames do not change it.
                         sent.reply.evidence.searched ->
                             outcome(RelayWebProbeResult.Searched, RelayCapabilityTestReason.Ok, http.status, sent.reply.evidence.urls)
+                        // An error frame after output started but before evidence is not a rejection: undetermined, write nothing.
+                        isEventStream(http.contentType) && RelayCapabilityTest.sseHasErrorEvent(http.body) ->
+                            outcome(RelayWebProbeResult.Undetermined, RelayCapabilityTestReason.Server, http.status)
                         else -> outcome(RelayWebProbeResult.Silent, RelayCapabilityTestReason.Ok, http.status)
                     }
                 }
@@ -309,15 +380,6 @@ class RelayWebProbeRecordStore(
     /** The probe result of this connection x model x protocol under this fragment; untested or a stale hash means null. */
     fun currentResult(connectionId: String, modelId: String, transport: String, fragment: JsonObject): RelayWebProbeResult? =
         current(Key(connectionId, modelId, transport), RelayWebProbe.fragmentHash(fragment))?.result
-
-    /**
-     * The fragment chat actually attaches: protocols recorded as rejected under the current fragment are dropped, the rest (silent / untested / stale hash) are attached as usual.
-     * The panel's sendsFragment goes through the same function as chat.
-     */
-    fun sendable(connectionId: String, modelId: String, fragments: Map<String, JsonObject>): Map<String, JsonObject> =
-        fragments.filter { (transport, fragment) ->
-            currentResult(connectionId, modelId, transport, fragment) != RelayWebProbeResult.Rejected
-        }
 
     @Synchronized
     fun clearConnection(connectionId: String) {

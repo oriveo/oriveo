@@ -70,6 +70,7 @@ import io.ktor.http.isSuccess
 import io.ktor.utils.io.availableForRead
 import io.ktor.utils.io.jvm.javaio.toInputStream
 import io.ktor.utils.io.peek
+import io.ktor.utils.io.readUTF8Line
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -343,14 +344,78 @@ internal class RelayTransportCoordinator(
         )
         val current = resolveTransport(routed)
         try {
-            return dispatchSend(request)
+            return dispatchSendDroppingRejectedWeb(request)
         } catch (error: ProviderServiceError) {
             val next = nextProtocol(request, current, error, outputStarted = false) ?: throw error
             request.requestOptions.relayProtocolSwitchStarted?.invoke(next)
             // The failure reports the second attempt's error, so the second attempt throws straight out.
-            val done = dispatchSend(request.switchedTo(next))
+            val done = dispatchSendDroppingRejectedWeb(request.switchedTo(next))
             request.requestOptions.relayProtocolSwitched?.invoke(next)
             return done
+        }
+    }
+
+    /**
+     * Resend without the web fragment when it is rejected (fixture `web-probe.v1.json` chatCases): this attempt carried the web fragment of its protocol and received
+     * 400 / 422 before any output, and the rejection is neither route-level (that goes to protocol fallback) nor model_access_denied (never resent)
+     * -> resend once on the same protocol without the fragment. A successful resend calls back [ChatRequestOptions.relayWebFragmentDropped]; if the resend also fails, the original error is reported.
+     */
+    private fun webFragmentRetry(
+        request: RelayTransportRequest,
+        error: ProviderServiceError,
+        outputStarted: Boolean,
+    ): RelayTransportRequest? {
+        if (outputStarted) return null
+        val transport = resolveTransport(request.requestOptions)
+        if (request.requestOptions.relayWebFragments[transport.value] == null) return null
+        if (RelayKeyAccess.isModelAccessDenied(error) || RelayProtocolFallback.isRouteRejection(error)) return null
+        val status = when (error) {
+            is ProviderServiceError.Upstream -> error.statusCode.takeUnless { error.streamErrorFrame }
+            is ProviderServiceError.RelayUpstream -> error.statusCode
+            else -> null
+        } ?: return null
+        if (status != 400 && status != 422) return null
+        return request.copy(
+            webSearchEnabled = false,
+            requestOptions = request.requestOptions.copy(
+                relayWebFragments = request.requestOptions.relayWebFragments - transport.value,
+            ),
+        )
+    }
+
+    private suspend fun dispatchSendDroppingRejectedWeb(request: RelayTransportRequest): StreamEvent.Done =
+        try {
+            dispatchSend(request)
+        } catch (error: ProviderServiceError) {
+            val retry = webFragmentRetry(request, error, outputStarted = false) ?: throw error
+            val done = try {
+                dispatchSend(retry)
+            } catch (_: ProviderServiceError) {
+                throw error
+            }
+            request.requestOptions.relayWebFragmentDropped?.invoke(resolveTransport(request.requestOptions))
+            done
+        }
+
+    private fun dispatchStreamDroppingRejectedWeb(request: RelayTransportRequest): Flow<StreamEvent> = flow {
+        var emitted = false
+        try {
+            dispatchStream(request).collect {
+                emitted = true
+                emit(it)
+            }
+        } catch (error: ProviderServiceError) {
+            val retry = webFragmentRetry(request, error, outputStarted = emitted) ?: throw error
+            var retryEmitted = false
+            try {
+                dispatchStream(retry).collect {
+                    retryEmitted = true
+                    emit(it)
+                }
+            } catch (retryError: ProviderServiceError) {
+                throw if (retryEmitted) retryError else error
+            }
+            request.requestOptions.relayWebFragmentDropped?.invoke(resolveTransport(request.requestOptions))
         }
     }
 
@@ -503,6 +568,10 @@ internal class RelayTransportCoordinator(
     private fun RelayTransportRequest.switchedTo(transport: RelayTransport): RelayTransportRequest {
         val probeModel = (requestOptions.activeModel ?: AIModel(id = modelID, name = modelID)).copy(relayTransport = transport)
         return copy(
+            // A relay chat's "web this round" follows whether this attempt carries the target protocol's fragment; callers that injected no fragments keep their original intent.
+            webSearchEnabled = requestOptions.relayWebFragments.takeIf { it.isNotEmpty() }
+                ?.let { it[transport.value] != null }
+                ?: webSearchEnabled,
             requestOptions = requestOptions.copy(
                 relayRouteTransport = transport,
                 relayRouteAPIRoot = RelayEndpointResolver.effectiveAPIRoot(requestOptions.relayRequested, baseUrl, probeModel),
@@ -626,7 +695,7 @@ internal class RelayTransportCoordinator(
         return flow {
             var emitted = false
             try {
-                dispatchStream(request).collect {
+                dispatchStreamDroppingRejectedWeb(request).collect {
                     emitted = true
                     emit(it)
                 }
@@ -634,7 +703,7 @@ internal class RelayTransportCoordinator(
             } catch (error: ProviderServiceError) {
                 val next = nextProtocol(request, current, error, outputStarted = emitted) ?: throw error
                 request.requestOptions.relayProtocolSwitchStarted?.invoke(next)
-                emitAll(dispatchStream(request.switchedTo(next)))
+                emitAll(dispatchStreamDroppingRejectedWeb(request.switchedTo(next)))
                 request.requestOptions.relayProtocolSwitched?.invoke(next)
             }
         }
@@ -960,28 +1029,44 @@ internal class RelayTransportCoordinator(
         baseUrl: String?,
         requestOptions: ChatRequestOptions,
         extras: RelayChatBuildExtras,
+        progress: RelayWebProbe.Progress? = null,
     ): RelayWebProbeReply {
         validateChatRequest(apiKey, modelID, requestOptions)
         val routed = routed(requestOptions, baseUrl)
         val wire = buildRelayChatStreamRequest(apiKey, modelID, messages, baseUrl, ReasoningMode.Automatic, routed, extras)
-        val response = client.preparePost(wire.url) {
+        return client.preparePost(wire.url) {
             applyRelayHeaders(apiKey, routed, wire.transport)
             contentType(ContentType.Application.Json)
             setBody(wire.body)
         }.execute { response ->
-            RelayCapabilityTestResponse.Http(
-                status = response.status.value,
-                contentType = response.contentType()?.toString(),
-                body = response.bodyAsText(),
-            )
-        }
-        val evidence = if (response.status in 200..299) {
+            val status = response.status.value
+            val contentType = response.contentType()?.toString()
+            if (status !in 200..299) {
+                return@execute RelayWebProbeReply(
+                    RelayCapabilityTestResponse.Http(status, contentType, response.bodyAsText()),
+                    RelayWebProbeEvidence.None,
+                )
+            }
             val context = resolveCitationContext(routed, wire.transport)
-            RelayWebProbe.evidence(response.body, response.contentType, context.strategy, context.shape)
-        } else {
-            RelayWebProbeEvidence.None
+            if (!RelayWebProbe.isEventStream(contentType)) {
+                val body = response.bodyAsText()
+                return@execute RelayWebProbeReply(
+                    RelayCapabilityTestResponse.Http(status, contentType, body),
+                    RelayWebProbe.evidence(body, contentType, context.strategy, context.shape),
+                )
+            }
+            // Judge while receiving: feed lines to this protocol's production parser and stop reading at a citation URL (or an error frame before evidence); leaving execute cancels the request.
+            progress?.status = status
+            val scan = RelayWebProbe.EvidenceScan(context.strategy, context.shape, progress)
+            val channel = response.bodyAsChannel()
+            val body = StringBuilder()
+            while (true) {
+                val line = channel.readUTF8Line() ?: break
+                body.append(line).append('\n')
+                if (scan.feedLine(line)) break
+            }
+            RelayWebProbeReply(RelayCapabilityTestResponse.Http(status, contentType, body.toString()), scan.evidence)
         }
-        return RelayWebProbeReply(response, evidence)
     }
 
     private suspend fun requireSuccessfulRelayPing(
