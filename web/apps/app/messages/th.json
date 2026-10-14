@@ -1238,7 +1238,21 @@
       "relativeJustNow": "แค่ตอนนี้",
       "relativeMinutesAgo": "{count} นาทีที่แล้ว",
       "relativeHoursAgo": "{count} ชม. ที่แล้ว",
-      "relativeYesterday": "เมื่อวาน"
+      "relativeYesterday": "เมื่อวาน",
+      "changeIcon": "เปลี่ยนไอคอน",
+      "avatarLetter": "ตัวอักษร",
+      "avatarIcons": {
+        "planet": "ดาวเคราะห์",
+        "compass": "เข็มทิศ",
+        "sailboat": "เรือใบ",
+        "lighthouse": "ประภาคาร",
+        "mountains": "ภูเขา",
+        "sunHorizon": "พระอาทิตย์ขึ้น",
+        "flame": "เปลวไฟ",
+        "treeEvergreen": "ต้นสน",
+        "moonStars": "จันทร์และดาว",
+        "butterfly": "ผีเสื้อ"
+      }
     },
     "providerDetail": {
       "notFound": "ไม่พบผู้ให้บริการ",

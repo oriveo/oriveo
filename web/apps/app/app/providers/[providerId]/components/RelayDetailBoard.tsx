@@ -22,7 +22,7 @@ import {
 } from '@phosphor-icons/react';
 import { formatCompactRelativeTime } from '../../../../lib/utils/format-utils';
 import { ProtocolDot } from '../../relay/new/setup-board-parts';
-import { RelayAvatar } from '../../../../components/RelayAvatar';
+import { RelayAvatarPickerButton } from '../../../../components/RelayAvatarPicker';
 import {
   RELAY_DETAIL_TEXT,
   relayDetailRowIconColorToken,
@@ -219,11 +219,17 @@ export function RelayDetailBoard({
   return (
     <div className={styles.board} data-form={board.form}>
       <header className={styles.header}>
-        <span className={styles.headerIcon} aria-hidden="true">
-          {board.avatar
-            ? <RelayAvatar avatar={board.avatar} size={40} />
-            : <HardDrivesIcon size={40} weight="duotone" />}
-        </span>
+        {board.avatarSource
+          ? (
+            <span className={styles.headerIcon}>
+              <RelayAvatarPickerButton source={board.avatarSource} size={40} />
+            </span>
+          )
+          : (
+            <span className={styles.headerIcon} aria-hidden="true">
+              <HardDrivesIcon size={40} weight="duotone" />
+            </span>
+          )}
         <div className={styles.headerIdentity}>
           <div className={styles.headerName}>{nameSlot}</div>
           <p className={styles.statusLine}>

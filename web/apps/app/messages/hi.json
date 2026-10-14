@@ -1238,7 +1238,21 @@
       "relativeJustNow": "बस अब",
       "relativeMinutesAgo": "{count} मिनट पहले",
       "relativeHoursAgo": "{count} घंटा पहले",
-      "relativeYesterday": "कल"
+      "relativeYesterday": "कल",
+      "changeIcon": "आइकन बदलें",
+      "avatarLetter": "अक्षर",
+      "avatarIcons": {
+        "planet": "ग्रह",
+        "compass": "कम्पास",
+        "sailboat": "पाल नाव",
+        "lighthouse": "प्रकाशस्तंभ",
+        "mountains": "पहाड़",
+        "sunHorizon": "सूर्योदय",
+        "flame": "लौ",
+        "treeEvergreen": "देवदार",
+        "moonStars": "चाँद-तारे",
+        "butterfly": "तितली"
+      }
     },
     "providerDetail": {
       "notFound": "प्रोवाइडर नहीं मिला।",

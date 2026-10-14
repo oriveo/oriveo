@@ -4,7 +4,8 @@ import Image from "next/image";
 import type { RelayKind } from "@oriveo/shared";
 import { useIsDarkTheme } from "../lib/hooks/useIsDarkTheme";
 import { resolveOfficialProviderLogo } from "./provider-logo-assets";
-import { resolveRelayAvatar } from "./relay-avatar";
+import { resolveRelayConnectionAvatar } from "./relay-avatar";
+import { useRelayAvatarChoice } from "../lib/hooks/useRelayAvatarChoice";
 import { RelayAvatar, RelayWaypointsIcon } from "./RelayAvatar";
 import styles from "./ProviderIcon.module.css";
 
@@ -20,6 +21,8 @@ interface ProviderIconProps {
    * Relay connections no longer draw a logo by protocol type.
    */
   relayKind?: RelayKind;
+  /** Relay connection id (from relayIconSource): the key for the default icon and the on-device avatar choice; when absent only the base layer applies. */
+  providerId?: string;
   /** Relay display name: relay connections resolve the unified avatar from it plus the address (relay-avatar.ts). */
   providerName?: string;
   /** Relay address: relay connections match a brand by its host. */
@@ -92,6 +95,7 @@ export function ProviderIcon({
   size = 40,
   bare = false,
   relayKind,
+  providerId,
   providerName,
   baseURLText,
   modelHints,
@@ -100,11 +104,13 @@ export function ProviderIcon({
 }: ProviderIconProps) {
   const systemDark = useIsDark();
   const isDark = forceDark ?? systemDark;
-  // Relay connections: one shared resolver in all five places, looking only at the name and the address.
-  if (kind === 'relay' && !localEngine) {
+  const isRelayAvatar = kind === 'relay' && !localEngine;
+  const avatarChoice = useRelayAvatarChoice(isRelayAvatar ? providerId : undefined);
+  // Relay connections: one shared resolver everywhere, looking only at the connection id, name, address and on-device choice.
+  if (isRelayAvatar) {
     return (
       <RelayAvatar
-        avatar={resolveRelayAvatar({ name: providerName, baseURL: baseURLText })}
+        avatar={resolveRelayConnectionAvatar({ providerId, name: providerName, baseURL: baseURLText, choice: avatarChoice })}
         size={size}
         forceDark={forceDark}
       />

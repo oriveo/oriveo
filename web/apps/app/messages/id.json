@@ -1238,7 +1238,21 @@
       "relativeJustNow": "Baru saja",
       "relativeMinutesAgo": "{count} menit yang lalu",
       "relativeHoursAgo": "{count} jam yang lalu",
-      "relativeYesterday": "Kemarin"
+      "relativeYesterday": "Kemarin",
+      "changeIcon": "Ubah ikon",
+      "avatarLetter": "Huruf",
+      "avatarIcons": {
+        "planet": "Planet",
+        "compass": "Kompas",
+        "sailboat": "Perahu layar",
+        "lighthouse": "Mercusuar",
+        "mountains": "Pegunungan",
+        "sunHorizon": "Matahari terbit",
+        "flame": "Nyala api",
+        "treeEvergreen": "Pohon pinus",
+        "moonStars": "Bulan & bintang",
+        "butterfly": "Kupu-kupu"
+      }
     },
     "providerDetail": {
       "notFound": "Penyedia tidak ditemukan.",

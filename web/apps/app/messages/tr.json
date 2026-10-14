@@ -1238,7 +1238,21 @@
       "relativeJustNow": "Şu anda",
       "relativeMinutesAgo": "{count} dakika önce",
       "relativeHoursAgo": "{count} saat önce",
-      "relativeYesterday": "Dün"
+      "relativeYesterday": "Dün",
+      "changeIcon": "Simgeyi değiştir",
+      "avatarLetter": "Harf",
+      "avatarIcons": {
+        "planet": "Gezegen",
+        "compass": "Pusula",
+        "sailboat": "Yelkenli",
+        "lighthouse": "Deniz feneri",
+        "mountains": "Dağlar",
+        "sunHorizon": "Gün doğumu",
+        "flame": "Alev",
+        "treeEvergreen": "Çam",
+        "moonStars": "Ay ve yıldızlar",
+        "butterfly": "Kelebek"
+      }
     },
     "providerDetail": {
       "notFound": "Sağlayıcı bulunamadı.",

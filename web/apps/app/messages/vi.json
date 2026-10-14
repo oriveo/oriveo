@@ -1238,7 +1238,21 @@
       "relativeJustNow": "Vừa rồi",
       "relativeMinutesAgo": "{count} phút trước",
       "relativeHoursAgo": "{count} giờ trước",
-      "relativeYesterday": "Hôm qua"
+      "relativeYesterday": "Hôm qua",
+      "changeIcon": "Đổi biểu tượng",
+      "avatarLetter": "Chữ cái",
+      "avatarIcons": {
+        "planet": "Hành tinh",
+        "compass": "La bàn",
+        "sailboat": "Thuyền buồm",
+        "lighthouse": "Hải đăng",
+        "mountains": "Núi non",
+        "sunHorizon": "Bình minh",
+        "flame": "Ngọn lửa",
+        "treeEvergreen": "Cây thông",
+        "moonStars": "Trăng sao",
+        "butterfly": "Bướm"
+      }
     },
     "providerDetail": {
       "notFound": "Không tìm thấy nhà cung cấp.",

@@ -29,6 +29,7 @@ import {
   valueOverride,
 } from '../chat/generation-parameter-settings';
 import { createProviderSelectionSnapshot } from '../providers/provider-selection-snapshot';
+import { getRelayAvatarChoice, setRelayAvatarChoice } from '../providers/relay-avatar-choices';
 import {
   beginCapabilityEvidenceIdentityIfAbsent,
   readCapabilityEvidenceIdentity,
@@ -1037,6 +1038,17 @@ describe('provider-ops', () => {
     recordToolCallSupportFalse(identity);
     updateProviderBaseURL(store, current, 'https://new.example.com/v1');
     expect(toolCallSupportIsRememberedFalse(identity)).toBe(false);
+  });
+
+  it('RELAY-AVATAR-STORE-03 deleting a connection clears its on-device avatar choice and leaves other connections alone', async () => {
+    store.getState().addProvider(baseProvider);
+    setRelayAvatarChoice('p1', 'flame');
+    setRelayAvatarChoice('p2', 'planet');
+
+    await expect(deleteProvider(store, 'p1')).resolves.toBe(true);
+
+    expect(getRelayAvatarChoice('p1')).toBeUndefined();
+    expect(getRelayAvatarChoice('p2')).toBe('planet');
   });
 
   it('deleting a provider does not delete existing conversations; history stays in the store until the model-unavailable marker consumes it', async () => {

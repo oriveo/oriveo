@@ -1238,7 +1238,21 @@
       "relativeJustNow": "刚刚",
       "relativeMinutesAgo": "{count} 分钟前",
       "relativeHoursAgo": "{count} 小时前",
-      "relativeYesterday": "昨天"
+      "relativeYesterday": "昨天",
+      "changeIcon": "更换图标",
+      "avatarLetter": "首字母",
+      "avatarIcons": {
+        "planet": "星球",
+        "compass": "罗盘",
+        "sailboat": "帆船",
+        "lighthouse": "灯塔",
+        "mountains": "群山",
+        "sunHorizon": "日出",
+        "flame": "火焰",
+        "treeEvergreen": "松树",
+        "moonStars": "星月",
+        "butterfly": "蝴蝶"
+      }
     },
     "providerDetail": {
       "notFound": "供应商未找到。",

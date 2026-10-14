@@ -1238,7 +1238,21 @@
       "relativeJustNow": "À l'instant",
       "relativeMinutesAgo": "Il y a {count} min",
       "relativeHoursAgo": "Il y a {count} h",
-      "relativeYesterday": "Hier"
+      "relativeYesterday": "Hier",
+      "changeIcon": "Changer l’icône",
+      "avatarLetter": "Lettre",
+      "avatarIcons": {
+        "planet": "Planète",
+        "compass": "Boussole",
+        "sailboat": "Voilier",
+        "lighthouse": "Phare",
+        "mountains": "Montagnes",
+        "sunHorizon": "Lever du soleil",
+        "flame": "Flamme",
+        "treeEvergreen": "Sapin",
+        "moonStars": "Lune et étoiles",
+        "butterfly": "Papillon"
+      }
     },
     "providerDetail": {
       "notFound": "Fournisseur introuvable.",

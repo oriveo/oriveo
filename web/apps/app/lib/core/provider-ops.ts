@@ -43,6 +43,7 @@ import { serializeProviderSyncMutation } from './providers/provider-sync-serial'
 import { removeGenerationParameterScopes } from './chat/generation-parameter-settings';
 import { removeAdditionalBodyScopes } from './chat/additional-body-settings';
 import { deleteAllCapabilityPreferencesForConnection } from './chat/capability-preference-settings';
+import { clearRelayAvatarChoice } from './providers/relay-avatar-choices';
 import {
   clearCapabilityRejectionsForConnection,
   clearToolCallMemoryForConnection,
@@ -823,6 +824,7 @@ export async function deleteProvider(store: StoreApi<AppStore>, providerId: stri
   clearRelayNegativeCacheConnection(providerId);
   deleteRelayWebFragmentsConnection(providerId);
   clearRelayWebProbeRecordsConnection(providerId);
+  clearRelayAvatarChoice(providerId);
   if (shouldSyncDeletion) void flushPendingProviderDeletions(uid);
   trackEvent('provider_removed', {
     provider_kind: telemetryProviderKind(removed?.kind),

@@ -1238,7 +1238,21 @@
       "relativeJustNow": "たった今",
       "relativeMinutesAgo": "{count}分前",
       "relativeHoursAgo": "{count}時間前",
-      "relativeYesterday": "昨日"
+      "relativeYesterday": "昨日",
+      "changeIcon": "アイコンを変更",
+      "avatarLetter": "頭文字",
+      "avatarIcons": {
+        "planet": "惑星",
+        "compass": "コンパス",
+        "sailboat": "ヨット",
+        "lighthouse": "灯台",
+        "mountains": "山並み",
+        "sunHorizon": "日の出",
+        "flame": "炎",
+        "treeEvergreen": "モミの木",
+        "moonStars": "月と星",
+        "butterfly": "蝶"
+      }
     },
     "providerDetail": {
       "notFound": "プロバイダーが見つかりません。",

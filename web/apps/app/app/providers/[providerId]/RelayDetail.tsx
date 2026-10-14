@@ -82,7 +82,7 @@ import {
   useRelayLazyProbeStates,
 } from '../../../lib/core/relay-model-probe-ops';
 import { refreshRelayCatalogInStore } from '../../../lib/core/providers/provider-sync';
-import { RelayAvatar } from '../../../components/RelayAvatar';
+import { RelayAvatarPickerButton } from '../../../components/RelayAvatarPicker';
 import { relayShotSeed } from '../../../lib/dev/relay-shots-mode';
 import { ModelBrowser } from './ModelBrowser';
 import { ProviderDetailNoticeView, useProviderDetailNotice } from './provider-detail-notice';
@@ -1013,11 +1013,17 @@ export function RelayDetail({ provider }: RelayDetailProps) {
       {/* Page header: avatar + "Model Library" + "host - N models (- K keys)" + refresh catalog */}
       <div className={styles.header} data-library-header>
         <BackButton className={styles.backBtn} label={tc('back')} onClick={navigateBack} />
-        <span className={boardStyles.headerIcon} aria-hidden="true">
-          {header.avatar
-            ? <RelayAvatar avatar={header.avatar} size={32} />
-            : <HardDrivesIcon size={32} weight="duotone" />}
-        </span>
+        {header.avatarSource
+          ? (
+            <span className={boardStyles.headerIcon}>
+              <RelayAvatarPickerButton source={header.avatarSource} size={32} />
+            </span>
+          )
+          : (
+            <span className={boardStyles.headerIcon} aria-hidden="true">
+              <HardDrivesIcon size={32} weight="duotone" />
+            </span>
+          )}
         <div className={boardStyles.headerIdentity}>
           <h1 className={styles.title}>{tRoot(RELAY_DETAIL_TEXT.modelLibrary)}</h1>
           <p className={`${boardStyles.statusLine} ${boardStyles.twoLineClamp}`} data-library-subtitle>

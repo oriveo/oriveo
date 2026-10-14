@@ -5,7 +5,13 @@ import { relayProviderRequiresCredential } from '../../../lib/core/providers/rel
 import { resolveRelayFallbackModel } from '../../../lib/core/providers/provider-selection-snapshot';
 import { relayModelKey } from '../../../lib/core/providers/relay-model-identity';
 import { relayKeyRows, relayShowsKeyUI } from '@oriveo/shared/relay/relay-keys';
-import { relayAvatarName, resolveRelayAvatar, type RelayAvatar } from '../../../components/relay-avatar';
+import {
+  relayAvatarSource,
+  resolveRelayConnectionAvatar,
+  type RelayAvatar,
+  type RelayAvatarSource,
+} from '../../../components/relay-avatar';
+import { getRelayAvatarChoice } from '../../../lib/core/providers/relay-avatar-choices';
 import {
   relayKeyCatalogText,
   relayKeyStatusKey,
@@ -126,6 +132,8 @@ export interface RelayDetailBoard {
   form: 'relay' | 'local';
   /** Relay avatar (unified resolver); null for local connections, which do not use it. */
   avatar: RelayAvatar | null;
+  /** Input for the avatar button (change-icon sheet); null for local connections. The render layer subscribes to the on-device choice through it and refreshes right away. */
+  avatarSource: RelayAvatarSource | null;
   /** Enabled ∪ catalog, de-duplicated. */
   modelCount: number;
   checkedAt?: string;
@@ -269,6 +277,7 @@ export function relayDetailBoard(
       ...base,
       form: 'local',
       avatar: null,
+      avatarSource: null,
       footnoteKey: footnoteSelected,
       connectionRows: [
         // The address row is always tappable and opens Edit Connection (provisional); the engine can only be re-detected and is not tappable.
@@ -309,7 +318,8 @@ export function relayDetailBoard(
   return {
     ...base,
     form: 'relay',
-    avatar: resolveRelayAvatar({ name: relayAvatarName(provider), baseURL: provider.baseURLText }),
+    avatar: resolveRelayConnectionAvatar({ ...relayAvatarSource(provider), choice: getRelayAvatarChoice(provider.id) }),
+    avatarSource: relayAvatarSource(provider),
     footnoteKey: isAuto ? 'pages.relayDetail.detectFootnote' : footnoteSelected,
     connectionRows: [
       // The request URL row and the default protocol row share the same destination (provisional).

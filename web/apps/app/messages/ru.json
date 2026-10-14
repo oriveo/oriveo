@@ -1238,7 +1238,21 @@
       "relativeJustNow": "Прямо сейчас",
       "relativeMinutesAgo": "{count} минуту назад",
       "relativeHoursAgo": "{count} час назад",
-      "relativeYesterday": "Вчера"
+      "relativeYesterday": "Вчера",
+      "changeIcon": "Сменить значок",
+      "avatarLetter": "Буква",
+      "avatarIcons": {
+        "planet": "Планета",
+        "compass": "Компас",
+        "sailboat": "Парусник",
+        "lighthouse": "Маяк",
+        "mountains": "Горы",
+        "sunHorizon": "Рассвет",
+        "flame": "Пламя",
+        "treeEvergreen": "Ель",
+        "moonStars": "Луна и звёзды",
+        "butterfly": "Бабочка"
+      }
     },
     "providerDetail": {
       "notFound": "Провайдер не найден.",

@@ -1238,7 +1238,21 @@
       "relativeJustNow": "الآن",
       "relativeMinutesAgo": "منذ {count} دقيقة",
       "relativeHoursAgo": "منذ {count} ساعة",
-      "relativeYesterday": "أمس"
+      "relativeYesterday": "أمس",
+      "changeIcon": "تغيير الأيقونة",
+      "avatarLetter": "حرف",
+      "avatarIcons": {
+        "planet": "كوكب",
+        "compass": "بوصلة",
+        "sailboat": "مركب شراعي",
+        "lighthouse": "منارة",
+        "mountains": "جبال",
+        "sunHorizon": "شروق الشمس",
+        "flame": "لهب",
+        "treeEvergreen": "صنوبر",
+        "moonStars": "قمر ونجوم",
+        "butterfly": "فراشة"
+      }
     },
     "providerDetail": {
       "notFound": "المزود غير موجود.",

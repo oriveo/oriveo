@@ -14,7 +14,13 @@ import { bindRelayKey, listingKeysOf, relayKeyIDs, relayKeyList, relayKeyRows, r
 import { relayBindingFamily } from '../../../lib/core/provider-model-ops';
 import type { RelayLazyProbeState } from '../../../lib/core/relay-model-probe-ops';
 import type { RelayCatalogLoadState } from '../../../lib/hooks/useProviderActions';
-import { relayAvatarName, resolveRelayAvatar, type RelayAvatar } from '../../../components/relay-avatar';
+import {
+  relayAvatarSource,
+  resolveRelayConnectionAvatar,
+  type RelayAvatar,
+  type RelayAvatarSource,
+} from '../../../components/relay-avatar';
+import { getRelayAvatarChoice } from '../../../lib/core/providers/relay-avatar-choices';
 import { knownRelayKeyStatusState, relayKeyStatusKey, relayKeyTitle } from './relay-keys-board';
 import { relayKeyCatalogFailureKey } from '../relay/new/relay-setup-two-step';
 import { relayModelKey } from '../../../lib/core/providers/relay-model-identity';
@@ -277,6 +283,8 @@ function lazyStatus(denied: boolean, probe: RelayLazyProbeState | undefined): Re
 export interface RelayCatalogHeader {
   /** Relay avatar (from the resolver function); null for local connections. */
   avatar: RelayAvatar | null;
+  /** Input for the avatar button (change-icon sheet); null for local connections. */
+  avatarSource: RelayAvatarSource | null;
   host: string;
   /** Enabled ∪ catalog, deduplicated. */
   modelCount: number;
@@ -295,10 +303,12 @@ function hostOf(baseURLText: string | null | undefined): string {
 
 export function relayCatalogHeader(provider: Provider): RelayCatalogHeader {
   const keyCount = relayKeyList(provider).length;
+  const avatarSource = provider.relayRequested?.engineProfile ? null : relayAvatarSource(provider);
   return {
-    avatar: provider.relayRequested?.engineProfile
-      ? null
-      : resolveRelayAvatar({ name: relayAvatarName(provider), baseURL: provider.baseURLText }),
+    avatar: avatarSource
+      ? resolveRelayConnectionAvatar({ ...avatarSource, choice: getRelayAvatarChoice(provider.id) })
+      : null,
+    avatarSource,
     host: hostOf(provider.baseURLText),
     modelCount: new Set([...provider.models, ...provider.catalogModels].map((model) => model.id)).size,
     keyCount: keyCount >= 2 ? keyCount : null,
