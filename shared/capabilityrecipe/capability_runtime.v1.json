@@ -488,7 +488,7 @@
       "reviewedAt": "2026-08-11"
     },
     "gemini.interactions.web.v1": {
-      "$comment": "The Interactions API endpoint route. Oriveo's current default is still generateContent, so no model routes to this recipe. It is exercised through the production request builders — the GA /v1/interactions endpoint, its steps/step.delta responses, and replaying a previous interaction — but is never selected.",
+      "$comment": "The Interactions API endpoint route. The default transport is still gemini_generate; this recipe is reached through the web verdict of the gemini_interactions transport, which is only reachable through an administrator transport override. continuationKind is none: store:false with the full Step[] history every turn, no previous_interaction_id. The path is /v1beta: live samples showed /v1 answering 400 for google_search and system_instruction.",
       "id": "gemini.interactions.web.v1",
       "providerKind": "gemini",
       "transport": {
@@ -511,17 +511,17 @@
       "route": {
         "protocol": "gemini_interactions",
         "endpointClass": "interactions",
-        "path": "/v1/interactions",
+        "path": "/v1beta/interactions",
         "requestMapper": "gemini_interactions_v1"
       },
       "responseParserKind": "gemini_google_search_v1",
-      "continuationKind": "previous_id",
+      "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
       "sourceRefs": [
         "gemini.interactions"
       ],
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-10-13"
     },
     "openrouter.chat.web.v1": {
       "$comment": "The current default must be the openrouter:web_search server tool. The older plugins:[{id:web}] form and the model:online variant are both deprecated; this recipe deliberately omits the /plugins request root and never rewrites the model id.",
@@ -1053,6 +1053,64 @@
         "gemini.thinking"
       ],
       "reviewedAt": "2026-08-11"
+    },
+    "gemini.interactions.reasoning.v1": {
+      "$comment": "Thinking shape of the Interactions API (generation_config.thinking_level / thinking_summaries, checked against the official interactions thinking guide on 2026-10-13). Reached only through the reasoning verdict of the gemini_interactions transport. The base op without an intent turns thinking_summaries on (the automatic tier compiles it too); off uses minimal and turns summaries off. Field for field equal to reasoning_recipe in the shared fixture gemini_interactions.request-golden.v1.json.",
+      "id": "gemini.interactions.reasoning.v1",
+      "providerKind": "gemini",
+      "transport": {
+        "protocol": "gemini_interactions",
+        "endpointClass": "interactions",
+        "requiredHeaders": [],
+        "streaming": "optional"
+      },
+      "capability": "reasoning",
+      "executionKind": "request_overlay",
+      "requestOps": [
+        {
+          "op": "set",
+          "pointer": "/generation_config/thinking_summaries",
+          "value": "auto"
+        },
+        {
+          "op": "set",
+          "intent": "off",
+          "pointer": "/generation_config/thinking_level",
+          "value": "minimal"
+        },
+        {
+          "op": "set",
+          "intent": "off",
+          "pointer": "/generation_config/thinking_summaries",
+          "value": "none"
+        },
+        {
+          "op": "set",
+          "intent": "low",
+          "pointer": "/generation_config/thinking_level",
+          "value": "low"
+        },
+        {
+          "op": "set",
+          "intent": "balanced",
+          "pointer": "/generation_config/thinking_level",
+          "value": "medium"
+        },
+        {
+          "op": "set",
+          "intent": "deep",
+          "pointer": "/generation_config/thinking_level",
+          "value": "high"
+        }
+      ],
+      "responseParserKind": "gemini_thinking_v1",
+      "continuationKind": "none",
+      "controlRefs": [],
+      "fallbackPolicy": "remove_auto_patch_once_pre_token",
+      "sourceRefs": [
+        "gemini.interactions"
+      ],
+      "reviewedAt": "2026-10-13"
     },
     "deepseek.chat.reasoning.v1": {
       "$comment": "The switch is thinking.type enabled/disabled (default enabled); the tier is the top-level reasoning_effort ∈ {low, high, max}, default high. medium and xhigh are not invalid — the official docs state 'For compatibility, medium and xhigh are mapped to high', so they are legal but equivalent to high, and are therefore not declared as separate tiers (that would be a fake tier), while also never being rejected as invalid or self-healed away. The mapping table is identical for v4-pro and v4-flash per the official docs ('identical for deepseek-v4-flash and deepseek-v4-pro'), with low→low as its own tier on both models. The official vocabulary has no balanced value, so this recipe declares no balanced op. Reviewed again on 2026-09-24: the thinking_mode guide now uses deepseek-flash (DeepSeek-V4.1-Flash) as its example and no longer carries the 'identical for …' sentence, but it does not split the table by model either; the switch, low/high/max and the medium/xhigh→high mapping are unchanged. The pricing page lists only deepseek-flash and deepseek-v4-pro and notes that the old name deepseek-v4-flash is still accepted and served by V4.1-Flash. The request shape of this recipe needs no change.",

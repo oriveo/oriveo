@@ -81,6 +81,10 @@
       "responseEvidenceRef": "gemini.generate.reasoning",
       "errorRecoveryRef": "gemini.generate.reasoning"
     },
+    "gemini.interactions.reasoning.v1": {
+      "responseEvidenceRef": "gemini.interactions.reasoning",
+      "errorRecoveryRef": "gemini.interactions.reasoning"
+    },
     "deepseek.chat.reasoning.v1": {
       "responseEvidenceRef": "deepseek.chat.reasoning",
       "errorRecoveryRef": "deepseek.chat.reasoning"
@@ -432,6 +436,19 @@
     "gemini.generate.reasoning": {
       "capability": "reasoning",
       "protocol": "gemini_generate_content",
+      "responseParserKind": "gemini_thinking_v1",
+      "signals": [
+        {
+          "kind": "thinking_block",
+          "producerEvent": "reasoning",
+          "pointer": "/content",
+          "nonEmpty": true
+        }
+      ]
+    },
+    "gemini.interactions.reasoning": {
+      "capability": "reasoning",
+      "protocol": "gemini_interactions",
       "responseParserKind": "gemini_thinking_v1",
       "signals": [
         {
