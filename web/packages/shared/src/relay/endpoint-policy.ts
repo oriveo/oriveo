@@ -255,6 +255,8 @@ function parseIPv4(value: string): number[] | null {
 
 function literalHostIPs(hostname: string): string[] {
   const unwrapped = hostname.replace(/^\[|\]$/g, '');
+  // RFC 6761 section 6.3: localhost resolves only to loopback and browsers treat it as a trustworthy origin; classify it as 127.0.0.1.
+  if (unwrapped.toLowerCase() === 'localhost') return ['127.0.0.1'];
   return parseIPv4(unwrapped) || unwrapped.includes(':') ? [unwrapped] : [];
 }
 

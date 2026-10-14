@@ -138,9 +138,14 @@
 .developerRow[data-interactive='true'] { cursor:pointer; }
 /* The forward chevron follows the reading direction, the same rule as .modelControlForwardChevron in the
    popover: an unmirrored `>` means "back" in RTL, while tapping this row navigates inwards. */
-[dir='rtl'] .developerRow svg { transform:scaleX(-1); }
+.developerRowChevron:dir(rtl) { transform:scaleX(-1); }
+.moreChevron:dir(rtl) { transform:scaleX(-1); }
 /* With an arrow the row has three children; the state text must sit next to the arrow instead of being placed in the middle by space-between. */
 .developerRowState { margin-inline-start:auto; color:var(--o-text-tertiary, #9ca3af); font-size:11px; }
+.moreGroup { display:flex; flex-direction:column; gap:10px; padding-bottom:4px; border-top:1px solid var(--o-border, #e5e7eb); }
+.moreChevron { flex-shrink:0; color:var(--o-text-tertiary, #9ca3af); transition:transform 0.15s ease; }
+/* Points down when expanded; RTL points down too, so this overrides the mirroring rule above. */
+.developerRow .moreChevron[data-expanded='true'] { transform:rotate(90deg); }
 .developerExplanation { display:flex; flex-direction:column; gap:6px; padding:9px 11px; border-radius:9px; background:var(--o-bg-subtle, #f3f4f6); }
 /* gap 8: there can be a dozen candidate models and they will wrap, so with hit areas expanded 4px above
    and below the two rows meet without overlapping. */

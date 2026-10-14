@@ -16,7 +16,7 @@ function makeProvider(overrides: Partial<Provider> = {}): Provider {
 }
 
 describe('relaySendTelemetryProperties', () => {
-  it('records the resolved relay URL and protocol while removing URL credentials', () => {
+  it('records the resolved relay URL and the effective protocol while removing URL credentials', () => {
     const provider = makeProvider({
       baseURLText: 'https://configured.example/v1',
       relayResolvedBaseURLText:
@@ -25,10 +25,14 @@ describe('relaySendTelemetryProperties', () => {
       relayRequested: { transport: 'openai_responses', authMode: 'bearer' },
     });
 
+    // The protocol is taken only via effectiveTransport; the connection-level derived value relayResolvedTransport no longer takes part.
     expect(sanitizeProperties(relaySendTelemetryProperties(provider))).toEqual({
       relay_url: 'https://relay.example.com:8443/v1',
-      relay_protocol: 'anthropic_messages',
+      relay_protocol: 'openai_responses',
     });
+    // When a model sets its own protocol, record the model's protocol.
+    expect(relaySendTelemetryProperties(provider, { relayTransport: 'gemini_generate_content' }).relay_protocol)
+      .toBe('gemini_generate_content');
   });
 
   it('maps auto to the concrete runtime default and accepts a URL without scheme', () => {

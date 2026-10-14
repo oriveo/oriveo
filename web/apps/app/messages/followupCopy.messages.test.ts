@@ -7,16 +7,12 @@ import { describe, expect, it } from 'vitest';
 const ENGLISH_LEFTOVERS = [
   'pages.providerSetup.directProvidersSubtitle',
   'pages.providerSetup.kindAlreadyConnected',
-  'pages.relaySetup.saveAndStartChat',
   'pages.relaySetup.importBanner.title',
   'pages.relaySetup.paste.placeholder',
-  'pages.relaySetup.summary.willApplyEmpty',
-  'pages.relaySetup.error.parseFailed',
   'pages.relaySetup.error.unrecognized',
   'pages.relaySetup.error.empty',
   'pages.relaySetup.disableResponseStorage',
   'pages.relayDetail.disableResponseStorage',
-  'pages.relayDetail.modelKindSuggestionDetail',
   'pages.backup.knowledgeReuploadNotice',
   'mobileHome.greeting',
   'mobileHome.subtitle',
@@ -108,12 +104,7 @@ describe('follow-up copy', () => {
     const locales = ['ar', 'de', 'es', 'fr', 'hi', 'id', 'ja', 'ko', 'pt-BR', 'ru', 'th', 'tr', 'vi', 'zh-Hans', 'zh-Hant'];
     const keys = [
       'pages.relayDetail.privacyNote',
-      'pages.relayDetail.confirmKindChangeTitle',
-      'pages.relayDetail.confirmKindChangeDesc',
       'pages.relayDetail.securityModeClearCredentialsWarning',
-      'pages.relayDetail.codexCompatIdentitySubtitle',
-      'pages.relayDetail.webSearchToolHintDefault',
-      'pages.relayDetail.webSearchToolHintLegacy',
       'pages.relayDetail.noModelsHint',
       'pages.relayDetail.addModelsConfirm',
     ];
@@ -134,28 +125,10 @@ describe('follow-up copy', () => {
     const locales = ['ar', 'de', 'es', 'fr', 'hi', 'id', 'ja', 'ko', 'pt-BR', 'ru', 'th', 'tr', 'vi', 'zh-Hans', 'zh-Hant'];
     const keys = [
       'pages.relayDetail.modelsCount',
-      'pages.relayDetail.editCapabilities',
-      'pages.relayDetail.editCapabilitiesTitle',
-      'pages.relayDetail.saveCapabilities',
-      'pages.relayDetail.saveRelaySettings',
-      'pages.relayDetail.reasoningEffort',
       'pages.relayDetail.serviceTier',
-      'pages.relayDetail.customUserAgent',
-      'pages.relayDetail.stream',
       'pages.relayDetail.disableResponseStorage',
-      'pages.relayDetail.codexCompatIdentity',
-      'pages.relayDetail.headers',
-      'pages.relayDetail.queryParams',
-      'pages.relayDetail.addHeader',
-      'pages.relayDetail.removeHeader',
-      'pages.relayDetail.addQueryParam',
-      'pages.relayDetail.removeQueryParam',
       'pages.relayDetail.keyPlaceholder',
       'pages.relayDetail.valuePlaceholder',
-      'pages.relayDetail.modelKindSuggestionDetail',
-      'pages.relayDetail.applySuggestedKind',
-      'pages.relayDetail.keepCurrentKind',
-      'pages.relayDetail.undoKindChange',
     ];
     // "cloud" is a common loanword in de / fr / id and others (in der Cloud / dans le cloud / di cloud), so it is not a
     // leftover; flagging it once pushed translations toward in der Wolke / dans le nuage / di awan.
@@ -176,27 +149,17 @@ describe('follow-up copy', () => {
     const locales = ['ar', 'de', 'es', 'fr', 'hi', 'id', 'ja', 'ko', 'pt-BR', 'ru', 'th', 'tr', 'vi', 'zh-Hans', 'zh-Hant'];
     const keys = [
       'pages.relaySetup.field.model',
-      'pages.relaySetup.field.reasoningEffort',
       'pages.relaySetup.field.serviceTier',
       'pages.relaySetup.field.disableResponseStorage',
-      'pages.relaySetup.field.defaultModel',
       'pages.relaySetup.field.headers',
       'pages.relaySetup.field.queryParams',
       'pages.relaySetup.advanced.title',
       'pages.relaySetup.advanced.stream',
       'pages.relaySetup.advanced.headers',
       'pages.relaySetup.advanced.queryParams',
-      'pages.relaySetup.advanced.reasoningEffort',
       'pages.relaySetup.advanced.serviceTier',
-      'pages.relaySetup.advanced.serviceTierHelp',
       'pages.relaySetup.advanced.disableResponseStorage',
-      'pages.relaySetup.advanced.imageSection',
-      'pages.relaySetup.advanced.imageEnable',
       'pages.relaySetup.advanced.imageRoute',
-      'pages.relaySetup.advanced.imageRouteSameModel',
-      'pages.relaySetup.advanced.imageRouteToolModel',
-      'pages.relaySetup.advanced.imageToolModel',
-      'pages.relaySetup.advanced.imageOutputFormat',
       'pages.relaySetup.advanced.webSearchToolName',
     ];
     const leftover = /\b(Advanced|Extra|Headers|Header|Disable|Enable|Only|Reasoning|Effort|Stream|Query|Params|Storage|forwarded|response|generation|Dedicated|Output|Default|route|tool)\b|\bService\b(?!-)|Usage Insights|Service [Tt]ier|Same model|Web search/;
@@ -216,25 +179,13 @@ describe('follow-up copy', () => {
   it('relay setup import copy is not leftover English', () => {
     const locales = ['ar', 'de', 'es', 'fr', 'hi', 'id', 'ja', 'ko', 'pt-BR', 'ru', 'th', 'tr', 'vi', 'zh-Hans', 'zh-Hant'];
     const keys = [
-      'pages.relaySetup.saveAndStartChat',
       'pages.relaySetup.apiKeyRequired',
-      'pages.relaySetup.pasteCcSwitchAction',
-      'pages.relaySetup.backToSimple',
       'pages.relaySetup.importBanner.title',
       'pages.relaySetup.paste.title',
       'pages.relaySetup.paste.placeholder',
-      'pages.relaySetup.paste.fromClipboard',
-      'pages.relaySetup.detected.pasteAnother',
-      'pages.relaySetup.detected.requiredBelow',
-      'pages.relaySetup.apiKey.notInConfig',
       'pages.relaySetup.summary.needsReview',
-      'pages.relaySetup.summary.willApplyEmpty',
-      'pages.relaySetup.summary.needsReviewEmpty',
-      'pages.relaySetup.summary.ignoredEmpty',
-      'pages.relaySetup.error.parseFailed',
       'pages.relaySetup.error.unrecognized',
       'pages.relaySetup.error.empty',
-      'pages.relaySetup.summary.fieldCount',
     ];
     const leftover = /\b(Save|Paste|Nothing|Import|Back|We|Enter|Try)\b|Simple Mode|Needs Review|bewerben|postuler|للتقديم|\bfields?\b/;
     const problems: string[] = [];
@@ -269,5 +220,35 @@ describe('follow-up copy', () => {
     expect(tr['skills.title']).not.toBe('Yetenekler');
     expect(tr['skills.newSkill']).toContain('Beceri');
     expect(tr['skills.editSkill'].toLowerCase()).toContain('beceri');
+  });
+  // Relay error guidance is the same sentence as iOS in 16 languages; the retired identity toggle and relay rate-limit guidance are removed.
+  it('relay guidance keys exist in all 16 locales and retired keys are gone', () => {
+    const guidance = [
+      'codexIdentityRequiredSwitch', 'codexIdentityRejected', 'imageGenerationEndpointUnavailable',
+      'chatCompletionsRejectedByCodexHost', 'imageResponseFormatRejected', 'upstreamUnavailable', 'modelUnavailable',
+      'responsesProtocolRequired', 'storeRejected', 'serviceTierRejected', 'maxTokensRequired', 'anthropicAuthRequired',
+      'imageSchemaMismatch', 'clientGated', 'webPageReturned',
+    ].map((key) => `errors.relay.${key}`);
+    const retired = [
+      'errors.relay.codexIdentityEnable',
+      'errors.relay.rateLimited',
+      'pages.relayDetail.webSearchToolHintLegacy',
+      'pages.relayDetail.webSearchToolHintDefault',
+      'pages.relaySetup.webSearchToolHintLegacy',
+      'pages.relaySetup.webSearchToolHintDefault',
+    ];
+    const problems: string[] = [];
+    for (const locale of ['en', 'ar', 'de', 'es', 'fr', 'hi', 'id', 'ja', 'ko', 'pt-BR', 'ru', 'th', 'tr', 'vi', 'zh-Hans', 'zh-Hant']) {
+      const localized = messages(locale);
+      for (const key of guidance) {
+        if (!localized[key]) problems.push(`${locale} ${key} missing`);
+        else if (locale !== 'en' && localized[key] === english[key]) problems.push(`${locale} ${key} English`);
+      }
+      for (const key of retired) if (key in localized) problems.push(`${locale} ${key} still present`);
+    }
+    expect(problems).toEqual([]);
+    const zh = messages('zh-Hans');
+    expect(zh['errors.relay.clientGated']).toBe('\u8fd9\u628a\u5bc6\u94a5\u6240\u5728\u7684\u5206\u7ec4\u53ea\u5141\u8bb8\u5b98\u65b9 Claude CLI \u4f7f\u7528。\u8bf7\u5230\u7b7e\u53d1\u8fd9\u628a\u5bc6\u94a5\u7684\u7f51\u7ad9，\u5728\u8d26\u6237\u63a7\u5236\u53f0\u91cc\u628a\u5bc6\u94a5\u79fb\u5230\u5141\u8bb8 API \u8c03\u7528\u7684\u5206\u7ec4，\u6216\u65b0\u5efa\u4e00\u628a\u5bc6\u94a5\u5e76\u6dfb\u52a0\u5230 \u4f9b\u5e94\u5546 → \u8fd9\u6761\u8fde\u63a5 → API \u5bc6\u94a5，\u7136\u540e\u91cd\u8bd5。');
+    expect(zh['errors.relay.webPageReturned']).toBe('\u8fd9\u6761\u8fde\u63a5\u8fd4\u56de\u7684\u662f\u7f51\u9875，\u800c\u4e0d\u662f\u6a21\u578b\u7684\u56de\u590d。\u8bf7\u68c0\u67e5\u8bf7\u6c42\u5730\u5740，\u4ee5\u53ca\u4e3a\u8fd9\u4e2a\u6a21\u578b\u8bbe\u7f6e\u7684\u534f\u8bae。');
   });
 });

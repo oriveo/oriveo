@@ -15,6 +15,7 @@ import {
   type LibraryAgentLoopOptions,
 } from "./library-agent-loop";
 import { sendLibraryAgentLeg } from '../providers/proxy-client';
+import { relayKeyAccessOfToolRejection } from '../providers/relay-key-access-writeback';
 import {
   recordToolCallSupportFalse,
   toolCallSupportIsRememberedFalse,
@@ -133,6 +134,38 @@ describe("runLibraryAgentLoop", () => {
 		expect(requests[0].tools).toHaveLength(3);
 		expect(requests[1]).toEqual(expect.objectContaining({ tools: [], toolChoice: 'none' }));
 		expect(result).toMatchObject({ text: 'Fallback answer', toolFallbackApplied: true });
+	});
+
+	it('KEY-ACCESS-TOOLS-denied_skips_tool_strip_resend first-leg rejection that carries a key-access-denied verdict: even if the error body looks like "tools not supported", tools are not stripped and resent', async () => {
+		const denial = { error: { message: 'Model "gpt-5" is not available for this group; tools unsupported', code: 'model_not_found' } };
+		const run = (relayKeyAccess?: string) => {
+			const requests: LibraryAgentLegRequest[] = [];
+			const seen: unknown[] = [];
+			const result = runLibraryAgentLoop(options({
+				onPreOutputRejection: (rejection) => {
+					seen.push(rejection);
+					return relayKeyAccessOfToolRejection(rejection) === 'model_access_denied';
+				},
+				runLeg: (request) => {
+					requests.push(request);
+					if (requests.length > 1) return streamLeg([{ type: 'delta', content: 'Fallback answer' }]);
+					return {
+						...rejectionLeg(404, denial),
+						getToolCallRejectionContext: () => ({ status: 404, structuredError: denial, ...(relayKeyAccess ? { relayKeyAccess } : {}) }),
+					};
+				},
+			}));
+			return { requests, result, seen };
+		};
+
+		const denied = run('model_access_denied');
+		await expect(denied.result).rejects.toBeInstanceOf(LibraryAgentError);
+		expect(denied.requests).toHaveLength(1);
+		expect(denied.seen).toHaveLength(1);
+		// No key verdict (not a relay, or judged none): resend as before.
+		const other = run();
+		await expect(other.result).resolves.toMatchObject({ toolFallbackApplied: true });
+		expect(other.requests).toHaveLength(2);
 	});
 
 	it('covers the production request builder through rejection, retry, and the remembered next send', async () => {

@@ -1,4 +1,4 @@
-import type { AIModel, Provider } from '@oriveo/shared';
+import type { AIModel, Provider, ReasoningMode } from '@oriveo/shared';
 import { resolveControl } from '@oriveo/core/providers/request-preference/capability-runtime';
 import { canonicalRecipeTransport } from '@oriveo/core/providers/request-builders/capability-execution';
 import type { CapabilityKey } from '@oriveo/core/providers/request-preference/types';
@@ -13,6 +13,9 @@ import { currentCapabilityEvidenceModel, resolveModelCapabilityEvidence } from '
 import { customFragmentOwnerFacts } from './custom-fragment-settings';
 import { modelControlWebReachesTheWire, resolveModelControlStatus } from './model-control-capability-layout';
 import { subscriptionFinalTransport } from './capability-preference-settings';
+import { providerFormOf } from '../capability/truth/provider-form';
+import { relayWebModelOptionFacts } from './relay-web-probe-records';
+import { relayAutomaticReasoningIntents } from './relay-reasoning-tiers';
 
 export type CapabilityControlPresentation = {
   state: 'auto_available' | 'managed_only' | 'custom_only' | 'unavailable' | 'unknown';
@@ -80,7 +83,7 @@ export function legacyCapabilityFallback(
 ): CapabilityControlPresentation | undefined {
   // Relay directories come from the user's own machine; they never carry an
   // official Server profile, so there is nothing authoritative to fall back to.
-  if (provider.kind === 'relay') return undefined;
+  if (providerFormOf(provider) === 'relay') return undefined;
   const current = resolvedModel ?? currentCapabilityEvidenceModel(provider, model);
   const evidenceSupported = (key: 'web_search' | `reasoning_level/${string}`) => (
     resolveModelCapabilityEvidence({ key, provider, model }).support === 'supported'
@@ -140,11 +143,15 @@ function subscriptionCapabilityControl(
         reasonCode: 'upstream_transport_without_web_search', viaLegacyProfile: false,
       };
     }
+    // Grok subscription Responses always carries a real web_search (outbound ignores the preference) and the user
+    // cannot turn it off: the reasonCode marks it always-on, so the panel shows a read-only "Always on" row
+    // instead of a switch that has no effect.
     return (model.capabilities ?? []).includes('web')
       ? {
           state: 'auto_available',
           availableIntents: provider.kind === 'grok' ? ['automatic'] : ['off', 'automatic'],
-          reasonCode: 'subscription_upstream_declared', viaLegacyProfile: false,
+          reasonCode: provider.kind === 'grok' ? 'subscription_web_always_on' : 'subscription_upstream_declared',
+          viaLegacyProfile: false,
         }
       : {
           state: 'unavailable', availableIntents: [],
@@ -193,12 +200,88 @@ export function presentCapabilityControl(
   /** Pass an already-resolved catalog projection to avoid re-resolving it per capability. */
   resolvedModel?: ReturnType<typeof currentCapabilityEvidenceModel>,
 ): CapabilityControlPresentation {
+  const relayWeb = relayConnectionWebControl(provider, model, capability);
+  if (relayWeb) return relayWeb;
+  const automatic = presentAutomaticCapabilityControl(provider, model, capability, resolvedModel);
+  if (capability !== 'reasoning' || !provider || !model || providerFormOf(provider) !== 'relay') return automatic;
+  const levels = model.relayCapabilityOverrides?.reasoningLevels?.value;
+  if (!levels) return automatic;
+  // A Relay reasoning-level override only narrows the automatic set (intersection); "off" is a switch, not a tier, so it is not narrowed.
+  const allowed = new Set(levels.map(reasoningModeIntent));
+  return {
+    ...automatic,
+    availableIntents: automatic.availableIntents.filter((intent) => intent === 'off' || allowed.has(intent)),
+  };
+}
+
+/** Relay web search is decided by the connection-level fragment: once saved it is always sent and there is no chat switch, like custom_only "effective once saved". */
+export const RELAY_CONNECTION_WEB_FRAGMENT_REASON = 'relay_connection_web_fragment';
+
+/**
+ * Web verdict for a relay (not a local engine): a connection-level fragment for the first-send protocol means
+ * custom_only (always sent); otherwise unknown. A probe record of rejected under the current fragment counts as
+ * "no valid fragment" (chat does not attach it either).
+ * Official recipes are not read: a relay's web truth is only the fragment the user saved.
+ */
+function relayConnectionWebControl(
+  provider: Provider | undefined,
+  model: AIModel | undefined,
+  capability: CapabilityKey,
+): CapabilityControlPresentation | undefined {
+  if (capability !== 'web' || !provider || !model || providerFormOf(provider) !== 'relay') return undefined;
+  if (provider.relayRequested?.engineProfile) return undefined;
+  const { hasFragment, probe } = relayWebModelOptionFacts(provider, model);
+  return hasFragment && probe !== 'rejected'
+    ? { state: 'custom_only', availableIntents: [], reasonCode: RELAY_CONNECTION_WEB_FRAGMENT_REASON, viaLegacyProfile: false }
+    : { state: 'unknown', availableIntents: [], reasonCode: 'relay_connection_web_not_configured', viaLegacyProfile: false };
+}
+
+/** Relay reasoning tiers come from model-facts. */
+export const RELAY_MODEL_FACTS_REASONING_REASON = 'relay_model_facts_reasoning';
+
+/** Reasoning tier slots (contract vocabulary = raw ReasoningMode values); the order is the order of the five slots in the "Model > Advanced" reasoning section. */
+export const RELAY_REASONING_LEVELS: readonly ReasoningMode[] = ['automatic', 'fast', 'balanced', 'deep', 'max'];
+
+/** ReasoningMode to the control intent vocabulary (only fast and low differ in name). */
+export function reasoningModeIntent(mode: string): string {
+  return mode === 'fast' ? 'low' : mode;
+}
+
+/**
+ * The automatic set for the "Model > Advanced" reasoning section: the same resolution as the reasoning card in the
+ * model options panel (without override narrowing), keeping only tiers within the five slots.
+ * Empty for a Relay model with no reasoning recipe.
+ */
+export function relayAutomaticReasoningLevels(provider: Provider, model: AIModel): ReasoningMode[] {
+  const intents = new Set(presentAutomaticCapabilityControl(provider, model, 'reasoning').availableIntents);
+  return RELAY_REASONING_LEVELS.filter((level) => intents.has(reasoningModeIntent(level)));
+}
+
+/** Raw resolution without Relay override narrowing; call it directly only when "Model > Advanced" computes the automatic set. */
+export function presentAutomaticCapabilityControl(
+  provider: Provider | undefined,
+  model: AIModel | undefined,
+  capability: CapabilityKey,
+  resolvedModel?: ReturnType<typeof currentCapabilityEvidenceModel>,
+): CapabilityControlPresentation {
   void resolvedModel;
   if (!provider || !model) return { state: 'unknown', availableIntents: [], viaLegacyProfile: false };
+  const form = providerFormOf(provider);
+  // Relay reasoning: automatic tiers come only from the Server model-facts reasoningEfforts (a local-engine connection returns empty);
+  // with tiers, automatic is listed first and the control is auto_available; an empty set keeps the existing path below.
+  if (form === 'relay' && capability === 'reasoning') {
+    const intents = relayAutomaticReasoningIntents(provider, model);
+    if (intents.length > 0) {
+      return {
+        state: 'auto_available', availableIntents: intents,
+        reasonCode: RELAY_MODEL_FACTS_REASONING_REASON, viaLegacyProfile: false,
+      };
+    }
+  }
   // Subscription paths exit early: their capability authority is the upstream /models declaration,
   // not the catalog (see the function comment above). This must come before the catalog transport
   // check, because subscription models are not in the catalog at all and would only fall to unknown.
-  if (provider.authMode === 'subscription') {
+  if (form === 'subscription') {
     return subscriptionCapabilityControl(provider, model, capability);
   }
   // A persisted model can survive a metadata refresh. Do not present a
@@ -243,7 +326,10 @@ export function webPreferenceReachesTheWire(input: {
   model?: AIModel;
   transportIdentity?: string;
 }): boolean {
-  const status = resolveModelControlStatus(presentCapabilityControl(input.provider, input.model, 'web'));
+  const control = presentCapabilityControl(input.provider, input.model, 'web');
+  // A relay web fragment is always sent regardless of preference: whether it reaches the wire depends only on the fragment being present.
+  if (control.reasonCode === RELAY_CONNECTION_WEB_FRAGMENT_REASON) return true;
+  const status = resolveModelControlStatus(control);
   if (status === 'automaticAvailable') return true;
   if (!input.provider || !input.model || !input.transportIdentity) return false;
   return modelControlWebReachesTheWire({
@@ -302,8 +388,10 @@ export function capabilityAvailableForDisplay(
   capability: CapabilityKey,
   resolvedModel?: ReturnType<typeof currentCapabilityEvidenceModel>,
 ): boolean {
-  const state = presentCapabilityControl(provider, model, capability, resolvedModel).state;
-  return state === 'auto_available' || state === 'managed_only';
+  const control = presentCapabilityControl(provider, model, capability, resolvedModel);
+  // A relay web fragment, when present, is always sent: the badge, outbound and the panel share one verdict.
+  if (control.reasonCode === RELAY_CONNECTION_WEB_FRAGMENT_REASON) return true;
+  return control.state === 'auto_available' || control.state === 'managed_only';
 }
 
 /**

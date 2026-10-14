@@ -5,6 +5,8 @@ import { sendStream } from './providers/service';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent, filterRequestCapabilityIntent } from './chat/stream-options';
 import { readStream } from '../utils/chat-stream-utils';
 import { resolveLocale, SUPPORTED_LOCALES } from '../i18n/locale-utils';
+import { requestBaseURLText } from './providers/endpoint-source';
+import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
 
 export interface CrosscheckAnswerInput {
   provider: Provider;
@@ -106,13 +108,15 @@ export async function crosscheckAnswer(input: CrosscheckAnswerInput): Promise<Cr
     requestIntent.reasoning,
     requestIntent.supportsWebSearch,
   );
-  const providerOptions = buildProviderStreamOptions(input.provider, streamOptions, input.model);
+  const builtOptions = buildProviderStreamOptions(input.provider, streamOptions, input.model);
+  // Cross-checking is an auxiliary request and does not carry the relay connection-level web search fragment.
+  const providerOptions = builtOptions ? { ...builtOptions, relayWebFragment: undefined } : builtOptions;
   const { stream } = sendStream(
     input.provider.kind,
-    input.provider.apiKey,
+    resolveProviderAPIKey(input.provider, input.model.id),
     providerOptions?.relayDriverModelID ?? input.model.id,
     messages,
-    input.provider.baseURLText,
+    requestBaseURLText(input.provider),
     providerOptions,
   );
 

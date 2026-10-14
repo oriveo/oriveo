@@ -8,6 +8,7 @@ import { FileIcon, CloseIcon } from '@oriveo/ui';
 import { useAppStore } from '../../providers/StoreProvider';
 import { selectActiveProvider } from '../../lib/core/store/selectors';
 import styles from './AttachmentPreview.module.css';
+import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
 
 interface AttachmentPreviewProps {
   attachments: Attachment[];
@@ -21,7 +22,7 @@ export function AttachmentPreview({ attachments, onRemove }: AttachmentPreviewPr
   // The CTA only shows when the current provider is OpenAI and a key is configured, since
   // the knowledge base is OpenAI only, backed by the Vector Store and Files API.
   const activeProvider = useAppStore(selectActiveProvider);
-  const canUseKnowledge = activeProvider?.kind === 'openAI' && !!activeProvider?.apiKey;
+  const canUseKnowledge = activeProvider?.kind === 'openAI' && !!resolveProviderAPIKey(activeProvider);
   if (attachments.length === 0) return null;
 
   return (

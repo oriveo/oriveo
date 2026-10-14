@@ -5,6 +5,10 @@ import { useTranslations } from "next-intl";
 import type { ProviderErrorSource } from "@oriveo/shared";
 import { isRateLimitError } from "../../lib/utils/error-classify";
 import { resolveErrorCopyKey } from "../../lib/utils/chat-stream-utils";
+import {
+  localizeFailureTitle,
+  localizeRelayGuidance,
+} from "../../lib/core/providers/error-i18n";
 import styles from "./MessageRecoveryCard.module.css";
 
 interface MessageRecoveryCardProps {
@@ -36,6 +40,12 @@ interface MessageRecoveryCardProps {
   onEdit?: () => void;
   onContinue?: () => void;
   onSwitchModel?: () => void;
+  /**
+   * The relay's current key has no access but another key lists this model: "Switch key" takes the
+   * "Edit message" slot, or the first free slot when there is no edit button. Whether it shows depends
+   * only on this callback, not on the primary action.
+   */
+  onSwitchKey?: () => void;
   primaryActionLabel?: string;
   onPrimaryAction?: () => void;
 }
@@ -56,10 +66,12 @@ export function MessageRecoveryCard({
   onEdit,
   onContinue,
   onSwitchModel,
+  onSwitchKey,
   primaryActionLabel,
   onPrimaryAction,
 }: MessageRecoveryCardProps) {
   const t = useTranslations("pages.chat.recovery");
+  const tRelay = useTranslations("pages.relayDetail");
   const tErrors = useTranslations("errors");
   const [detailOpen, setDetailOpen] = useState(false);
 
@@ -82,13 +94,18 @@ export function MessageRecoveryCard({
   const copyKey = isFailed && errorSource !== "provider"
     ? resolveErrorCopyKey(errorKind)
     : null;
-  const resolvedTitle = copyKey ? tErrors(`${copyKey}.title`) : errorTitle;
+  // Persisted English source strings (provider source titles, relay guidance sentences) are translated
+  // here into the current language; strings outside the table (upstream text, already-localized legacy
+  // data) show as-is. Every place on the card that shows errorTitle / errorDetail goes through these two.
+  const storedTitle = localizeFailureTitle(errorTitle, tErrors);
+  const storedDetail = localizeRelayGuidance(errorDetail, tErrors);
+  const resolvedTitle = copyKey ? tErrors(`${copyKey}.title`) : storedTitle;
   // The body is replaced with render-time copy in two cases: the stored errorDetail is itself a
   // localization template, or it is raw technical text from our own transport layer (`Failed to
   // fetch` and the like) that tells the user nothing. Everything else - provider and relay
   // originals - is kept verbatim.
   const localizeDetail = Boolean(copyKey) && (errorDetailIsLocalized || detailIsInternalTechnicalText);
-  const resolvedDetail = copyKey && localizeDetail ? tErrors(`${copyKey}.message`) : errorDetail;
+  const resolvedDetail = copyKey && localizeDetail ? tErrors(`${copyKey}.message`) : storedDetail;
 
   const cardClassName = `${styles.card} ${isFailed ? styles.cardFailed : styles.cardInterrupted}`;
 
@@ -170,7 +187,17 @@ export function MessageRecoveryCard({
                 </button>
               )
             )}
-            {onEdit && !onPrimaryAction && (
+            {onSwitchKey && (
+              <button
+                type="button"
+                className={styles.secondaryBtn}
+                onClick={onSwitchKey}
+                disabled={disabled}
+              >
+                {tRelay("chatSwitchKey")}
+              </button>
+            )}
+            {onEdit && !onSwitchKey && !onPrimaryAction && (
               <button
                 type="button"
                 className={styles.secondaryBtn}
@@ -219,7 +246,7 @@ export function MessageRecoveryCard({
       </div>
 
       {/* Technical details (failed only): the raw unlocalized text first, falling back to errorDetail */}
-      {isFailed && (technicalDetail || errorDetail) && (
+      {isFailed && (technicalDetail || storedDetail) && (
         <>
           <button
             type="button"
@@ -232,7 +259,7 @@ export function MessageRecoveryCard({
           <div className={styles.detailContentWrap} data-open={detailOpen}>
             <div className={styles.detailContentInner}>
               <pre className={styles.detailContent}>
-                {technicalDetail || errorDetail}
+                {technicalDetail || storedDetail}
               </pre>
             </div>
           </div>

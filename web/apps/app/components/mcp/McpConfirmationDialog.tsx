@@ -58,7 +58,7 @@ export function McpConfirmationDialog() {
         <div data-mcp-confirm-view="full">
           <div className={styles.dialogHead}>
             <button type="button" className={styles.backButton} aria-label={t('back')} onClick={() => setShowFull(false)}>
-              <ChevronLeft size={18} aria-hidden="true" />
+              <ChevronLeft size={18} className="rtl-mirror" aria-hidden="true" />
             </button>
             <div className={styles.dialogHeadText}>
               <h2 id="mcp-confirm-title" className={styles.dialogTitle}>{t('fullTitle')}</h2>

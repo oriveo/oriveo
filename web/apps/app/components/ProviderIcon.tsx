@@ -4,6 +4,8 @@ import Image from "next/image";
 import type { RelayKind } from "@oriveo/shared";
 import { useIsDarkTheme } from "../lib/hooks/useIsDarkTheme";
 import { resolveOfficialProviderLogo } from "./provider-logo-assets";
+import { resolveRelayAvatar } from "./relay-avatar";
+import { RelayAvatar, RelayWaypointsIcon } from "./RelayAvatar";
 import styles from "./ProviderIcon.module.css";
 
 interface ProviderIconProps {
@@ -12,21 +14,20 @@ interface ProviderIconProps {
   /** bare renders only the logo, with no container background, border or shadow, for small inline uses */
   bare?: boolean;
   /**
-   * When kind === 'relay', show the brand logo matching the protocol the user selected:
-   * - openai_compatible / codex_style → OpenAI
-   * - anthropic_compatible → Anthropic
-   * - gemini_compatible → Gemini
-   * - custom or nil → the Relay logo
-   *
-   * The same rule applies in the conversation list and in the chat TopBar.
+   * Local-engine connections only (localEngine): show the matching vendor logo by protocol type
+   * (openai_compatible / codex_style -> OpenAI, anthropic_compatible -> Anthropic,
+   * gemini_compatible -> Gemini, custom or nil -> the Relay icon).
+   * Relay connections no longer draw a logo by protocol type.
    */
   relayKind?: RelayKind;
-  /** Relay/custom provider name, used to pick a closer brand logo when possible. */
+  /** Relay display name: relay connections resolve the unified avatar from it plus the address (relay-avatar.ts). */
   providerName?: string;
-  /** Relay/custom provider base URL, used to pick a closer brand logo when possible. */
+  /** Relay address: relay connections match a brand by its host. */
   baseURLText?: string;
-  /** Relay/custom provider model vendor/group keys, used to pick a closer brand logo when possible. */
+  /** Local-engine connections only: model vendor / group hints used to infer the brand. Relay connections ignore model ids. */
   modelHints?: string[];
+  /** Local-engine connection: with kind === 'relay' it skips the relay avatar and keeps the original inference. */
+  localEngine?: boolean;
   /**
    * Force the dark appearance of the logo, always using the darkLogo variant.
    * Used by brand cards on a dark background such as ProviderHeroCard and
@@ -86,39 +87,6 @@ const BRAND_CONFIG: Record<
 // Shared dark theme subscription behind a single global MutationObserver, rather than one per instance, which slowed HMR down once 30 or more piled up
 const useIsDark = useIsDarkTheme;
 
-/**
- * Fallback icon for relay endpoints, drawn as a path of waypoints.
- *
- * Three dots joined by thin lines into a triangular path, plus a short line at the top for the
- * incoming data, conveying data flowing through a relay node. The same shape as the SF Symbol
- * `point.3.connected.trianglepath.dotted` and the Material `Hub` icon.
- */
-function RelayWaypointsIcon({ size, className }: { size: number; className?: string }) {
-  return (
-    <svg
-      className={className}
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {/* Connecting path lines */}
-      <path d="M7.5 6.5l9 0M7.5 6.5l-3 11M16.5 6.5l3 11M5.5 17.5l13 0" opacity="0.55" />
-      {/* Nodes, drawn as filled circles */}
-      <circle cx="7.5" cy="6.5" r="2" fill="currentColor" stroke="none" />
-      <circle cx="16.5" cy="6.5" r="2" fill="currentColor" stroke="none" />
-      <circle cx="5" cy="17.5" r="2" fill="currentColor" stroke="none" />
-      <circle cx="19" cy="17.5" r="2" fill="currentColor" stroke="none" />
-      <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
 export function ProviderIcon({
   kind,
   size = 40,
@@ -127,11 +95,22 @@ export function ProviderIcon({
   providerName,
   baseURLText,
   modelHints,
+  localEngine,
   forceDark,
 }: ProviderIconProps) {
   const systemDark = useIsDark();
   const isDark = forceDark ?? systemDark;
-  // Relay path: map the protocol the user selected to a brand logo; custom and nil fall back to the Relay logo
+  // Relay connections: one shared resolver in all five places, looking only at the name and the address.
+  if (kind === 'relay' && !localEngine) {
+    return (
+      <RelayAvatar
+        avatar={resolveRelayAvatar({ name: providerName, baseURL: baseURLText })}
+        size={size}
+        forceDark={forceDark}
+      />
+    );
+  }
+  // Local engine: infer the brand from the name / model hints / protocol type; fall back to the Relay icon when nothing matches
   const resolvedKind = (() => {
     if (kind !== 'relay') return kind;
     const hintedBrand = resolveRelayBrandFromHints([providerName, baseURLText, ...(modelHints ?? [])]);

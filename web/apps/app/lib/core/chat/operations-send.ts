@@ -4,18 +4,20 @@
  * Flow: store update -> stream execution -> sync notification -> attachment upload
  */
 import type { ChatMessage, Conversation, AIModel, Provider, Attachment, ReasoningMode, QuoteContext } from '@oriveo/shared';
+import { PROVIDER_REQUEST_FAILED_TITLE } from '../providers/error-i18n';
 import type { ContentPart } from '../providers/types';
 import type { CapabilityPreferenceInput, GenerationParameterOverrides } from '@oriveo/core/providers/request-builders/types';
 import { networkError, type ProviderError } from '../providers/errors';
-import { mapErrorKindKey, sanitizeOutboundMessages } from '../../utils/chat-stream-utils';
-import { buildOutboundChatHistory } from './outbound-history';
-import { filterCurrentTurnAttachments } from './attachment-policy';
+import { mapErrorKindKey } from '../../utils/chat-stream-utils';
+import { buildOutboundChatHistory, buildOutboundMessages } from './outbound-history';
+import { outboundHistoryHasVideo } from '../attachments/attachment-transport-resolver';
+import { relayFirstSendMessagesBlockedByFiles, relayNegativeCacheModelKey } from './relay-rejection-loop';
 import { processImageAttachments, backfillStorageRefs } from '../../utils/stream-image-utils';
 import { createUserMessage, createAssistantMessage } from './message-factory';
 import { upsertMessages } from './message-merge';
 import { deriveConversationMetadata, computeConversationActivityAt } from '../conversation-metadata';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent, filterGenerationParameterOverrides, filterRequestCapabilityIntent, providerControlsAreManaged } from './stream-options';
-import { generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from './generation-parameter-settings';
+import { generationParameterFallbackModelId, generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from './generation-parameter-settings';
 import { capabilityRuntimeIdentity, resolveCapabilityPreferences } from './capability-preference-settings';
 import { migrateDraftScopedModelControls } from './draft-scope-migration';
 import { customFragmentFailurePatch } from './custom-fragment-rejection';
@@ -330,28 +332,28 @@ export function sendMessage(
       // newest one (see sanitizeOutboundMessages). Empty content makes some relay gateways hold
       // a persistent RST, and stale turns make the model answer a stopped question together
       // with the new one.
-      const sanitizedOutboundMessages = sanitizeOutboundMessages(
-        historyMessages ??
-          (userMessageAlreadyInHistory ? prevMessages : [...prevMessages, userMsg]),
-        appendToAssistant ? assistantMsg.id : undefined,
-      );
       const attachmentScopeOptions = buildProviderStreamOptions(
         provider,
         buildStreamOptionsFromIntent(model, reasoningMode, webSearchEnabled),
         model,
       );
-      const mayInjectVision = resolveModelCapabilityEvidence({
-        key: 'vision_input', provider, model, streamOptions: attachmentScopeOptions,
-      }).support === 'supported';
       // Run the current turn's attachments through the current model's capabilities again: a retry or an edited resend carries the original message's attachments, possibly from another model.
-      const outboundMessages = filterCurrentTurnAttachments(mayInjectVision
-        ? sanitizedOutboundMessages
-        : sanitizedOutboundMessages.map((message) => ({
-          ...message,
-          attachments: message.attachments?.filter((attachment) => attachment.kind !== 'image'),
-        })), userMsg.id, provider, model);
+      // Same vision criterion as the entry point (a relay with unknown vision support still sends images);
+      // the pre-send preflight uses the same function.
+      const outboundMessages = buildOutboundMessages({
+        messages: historyMessages
+          ?? (userMessageAlreadyInHistory ? prevMessages : [...prevMessages, userMsg]),
+        currentTurnId: userMsg.id,
+        ...(appendToAssistant ? { keepAssistantId: assistantMsg.id } : {}),
+        provider, model, streamOptions: attachmentScopeOptions,
+      });
+      const outboundHasVideo = await outboundHistoryHasVideo(outboundMessages);
       const chatHistory = await buildOutboundChatHistory(ctx, {
         messages: outboundMessages, provider, model, streamOptions: attachmentScopeOptions,
+      });
+      // First-send attachment criterion: computed from the filtered raw attachments, decided before entering the loop.
+      const relayMessagesBlockedByFiles = await relayFirstSendMessagesBlockedByFiles({
+        provider, model, messages: outboundMessages, streamOptions: attachmentScopeOptions,
       });
       const effectiveConversation = conversation ?? initialConversationSnapshot;
 
@@ -428,6 +430,7 @@ export function sendMessage(
         providerId: provider.id,
         modelId: model.id,
         profileFingerprint: generationParameterProfileFingerprint(provider, model),
+        fallbackModelId: generationParameterFallbackModelId(provider, model),
         conversationId: finalConvId,
         transient: transientGenerationParameters,
         // When a chip selects a tier explicitly, the connection-level reasoning defaults step aside as a group.
@@ -507,10 +510,15 @@ export function sendMessage(
           }
         : streamOptions;
       // The additional body is not dropped for library-pinned documents or server-side retrieval: both legs of a library retrieval are attachment points.
-      const relayStreamOptions = withAdditionalBody(
+      const providerStreamOptions = withAdditionalBody(
         clientControlsAllowed ? buildProviderStreamOptions(provider, streamOptionsWithRecovery, model) : undefined,
         { provider, model, conversationId: finalConvId, omit: omitAdditionalBody },
       );
+      // The outbound history has video (including video whose bytes are not loaded yet): Gemini does not pick
+      // Interactions, since dispatch only sees the video_url part.
+      const relayStreamOptions = providerStreamOptions && outboundHasVideo
+        ? { ...providerStreamOptions, outboundHistoryHasVideo: true }
+        : providerStreamOptions;
 
       // Outbound fact taken after the final facade gate: web search counts as used only once the
       // configuration really made it into this request. The gate is the final outbound options,
@@ -539,6 +547,7 @@ export function sendMessage(
         relayStreamOptions,
         setAbortFn,
         suppressStreamCitations: Boolean(libraryContext),
+        relayMessagesBlockedByFiles,
         onContinuation: (continuation) => continuationCaptured(finalConvId, assistantMsg.id, continuation),
       });
 
@@ -666,6 +675,14 @@ export function sendMessage(
         promptContext,
         sendStartedAt,
         completedAt,
+        // Take the transport and fragment from the request actually sent; if it differs from the first-send
+        // transport at the start of this turn (a protocol-level fallback), nothing is written.
+        relayWebObservation: {
+          sentFragment: (pipeline.relaySentStreamOptions ?? relayStreamOptions)?.relayWebFragment,
+          transport: (pipeline.relaySentStreamOptions ?? relayStreamOptions)?.relayTransport,
+          firstSendTransport: relayNegativeCacheModelKey(provider, model, { messagesBlockedByFiles: relayMessagesBlockedByFiles })?.transport,
+          citations,
+        },
       });
       void Promise.resolve(continuationSendCompleted(finalConvId, assistantMsg.id)).catch(() => undefined);
 
@@ -753,7 +770,7 @@ export function sendMessage(
         error_code: pe?.kind ?? 'unknown',
         latency_ms: Date.now() - sendStartedAt,
         // A relay failure has to be traceable to the relay address that broke; same helper as sent/completed.
-        ...relaySendTelemetryProperties(provider),
+        ...relaySendTelemetryProperties(provider, model),
       });
       // The partial generated before the failure is still in the store's streaming map
       // (clearStreamingForConversation only runs in finally), so read it out here into the failed
@@ -779,8 +796,11 @@ export function sendMessage(
         && (err as { additionalBodyRetryEligible?: unknown }).additionalBodyRetryEligible === true);
       // A 400 before the stream starts that names one panel parameter exactly: the error card says which one and the user decides whether to resend without it.
       const generationParameterRejection = generationParameterRejectionOf(err);
-      const errorTitleKey = additionalBodyRetry ? 'additionalBodyRejected.upstreamTitle'
-        : pe.source === 'provider' ? 'requestFailed.title' : `${errorKindKey}.title`;
+      const relayImageUnsupported = Boolean(err && typeof err === 'object'
+        && (err as { relayImageUnsupported?: unknown }).relayImageUnsupported === true);
+      const relayFileUnsupported = !relayImageUnsupported && Boolean(err && typeof err === 'object'
+        && (err as { relayFileUnsupported?: unknown }).relayFileUnsupported === true);
+      const errorTitleKey = additionalBodyRetry ? 'additionalBodyRejected.upstreamTitle' : `${errorKindKey}.title`;
       // Custom request fields fail closed: the body becomes a localized sentence keyed by the
       // rejection reason (the same three-way split as the editor) rather than putting an internal
       // enum name such as `unknown_owned_path` in front of the user.
@@ -801,16 +821,23 @@ export function sendMessage(
         // Errors the provider or relay already returned get a neutral title only; the body keeps
         // the redacted upstream text in full. kind is still stored for the recovery CTA but must
         // not take part in rewriting user-facing copy.
-        errorTitle: te(errorTitleKey),
+        // A provider-sourced title is stored as the English source string and translated at render time
+        // in the current language, so switching language follows.
+        errorTitle: !additionalBodyRetry && pe.source === 'provider' ? PROVIDER_REQUEST_FAILED_TITLE : te(errorTitleKey),
         ...(additionalBodyRetry ? { additionalBodyRetryEligible: true } : {}),
         ...(generationParameterRejection ? { generationParameterRejection } : {}),
+        ...(relayImageUnsupported ? { relayImageUnsupported: true } : {}),
+        ...(relayFileUnsupported ? { relayFileUnsupported: true } : {}),
         errorDetail: additionalBodyFailure ? additionalBodyFailure.errorDetail : customFragmentFailure
           ? customFragmentFailure.errorDetail
-          : (pe.detail || pe.message),
+          // Relay guidance: the body is stored as the English guidance source sentence and localized at render
+          // time (switching language follows); the upstream text goes into the technical detail.
+          : pe.relayGuidance ? pe.message : (pe.detail || pe.message),
         ...(typeof pe.kind === 'string' ? { errorKind: pe.kind } : {}),
         ...(typeof pe.source === 'string' ? { errorSource: pe.source } : {}),
         ...(additionalBodyFailure ? { errorTechnicalDetail: additionalBodyFailure.errorTechnicalDetail }
           : customFragmentFailure?.errorTechnicalDetail ? { errorTechnicalDetail: customFragmentFailure.errorTechnicalDetail }
+          : pe.relayGuidance && pe.detail ? { errorTechnicalDetail: pe.detail }
           // In-stream error frame: once classified, keep the upstream text (already redacted and truncated by the sender) as technical detail.
           : pe.streamErrorFrame && pe.message ? { errorTechnicalDetail: pe.message }
           // The card body now explains that this one setting was rejected; the upstream text stays in the technical detail.

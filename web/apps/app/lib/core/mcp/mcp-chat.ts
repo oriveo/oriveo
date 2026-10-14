@@ -23,6 +23,7 @@ import {
   type McpToolStepUpdate,
 } from '@oriveo/core/mcp/index';
 import { effectiveCapabilityTransport, resolveModelCapabilityEvidence } from '../chat/capability-evidence';
+import { dispatchesImageGeneration } from '../chat/stream-options';
 import { currentMcpConfirmationGate, currentMcpReauthorizationGate, mcpConversationGrants } from './mcp-confirmation';
 import { loadMcpLocalState, saveMcpStepPayload } from './mcp-idb';
 import { createMcpClient, currentMcpRuntimeConfig, getMcpAuthorizer, mcpDraftScope, useMcpStore, type McpStoreState } from './mcp-store';
@@ -42,7 +43,7 @@ const TOOL_ADAPTER_TRANSPORTS = new Set(['openai_chat', 'openai_responses', 'ant
 export function connectionSupportsMcpTools(provider: Provider | undefined, model: AIModel | undefined, streamOptions?: StreamOptions): boolean {
   if (!provider || !model) return false;
   // Image generation models use the image endpoint, not the chat endpoint, and cannot carry client-side tools.
-  if (model.capabilities.includes('imageGeneration') && Boolean(model.imageGenProfile)) return false;
+  if (dispatchesImageGeneration(model)) return false;
   const transport = effectiveCapabilityTransport(provider, model, undefined, streamOptions);
   if (!TOOL_ADAPTER_TRANSPORTS.has(transport)) return false;
   return resolveModelCapabilityEvidence({ key: 'tool_call', provider, model, effectiveTransport: transport, streamOptions }).support !== 'unsupported';

@@ -1,9 +1,14 @@
 import { validateContinuation, type ContinuationIntent } from '../request-preference/continuation';
 import type { ProviderRequest, RequestParams } from './types';
 import type { ProxyMessage, ProxyToolCall, ProxyToolDefinition } from './runtime';
-import { buildOpenAIChatMessages } from './runtime';
+import { buildOpenAIChatMessages, withImagePlaceholders } from './runtime';
+import {
+  attachmentTransportProfile,
+  dispatchedAttachmentTransport,
+  outboundWireOf,
+} from '../attachment-transport';
 
-type WireProtocol = 'openai_chat' | 'openai_responses' | 'anthropic_messages' | 'gemini_generate';
+export type WireProtocol = 'openai_chat' | 'openai_responses' | 'anthropic_messages' | 'gemini_generate';
 
 type ToolCallWireParams = Pick<RequestParams, 'messages' | 'tools' | 'toolChoice'>
   & Partial<Pick<RequestParams, 'providerKind'>>;
@@ -14,13 +19,32 @@ export function applyToolCallWireAdapter(
   request: ProviderRequest,
   params: ToolCallWireParams,
 ): ProviderRequest {
+  // The tool leg uses the same wire placeholder as a normal send: wires that can only send text replace each image with a placeholder line and send no image blocks.
+  const transport = params.providerKind
+    ? dispatchedAttachmentTransport(params.providerKind, outboundWireOf(request))
+    : null;
+  const placeholder = transport ? attachmentTransportProfile(transport).imagePlaceholderText : undefined;
   const adapted = {
     ...request,
-    body: adaptBody(protocolForRequest(request), request.body, params),
+    body: adaptBody(protocolForRequest(request), request.body, {
+      ...params,
+      messages: withImagePlaceholders(params.messages, placeholder),
+    }),
   };
   return request.fallback
     ? { ...adapted, fallback: applyToolCallWireAdapter(request.fallback, params) }
     : adapted;
+}
+
+/**
+ * The `tools` wire shape of a function tool on a given protocol: the tool leg and the Relay capability test share this one mapping,
+ * so the tool shapes of the two paths cannot diverge.
+ */
+export function functionToolsForProtocol(protocol: WireProtocol, tools: ProxyToolDefinition[]): unknown[] {
+  if (protocol === 'openai_chat') return tools;
+  if (protocol === 'openai_responses') return tools.map(toResponsesTool);
+  if (protocol === 'anthropic_messages') return tools.map(toAnthropicTool);
+  return geminiTools(tools) ?? [];
 }
 
 function adaptBody(
@@ -32,7 +56,7 @@ function adaptBody(
   if (protocol === 'openai_chat') {
     // OpenRouter's tool leg uses the same Chat request body as a plain send: native `file` blocks are kept as usual.
     body.messages = openAIChatMessages(params.messages, params.providerKind === 'openRouter');
-    appendTools(body, params.tools);
+    appendTools(body, params.tools && functionToolsForProtocol(protocol, params.tools));
     if (params.tools?.length) body.tool_choice = params.toolChoice ?? 'auto';
     return body;
   }
@@ -42,7 +66,7 @@ function adaptBody(
     if (mapped.instructions) body.instructions = mapped.instructions;
     else delete body.instructions;
     if (mapped.previousResponseId) body.previous_response_id = mapped.previousResponseId;
-    appendTools(body, params.tools?.map(toResponsesTool));
+    appendTools(body, params.tools && functionToolsForProtocol(protocol, params.tools));
     if (params.tools?.length) body.tool_choice = params.toolChoice ?? 'auto';
     return body;
   }
@@ -50,14 +74,14 @@ function adaptBody(
     const mapped = anthropicMessages(params.messages);
     body.messages = mapped.messages;
     if (mapped.system) body.system = mapped.system;
-    appendTools(body, params.tools?.map(toAnthropicTool));
+    appendTools(body, params.tools && functionToolsForProtocol(protocol, params.tools));
     if (params.tools?.length) body.tool_choice = anthropicToolChoice(params.toolChoice);
     return body;
   }
   const mapped = geminiContents(params.messages);
   body.contents = mapped.contents;
   if (mapped.systemInstruction) body.systemInstruction = mapped.systemInstruction;
-  appendTools(body, geminiTools(params.tools));
+  appendTools(body, params.tools && functionToolsForProtocol(protocol, params.tools));
   if (params.tools?.length) {
     body.toolConfig = {
       functionCallingConfig: { mode: geminiToolChoice(params.toolChoice) },

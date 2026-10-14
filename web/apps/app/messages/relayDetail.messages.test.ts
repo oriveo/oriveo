@@ -3,24 +3,15 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const REQUIRED_RELAY_SETUP_KEYS = [
-  'kind',
-  'quickTitle',
-  'quickSubtitle',
   'requestURLLabel',
-  'requestURLFootnote',
   'apiKeyPrivacy',
-  'defaultModelRecommendedFootnote',
   'modelsFound',
-  'relayDetected',
-  'relayDetectionFailed',
   'verifiedProtocol',
   'probeProtocol',
   'emptyCatalog',
   'manualSetup',
-  'manualSetupSubtitle',
   'detectConnectionSettings',
   'connectAndSave',
-  'saveAndContinue',
   'noProtocolVerified',
   'embeddedQuery',
   'authenticationRejected',
@@ -35,16 +26,9 @@ const REQUIRED_RELAY_SETUP_KEYS = [
   'invalidResponse',
   'connectionUnverified',
   'invalidRequestURL',
-  'testRelay',
-  'testingRelay',
-  'testRelayPassed',
   'testRelayFailed',
-  'testRelayConnected',
-  'testRelayConnectedWithModels',
-  'testRelayHint',
   'endpointEmpty',
   'transport',
-  'reasoningEffort',
   'serviceTier',
   'stream',
   'disableResponseStorage',
@@ -52,59 +36,32 @@ const REQUIRED_RELAY_SETUP_KEYS = [
   'customUserAgent',
   'headers',
   'queryParams',
-  'addHeader',
-  'removeHeader',
-  'addQueryParam',
-  'removeQueryParam',
-  'keyPlaceholder',
-  'valuePlaceholder',
 ] as const;
 
 const REQUIRED_RELAY_DETAIL_KEYS = [
   'endpoint',
   'privacyNote',
-  'relaySettings',
-  'relaySettingsHint',
   'testRelay',
   'testingRelay',
-  'testRelayPassed',
   'testRelayFailed',
-  'testRelayConnected',
-  'testRelayConnectedWithModels',
-  'testRelayHint',
   'endpointEmpty',
-  'noEndpointSet',
-  'saveRelaySettings',
-  'relayType',
   'transport',
   'authMode',
-  'reasoningEffort',
   'serviceTier',
-  'customUserAgent',
-  'stream',
   'disableResponseStorage',
-  'codexCompatIdentity',
   'headers',
   'queryParams',
-  'addHeader',
+  // Screen-reader names of the delete buttons for headers / query params in the edit-connection page
+  // (RelayEditConnection picks the key with a ternary over a template string).
   'removeHeader',
-  'addQueryParam',
   'removeQueryParam',
   'keyPlaceholder',
   'valuePlaceholder',
-  'modelKindSuggestionDetail',
-  'applySuggestedKind',
-  'keepCurrentKind',
-  'kindChangeApplied',
-  'undoKindChange',
   // Copy for the five credential states S0-S3.
   'apiKeyRequired',
   'addKey',
-  'changeKey',
   'removeKey',
   'savedPlaceholder',
-  'credentialNotRequired',
-  'credentialNotSentNote',
   'cleartextCredentialsBlocked',
   'clearAndStay',
   'connectionType',
@@ -129,14 +86,14 @@ const REQUIRED_RELAY_DETAIL_KEYS = [
   'connectionTypePublicDisabled',
   'connectionTypeInvalidAddress',
   'authModeNone',
-  'connectionTypeReconnected',
 ] as const;
 
 const REQUIRED_RELAY_ERROR_KEYS = [
   'codexIdentityRequiredSwitch',
-  'codexIdentityEnable',
   'codexIdentityRejected',
+  'imageGenerationEndpointUnavailable',
   'chatCompletionsRejectedByCodexHost',
+  'imageResponseFormatRejected',
   'upstreamUnavailable',
   'modelUnavailable',
   'responsesProtocolRequired',
@@ -145,22 +102,14 @@ const REQUIRED_RELAY_ERROR_KEYS = [
   'maxTokensRequired',
   'anthropicAuthRequired',
   'imageSchemaMismatch',
-  'rateLimited',
+  'clientGated',
+  'webPageReturned',
 ] as const;
 
 const P9_ENTITY_KEYS = [
   'pages.providerSetup.customEndpoint',
   'pages.providerSetup.relaySubtitle',
-  'pages.providerList.relaySection',
-  'pages.providerList.noRelays',
-  'pages.providerList.noRelaysHint',
   'pages.relaySetup.title',
-  'pages.relaySetup.customLLMTitle',
-  'pages.relayDetail.defaultName',
-  'pages.relayDetail.deleteRelay',
-  'pages.relayDetail.relaySettings',
-  'pages.relayDetail.relayType',
-  'pages.providerDetail.relayPriceDisclaimer',
   'library.confirm.unknown_relay.title',
   'library.confirm.unknown_relay.message',
 ] as const;
@@ -182,7 +131,6 @@ describe('relayDetail message coverage', () => {
     const files = readdirSync(join(process.cwd(), 'messages')).filter((file) => file.endsWith('.json'));
     const english = JSON.parse(readFileSync(join(process.cwd(), 'messages/en.json'), 'utf8')) as unknown;
     const paths = [
-      'pages.relayDetail.editCapabilitiesHint',
       'errors.relayStreamError.moderation',
       'errors.relayStreamError.imageGenUser',
     ];
@@ -226,14 +174,6 @@ describe('relayDetail message coverage', () => {
       'Custom Relay',
     );
     expectTranslated(simplifiedChinese, english, 'pages.providerSetup.customEndpoint');
-    expect(valueAtPath(english, 'pages.relaySetup.relayScenario')).toBe(
-      'Relay service',
-    );
-    expectTranslated(simplifiedChinese, english, 'pages.relaySetup.relayScenario');
-    expect(valueAtPath(english, 'pages.relaySetup.advancedModeHeader')).toBe(
-      'Add custom LLM - Advanced',
-    );
-    expectTranslated(simplifiedChinese, english, 'pages.relaySetup.advancedModeHeader');
     expect(valueAtPath(english, 'pages.providerSetup.relayEndpointLabel')).toBe(
       'Request URL',
     );
@@ -254,7 +194,6 @@ describe('relayDetail message coverage', () => {
 
     for (const path of [
       'pages.relayDetail.connectionTitle',
-      'pages.relayDetail.changeKey',
     ]) {
       const sourceValue = valueAtPath(english, path);
       const untranslated = [...byLocale.entries()]
@@ -356,7 +295,7 @@ describe('relayDetail message coverage', () => {
       const relaySetup = messages.pages?.relaySetup ?? {};
       const relayDetail = messages.pages?.relayDetail ?? {};
       const untranslatedKeys = [
-        ...['testRelay', 'testingRelay', 'testRelayPassed', 'testRelayFailed']
+        ...['testRelayFailed']
           .filter((key) => englishFallbacks.has(String(relaySetup[key])))
           .map((key) => `relaySetup.${key}`),
         ...['testRelay', 'testingRelay', 'testRelayPassed', 'testRelayFailed']
@@ -373,4 +312,67 @@ describe('relayDetail message coverage', () => {
     expect(untranslatedByLocale).toEqual([]);
   });
 
+});
+
+/** Cleanup map (web entries): unreferenced keys are deleted, and keys that have an iOS counterpart take the iOS value verbatim (en / zh-Hans spot check; other locales are not the English source). */
+const REMOVED_KEYS = [
+  'pages.providerDetail.relayPriceDisclaimer',
+  'pages.providerList.noRelays',
+  'pages.providerList.noRelaysHint',
+  'pages.providerList.relaySection',
+  'pages.relayDetail.defaultName',
+  'pages.relayDetail.deleteRelay',
+  'pages.relayDetail.editCapabilitiesHint',
+  'pages.relayDetail.noModels',
+  'pages.relaySetup.advancedModeHeader',
+  'pages.relaySetup.apiKey.helper',
+  'pages.relaySetup.customLLMTitle',
+  'pages.relaySetup.family',
+  'pages.relaySetup.relayDetected',
+  'pages.relaySetup.relayDetectionFailed',
+] as const;
+
+const MAPPED_EN: Record<string, string> = {
+  'library.confirm.unknown_relay.title': 'Confirm unrecognized connection',
+  'library.confirm.unknown_relay.message': "Oriveo couldn't identify the service behind this connection, so token usage and cost may be harder to predict.",
+  'pages.relayDetail.noModelsHint': 'No models added yet. Use the button below to add model IDs.',
+  'pages.relaySetup.probeProtocol': 'Couldn\u2019t get the model list. Add the model IDs you want to use.',
+  'pages.relaySetup.relayRateLimited': "The service at this address is rate limiting requests. Wait a moment and try again; Oriveo didn't switch to another key or protocol.",
+  'pages.relaySetup.temporaryFailure': "Couldn't connect to this address reliably. Check the address and try again.",
+  'pages.relaySetup.networkFailure': "Couldn't connect to this address reliably. Check the address and try again.",
+};
+
+describe('relay copy cleanup', () => {
+  const dir = join(process.cwd(), 'messages');
+  const locales = readdirSync(dir).filter((file) => file.endsWith('.json'));
+  const load = (file: string) => JSON.parse(readFileSync(join(dir, file), 'utf8')) as unknown;
+
+  it('deletes unreferenced cleanup keys from all 16 locales', () => {
+    expect(locales).toHaveLength(16);
+    for (const file of locales) {
+      const messages = load(file);
+      for (const key of REMOVED_KEYS) {
+        expect(valueAtPath(messages, key), `${file} ${key}`).toBeUndefined();
+      }
+    }
+  });
+
+  it('keys with an iOS counterpart take the iOS value: en verbatim, other locales translated with no placeholder', () => {
+    const english = load('en.json');
+    for (const [key, value] of Object.entries(MAPPED_EN)) {
+      expect(valueAtPath(english, key), key).toBe(value);
+    }
+    const zh = load('zh-Hans.json');
+    expect(valueAtPath(zh, 'pages.relaySetup.probeProtocol')).not.toContain('{protocol}');
+    for (const file of locales) {
+      if (file === 'en.json') continue;
+      const messages = load(file);
+      for (const key of Object.keys(MAPPED_EN)) {
+        const value = valueAtPath(messages, key);
+        expect(typeof value, `${file} ${key}`).toBe('string');
+        expect(value, `${file} ${key}`).not.toBe(MAPPED_EN[key]);
+        expect(value as string, `${file} ${key}`).not.toMatch(/\{protocol\}/);
+      }
+    }
+  });
 });

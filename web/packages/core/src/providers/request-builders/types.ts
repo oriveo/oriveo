@@ -147,6 +147,8 @@ export interface RequestParams {
     upstreamDefaultReasoningLevel?: string;
     upstreamApiBackend?: string;
     grokSubscriptionWebSearchDeclared?: boolean;
+    /** The outbound history (messages actually to be sent after context trimming) has video attachments, including those whose bytes are not loaded and did not become a video_url part. */
+    outboundHistoryHasVideo?: boolean;
     capabilityPreferences?: CapabilityPreferenceInput;
     /** Explicit resend: omit only the located operation(s), never the whole owner. */
     capabilityRecipeOmissions?: CapabilityRecipeOmission[];

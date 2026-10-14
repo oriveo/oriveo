@@ -25,7 +25,7 @@ import { buildQwenRequest } from "./qwen";
 import { buildSiliconFlowRequest } from "./siliconflow";
 import { buildZhipuRequest } from "./zhipu";
 import { buildRelayReasoningParams } from "./utils";
-import { applyCapabilityRecipes, attachCapabilityExecution, isMiniMaxAnthropicMessagesRoute, legacyGenerationGateAllowsInjection, resolveCapabilityExecutionPlan, type RuntimeRecipe } from './capability-execution';
+import { applyCapabilityRecipes, attachCapabilityExecution, isMiniMaxAnthropicMessagesRoute, legacyGenerationGateAllowsInjection, resolveAutomaticReasoningRecipe, resolveCapabilityExecutionPlan, type CapabilityExecutionPlan, type RuntimeRecipe } from './capability-execution';
 import { compileSafeCustomFragment, rejectSafeCustomFragment, type SafeCustomFragmentResult } from './safe-custom-fragment';
 import { mapContinuationForRecipe } from './continuation-replay';
 import { applyAdditionalBodyToRequest } from './additional-body';
@@ -34,6 +34,7 @@ import { guardAnthropicThinking } from './anthropic-thinking';
 import type { GenerationParameterOverrides, GenerationParameterProfile, ProviderRequest, RequestParams } from "./types";
 import type { MetadataBaseURLRejectionReporter } from "../transport/endpoint-resolver";
 import { applyToolCallWireAdapter } from './tool-call-wire-adapter';
+import { buildOfficialAlternateProtocolRequest, officialAlternateProtocol } from './official-protocol';
 
 /**
  * Metadata provider port: this package does not embed the /api/metadata fetch or its cache.
@@ -88,10 +89,12 @@ export async function buildProviderRequest(
   const customWebSelected = customSelections?.web != null;
   const customGenerationSelected = customSelections?.generation != null
     || normalizedParams.options?.customFragment != null;
+  const providerConfig = metadata?.providerConfigs?.find((config) => config.kind === normalizedParams.providerKind);
   const sanitizedMetadataBaseURL = sanitizeMetadataBaseURL(
     normalizedParams.providerKind,
     runtimeModel?.provider.transport?.baseUrl,
     reportRejectedMetadataBaseURL,
+    providerConfig?.trustedHosts,
   );
   // metadata transport arrives in two shapes (already normalized, or a bare origin in baseUrl
   // plus full endpoint paths). Both are bridged to the base the builder expects; an unrecognized
@@ -203,11 +206,13 @@ export async function buildProviderRequest(
 
   // The additional body is the last step of every chat request body: merged after the builder, the capability recipe and custom fragments.
   // images_api is not a chat body and returns early, never passing through here.
-  const applyRecipes = (request: ProviderRequest): ProviderRequest => applyAdditionalBodyToRequest(
-    applyRecipesBeforeAdditionalBody(request),
+  // plan defaults to all the recipes selected this turn; when Gemini goes through generateContent it is given the subset
+  // with the gemini_interactions protocol removed, and those recipes are neither compiled into the body nor recorded as execution facts.
+  const applyRecipes = (request: ProviderRequest, plan: CapabilityExecutionPlan = capabilityPlan): ProviderRequest => applyAdditionalBodyToRequest(
+    applyRecipesBeforeAdditionalBody(request, plan),
     effectiveParams.options?.additionalBody,
   );
-  const applyRecipesBeforeAdditionalBody = (request: ProviderRequest): ProviderRequest => {
+  const applyRecipesBeforeAdditionalBody = (request: ProviderRequest, plan: CapabilityExecutionPlan): ProviderRequest => {
     // The library tools for /api/chat/stream have to become the builder-owned base first and
     // then have the web server tool merged in. Assigning them wholesale after the builder would
     // wipe the tools set by the v2 recipe.
@@ -216,8 +221,8 @@ export async function buildProviderRequest(
       : request;
     const compiled = applyCapabilityRecipes(
       withBuilderTools.body,
-      capabilityPlan.recipes,
-      capabilityPlan.intents ?? {},
+      plan.recipes,
+      plan.intents ?? {},
       effectiveParams.options?.capabilityRecipeOmissions,
     );
     // A recipe may write the thinking field only after the builder (official Anthropic), so the linked protection is evaluated once more after thinking and generation
@@ -238,14 +243,14 @@ export async function buildProviderRequest(
     const typedGenerationDelta = generationRecipe
       ? emittedGenerationDelta(thinkingDropped.length > 0 ? compiled.body : withBuilderTools.body, effectiveParams.options?.generationParameters, generationProfile)
       : {};
-    // Official-provider writable paths come only from capabilityPlan.customDeclaredOwners
+    // Official-provider writable paths come only from plan.customDeclaredOwners
     // (customControlRefs resolved against the same runtime envelope). Relay's generation
     // exception is derived solely from its exact local transport profile.
     const declaredOwners = {
       ...(effectiveParams.providerKind === 'relay' && customGenerationSelected
         ? safeCustomOwners(resolvedGenerationProfile)
         : {}),
-      ...(capabilityPlan.customDeclaredOwners ?? {}),
+      ...(plan.customDeclaredOwners ?? {}),
     };
     const fragments = params.options?.customFragments ?? (params.options?.customFragment
       ? { generation: params.options.customFragment }
@@ -253,7 +258,7 @@ export async function buildProviderRequest(
     const {
       delta: customDelta, preview: customPreview, appliedPointers: customAppliedPointers,
     } = compileCustomFragments(compiled.body, fragments, declaredOwners);
-    const continuationRecipe = capabilityPlan.recipes.find((recipe) => recipe.continuationKind === params.continuation?.kind
+    const continuationRecipe = plan.recipes.find((recipe) => recipe.continuationKind === params.continuation?.kind
       && (recipe.continuationVariant ?? undefined) === (params.continuation?.variant ?? undefined));
     const continuation = continuationRecipe
       ? mapContinuationForRecipe(continuationRecipe, params.continuation)
@@ -265,14 +270,14 @@ export async function buildProviderRequest(
         : continuation?.accepted && continuation.target === 'contents_append'
           ? { contents: insertReplayBeforeFinalUser(Array.isArray(compiled.body.contents) ? compiled.body.contents : [], continuation.contents) }
           : {};
-    if (capabilityPlan.recipes.length === 0 && Object.keys(customDelta).length === 0 && !capabilityPlan.noExecute) return withBuilderTools;
+    if (plan.recipes.length === 0 && Object.keys(customDelta).length === 0 && !plan.noExecute) return withBuilderTools;
     const withFacts: ProviderRequest = {
       ...withBuilderTools,
       ...(droppedGenerationParameters ? { droppedGenerationParameters } : {}),
       body: mergeBodyDeltas(compiled.body, customDelta, continuationDelta),
-      ...continuationCapture(capabilityPlan.recipes),
+      ...continuationCapture(plan.recipes),
       capabilityExecution: {
-        recipeRefs: capabilityPlan.recipes.map((recipe) => recipe.id),
+        recipeRefs: plan.recipes.map((recipe) => recipe.id),
         delta: mergeBodyDeltas(compiled.delta, typedGenerationDelta, customDelta, continuationDelta),
         // continuation contains opaque provider state (reasoning blocks, signatures and Fiber
         // encrypted output). It is sent on the wire but is never eligible for a delta preview.
@@ -288,7 +293,7 @@ export async function buildProviderRequest(
         // written to the wire by the builder. Custom fragment owner facts, generation included,
         // are kept.
         wireAppliedOwners: Object.fromEntries([
-          ...capabilityPlan.recipes
+          ...plan.recipes
             .filter((recipe) => recipe.capability !== 'generation')
             .map((recipe) => [recipe.capability, recipeDeltaWasEmitted(recipe, compiled.delta)] as const),
           ...Object.keys(fragments).map((owner) => [owner, Object.keys(customDelta).length > 0] as const),
@@ -299,8 +304,24 @@ export async function buildProviderRequest(
         ...(Object.keys(customAppliedPointers).length > 0 ? { customAppliedPointers } : {}),
       },
     };
-    return attachCapabilityExecution(withFacts, capabilityPlan);
+    return attachCapabilityExecution(withFacts, plan);
   };
+
+  // An official family whose delivered apiProtocol is not its native protocol family goes through the Relay builder by protocol,
+  // and providerKind decides only the authentication and the extra headers; if it equals the native family, is missing or is unrecognized, the per-family builder below
+  // is used (byte for byte unchanged). The per-family recipe is the native protocol's request shape and is not applied to another protocol; the additional body is still the last step.
+  const alternateProtocol = officialAlternateProtocol(withGenerationProfile.providerKind, providerConfig?.apiProtocol);
+  if (alternateProtocol) {
+    return applyAdditionalBodyToRequest(
+      buildOfficialAlternateProtocolRequest(
+        withGenerationProfile,
+        alternateProtocol,
+        sanitizedMetadataBaseURL,
+        metadata?.relayRuntimeConfig ?? null,
+      ),
+      effectiveParams.options?.additionalBody,
+    );
+  }
 
   switch (withGenerationProfile.providerKind) {
     case "openRouter":
@@ -398,13 +419,29 @@ export async function buildProviderRequest(
       // endpoint_route additionally requires the server to classify the model transport as
       // gemini_interactions; the default generateContent transport does not match, so
       // resolveRuntimeRecipe fails safe and behavior is unchanged.
+      // Interactions is chosen only when web search is on (the web recipe is in the plan), the web control points at endpoint_route, and the whole
+      // request history has no video; video is still delivered as generateContent inlineData, without an error.
       {
         const interactionRoute = capabilityPlan.recipes.find((recipe) => recipe.executionKind === 'endpoint_route')?.route;
-        if (interactionRoute) {
-          return applyRecipes(buildGeminiInteractionsRequest(withGenerationProfile, interactionRoute));
+        // A video whose bytes are not loaded does not become a video_url part; the client judges it from the outbound history and brings it along in options.
+        const outboundHasVideo = withGenerationProfile.options?.outboundHistoryHasVideo === true
+          || messagesCarryVideo(withGenerationProfile.messages);
+        if (interactionRoute && !outboundHasVideo) {
+          // The reasoning recipe is compiled by the builder (including the automatic tier, selectedIntent=null); the one for a selected tier is still in
+          // the plan, and applyRecipes writes the same value again to record the execution fact. The web /tools append is done only by applyRecipes;
+          // if the builder wrote it first it would dedupe to an empty delta and lose the web execution fact.
+          const reasoningRecipe = capabilityPlan.recipes.find((recipe) => recipe.capability === 'reasoning' && recipe.executionKind === 'request_overlay')
+            ?? resolveAutomaticReasoningRecipe(effectiveParams, metadata?.capabilityRuntime, runtimeModel?.model, normalizedReasoningMode);
+          return applyRecipes(buildGeminiInteractionsRequest(withGenerationProfile, interactionRoute, {
+            reasoningRecipe,
+            reasoningIntent: capabilityPlan.intents?.reasoning ?? null,
+          }));
         }
       }
-      return applyRecipes(buildGeminiRequest(withGenerationProfile, reasoningParams, webSearchProfile, imageGenProfile));
+      return applyRecipes(
+        buildGeminiRequest(withGenerationProfile, reasoningParams, webSearchProfile, imageGenProfile),
+        withoutGeminiInteractionsRecipes(capabilityPlan),
+      );
     default:
       throw new Error(`Unsupported provider: ${params.providerKind}`);
   }
@@ -578,6 +615,18 @@ function pointersOverlap(left: string, right: string): boolean {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> { return value != null && typeof value === 'object' && !Array.isArray(value); }
+
+/** On the generateContent route, recipes of the gemini_interactions protocol never enter the body and do not count as requested. */
+function withoutGeminiInteractionsRecipes(plan: CapabilityExecutionPlan): CapabilityExecutionPlan {
+  const recipes = plan.recipes.filter((recipe) => recipe.transport?.protocol !== 'gemini_interactions');
+  return recipes.length === plan.recipes.length ? plan : { ...plan, recipes, noExecute: recipes.some((recipe) => recipe.executionKind === 'external_connector' || recipe.executionKind === 'unavailable') };
+}
+
+/** Any message in the request history (including the current turn) carries a video attachment; this route does not accept video, so it stays on generateContent. */
+function messagesCarryVideo(messages: RequestParams['messages']): boolean {
+  return messages.some((message) => typeof message.content !== 'string'
+    && message.content.some((part) => part.type === 'video_url'));
+}
 
 function continuationCapture(recipes: readonly import('./capability-execution').RuntimeRecipe[]): Pick<ProviderRequest, 'continuationCapture'> {
   const candidates = recipes.filter((recipe) => recipe.continuationKind && recipe.continuationKind !== 'none'

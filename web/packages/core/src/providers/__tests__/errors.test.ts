@@ -56,10 +56,11 @@ describe('toProviderError', () => {
     expect(err.message).not.toContain('relay');
   });
 
-  it('relay 429 with an empty body and a confirmed relay context: keeps the relay-specific wording (no regression)', () => {
+  // A relay 429 also maps to the generic "rate limited" message; the relay-specific rate-limit guidance was removed.
+  it('relay 429 with an empty body and a confirmed relay context: generic rateLimited text, same as iOS', () => {
     const err = toProviderError(429, '', 'https://relay.example.com/v1/chat/completions', { isRelay: true });
     expect(err.kind).toBe('rateLimited');
-    expect(err.message).toContain('relay');
+    expect(err.message).toBe('You have exceeded the rate limit. Please wait a moment and try again.');
   });
 
   it('official Anthropic 401 with the real upstream authentication_error shape: falls to errors.ts generic 401 handling, never the relay x-api-key branch', () => {

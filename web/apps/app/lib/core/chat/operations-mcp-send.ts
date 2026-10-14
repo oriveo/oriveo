@@ -30,7 +30,7 @@ import { ToolRegistry } from '@oriveo/core/tools/tool-registry';
 import { MCP_LOOP_PROMPTS, MCP_LOOP_STOPPED_ERROR_CODE, mcpLoopLimits, mcpSystemPrompt, type McpToolPlan } from '@oriveo/core/mcp/index';
 import { mapErrorKindKey, sanitizeOutboundMessages } from '../../utils/chat-stream-utils';
 import { buildOutboundChatHistory } from './outbound-history';
-import { filterCurrentTurnAttachments } from './attachment-policy';
+import { filterCurrentTurnAttachments, withoutUnreceivableImages } from './attachment-policy';
 import { getActiveUIDSync } from '../../infra/storage/partition';
 import { adoptMcpDraftServers, createMcpSendSession } from '../mcp/mcp-chat';
 import { currentMcpRuntimeConfig } from '../mcp/mcp-store';
@@ -48,22 +48,25 @@ import {
   prepareAgentSubscriptionOutbound,
   readProviderErrorSource,
 } from './agent-send-shared';
-import { effectiveCapabilityTransport, resolveModelCapabilityEvidence } from './capability-evidence';
+import { effectiveCapabilityTransport } from './capability-evidence';
+import { recordToolCallFallback, toolCallRememberedUnsupported } from './relay-rejection-loop';
+import { applyRelayToolRejection } from '../providers/relay-key-access-writeback';
 import { capabilityRuntimeIdentity, resolveCapabilityPreferences } from './capability-preference-settings';
 import {
   isDeterministicToolCallUnsupported,
-  recordToolCallSupportFalse,
-  toolCallSupportIsRememberedFalse,
   type ToolCallRecoveryIdentity,
+  type ToolCallRejectionContext,
 } from './capability-recovery-runtime';
 import { deriveCostFields, mergeMessageUsageFields } from './cost-fields';
 import { migrateDraftScopedModelControls } from './draft-scope-migration';
-import { generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from './generation-parameter-settings';
+import { generationParameterFallbackModelId, generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from './generation-parameter-settings';
 import { createAssistantMessage, createUserMessage } from './message-factory';
 import type { ChatOpCtx, SendHandle } from './operations';
 import { buildPromptInjectionContext } from './prompt-injection';
 import { reportSendCompletion } from './send-completion';
 import { prepareSendStart } from './send-start';
+import { requestBaseURLText } from '../providers/endpoint-source';
+import { PROVIDER_REQUEST_FAILED_TITLE } from '../providers/error-i18n';
 import {
   buildProviderStreamOptions,
   buildStreamOptionsFromIntent,
@@ -183,15 +186,10 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         buildStreamOptionsFromIntent(params.model, params.reasoningMode, false),
         params.model,
       );
-      const mayInjectVision = resolveModelCapabilityEvidence({
-        key: 'vision_input', provider: params.provider, model: params.model, streamOptions: attachmentScopeOptions,
-      }).support === 'supported';
-      const outbound = filterCurrentTurnAttachments(mayInjectVision
-        ? sanitizedOutbound
-        : sanitizedOutbound.map((message) => ({
-          ...message,
-          attachments: message.attachments?.filter((attachment) => attachment.kind !== 'image'),
-        })), userMessage.id, params.provider, params.model);
+      // Same vision criterion as the entry point (a relay with unknown vision support still sends images).
+      const outbound = filterCurrentTurnAttachments(
+        withoutUnreceivableImages(sanitizedOutbound, params.provider, params.model, attachmentScopeOptions),
+        userMessage.id, params.provider, params.model);
       const history = (await buildOutboundChatHistory(ctx, {
         messages: outbound, provider: params.provider, model: params.model,
         streamOptions: attachmentScopeOptions, toolLoop: true,
@@ -212,6 +210,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         providerId: params.provider.id,
         modelId: params.model.id,
         profileFingerprint: generationParameterProfileFingerprint(params.provider, params.model),
+        fallbackModelId: generationParameterFallbackModelId(params.provider, params.model),
         conversationId: finalConvId,
         transient: params.transientGenerationParameters,
         reasoningMode: params.reasoningMode,
@@ -256,12 +255,16 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         authMode: params.provider.kind === 'relay'
           ? streamOptions?.relayAuthMode ?? 'unknown'
           : params.provider.authMode ?? 'apiKey',
-        canonicalModelId: normalizeModelFactsID(params.model.canonicalModelId ?? params.model.id),
+        // A relay records tool-call observations under the literal model ID: a dated snapshot and its base
+        // are two different models.
+        canonicalModelId: normalizeModelFactsID(params.provider.kind === 'relay'
+          ? params.model.id
+          : params.model.canonicalModelId ?? params.model.id),
         finalTransport: effectiveCapabilityTransport(params.provider, params.model, undefined, agentOutbound.streamOptions),
       };
       // The upstream has explicitly rejected `tools` on this connection before, so tools are known to be
       // unsupported: send directly without them.
-      const toolsEnabled = !toolCallSupportIsRememberedFalse(toolCallIdentity);
+      const toolsEnabled = !toolCallRememberedUnsupported(params.provider, params.model, toolCallIdentity);
 
       let legText = '';
       const onProgress = (event: ToolLoopProgressEvent): void => {
@@ -298,7 +301,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
           params.model.id,
           messages,
           tools,
-          params.provider.baseURLText,
+          requestBaseURLText(params.provider),
           agentOutbound.streamOptions,
           toolChoice,
         )),
@@ -319,9 +322,15 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
       };
       let result: ToolLoopResult;
       let toolFallbackApplied = false;
+      let toolFallbackRejection: ToolCallRejectionContext | undefined;
       try {
         result = await new ToolCallLoop(loopOptions(toolsEnabled ? 'enabled' : 'disabled')).run(history, trackLeg);
       } catch (error) {
+        // The relay key verdict is written back exactly as in the normal send path. Having no access is not
+        // a tools problem, so it is not resent.
+        const keyAccess = error instanceof ToolLoopError && error.source === 'provider' && !error.streamStarted
+          ? applyRelayToolRejection(store, params.provider, params.model, error.toolCallRejectionContext)
+          : 'none';
         // Same criterion as the library path: resend once without tools only when it is the first leg and
         // the upstream deterministically rejected `tools` before emitting any text.
         const eligible = toolsEnabled
@@ -329,15 +338,18 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
           && error instanceof ToolLoopError
           && error.source === 'provider'
           && !error.streamStarted
-          && isDeterministicToolCallUnsupported(error.toolCallRejectionContext);
+          && isDeterministicToolCallUnsupported(error.toolCallRejectionContext)
+          && keyAccess !== 'model_access_denied';
         if (!eligible) throw error;
+        // `eligible` has confirmed this is a deterministic tool rejection context.
+        toolFallbackRejection = (error as ToolLoopError).toolCallRejectionContext as ToolCallRejectionContext;
         store.getState().setStreamingText(finalConvId, initialText);
         result = await new ToolCallLoop(loopOptions('disabled')).run(history, trackLeg);
         toolFallbackApplied = true;
       }
       latestUsage = result.usage;
       if (toolFallbackApplied && getActiveUIDSync() === sendingAccountId) {
-        recordToolCallSupportFalse(toolCallIdentity);
+        recordToolCallFallback(params.provider, params.model, toolCallIdentity, toolFallbackRejection, agentOutbound.streamOptions?.relayTransport);
       }
       for (const call of unhandled) {
         trackEvent('tool_call_unhandled', {
@@ -413,14 +425,16 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         return;
       }
       const failure = describeFailure(error);
-      const titleKey = failure.source === 'provider' ? 'requestFailed' : mapErrorKindKey(failure.kind);
+      // A provider-sourced title is stored as the English source string and translated at render time
+      // (same as operations-send).
+      const failureTitle = failure.source === 'provider' ? PROVIDER_REQUEST_FAILED_TITLE : te(`${mapErrorKindKey(failure.kind)}.title`);
       // A round whose tools already ran gets no retry affordance: resending would execute the tools twice.
       const additionalBodyRetry = additionalBodyRetryTap?.resolve({ sideEffects: session.steps().length > 0 });
       patchAssistantMessage(store, finalConvId, assistantMessage.id, {
         ...assistantMessage,
         text: partialText,
         state: 'failed',
-        errorTitle: additionalBodyRetry?.eligible ? te('additionalBodyRejected.upstreamTitle') : te(`${titleKey}.title`),
+        errorTitle: additionalBodyRetry?.eligible ? te('additionalBodyRejected.upstreamTitle') : failureTitle,
         ...(additionalBodyRetry?.eligible ? { additionalBodyRetryEligible: true } : {}),
         ...(additionalBodyRetry?.eligible && additionalBodyRetry.technicalDetail
           ? { errorTechnicalDetail: additionalBodyRetry.technicalDetail }
@@ -437,7 +451,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         // Report only the normalized short slug; the raw error body never goes into telemetry
         error_code: failure.kind,
         latency_ms: Date.now() - sendStartedAt,
-        ...relaySendTelemetryProperties(params.provider),
+        ...relaySendTelemetryProperties(params.provider, params.model),
       });
       params.onFailed?.(params.text);
     } finally {

@@ -563,6 +563,11 @@
     padding-bottom: var(--o-mobile-tabbar-height);
   }
 
+  /* Sub-pages with their own back button: the bottom bar and the hamburger are hidden together (hideMobileNavChrome). */
+  .shell[data-mobile-nav-chrome-hidden='true'] .sidebarOpenBtn {
+    display: none;
+  }
+
   .mobileTabItem {
     position: relative;
     z-index: 1;

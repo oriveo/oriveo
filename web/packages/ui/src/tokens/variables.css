@@ -8,6 +8,20 @@
  */
 :root,
 [data-theme='light'] {
+  /* -- Capability palette: Tailwind 600 in light; capability icons and cards take colors only from here -- */
+  --o-cap-web-search: #2563EB;
+  --o-cap-reasoning: #7C3AED;
+  --o-cap-attachment: #D97706;
+  --o-cap-vision: #059669;
+  --o-cap-tools: #DB2777;
+
+  /* -- Detail row icon palette: Tailwind 600 in light; leading icons of connection detail rows -- */
+  --o-row-teal: #0D9488;
+  --o-row-cyan: #0891B2;
+  --o-row-indigo: #4F46E5;
+  --o-row-orange: #EA580C;
+  --o-row-rose: #E11D48;
+
   /* ── Background ── */
   --o-bg: #FAFAFA;
   --o-bg-subtle: #F4F4F5;
@@ -576,6 +590,20 @@
  * - translucent scrims deepen to 0.72
  */
 [data-theme='dark'] {
+  /* -- Capability palette: Tailwind 400 in dark; capability icons and cards take colors only from here -- */
+  --o-cap-web-search: #60A5FA;
+  --o-cap-reasoning: #A78BFA;
+  --o-cap-attachment: #FBBF24;
+  --o-cap-vision: #34D399;
+  --o-cap-tools: #F472B6;
+
+  /* -- Detail row icon palette: Tailwind 400 in dark; leading icons of connection detail rows -- */
+  --o-row-teal: #2DD4BF;
+  --o-row-cyan: #22D3EE;
+  --o-row-indigo: #818CF8;
+  --o-row-orange: #FB923C;
+  --o-row-rose: #FB7185;
+
   /* ── Background - four steps ── */
   --o-bg: #0F1218;
   --o-bg-subtle: #14181F;

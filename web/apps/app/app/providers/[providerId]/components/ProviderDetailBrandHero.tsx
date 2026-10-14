@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { ChevronRight, KeyRound, MessageSquarePlus, Pencil, RefreshCw, UserRoundCheck } from 'lucide-react';
 import type { Provider } from '@oriveo/shared';
 import { ProviderIcon } from '../../../../components/ProviderIcon';
+import { relayIconSource } from '../../../../components/relay-avatar';
 import { PROVIDER_BRAND_COLORS } from '../../../../lib/constants/provider-brand-colors';
 import { getProviderInstanceDisplayName } from '../../../../lib/core/providers/provider-display';
 import { getEffectiveStatusKind, type EffectiveStatusKind } from '../../../../lib/core/providers/provider-status';
@@ -134,8 +135,8 @@ export function ProviderDetailBrandHero({
   // Official providers with a transparent logo use a masked silhouette; Relay and a user-owned provider use the motif symbol.
   const watermark = resolveProviderWatermark(provider.kind);
 
-  // Chat can only start when a default model exists.
-  const canStartChat = provider.models.some((m) => m.isDefault) || provider.models.length > 0;
+  // Chat can only start when at least one model is enabled (aligned with iOS canStartChat).
+  const canStartChat = provider.models.length > 0;
   const supportsResync = !isRelay; // Relay liveness checks happen on the relay editor page, so the detail page shows no Verify action.
 
   const showsActionSection = (canStartChat && Boolean(onStartChat)) || (supportsResync && Boolean(onVerifyConnection));
@@ -172,6 +173,7 @@ export function ProviderDetailBrandHero({
             relayKind={provider.relayKind}
             providerName={displayName}
             baseURLText={provider.baseURLText}
+            {...relayIconSource(provider)}
             forceDark
           />
         </span>

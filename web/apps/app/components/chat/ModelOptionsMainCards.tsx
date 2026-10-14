@@ -3,24 +3,26 @@
 import React, { useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Check, ChevronRight } from 'lucide-react';
+import { BrainIcon, CheckIcon, EyeIcon, GlobeIcon, PaperclipIcon, QuestionIcon, SlidersHorizontalIcon, ThermometerSimpleIcon, XIcon } from '@phosphor-icons/react';
 import { useCopy } from '../generation/useCopy';
 import type { ModelControlFooterEntry } from '../../lib/core/chat/model-control-capability-layout';
 import type { ModelOptionLinkAction } from '../../lib/core/chat/model-option-capability-shape';
-import type { ModelOptionsPanelModel, ModelOptionsPanelRow } from '../../lib/core/chat/model-options-panel-model';
+import type { ModelOptionsPanelModel, ModelOptionsPanelRow, ModelOptionsTile } from '../../lib/core/chat/model-options-panel-model';
 import {
-  CHAT_TEMPLATE_THINKING_STATE_KEYS,
+  GENERATION_PARAMETER_UNSET_LABEL_KEYS,
+  MODEL_OPTIONS_INFO_TILE_TITLE_KEYS,
   MODEL_OPTION_CAPABILITY_TITLE_KEYS,
-  MODEL_OPTION_CAPTION_KEYS,
   MODEL_OPTION_LINK_KEYS,
-  MODEL_OPTION_NOTICE_STATUS_KEYS,
   MODEL_OPTION_PROTOCOL_UNDECIDED_KEYS,
   MODEL_OPTION_WEB_TIMING_KEYS,
   generationDisplayValueCopy,
   generationParameterTitleCopy,
-  modelOptionDisclosureStatusCopy,
-  modelOptionNoticeBodyCopy,
   modelOptionTierFootnoteCopy,
   modelOptionTierTrailingCopy,
+  modelOptionsReasoningLevelCountCopy,
+  modelOptionsSummaryItemCopy,
+  modelOptionsTileBodyCopy,
+  modelOptionsTileStatusCopy,
   reasoningTierLabelCopy,
   reasoningTierNoteCopy,
 } from '../../lib/core/chat/model-options-copy';
@@ -28,13 +30,12 @@ import styles from './InputComposer.module.css';
 import main from './ModelOptionsMainCards.module.css';
 
 /**
- * The three blocks of the main "Model options" pane: the second header line, the "Capabilities" card
- * and the "Parameters" card. They only render the result of `modelOptionsPanelModel`; writes and
- * navigation are handled by callbacks supplied by the host.
+ * The three blocks of the "Model options" main pane: the header second line, the capabilities card (2x2 tiles + summary line) and the parameters card (temperature row + entry row).
+ * Only draws what `modelOptionsPanelModel` produced; writes and exits go through callbacks from the host.
  */
 
 export type ModelOptionsCardActions = {
-  /** Returns false when there is no destination for the link, in which case the link is not rendered. */
+  /** Returns false when there is no destination, and the exit is not drawn. */
   canFollow: (link: ModelOptionLinkAction) => boolean;
   follow: (link: ModelOptionLinkAction, capability: 'web' | 'reasoning') => void;
   onToggle: (row: Extract<ModelOptionsPanelRow, { kind: 'toggle' | 'toggleWithTiming' }>, isOn: boolean) => void;
@@ -93,141 +94,178 @@ export function ModelOptionsCapabilityCard({ model, actions, notes }: {
     );
   }
 
-  const renderRow = (row: ModelOptionsPanelRow) => {
-    const title = copy({ key: MODEL_OPTION_CAPABILITY_TITLE_KEYS[row.capability] });
-    switch (row.kind) {
-      case 'toggle':
-      case 'toggleWithTiming':
-        return (
-          <>
-            <div className={styles.modelControlCardHeader}>
-              <span className={main.rowText}>
-                <span className={styles.modelControlCardTitle}>{title}</span>
-                {row.kind === 'toggle' && row.caption && (
-                  <span className={main.caption}>{copy({ key: MODEL_OPTION_CAPTION_KEYS[row.caption] })}</span>
-                )}
-              </span>
-              <Switch label={title} checked={row.isOn} onChange={(isOn) => actions.onToggle(row, isOn)} />
-            </div>
-            {row.kind === 'toggle' && link(row.link, row.capability)}
-            {row.kind === 'toggleWithTiming' && (
-              <Segments
-                variant="segments"
-                label={tc('capabilityControlSearchTiming')}
-                options={row.timing.options.map((id) => ({ id, label: copy({ key: MODEL_OPTION_WEB_TIMING_KEYS[id] }) }))}
-                selection={row.timing.selection}
-                onSelect={(id) => actions.onWebTiming(id as 'automatic' | 'force')}
-              />
-            )}
-          </>
-        );
-      case 'tiers': {
-        const selection = row.selection ?? (row.options.includes('automatic') ? 'automatic' : undefined);
-        const note = selection ? reasoningTierNoteCopy(selection) : undefined;
-        return (
-          <>
-            <div className={styles.modelControlCardHeader}>
-              <span className={styles.modelControlCardTitle}>{title}</span>
-              <span className={main.trailing} data-tone={row.trailing.kind === 'rejected' ? 'error' : undefined}>
-                {copy(modelOptionTierTrailingCopy(row.trailing))}
-              </span>
-            </div>
-            <Segments
-              variant="tiers"
-              label={title}
-              options={row.options.map((id) => ({ id, label: copy(reasoningTierLabelCopy(id)) }))}
-              selection={selection}
-              onSelect={(id) => actions.onTier(id, row.options, row.selection)}
-            />
-            {row.footnotes.length > 0
-              ? row.footnotes.map((footnote, index) => (
-                <p key={index} className={styles.modelControlNote} data-tone="tertiary">{copy(modelOptionTierFootnoteCopy(footnote))}</p>
-              ))
-              : note && <p className={styles.modelControlNote} data-tone="tertiary">{copy(note)}</p>}
-          </>
-        );
+  /** In-card controls: the switch sits top right; the timing segments and tier segments go below the status line. */
+  const tileControl = (tile: Extract<ModelOptionsTile, { kind: 'capability' }>, title: string) => {
+    const row = tile.row;
+    if (row.kind === 'toggleWithTiming') {
+      return (
+        <Segments
+          variant="segments"
+          label={tc('capabilityControlSearchTiming')}
+          options={row.timing.options.map((id) => ({ id, label: copy({ key: MODEL_OPTION_WEB_TIMING_KEYS[id] }) }))}
+          selection={row.timing.selection}
+          onSelect={(id) => actions.onWebTiming(id as 'automatic' | 'force')}
+        />
+      );
+    }
+    if (row.kind === 'tiers') {
+      // The cell draws only the tier icon, the tier word is the accessible name; the selected tier word is written in the status line.
+      return (
+        <Segments
+          variant="tiers"
+          label={title}
+          options={row.options.map((id) => ({ id, label: copy(reasoningTierLabelCopy(id)) }))}
+          selection={row.selection}
+          onSelect={(id) => actions.onTier(id, row.options, row.selection)}
+        />
+      );
+    }
+    if (row.kind === 'toggle') return link(row.link, row.capability);
+    return null;
+  };
+
+  const corner = (tile: ModelOptionsTile, title: string) => {
+    switch (tile.corner) {
+      case 'switch': {
+        const row = tile.kind === 'capability' && (tile.row.kind === 'toggle' || tile.row.kind === 'toggleWithTiming') ? tile.row : undefined;
+        return row ? <Switch label={title} checked={row.isOn} onChange={(isOn) => actions.onToggle(row, isOn)} /> : null;
       }
-      case 'notice':
-        return (
-          <>
-            <div className={styles.modelControlCardHeader}>
-              <span className={styles.modelControlCardTitle}>{title}</span>
-              <span className={main.trailing}>{copy({ key: MODEL_OPTION_NOTICE_STATUS_KEYS[row.status] })}</span>
-            </div>
-            <p className={styles.modelControlNote} data-tone="tertiary">{copy(modelOptionNoticeBodyCopy(row.body))}</p>
-            {link(row.link, row.capability)}
-          </>
-        );
-      case 'chatTemplateBlocked':
-        return (
-          <>
-            <div className={styles.modelControlCardHeader}>
-              <span className={styles.modelControlCardTitle}>{title}</span>
-              <span className={main.trailing}>{tc('modelOptionsCantSwitchHere')}</span>
-            </div>
-            <p className={styles.modelControlNote} data-tone="tertiary">{copy({ key: CHAT_TEMPLATE_THINKING_STATE_KEYS[row.state] })}</p>
-            {link(row.link, row.capability)}
-          </>
-        );
-      case 'disclosure': {
-        const status = copy(modelOptionDisclosureStatusCopy(row.status, row.capability));
-        const target = row.link && actions.canFollow(row.link) ? row.link : undefined;
-        return target ? (
-          <button type="button" className={main.disclosure} onClick={() => actions.follow(target, row.capability)}>
-            <span className={styles.modelControlCardTitle}>{title}</span>
-            <span className={main.trailing}>{status}</span>
-            <ChevronRight size={14} aria-hidden="true" className={styles.modelControlForwardChevron} />
-          </button>
-        ) : (
-          <div className={main.disclosure}>
-            <span className={styles.modelControlCardTitle}>{title}</span>
-            <span className={main.trailing}>{status}</span>
-          </div>
-        );
-      }
-      case 'protocolUndecided':
-        return (
-          <div className={main.disclosure}>
-            <span className={styles.modelControlCardTitle}>{title}</span>
-            {link(row.link, row.capability)}
-          </div>
-        );
+      case 'levels':
+        return tile.kind === 'capability' && tile.row.kind === 'tiers'
+          ? <span className={main.tileCorner}>{copy(modelOptionsReasoningLevelCountCopy(tile.row.options.length))}</span>
+          : null;
+      case 'chevron':
+        return <ChevronRight size={14} aria-hidden="true" className={styles.modelControlForwardChevron} />;
+      case 'check':
+        return <CheckIcon size={18} weight="bold" aria-hidden="true" className={main.tileMark} data-mark="check" />;
+      case 'question':
+        return <QuestionIcon size={18} weight="bold" aria-hidden="true" className={main.tileMark} data-mark="question" />;
+      case 'x':
+        return <XIcon size={18} weight="bold" aria-hidden="true" className={main.tileMark} data-mark="x" />;
+      case 'none':
+        return null;
     }
   };
 
+  const renderTile = (tile: ModelOptionsTile) => {
+    const key = tile.kind === 'capability' ? tile.capability : tile.kind;
+    const title = copy({ key: tile.kind === 'capability' ? MODEL_OPTION_CAPABILITY_TITLE_KEYS[tile.capability] : MODEL_OPTIONS_INFO_TILE_TITLE_KEYS[tile.kind] });
+    const status = modelOptionsTileStatusCopy(tile);
+    const body = modelOptionsTileBodyCopy(tile);
+    const action = tile.kind === 'capability' && tile.action && actions.canFollow(tile.action) ? tile.action : undefined;
+    const content = (
+      <>
+        <span className={main.tileTop}>
+          <TileIcon tile={key} />
+          {(tile.corner !== 'chevron' || action) && corner(tile, title)}
+        </span>
+        <span className={styles.modelControlCardTitle}>{title}</span>
+        {status && <span className={main.tileStatus}>{copy(status)}</span>}
+        {body && <span className={main.tileBody}>{copy(body)}</span>}
+      </>
+    );
+    return (
+      <div key={key} className={main.tile} data-tile={key} role="group" aria-label={title}>
+        {action && tile.kind === 'capability' ? (
+          <button type="button" className={main.tileAction} onClick={() => actions.follow(action, tile.capability)}>
+            {content}
+          </button>
+        ) : content}
+        {tile.kind === 'capability' && tileControl(tile, title)}
+      </div>
+    );
+  };
+
+  const reasoningRow = card.rows.find((row) => row.capability === 'reasoning');
   return (
-    <section className={styles.modelControlCard} aria-label={tc('modelOptionsCapabilitiesSection')}>
-      {card.rows.map((row) => (
-        <div key={row.capability} className={main.row} role="group" aria-label={copy({ key: MODEL_OPTION_CAPABILITY_TITLE_KEYS[row.capability] })}>
-          {renderRow(row)}
-          {notes(model.notes[row.capability], row.capability)}
-        </div>
-      ))}
+    <section className={`${styles.modelControlCard} ${main.capabilities}`} aria-label={tc('modelOptionsCapabilitiesSection')}>
+      <div className={main.tileGrid}>{model.tiles.map(renderTile)}</div>
+      {reasoningRow?.kind === 'tiers' && <TierNotes row={reasoningRow} />}
+      {notes(model.notes.web, 'web')}
+      {notes(model.notes.reasoning, 'reasoning')}
     </section>
   );
 }
 
+/** "This turn will send": placed after the parameters card (same on all platforms and the design board); not drawn when there are no items. */
+export function ModelOptionsTurnSummary({ model }: { model: ModelOptionsPanelModel }) {
+  const tc = useTranslations('common');
+  const copy = useCopy();
+  const items = model.summary.map((item) => copy(modelOptionsSummaryItemCopy(item))).join(' · ');
+  if (!items) return null;
+  return <p className={main.summary} data-testid="model-options-turn-summary">{tc('modelOptionsTurnSummary', { items })}</p>;
+}
+
+/** Below the grid: the tier-rejected warning and tier footnotes (not inside a card). */
+function TierNotes({ row }: { row: Extract<ModelOptionsPanelRow, { kind: 'tiers' }> }) {
+  const copy = useCopy();
+  const note = row.selection ? reasoningTierNoteCopy(row.selection) : undefined;
+  return (
+    <>
+      {row.trailing.kind === 'rejected' && (
+        <p className={styles.modelControlNote} data-tone="error">{copy(modelOptionTierTrailingCopy(row.trailing))}</p>
+      )}
+      {row.footnotes.length > 0
+        ? row.footnotes.map((footnote, index) => (
+          <p key={index} className={styles.modelControlNote} data-tone="tertiary">{copy(modelOptionTierFootnoteCopy(footnote))}</p>
+        ))
+        : note && <p className={styles.modelControlNote} data-tone="tertiary">{copy(note)}</p>}
+    </>
+  );
+}
+
+const TILE_ICONS = {
+  web: { Icon: GlobeIcon, color: 'var(--o-cap-web-search)' },
+  reasoning: { Icon: BrainIcon, color: 'var(--o-cap-reasoning)' },
+  vision: { Icon: EyeIcon, color: 'var(--o-cap-vision)' },
+  file: { Icon: PaperclipIcon, color: 'var(--o-cap-attachment)' },
+} as const;
+
+function TileIcon({ tile }: { tile: keyof typeof TILE_ICONS }) {
+  const { Icon, color } = TILE_ICONS[tile];
+  return <Icon size={28} weight="duotone" color={color} aria-hidden="true" />;
+}
+
+/** Leading icon of the two parameter-card rows: neutral secondary color, not a capability color. */
+const PARAMETER_ROW_ICON = { size: 22, weight: 'duotone', color: 'var(--o-text-secondary)', 'aria-hidden': true } as const;
+
+/** Two parameter-card rows: temperature (only when present) + the original entry row (the chips no longer carry temperature). Either row opens the parameters page. */
 export function ModelOptionsParametersCard({ model, onOpen }: { model: ModelOptionsPanelModel; onOpen: () => void }) {
   const tc = useTranslations('common');
   const copy = useCopy();
   const { chips, moreCount } = model.parameters;
+  const temperature = model.temperature;
+  const temperatureValue = temperature?.displayValue
+    ? generationDisplayValueCopy(temperature.displayValue)
+    : temperature?.unsetLabel ? { key: GENERATION_PARAMETER_UNSET_LABEL_KEYS[temperature.unsetLabel] } : undefined;
   return (
-    <button type="button" className={styles.modelControlNavigationRow} onClick={onOpen}>
-      <span className={styles.modelControlNavigationCopy}>
-        <span className={styles.modelControlCardTitle}>{tc('modelBehavior')}</span>
-        {(chips.length > 0 || moreCount > 0) && (
-          <span className={main.chips}>
-            {chips.map((chip) => (
-              <span key={chip.id} className={main.chip} data-kind="set">
-                {`${copy(generationParameterTitleCopy(chip.id))} ${copy(generationDisplayValueCopy(chip.displayValue))}`}
-              </span>
-            ))}
-            {moreCount > 0 && <span className={main.chip}>{tc('modelOptionsMoreCount', { count: moreCount })}</span>}
-          </span>
-        )}
-      </span>
-      <ChevronRight size={14} aria-hidden="true" className={styles.modelControlForwardChevron} />
-    </button>
+    <div className={main.parameterRows}>
+      {temperature && (
+        <button type="button" className={styles.modelControlNavigationRow} onClick={onOpen}>
+          <ThermometerSimpleIcon {...PARAMETER_ROW_ICON} />
+          <span className={styles.modelControlCardTitle}>{copy(generationParameterTitleCopy(temperature.id))}</span>
+          {temperatureValue && <span className={main.trailing}>{copy(temperatureValue)}</span>}
+          <ChevronRight size={14} aria-hidden="true" className={styles.modelControlForwardChevron} />
+        </button>
+      )}
+      <button type="button" className={styles.modelControlNavigationRow} onClick={onOpen}>
+        <SlidersHorizontalIcon {...PARAMETER_ROW_ICON} />
+        <span className={styles.modelControlNavigationCopy}>
+          <span className={styles.modelControlCardTitle}>{tc('generationParameters')}</span>
+          {(chips.length > 0 || moreCount > 0) && (
+            <span className={main.chips}>
+              {chips.map((chip) => (
+                <span key={chip.id} className={main.chip} data-kind="set">
+                  {`${copy(generationParameterTitleCopy(chip.id))} ${copy(generationDisplayValueCopy(chip.displayValue))}`}
+                </span>
+              ))}
+              {moreCount > 0 && <span className={main.chip}>{tc('modelOptionsMoreCount', { count: moreCount })}</span>}
+            </span>
+          )}
+        </span>
+        <ChevronRight size={14} aria-hidden="true" className={styles.modelControlForwardChevron} />
+      </button>
+    </div>
   );
 }
 
@@ -252,7 +290,7 @@ function Switch({ label, checked, onChange }: { label: string; checked: boolean;
 }
 
 /**
- * Offset applied by an arrow key inside a radiogroup. In RTL the left and right arrows flip with the reading direction (APG radio group).
+ * Arrow-key movement inside a radiogroup. In RTL the left and right arrows flip with the reading direction (APG radio group).
  */
 function radioArrowDelta(key: string, isRTL: boolean): number {
   switch (key) {
@@ -270,14 +308,17 @@ function isRTLElement(element: Element): boolean {
 }
 
 /**
- * Segmented control (APG radio group): roving tabindex, so the whole group takes a single stop in the
- * Tab order; arrow keys move focus and the selection together, and Home / End jump to the ends. When
- * nothing is selected, Tab lands on the first segment.
+ * Segments (APG radio group): roving tabindex, so the whole group takes one stop in the Tab ring; arrow keys move focus and change the selection together,
+ * Home / End jump to the ends. With no selection, Tab lands on the first cell.
  */
 const TIER_BAR_COUNT: Readonly<Record<string, number>> = { low: 1, balanced: 2, deep: 3, max: 4 };
 const TIER_BAR_HEIGHTS = [4, 7, 10, 13] as const;
 
-/** Tier icon: signal bars light up according to the tier, "automatic" is a sparkle, and "off" is a horizontal line. Unknown tiers are not drawn. */
+function hasTierIcon(tier: string): boolean {
+  return tier === 'automatic' || tier === 'off' || TIER_BAR_COUNT[tier] !== undefined;
+}
+
+/** Tier icon: signal bars lit according to the tier, "automatic" is a sparkle, "off" is a horizontal line. Unknown tiers are not drawn. */
 function TierIcon({ tier }: { tier: string }) {
   if (tier === 'automatic') {
     return (
@@ -330,7 +371,7 @@ function Segments({ variant, label, options, selection, onSelect }: {
     onSelect(next.id);
   };
   return (
-    <div ref={groupRef} className={styles.modelControlPills} data-variant={variant} role="radiogroup" aria-label={label} onKeyDown={handleKeyDown}>
+    <div ref={groupRef} className={variant === 'tiers' ? `${styles.modelControlPills} ${main.tierSegments}` : styles.modelControlPills} data-variant={variant} role="radiogroup" aria-label={label} onKeyDown={handleKeyDown}>
       {options.map((option, index) => (
         <button
           key={option.id}
@@ -339,11 +380,13 @@ function Segments({ variant, label, options, selection, onSelect }: {
           aria-checked={selection === option.id}
           tabIndex={index === selectedIndex ? 0 : -1}
           className={styles.modelControlPill}
+          {...(variant === 'tiers' ? { 'aria-label': option.label } : {})}
           data-active={selection === option.id}
           onClick={() => onSelect(option.id)}
         >
           {variant === 'tiers' && <TierIcon tier={option.id} />}
-          <span className={main.segmentLabel}>{option.label}</span>
+          {/* Tier cells draw only the icon (the tier word is the accessible name); unknown tiers without an icon fall back to text. */}
+          {(variant === 'segments' || !hasTierIcon(option.id)) && <span className={main.segmentLabel}>{option.label}</span>}
         </button>
       ))}
     </div>

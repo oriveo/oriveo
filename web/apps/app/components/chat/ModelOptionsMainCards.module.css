@@ -121,3 +121,84 @@ button.disclosure { cursor: pointer; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ── Capability area, 2x2 four cards: single column when the container is narrower than 360px. ── */
+.capabilities {
+  container-type: inline-size;
+}
+
+.tileGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@container (max-width: 359px) {
+  .tileGrid { grid-template-columns: minmax(0, 1fr); }
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: var(--o-radius-md);
+  background: var(--o-surface);
+}
+
+/* When the note card has a destination the whole card is clickable: same layout as the read-only card, with one extra top-right arrow. */
+.tileAction {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tileTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.tileCorner {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--o-text-secondary);
+}
+
+.tileMark { color: var(--o-text-secondary); }
+.tileMark[data-mark='check'] { color: var(--o-success-text); }
+
+.tileStatus,
+.tileBody {
+  font-size: 12px;
+  color: var(--o-text-secondary);
+}
+
+/* Tier segments inside the card draw only icons, so cells can be narrower than text segments (an extra class name overrides the column width of the generic segment). */
+.tierSegments.tierSegments[data-variant] {
+  grid-template-columns: repeat(auto-fit, minmax(28px, 1fr));
+}
+
+.summary {
+  margin: 0;
+  font-size: 12px;
+  color: var(--o-text-secondary);
+}
+
+.parameterRows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

@@ -247,9 +247,10 @@ describe('model options popover geometry', () => {
     expect(composerCss).toMatch(/\[dir='rtl'\]\s*\.modelControlForwardChevron\s*\{[^}]*scaleX\(-1\)/);
     // The class is really used in production; without this, the assertion above is a false green.
     const tagged = [...paneTsx.matchAll(/<ChevronRight[^>]*className=\{styles\.modelControlForwardChevron\}/g)];
-    expect(tagged.length, 'capability card link row / parameters card / candidate model row all need a mirrored forward chevron').toBe(3);
+    // The parameters card is split into a temperature row and an entry row.
+    expect(tagged.length, 'capability tile link / both parameters card rows / candidate model row: all four forward chevrons need mirroring').toBe(4);
     // The reverse check: no unmirrored ChevronRight should remain in the panel.
-    expect([...paneTsx.matchAll(/<ChevronRight[^>]*\/>/g)].length).toBe(3);
+    expect([...paneTsx.matchAll(/<ChevronRight[^>]*\/>/g)].length).toBe(4);
   });
 
   /**

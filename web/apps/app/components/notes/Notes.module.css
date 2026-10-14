@@ -1710,3 +1710,8 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Forward / next-level arrows flip with the text direction. */
+.detailGlyph:dir(rtl) {
+  transform: scaleX(-1);
+}

@@ -345,6 +345,7 @@ export async function readStream(
           traceId: event.traceId,
           ...(event.streamErrorFrame ? { streamErrorFrame: true } : {}),
           ...(event.errorFields ? { errorFields: event.errorFields } : {}),
+          ...(event.relayGuidance ? { relayGuidance: true } : {}),
         } as ProviderError;
       case 'done':
         break;

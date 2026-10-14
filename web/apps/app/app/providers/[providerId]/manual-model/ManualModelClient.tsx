@@ -3,13 +3,18 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Button, Input } from '@oriveo/ui';
-import { ProviderIcon } from '../../../../components/ProviderIcon';
+import { XCircle } from '@phosphor-icons/react';
+import { BackButton, Button } from '@oriveo/ui';
 import { getVanillaStore, useAppStore } from '../../../../providers/StoreProvider';
 import { addManualProviderModels } from '../../../../lib/core/provider-model-ops';
 import { getProviderInstanceDisplayName } from '../../../../lib/core/providers/provider-display';
+import { relayFlagshipModelID } from '../../relay/new/manual-setup-board';
 import styles from './page.module.css';
 
+/**
+ * Manually add model (ManualModel board): relay and official providers share one page and the same layout: header back button + centered title,
+ * the content is just one input slot and the note under it. The relay placeholder is the delivered flagship model ID; official mode keeps this app's existing copy and save destination.
+ */
 export function ManualModelClient() {
   const router = useRouter();
   const params = useParams();
@@ -21,12 +26,9 @@ export function ManualModelClient() {
   const providers = useAppStore((s) => s.providers);
   const setHasCompletedOnboarding = useAppStore((s) => s.setHasCompletedOnboarding);
   const provider = useMemo(() => providers.find((p) => p.id === providerId), [providers, providerId]);
-  const providerLabel = useMemo(() => {
-    if (!provider) return '';
-    return getProviderInstanceDisplayName(provider);
-  }, [provider]);
 
   const [modelId, setModelId] = useState('');
+  const isRelay = provider?.kind === 'relay';
 
   const handleSave = useCallback(() => {
     const trimmed = modelId.trim();
@@ -45,63 +47,73 @@ export function ManualModelClient() {
     return (
       <div className={styles.page}>
         <div className={styles.shell}>
-          <div className={styles.card}>
-            <p className={styles.notFoundText}>{t('providerNotFound')}</p>
-            <Button tone="secondary" className={styles.singleButton} onClick={() => router.push('/providers')}>
-              {tc('back')}
-            </Button>
-          </div>
+          <p className={styles.notFoundText}>{t('providerNotFound')}</p>
+          <Button tone="secondary" className={styles.primaryButton} onClick={() => router.push('/providers')}>
+            {tc('back')}
+          </Button>
         </div>
       </div>
     );
   }
 
+  const label = t('modelIdLabel');
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
-        <div className={styles.hero}>
-          <div className={styles.providerChip}>
-            <ProviderIcon kind={provider.kind} size={18} bare />
-            <span>{providerLabel}</span>
-          </div>
-          <h1 className={styles.title}>{t('title')}</h1>
-          <p className={styles.description}>
-            {t('description', { provider: providerLabel })}
-          </p>
-        </div>
+        <header className={styles.header}>
+          <BackButton className={styles.backButton} label={tc('back')} onClick={() => router.back()} />
+          <h1 className={styles.title}>{isRelay ? t('addModelTitle') : t('fallbackTitle')}</h1>
+        </header>
 
-        <div className={styles.card}>
-          <Input
-            className={styles.inputField}
-            label={t('modelIdLabel')}
-            placeholder={t('modelIdPlaceholder')}
+        {/* The visible subheading is for sighted users only; screen readers already read the same sentence from the input's aria-label, avoiding double reading. */}
+        <p className={styles.slotCaption} aria-hidden="true">{label}</p>
+        <div className={styles.slot} data-manual-model-section="modelSlot">
+          <input
+            className={styles.slotInput}
+            aria-label={label}
+            placeholder={isRelay ? relayFlagshipModelID() : t('modelIdPlaceholder')}
             value={modelId}
-            onChange={(e) => setModelId(e.target.value)}
+            // The model ID runs left to right even in RTL languages; the localized placeholder of official mode follows the UI direction.
+            dir={isRelay || modelId ? 'ltr' : undefined}
+            onChange={(event) => setModelId(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
                 event.preventDefault();
                 handleSave();
               }
             }}
+            autoComplete="off"
+            autoCapitalize="off"
+            spellCheck={false}
             autoFocus
           />
+          {modelId ? (
+            <button
+              type="button"
+              className={styles.clearButton}
+              onClick={() => setModelId('')}
+              aria-label={t('clear')}
+            >
+              <XCircle size={18} weight="fill" aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
 
-          <div className={styles.actions}>
-            <Button
-              className={styles.primaryButton}
-              onClick={handleSave}
-              disabled={!modelId.trim()}
-            >
-              {t('saveAndChat')}
-            </Button>
-            <Button
-              tone="secondary"
-              className={styles.secondaryButton}
-              onClick={() => router.back()}
-            >
-              {tc('back')}
-            </Button>
-          </div>
+        <div className={styles.notes} data-manual-model-section="notes">
+          {isRelay ? (
+            <>
+              <p>{t('relayModelNote')}</p>
+              <p>{t('relayCapabilityNote')}</p>
+            </>
+          ) : (
+            <p>{t('description', { provider: getProviderInstanceDisplayName(provider) })}</p>
+          )}
+        </div>
+
+        <div className={styles.actions}>
+          <Button className={styles.primaryButton} onClick={handleSave} disabled={!modelId.trim()}>
+            {isRelay ? tc('save') : t('saveAndChat')}
+          </Button>
         </div>
       </div>
     </div>

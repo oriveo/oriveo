@@ -18,6 +18,7 @@ import { initMetadata } from "../core/metadata/metadata-client";
 import { stopStream } from "../core/chat/stop-stream";
 import type { AppStore } from "../core/store/app-store";
 import { createProviderSelectionSnapshot } from "../core/providers/provider-selection-snapshot";
+import { resolveConversationModelRemoval } from "../core/chat/conversation-model-status";
 import { sameNormalizedID } from "../utils/id-utils";
 import {
   abortAllStreams,
@@ -41,6 +42,8 @@ import {
   findUnsendableAttachmentsBeforeSend,
   trackAttachmentSendBlocked,
 } from "../core/chat/attachment-preflight";
+import { buildOutboundMessages } from "../core/chat/outbound-history";
+import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from "../core/chat/stream-options";
 import { resolveFileExtractionLimits } from "../core/attachments/file-text-extractor";
 import { showToast } from "../../components/Toast";
 import { clearStreamPartialBackup } from "../core/store/stream-partial-backup";
@@ -78,6 +81,18 @@ function resendUserMessage(
     if (messages[i].role === "user") return messages[i];
   }
   return undefined;
+}
+
+/** History before a resent / edited user message (turns after it are not sent). */
+function messagesBefore(messages: ChatMessage[], message: ChatMessage | undefined): ChatMessage[] {
+  const index = message ? messages.indexOf(message) : -1;
+  return index > 0 ? messages.slice(0, index) : [];
+}
+
+/** The current turn used by the pre-send check: the fields of the real send that affect outbound normalization (text and attachments). */
+const PREFLIGHT_TURN_ID = "__preflight_turn__";
+function preflightTurn(text: string, attachments: Attachment[] | undefined): ChatMessage {
+  return { id: PREFLIGHT_TURN_ID, role: "user", text, ...(attachments?.length ? { attachments } : {}) } as ChatMessage;
 }
 
 interface StreamReservation {
@@ -156,7 +171,7 @@ function resolveLatestSendSelection(
 ): {
   conversation: Conversation | undefined;
   provider: Provider;
-  model: AIModel;
+  model: AIModel | null;
 } {
   if (!conversation) {
     return { conversation, provider: fallbackProvider, model: fallbackModel };
@@ -174,8 +189,13 @@ function resolveLatestSendSelection(
     (sameNormalizedID(fallbackProvider.id, latestConversation.providerID)
       ? fallbackProvider
       : undefined);
+  // The relay conversation's model has been removed: do not substitute the fallback model, let the caller return with zero requests.
+  if (resolveConversationModelRemoval(latestProvider, latestConversation.modelID)) {
+    return { conversation: latestConversation, provider: fallbackProvider, model: null };
+  }
   const latestSnapshot = createProviderSelectionSnapshot(latestProvider, {
     requestedModelId: latestConversation.modelID,
+    lastUsedModelRef: state.lastUsedModelRef,
   });
 
   if (!latestSnapshot?.currentModel) {
@@ -268,13 +288,23 @@ export function useStreamChat({
       messageAttachments: Attachment[] | undefined,
       sendProvider: Provider,
       model: AIModel,
+      outbound: { history: ChatMessage[]; turn: ChatMessage },
     ): Promise<boolean> => {
+      // Detect video with the history produced by the same outbound builder the real send uses.
+      const outboundMessages = buildOutboundMessages({
+        messages: [...outbound.history, outbound.turn],
+        currentTurnId: outbound.turn.id,
+        provider: sendProvider,
+        model,
+        streamOptions: buildProviderStreamOptions(sendProvider, buildStreamOptionsFromIntent(model, reasoningMode, webSearchEnabled), model),
+      });
       const skipped = await findUnsendableAttachmentsBeforeSend({
         attachments: messageAttachments,
         provider: sendProvider,
         model,
         reasoningMode,
         webSearchEnabled,
+        outboundMessages,
       });
       if (skipped.length === 0) return false;
       trackAttachmentSendBlocked(skipped, sendProvider);
@@ -321,7 +351,9 @@ export function useStreamChat({
         provider,
         currentModel,
       );
-      if (await blockUnsendableAttachments(msgAttachments, precheckSelection.provider, precheckSelection.model)) {
+      // The relay conversation's model has been removed: like the other send-blocking branches, return SEND_BLOCKED and keep the draft.
+      if (!precheckSelection.model) return SEND_BLOCKED;
+      if (await blockUnsendableAttachments(msgAttachments, precheckSelection.provider, precheckSelection.model, { history: prevMessages, turn: preflightTurn(text, msgAttachments) })) {
         return SEND_BLOCKED;
       }
       // Interrupt only when the target conversation already has an unfinished stream (an overwrite
@@ -348,6 +380,10 @@ export function useStreamChat({
           provider,
           currentModel,
         );
+        if (!sendSelection.model) {
+          reservation?.release();
+          return SEND_BLOCKED;
+        }
         // For a new conversation the convId is generated inside sendMessage, so start with a
         // placeholder ctx and rebuild it with the real convId once the handle is available. The
         // onChunk closure must point at finalConvId, so wrap the batcher in a mutable closure.
@@ -489,7 +525,8 @@ export function useStreamChat({
       excludeCapabilityOwners?: Array<'web' | 'reasoning' | 'generation'>;
     }) => {
       if (!conversation || !provider || !currentModel) return;
-      if (await blockUnsendableAttachments(resendUserMessage(messages, messageId)?.attachments, provider, currentModel)) {
+      const resendUser = resendUserMessage(messages, messageId);
+      if (await blockUnsendableAttachments(resendUser?.attachments, provider, currentModel, { history: messagesBefore(messages, resendUser), turn: resendUser ?? preflightTurn("", undefined) })) {
         return;
       }
       guardSameConversation(conversation.id);
@@ -575,7 +612,8 @@ export function useStreamChat({
     async (messageId: string) => {
       if (!conversation || !provider || !currentModel) return;
       // Continuing resends the previous user message together with its attachments, so it goes through the pre-send check like send and retry.
-      if (await blockUnsendableAttachments(resendUserMessage(messages, messageId)?.attachments, provider, currentModel)) {
+      const resendUser = resendUserMessage(messages, messageId);
+      if (await blockUnsendableAttachments(resendUser?.attachments, provider, currentModel, { history: messagesBefore(messages, resendUser), turn: resendUser ?? preflightTurn("", undefined) })) {
         return;
       }
       guardSameConversation(conversation.id);
@@ -680,7 +718,7 @@ export function useStreamChat({
       const edited = messages.find((message) => message.id === messageId);
       if (
         edited?.role === "user"
-        && await blockUnsendableAttachments(edited.attachments, provider, currentModel)
+        && await blockUnsendableAttachments(edited.attachments, provider, currentModel, { history: messagesBefore(messages, edited), turn: { ...edited, text: newText } })
       ) {
         return;
       }

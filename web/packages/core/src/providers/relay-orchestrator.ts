@@ -12,15 +12,24 @@
 import { attachmentTransportProfile } from './attachment-transport';
 import { mapRelayStreamError } from '@oriveo/shared/relay/error-mapping';
 import { redactRelayCredentials } from '@oriveo/shared/relay/endpoint-policy';
+import { isRelayWebTransport, mergeRelayWebFragment } from '@oriveo/shared/relay/web-fragments';
 import type { ContentPart, StreamEvent, StreamHandle, StreamOptions } from './types';
 import type { RelayRuntimeConfig, UpstreamTransport } from '../ports';
 import { buildRelayEndpointURL } from './relay-endpoints';
-import { detectGeminiBlockEvent } from './transport/strategies/gemini-generate';
+import {
+  DEFAULT_CITATIONS_PATH as GEMINI_CITATIONS_PATH,
+  DEFAULT_TITLE_FIELD as GEMINI_CITATION_TITLE_FIELD,
+  DEFAULT_URL_FIELD as GEMINI_CITATION_URL_FIELD,
+  detectGeminiBlockEvent,
+} from './transport/strategies/gemini-generate';
+import { emitAnnotationCitations } from './transport/strategies/openai-chat';
+import { handleContentBlock as handleAnthropicCitationBlock } from './transport/strategies/anthropic-messages';
+import { citationFromRaw, mergeCitation, readPath } from './transport/citation-utils';
+import type { Citation } from '@oriveo/shared/pure-types';
 import {
   relayImageRoute,
   relaySensitiveCredentialValues,
   resolveRelayAuthMode,
-  resolveRelayTransportRule,
 } from './relay-runtime-support';
 import {
   parseUsageAnthropic,
@@ -29,6 +38,7 @@ import {
   parseUsageOpenAIResponses,
 } from './transport/usage-parsers';
 import {
+  applyRelayPromptCacheKey,
   asImageItemId,
   buildDirectAuthHeaders,
   buildRelayProtocolHeaders,
@@ -54,20 +64,21 @@ import {
   type RelayDirectFetchConfig,
 } from './relay-adapter';
 import { writeGenerationParameters } from './request-builders/generation-parameters';
+import { functionToolsForProtocol } from './request-builders/tool-call-wire-adapter';
+import { nativeToolCallEvents, type ToolCallProtocol } from './tool-call-protocol';
 import { generationWriteFacts } from './generation-rejection-facts';
 import { additionalBodyHasContent, applyAdditionalBodyInPlace, assertAdditionalBodyAccepted } from './request-builders/additional-body';
 import { readTopLevelErrorFrame } from './upstream-error-text';
 import { classifyInStreamProviderErrorKind } from './errors';
 import { guardAnthropicThinking, resolveRelayAnthropicThinking } from './request-builders/anthropic-thinking';
 import { compileSafeCustomFragment, rejectSafeCustomFragment, SafeCustomFragmentRejectedError } from './request-builders/safe-custom-fragment';
-import { safeCustomOwners } from './request-builders/dispatch';
+import { safeCustomOwners } from './request-builders/generation-parameters';
 import {
   createRelayJSONStream,
   createRelayResponsesStreamWithRetry,
   createRelaySSEStream,
   fetchRelayRequest,
   fetchRelayWithFallbacks,
-  fetchRelayWithXHighRetry,
   relayEndpointFingerprint,
   type RelayRequest,
   type RelayResponsesRetryDetector,
@@ -132,6 +143,24 @@ function relayGenerationUpstreamURL(
 }
 
 /**
+ * The chat endpoint by protocol (pure logic): apiRoot is the final API root (version segment included), and the endpoint is appended as is, without adding a version again.
+ * Used when an official family goes through a non-native protocol, sharing one endpoint mapping with the Relay streaming orchestration.
+ */
+export function relayProtocolUpstreamURL(
+  apiRoot: string,
+  modelID: string,
+  transport: Exclude<RelayTransport, 'llamacpp_native'>,
+  options: StreamOptions | undefined,
+): string {
+  return relayGenerationUpstreamURL(
+    apiRoot,
+    modelID,
+    transport,
+    { ...options, supportsImageGen: false, relayResolvedAPIBaseURLIsExact: true },
+  );
+}
+
+/**
  * Shared endpoint partition key for generation-parameter self-healing and "clear learned
  * capabilities". It assembles the final upstream URL from the resolved base / transport / stream
  * actually used when sending, rather than the `/api/relay/forward` proxy path.
@@ -191,7 +220,7 @@ export interface RelayOrchestratorDeps {
   getRelayRuntimeConfig(): RelayRuntimeConfig | null;
 }
 
-type RelayMessages = { role: 'user' | 'assistant' | 'system'; content: string | ContentPart[] }[];
+export type RelayMessages = { role: 'user' | 'assistant' | 'system'; content: string | ContentPart[] }[];
 
 /**
  * The final chat body boundary for relay: typed generation parameters have been written, JSON
@@ -216,6 +245,10 @@ function applyRelayGenerationParameters(
     guardAnthropicThinking(body, { profile: options?.generationProfile, written, builderDefaultMaxTokens });
   }
   applyRelaySafeCustomFragments(body, options);
+  // Connection-level web search fragment: after the builder output and before the additional request body; only a chat request's options carry it.
+  if (options?.relayWebFragment && isRelayWebTransport(transport)) {
+    mergeRelayWebFragment(transport, body, options.relayWebFragment);
+  }
   // Additional request body: the last step, merged after panel parameters and custom fragments; on a name clash it wins.
   applyAdditionalBodyInPlace(body, options?.additionalBody);
 }
@@ -284,11 +317,43 @@ function requestCredentialValues(
 ): string[] {
   // The none mode never writes apiKey, custom headers or query into the actual request, so it must not over-redact ordinary body fields that happen to share those names.
   if (authMode === 'none') return [];
-  return relaySensitiveCredentialValues({
-    apiKey,
-    headers: options?.relayHeaders,
-    queryParams: options?.relayQueryParams,
-  });
+  return [
+    ...relaySensitiveCredentialValues({
+      apiKey,
+      headers: options?.relayHeaders,
+      queryParams: options?.relayQueryParams,
+    }),
+    // The redaction list holds all of the connection's keys; they are never sent out anyway, so masking only guards against an upstream echo.
+    ...(options?.relayConnectionKeySecrets ?? []).filter((value) => value.trim().length > 0),
+  ];
+}
+
+/**
+ * When the request carries the test-capability function tool (relayFunctionTool, carried only by the tool item), also produce native tool call events on the same parse:
+ * the same nativeToolCallEvents as direct chat. Ordinary relay chat does not carry this tool, so parsing is unchanged.
+ */
+function withRelayFunctionToolCalls(
+  protocol: ToolCallProtocol,
+  options: StreamOptions | undefined,
+  parse: (eventType: string | null, data: string) => StreamEvent | StreamEvent[] | null,
+): (eventType: string | null, data: string) => StreamEvent | StreamEvent[] | null {
+  if (!options?.relayFunctionTool) return parse;
+  const state: Record<string, unknown> = {};
+  return (eventType, data) => {
+    const parsed = parse(eventType, data);
+    let payload: unknown;
+    try {
+      payload = JSON.parse(data);
+    } catch {
+      return parsed;
+    }
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return parsed;
+    const toolEvents = nativeToolCallEvents(protocol, eventType, payload as Record<string, unknown>, state)
+      .filter((event) => event.type === 'tool_calls');
+    if (toolEvents.length === 0) return parsed;
+    const base = parsed == null ? [] : Array.isArray(parsed) ? parsed : [parsed];
+    return [...base, ...toolEvents];
+  };
 }
 
 export function sendRelayStream(
@@ -323,6 +388,71 @@ export function sendRelayStream(
   const handle = sendRelayTransportStream(transport, apiKey, modelID, messages, resolvedBaseURL, options, deps);
   const generationWrite = generationWriteFacts(options);
   return { ...handle, getAdditionalBodyApplied: () => additionalBodyApplied, getGenerationWrite: () => generationWrite };
+}
+
+/** The wire shape of one Relay chat request: URL, headers (Content-Type included) and the serialized body. */
+export interface RelayWireRequest {
+  url: string;
+  method: 'POST';
+  headers: Record<string, string>;
+  body: string;
+}
+
+/**
+ * Pure construction of the first ordinary chat request (no send, no retry, no fallback, no self-heal): it uses the same primitives as the
+ * `buildRequest` of the five streaming orchestrations - base URL normalization, protocol endpoint, auth and protocol headers, direct / proxy parameters, the four body builders -
+ * and then assembles the headers and JSON body in the same shape as `fetchRelayRequest`. The Relay test capability sends only this one request.
+ * Only the four chat protocols are accepted; llama.cpp native and the image generation endpoint are not, and throw. An address that fails the security policy also throws.
+ */
+export function buildRelayStreamRequest(
+  apiKey: string,
+  modelID: string,
+  messages: RelayMessages,
+  baseURL: string | undefined,
+  options: StreamOptions | undefined,
+  deps: Pick<RelayOrchestratorDeps, 'buildFetchArgs' | 'getRelayRuntimeConfig'>,
+): RelayWireRequest {
+  const resolvedBaseURL = normalizeBaseURL(
+    options?.relayResolvedBaseURLText ?? baseURL,
+    options?.relaySecurityMode,
+  );
+  const transport = options?.relayTransport ?? 'openai_chat_completions';
+  if (transport === 'llamacpp_native') throw new Error(`Unsupported relay transport ${transport}`);
+  assertAdditionalBodyAccepted(options?.additionalBody);
+  const runtimeConfig = deps.getRelayRuntimeConfig();
+  const authMode = resolveRelayAuthMode(options, transport, runtimeConfig);
+  let body: Record<string, unknown>;
+  switch (transport) {
+    case 'openai_responses':
+      body = buildRelayResponsesBody(modelID, messages, options, runtimeConfig).body;
+      break;
+    case 'anthropic_messages':
+      body = buildRelayAnthropicMessagesBody(modelID, messages, options);
+      break;
+    case 'gemini_generate_content':
+      body = buildRelayGeminiGenerateContentBody(messages, options);
+      break;
+    case 'openai_chat_completions':
+    default:
+      body = buildRelayChatCompletionsBody(modelID, messages, options).body;
+      break;
+  }
+  const directHeaders: Record<string, string> = transport === 'anthropic_messages'
+    ? { ...buildDirectAuthHeaders(apiKey, authMode), ...buildRelayProtocolHeaders(transport) }
+    : buildDirectAuthHeaders(apiKey, authMode);
+  const proxyConfig = buildRelayProxyConfig(apiKey, transport, authMode, options);
+  applyRelayPromptCacheKey(body, proxyConfig, messages);
+  const { url, headers } = deps.buildFetchArgs(
+    relayGenerationUpstreamURL(resolvedBaseURL, modelID, transport, options),
+    directHeaders,
+    proxyConfig,
+  );
+  return {
+    url,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(body),
+  };
 }
 
 function sendRelayTransportStream(
@@ -492,6 +622,41 @@ function sendRelayImagesGeneration(
   return { stream, abort: () => controller.abort() };
 }
 
+/** The Relay Chat Completions request body (pure logic; shared by the streaming orchestration and an official family on a non-native protocol). */
+export function buildRelayChatCompletionsBody(
+  modelID: string,
+  messages: RelayMessages,
+  options: StreamOptions | undefined,
+): { body: Record<string, unknown>; reasoningEffort: ReturnType<typeof resolveOpenAIReasoningEffort> } {
+  const relayStream = shouldRelayStream(options);
+  const body: Record<string, unknown> = {
+    model: modelID,
+    stream: relayStream,
+    messages: messages.map((message) => ({
+      role: message.role,
+      content: typeof message.content === 'string'
+        ? message.content
+        : convertToOpenAIChatParts(message.content),
+    })),
+  };
+  if (options?.relayMaxOutputTokens !== undefined) {
+    body.max_tokens = options.relayMaxOutputTokens;
+  }
+  if (relayStream) {
+    body.stream_options = { include_usage: true };
+  }
+  if (options?.relayFunctionTool) {
+    body.tools = functionToolsForProtocol('openai_chat', [options.relayFunctionTool]);
+  }
+
+  const reasoningEffort = resolveOpenAIReasoningEffort(options);
+  if (reasoningEffort) {
+    body.reasoning_effort = reasoningEffort;
+  }
+  applyRelayGenerationParameters(body, options, 'openai_chat_completions');
+  return { body, reasoningEffort };
+}
+
 function sendOpenAIChatCompletionsStream(
   apiKey: string,
   modelID: string,
@@ -506,31 +671,8 @@ function sendOpenAIChatCompletionsStream(
   const authMode = resolveRelayAuthMode(options, transport, deps.getRelayRuntimeConfig());
   const sensitiveCredentialValues = requestCredentialValues(apiKey, options, authMode);
 
-  const apiMessages = messages.map((message) => ({
-    role: message.role,
-    content: typeof message.content === 'string'
-      ? message.content
-      : convertToOpenAIChatParts(message.content),
-  }));
-
-  const buildRequest = (reasoningEffortOverride?: 'high'): RelayRequest => {
-    const body: Record<string, unknown> = {
-      model: modelID,
-      stream: relayStream,
-      messages: apiMessages,
-    };
-    if (options?.relayMaxOutputTokens !== undefined) {
-      body.max_tokens = options.relayMaxOutputTokens;
-    }
-    if (relayStream) {
-      body.stream_options = { include_usage: true };
-    }
-
-    const reasoningEffort = resolveOpenAIReasoningEffort(options, reasoningEffortOverride);
-    if (reasoningEffort) {
-      body.reasoning_effort = reasoningEffort;
-    }
-    applyRelayGenerationParameters(body, options);
+  const buildRequest = (): RelayRequest => {
+    const { body, reasoningEffort } = buildRelayChatCompletionsBody(modelID, messages, options);
 
     const upstreamURL = relayGenerationUpstreamURL(baseURL, modelID, transport, options);
     const { url, headers, endpointFingerprint } = buildScopedFetchArgs(
@@ -546,16 +688,20 @@ function sendOpenAIChatCompletionsStream(
     };
   };
 
+  // The same citations event as direct openai-chat: send the accumulated full set whenever there is a new citation.
+  const chatCitations: { citations: Citation[] } = { citations: [] };
   const stream = relayStream
     ? createRelaySSEStream(
-        (signal) => fetchRelayWithXHighRetry(buildRequest, signal, deps.transport, deps.onUnsupportedParamDropped),
-        (_eventType, data): StreamEvent | StreamEvent[] | null => {
+        (signal) => fetchRelayRequest(buildRequest(), signal, deps.transport, deps.onUnsupportedParamDropped),
+        withRelayFunctionToolCalls('openai_chat', options, (_eventType, data): StreamEvent | StreamEvent[] | null => {
           const chunk = JSON.parse(data) as {
             choices?: Array<{
               delta?: {
                 content?: string;
                 images?: Array<{ image_url?: { url?: string } }>;
+                annotations?: unknown;
               };
+              message?: { annotations?: unknown };
             }>;
             usage?: {
               prompt_tokens?: number;
@@ -591,20 +737,95 @@ function sendOpenAIChatCompletionsStream(
               }
             }
           }
+          // A url_citation missing start_index / end_index (such as new-api relaying from Claude) still counts as a citation.
+          let citationChanged = emitAnnotationCitations(choice?.delta?.annotations, chatCitations, null);
+          if (emitAnnotationCitations(choice?.message?.annotations, chatCitations, null)) citationChanged = true;
+          if (citationChanged) {
+            events.push({ type: 'citations', citations: chatCitations.citations.slice() });
+          }
 
           return events.length > 0 ? events : null;
-        },
+        }),
         controller.signal,
         sensitiveCredentialValues,
       )
     : createRelayJSONStream(
-        (signal) => fetchRelayWithXHighRetry(buildRequest, signal, deps.transport, deps.onUnsupportedParamDropped),
+        (signal) => fetchRelayRequest(buildRequest(), signal, deps.transport, deps.onUnsupportedParamDropped),
         parseOpenAIChatCompletionsResponse,
         controller.signal,
         sensitiveCredentialValues,
       );
 
   return { stream, abort: () => controller.abort() };
+}
+
+/**
+ * The Relay Responses request body (pure logic). The streaming orchestration and an official family moving to a non-native protocol (dispatch)
+ * share this one copy, so the body shapes of the two paths never diverge.
+ */
+export function buildRelayResponsesBody(
+  modelID: string,
+  messages: RelayMessages,
+  options: StreamOptions | undefined,
+  // Kept only for call-signature compatibility: the web search tool name is no longer resolved here.
+  _runtimeConfig: RelayRuntimeConfig | null,
+  hints?: RelayRetryHints,
+): { body: Record<string, unknown>; reasoningEffort: ReturnType<typeof resolveOpenAIReasoningEffort> } {
+  const body: Record<string, unknown> = {
+    model: modelID,
+    input: messages.map((message) => ({
+      role: message.role,
+      content: buildResponsesContent(message.role, message.content),
+    })),
+    stream: shouldRelayStream(options),
+  };
+
+  // The Codex transport always sends the image_generation tool and lets the model decide whether
+  // to call it. image_generation and web_search_preview are not mutually exclusive; when both are
+  // present the upstream decides the execution order.
+  // The hints parameter exists only for the older call signature; the production wrapper never
+  // emits a second removeTools leg.
+  if (options?.relayFunctionTool) {
+    // The test capability's tool item: tools holds only this one function tool, and built-in tools are not merged in.
+    body.tools = functionToolsForProtocol('openai_responses', [options.relayFunctionTool]);
+  } else if (!hints?.removeTools && !options?.relayOmitDefaultToolsAndReasoning) {
+    const tools: Record<string, unknown>[] = [];
+    const imageTool: Record<string, unknown> = { type: 'image_generation' };
+    const toolModelID = options?.relayImageToolModelID?.trim();
+    if (toolModelID) imageTool.model = toolModelID;
+    tools.push(imageTool);
+    // The web search tool is no longer added automatically from the chat web search preference: relay web search comes only from the connection-level fragment;
+    // when an official family moves to this builder, official-protocol adds it itself.
+    body.tools = tools;
+  }
+  const reasoningEffort = resolveOpenAIReasoningEffort(options);
+  // summary is always requested:
+  //  1. It is a precondition for the upstream emitting `response.reasoning_summary_text.delta`;
+  //     without it relay users never see the reasoning trace at all.
+  //  2. The 400 `Your organization must be verified to generate reasoning summaries` is OpenAI's
+  //     verification policy for its own organizations. A relay request lands on the relay
+  //     operator's account, often not OpenAI at all, so it usually does not apply - assuming the
+  //     official provider's constraints is the top source of relay regressions.
+  //  3. If a relay really does reject summary, the original preference is kept and the error is
+  //     raised; the body is not scanned and the parameter is not silently stripped for a retry.
+  // In automatic mode reasoningEffort is undefined, so only summary is sent and the model picks its own effort.
+  // The probe carries no reasoning fields.
+  if (!options?.relayOmitDefaultToolsAndReasoning) {
+    body.reasoning = reasoningEffort
+      ? { effort: reasoningEffort, summary: 'auto' }
+      : { summary: 'auto' };
+  }
+  if (options?.relayServiceTier && options.relayServiceTier.trim()) {
+    body.service_tier = options.relayServiceTier.trim();
+  }
+  if (options?.relayDisableResponseStorage) {
+    body.store = false;
+  }
+  if (options?.relayMaxOutputTokens !== undefined) {
+    body.max_output_tokens = options.relayMaxOutputTokens;
+  }
+  applyRelayGenerationParameters(body, options, 'openai_responses');
+  return { body, reasoningEffort };
 }
 
 function sendOpenAIResponsesStream(
@@ -625,74 +846,23 @@ function sendOpenAIResponsesStream(
   // image_generation_call.completed / output_item.done); dedupe by item id so each id lands once.
   const emittedImageIds = new Set<string>();
   const pendingPartialImages = new Map<string, string>();
+  const responsesCitations: Citation[] = [];
 
   // Shared across the whole stream: once a retry has fired, a later frame must not fire it again.
   const retryDetector: RelayResponsesRetryDetector = { triggered: false };
 
   const buildRequest = (hints?: RelayRetryHints): RelayRequest => {
-    const body: Record<string, unknown> = {
-      model: modelID,
-      input: messages.map((message) => ({
-        role: message.role,
-        content: buildResponsesContent(message.role, message.content),
-      })),
-      stream: relayStream,
-    };
-
-    // The Codex transport always sends the image_generation tool and lets the model decide whether
-    // to call it. image_generation and web_search_preview are not mutually exclusive; when both are
-    // present the upstream decides the execution order.
-    // The hints parameter exists only for the older call signature; the production wrapper never
-    // emits a second removeTools leg.
-    if (!hints?.removeTools) {
-      const tools: Record<string, unknown>[] = [];
-      const imageTool: Record<string, unknown> = { type: 'image_generation' };
-      const toolModelID = options?.relayImageToolModelID?.trim();
-      if (toolModelID) imageTool.model = toolModelID;
-      tools.push(imageTool);
-      if (options?.supportsWebSearch) {
-        // Default to 'web_search' (recommended by OpenAI and used by most relays); custom mode can
-        // fall back to the legacy 'web_search_preview', and 'disabled' omits the tool entirely.
-        const runtimeConfig = deps.getRelayRuntimeConfig();
-        const webSearchToolName = options?.relayWebSearchToolName
-          ?? (runtimeConfig
-            ? resolveRelayTransportRule('openai_responses', runtimeConfig)?.webSearchToolName
-            : undefined)
-          ?? 'web_search';
-        if (webSearchToolName !== 'disabled') {
-          tools.push({ type: webSearchToolName });
-        }
-      }
-      body.tools = tools;
-    }
-    const reasoningEffort = resolveOpenAIReasoningEffort(options, hints?.reasoningEffortOverride);
-    // summary is always requested:
-    //  1. It is a precondition for the upstream emitting `response.reasoning_summary_text.delta`;
-    //     without it relay users never see the reasoning trace at all.
-    //  2. The 400 `Your organization must be verified to generate reasoning summaries` is OpenAI's
-    //     verification policy for its own organizations. A relay request lands on the relay
-    //     operator's account, often not OpenAI at all, so it usually does not apply - assuming the
-    //     official provider's constraints is the top source of relay regressions.
-    //  3. If a relay really does reject summary, the original preference is kept and the error is
-    //     raised; the body is not scanned and the parameter is not silently stripped for a retry.
-    // In automatic mode reasoningEffort is undefined, so only summary is sent and the model picks its own effort.
-    body.reasoning = reasoningEffort
-      ? { effort: reasoningEffort, summary: 'auto' }
-      : { summary: 'auto' };
-    if (options?.relayServiceTier && options.relayServiceTier.trim()) {
-      body.service_tier = options.relayServiceTier.trim();
-    }
-    if (options?.relayDisableResponseStorage) {
-      body.store = false;
-    }
-    applyRelayGenerationParameters(body, options);
+    const { body, reasoningEffort } = buildRelayResponsesBody(modelID, messages, options, deps.getRelayRuntimeConfig(), hints);
+    // Not put inside buildRelayResponsesBody: an official family moving to Responses uses that builder too, and its request body does not carry this key.
+    const proxyConfig = buildRelayProxyConfig(apiKey, transport, authMode, options);
+    applyRelayPromptCacheKey(body, proxyConfig, messages);
 
     const upstreamURL = relayGenerationUpstreamURL(baseURL, modelID, transport, options);
     const { url, headers, endpointFingerprint } = buildScopedFetchArgs(
       deps,
       upstreamURL,
       buildDirectAuthHeaders(apiKey, authMode),
-      buildRelayProxyConfig(apiKey, transport, authMode, options),
+      proxyConfig,
     );
 
     return {
@@ -700,16 +870,38 @@ function sendOpenAIResponsesStream(
       ...relayLearningScopeFields(transport, options),
     };
   };
-
   const stream = relayStream
     ? createRelayResponsesStreamWithRetry(
         buildRequest,
-        (eventType, data): StreamEvent | StreamEvent[] | null => {
+        withRelayFunctionToolCalls('openai_responses', options, (eventType, data): StreamEvent | StreamEvent[] | null => {
           const chunk = JSON.parse(data) as Record<string, unknown>;
           const events: StreamEvent[] = [];
 
           if (eventType === 'response.output_text.delta' && typeof chunk.delta === 'string') {
             events.push({ type: 'delta', content: chunk.delta });
+          }
+          // Same shape as direct openai-responses: a url_citation in an annotation event produces an accumulated citations event.
+          if (
+            eventType === 'response.output_text.annotation.added' ||
+            eventType === 'response.output_text.annotations.added'
+          ) {
+            const ann = chunk.annotation as Record<string, unknown> | undefined;
+            if (ann && ann.type === 'url_citation') {
+              const changed = mergeCitation(responsesCitations, {
+                url: typeof ann.url === 'string' ? ann.url : '',
+                title: typeof ann.title === 'string' ? ann.title : undefined,
+                startIndex: typeof ann.start_index === 'number' ? ann.start_index : undefined,
+                endIndex: typeof ann.end_index === 'number' ? ann.end_index : undefined,
+              });
+              if (changed) events.push({ type: 'citations', citations: responsesCitations.slice() });
+            }
+          }
+          // Web search probe evidence exit: a completed web_search_call means the search ran, even with no citations.
+          if (eventType === 'response.output_item.done') {
+            const item = chunk.item as Record<string, unknown> | undefined;
+            if (item?.type === 'web_search_call' && item.status === 'completed') {
+              events.push({ type: 'citations', citations: responsesCitations.slice(), searchRan: true });
+            }
           }
           if (
             eventType === 'response.image_generation_call.partial_image' &&
@@ -811,7 +1003,7 @@ function sendOpenAIResponsesStream(
           }
 
           return events.length > 0 ? events : null;
-        },
+        }),
         retryDetector,
         controller.signal,
         deps.transport,
@@ -828,16 +1020,12 @@ function sendOpenAIResponsesStream(
   return { stream, abort: () => controller.abort() };
 }
 
-function sendAnthropicMessagesStream(
-  apiKey: string,
+/** The Relay Anthropic Messages request body (pure logic; shared by the streaming orchestration and an official family on a non-native protocol). */
+export function buildRelayAnthropicMessagesBody(
   modelID: string,
   messages: RelayMessages,
-  baseURL: string,
   options: StreamOptions | undefined,
-  deps: RelayOrchestratorDeps,
-): StreamHandle {
-  const controller = new AbortController();
-  const relayStream = shouldRelayStream(options);
+): Record<string, unknown> {
   let systemText: string | undefined;
 
   const apiMessages = messages
@@ -858,8 +1046,8 @@ function sendAnthropicMessagesStream(
   const body: Record<string, unknown> = {
     model: modelID,
     // Relay-specific exception / heuristic-allow fallback only: the official Anthropic path resolves this from metadata instead.
-    max_tokens: 8192,
-    stream: relayStream,
+    max_tokens: options?.relayMaxOutputTokens ?? 8192,
+    stream: shouldRelayStream(options),
     messages: apiMessages,
   };
   if (systemText) body.system = systemText;
@@ -868,8 +1056,25 @@ function sendAnthropicMessagesStream(
     body.thinking = { type: 'enabled', budget_tokens: thinking.budgetTokens };
     body.max_tokens = thinking.maxTokens;
   }
+  if (options?.relayFunctionTool) {
+    body.tools = functionToolsForProtocol('anthropic_messages', [options.relayFunctionTool]);
+  }
+  applyRelayGenerationParameters(body, options, 'anthropic_messages');
+  return body;
+}
+
+function sendAnthropicMessagesStream(
+  apiKey: string,
+  modelID: string,
+  messages: RelayMessages,
+  baseURL: string,
+  options: StreamOptions | undefined,
+  deps: RelayOrchestratorDeps,
+): StreamHandle {
+  const controller = new AbortController();
+  const relayStream = shouldRelayStream(options);
+  const body = buildRelayAnthropicMessagesBody(modelID, messages, options);
   const transport: RelayTransport = 'anthropic_messages';
-  applyRelayGenerationParameters(body, options, transport);
 
   const authMode = resolveRelayAuthMode(options, transport, deps.getRelayRuntimeConfig());
   const sensitiveCredentialValues = requestCredentialValues(apiKey, options, authMode);
@@ -883,6 +1088,7 @@ function sendAnthropicMessagesStream(
   // cache_creation) so that, once output_tokens from message_delta is merged in, parseUsageAnthropic
   // can rebuild the complete breakdown. Reading only input_tokens dropped every cache field.
   let messageStartUsage: Record<string, unknown> = {};
+  const messagesCitations: { citations: Citation[] } = { citations: [] };
   const buildRequest = (): RelayRequest => {
     const upstreamURL = relayGenerationUpstreamURL(baseURL, modelID, transport, options);
     const { url, headers: resolvedHeaders, endpointFingerprint } = buildScopedFetchArgs(
@@ -906,6 +1112,23 @@ function sendAnthropicMessagesStream(
             messageStartUsage = usage;
             const input = usage.input_tokens;
             inputTokens = typeof input === 'number' ? input : 0;
+          }
+          return null;
+        }
+        case 'content_block_start': {
+          // The same path as direct anthropic-messages: the result entries of a web_search_tool_result are the citations;
+          // a web_search_tool_result_error (content not an array) produces no citation.
+          const block = chunk.content_block as Record<string, unknown> | undefined;
+          if (!block) return null;
+          const changed = handleAnthropicCitationBlock(block, messagesCitations, null);
+          // Web search probe evidence exit: a result that is an array (an empty array counts) = the search ran.
+          const searchRan = block.type === 'web_search_tool_result' && Array.isArray(block.content);
+          if (changed || searchRan) {
+            return {
+              type: 'citations',
+              citations: messagesCitations.citations.slice(),
+              ...(searchRan ? { searchRan: true as const } : {}),
+            };
           }
           return null;
         }
@@ -957,7 +1180,7 @@ function sendAnthropicMessagesStream(
   const stream = relayStream
     ? createRelaySSEStream(
         (signal) => fetchRelayRequest(buildRequest(), signal, deps.transport, deps.onUnsupportedParamDropped),
-        parseStreamChunk,
+        withRelayFunctionToolCalls('anthropic_messages', options, parseStreamChunk),
         controller.signal,
         sensitiveCredentialValues,
       )
@@ -971,16 +1194,11 @@ function sendAnthropicMessagesStream(
   return { stream, abort: () => controller.abort() };
 }
 
-function sendGeminiGenerateContentStream(
-  apiKey: string,
-  modelID: string,
+/** The Relay Gemini generateContent request body (pure logic; shared by the streaming orchestration and an official family on a non-native protocol). */
+export function buildRelayGeminiGenerateContentBody(
   messages: RelayMessages,
-  baseURL: string,
   options: StreamOptions | undefined,
-  deps: RelayOrchestratorDeps,
-): StreamHandle {
-  const controller = new AbortController();
-  const relayStream = shouldRelayStream(options);
+): Record<string, unknown> {
   const systemTexts = messages
     .filter((message) => message.role === 'system')
     .map((message) => typeof message.content === 'string' ? message.content : extractText(message.content))
@@ -1008,15 +1226,33 @@ function sendGeminiGenerateContentStream(
     // Relay-specific exception / heuristic-allow: for the official Gemini provider this is injected by the imageGen profile mergeParams.
     generationConfig.responseModalities = ['TEXT', 'IMAGE'];
   }
+  if (options?.relayMaxOutputTokens !== undefined) {
+    generationConfig.maxOutputTokens = options.relayMaxOutputTokens;
+  }
   if (Object.keys(generationConfig).length > 0) {
     body.generationConfig = generationConfig;
   }
-  applyRelayGenerationParameters(body, options);
+  applyRelayGenerationParameters(body, options, 'gemini_generate_content');
 
-  // The web search tool for the Gemini transport is googleSearch.
-  if (options?.supportsWebSearch) {
-    body.tools = [{ googleSearch: {} }];
+  if (options?.relayFunctionTool) {
+    // The test capability's tool item: tools holds only this one function tool.
+    body.tools = functionToolsForProtocol('gemini_generate', [options.relayFunctionTool]);
   }
+  // googleSearch is no longer added automatically from the chat web search preference: relay web search comes only from the connection-level fragment.
+  return body;
+}
+
+function sendGeminiGenerateContentStream(
+  apiKey: string,
+  modelID: string,
+  messages: RelayMessages,
+  baseURL: string,
+  options: StreamOptions | undefined,
+  deps: RelayOrchestratorDeps,
+): StreamHandle {
+  const controller = new AbortController();
+  const relayStream = shouldRelayStream(options);
+  const body = buildRelayGeminiGenerateContentBody(messages, options);
 
   const transport: RelayTransport = 'gemini_generate_content';
   const authMode = resolveRelayAuthMode(options, transport, deps.getRelayRuntimeConfig());
@@ -1033,6 +1269,7 @@ function sendGeminiGenerateContentStream(
     return { url, headers, body, modelID, endpointFingerprint, ...relayLearningScopeFields(transport, options) };
   };
 
+  const geminiCitations: Citation[] = [];
   const parseGeminiChunk = (_eventType: string | null, data: string): StreamEvent | StreamEvent[] | null => {
       const chunk = JSON.parse(data) as {
         error?: string | { message?: string };
@@ -1077,6 +1314,26 @@ function sendGeminiGenerateContentStream(
           },
         });
       }
+      // The same default path as direct gemini-generate: groundingMetadata.groundingChunks[].web.uri.
+      const groundingChunks = readPath(chunk, GEMINI_CITATIONS_PATH);
+      if (Array.isArray(groundingChunks)) {
+        let citationChanged = false;
+        for (const raw of groundingChunks) {
+          const c = citationFromRaw(raw, null, {
+            urlField: GEMINI_CITATION_URL_FIELD,
+            titleField: GEMINI_CITATION_TITLE_FIELD,
+            snippetField: 'snippet',
+          });
+          if (mergeCitation(geminiCitations, c)) citationChanged = true;
+        }
+        if (citationChanged) events.push({ type: 'citations', citations: geminiCitations.slice() });
+      }
+      // Web search probe evidence exit: a non-empty groundingMetadata.webSearchQueries = the search ran (groundingChunks may be absent).
+      const searchQueries = (chunk.candidates?.[0] as { groundingMetadata?: { webSearchQueries?: unknown } } | undefined)
+        ?.groundingMetadata?.webSearchQueries;
+      if (Array.isArray(searchQueries) && searchQueries.length > 0) {
+        events.push({ type: 'citations', citations: geminiCitations.slice(), searchRan: true });
+      }
 
       return events.length > 0 ? events : null;
     };
@@ -1084,7 +1341,7 @@ function sendGeminiGenerateContentStream(
   const stream = relayStream
     ? createRelaySSEStream(
         (signal) => fetchRelayRequest(buildRequest(), signal, deps.transport, deps.onUnsupportedParamDropped),
-        parseGeminiChunk,
+        withRelayFunctionToolCalls('gemini_generate_content', options, parseGeminiChunk),
         controller.signal,
         sensitiveCredentialValues,
       )

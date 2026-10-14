@@ -16,6 +16,9 @@ export type {
   Provider,
   ProviderAuthMode,
   ProviderSubscriptionCredential,
+  RelayKeyEntry,
+  RelayKeyStatus,
+  RelayKeyStatusState,
   ChatMessage,
   QuoteContentKind,
   QuoteContext,
@@ -34,6 +37,11 @@ export type {
   NoteFolder,
   ProvenanceEntry,
   RelayTransport,
+  RelayModelTransport,
+  RelayTransportSource,
+  RelayCapabilityOverride,
+  RelayCapabilityOverrides,
+  EngineDeclaration,
   RelayAuthMode,
   RelayReasoningEffort,
   RelayKind,
@@ -98,6 +106,8 @@ export {
 export {
   makeRelayRequested,
   inferRelayKind,
+  adoptLegacyResolvedRelayTransport,
+  localEngineChannelCandidates,
 } from './relay/kind-defaults';
 export { isDedicatedImageModel } from './relay/image-models';
 export {
@@ -124,7 +134,14 @@ export {
 export {
   LOCAL_ENGINE_TEMPLATES,
   classifyLocalEngineResponse,
+  classifyLocalEngineFingerprint,
+  isLocalEngineChatCatalogRow,
+  localEngineModelDeclaration,
   localModelLocality,
+  LOCAL_ENGINE_FINGERPRINT_PATHS,
+  type LocalEngineFingerprint,
+  type LocalEngineFingerprintPath,
+  type LocalEngineFingerprintResponse,
   type LocalEngineKind,
   type LocalEngineState,
   type LocalModelLocality,
@@ -139,6 +156,17 @@ export {
   stripRelayURLSecrets,
   PORTABLE_RELAY_REQUESTED_FIELDS,
   ALL_RELAY_REQUESTED_FIELDS,
+  ALL_RELAY_MODEL_FIELDS,
+  PORTABLE_RELAY_MODEL_FIELDS,
+  LOCAL_ONLY_RELAY_MODEL_FIELDS,
+  RELAY_MODEL_TRANSPORTS,
+  RELAY_MODEL_TRANSPORT_SOURCES,
+  RELAY_CAPABILITY_OVERRIDE_KEYS,
+  ENGINE_DECLARATION_KEYS,
+  isRelayModelTransport,
+  sanitizeEngineDeclaration,
+  sanitizeRelayModelFields,
+  sanitizeProviderRelayModelFields,
 } from './relay/portable-config';
 
 export {

@@ -1,5 +1,7 @@
 import type { AIModel, Provider, ProviderKind } from "@oriveo/shared";
-import { deduplicateByCanonical } from "../../../lib/core/providers/catalog-model";
+import { relayCatalogGroups } from "@oriveo/shared/relay/relay-catalog-grouping";
+import { deduplicateByCanonical, deduplicateModels } from "../../../lib/core/providers/catalog-model";
+import { relayBindingFamily } from "../../../lib/core/provider-model-ops";
 import {
   modelSupportsCapabilityFilter,
   type ModelCapabilityPresentationProjector,
@@ -24,6 +26,13 @@ interface BuildModelBrowserGroupsOptions {
   provider?: Provider;
   capabilityProjector?: ModelCapabilityPresentationProjector;
   preserveCatalogOrder?: boolean;
+  /** Localized title of the relay "Other" group (models with an unknown family land here). */
+  otherGroupTitle?: string;
+  /**
+   * Skip canonical deduplication: step 2 of adding models matches by literal ID,
+   * so a date snapshot typed in by the user must not be folded away by the group projection.
+   */
+  literalIDs?: boolean;
 }
 
 export function buildModelBrowserGroups({
@@ -37,10 +46,24 @@ export function buildModelBrowserGroups({
   provider,
   capabilityProjector,
   preserveCatalogOrder = false,
+  otherGroupTitle,
+  literalIDs = false,
 }: BuildModelBrowserGroupsOptions): ModelBrowserGroup[] {
   const normalizedQuery = query.trim().toLowerCase();
   // Presentation-level deduplication as a safety net against duplicates in older persisted data or missed by sync
-  const dedupedModels = deduplicateByCanonical(catalogModels);
+  const dedupedModels = literalIDs ? catalogModels : deduplicateModels(catalogModels, providerKind);
+  if (providerKind === "relay") {
+    return buildRelayModelBrowserGroups({
+      models: dedupedModels,
+      normalizedQuery,
+      capFilter,
+      sortBy,
+      provider,
+      capabilityProjector,
+      preserveCatalogOrder,
+      otherGroupTitle: otherGroupTitle ?? providerLabel,
+    });
+  }
   const groupPopularity = buildGroupPopularityIndex({
     models: deduplicateByCanonical(popularitySourceModels ?? catalogModels),
     providerKind,
@@ -97,6 +120,45 @@ export function buildModelBrowserGroups({
         ? 0
         : compareGroups(lhs, rhs, providerKind, groupPopularity, provider, capabilityProjector),
     );
+}
+
+/**
+ * Relay (including local-machine connections): grouping uses the pure function shared by all three clients
+ * (family = cached by-model family, then heuristics). Groups keep the order of first appearance in the catalog
+ * with "Other" last, instead of being ordered by metadata groupKey or popularity; sorting and search within a group are unchanged.
+ */
+function buildRelayModelBrowserGroups(input: {
+  models: AIModel[];
+  normalizedQuery: string;
+  capFilter: string | null;
+  sortBy: ModelBrowserSort;
+  provider?: Provider;
+  capabilityProjector?: ModelCapabilityPresentationProjector;
+  preserveCatalogOrder: boolean;
+  otherGroupTitle: string;
+}): ModelBrowserGroup[] {
+  const { capFilter, provider, capabilityProjector, normalizedQuery, sortBy } = input;
+  const filtered = input.models.filter((model) => !capFilter || (provider && modelSupportsCapabilityFilter(
+    provider,
+    model,
+    capFilter,
+    capabilityProjector?.(provider, model),
+  )));
+  return relayCatalogGroups(filtered, relayBindingFamily)
+    .map((group) => {
+      const title = group.label ?? input.otherGroupTitle;
+      const models = normalizedQuery
+        ? filterModelsWithinGroup(group.models, normalizedQuery, title, group.id)
+        : group.models;
+      return {
+        id: group.id,
+        title,
+        models: input.preserveCatalogOrder && sortBy === "recommended"
+          ? [...models]
+          : [...models].sort((lhs, rhs) => compareModels(lhs, rhs, sortBy, "relay", provider, capabilityProjector)),
+      };
+    })
+    .filter((group) => group.models.length > 0);
 }
 
 export function shouldRenderGroupedModelBrowser(
@@ -265,7 +327,8 @@ function compareModels(
 }
 
 function compareEnabledModels(lhs: AIModel, rhs: AIModel, provider?: Provider): number {
-  if (lhs.isDefault !== rhs.isDefault) {
+  // Relay has no default model: the legacy isDefault flag is not moved to the front.
+  if (provider?.kind !== 'relay' && lhs.isDefault !== rhs.isDefault) {
     return lhs.isDefault ? -1 : 1;
   }
 

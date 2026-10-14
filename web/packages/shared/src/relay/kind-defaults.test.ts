@@ -108,4 +108,9 @@ describe('inferRelayKind', () => {
     expect(inferRelayKind(null)).toBe('custom');
     expect(inferRelayKind(undefined)).toBe('custom');
   });
+
+  it('treats an auto connection as fully custom (D-52 ⑤)', () => {
+    expect(inferRelayKind({ transport: 'auto', authMode: 'auto' })).toBe('custom');
+    expect(inferRelayKind({ transport: 'openai_chat_completions', authMode: 'bearer' })).toBe('openai_compatible');
+  });
 });

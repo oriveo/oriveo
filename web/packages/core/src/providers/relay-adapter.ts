@@ -9,6 +9,10 @@
  */
 
 import type { ContentPart, StreamEvent, StreamOptions } from './types';
+import { sha256Hex } from '../mcp/mcp-pure';
+import { codexIdentityUserAgent, relayInjectsCodexIdentity } from './relay-codex-identity';
+
+export { relayInjectsCodexIdentity };
 import { requireSecureRelayEndpoint, type RelayConnectionSecurityMode } from '@oriveo/shared/relay/endpoint-policy';
 import { isDedicatedImageModel } from '@oriveo/shared/relay/image-models';
 import {
@@ -84,6 +88,8 @@ export interface RelayDirectFetchConfig {
   authMode: RelayAuthMode;
   method?: 'POST' | 'GET';
   codexCompatIdentity?: boolean;
+  /** Codex client version delivered by the server (the shell fills it from the runtime config); always pass it through resolveCodexClientVersion before use. */
+  codexClientVersion?: string;
   customUserAgent?: string;
   headers?: StreamOptions['relayHeaders'];
   queryParams?: StreamOptions['relayQueryParams'];
@@ -105,6 +111,50 @@ export function applyDirectQueryParams(upstreamURL: string, config: RelayDirectF
 }
 
 /** Direct: codex identity headers (session_id from the injected randomUUID, since core must not use global crypto) plus custom UA and headers. */
+/**
+ * The Responses `prompt_cache_key` (byte-for-byte identical on all three clients):
+ * the first 32 lowercase hex characters of SHA-256(UTF-8(model + "\n" + instructions + "\n" + firstUserText)).
+ * It uses only the model, the system prompt and the first user text, so the value is the same on every turn of one conversation.
+ */
+export function relayPromptCacheKey(model: string, instructions: string, firstUserText: string): string {
+  return sha256Hex(`${model}\n${instructions}\n${firstUserText}`).slice(0, 32);
+}
+
+function relayMessagePlainText(content: string | ContentPart[]): string {
+  if (typeof content === 'string') return content;
+  let text = '';
+  for (const part of content) {
+    if (part.type === 'text') text += part.text;
+  }
+  return text;
+}
+
+/**
+ * Add `prompt_cache_key` to a Responses body that carries the Codex identity: some relays treat a request
+ * without this key as a non-Codex client and return 403 outright. Nothing is added when the identity headers are not
+ * injected; a key already in the body (written by the user) is not overwritten.
+ * instructions comes from the body's `instructions`, or else from the first system message (on Web the system prompt lives in input).
+ */
+export function applyRelayPromptCacheKey(
+  body: Record<string, unknown>,
+  config: Pick<RelayDirectFetchConfig, 'transport' | 'authMode' | 'codexCompatIdentity'>,
+  messages: readonly { role: 'user' | 'assistant' | 'system'; content: string | ContentPart[] }[],
+): void {
+  if (!relayInjectsCodexIdentity(config)) return;
+  if (Object.prototype.hasOwnProperty.call(body, 'prompt_cache_key')) return;
+  const model = typeof body.model === 'string' ? body.model : '';
+  const system = messages.find((message) => message.role === 'system');
+  const instructions = typeof body.instructions === 'string' && body.instructions
+    ? body.instructions
+    : system ? relayMessagePlainText(system.content) : '';
+  const firstUser = messages.find((message) => message.role === 'user');
+  body.prompt_cache_key = relayPromptCacheKey(
+    model,
+    instructions,
+    firstUser ? relayMessagePlainText(firstUser.content) : '',
+  );
+}
+
 export function applyDirectCustomHeaders(
   baseHeaders: Record<string, string>,
   config: RelayDirectFetchConfig,
@@ -112,8 +162,8 @@ export function applyDirectCustomHeaders(
 ): Record<string, string> {
   const headers = { ...baseHeaders };
   if (config.authMode === 'none') return headers;
-  if (config.transport === 'openai_responses' && config.codexCompatIdentity !== false) {
-    headers['User-Agent'] = 'codex_cli_rs/0.50.0 (Oriveo Web; Node.js)';
+  if (relayInjectsCodexIdentity(config)) {
+    headers['User-Agent'] = codexIdentityUserAgent(config.codexClientVersion);
     headers.Originator = 'codex_cli_rs';
     headers.session_id = randomUUID();
     headers['OpenAI-Beta'] = 'responses=experimental';
@@ -292,37 +342,33 @@ export function mapOpenAIReasoning(mode: NonNullable<StreamOptions['reasoning']>
 }
 
 /**
- * reasoning_effort for a Responses request:
- *  - if relayReasoningEffort was set explicitly in advanced mode, pass it through (xhigh included)
- *  - otherwise map from ReasoningMode (automatic => omit)
+ * reasoning_effort for both OpenAI protocols: mapped only from this turn's ReasoningMode (automatic => omit).
+ * The connection-level tier is retired and a stored legacy value takes no part.
  */
 export function resolveOpenAIReasoningEffort(
   options: StreamOptions | undefined,
-  reasoningEffortOverride?: 'high',
 ): 'low' | 'medium' | 'high' | 'xhigh' | undefined {
-  if (reasoningEffortOverride) {
-    return reasoningEffortOverride;
-  }
-  if (options?.relayReasoningEffort) {
-    return options.relayReasoningEffort;
-  }
   if (!options?.reasoning || options.reasoning === 'automatic') return undefined;
   return mapOpenAIReasoning(options.reasoning);
 }
 
-export function mapGeminiReasoningBudget(mode: NonNullable<StreamOptions['reasoning']>) {
+/**
+ * The single mapping for Gemini thinkingBudget: the same values as iOS / Android / Server `gem_budget`.
+ * The relay Gemini builder and the transport strategy share this one function; the old 2048 / 8192 would make the same tier send different budgets on the three clients.
+ */
+export function mapGeminiReasoningBudget(mode: string): number {
   switch (mode) {
     case 'fast':
-      return 2048;
+      return 1024;
     case 'balanced':
-      return 8192;
+      return 4096;
     case 'deep':
       return 16384;
     case 'max':
-      // The max tier is fixed at 24576 across clients, matching gemini-generate.ts.
+      // The official upper limit of thinkingBudget for gemini-2.5-pro is 24576.
       return 24576;
     default:
-      return 8192;
+      return 4096;
   }
 }
 

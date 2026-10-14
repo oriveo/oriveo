@@ -56,6 +56,52 @@
   margin: 0;
 }
 
+/* One-time notice after adding: below the top bar, before the other status cards */
+.detailNotice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--o-success) 34%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--o-success) 8%, var(--o-surface));
+  color: var(--o-text);
+  font-size: var(--o-text-sm);
+}
+
+.detailNotice > svg {
+  flex: none;
+  color: var(--o-success);
+}
+
+/* Notice for saving unverified: light warning background with a 30% border (same as iOS); title on one line, reason on the next. */
+.detailNotice[data-notice='unverified'] {
+  align-items: flex-start;
+  border-color: color-mix(in srgb, var(--o-warning) 30%, transparent);
+  background: var(--o-warning-subtle);
+}
+
+.detailNotice[data-notice='unverified'] > svg {
+  color: var(--o-warning);
+}
+
+.detailNoticeText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.detailNoticeTitle {
+  color: var(--o-text);
+  font-weight: 600;
+}
+
+.detailNoticeReason {
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-xs);
+}
+
 /* -- Status card - compact spacing -- */
 .statusCard {
   display: flex;
@@ -1342,6 +1388,15 @@
   flex: 1 0 100%;
 }
 
+/* Enabled row of a relay / on-device model library: name area + chevron side by side.
+   It has the same specificity as .modelClickArea and is written after it, which would cascade back to column/stretch, so a compound selector is used. */
+/* Enabled row: the whole row is vertically centered */
+.modelClickArea.catalogRowClickArea {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
 .modelRow:last-child {
   border-bottom: none;
 }
@@ -1473,12 +1528,6 @@
   color: var(--o-text-secondary);
 }
 
-.relayEmptyModelsHint {
-  font-size: var(--o-text-xs);
-  color: var(--o-text-tertiary);
-  max-width: 280px;
-}
-
 .catalogStateCard {
   padding: var(--o-space-lg);
   border: 1px dashed var(--o-border);
@@ -1491,18 +1540,48 @@
 .relayVerificationFailure {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-  border: 1px solid color-mix(in srgb, var(--o-error) 28%, var(--o-border));
+  gap: 14px;
+  padding: var(--o-space-lg);
+  border: 1px solid color-mix(in srgb, var(--o-warning) 28%, var(--o-border));
   border-radius: 14px;
-  background: color-mix(in srgb, var(--o-error) 6%, var(--o-surface));
+  background: color-mix(in srgb, var(--o-warning) 6%, var(--o-surface));
+  box-shadow: var(--o-shadow-sm);
   color: var(--o-text);
 }
 
-.relayVerificationFailure > p {
+.relayFailureHeadline {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.relayFailureIcon {
+  flex: none;
+  color: var(--o-warning);
+}
+
+.relayFailureText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.relayFailureTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--o-text-xl);
+  font-weight: 650;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.relayFailureText > p {
   margin: 0;
   color: var(--o-text-secondary);
-  font-size: var(--o-text-sm);
+  font-size: 15px;
   line-height: 1.5;
 }
 
@@ -1550,8 +1629,13 @@
 
 .relayFailureActions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
+}
+
+/* Full-width primary button: same component and size as the full-width Save on this side (Button md, full width). */
+.relayFailurePrimary {
+  width: 100%;
 }
 
 .relayConfigGrid {
@@ -1797,4 +1881,12 @@
 
 .fieldHintWarning {
   color: var(--o-warning, var(--o-text-secondary));
+}
+
+/* Field title above the input in a dialog (the three input dialogs on the keys page). */
+.fieldLabel {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--o-text-secondary);
 }

@@ -27,6 +27,7 @@ export function useProviderChatLauncher(provider: Provider) {
   const isMobile = useMediaQuery('(max-width: 767px)');
   const setLastUsedModelRef = useAppStore((s) => s.setLastUsedModelRef);
   const setActiveConversationId = useAppStore((s) => s.setActiveConversationId);
+  const lastUsedModelRef = useAppStore((s) => s.lastUsedModelRef);
 
   const openChat = useCallback((modelID: string | null) => {
     setActiveConversationId(null);
@@ -42,13 +43,14 @@ export function useProviderChatLauncher(provider: Provider) {
   }, [openChat]);
 
   /**
-   * Hero card: resolve the provider's authoritative default model (isDefault, then the metadata
-   * default, then the first enabled one).
+   * Hero card: resolve the provider's authoritative default model (official: isDefault, then the
+   * metadata default, then the first enabled one; relay: the last-used model if it points at this connection,
+   * then the first enabled one).
    * Takes no argument, so binding it straight to onClick cannot mistake a MouseEvent for a model id.
    */
   const startChatWithDefaultModel = useCallback(() => {
-    openChat(createProviderSelectionSnapshot(provider)?.defaultModel?.id ?? null);
-  }, [openChat, provider]);
+    openChat(createProviderSelectionSnapshot(provider, { lastUsedModelRef })?.defaultModel?.id ?? null);
+  }, [lastUsedModelRef, openChat, provider]);
 
   return { startChatWithModel, startChatWithDefaultModel };
 }

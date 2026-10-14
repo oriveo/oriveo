@@ -7,17 +7,12 @@ import {
 } from './official-endpoint-utils';
 
 describe('official-endpoint-utils', () => {
-  it('offers a fallback list of official endpoints for a region-locked provider', () => {
+  it('offers a fallback list of official endpoints for a region-locked provider (without a trusted table only options in the built-in fallback domains remain)', () => {
     expect(resolveOfficialEndpointOptions('miniMax')).toEqual([
       {
         id: 'global',
         label: 'Global (api.minimax.io)',
         baseURL: 'https://api.minimax.io/v1',
-      },
-      {
-        id: 'cn',
-        label: 'China Mainland (api.minimaxi.com)',
-        baseURL: 'https://api.minimaxi.com/v1',
       },
     ]);
 
@@ -29,14 +24,20 @@ describe('official-endpoint-utils', () => {
         baseURL: 'https://api.siliconflow.cn/v1',
         apiKeyHelpURL: 'https://cloud.siliconflow.cn/account/ak',
       },
-      {
-        id: 'intl',
-        label: 'International (api.siliconflow.com)',
-        baseURL: 'https://api.siliconflow.com/v1',
-        apiKeyHelpURL: 'https://cloud.siliconflow.com/account/ak',
-      },
     ]);
+    expect(resolveOfficialEndpointOptions('moonshot').map((option) => option.id)).toEqual(['intl']);
     expect(resolveOfficialEndpointOptions('zhipu')).toEqual([]);
+  });
+
+  it('runs the hard-coded fallback options through the delivered trusted table too: when filtering leaves nothing, no host outside the trusted table appears', () => {
+    // Every delivered region is filtered out -> fall back to the hard-coded table, keeping only hosts inside the trusted table.
+    const config = { kind: 'miniMax', displayName: 'MiniMax', defaultBaseURL: '', regionOptions: [], trustedHosts: ['minimaxi.com'] };
+    expect(resolveOfficialEndpointOptions('miniMax', config).map((option) => option.baseURL))
+      .toEqual(['https://api.minimaxi.com/v1']);
+    const both = { ...config, trustedHosts: ['minimax.io', 'minimaxi.com'] };
+    expect(resolveOfficialEndpointOptions('miniMax', both).map((option) => option.id)).toEqual(['global', 'cn']);
+    const foreign = { ...config, trustedHosts: ['example.com'] };
+    expect(resolveOfficialEndpointOptions('miniMax', foreign)).toEqual([]);
   });
 
   it('prefers the endpoint configuration returned in metadata', () => {

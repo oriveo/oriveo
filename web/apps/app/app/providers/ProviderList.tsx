@@ -30,6 +30,8 @@ import {
 } from '../../lib/core/providers/balance';
 import { COST_EPSILON } from '../../lib/utils/format-utils';
 import styles from './ProviderList.module.css';
+import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
+import { requestBaseURLText } from '../../lib/core/providers/endpoint-source';
 
 type ProviderSectionTone = 'active' | 'all' | 'costs';
 
@@ -114,7 +116,7 @@ export function ProviderList() {
       .map((provider) => [
         provider.id,
         provider.kind,
-        provider.apiKey,
+        resolveProviderAPIKey(provider),
         provider.baseURLText ?? '',
       ].join('~'))
       .join('|'),
@@ -124,7 +126,7 @@ export function ProviderList() {
   useEffect(() => {
     let cancelled = false;
     const candidates = listedProvidersRef.current.filter(
-      (provider) => isBalanceCapable(provider.kind) && provider.apiKey.trim().length > 0,
+      (provider) => isBalanceCapable(provider.kind) && resolveProviderAPIKey(provider).trim().length > 0,
     );
     const candidateIDs = new Set(candidates.map((provider) => provider.id));
 
@@ -142,8 +144,8 @@ export function ProviderList() {
         const balance = await getProviderBalanceCached(
           provider.id,
           provider.kind,
-          provider.apiKey,
-          provider.baseURLText,
+          resolveProviderAPIKey(provider),
+          requestBaseURLText(provider),
           false,
         );
         return [provider.id, balance] as const;

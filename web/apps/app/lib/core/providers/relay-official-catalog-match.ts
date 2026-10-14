@@ -121,16 +121,23 @@ function resolvedRelayModelId(modelId: string): string {
  * qualifies: a cross_provider match means this transport speaks a different protocol. An envelope
  * that does not take native files disqualifies it too. When not inherited the fields are written
  * as undefined so they override any stale value spread in from the local model.
+ *
+ * When the model's protocol was only established by the 1-token probe (source = reachable), the
+ * allowlist and the PDF default are not carried over: being able to answer one sentence does not
+ * mean this line accepts native files, so they are inherited as usual only once a real send
+ * succeeds and the source is promoted to observed. The extraction limits are still carried over.
  */
 function inheritedNativeFileFields(
   match: ResolvedModelMetadata & { source: 'transport_first' | 'cross_provider' },
   envelope: RelayTransportEnvelope | null,
+  localModel: AIModel,
 ): Pick<AIModel, 'nativeFileMimes' | 'pdfNativeDefault' | 'attachmentExtraction'> {
   const inherits = match.source === 'transport_first'
     && !(envelope && envelope.nativeFile === false);
+  const reachableOnly = Boolean(localModel.relayTransport) && localModel.relayTransportSource === 'reachable';
   return {
-    nativeFileMimes: inherits ? match.nativeFileMimes : undefined,
-    pdfNativeDefault: inherits ? match.pdfNativeDefault : undefined,
+    nativeFileMimes: inherits && !reachableOnly ? match.nativeFileMimes : undefined,
+    pdfNativeDefault: inherits ? (reachableOnly ? false : match.pdfNativeDefault) : undefined,
     attachmentExtraction: inherits ? match.attachmentExtraction : undefined,
   };
 }
@@ -149,11 +156,15 @@ function inheritedNativeFileFields(
  *   has no matching capability or envelope switch, so it is only withdrawn, never narrowed.
  * - Pricing display follows the official metadata; local Relay models usually carry no pricing.
  */
-function applyOfficialMatch(
+/**
+ * Capability / profile inheritance shared by catalog models and manually added models (an exact manual hit follows the same rule as a catalog model).
+ * Capabilities = (official intersected with envelope) unioned with local; once a profile matches the official value is authoritative and an absent one is withdrawn.
+ */
+function inheritedCapabilityFields(
   localModel: AIModel,
-  match: ResolvedModelMetadata & { matchedProviderKind: string; source: 'transport_first' | 'cross_provider' },
+  match: ResolvedModelMetadata,
   envelope: RelayTransportEnvelope | null,
-): RelayEnrichedModel {
+): Pick<AIModel, 'capabilities' | 'reasoningModeAvailable' | 'reasoningProfile' | 'webSearchProfile' | 'imageGenProfile' | 'generationProfile'> {
   const officialCapabilities: string[] = match.capabilities.length > 0
     ? match.capabilities
     : ['text'];
@@ -167,14 +178,36 @@ function applyOfficialMatch(
   const webSearch = normalizeProfile(match.profiles.webSearch);
   const imageGen = normalizeProfile(match.profiles.imageGen);
 
+  return {
+    capabilities: safeCapabilities,
+    reasoningModeAvailable: safeCapabilities.includes('reasoning') && Boolean(reasoning),
+    reasoningProfile: safeCapabilities.includes('reasoning') ? reasoning : undefined,
+    webSearchProfile: safeCapabilities.includes('web') ? webSearch : undefined,
+    imageGenProfile: safeCapabilities.includes('imageGeneration') ? imageGen : undefined,
+    // Authoritative withdrawal, the same rule as the three profiles above: reaching this point means
+    // the official catalog matched (a miss returns early in `enrichRelayLocalModel`), so an absent
+    // `profiles.generation` means the backend withdrew that model's generation profile. The local value
+    // must be cleared rather than kept with `??`, otherwise the expert-parameter UI and the outbound
+    // request would keep using a withdrawn profile. generation has no matching capability or envelope
+    // switch (`RelayTransportEnvelope` has no such dimension), so no capability narrowing is applied.
+    generationProfile: match.profiles.generation,
+  };
+}
+
+function applyOfficialMatch(
+  localModel: AIModel,
+  match: ResolvedModelMetadata & { matchedProviderKind: string; source: 'transport_first' | 'cross_provider' },
+  envelope: RelayTransportEnvelope | null,
+): RelayEnrichedModel {
+  const inherited = inheritedCapabilityFields(localModel, match, envelope);
+  const safeCapabilities: string[] = inherited.capabilities;
   const pricePresentation = resolveModelPricePresentation(match);
 
   return {
     ...localModel,
     canonicalModelId: match.canonicalModelId,
     name: match.displayName ?? localModel.name,
-    capabilities: safeCapabilities,
-    reasoningModeAvailable: safeCapabilities.includes('reasoning') && Boolean(reasoning),
+    ...inherited,
     isRecommended: match.uiHints?.recommended ?? localModel.isRecommended,
     groupKey: match.uiHints?.groupKey ?? localModel.groupKey,
     groupName: match.uiHints?.groupName ?? localModel.groupName,
@@ -186,18 +219,8 @@ function applyOfficialMatch(
     promptPrice: pricePresentation.promptPrice ?? localModel.promptPrice,
     completionPrice: pricePresentation.completionPrice ?? localModel.completionPrice,
     contextLength: match.contextLength ?? localModel.contextLength,
-    reasoningProfile: safeCapabilities.includes('reasoning') ? reasoning : undefined,
-    webSearchProfile: safeCapabilities.includes('web') ? webSearch : undefined,
-    imageGenProfile: safeCapabilities.includes('imageGeneration') ? imageGen : undefined,
-    // Authoritative withdrawal, the same rule as the three profiles above: reaching this point means
-    // the official catalog matched (a miss returns early in `enrichRelayLocalModel`), so an absent
-    // `profiles.generation` means the backend withdrew that model's generation profile. The local value
-    // must be cleared rather than kept with `??`, otherwise the expert-parameter UI and the outbound
-    // request would keep using a withdrawn profile. generation has no matching capability or envelope
-    // switch (`RelayTransportEnvelope` has no such dimension), so no capability narrowing is applied.
-    generationProfile: match.profiles.generation,
     // Whether it really goes native still depends on the line level (each relay protocol only tries native when no text can be extracted).
-    ...inheritedNativeFileFields(match, envelope),
+    ...inheritedNativeFileFields(match, envelope, localModel),
     relayMatchSource: match.source,
     relayMatchedProviderKind: match.matchedProviderKind,
   };
@@ -215,8 +238,9 @@ function applyManualOfficialPricing(
     priceTier: pricePresentation.priceTier || localModel.priceTier,
     promptPrice: pricePresentation.promptPrice ?? localModel.promptPrice,
     completionPrice: pricePresentation.completionPrice ?? localModel.completionPrice,
-    // The name and capabilities of a manual model belong to the user, but the native file allowlist is a protocol fact and follows the catalog.
-    ...inheritedNativeFileFields(match, envelope),
+    // The name of a manual model belongs to the user; capabilities (union) / profiles / pricing / the three native-file fields are inherited by the same rule as catalog models.
+    ...inheritedCapabilityFields(localModel, match, envelope),
+    ...inheritedNativeFileFields(match, envelope, localModel),
     relayMatchSource: match.source,
     relayMatchedProviderKind: match.matchedProviderKind,
   };
@@ -234,7 +258,7 @@ export function enrichRelayLocalModel(
 ): RelayEnrichedModel {
   // Prefer the `model.isManual` field as the single source of truth.
   // Compatibility fallback: older synced data may still encode the manual flag as a `relay-manual-` prefix.
-  // This branch goes through `applyManualOfficialPricing`, which merges the official pricing and native-file fields and keeps the user's displayName and capabilities.
+  // This branch goes through `applyManualOfficialPricing`, which inherits the official capabilities (union) / profiles / pricing and the native-file fields and keeps the user's displayName.
   const isRelayManualModel = localModel.isManual === true
     || localModel.id.trim().startsWith('relay-manual-');
   const matchResult = resolveCatalogModelAcrossProvidersWithProvider(resolvedRelayModelId(localModel.id), {

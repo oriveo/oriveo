@@ -59,10 +59,31 @@ export const ALLOWED: readonly AllowedCustomProperty[] = [
     reason: 'Set as an inline style by apps/app/components/Toast.tsx from TOAST_ACCENT, the accent of the round icon for each toast style.',
   },
   {
-    name: 'kind-accent',
+    name: 'cap-color',
     kind: 'injected',
-    files: ['apps/app/components/providers/RelayKindPicker.module.css'],
-    reason: 'Set as an inline style by components/providers/RelayKindPicker.tsx, one accent per relay kind.',
+    files: [
+      'apps/app/app/providers/[providerId]/components/RelayCatalogParts.module.css',
+      'apps/app/app/providers/[providerId]/components/RelayModelAdvanced.module.css',
+    ],
+    reason: 'Color value set as an inline style per capability by RelayCatalogParts.tsx (capability icons) and RelayModelAdvanced.tsx (capability row icons).',
+  },
+  {
+    name: 'protocol-light',
+    kind: 'injected',
+    files: ['apps/app/app/providers/relay/new/RelaySetup.module.css'],
+    reason: 'Light-tier brand color set per protocol as an inline style by ProtocolDot in apps/app/app/providers/relay/new/setup-board-parts.tsx.',
+  },
+  {
+    name: 'protocol-dark',
+    kind: 'injected',
+    files: ['apps/app/app/providers/relay/new/RelaySetup.module.css'],
+    reason: 'Dark-tier brand color set per protocol as an inline style by ProtocolDot in apps/app/app/providers/relay/new/setup-board-parts.tsx.',
+  },
+  {
+    name: 'protocol-opacity',
+    kind: 'injected',
+    files: ['apps/app/app/providers/relay/new/RelaySetup.module.css'],
+    reason: 'Set as an inline style by ProtocolDot in apps/app/app/providers/relay/new/setup-board-parts.tsx (0.6 for Responses, 1 for the rest).',
   },
   {
     name: 'skill-color',
@@ -105,12 +126,6 @@ export const ALLOWED: readonly AllowedCustomProperty[] = [
     files: ['apps/app/components/providers/ProviderCostSummaryCard.module.css'],
     reason: 'Per-chip legend color set as an inline style by components/providers/ProviderCostSummaryCard.tsx.',
   })),
-  {
-    name: 'section-tint-dark',
-    kind: 'injected',
-    files: ['apps/app/app/providers/[providerId]/components/RelayTintedSection.module.css'],
-    reason: 'Section tint set as an inline style by app/providers/[providerId]/components/RelayTintedSection.tsx.',
-  },
   {
     name: 'menu-select-min-width',
     kind: 'injected',

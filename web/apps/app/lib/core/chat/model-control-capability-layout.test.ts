@@ -25,7 +25,7 @@ import {
 
 const ALL_STATUSES: ModelControlStatus[] = [
   'automaticAvailable', 'forceUnsupported', 'fixedByConnection',
-  'customOnly', 'pending', 'externalConnectorOnly', 'unsupported', 'unknown',
+  'customOnly', 'pending', 'externalConnectorOnly', 'unsupported', 'unknown', 'alwaysOn',
 ];
 
 describe('server control state -> panel presentation', () => {
@@ -40,6 +40,16 @@ describe('server control state -> panel presentation', () => {
     expect(resolveModelControlStatus({ state: 'unavailable', reasonCode: 'external_connector_only' }))
       .toBe('externalConnectorOnly');
     expect(resolveModelControlStatus({ state: 'unknown' })).toBe('unknown');
+  });
+
+  it('alwaysOn is produced only by auto_available + subscription_web_always_on', () => {
+    expect(resolveModelControlStatus({ state: 'auto_available', reasonCode: 'subscription_web_always_on' }))
+      .toBe('alwaysOn');
+    expect(resolveModelControlStatus({ state: 'auto_available', reasonCode: 'subscription_upstream_declared' }))
+      .toBe('automaticAvailable');
+    for (const state of ['managed_only', 'custom_only', 'unavailable', 'unknown'] as const) {
+      expect(resolveModelControlStatus({ state, reasonCode: 'subscription_web_always_on' })).not.toBe('alwaysOn');
+    }
   });
 
   it('reasonCode only refines the unknown sub-states and never promotes it to unavailable', () => {
@@ -219,6 +229,9 @@ describe('modelControlFooterEntries', () => {
 describe('badges', () => {
   it('draws no badge for a state the user can simply act on', () => {
     expect(modelControlBadge(modelControlBadgeClassification('automaticAvailable'), false)).toBeNull();
+    // alwaysOn uses the same badge as automaticAvailable (it has the capability and it is an official configuration).
+    expect(modelControlBadge(modelControlBadgeClassification('alwaysOn'), false)).toBeNull();
+    expect(modelControlBadge(modelControlCardBadgeClassification('alwaysOn'), false)).toBeNull();
     expect(modelControlBadge(modelControlBadgeClassification('forceUnsupported'), false)).toBeNull();
   });
 
@@ -276,6 +289,8 @@ describe('transport presentation', () => {
     expect(modelControlTransportLabel('openai_chat_completions')).toBe('Chat Completions');
     expect(modelControlTransportLabel('gemini_generate')).toBe('generateContent');
     expect(modelControlTransportLabel('gemini_generate_content')).toBe('generateContent');
+    // The gemini_interactions wire is chosen per request by dispatch; the panel reuses the Gemini label and adds no copy.
+    expect(modelControlTransportLabel('gemini_interactions')).toBe('generateContent');
     expect(modelControlTransportLabel('llamacpp_native')).toBe('llama.cpp');
     expect(modelControlTransportLabel('something_new')).toBeUndefined();
   });
@@ -298,6 +313,8 @@ describe('W3 - CapabilityWebPreferenceLiveness LV1-LV3', () => {
     const dark: ModelControlStatus[] = [
       'pending', 'unknown', 'unsupported', 'externalConnectorOnly', 'customOnly',
       'fixedByConnection',
+      // Always-on is not a user choice, so this preference does not count as reaching the wire (not in the send summary).
+      'alwaysOn',
     ];
     for (const status of dark) {
       expect(modelControlWebReachesTheWire({ status, customIsActive: false })).toBe(false);

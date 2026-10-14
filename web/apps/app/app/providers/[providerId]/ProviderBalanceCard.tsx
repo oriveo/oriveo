@@ -24,6 +24,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
 import { useTranslations } from 'next-intl';
 import {
   AlertTriangle,
@@ -43,6 +44,7 @@ import {
   type ProviderBalance,
 } from '../../../lib/core/providers/balance';
 import styles from './ProviderBalanceCard.module.css';
+import { requestBaseURLText } from '../../../lib/core/providers/endpoint-source';
 
 interface ProviderBalanceCardProps {
   provider: Provider;
@@ -77,6 +79,7 @@ function usageProgress(b: ProviderBalance): number | null {
 export function ProviderBalanceCard({ provider }: ProviderBalanceCardProps) {
   const t = useTranslations('pages.providerDetail.balanceCard');
   const [state, setState] = useState<State>({ status: 'loading' });
+  const providerAPIKey = resolveProviderAPIKey(provider);
 
   const load = useCallback(
     async (bypassCache: boolean) => {
@@ -84,7 +87,7 @@ export function ProviderBalanceCard({ provider }: ProviderBalanceCardProps) {
         setState({ status: 'hidden' });
         return;
       }
-      if (!provider.apiKey) {
+      if (!providerAPIKey) {
         setState({ status: 'hidden' });
         return;
       }
@@ -95,8 +98,8 @@ export function ProviderBalanceCard({ provider }: ProviderBalanceCardProps) {
         const balance = await getProviderBalanceCached(
           provider.id,
           provider.kind,
-          provider.apiKey,
-          provider.baseURLText,
+          providerAPIKey,
+          requestBaseURLText(provider),
           bypassCache,
         );
         setState({ status: 'ready', balance });
@@ -122,7 +125,7 @@ export function ProviderBalanceCard({ provider }: ProviderBalanceCardProps) {
         );
       }
     },
-    [provider.apiKey, provider.baseURLText, provider.id, provider.kind, t],
+    [providerAPIKey, provider.baseURLText, provider.id, provider.kind, t],
   );
 
   useEffect(() => {

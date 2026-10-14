@@ -17,6 +17,8 @@ import { isSubscriptionErrorKind, toProviderError } from './errors';
 import { structuredErrorFields } from './generation-rejection-facts';
 import type { ProviderErrorSource } from './errors';
 import type { RelayErrorContext } from './relay-error-classifier';
+import { classifyRelayKeyAccess } from './relay-key-access';
+import { relayErrorBodyNamesReasoning } from './relay-reasoning-rejection';
 import type { StreamEvent } from './types';
 
 /**
@@ -259,6 +261,8 @@ export function createSSEStream(
       if (!response.ok) {
         const text = await response.text().catch(() => '');
         const errorFields = structuredErrorFields(text);
+        // Only the relay path checks for keys; computed on the raw text, with only the verdict carried in the event.
+        const relayKeyAccess = options?.relayErrorContext ? classifyRelayKeyAccess(response.status, text) : 'none';
         const pe = toProviderError(
           response.status,
           text,
@@ -287,6 +291,9 @@ export function createSSEStream(
           nextAction: pe.nextAction,
           severity: pe.severity,
           ...(errorFields ? { errorFields } : {}),
+          ...(relayKeyAccess !== 'none' ? { relayKeyAccess } : {}),
+          ...(options?.relayErrorContext && relayErrorBodyNamesReasoning(text) ? { relayReasoningNamed: true as const } : {}),
+          ...(pe.relayGuidance ? { relayGuidance: true as const } : {}),
         });
         ctrl.close();
         return;

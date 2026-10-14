@@ -88,6 +88,11 @@
   transition: transform var(--o-transition-fast);
 }
 
+/* Collapsed points along the text direction, expanded points down. */
+.chevron:dir(rtl) {
+  transform: scaleX(-1);
+}
+
 .chevron[data-expanded='true'] {
   transform: rotate(90deg);
 }

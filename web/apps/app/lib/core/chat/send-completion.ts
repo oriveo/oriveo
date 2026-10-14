@@ -1,7 +1,7 @@
 /**
  * Telemetry and usage reporting helpers for the sendMessage completion path.
  *
- * Used only by operations-send.ts, where moving roughly 60 lines of side effects out here keeps
+ * Used by the three send paths (operations-send / operations-library-send / operations-mcp-send) at their delivered exit, where moving roughly 60 lines of side effects out here keeps
  * the main transaction function small. The usage reporting branch for continueAnswering is
  * simpler, with no retrievalCost and no image_generated, and deliberately does not reuse this
  * helper so the interface stays narrow.
@@ -11,6 +11,7 @@ import type {
   Attachment,
   AIModel,
   Provider,
+  Citation,
   Conversation,
 } from "@oriveo/shared";
 import type { AppStore } from "../store/app-store";
@@ -21,6 +22,9 @@ import { withErrorReporting } from "../../sentry/report-silent";
 import { trackEvent, telemetryProviderKind, telemetryModelID } from "../telemetry";
 import { relaySendTelemetryProperties } from "../telemetry/relay-properties";
 import { shouldTrackProviderUsage } from "./usage-tracking";
+import { promoteRelayTransportOnDelivered } from "../providers/relay-model-observed";
+import { recordRelayKeyAccessOnDelivered } from "../providers/relay-key-access-writeback";
+import { recordRelayWebSearchObserved } from "./relay-web-probe-records";
 
 export interface SendCompletionParams {
   store: StoreApi<AppStore>;
@@ -44,6 +48,14 @@ export interface SendCompletionParams {
   };
   sendStartedAt: number;
   completedAt: string;
+  /** Passive relay web search record: the connection-level fragment actually sent this turn, the dispatched transport, and the citations parsed by production code. */
+  relayWebObservation?: {
+    sentFragment: Record<string, unknown> | undefined;
+    transport: string | undefined;
+    /** The first-send transport at the start of this turn; nothing is written when the transport actually sent differs from it (the transport changed). */
+    firstSendTransport: string | undefined;
+    citations: readonly Citation[] | undefined;
+  };
 }
 
 /** Combines the chat_message_completed and image_generated telemetry into one call for sendMessage. */
@@ -64,6 +76,14 @@ export function reportSendCompletion(p: SendCompletionParams): void {
     sendStartedAt,
     completedAt,
   } = p;
+  // The delivered exit of all three send paths (normal / library / MCP) goes only through here: reachable is promoted to observed here.
+  promoteRelayTransportOnDelivered(store, provider, model);
+  // This turn carried a web search fragment and citations were parsed: record searched / observed on this device (message-level execution facts are not upgraded).
+  if (p.relayWebObservation) {
+    recordRelayWebSearchObserved({ provider, model, ...p.relayWebObservation, at: completedAt });
+  }
+  // A successful send with the same key: clear that model's no-access marker and return that key's status to ok.
+  recordRelayKeyAccessOnDelivered(store, provider, model);
   const reportedModelID = telemetryModelID(provider.kind, model.id);
   // The model the upstream actually served is also an id from the relay's private catalog, so it
   // is reduced exactly like model_id. When the upstream reported nothing it stays null rather
@@ -83,7 +103,7 @@ export function reportSendCompletion(p: SendCompletionParams): void {
     cost_usd_micros: Math.round(cost * 1_000_000),
     has_image_output: processedAttachments.length > 0,
     // relay_url / relay_protocol come from the same helper as chat_message_sent, so both dashboards agree
-    ...relaySendTelemetryProperties(provider),
+    ...relaySendTelemetryProperties(provider, model),
   });
   if (processedAttachments.length > 0) {
     trackEvent("image_generated", {

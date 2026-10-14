@@ -9,9 +9,14 @@ import {
   relayImageRoute,
   shouldForceRelayStream,
 } from '@oriveo/core/providers/relay-runtime-support';
+import { relayEffectiveKeyID, relayKeyIDs } from '@oriveo/shared/relay/relay-keys';
 import { restrictWireToDeclaredParameters } from '@oriveo/core/providers/request-builders/generation-parameters';
-import { resolveRelayRuntimeFields } from '../providers/relay-resolution';
+import { resolveRelayModelRuntime, type RelayModelRuntime } from '../providers/relay-resolution';
+import { decidedTransport, effectiveTransport } from '@oriveo/core/providers/relay-effective';
 import { isLocalEngine, localEngineGenerationProfile } from './local-engine-profiles';
+import { presentCapabilityControl } from './capability-control-presentation';
+import { relayReasoningTierCacheKey, relayReasoningTierFallback, relayRejectedReasoningTiers } from './relay-reasoning-tiers';
+import { relayWebFragmentForChat } from './relay-web-probe-records';
 import { getDeclaredReasoningDefaultLevel, getDeclaredReasoningLevels } from '../metadata/metadata-client';
 import {
   capabilityLearningIdentity,
@@ -51,6 +56,20 @@ export function managedSafeStreamOptions(
 }
 
 /**
+ * Image generation dispatch decision: a relay image-generation override takes priority (true counts as
+ * the model having the image generation capability, false never dispatches image output); with no
+ * override, the capability must include imageGeneration and an imageGen profile must exist. Overrides
+ * exist only on relay models.
+ */
+export function dispatchesImageGeneration(
+  model: Pick<AIModel, 'capabilities' | 'imageGenProfile' | 'relayCapabilityOverrides'>,
+): boolean {
+  const override = model.relayCapabilityOverrides?.imageGeneration?.value;
+  if (typeof override === 'boolean') return override;
+  return model.capabilities.includes('imageGeneration') && Boolean(model.imageGenProfile);
+}
+
+/**
  * Build the raw StreamOptions from reasoningMode / webSearchEnabled / model.capabilities.
  *
  * A control is only carried when both the capability and the profile allow it, so an
@@ -64,8 +83,7 @@ export function buildStreamOptionsFromIntent(
   capabilityPreferences?: CapabilityPreferenceInput,
   customFragments?: Partial<Record<'web' | 'reasoning' | 'generation', { raw: string }>>,
 ): StreamOptions | undefined {
-  const supportsImageGen =
-    model.capabilities.includes('imageGeneration') && Boolean(model.imageGenProfile);
+  const supportsImageGen = dispatchesImageGeneration(model);
   // Capability facts are resolved at the final request boundary below. This
   // builder only carries already-authorized intent; reading legacy web/profile
   // fields here would create a second, stale eligibility gate.
@@ -154,12 +172,21 @@ export function filterRequestCapabilityIntent(input: {
   // tiers, otherwise the legacy profile's tier table. If the two read from different tables, the
   // panel would show "switched back to some level" while this code computes "no level left" from
   // another table and actually sends no reasoning.
-  const recipeTiers = evidenceModel.capabilityControls?.reasoning?.availableIntents;
-  const declaredTiers = (Array.isArray(recipeTiers) && recipeTiers.length > 0
-    ? recipeTiers
+  // Relay: the tiers come from the same resolution as the panel (model facts, after override narrowing);
+  // a rejected tier is read only from the relay negative cache (7 days), never from the 24-hour
+  // parameter self-heal cache; nearest-tier fallback uses the same function as the fixtures.
+  const relayTierKey = relayReasoningTierCacheKey(provider, model);
+  const recipeTiers = relayTierKey
+    ? presentCapabilityControl(provider, model, 'reasoning').availableIntents
+    : evidenceModel.capabilityControls?.reasoning?.availableIntents;
+  const declaredTiers = (relayTierKey || (Array.isArray(recipeTiers) && recipeTiers.length > 0)
+    ? recipeTiers ?? []
     : getDeclaredReasoningLevels(evidenceModel.reasoningProfile)
   ).map((level) => (level === 'fast' ? 'low' : level));
-  const reasoningRejection = rejectedIdentity && !resendOwners.has('reasoning')
+  const relayRejectedTiers = relayRejectedReasoningTiers(relayTierKey);
+  const reasoningRejection = relayTierKey
+    ? { dormant: false, rejectedIntents: relayRejectedTiers.map((tier) => (tier === 'fast' ? 'low' : tier)) }
+    : rejectedIdentity && !resendOwners.has('reasoning')
     // The level about to be sent counts as declared too: if it was not rejected it goes out as is,
     // instead of the whole group going dormant because this metadata lists no tiers.
     ? capabilityRejectionState(rejectedIdentity, 'reasoning', 'provider_recipe', [
@@ -169,6 +196,11 @@ export function filterRequestCapabilityIntent(input: {
     ])
     : { dormant: false, rejectedIntents: [] };
   const withoutRejectedTier = (mode: ReasoningMode | undefined): ReasoningMode | undefined => {
+    if (relayTierKey) {
+      if (mode === undefined) return mode;
+      const available = declaredTiers.map((level) => (level === 'low' ? 'fast' : level));
+      return (relayReasoningTierFallback(available, relayRejectedTiers, mode) ?? undefined) as ReasoningMode | undefined;
+    }
     const tier = mode === 'fast' ? 'low' : mode;
     if (tier === undefined || !reasoningRejection.rejectedIntents.includes(tier)) return mode;
     const fallback = nearestAcceptedReasoningTier(
@@ -213,17 +245,18 @@ export function filterRequestCapabilityIntent(input: {
   };
 }
 
-type ResolvedRelayRuntime = ReturnType<typeof resolveRelayRuntimeFields>;
+/** The field mapping reads only these connection fields; probing uses the same mapping for a connection draft that is not saved yet. */
+type RelayRuntimeProvider = Pick<Provider, 'kind' | 'baseURLText' | 'relayRequested'>;
 
 /**
- * Merge a relay provider's relayResolved* / relayRequested fields into StreamOptions.
- * Values already resolved on the provider win, falling back to the runtime resolution.
+ * Merge the Relay runtime resolved per (provider, model) and the relayRequested fields into StreamOptions.
+ * Transport and API root come only from `resolveRelayModelRuntime` (the Relay 2.0 resolver); the orchestrator consumes only the values injected here.
  * Field mapping only (no IO, no capability computation); supportsWebSearch is intersected with
  * the transport envelope by the caller.
  */
 export function mergeRelayRuntime(
-  provider: Provider,
-  runtime: ResolvedRelayRuntime,
+  provider: RelayRuntimeProvider,
+  runtime: RelayModelRuntime,
   options: StreamOptions | undefined,
   supportsWebSearch: boolean,
 ): StreamOptions {
@@ -234,24 +267,24 @@ export function mergeRelayRuntime(
   // accepts it because spreads skip the excess property check). Relays that do not match the
   // official catalog -- a local engine, or a model id absent from the catalog, whose only
   // profile source is the local template -- would then inject nothing on the way out.
-  const resolvedGenerationProfile = localEngineProfileForProvider(provider, runtime.relayResolvedTransport)
+  const resolvedGenerationProfile = localEngineProfileForProvider(provider, runtime.transport)
     ?? options?.generationProfile
-    ?? relayGenerationProfile(provider, runtime.relayResolvedTransport);
+    ?? relayGenerationProfile(provider, runtime.transport);
   return {
     ...options,
-    relayResolvedBaseURLText: provider.relayResolvedBaseURLText ?? runtime.relayResolvedBaseURLText,
-    relayResolvedAPIBaseURLIsExact: Boolean(provider.relayRequested?.resolvedAPIBaseURL),
-    relayTransport: provider.relayResolvedTransport ?? runtime.relayResolvedTransport,
+    // effectiveAPIRoot already gives the final API root (version segment included) and the orchestrator
+    // appends the endpoint as is; when it cannot be resolved no root is given, and the orchestrator falls
+    // back to the connection address and reports an error after the safe-mode check.
+    relayResolvedBaseURLText: runtime.apiRoot,
+    relayResolvedAPIBaseURLIsExact: Boolean(runtime.apiRoot),
+    relayTransport: runtime.transport,
     relayEngineProfile: provider.relayRequested?.engineProfile,
-    relayAuthMode: provider.relayResolvedAuthMode ?? runtime.relayResolvedAuthMode,
+    relayAuthMode: runtime.authMode,
     relaySecurityMode: provider.relayRequested?.securityMode ?? 'remote_https',
-    relayHeaderProfile: provider.relayResolvedHeaderProfile ?? runtime.relayResolvedHeaderProfile,
-    relayFamilyHint: provider.relayResolvedFamilyHint ?? runtime.relayResolvedFamilyHint,
+    relayHeaderProfile: runtime.headerProfile,
+    relayFamilyHint: runtime.familyHint,
     relayServiceTier: provider.relayRequested?.serviceTier,
-    relayReasoningEffort:
-      provider.relayRequested?.reasoningEffort && provider.relayRequested.reasoningEffort !== 'automatic'
-        ? provider.relayRequested.reasoningEffort
-        : undefined,
+    // The connection-level reasoning tier is retired: stored values are no longer sent, and the reasoning tier comes only from this turn's choice.
     relayStream: provider.relayRequested?.stream,
     relayDisableResponseStorage: provider.relayRequested?.disableResponseStorage,
     relayCodexCompatIdentity: provider.relayRequested?.codexCompatIdentity,
@@ -311,15 +344,19 @@ export function engineGenerationProfile(
 }
 
 /** For a local engine connection the parameter table comes only from the in-app constant table, overriding any profile persisted on the model or connection. */
-function localEngineProfileForProvider(provider: Provider, resolvedTransport?: Provider['relayResolvedTransport']) {
+function localEngineProfileForProvider(provider: RelayRuntimeProvider, transport: string) {
   const engine = provider.relayRequested?.engineProfile;
   if (provider.kind !== 'relay' || !isLocalEngine(engine)) return undefined;
-  return engineGenerationProfile(engine, provider.relayResolvedTransport ?? resolvedTransport ?? provider.relayRequested?.transport);
+  return engineGenerationProfile(engine, transport);
 }
 
-/** A plain relay with no capability evidence still shows every parameter the protocol can express, all marked unknown; only values the user fills in are sent. */
-export function relayGenerationProfile(provider: Provider, resolvedTransport?: Provider['relayResolvedTransport']) {
-  const template = provider.relayResolvedTransport ?? resolvedTransport ?? provider.relayRequested?.transport;
+/**
+ * A plain relay with no capability evidence still shows every parameter the protocol can express, all marked unknown; only values the user fills in are sent.
+ * The send path passes the resolved transport; without it only a transport with an explicit source is
+ * used (model / connection default that is not auto), and an undecided transport is not synthesized.
+ */
+export function relayGenerationProfile(provider: RelayRuntimeProvider, resolvedTransport?: string, model?: AIModel | null) {
+  const template = resolvedTransport ?? decidedTransport(provider, model);
   const engine = engineGenerationProfile(provider.relayRequested?.engineProfile, template);
   if (engine) return engine;
   const ids = template === 'openai_chat_completions'
@@ -342,13 +379,13 @@ export function relayGenerationProfile(provider: Provider, resolvedTransport?: P
 
 /** The provider page and the send path share one profile resolution, so the UI never shows a field that would not be sent. */
 export function resolveGenerationProfileForModel(provider: Provider, model: AIModel) {
-  const localEngineProfile = localEngineProfileForProvider(provider);
+  const localEngineProfile = localEngineProfileForProvider(provider, effectiveTransport(provider, model));
   if (localEngineProfile) return localEngineProfile;
   const evidenceModel = currentCapabilityEvidenceModel(provider, model);
   const metadataProfile = resolveGenerationProfileRef(evidenceModel.generationProfile);
   if (metadataProfile) return metadataProfile;
   return provider.kind === 'relay'
-    ? relayGenerationProfile(provider)
+    ? relayGenerationProfile(provider, undefined, model)
     : undefined;
 }
 
@@ -570,18 +607,31 @@ function resolveRelayImageRouting(
     );
   }
 
-  const forceStream = shouldForceRelayStream(transport, model.capabilities, runtimeConfig);
+  // Whether this is an image model follows the image-generation override (same override value as
+  // dispatchesImageGeneration): the forced-stream rule gets the capability set corrected by the override.
+  // With no override the capabilities are used as they are (reaching here means the upstream supportsImageGen already decided to produce images).
+  const imageGenerationOverride = model.relayCapabilityOverrides?.imageGeneration?.value;
+  const imageGenerationCapabilities = imageGenerationOverride === true
+    ? [...new Set([...model.capabilities, 'imageGeneration'])]
+    : imageGenerationOverride === false
+      ? model.capabilities.filter((capability) => capability !== 'imageGeneration')
+      : model.capabilities;
+  const forceStream = shouldForceRelayStream(transport, imageGenerationCapabilities, runtimeConfig);
   const streamOverride = forceStream ? { relayStream: true } : {};
   if (route !== 'inline_responses_tool') return streamOverride;
 
+  // On a multi-key connection the driver model prefers the same key; the request is still sent with the
+  // effective key of the chosen image model. Nothing is passed when there is only one key.
+  const multiKey = relayKeyIDs(provider).length > 1;
   const driver = pickChatDriverModelID({
     currentModelID: model.id,
     models: provider.models.map((candidate) => ({
       id: candidate.id,
       capabilities: candidate.capabilities,
       isAvailable: candidate.isAvailable,
-      isDefault: candidate.isDefault,
+      ...(multiKey ? { keyID: relayEffectiveKeyID(provider, candidate.id) } : {}),
     })),
+    ...(multiKey ? { currentKeyID: relayEffectiveKeyID(provider, model.id) } : {}),
   });
   if (!driver.ok) {
     throw new Error('Please add a chat model to this relay before using image generation.');
@@ -640,16 +690,10 @@ export function buildProviderStreamOptions(
   // intersected here with the transport envelope. When the transport cannot carry web search
   // (openai_chat_completions, anthropic_messages) the toggle is closed off before the request is
   // built, so no ineffective tool reaches the upstream.
-  const runtime = resolveRelayRuntimeFields({
-    baseURLText: provider.relayResolvedBaseURLText ?? provider.baseURLText,
-    relayRequested: provider.relayRequested,
-  });
-  const runtimeProvider = {
-    ...provider,
-    relayResolvedTransport: provider.relayResolvedTransport ?? runtime.relayResolvedTransport,
-  };
+  const runtime = resolveRelayModelRuntime(provider, model);
   const supportsWebSearch = Boolean(
-    options?.supportsWebSearch && transportSupportsWebSearch(runtimeProvider, getRelayRuntimeConfig()),
+    // Look up the envelope by the transport actually dispatched this time (the same value as the relayTransport the orchestrator consumes).
+    options?.supportsWebSearch && transportSupportsWebSearch(provider, getRelayRuntimeConfig(), { relayTransport: runtime.transport }),
   );
 
   const merged = mergeRelayRuntime(provider, runtime, options, supportsWebSearch);
@@ -675,6 +719,10 @@ export function buildProviderStreamOptions(
       runtimeRevision: recoveryIdentity.runtimeRevision,
     } } : {}),
     ...(mergedRecipeOmissions.length ? { capabilityRecipeOmissions: mergedRecipeOmissions } : {}),
+    // Connection-level web search fragment: one fragment taken by the transport actually dispatched this turn,
+    // independent of the chat web search preference; test capabilities and auxiliary requests drop it at the call site.
+    // It is not attached when the local probe record is rejected under the current fragment.
+    relayWebFragment: relayWebFragmentForChat(provider, model, merged.relayTransport),
     ...resolveRelayImageRouting(
       provider,
       model,

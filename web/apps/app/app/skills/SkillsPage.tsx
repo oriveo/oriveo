@@ -19,6 +19,8 @@ import { showToast } from '../../components/Toast';
 import { SkillIcon } from '../../components/skills/SkillIcon';
 import { SkillActionPromptDialog } from '../../components/skills/SkillActionPromptDialog';
 import styles from './SkillsPage.module.css';
+import { requestBaseURLText } from '../../lib/core/providers/endpoint-source';
+import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
 
 const ALL_CATEGORY = '__all__';
 
@@ -118,7 +120,7 @@ export function SkillsPage() {
       );
       const openAIProvider = requiresKnowledgeCleanup
         ? (store.getState().providers ?? []).find((provider) => (
-          provider.kind === 'openAI' && provider.apiKey.trim().length > 0
+          provider.kind === 'openAI' && resolveProviderAPIKey(provider).trim().length > 0
         ))
         : null;
 
@@ -128,8 +130,8 @@ export function SkillsPage() {
       }
 
       await deleteSkillOp(store, skill.id, openAIProvider ? {
-        apiKey: openAIProvider.apiKey,
-        baseURL: openAIProvider.baseURLText,
+        apiKey: resolveProviderAPIKey(openAIProvider),
+        baseURL: requestBaseURLText(openAIProvider),
       } : undefined);
     } catch (error) {
       showToast(error instanceof Error ? error.message : String(error));

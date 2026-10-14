@@ -14,7 +14,7 @@ import type { GenerationParameterOverrides } from "@oriveo/core/providers/reques
 import type { StreamUsage } from "@oriveo/core/providers/types";
 import { sanitizeOutboundMessages } from "../../utils/chat-stream-utils";
 import { buildOutboundChatHistory } from "./outbound-history";
-import { filterCurrentTurnAttachments } from "./attachment-policy";
+import { filterCurrentTurnAttachments, withoutUnreceivableImages } from "./attachment-policy";
 import { AttachmentOverLimitError } from "../attachments/attachment-delivery";
 import { createAssistantMessage, createUserMessage } from "./message-factory";
 import { prepareSendStart } from "./send-start";
@@ -34,13 +34,12 @@ import {
   filterRequestCapabilityIntent,
   providerControlsAreManaged,
 } from "./stream-options";
-import { generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from "./generation-parameter-settings";
+import { generationParameterFallbackModelId, generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from "./generation-parameter-settings";
 import { migrateDraftScopedModelControls } from "./draft-scope-migration";
 import { capabilityRuntimeIdentity, resolveCapabilityPreferences } from './capability-preference-settings';
 import {
   effectiveCapabilityTransport,
   relayCapabilityEvidenceIdentity,
-  resolveModelCapabilityEvidence,
 } from "./capability-evidence";
 import {
   getLibraryRuntimeConfig,
@@ -54,11 +53,10 @@ import {
 } from "../library/confirmation";
 import { resolveLibraryResearchRouteNow } from "../library/routing";
 import { getActiveUIDSync } from '../../infra/storage/partition';
-import {
-  recordToolCallSupportFalse,
-  toolCallSupportIsRememberedFalse,
-  type ToolCallRecoveryIdentity,
-} from './capability-recovery-runtime';
+import { type ToolCallRecoveryIdentity } from './capability-recovery-runtime';
+import { recordToolCallFallback, toolCallRememberedUnsupported } from './relay-rejection-loop';
+import { applyRelayToolRejection } from '../providers/relay-key-access-writeback';
+import { requestBaseURLText } from '../providers/endpoint-source';
 import { trackEvent, telemetryProviderKind, telemetryModelID } from "../telemetry";
 import {
   LibraryResearchCancelledError,
@@ -302,15 +300,10 @@ export function sendLibraryMessage(
         buildStreamOptionsFromIntent(params.model, params.reasoningMode, false),
         params.model,
       );
-      const mayInjectVision = resolveModelCapabilityEvidence({
-        key: 'vision_input', provider: params.provider, model: params.model, streamOptions: attachmentScopeOptions,
-      }).support === 'supported';
-      const outbound = filterCurrentTurnAttachments(mayInjectVision
-        ? sanitizedOutbound
-        : sanitizedOutbound.map((message) => ({
-          ...message,
-          attachments: message.attachments?.filter((attachment) => attachment.kind !== 'image'),
-        })), userMessage.id, params.provider, params.model);
+      // Same vision criterion as the entry point (Relay vision "unknown" still sends).
+      const outbound = filterCurrentTurnAttachments(
+        withoutUnreceivableImages(sanitizedOutbound, params.provider, params.model, attachmentScopeOptions),
+        userMessage.id, params.provider, params.model);
       const history = (await buildOutboundChatHistory(ctx, {
         messages: outbound, provider: params.provider, model: params.model,
         streamOptions: attachmentScopeOptions, toolLoop: true,
@@ -338,6 +331,7 @@ export function sendLibraryMessage(
         providerId: params.provider.id,
         modelId: params.model.id,
         profileFingerprint: generationParameterProfileFingerprint(params.provider, params.model),
+        fallbackModelId: generationParameterFallbackModelId(params.provider, params.model),
         conversationId: finalConvId,
         transient: params.transientGenerationParameters,
         reasoningMode: params.reasoningMode,
@@ -384,9 +378,10 @@ export function sendLibraryMessage(
         authMode: params.provider.kind === 'relay'
           ? streamOptions?.relayAuthMode ?? 'unknown'
           : params.provider.authMode ?? 'apiKey',
-        canonicalModelId: normalizeModelFactsID(
-          params.model.canonicalModelId ?? params.model.id,
-        ),
+        // Relay records tool-call observations by literal ID: a dated snapshot and its base are two models.
+        canonicalModelId: normalizeModelFactsID(params.provider.kind === 'relay'
+          ? params.model.id
+          : params.model.canonicalModelId ?? params.model.id),
         finalTransport: effectiveCapabilityTransport(
           params.provider,
           params.model,
@@ -394,7 +389,7 @@ export function sendLibraryMessage(
           libraryOutbound.streamOptions,
         ),
       };
-      const toolsEnabled = !toolCallSupportIsRememberedFalse(toolCallIdentity);
+      const toolsEnabled = !toolCallRememberedUnsupported(params.provider, params.model, toolCallIdentity);
       const retryTap = createAdditionalBodyRetryTap(libraryOutbound.streamOptions);
       additionalBodyRetryTap = retryTap;
       const config = getLibraryRuntimeConfig();
@@ -407,6 +402,9 @@ export function sendLibraryMessage(
         config,
         activeSources,
         toolsEnabled,
+        onPreOutputRejection: (rejection) => (
+          applyRelayToolRejection(store, params.provider, params.model, rejection) === 'model_access_denied'
+        ),
         modelContextLength:
           params.model.contextLength ??
           resolveCatalogModel(params.model.id, params.provider.kind)
@@ -419,7 +417,7 @@ export function sendLibraryMessage(
             params.model.id,
             messages,
             tools,
-            params.provider.baseURLText,
+            requestBaseURLText(params.provider),
             libraryOutbound.streamOptions,
             toolChoice,
           )),
@@ -457,7 +455,7 @@ export function sendLibraryMessage(
       });
       latestUsage = result.usage;
       if (result.toolFallbackApplied && getActiveUIDSync() === sendingAccountId) {
-        recordToolCallSupportFalse(toolCallIdentity);
+        recordToolCallFallback(params.provider, params.model, toolCallIdentity, result.toolFallbackRejection, libraryOutbound.streamOptions?.relayTransport);
       }
       // The fallback path already emitted its own telemetry inside buildNoToolCallFallback with a
       // different route value, so no extra agent event is added there. This only records the runs

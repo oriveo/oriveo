@@ -1,12 +1,17 @@
+import { relayKeyIDs } from '@oriveo/shared/relay/relay-keys';
+import { decidedTransport } from '@oriveo/core/providers/relay-effective';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AIModel, Provider } from '@oriveo/shared';
+import type { RelayVerificationKeyStatus } from '../core/providers/provider-sync';
 import { getVanillaStore } from '../../providers/StoreProvider';
 import * as providerOps from '../core/provider-ops';
 import {
   canRefreshRelayCatalog,
   planRelaySettingsSave,
   refreshRelayCatalogInStore,
+  relayEndpointComparisonKey,
+  relayKeysAfterVerification,
   resyncProviderInStore,
   verifyRelayProviderCandidate,
   verifyRelayProviderInStore,
@@ -15,11 +20,12 @@ import { selectResolvedCatalog } from '../core/store/selectors';
 import {
   addManualProviderModels,
   disableProviderModel,
-  enableProviderModel,
   replaceProviderModels,
 } from '../core/provider-model-ops';
+import { enableProviderModelWithProbe } from '../core/relay-model-probe-ops';
 import { removeGenerationParameterScopes } from '../core/chat/generation-parameter-settings';
 import { removeAdditionalBodyScopes } from '../core/chat/additional-body-settings';
+import { deleteCapabilityPreferencesForModels } from '../core/chat/capability-preference-settings';
 import type { RelayConnectionSecurityMode } from '@oriveo/shared';
 import {
   hasRelayConnectedEvidence,
@@ -28,7 +34,12 @@ import {
   type RelayProbeTransportKind,
 } from '../core/providers/probe/probe-runner';
 import { resolveRelayRuntimeFields } from '../core/providers/relay-resolution';
+import type { RelayPingResult } from '../core/providers/ping-relay';
+import { resolveRelayVerificationSampleModelID } from '../core/providers/provider-selection-snapshot';
 import { PROVIDER_VALIDATION_MESSAGES } from '../core/providers/validation-messages';
+import { findRelayModel, relayParameterKeysToRemoveOnDisable } from '../core/providers/relay-model-identity';
+import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
+import { relayShotSeed } from '../dev/relay-shots-mode';
 
 export type RelayCatalogLoadState = 'idle' | 'loading' | 'loaded' | 'failed';
 
@@ -39,9 +50,48 @@ export interface RelaySettingsSaveFailure {
 }
 
 interface PendingRelaySettingsSave {
-  patch: providerOps.RelaySettingsPatch;
-  shouldRefreshCatalog: boolean;
-  providerSnapshot: Provider;
+  patch: providerOps.RelaySettingsPatchSource;
+  /** This failed verification: "save anyway" writes its key outcome to the key that was actually sent. */
+  verified?: { candidate: Provider; keyStatus: RelayVerificationKeyStatus | undefined };
+}
+
+/**
+ * Key status written together with the patch when an edit is committed: computed by merging the
+ * patch into the live record at commit time; nothing is written when there is no verification
+ * outcome. Clearing the status when the primary key's value changed is done by
+ * updateProviderRelaySettings before the patch.
+ */
+function relayKeysForCommit(
+  live: Provider,
+  patch: providerOps.RelaySettingsPatch,
+  verified: PendingRelaySettingsSave['verified'],
+): Pick<Provider, 'relayKeys'> {
+  if (!verified) return {};
+  const relayKeys = relayKeysAfterVerification(
+    providerOps.buildRelaySettingsCandidate(live, patch),
+    verified.candidate,
+    verified.keyStatus,
+  );
+  return relayKeys ? { relayKeys } : {};
+}
+
+/**
+ * The connection inputs a verification used: normalized address, transport, auth mode, connection
+ * security, key, headers, query params and User-Agent. If the candidate merged with the live record
+ * at commit time differs in any of these from the one verified, that verification result does not count.
+ */
+function relayVerificationInputKey(candidate: Provider): string {
+  const requested = candidate.relayRequested;
+  return JSON.stringify({
+    endpoint: relayEndpointComparisonKey(candidate.baseURLText, requested?.securityMode),
+    transport: requested?.transport ?? null,
+    authMode: requested?.authMode ?? null,
+    securityMode: requested?.securityMode ?? null,
+    apiKey: resolveProviderAPIKey(candidate),
+    headers: requested?.headers ?? [],
+    queryParams: requested?.queryParams ?? [],
+    customUserAgent: requested?.customUserAgent ?? null,
+  });
 }
 
 /**
@@ -49,6 +99,25 @@ interface PendingRelaySettingsSave {
  * save and delete are delegated to core/provider-ops; resync and model management stay in the
  * hook because they own useState.
  */
+/**
+ * Clears a model's parameter scopes after it is disabled. For relays, the literal key is deleted;
+ * the canonical read-back key of generation parameters is deleted only when the connection has no
+ * other enabled model that uses it as its canonical key. Capability preferences share one key set
+ * with generation parameters (same as iOS `AppState.disableModel`). The additional request body
+ * has always been stored under the literal key, so only the literal key is deleted.
+ */
+function removeDisabledModelParameterScopes(provider: Provider, providerId: string, model: AIModel): void {
+  const remaining = provider.models.filter((item) => item !== model);
+  const keys = provider.kind === 'relay' ? relayParameterKeysToRemoveOnDisable(remaining, model) : [model.id];
+  removeModelScopes(providerId, keys, model.id);
+}
+
+function removeModelScopes(providerId: string, keys: readonly string[], literalModelId: string): void {
+  for (const modelId of keys) removeGenerationParameterScopes({ providerId, modelId });
+  deleteCapabilityPreferencesForModels(providerId, keys);
+  removeAdditionalBodyScopes({ providerId, modelId: literalModelId });
+}
+
 export function useProviderActions(provider: Provider) {
   const router = useRouter();
   const providerId = provider.id;
@@ -71,6 +140,14 @@ export function useProviderActions(provider: Provider) {
     reconnectController.current = null;
   }, []);
 
+  // Sample preset (dev builds only; always null in production): feed one save failure after a delay on entry.
+  useEffect(() => {
+    const seeded = relayShotSeed()?.detail?.settingsFailure;
+    if (!seeded) return;
+    const timer = setTimeout(() => setRelaySettingsSaveFailure(seeded.failure), seeded.delayMs);
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     if (provider.lastError === PROVIDER_VALIDATION_MESSAGES.catalogUnavailable) {
       setCatalogLoadState('failed');
@@ -87,11 +164,12 @@ export function useProviderActions(provider: Provider) {
   const startRelayCatalogRefresh = useCallback((
     store: ReturnType<typeof getVanillaStore>,
     savedProvider: Provider,
+    options?: { onlyKeyIDs?: readonly string[] },
   ) => {
     const generation = catalogRefreshGeneration.current + 1;
     catalogRefreshGeneration.current = generation;
     setCatalogLoadState('loading');
-    void refreshRelayCatalogInStore(store, savedProvider).then((result) => {
+    void refreshRelayCatalogInStore(store, savedProvider, options).then((result) => {
       if (catalogRefreshGeneration.current !== generation) return;
       if (result.state === 'loaded' || result.state === 'skipped') setCatalogLoadState('loaded');
       if (result.state === 'failed') setCatalogLoadState('failed');
@@ -127,7 +205,11 @@ export function useProviderActions(provider: Provider) {
       clearRelaySettingsSaveFailure();
       if (refreshCatalog) {
         const verifiedProvider = store.getState().providers.find((item) => item.id === provider.id);
-        if (verifiedProvider) startRelayCatalogRefresh(store, verifiedProvider);
+        if (verifiedProvider) {
+          // A multi-key connection swapped the primary key's value: re-fetch only the primary key's catalog and mark the rest skipped. A single key takes the original path.
+          const keyIDs = relayKeyIDs(verifiedProvider);
+          startRelayCatalogRefresh(store, verifiedProvider, keyIDs.length > 1 ? { onlyKeyIDs: [keyIDs[0]!] } : undefined);
+        }
       } else {
         setCatalogLoadState('idle');
       }
@@ -149,6 +231,25 @@ export function useProviderActions(provider: Provider) {
       setIsSyncing(false);
     }
   }, [isSyncing, provider]);
+
+  /**
+   * "Test connection" in the edit-connection page tests the draft: when the draft equals the saved
+   * connection (persist), it verifies the saved connection and writes the result back to the
+   * connection status; otherwise it only probes the candidate and the result never enters the
+   * store. It does not take the write lock: the main button stays clickable while a test is in flight.
+   */
+  const testRelayDraft = useCallback(async (
+    candidate: Provider,
+    persist: boolean,
+  ): Promise<RelayPingResult | null> => {
+    const store = getVanillaStore();
+    if (persist) return verifyRelayProviderInStore(store, candidate);
+    const verification = await verifyRelayProviderCandidate(candidate, {
+      lastUsedModelRef: store.getState().lastUsedModelRef,
+    });
+    if (!verification.ok) throw verification.error;
+    return verification.result;
+  }, []);
 
   /**
    * Removing the key only moves the credential state from S2 back to S1 and never implicitly
@@ -175,13 +276,18 @@ export function useProviderActions(provider: Provider) {
   }, [provider]);
 
   const saveRelaySettings = useCallback(async (
-    patch: providerOps.RelaySettingsPatch,
+    patch: providerOps.RelaySettingsPatchSource,
+    options?: {
+      /** The caller's draft changed while verification was in flight: this result is discarded as a whole, with no write-back and no failure card. */
+      isStale?: () => boolean;
+    },
   ): Promise<boolean> => {
     if (isSyncing) return false;
     const store = getVanillaStore();
-    const canonical = store.getState().providers.find((item) => item.id === providerId);
+    const liveProvider = () => store.getState().providers.find((item) => item.id === providerId);
+    const canonical = liveProvider();
     if (!canonical) return false;
-    const candidate = providerOps.buildRelaySettingsCandidate(canonical, patch);
+    const candidate = providerOps.buildRelaySettingsCandidate(canonical, providerOps.resolveRelaySettingsPatch(patch, canonical));
     const plan = planRelaySettingsSave(canonical, candidate);
     if (!plan.needsVerification) {
       const committed = await providerOps.updateProviderRelaySettings(store, canonical, patch);
@@ -190,14 +296,40 @@ export function useProviderActions(provider: Provider) {
       return true;
     }
 
-    const shouldRefreshCatalog = plan.needsCatalogRefresh
-      && canRefreshRelayCatalog(candidate.relayRequested);
     setIsSyncing(true);
     try {
-      const verification = await verifyRelayProviderCandidate(candidate);
-      if (store.getState().providers.find((item) => item.id === providerId) !== canonical) return false;
-      if (!verification.ok) {
-        setPendingRelaySettingsSave({ patch, shouldRefreshCatalog, providerSnapshot: canonical });
+      // The connection was changed elsewhere during verification: if a verification-relevant field
+      // the user did not edit changed, verify once more against the merged record; if the second
+      // attempt collides again, commit the merge without writing verification status. If only
+      // non-verification fields collided, commit the merge and write this result.
+      let verifiedCandidate = candidate;
+      let verification: Awaited<ReturnType<typeof verifyRelayProviderCandidate>> | null = null;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        verification = await verifyRelayProviderCandidate(verifiedCandidate, {
+          lastUsedModelRef: store.getState().lastUsedModelRef,
+        });
+        const live = liveProvider();
+        if (!live) return false;
+        if (options?.isStale?.()) return false;
+        const merged = providerOps.buildRelaySettingsCandidate(live, providerOps.resolveRelaySettingsPatch(patch, live));
+        if (relayVerificationInputKey(merged) === relayVerificationInputKey(verifiedCandidate)) break;
+        verifiedCandidate = merged;
+        verification = null;
+      }
+
+      const commitLive = liveProvider();
+      if (!commitLive) return false;
+      const commitPlan = planRelaySettingsSave(
+        commitLive,
+        providerOps.buildRelaySettingsCandidate(commitLive, providerOps.resolveRelaySettingsPatch(patch, commitLive)),
+      );
+      const shouldRefreshCatalog = commitPlan.needsCatalogRefresh
+        && canRefreshRelayCatalog(verifiedCandidate.relayRequested);
+      if (verification && !verification.ok) {
+        setPendingRelaySettingsSave({
+          patch,
+          verified: { candidate: verifiedCandidate, keyStatus: verification.keyStatus },
+        });
         setRelaySettingsSaveFailure({
           error: verification.error,
           phase: verification.phase,
@@ -207,17 +339,24 @@ export function useProviderActions(provider: Provider) {
       }
 
       const now = new Date().toISOString();
-      const committed = await providerOps.updateProviderRelaySettings(store, canonical, {
-        ...patch,
-        ...(shouldRefreshCatalog ? { catalogModels: [] } : {}),
-        status: { kind: 'connected' },
-        lastCheckedAt: now,
-        lastError: undefined,
+      const committed = await providerOps.updateProviderRelaySettings(store, commitLive, (live) => {
+        const resolved = providerOps.resolveRelaySettingsPatch(patch, live);
+        return {
+          ...resolved,
+          ...(shouldRefreshCatalog ? { catalogModels: [] } : {}),
+          ...(verification
+            ? { status: { kind: 'connected' as const }, lastCheckedAt: now, lastError: undefined }
+            : {}),
+          // When the second attempt collides again (verification = null), neither the verification status nor the key status is written.
+          ...relayKeysForCommit(live, resolved, verification
+            ? { candidate: verifiedCandidate, keyStatus: verification.keyStatus }
+            : undefined),
+        };
       });
       if (!committed) return false;
       clearRelaySettingsSaveFailure();
       if (shouldRefreshCatalog) {
-        const savedProvider = store.getState().providers.find((item) => item.id === providerId);
+        const savedProvider = liveProvider();
         if (savedProvider) startRelayCatalogRefresh(store, savedProvider);
       }
       return true;
@@ -253,22 +392,31 @@ export function useProviderActions(provider: Provider) {
     if (!pendingRelaySettingsSave || isSyncing) return false;
     const store = getVanillaStore();
     const canonical = store.getState().providers.find((item) => item.id === providerId);
-    if (!canonical || canonical !== pendingRelaySettingsSave.providerSnapshot) {
+    if (!canonical) {
       clearRelaySettingsSaveFailure();
       return false;
     }
+    // "Save anyway (unverified)" is likewise merged field by field into the live record and is not invalidated because something else changed it.
+    const { patch, verified } = pendingRelaySettingsSave;
+    const candidate = providerOps.buildRelaySettingsCandidate(canonical, providerOps.resolveRelaySettingsPatch(patch, canonical));
+    const shouldRefreshCatalog = planRelaySettingsSave(canonical, candidate).needsCatalogRefresh
+      && canRefreshRelayCatalog(candidate.relayRequested);
     setIsSyncing(true);
     try {
-      const committed = await providerOps.updateProviderRelaySettings(store, canonical, {
-        ...pendingRelaySettingsSave.patch,
-        ...(pendingRelaySettingsSave.shouldRefreshCatalog ? { catalogModels: [] } : {}),
-        status: { kind: 'issue', message: PROVIDER_VALIDATION_MESSAGES.unverified },
-        lastCheckedAt: undefined,
-        lastError: PROVIDER_VALIDATION_MESSAGES.unverified,
+      const committed = await providerOps.updateProviderRelaySettings(store, canonical, (live) => {
+        const resolved = providerOps.resolveRelaySettingsPatch(patch, live);
+        return {
+          ...resolved,
+          ...(shouldRefreshCatalog ? { catalogModels: [] } : {}),
+          status: { kind: 'issue', message: PROVIDER_VALIDATION_MESSAGES.unverified },
+          lastCheckedAt: undefined,
+          lastError: PROVIDER_VALIDATION_MESSAGES.unverified,
+          ...relayKeysForCommit(live, resolved, verified),
+        };
       });
       if (!committed) return false;
       clearRelaySettingsSaveFailure();
-      if (pendingRelaySettingsSave.shouldRefreshCatalog) {
+      if (shouldRefreshCatalog) {
         const savedProvider = store.getState().providers.find((item) => item.id === providerId);
         if (savedProvider) startRelayCatalogRefresh(store, savedProvider);
       }
@@ -284,7 +432,7 @@ export function useProviderActions(provider: Provider) {
     const store = getVanillaStore();
     const canonical = store.getState().providers.find((item) => item.id === providerId);
     if (pendingRelaySettingsSave) {
-      if (!canonical || canonical !== pendingRelaySettingsSave.providerSnapshot) {
+      if (!canonical) {
         clearRelaySettingsSaveFailure();
         return false;
       }
@@ -368,14 +516,18 @@ export function useProviderActions(provider: Provider) {
         if (state.providers.find((item) => item.id === pending.id) !== pending) controller.abort();
       });
       const requested = pending.relayRequested!;
+      // The reconnect probe only looks at the connection-default transport; `auto` is not forced and is left to the probe to choose.
+      const connectionTransport = decidedTransport(pending, null);
       const forcedTransport: RelayProbeTransportKind | undefined =
-        requested.transport === 'auto' ? undefined
-        : requested.transport === 'llamacpp_native' ? 'openai_chat_completions'
-        : requested.transport;
+        connectionTransport === 'llamacpp_native' ? 'openai_chat_completions' : connectionTransport;
+      // Verification sample = fallback model, then the first catalog entry; relayRequested.modelID is no longer read.
+      const modelHint = input.modelID
+        || resolveRelayVerificationSampleModelID(pending, store.getState().lastUsedModelRef)
+        || undefined;
       const result = await probeRelayEndpoint({
         endpoint: input.normalizedEndpoint,
-        apiKey: pending.apiKey,
-        modelHint: input.modelID || requested.modelID,
+        apiKey: resolveProviderAPIKey(pending, modelHint || null),
+        modelHint,
         forcedTransport,
         securityMode: input.securityMode,
         authMode: requested.authMode === 'auto' ? undefined : requested.authMode,
@@ -428,15 +580,17 @@ export function useProviderActions(provider: Provider) {
   }, [provider, isSyncing]);
 
   const toggleModel = useCallback((model: AIModel) => {
-    const isEnabled = provider.models.some((m) => m.id === model.id);
-    if (isEnabled) {
-      disableProviderModel(getVanillaStore(), provider, model.id);
-      removeGenerationParameterScopes({ providerId, modelId: model.id });
-      removeAdditionalBodyScopes({ providerId, modelId: model.id });
+    const enabledModel = provider.kind === 'relay'
+      ? findRelayModel(provider.models, model.id)
+      : provider.models.find((m) => m.id === model.id);
+    if (enabledModel) {
+      if (!disableProviderModel(getVanillaStore(), provider, enabledModel.id)) return;
+      removeDisabledModelParameterScopes(provider, providerId, enabledModel);
       return;
     }
 
-    enableProviderModel(getVanillaStore(), provider, model);
+    // Enabling a single model from the model library: relay connections also lazily verify its protocol; bulk enabling does not come through here.
+    enableProviderModelWithProbe(getVanillaStore(), provider, model);
   }, [provider, providerId]);
 
   const enableAllModels = useCallback(() => {
@@ -447,8 +601,8 @@ export function useProviderActions(provider: Provider) {
 
   const disableAllModels = useCallback(() => {
     provider.models.forEach((model) => {
-      removeGenerationParameterScopes({ providerId, modelId: model.id });
-      removeAdditionalBodyScopes({ providerId, modelId: model.id });
+      const keys = provider.kind === 'relay' ? relayParameterKeysToRemoveOnDisable([], model) : [model.id];
+      removeModelScopes(providerId, keys, model.id);
     });
     replaceProviderModels(getVanillaStore(), provider, []);
   }, [provider, providerId]);
@@ -457,10 +611,16 @@ export function useProviderActions(provider: Provider) {
     addManualProviderModels(getVanillaStore(), provider, newModelIds);
   }, [provider]);
 
-  const removeModel = useCallback((modelId: string) => {
-    disableProviderModel(getVanillaStore(), provider, modelId);
-    removeGenerationParameterScopes({ providerId, modelId });
-    removeAdditionalBodyScopes({ providerId, modelId });
+  /** Rejected (returns false) when a relay has only one model left; parameter scopes are left untouched. */
+  const removeModel = useCallback((modelId: string): boolean => {
+    const enabledModel = provider.kind === 'relay' ? findRelayModel(provider.models, modelId) : undefined;
+    if (!disableProviderModel(getVanillaStore(), provider, modelId)) return false;
+    if (enabledModel) {
+      removeDisabledModelParameterScopes(provider, providerId, enabledModel);
+    } else {
+      removeModelScopes(providerId, [modelId], modelId);
+    }
+    return true;
   }, [provider, providerId]);
 
   const deleteProvider = useCallback(async () => {
@@ -486,6 +646,7 @@ export function useProviderActions(provider: Provider) {
     refreshRelayCatalog,
     reconnectRelaySecurityMode,
     verifyRelayConnection,
+    testRelayDraft,
     resync,
     toggleModel,
     enableAllModels,

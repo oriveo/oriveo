@@ -95,14 +95,25 @@ describe('resolveEndpoint priority order', () => {
     expect(url).toBe('https://api.openai.com/v9/steal');
   });
 
-  it('accepts the international SiliconFlow catalog baseUrl because it is on the official allowlist', () => {
+  it('accepts the international SiliconFlow catalog baseUrl because it is in the delivered trustedHosts', () => {
+    const url = resolveEndpoint(null, 'siliconFlow', 'chat', {
+      metadataOverride: {
+        baseUrl: 'https://api.siliconflow.com',
+        endpoints: { chat: '/v1/chat/completions' },
+        trustedHosts: ['siliconflow.cn', 'siliconflow.com'],
+      },
+    });
+    expect(url).toBe('https://api.siliconflow.com/v1/chat/completions');
+  });
+
+  it('trusts only the last two labels of the fallback host when trustedHosts is absent: the international SiliconFlow domain is rejected and the built-in default applies', () => {
     const url = resolveEndpoint(null, 'siliconFlow', 'chat', {
       metadataOverride: {
         baseUrl: 'https://api.siliconflow.com',
         endpoints: { chat: '/v1/chat/completions' },
       },
     });
-    expect(url).toBe('https://api.siliconflow.com/v1/chat/completions');
+    expect(url).toBe('https://api.siliconflow.cn/v1/chat/completions');
   });
 
   it('does not apply the official catalog allowlist to a user-supplied baseURL', () => {
@@ -133,7 +144,7 @@ describe('resolveEndpoint priority order', () => {
     expect(fallbackUrl('fireworksAI')).toBe('https://api.fireworks.ai/inference/v1/chat/completions');
     expect(fallbackUrl('zhipu')).toBe('https://open.bigmodel.cn/api/paas/v4/chat/completions');
     expect(fallbackUrl('qwen')).toBe(
-      'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+      'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
     );
     expect(fallbackUrl('miniMax')).toBe('https://api.minimax.io/v1/chat/completions');
     // MiniMax image generation uses its own endpoint; the OpenAI-shaped /v1/images/generations does not exist there

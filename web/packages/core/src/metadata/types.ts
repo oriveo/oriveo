@@ -53,4 +53,16 @@ export interface ProviderTransportDefinition {
   requestProfile?: {
     streamOptionsIncludeUsage?: boolean;
   };
+  /** This provider's `providerConfigs[].trustedHosts` (shape-validated); when missing, falls back to the built-in registered domains. */
+  trustedHosts?: string[];
+  /**
+   * The address part of this provider's providerConfig (regionOptions already checked against the trusted table, setupFields already decoded),
+   * used to compute the official record's endpointSource at request time; missing = always use the literal address.
+   */
+  endpointConfig?: {
+    defaultBaseURL?: string | null;
+    regionOptions?: ReadonlyArray<{ id: string; baseURL: string }> | null;
+    trustedHosts?: readonly string[] | null;
+    setupFields?: ReadonlyArray<{ id: 'workspaceId'; required: boolean }> | null;
+  };
 }

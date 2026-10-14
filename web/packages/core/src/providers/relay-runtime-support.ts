@@ -22,6 +22,7 @@ import type {
   RelayTransportRule,
 } from '../ports';
 import type { StreamOptions } from './types';
+import { resolveCodexClientVersion } from './relay-codex-identity';
 
 /** A resolved relay authMode is never 'auto': buildDirectAuthHeaders/buildRelayProxyConfig both need one of the four concrete modes. */
 export type ResolvedRelayAuthMode = Exclude<RelayAuthMode, 'auto'>;
@@ -168,6 +169,12 @@ export function resolveRelayTransportRule(
   return runtimeConfig.transportRules[transport] ?? null;
 }
 
+/** The Codex client version delivered by the runtime config; a missing / invalid value, or a runtime config that has not loaded yet, falls back to the built-in value. */
+export function resolveRelayCodexClientVersion(runtimeConfig: RelayRuntimeConfig | null | undefined): string {
+  // A missing version should only fall back, never fail the request: a partial runtime config (no transportRules) is treated as missing too.
+  return resolveCodexClientVersion(runtimeConfig?.transportRules?.openai_responses?.codexClientVersion);
+}
+
 export function transportProviderPriority(
   transport: RelayTransport | null | undefined,
   runtimeConfig: RelayRuntimeConfig,
@@ -269,7 +276,8 @@ export interface ChatDriverCandidate {
   capabilities: readonly string[];
   /** Omitted means available */
   isAvailable?: boolean;
-  isDefault?: boolean;
+  /** The effective key of this model; callers omit it when the connection has only one key. */
+  keyID?: string;
 }
 
 export type PickChatDriverResult =
@@ -284,15 +292,19 @@ export type PickChatDriverResult =
  * the model draws an image every turn, including for plain technical questions, at a
  * measured cost of an extra 47 seconds.
  *
- * Rule: if the current model is not a dedicated image model, use it. Otherwise prefer
- * defaultModel, then the first model that is available, is not a dedicated image model and
+ * Rule: if the current model is not a dedicated image model, use it. Otherwise take the
+ * first model, in models order, that is available, is not a dedicated image model and
  * has no imageGeneration capability. If none qualifies, return missingChatDriverModel and
  * let the caller map it to a friendly error.
+ * A relay has no default model; a legacy isDefault in old data takes no part in the pick.
+ * Multi-key connections: when currentKeyID is passed, prefer a model bound to the same key;
+ * otherwise fall back to the rule above, so a key never blocks image generation.
  */
 export function pickChatDriverModelID(input: {
   currentModelID: string;
   models: readonly ChatDriverCandidate[];
-  defaultModelID?: string | null;
+  /** The effective key of the current image model; omitted when the connection has only one key. */
+  currentKeyID?: string;
 }): PickChatDriverResult {
   if (!isDedicatedImageModel(input.currentModelID)) {
     return { ok: true, modelID: input.currentModelID };
@@ -302,11 +314,10 @@ export function pickChatDriverModelID(input: {
     && !isDedicatedImageModel(model.id)
     && !model.capabilities.includes('imageGeneration');
 
-  const preferred = input.defaultModelID
-    ? input.models.find((model) => model.id === input.defaultModelID)
-    : input.models.find((model) => model.isDefault);
-  if (preferred && acceptable(preferred)) return { ok: true, modelID: preferred.id };
-
+  const sameKey = input.currentKeyID === undefined
+    ? undefined
+    : input.models.find((model) => acceptable(model) && model.keyID === input.currentKeyID);
+  if (sameKey) return { ok: true, modelID: sameKey.id };
   const fallback = input.models.find(acceptable);
   if (fallback) return { ok: true, modelID: fallback.id };
   return { ok: false, reason: 'missingChatDriverModel' };

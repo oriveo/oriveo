@@ -1,6 +1,7 @@
 // MiniMax request builder - OpenAI compatible for chat, with a dedicated /image_generation endpoint for images
 import { resolveProviderBaseURL } from "../url-utils";
-import { buildOpenAIChatMessages, deepMerge } from "./runtime";
+import { attachmentTransportProfile } from "../attachment-transport";
+import { buildOpenAIChatMessages, deepMerge, withImagePlaceholders } from "./runtime";
 import {
   JSON_HEADERS,
   STREAM_HEADERS,
@@ -48,7 +49,9 @@ export function buildMiniMaxRequest(
     model: params.modelID,
     stream: params.stream !== false,
     ...(params.stream !== false ? { stream_options: { include_usage: true } } : {}),
-    messages: buildOpenAIChatMessages(params.messages),
+    messages: buildOpenAIChatMessages(
+      withImagePlaceholders(params.messages, attachmentTransportProfile('minimax_chat').imagePlaceholderText),
+    ),
   };
 
   deepMerge(body, reasoningParams);

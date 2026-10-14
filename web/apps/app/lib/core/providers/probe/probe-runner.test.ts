@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { relayPromptCacheKey } from '@oriveo/core/providers/relay-adapter';
 import {
   hasRelayConnectedEvidence,
   probeRelayEndpoint,
@@ -149,6 +150,9 @@ describe('probeRelayEndpoint', () => {
     const probe = calls.find((call) => call.url.endsWith('/responses'));
     expect(probe?.method).toBe('POST');
     expect(JSON.parse(probe?.body ?? '{}').model).toBe(SENTINEL_PROBE_MODEL_ID);
+    // The probe body and the verification body share one convention: a Responses request with a Codex identity must have prompt_cache_key.
+    expect(JSON.parse(probe?.body ?? '{}').prompt_cache_key)
+      .toBe(relayPromptCacheKey(SENTINEL_PROBE_MODEL_ID, '', 'ping'));
     expect(result.diagnostic).toBe('unknown model');
   });
 

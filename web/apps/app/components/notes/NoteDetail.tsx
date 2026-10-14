@@ -26,6 +26,7 @@ import { normalizeUUID, sameNormalizedID } from '../../lib/utils/id-utils';
 import { getSuggestedNoteTags } from '../../lib/utils/note-list';
 import { MarkdownRenderer } from '../chat/MarkdownRenderer';
 import { ProviderIcon } from '../ProviderIcon';
+import { relayIconSource } from '../relay-avatar';
 import { ConfirmDialog } from '../dialogs/ConfirmDialog';
 import { showToast } from '../Toast';
 import { MoveToNoteFolderDialog } from './MoveToNoteFolderDialog';
@@ -249,12 +250,8 @@ export function NoteDetail({ noteId }: NoteDetailProps) {
           <div className={styles.detailSourceStrip}>
             {note.sourceProviderKind ? (
               <span className={styles.detailSourceModel}>
-                <ProviderIcon
-                  kind={note.sourceProviderKind}
-                  size={16}
-                  bare
-                  providerName={note.sourceProviderName}
-                />
+                {/* Same as NoteSourceBadge: notes do not record the connection, so relay sources are always generic */}
+                <ProviderIcon kind={note.sourceProviderKind} size={16} bare {...relayIconSource(null)} />
                 <span>{note.sourceModelName || note.sourceProviderName || note.sourceProviderKind}</span>
               </span>
             ) : (

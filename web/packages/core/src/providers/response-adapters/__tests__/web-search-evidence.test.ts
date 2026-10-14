@@ -165,9 +165,16 @@ describe('Gemini Interactions (gemini.interactions.web.v1)', () => {
     expect(events).toContainEqual({ type: 'delta', content: 'answer' });
   });
 
-  it('an empty or is_error search result yields no tool_result, and a missing url_citation yields no citations', async () => {
+  it('a google_search_result without result (official stream sample shape) and not marked is_error yields one tool_result', async () => {
     const adapted = adaptGeminiInteractionsResponse(stream([
-      { event_type: 'step.delta', delta: { type: 'google_search_result', result: [] } },
+      { event_type: 'step.delta', index: 1, delta: { type: 'google_search_result', is_error: false, signature: '...' } },
+      { event_type: 'step.delta', index: 2, delta: { type: 'text', text: 'answer' } },
+    ]));
+    expect(toolResults(await parseAdapted(adapted, 'gemini'))).toEqual([{ type: 'tool_result', tool: 'google_search', summary: 'google_search', step: 1 }]);
+  });
+
+  it('an is_error search result yields no tool_result, and a missing url_citation yields no citations', async () => {
+    const adapted = adaptGeminiInteractionsResponse(stream([
       { event_type: 'step.delta', delta: { type: 'google_search_result', result: [{ url: 'https://example.com/a' }], is_error: true } },
       { event_type: 'step.delta', delta: { type: 'text_annotation_delta', annotations: [{ type: 'file_citation', document_uri: 'files/1' }] } },
       // Only step.delta carries content frames: a same-named delta on other events does not count.

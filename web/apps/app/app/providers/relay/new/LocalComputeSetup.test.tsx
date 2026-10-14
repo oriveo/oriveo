@@ -1,10 +1,12 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Provider } from '@oriveo/shared';
 import { LocalComputeSetup } from './LocalComputeSetup';
 import { useCustomLLMConnectionCoordinator } from './custom-llm-connection-coordinator';
 
 const mocks = vi.hoisted(() => ({
   connect: vi.fn(),
+  fingerprint: vi.fn(),
   addProvider: vi.fn(),
   routerPush: vi.fn(),
   routerBack: vi.fn(),
@@ -19,8 +21,10 @@ vi.mock('next-intl', () => ({
     values ? `${key}(${JSON.stringify(values)})` : key,
 }));
 
-vi.mock('../../../../lib/core/providers/local-browser-probe', () => ({
+vi.mock('../../../../lib/core/providers/local-browser-probe', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../../lib/core/providers/local-browser-probe')>()),
   connectLocalEngineInBrowser: (...args: unknown[]) => mocks.connect(...args),
+  fingerprintLocalEngineInBrowser: (...args: unknown[]) => mocks.fingerprint(...args),
 }));
 
 vi.mock('../../../../lib/core/provider-ops', () => ({
@@ -31,8 +35,8 @@ vi.mock('../../../../providers/StoreProvider', () => ({
   getVanillaStore: () => ({}),
   // Submission telemetry needs to know whether this is the first provider, so the component subscribes
   // to providers.
-  useAppStore: (selector: (state: { providers: unknown[] }) => unknown) =>
-    selector({ providers: [] }),
+  useAppStore: (selector: (state: { providers: unknown[]; setLastUsedModelRef: () => void }) => unknown) =>
+    selector({ providers: [], setLastUsedModelRef: () => undefined }),
 }));
 
 vi.mock('@oriveo/ui', () => ({
@@ -55,21 +59,27 @@ function LocalComputeSetupHarness() {
   return <LocalComputeSetup connection={connection} />;
 }
 
-async function confirmLocalHttp() {
-  fireEvent.change(screen.getByLabelText('requestURLLabel'), {
+/** Loopback http is authorized by the address itself; there is no cleartext confirmation switch any more. */
+async function enterLoopbackEndpoint() {
+  fireEvent.change(screen.getByLabelText('engineAddress'), {
     target: { value: 'http://127.0.0.1:11434' },
   });
-  fireEvent.click(screen.getByRole('button', { name: 'changeConnectionType' }));
-  fireEvent.click(screen.getByRole('button', { name: /connectionTypeLocalHttp/ }));
-  fireEvent.click(screen.getByRole('button', { name: 'confirmPlainHttp' }));
-  await waitFor(() => expect((screen.getByLabelText('requestURLLabel') as HTMLInputElement).value)
-    .toBe('http://127.0.0.1:11434'));
+  // The address slot shows only the part after the scheme; the scheme goes into the chip.
+  await waitFor(() => expect((screen.getByLabelText('engineAddress') as HTMLInputElement).value)
+    .toBe('127.0.0.1:11434'));
+}
+
+function chooseEngineManually(engine: string) {
+  fireEvent.click(screen.getByRole('button', { name: 'localManualEngine' }));
+  fireEvent.change(screen.getByLabelText('engine'), { target: { value: engine } });
 }
 
 describe('LocalComputeSetup', () => {
   beforeEach(() => {
     Object.defineProperty(window, 'isSecureContext', { configurable: true, value: true });
     mocks.connect.mockReset();
+    mocks.fingerprint.mockReset();
+    mocks.fingerprint.mockResolvedValue({ outcome: 'engine', engineProfile: 'ollama', channel: 'openai_chat_completions' });
     mocks.addProvider.mockReset();
     mocks.addProvider.mockResolvedValue(true);
     mocks.routerPush.mockReset();
@@ -83,17 +93,17 @@ describe('LocalComputeSetup', () => {
     });
   });
 
-  it('local scenario stays fail-safe until the user explicitly confirms local_http', async () => {
+  it('authorizes loopback http as local_http by address (no cleartext confirmation switch) and lets the fingerprinted engine drive the connection', async () => {
     render(<LocalComputeSetupHarness />);
     const connect = screen.getByRole('button', { name: 'detectConnectionSettings' }) as HTMLButtonElement;
-    expect(screen.getByText('connectionTypeRemoteHttps')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'changeConnectionType' })).toBeNull();
     expect(connect.disabled).toBe(true);
-    const endpoint = screen.getByLabelText('requestURLLabel') as HTMLInputElement;
+    const endpoint = screen.getByLabelText('engineAddress') as HTMLInputElement;
     expect(endpoint.value).toBe('');
-    expect(endpoint.placeholder).toBe('http://127.0.0.1:11434');
+    expect(endpoint.placeholder).toBe('127.0.0.1:11434');
     expect(mocks.connect).not.toHaveBeenCalled();
 
-    await confirmLocalHttp();
+    await enterLoopbackEndpoint();
     expect(connect.disabled).toBe(false);
     fireEvent.click(connect);
     await waitFor(() => expect(mocks.connect).toHaveBeenCalledWith(expect.objectContaining({
@@ -101,21 +111,39 @@ describe('LocalComputeSetup', () => {
       endpoint: 'http://127.0.0.1:11434',
       securityMode: 'local_http',
     })));
+    expect(mocks.fingerprint).toHaveBeenCalledWith(expect.objectContaining({
+      endpoint: 'http://127.0.0.1:11434',
+      securityMode: 'local_http',
+    }));
   });
 
-  it('revokes a confirmed cleartext mode when switching to a different engine endpoint', async () => {
+  it('local address slot: scheme goes only into the chip; without :// the written scheme is kept; clearing empties everything', async () => {
     render(<LocalComputeSetupHarness />);
-    await confirmLocalHttp();
-    expect(screen.getByText('connectionTypeLocalHttp')).toBeTruthy();
+    const endpoint = screen.getByLabelText('engineAddress') as HTMLInputElement;
+    const chip = () => screen.getByTestId('local-endpoint-scheme').textContent;
+    fireEvent.change(endpoint, { target: { value: 'http://192.168.1.20:11434' } });
+    await waitFor(() => expect([endpoint.value, chip()]).toEqual(['192.168.1.20:11434', 'http']));
+    fireEvent.change(endpoint, { target: { value: '192.168.1.21:11434' } });
+    await waitFor(() => expect([endpoint.value, chip()]).toEqual(['192.168.1.21:11434', 'http']));
+    fireEvent.change(endpoint, { target: { value: '' } });
+    await waitFor(() => expect([endpoint.value, chip()]).toEqual(['', 'https']));
+  });
 
-    fireEvent.change(screen.getByLabelText('localCompute'), { target: { value: 'lmstudio' } });
+  it('manually choosing an engine only changes the engine, keeps the typed address, and skips fingerprinting', async () => {
+    render(<LocalComputeSetupHarness />);
+    await enterLoopbackEndpoint();
 
-    expect(screen.getByText('connectionTypeRemoteHttps')).toBeTruthy();
-    expect((screen.getByLabelText('requestURLLabel') as HTMLInputElement).value)
-      .toBe('http://127.0.0.1:11434');
-    expect((screen.getByRole('button', { name: 'detectConnectionSettings' }) as HTMLButtonElement).disabled)
-      .toBe(true);
+    chooseEngineManually('lmstudio');
+
+    expect((screen.getByLabelText('engineAddress') as HTMLInputElement).value)
+      .toBe('127.0.0.1:11434');
     expect(mocks.connect).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'detectConnectionSettings' }));
+    await waitFor(() => expect(mocks.connect).toHaveBeenCalledWith(expect.objectContaining({
+      engine: 'lmstudio',
+      securityMode: 'local_http',
+    })));
+    expect(mocks.fingerprint).not.toHaveBeenCalled();
   });
 
   it('connects and persists Open WebUI only through HTTPS with bearer authentication', async () => {
@@ -129,8 +157,8 @@ describe('LocalComputeSetup', () => {
     });
     render(<LocalComputeSetupHarness />);
 
-    fireEvent.change(screen.getByLabelText('localCompute'), { target: { value: 'openwebui' } });
-    fireEvent.change(screen.getByLabelText('requestURLLabel'), { target: { value: 'https://openwebui.example' } });
+    chooseEngineManually('openwebui');
+    fireEvent.change(screen.getByLabelText('engineAddress'), { target: { value: 'https://openwebui.example' } });
     const detect = screen.getByRole('button', { name: 'detectConnectionSettings' }) as HTMLButtonElement;
     expect(detect.disabled).toBe(true);
     fireEvent.change(screen.getByLabelText('apiKeyLabel'), { target: { value: 'openwebui-secret' } });
@@ -159,36 +187,39 @@ describe('LocalComputeSetup', () => {
     });
   });
 
-  it('clears the Open WebUI bearer key when the user confirms an HTTP downgrade', async () => {
+  it('never sends the Open WebUI bearer key over loopback http: the production connector rejects cleartext credentials and makes no request', async () => {
+    const actual = await vi.importActual<typeof import('../../../../lib/core/providers/local-browser-probe')>(
+      '../../../../lib/core/providers/local-browser-probe',
+    );
+    mocks.connect.mockImplementationOnce(actual.connectLocalEngineInBrowser);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
     render(<LocalComputeSetupHarness />);
-    fireEvent.change(screen.getByLabelText('localCompute'), { target: { value: 'openwebui' } });
-    fireEvent.change(screen.getByLabelText('requestURLLabel'), { target: { value: 'http://127.0.0.1:3000' } });
+    chooseEngineManually('openwebui');
+    fireEvent.change(screen.getByLabelText('engineAddress'), { target: { value: 'http://127.0.0.1:3000' } });
     fireEvent.change(screen.getByLabelText('apiKeyLabel'), { target: { value: 'openwebui-secret' } });
+    fireEvent.click(screen.getByRole('button', { name: 'detectConnectionSettings' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'changeConnectionType' }));
-    fireEvent.click(screen.getByRole('button', { name: /connectionTypeLocalHttp/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'clearCredentialsAndSwitch' }));
-
-    await waitFor(() => expect((screen.getByLabelText('apiKeyLabel') as HTMLInputElement).value).toBe(''));
-    expect(screen.getByText('connectionTypeLocalHttp')).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'detectConnectionSettings' }) as HTMLButtonElement).disabled).toBe(true);
-    expect(mocks.connect).not.toHaveBeenCalled();
+    expect(await screen.findByText('cleartextCredentialsBlocked')).toBeTruthy();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(mocks.addProvider).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
   });
 
   it('aborts the active production connector generation on unmount and keeps every editor disabled while pending', async () => {
     let resolveConnect: ((value: unknown) => void) | undefined;
     mocks.connect.mockReturnValueOnce(new Promise((resolve) => { resolveConnect = resolve; }));
     const view = render(<LocalComputeSetupHarness />);
-    await confirmLocalHttp();
+    await enterLoopbackEndpoint();
     fireEvent.click(screen.getByRole('button', { name: 'detectConnectionSettings' }));
 
     await waitFor(() => expect(mocks.connect).toHaveBeenCalledTimes(1));
     const signal = mocks.connect.mock.calls[0]?.[0]?.signal as AbortSignal;
     expect(signal.aborted).toBe(false);
-    expect((screen.getByLabelText('localCompute') as HTMLSelectElement).disabled).toBe(true);
-    expect((screen.getByLabelText('requestURLLabel') as HTMLInputElement).disabled).toBe(true);
-    expect((screen.getByLabelText('defaultModelLabel') as HTMLInputElement).disabled).toBe(true);
-    expect((screen.getByRole('button', { name: 'changeConnectionType' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'localManualEngine' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByLabelText('engineAddress') as HTMLInputElement).disabled).toBe(true);
+    // The local page has no default model slot: the verification sample is the first catalog entry, and the connector receives no model hint.
+    expect(screen.queryByLabelText('defaultModelLabel')).toBeNull();
+    expect(mocks.connect.mock.calls[0]?.[0]?.modelHint).toBeUndefined();
 
     view.unmount();
     expect(signal.aborted).toBe(true);
@@ -225,7 +256,7 @@ describe('LocalComputeSetup', () => {
       return options.shouldCommit();
     });
     const view = render(<LocalComputeSetupHarness />);
-    await confirmLocalHttp();
+    await enterLoopbackEndpoint();
     fireEvent.click(screen.getByRole('button', { name: 'detectConnectionSettings' }));
     await screen.findByRole('button', { name: 'connectAndSave' });
     fireEvent.click(screen.getByRole('button', { name: 'connectAndSave' }));
@@ -240,6 +271,31 @@ describe('LocalComputeSetup', () => {
     expect(mocks.routerPush).not.toHaveBeenCalled();
   });
 
+  it('writes the engine declaration given by the connector into AIModel.engineDeclaration when registering local models', async () => {
+    mocks.connect.mockResolvedValueOnce({
+      state: 'ready',
+      endpoint: 'http://127.0.0.1:11434',
+      modelIDs: ['vision-model', 'plain-model'],
+      models: [
+        { id: 'vision-model', localLoadState: 'unknown', executionLocality: 'local', engineDeclaration: { image: true, toolCall: false } },
+        { id: 'plain-model', localLoadState: 'unknown', executionLocality: 'local' },
+      ],
+      apiBaseURL: 'http://127.0.0.1:11434/v1',
+      generationVerified: true,
+    });
+    render(<LocalComputeSetupHarness />);
+    await enterLoopbackEndpoint();
+    fireEvent.click(screen.getByRole('button', { name: 'detectConnectionSettings' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'connectAndSave' }));
+
+    await waitFor(() => expect(mocks.addProvider).toHaveBeenCalledTimes(1));
+    const saved = mocks.addProvider.mock.calls[0]?.[1] as Provider;
+    expect(saved.relayRequested?.engineProfile).toBe('ollama');
+    expect(saved.models[0]?.engineDeclaration).toEqual({ image: true, toolCall: false });
+    expect(saved.models[1]).not.toHaveProperty('engineDeclaration');
+    expect(saved.catalogModels[0]?.engineDeclaration).toEqual({ image: true, toolCall: false });
+  });
+
   it('does not navigate when addProvider returns false because of the UID guard', async () => {
     mocks.connect.mockResolvedValueOnce({
       state: 'ready',
@@ -251,7 +307,7 @@ describe('LocalComputeSetup', () => {
     });
     mocks.addProvider.mockResolvedValueOnce(false);
     render(<LocalComputeSetupHarness />);
-    await confirmLocalHttp();
+    await enterLoopbackEndpoint();
     fireEvent.click(screen.getByRole('button', { name: 'detectConnectionSettings' }));
     await screen.findByRole('button', { name: 'connectAndSave' });
     fireEvent.click(screen.getByRole('button', { name: 'connectAndSave' }));

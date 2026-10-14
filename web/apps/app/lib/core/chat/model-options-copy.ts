@@ -18,6 +18,9 @@ import type {
   ModelOptionLinkAction, ModelOptionNoticeBody, ModelOptionNoticeStatus, ModelOptionReadOnlyValue,
   ModelOptionTierFootnote, ModelOptionTierTrailing,
 } from './model-option-capability-shape';
+import type {
+  ModelOptionsFileState, ModelOptionsSummaryItem, ModelOptionsTile, ModelOptionsVisionState,
+} from './model-options-panel-model';
 
 /** Parameter id -> title key; shared by the panel and advanced settings. */
 export const GENERATION_PARAMETER_TITLE_KEYS: Readonly<Record<string, string>> = {
@@ -131,6 +134,7 @@ export const MODEL_OPTION_LINK_KEYS: Readonly<Record<ModelOptionLinkAction, stri
   openAdditionalRequestBody: 'common.openAdditionalBody',
   openConnectionProtocol: 'common.modelOptionsChooseProtocol',
   switchConnection: 'common.modelOptionsSwitchConnection',
+  openConnectionWebSearch: 'common.modelOptionsRelayWebOpenSettings',
 };
 export const MODEL_OPTION_WEB_TIMING_KEYS: Readonly<Record<'automatic' | 'force', string>> = {
   automatic: 'common.modelOptionsWebWhenNeeded',
@@ -141,6 +145,13 @@ export const MODEL_OPTION_NOTICE_STATUS_KEYS: Readonly<Record<ModelOptionNoticeS
   needsOwnConfiguration: 'common.modelOptionsNeedsManualSetup',
   modelDefault: 'common.modelOptionsUsesModelDefault',
   temporarilyUnavailable: 'common.modelOptionsNotAvailableYet',
+  alwaysOn: 'common.modelOptionsAlwaysOn',
+  relayWebRejected: 'common.modelOptionsRelayWebRejected',
+};
+const RELAY_WEB_PROBE_STATUS_KEYS: Readonly<Record<'searched' | 'silent' | 'unverified', string>> = {
+  searched: 'common.modelOptionsRelayWebSearchConfirmed',
+  silent: 'common.modelOptionsRelayWebNoSearchInTest',
+  unverified: 'common.modelOptionsRelayWebSetUnverified',
 };
 export const MODEL_OPTION_PROTOCOL_UNDECIDED_KEYS = {
   title: 'common.modelOptionsChooseProtocolFirst',
@@ -157,6 +168,9 @@ export function modelOptionNoticeBodyCopy(body: ModelOptionNoticeBody): CopyRef 
     case 'fixedTier': return common('capabilityControlReasoningFixedLevel');
     case 'customOnly':
     case 'notCatalogued': return { key: CAPABILITY_BODY_KEYS[body.kind][body.capability] };
+    case 'subscriptionAlwaysSearches': return common('modelOptionsSubscriptionAlwaysSearches');
+    case 'relayWebManual': return common('modelOptionsRelayWebManualBody');
+    case 'relayWebRetest': return common('modelOptionsRelayWebRetest');
   }
 }
 
@@ -174,6 +188,7 @@ export function modelOptionDisclosureStatusCopy(status: ModelOptionDisclosureSta
     case 'cannotDoOnThisConnection': return common('modelOptionsConnectionCannot');
     case 'fixedByConnection': return common('capabilityControlFixedByConnection');
     case 'modelLacksCapability': return { key: CAPABILITY_BODY_KEYS.modelLacksCapability[capability] };
+    case 'relayWebProbe': return { key: RELAY_WEB_PROBE_STATUS_KEYS[status.result] };
     case 'currentValue': return modelOptionReadOnlyValueCopy(status.value);
   }
 }
@@ -196,6 +211,66 @@ export function modelOptionTierFootnoteCopy(footnote: ModelOptionTierFootnote): 
       });
     case 'tierNote': return reasoningTierNoteCopy(footnote.intent) ?? reasoningTierLabelCopy(footnote.intent);
     case 'costNote': return common('modelOptionsHigherLevelsNote');
+  }
+}
+
+// ---- Model options: 2x2 capability area and summary strip ----
+
+export const MODEL_OPTIONS_INFO_TILE_TITLE_KEYS: Readonly<Record<'vision' | 'file', string>> = {
+  vision: 'common.modelOptionsVisionTitle',
+  file: 'common.modelOptionsFilesTitle',
+};
+const VISION_STATUS_KEYS: Readonly<Record<ModelOptionsVisionState, string>> = {
+  hidden: 'common.modelOptionsVisionHidden',
+  unknown: 'common.modelOptionsVisionUnknown',
+  available: 'common.modelOptionsVisionAvailable',
+};
+const FILE_STATUS_KEYS: Readonly<Record<ModelOptionsFileState, string>> = {
+  text: 'common.modelOptionsFileText',
+  pdfNative: 'common.modelOptionsFilePdfNative',
+  nativeWhenSupported: 'common.modelOptionsFileNativeWhenSupported',
+};
+
+/** The status line under a tile title; shapes without a status sentence (the web search timing segment) return undefined. */
+export function modelOptionsTileStatusCopy(tile: ModelOptionsTile): CopyRef | undefined {
+  if (tile.kind === 'vision') return { key: VISION_STATUS_KEYS[tile.state] };
+  if (tile.kind === 'file') return { key: FILE_STATUS_KEYS[tile.state] };
+  const row = tile.row;
+  switch (row.kind) {
+    case 'toggle': return row.caption ? { key: MODEL_OPTION_CAPTION_KEYS[row.caption] } : undefined;
+    case 'toggleWithTiming': return undefined;
+    case 'tiers':
+      if (row.selection) return reasoningTierLabelCopy(row.selection);
+      // No selected tier: use the top-right status sentence of that shape; the rejected warning stays out of the tile (it sits below the grid).
+      return row.trailing.kind === 'rejected' ? common('modelOptionsUsesModelDefault') : modelOptionTierTrailingCopy(row.trailing);
+    case 'notice': return { key: MODEL_OPTION_NOTICE_STATUS_KEYS[row.status] };
+    case 'chatTemplateBlocked': return common('modelOptionsCantSwitchHere');
+    case 'disclosure': return modelOptionDisclosureStatusCopy(row.status, row.capability);
+    case 'protocolUndecided': return { key: MODEL_OPTION_PROTOCOL_UNDECIDED_KEYS.title };
+  }
+}
+
+/** The small body text inside an explanation tile. */
+export function modelOptionsTileBodyCopy(tile: ModelOptionsTile): CopyRef | undefined {
+  if (tile.kind !== 'capability') return undefined;
+  const row = tile.row;
+  switch (row.kind) {
+    case 'notice': return modelOptionNoticeBodyCopy(row.body);
+    case 'chatTemplateBlocked': return { key: CHAT_TEMPLATE_THINKING_STATE_KEYS[row.state] };
+    case 'protocolUndecided': return { key: MODEL_OPTION_PROTOCOL_UNDECIDED_KEYS.body };
+    default: return undefined;
+  }
+}
+
+export function modelOptionsReasoningLevelCountCopy(count: number): CopyRef {
+  return common('modelOptionsReasoningLevelCount', { count });
+}
+
+export function modelOptionsSummaryItemCopy(item: ModelOptionsSummaryItem): CopyRef {
+  switch (item.kind) {
+    case 'webOn': return common('modelOptionsSummaryWebOn');
+    case 'thinkingLevel': return common('modelOptionsSummaryThinkingLevel', { level: reasoningTierLabelCopy(item.intent) });
+    case 'thinkingOn': return common('modelOptionsSummaryThinkingOn');
   }
 }
 

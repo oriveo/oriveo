@@ -31,6 +31,12 @@ const BUILDER_OWNED_ROOTS = new Set([
   'stream', 'stream_options', 'tools', 'plugins',
 ]);
 const ALLOWED_TOOL_CHOICE = new Set(['auto', 'none', 'required']);
+/** The Interactions path accepts only these two delivered by the recipe; anything else is a configuration error, and no endpoint is guessed. */
+const GEMINI_INTERACTIONS_PATHS = new Set(['/v1/interactions', '/v1beta/interactions']);
+
+export function isGeminiInteractionsPath(path: unknown): boolean {
+  return typeof path === 'string' && GEMINI_INTERACTIONS_PATHS.has(path);
+}
 
 export interface RuntimeRecipe {
   id: string;
@@ -208,15 +214,21 @@ export function resolveCapabilityExecutionPlan(
   };
 }
 
-/** Merges the automatic patches of the selected recipes into the real builder body and returns an auditable redacted diff preview. */
+/**
+ * Merges the automatic patches of the selected recipes into the real builder body and returns an auditable redacted diff preview.
+ *
+ * `automaticReasoningBaseOps` is for the Gemini Interactions builder only: when no tier is selected the reasoning recipe is still
+ * compiled with selectedIntent=null, so only the base ops without an intent are written. The generic automatic-tier semantics are unchanged.
+ */
 export function applyCapabilityRecipes(
   body: Readonly<JsonRecord>,
   recipes: readonly RuntimeRecipe[],
   intents: Partial<Record<CapabilityKey, string | undefined>>,
   omissions: readonly CapabilityRecipeOmission[] = [],
+  options: { automaticReasoningBaseOps?: boolean } = {},
 ): { body: JsonRecord; delta: JsonRecord; preview: JsonRecord } {
   const omitted = exactOmissions(omissions);
-  const operations = recipes.flatMap((recipe) => parseExecutableOperations(recipe, intents[recipe.capability as CapabilityKey])
+  const operations = recipes.flatMap((recipe) => parseExecutableOperations(recipe, intents[recipe.capability as CapabilityKey], options.automaticReasoningBaseOps === true)
     .filter((operation) => !omitted.get(recipe.id)?.has(operation.pointer)));
   if (operations.length === 0) return { body: { ...body }, delta: {}, preview: {} };
 
@@ -317,6 +329,40 @@ export function attachCapabilityExecution(
     moonshotMaxToolLoops: toolLoopRecipe.maxToolLoops,
     moonshotFormula: formulaRecipe,
   };
+}
+
+/**
+ * Gemini Interactions automatic tier: when the model's reasoning control points at a usable request_overlay recipe
+ * and this turn has neither a selected tier nor a custom fragment, return it for the Interactions builder to compile with selectedIntent=null.
+ * It does not enter the plan, so it does not count as requested and produces no execution facts.
+ */
+export function resolveAutomaticReasoningRecipe(
+  params: RequestParams,
+  runtime: unknown,
+  model: RuntimeCapabilityModel | null | undefined,
+  normalizedReasoningMode: string | undefined,
+): RuntimeRecipe | undefined {
+  if (capabilityIntent('reasoning', params, normalizedReasoningMode) !== undefined) return undefined;
+  if (customFragmentForOwner(params, 'reasoning')) return undefined;
+  if (!isRecord(runtime) || !validateEnvelope({ capabilityRuntime: runtime }).applied) return undefined;
+  const envelope = runtime as unknown as CapabilityRuntimeEnvelope;
+  if (!isRecord(envelope.recipes) || !isRecord(envelope.sourceIndex) || !isRecord(model?.capabilityControls)) return undefined;
+  const control = model.capabilityControls.reasoning;
+  if (!isControl(control) || !control.recipeRef) return undefined;
+  const resolution = resolveControl(params.providerKind as RuntimeProviderKind, 'reasoning', control, {
+    recipes: Object.keys(envelope.recipes),
+    sourceIndex: envelope.sourceIndex,
+    controlDefinitions: envelope.controlDefinitions,
+  });
+  if (resolution.action !== 'apply_recipe') return undefined;
+  const resolved = resolveRuntimeRecipe(
+    envelope.recipes,
+    control.recipeRef,
+    params.providerKind,
+    canonicalRecipeTransport(model.transport),
+    'reasoning',
+  );
+  return resolved.accepted && resolved.recipe.executionKind === 'request_overlay' ? resolved.recipe : undefined;
 }
 
 function emptyPlan(): CapabilityExecutionPlan {
@@ -439,7 +485,7 @@ function isEndpointRouteRecipe(value: unknown): value is EndpointRouteRecipe {
   if (!isRecord(value)) return false;
   const gemini = value.protocol === 'gemini_interactions'
     && value.endpointClass === 'interactions'
-    && value.path === '/v1/interactions'
+    && isGeminiInteractionsPath(value.path)
     && typeof value.requestMapper === 'string'
     && value.requestMapper.length > 0;
   return gemini || isMiniMaxAnthropicMessagesRoute(value);
@@ -480,12 +526,13 @@ function recipeMatchesIntent(recipe: RuntimeRecipe, capability: CapabilityKey, m
   return mode != null && parseExecutableOperations(recipe, mode).length > 0;
 }
 
-function parseExecutableOperations(recipe: RuntimeRecipe, mode: string | undefined): RecipeOperation[] {
+function parseExecutableOperations(recipe: RuntimeRecipe, mode: string | undefined, automaticReasoningBaseOps = false): RecipeOperation[] {
   // Typed paths already provide canonical intent (including an explicit off).
   // Legacy reasoning modes still enter as fast/balanced/deep/max and are normalized here.
   const intent = recipe.capability === 'reasoning' && mode !== 'off' && mode !== 'low'
     ? reasoningIntent(mode) : mode;
-  if (recipe.capability === 'reasoning' && !intent) return [];
+  // With no intent the loop below skips every specialized op, leaving only the base ops (selectedIntent=null).
+  if (recipe.capability === 'reasoning' && !intent && !automaticReasoningBaseOps) return [];
   const parsed: RecipeOperation[] = [];
   for (const raw of recipe.requestOps) {
     // Generation recipes authorize the server-selected legacy typed template. The template has

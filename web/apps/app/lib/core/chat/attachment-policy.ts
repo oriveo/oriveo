@@ -5,7 +5,10 @@ import {
   getRelayRuntimeConfig,
 } from '../metadata/metadata-client';
 import { resolveRelayAttachmentSupport } from '../providers/relay-runtime-support';
-import { resolveModelCapabilityEvidence } from './capability-evidence';
+import { providerFormOf } from '../capability/truth/provider-form';
+import { relayCapabilityEvidenceIdentity, resolveModelCapabilityEvidence } from './capability-evidence';
+import { relayFirstSendTransport } from '../providers/relay-first-send-transport';
+import { isRelayNegativeCached } from './relay-negative-cache';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from './stream-options';
 
 // Text attachment extensions: providers with textFileInline=true receive these after local extraction.
@@ -36,10 +39,8 @@ export function resolveAttachmentCapabilities(
         model,
       )
     : undefined;
-  const modelSupportsImage = Boolean(provider && model &&
-    resolveModelCapabilityEvidence({
-      key: 'vision_input', provider, model, streamOptions: attachmentIntentOptions,
-    }).support === 'supported');
+  const modelSupportsImage = Boolean(provider && model
+    && modelImageEntryVisible(provider, model, attachmentIntentOptions));
   const modelSupportsVideo = model?.capabilities?.includes('video') ?? false;
   const providerImage = providerAttachmentSupport?.image ?? false;
   const providerVideo = providerAttachmentSupport?.video ?? false;
@@ -54,6 +55,56 @@ export function resolveAttachmentCapabilities(
   const supportsAttachment = supportsImage || supportsVideo || supportsFile;
 
   return { supportsImage, supportsVideo, supportsFile, supportsAttachment };
+}
+
+/**
+ * The model-side image entry. Relay: an unknown image capability is still shown, hidden only by negative
+ * evidence (an override or an engine declaring false) or an unexpired image negative cache for the key; only an
+ * override of true beats the negative cache; a missing connection identity still fails closed.
+ * Every other form requires supported. Whether the protocol envelope accepts images is ANDed in by the caller.
+ */
+function modelImageEntryVisible(
+  provider: Provider,
+  model: AIModel,
+  streamOptions: ReturnType<typeof buildProviderStreamOptions> | undefined,
+): boolean {
+  if (providerFormOf(provider) !== 'relay') {
+    return resolveModelCapabilityEvidence({ key: 'vision_input', provider, model, streamOptions }).support === 'supported';
+  }
+  const relayIdentity = relayCapabilityEvidenceIdentity(provider, model, streamOptions);
+  if (!relayIdentity) return false;
+  // Only an override of true beats the image negative cache; other positive evidence (inherited / declared) stays hidden while the cache is live.
+  if (model.relayCapabilityOverrides?.image?.value === true) return true;
+  const support = resolveModelCapabilityEvidence({
+    key: 'vision_input', provider, model, streamOptions, relayIdentity,
+  }).support;
+  if (support === 'unsupported') return false;
+  return !isRelayNegativeCached({
+    connectionId: provider.id,
+    modelId: model.id,
+    // The same protocol as the send-side write key (the first-send protocol).
+    transport: relayFirstSendTransport(provider, model),
+    kind: 'image',
+  });
+}
+
+/**
+ * Strips images from history before sending, by the model's image rule: the same criterion as the image entry
+ * (Relay sends unknown-image models as is and strips only on negative evidence or an image negative cache;
+ * every other form requires supported). Shared by the four send paths (normal / continue / MCP / library);
+ * `streamOptions` is the one built with this turn's attachment rule.
+ */
+export function withoutUnreceivableImages<T extends { attachments?: Attachment[] }>(
+  messages: T[],
+  provider: Provider,
+  model: AIModel,
+  streamOptions: ReturnType<typeof buildProviderStreamOptions> | undefined,
+): T[] {
+  if (modelImageEntryVisible(provider, model, streamOptions)) return messages;
+  return messages.map((message) => ({
+    ...message,
+    attachments: message.attachments?.filter((attachment) => attachment.kind !== 'image'),
+  }));
 }
 
 /**
@@ -104,7 +155,7 @@ export function resolveProviderAttachmentSupport(
   provider: Provider,
   model: AIModel | null | undefined,
 ): ProviderAttachmentSupport | null {
-  if (provider.kind === 'relay') return resolveRelayAttachmentSupport(provider, getRelayRuntimeConfig());
+  if (provider.kind === 'relay') return resolveRelayAttachmentSupport(provider, getRelayRuntimeConfig(), model);
   return getProviderAttachmentSupport(provider.kind);
 }
 

@@ -59,3 +59,6 @@
 .tagRemove { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border:0; border-radius:6px; background:transparent; color:var(--o-text-tertiary, #6b7280); cursor:pointer; }
 .tagAdd { min-height:30px; padding:0 12px; border:0; border-radius:8px; background:var(--o-primary-subtle); color:var(--o-primary-text-on-surface); font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
 .tagInput { text-align:start; padding:6px 10px; resize:vertical; font-weight:400; }
+
+/* Collapsed points along the text direction, expanded points down. */
+.chevron:not([data-expanded='true']):dir(rtl) { transform:scaleX(-1); }

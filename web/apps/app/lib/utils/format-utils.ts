@@ -132,6 +132,49 @@ export function formatModelPriceTier(
   return effectivePrice != null ? formatPerMillionPrice(effectivePrice) : '';
 }
 
+/** Copy for compact relative time (obtained by the caller via next-intl; the utility layer hardcodes nothing). */
+export interface CompactRelativeTimeText {
+  justNow: string;
+  minutesAgo: (count: number) => string;
+  hoursAgo: (count: number) => string;
+  yesterday: string;
+}
+
+/**
+ * Relative time for relay "Checked ..." / "Last: ..." (same semantics on all three platforms):
+ * < 60 s Just now; < 60 min "N min ago"; < 24 h "N hr ago"; calendar yesterday Yesterday; otherwise localized month/day (MMMd in the same year, yMMMd across years).
+ * `now` is injected by the caller, making tests and multiple spots on one screen use the same instant.
+ */
+export function formatCompactRelativeTime(
+  iso: string,
+  now: Date,
+  locale: string | undefined,
+  text: CompactRelativeTimeText,
+): string {
+  const date = new Date(iso);
+  const diffMs = now.getTime() - date.getTime();
+  if (!Number.isFinite(diffMs)) return '';
+  // A future instant caused by clock skew is treated as "just now", never negative.
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return text.justNow;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return text.minutesAgo(diffMin);
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return text.hoursAgo(diffHour);
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  if (
+    date.getFullYear() === yesterday.getFullYear()
+    && date.getMonth() === yesterday.getMonth()
+    && date.getDate() === yesterday.getDate()
+  ) {
+    return text.yesterday;
+  }
+  const options: Intl.DateTimeFormatOptions = date.getFullYear() === now.getFullYear()
+    ? { month: 'short', day: 'numeric' }
+    : { year: 'numeric', month: 'short', day: 'numeric' };
+  return new Intl.DateTimeFormat(locale, options).format(date);
+}
+
 /**
  * Format an ISO timestamp as a localized relative time.
  * Uses Intl.RelativeTimeFormat.

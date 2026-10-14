@@ -113,6 +113,11 @@ describe('shared capability execution fixture', () => {
         ),
       );
       expect(request.capabilityExecution?.recipeRefs).toEqual([coverage.recipeRef]);
+      // A recipe with continuationKind none captures no continuation (production continuationCapture filters none).
+      if (coverage.continuationKind === 'none') {
+        expect(request.continuationCapture).toBeUndefined();
+        return;
+      }
       expect(request.continuationCapture).toEqual({
         kind: coverage.continuationKind,
         protocol: recipe.route?.sourceProtocol === recipe.transport?.protocol
@@ -134,6 +139,13 @@ describe('shared capability execution fixture', () => {
     it(`recipe.${recipeRef}.active_control_compiles_through_real_builder`, async () => {
       const modelId = `fixture-active-${recipeRef}`;
       const request = await buildProviderRequest(requestForRecipe(entry, modelId), async () => metadata(entry.providerKind, modelId, entry.transport.protocol, recipeRef));
+      if (entry.transport.protocol === 'gemini_interactions' && entry.executionKind !== 'endpoint_route') {
+        // Without a web endpoint_route Interactions is not selected; on generateContent this recipe stays out of the body and records no execution fact.
+        expect(request.url).toContain(':streamGenerateContent');
+        expect(request.capabilityExecution).toBeUndefined();
+        expect(JSON.stringify(request.body)).not.toMatch(/thinking_level|thinking_summaries|generation_config/);
+        return;
+      }
       expect(request.capabilityExecution?.recipeRefs).toEqual([recipeRef]);
       if (entry.continuationKind !== 'none') {
         expect(request.continuationCapture).toEqual({
@@ -273,27 +285,54 @@ describe('shared capability execution fixture', () => {
     }
   });
 
-  it('builds the official Gemini GA /v1/interactions streaming and non-streaming paths', () => {
+  it('builds the official Gemini /v1beta/interactions streaming and non-streaming paths', () => {
     const route = (recipes['gemini.interactions.web.v1'] as any).route;
     const base = { providerKind: 'gemini' as const, apiKey: 'key', modelID: 'gemini-3-flash', messages: [{ role: 'user' as const, content: 'news' }] };
-    expect(buildGeminiInteractionsRequest(base, route)).toMatchObject({ url: 'https://generativelanguage.googleapis.com/v1/interactions', body: { model: 'gemini-3-flash', input: [{ role: 'user', parts: [{ text: 'news' }] }], stream: true } });
+    expect(buildGeminiInteractionsRequest(base, route)).toMatchObject({ url: 'https://generativelanguage.googleapis.com/v1beta/interactions', body: { model: 'gemini-3-flash', input: [{ type: 'user_input', content: [{ type: 'text', text: 'news' }] }], stream: true, store: false } });
     expect(buildGeminiInteractionsRequest({ ...base, stream: false }, route).body.stream).toBe(false);
+    expect(buildGeminiInteractionsRequest(base, route).body).not.toHaveProperty('previous_interaction_id');
   });
 
-  it('adapts the current Gemini steps SSE and retains its nested interaction id and usage', async () => {
+  it('adapts the current Gemini steps SSE and usage without capturing a continuation id ', async () => {
     const upstream = new Response([
       'event: interaction.created\ndata: {"interaction":{"id":"int_1","status":"in_progress"},"event_type":"interaction.created"}\n\n',
       'event: interaction.updated\ndata: {"event_type":"interaction.updated","delta":{"type":"text","text":"must-not-surface"}}\n\n',
       'event: step.delta\ndata: {"event_type":"step.delta","delta":{"type":"text","text":"hello"}}\n\n',
-      'event: interaction.completed\ndata: {"interaction":{"id":"int_1","usage":{"total_input_tokens":2,"total_output_tokens":3,"total_tokens":5}},"event_type":"interaction.completed"}\n\n',
+      'event: interaction.completed\ndata: {"interaction":{"id":"int_1","status":"completed","usage":{"total_input_tokens":2,"total_output_tokens":3,"total_tokens":5}},"event_type":"interaction.completed"}\n\n',
     ].join(''), { headers: { 'Content-Type': 'text/event-stream' } });
     const body = await adaptGeminiInteractionsResponse(upstream).text();
-    expect(body).toContain('"previousResponseId":"int_1"');
-    expect(body.match(/"previousResponseId":"int_1"/g)).toHaveLength(1);
+    expect(body).not.toContain('previousResponseId');
+    expect(body).not.toContain('"type":"continuation"');
     expect(body).toContain('"content":"hello"');
     expect(body).not.toContain('must-not-surface');
     expect(body).toContain('"prompt_tokens":2');
     expect(body).toContain('"completion_tokens":3');
+  });
+
+  it('maps Interactions total_cached_tokens to where the production usage parser reads cache hits', async () => {
+    const upstream = new Response([
+      'event: step.delta\ndata: {"event_type":"step.delta","index":0,"delta":{"type":"text","text":"hi"}}\n\n',
+      'event: interaction.completed\ndata: {"interaction":{"id":"int_1","status":"completed","usage":{"total_input_tokens":10,"total_cached_tokens":4,"total_output_tokens":3,"total_thought_tokens":2,"total_tokens":15}},"event_type":"interaction.completed"}\n\n',
+    ].join(''), { headers: { 'Content-Type': 'text/event-stream' } });
+    const body = await adaptGeminiInteractionsResponse(upstream).text();
+    const parse = createProxyChunkParser('gemini');
+    const usage = body.split('\n').filter((line) => line.startsWith('data: {')).flatMap((line) => normalizedEvents(parse(null, line.slice(6)))).find((event) => event.type === 'usage');
+    expect(usage?.usage.breakdown).toMatchObject({ promptTokens: 6, cachedInputTokens: 4, cacheReadObserved: true, completionTokens: 5, reasoningTokens: 2 });
+  });
+
+  it('counts Interactions thought tokens as output like generateContent (completion = output + thought)', async () => {
+    const usageOf = async (usage: Record<string, number>) => {
+      const upstream = new Response(`event: interaction.completed\ndata: ${JSON.stringify({ interaction: { id: 'int_1', status: 'completed', usage }, event_type: 'interaction.completed' })}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
+      const body = await adaptGeminiInteractionsResponse(upstream).text();
+      const parse = createProxyChunkParser('gemini');
+      return body.split('\n').filter((line) => line.startsWith('data: {')).flatMap((line) => normalizedEvents(parse(null, line.slice(6)))).find((event) => event.type === 'usage')?.usage.breakdown;
+    };
+    expect(await usageOf({ total_input_tokens: 11, total_output_tokens: 90, total_thought_tokens: 245 })).toMatchObject({ completionTokens: 335, reasoningTokens: 245 });
+    expect(await usageOf({ total_input_tokens: 11, total_output_tokens: 90 })).toMatchObject({ completionTokens: 90, reasoningTokens: 0 });
+    // The non-streaming whole body goes through the same usage normalization, so the basis is identical.
+    const json = await adaptGeminiInteractionsResponse(new Response(JSON.stringify({ id: 'int_1', status: 'completed', steps: [], usage: { total_input_tokens: 11, total_output_tokens: 90, total_thought_tokens: 245 } }), { headers: { 'Content-Type': 'application/json' } })).text();
+    const parseJson = createProxyChunkParser('gemini');
+    expect(json.split('\n').filter((line) => line.startsWith('data: {')).flatMap((line) => normalizedEvents(parseJson(null, line.slice(6)))).find((event) => event.type === 'usage')?.usage.breakdown).toMatchObject({ completionTokens: 335, reasoningTokens: 245 });
   });
 
   it('selects Formula and endpoint routes through the real production dispatcher only when metadata activates them', async () => {
@@ -301,8 +340,33 @@ describe('shared capability execution fixture', () => {
     expect(formula).toMatchObject({ responseAdapter: 'moonshot_formula_fiber_loop', moonshotFormula: (recipes['moonshot.formula.web.v1'] as any).formula });
     expect(formula.body.tools).toBeUndefined();
 
-    const interactions = await buildProviderRequest({ providerKind: 'gemini', apiKey: 'key', modelID: 'gemini-3-flash', messages: [{ role: 'user', content: 'news' }], options: { supportsWebSearch: true }, continuation: { kind: 'previous_id', step: 1, state: { previousResponseId: 'interaction_1' } } }, async () => metadata('gemini', 'gemini-3-flash', 'gemini_interactions', 'gemini.interactions.web.v1'));
-    expect(interactions).toMatchObject({ responseAdapter: 'gemini_interactions', url: 'https://generativelanguage.googleapis.com/v1/interactions', body: { tools: [{ type: 'google_search' }], previous_interaction_id: 'interaction_1' } });
+    // Even if the caller brings an old previous_id continuation, previous_interaction_id is not sent; every turn sends the full Step[].
+    const interactions = await buildProviderRequest({ providerKind: 'gemini', apiKey: 'key', modelID: 'gemini-3-flash', messages: [{ role: 'user', content: 'earlier' }, { role: 'assistant', content: 'answer' }, { role: 'user', content: 'news' }], options: { supportsWebSearch: true }, continuation: { kind: 'previous_id', step: 1, state: { previousResponseId: 'interaction_1' } } }, async () => metadata('gemini', 'gemini-3-flash', 'gemini_interactions', 'gemini.interactions.web.v1'));
+    expect(interactions).toMatchObject({ responseAdapter: 'gemini_interactions', url: 'https://generativelanguage.googleapis.com/v1beta/interactions', body: { tools: [{ type: 'google_search' }], store: false } });
+    expect(interactions.body).not.toHaveProperty('previous_interaction_id');
+    expect((interactions.body.input as Array<{ type: string }>).map((step) => step.type)).toEqual(['user_input', 'model_output', 'user_input']);
+    expect(interactions.continuationCapture).toBeUndefined();
+  });
+
+  it('compiles the Interactions reasoning recipe through the production dispatcher, including the automatic tier ', async () => {
+    const golden = JSON.parse(readFileSync(root('shared/test-fixtures/provider-toolcall/gemini_interactions.request-golden.v1.json'), 'utf8')) as { reasoning_recipe: any };
+    const reasoningRecipe = golden.reasoning_recipe;
+    const withReasoning = () => {
+      const out = metadataWithRecipes('gemini', 'gemini-3-flash', 'gemini_interactions', 'gemini.interactions.web.v1', { ...recipes, [reasoningRecipe.id]: reasoningRecipe });
+      out.providers.gemini.models['gemini-3-flash'].capabilityControls.reasoning = { state: 'auto_available', recipeRef: reasoningRecipe.id, availableIntents: reasoningRecipe.availableIntents };
+      return out;
+    };
+    const send = (capabilityPreferences: any) => buildProviderRequest({ providerKind: 'gemini', apiKey: 'key', modelID: 'gemini-3-flash', messages: [{ role: 'user', content: 'news' }], options: { supportsWebSearch: true, capabilityPreferences } }, async () => withReasoning());
+    const automatic = await send({ web: 'automatic' });
+    expect(automatic.body.generation_config).toEqual({ thinking_summaries: 'auto' });
+    // The automatic tier does not count as requested: reasoning does not enter the execution facts.
+    expect(automatic.capabilityExecution?.recipeRefs).toEqual(['gemini.interactions.web.v1']);
+    const off = await send({ web: 'automatic', reasoningIntent: 'off' });
+    expect(off.body.generation_config).toEqual({ thinking_level: 'minimal', thinking_summaries: 'none' });
+    expect(off.capabilityExecution?.recipeRefs).toEqual(['gemini.interactions.web.v1', reasoningRecipe.id]);
+    const deep = await send({ web: 'automatic', reasoningIntent: 'deep' });
+    expect(deep.body.generation_config).toEqual({ thinking_level: 'high', thinking_summaries: 'auto' });
+    expect(deep.body.tools).toEqual([{ type: 'google_search' }]);
   });
 
   it('uses the builtin Moonshot loop bound authored by the selected runtime recipe', async () => {

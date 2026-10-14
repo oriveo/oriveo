@@ -11,6 +11,10 @@ interface EditableProviderNameProps {
   saveLabel: string;
   cancelLabel: string;
   disabled?: boolean;
+  /** The following three are optional; if omitted, behavior is unchanged. The relay detail page header uses them to match iOS (title1 up to 2 lines, pencil 18 secondary). */
+  titleClassName?: string;
+  editButtonClassName?: string;
+  pencilSize?: number;
 }
 
 export function EditableProviderName({
@@ -20,6 +24,9 @@ export function EditableProviderName({
   saveLabel,
   cancelLabel,
   disabled = false,
+  titleClassName,
+  editButtonClassName,
+  pencilSize = 14,
 }: EditableProviderNameProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(name);
@@ -76,15 +83,15 @@ export function EditableProviderName({
 
   return (
     <span className={styles.providerNameEditable}>
-      <span className={styles.statusTitle}>{name}</span>
+      <span className={titleClassName ? `${styles.statusTitle} ${titleClassName}` : styles.statusTitle}>{name}</span>
       <button
         type="button"
-        className={styles.providerNameEditButton}
+        className={editButtonClassName ? `${styles.providerNameEditButton} ${editButtonClassName}` : styles.providerNameEditButton}
         onClick={() => setIsEditing(true)}
         aria-label={editLabel}
         disabled={disabled}
       >
-        <Pencil size={14} strokeWidth={2.2} />
+        <Pencil size={pencilSize} strokeWidth={2.2} />
       </button>
     </span>
   );

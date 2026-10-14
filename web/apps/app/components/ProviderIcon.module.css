@@ -17,3 +17,17 @@
   flex-shrink: 0;
   color: var(--o-text-secondary);
 }
+
+/* Relay avatar: no base plate, no border; the initial uses the neutral secondary text color with the same font weight as the name */
+.relayAvatar {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.relayAvatarInitial {
+  color: var(--o-text-secondary);
+  font-weight: 600;
+}

@@ -8,9 +8,11 @@
  *   - citations go through mergeCitationsWithExisting for deduplicated merging
  */
 import type { ChatMessage, Conversation, AIModel, Provider, ReasoningMode } from '@oriveo/shared';
+import { PROVIDER_REQUEST_FAILED_TITLE } from '../providers/error-i18n';
 import type { GenerationParameterOverrides } from '@oriveo/core/providers/request-builders/types';
 import { mapErrorKindKey, sanitizeOutboundMessages } from '../../utils/chat-stream-utils';
 import { buildOutboundChatHistory } from './outbound-history';
+import { outboundHistoryHasVideo } from '../attachments/attachment-transport-resolver';
 import { processImageAttachments, backfillStorageRefs } from '../../utils/stream-image-utils';
 import { customFragmentFailurePatch } from './custom-fragment-rejection';
 import { customFragmentAllowedPaths } from './custom-fragment-allowed-paths';
@@ -19,13 +21,14 @@ import { getSyncAdapter } from '../sync-port';
 import { deriveConversationMetadata, computeConversationActivityAt } from '../conversation-metadata';
 import { withErrorReporting } from '../../sentry/report-silent';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent, filterGenerationParameterOverrides, filterRequestCapabilityIntent, providerControlsAreManaged } from './stream-options';
-import { generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from './generation-parameter-settings';
+import { generationParameterFallbackModelId, generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from './generation-parameter-settings';
 import { capabilityRuntimeIdentity, resolveCapabilityPreferences } from './capability-preference-settings';
 import { forwardPortCustomFragmentsIfNeeded, resolveCustomFragments } from './custom-fragment-settings';
 import { withAdditionalBody } from './additional-body-settings';
 import { webPreferenceReachesTheWire } from './capability-control-presentation';
 import { getCapabilityRuntime } from '../metadata/metadata-client';
-import { resolveModelCapabilityEvidence } from './capability-evidence';
+import { withoutUnreceivableImages } from './attachment-policy';
+import { relayFirstSendMessagesBlockedByFiles } from './relay-rejection-loop';
 import { trackEvent, telemetryProviderKind, telemetryModelID } from '../telemetry';
 import * as Sentry from '@sentry/nextjs';
 import { mergeCitationsWithExisting, deriveCostFields, mergeMessageUsageFields } from './cost-fields';
@@ -169,15 +172,8 @@ export function continueAnswering(
         buildStreamOptionsFromIntent(model, reasoningMode, webSearchEnabled),
         model,
       );
-      const mayInjectVision = resolveModelCapabilityEvidence({
-        key: 'vision_input', provider, model, streamOptions: attachmentScopeOptions,
-      }).support === 'supported';
-      const historyUpToInterrupted = mayInjectVision
-        ? sanitizedHistory
-        : sanitizedHistory.map((message) => ({
-          ...message,
-          attachments: message.attachments?.filter((attachment) => attachment.kind !== 'image'),
-        }));
+      // Same vision criterion as the entry point (Relay vision "unknown" still sends).
+      const historyUpToInterrupted = withoutUnreceivableImages(sanitizedHistory, provider, model, attachmentScopeOptions);
 
       const chatHistory = await buildOutboundChatHistory(ctx, {
         messages: historyUpToInterrupted, provider, model, streamOptions: attachmentScopeOptions,
@@ -190,6 +186,13 @@ export function continueAnswering(
       } else {
         chatHistory.push(explicitContinueInput);
       }
+      // First-send attachment criterion: computed from the original attachments; a previous_id continuation does not resend history, so it has none.
+      const relayMessagesBlockedByFiles = await relayFirstSendMessagesBlockedByFiles({
+        provider,
+        model,
+        messages: continuation?.kind === 'previous_id' ? [] : historyUpToInterrupted,
+        streamOptions: attachmentScopeOptions,
+      });
       const latestUserText = [...historyUpToInterrupted].reverse()
         .find((m) => m.role === 'user')
         ?.text ?? existingText;
@@ -226,6 +229,7 @@ export function continueAnswering(
         providerId: provider.id,
         modelId: model.id,
         profileFingerprint: generationParameterProfileFingerprint(provider, model),
+        fallbackModelId: generationParameterFallbackModelId(provider, model),
         conversationId: conversation.id,
         transient: transientGenerationParameters,
         reasoningMode,
@@ -283,10 +287,14 @@ export function continueAnswering(
         requestIntent.capabilityPreferences,
         continueCustomFragments,
       ) : undefined;
-      const providerStreamOptions = withAdditionalBody(
+      const optionsWithAdditionalBody = withAdditionalBody(
         clientControlsAllowed ? buildProviderStreamOptions(provider, streamOptions, model) : undefined,
         { provider, model, conversationId: conversation.id },
       );
+      // Outbound history contains video (including video whose bytes are not loaded) -> Gemini does not pick Interactions.
+      const providerStreamOptions = optionsWithAdditionalBody && await outboundHistoryHasVideo(historyUpToInterrupted)
+        ? { ...optionsWithAdditionalBody, outboundHistoryHasVideo: true }
+        : optionsWithAdditionalBody;
 
       // Continuation is a real outbound request and uses the same gate as sendMessage: web search
       // counts as used only when the web configuration actually made it into this request. The
@@ -315,6 +323,7 @@ export function continueAnswering(
         relayStreamOptions: providerStreamOptions,
         setAbortFn,
         suppressStreamCitations: directContextDocuments.length > 0,
+        relayMessagesBlockedByFiles,
         continuation,
         onContinuation: (next) => continuationCaptured(conversation.id, messageId, next),
       });
@@ -459,7 +468,6 @@ export function continueAnswering(
       // Same check as operations-send: stream-runner already attached the verdict to the error. Retrying reuses retryMessage.
       const additionalBodyRetry = Boolean(err && typeof err === 'object'
         && (err as { additionalBodyRetryEligible?: unknown }).additionalBodyRetryEligible === true);
-      const errorTitleKey = pe.source === 'provider' ? 'requestFailed' : errorKindKey;
       // Custom request fields fail closed: the body copy is localized per rejection reason, the
       // same way operations-send and the edit page do it. `ProviderErrorKind` is a closed union
       // in core, while the proxy layer's kind is the free-form string passed through from
@@ -479,15 +487,19 @@ export function continueAnswering(
               text: partialText,
               ...(mergedReasoning ? { reasoningText: mergedReasoning } : {}),
               state: 'failed' as const,
-              errorTitle: additionalBodyRetry ? te('additionalBodyRejected.upstreamTitle') : te(`${errorTitleKey}.title`),
+              // A provider-sourced title is stored as the English source string and translated at render time (same as operations-send).
+              errorTitle: additionalBodyRetry ? te('additionalBodyRejected.upstreamTitle')
+                : pe.source === 'provider' ? PROVIDER_REQUEST_FAILED_TITLE : te(`${errorKindKey}.title`),
               ...(additionalBodyRetry ? { additionalBodyRetryEligible: true } : {}),
               errorDetail: additionalBodyFailure ? additionalBodyFailure.errorDetail : customFragmentFailure
                 ? customFragmentFailure.errorDetail
-                : (pe.detail || pe.message || ''),
+                // Relay guidance: the body is stored as the English guidance source sentence and localized at render time; the raw upstream text goes to technical detail (same as operations-send).
+                : pe.relayGuidance ? pe.message : (pe.detail || pe.message || ''),
               ...(typeof pe.kind === 'string' ? { errorKind: pe.kind } : {}),
               ...(typeof pe.source === 'string' ? { errorSource: pe.source } : {}),
               ...(additionalBodyFailure ? { errorTechnicalDetail: additionalBodyFailure.errorTechnicalDetail }
                 : customFragmentFailure?.errorTechnicalDetail ? { errorTechnicalDetail: customFragmentFailure.errorTechnicalDetail }
+                : pe.relayGuidance && pe.detail ? { errorTechnicalDetail: pe.detail }
                 // In-stream error frame: once classified, keep the upstream text (already redacted and truncated by the sender) as technical detail, same as operations-send.
                 : pe.streamErrorFrame && pe.message ? { errorTechnicalDetail: pe.message } : {}),
               ...(libraryFailure ?? {}),

@@ -270,8 +270,13 @@
   transition: transform var(--o-transition-fast);
 }
 
-.modelGroupChevron[data-collapsed='true'] {
-  transform: rotate(-90deg);
+/* Collapsed points along the text direction, expanded points down. */
+.modelGroupChevron:dir(rtl) {
+  transform: scaleX(-1);
+}
+
+.modelGroupChevron[data-expanded='true'] {
+  transform: rotate(90deg);
 }
 
 .modelGroupCount {

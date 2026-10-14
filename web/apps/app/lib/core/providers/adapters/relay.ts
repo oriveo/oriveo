@@ -20,11 +20,16 @@ import {
   applyDirectQueryParams,
   type RelayDirectFetchConfig,
 } from '@oriveo/core/providers/relay-adapter';
-import { sendRelayStream, type RelayOrchestratorDeps } from '@oriveo/core/providers/relay-orchestrator';
-import { buildBrowserRelayFetchArgs, fetchBrowserRelayDirect } from '../relay-browser-direct';
+import {
+  buildRelayStreamRequest,
+  sendRelayStream,
+  type RelayOrchestratorDeps,
+  type RelayWireRequest,
+} from '@oriveo/core/providers/relay-orchestrator';
+import { buildBrowserRelayFetchArgs, fetchBrowserRelayDirect, withRelayCodexClientVersion } from '../relay-browser-direct';
 
 /** Web upstream transport: the global fetch, resolved at call time so tests can vi.stubGlobal('fetch'). */
-const webRelayTransport: UpstreamTransport = {
+export const webRelayTransport: UpstreamTransport = {
   fetch: (url, init) => typeof window === 'undefined'
     ? fetch(url, init)
     : fetchBrowserRelayDirect(url, init),
@@ -45,7 +50,7 @@ function buildRelayFetchArgs(
   if (typeof window === 'undefined') {
     return {
       url: applyDirectQueryParams(upstreamURL, config),
-      headers: applyDirectCustomHeaders(directHeaders, config, () => crypto.randomUUID()),
+      headers: applyDirectCustomHeaders(directHeaders, withRelayCodexClientVersion(config), () => crypto.randomUUID()),
     };
   }
   return buildBrowserRelayFetchArgs(upstreamURL, directHeaders, config);
@@ -54,7 +59,8 @@ function buildRelayFetchArgs(
 const relayDeps: RelayOrchestratorDeps = {
   transport: webRelayTransport,
   buildFetchArgs: buildRelayFetchArgs,
-  getRelayRuntimeConfig,
+  // Resolved at call time: this module is pulled in indirectly by the probe chain, so loading it must not touch metadata-client.
+  getRelayRuntimeConfig: () => getRelayRuntimeConfig(),
   onUnsupportedParamDropped: reportUnsupportedParamDropped,
 };
 
@@ -66,4 +72,18 @@ export function sendMessageStream(
   options?: StreamOptions,
 ): StreamHandle {
   return sendRelayStream(apiKey, modelID, messages, baseURL, options, relayDeps);
+}
+
+/**
+ * The wire shape of the first request of an ordinary chat (same relayDeps, same transport split); it is not sent.
+ * The Relay test capability builds it with this and sends it exactly once through `webRelayTransport`.
+ */
+export function buildRelayChatRequest(
+  apiKey: string,
+  modelID: string,
+  messages: { role: 'user' | 'assistant' | 'system'; content: string | ContentPart[] }[],
+  baseURL?: string,
+  options?: StreamOptions,
+): RelayWireRequest {
+  return buildRelayStreamRequest(apiKey, modelID, messages, baseURL, options, relayDeps);
 }

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { relayEndpointFingerprint, relayUnsupportedParamScope } from './relay-stream';
+import { RELAY_HTML_PAGE_ERROR, relayEndpointFingerprint, relayUnsupportedParamScope } from './relay-stream';
 import {
   relayGenerationEndpointFingerprint,
   sendRelayStream,
@@ -300,4 +300,43 @@ describe('relay production error credential redaction', () => {
     expect(error.error).toContain(message);
     expect(error.error).not.toContain(RELAY_REDACTED_PLACEHOLDER);
   });
+});
+
+/* Streaming 200 + text/event-stream, but the body is a web page (the gateway's SPA fallback page). */
+describe('RL2-WEBPAGE relay stream body is a web page', () => {
+  const transports = ['openai_chat_completions', 'openai_responses', 'anthropic_messages', 'gemini_generate_content'] as const;
+
+  function streamFor(transport: (typeof transports)[number], body: string) {
+    const response = new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+    return sendRelayStream(
+      'key',
+      'model-a',
+      [{ role: 'user', content: 'hello' }],
+      'https://relay.example/v1',
+      { relayTransport: transport, relayAuthMode: 'bearer', relayStream: true },
+      relayDeps(response),
+    ).stream;
+  }
+
+  for (const transport of transports) {
+    it.each([
+      '<!doctype html><html><body><div id="root"></div></body></html>',
+      '\r\n  \n<HTML lang="en"><head></head></html>',
+      '\n<head><title>x</title></head>',
+      '   \n<Body>gateway</Body>',
+    ])(`RL2-WEBPAGE-01 ${transport} first non-empty line is a web page -> report the web-page sentence before any output and mark a route-level rejection: %j`, async (body) => {
+      const events = await drain(streamFor(transport, body));
+      expect(events).toEqual([expect.objectContaining({
+        type: 'error',
+        error: RELAY_HTML_PAGE_ERROR,
+        status: 200,
+        relayHTMLPage: true,
+      })]);
+    });
+
+    it(`RL2-WEBPAGE-02 ${transport} a normal data: first line (preceded by blank lines) does not trigger`, async () => {
+      const events = await drain(streamFor(transport, '\n\n: keep-alive\n\ndata: {"x":1}\n\ndata: [DONE]\n\n'));
+      expect(events.some((event) => event.type === 'error' && event.relayHTMLPage)).toBe(false);
+    });
+  }
 });

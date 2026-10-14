@@ -1,3 +1,5 @@
+import { effectiveAPIRoot, effectiveTransport } from '@oriveo/core/providers/relay-effective';
+import { legacyRelayFingerprintInputs } from '../providers/relay-resolution';
 import type {
   GenerationParameterOverride,
   GenerationParameterOverrides,
@@ -7,6 +9,7 @@ import type { AIModel, Provider, ReasoningMode } from '@oriveo/shared';
 import { normalizeUUID, sameNormalizedID } from '../../utils/id-utils';
 import { readPartitionedStore, writePartitionedStore } from '../../infra/storage/partitioned-local-store';
 import { compareWireId } from './sync-wire-order';
+import { relayParameterFallbackModelId } from '../providers/relay-model-identity';
 
 /**
  * Local keys are partitioned per UID (`oriveo.{uid}.<key>`, see `partitioned-local-store`).
@@ -61,6 +64,8 @@ export type GenerationParameterScope = {
   modelId: string;
   conversationId?: string;
   profileFingerprint?: string;
+  /** Read-only: canonical key read back when the literal key misses (see `generationParameterFallbackModelId`). Never used for writes. */
+  fallbackModelId?: string;
 };
 
 export type GenerationParameterSyncRecord = {
@@ -252,14 +257,22 @@ function findScope(scopes: StoredScope[], scope: GenerationParameterScope): Stor
 
 /** Local scope fingerprint: not reused after a Relay endpoint, protocol, or engine change. Excludes the key and never leaves the device. */
 export function generationParameterProfileFingerprint(provider: Provider, model: AIModel): string {
-  const endpoint = provider.kind === 'relay'
-    ? (provider.relayRequested?.resolvedAPIBaseURL ?? provider.baseURLText ?? '')
-    : '';
-  const transport = provider.kind === 'relay'
-    ? (provider.relayResolvedTransport ?? provider.relayRequested?.transport ?? '')
+  // Relay: when the model decides its own protocol, partition by the protocol and root URL it actually uses
+  // (Relay resolution functions); legacy models without a model-level protocol keep the previous inputs,
+  // so the fingerprint is byte-identical and already-saved parameters still read back.
+  const relayInputs = provider.kind !== 'relay'
+    ? undefined
+    : model.relayTransport
+      ? { endpoint: effectiveAPIRoot(provider, model) ?? provider.baseURLText ?? '', transport: effectiveTransport(provider, model) }
+      : legacyRelayFingerprintInputs(provider);
+  const endpoint = relayInputs?.endpoint ?? '';
+  const transport = relayInputs
+    ? relayInputs.transport
     : (model.generationProfile?.template ?? model.transport ?? '');
   const endpointHash = endpoint.trim() ? `ep_${fnv1a32(sanitizedEndpoint(endpoint))}` : '';
-  return [endpointHash, transport, provider.relayRequested?.engineProfile ?? '', model.canonicalModelId ?? model.id].join('|');
+  // Relay keys by the literal model ID: a dated snapshot and its base are two models and do not share a canonical ID.
+  const modelPart = provider.kind === 'relay' ? model.id : model.canonicalModelId ?? model.id;
+  return [endpointHash, transport, provider.relayRequested?.engineProfile ?? '', modelPart].join('|');
 }
 
 function sanitizedEndpoint(raw: string): string {
@@ -290,9 +303,11 @@ function hasExplicitValue(values: GenerationParameterOverrides): boolean {
  * cross-client contract allows.
  */
 export function saveGenerationParameterOverrides(
-  scope: GenerationParameterScope,
+  input: GenerationParameterScope,
   values: GenerationParameterOverrides,
 ): void {
+  // The fallback key is read-only: writes always land on the literal key and never carry it into the record.
+  const { fallbackModelId: _readOnlyFallback, ...scope } = input;
   const settings = readSettings();
   const scopes = settings.scopes.filter((item) => !sameScope(item, scope));
   const recordID = scopeRecordId({ ...scope, scope: scope.conversationId ? 'conversation_override' : 'model_default' });
@@ -325,7 +340,18 @@ export function saveGenerationParameterOverrides(
 export function loadGenerationParameterOverrides(
   scope: GenerationParameterScope,
 ): GenerationParameterOverrides | undefined {
-  return findScope(readSettings().scopes, scope)?.values;
+  const scopes = readSettings().scopes;
+  const literal = findScope(scopes, scope);
+  if (literal || !scope.fallbackModelId || scope.fallbackModelId === scope.modelId) return literal?.values;
+  return findScope(scopes, { ...scope, modelId: scope.fallbackModelId })?.values;
+}
+
+/** Relay parameter-key read fallback: when the literal key misses, read the canonical key. Official providers have no fallback key. */
+export function generationParameterFallbackModelId(
+  provider: Pick<Provider, 'kind'>,
+  model: Pick<AIModel, 'id' | 'canonicalModelId'>,
+): string | undefined {
+  return provider.kind === 'relay' ? relayParameterFallbackModelId(model) : undefined;
 }
 
 export function loadConnectionGenerationParameterDefaults(providerId: string): GenerationParameterOverrides | undefined {
@@ -399,6 +425,8 @@ export function resolveGenerationParameterOverrides(input: {
   modelId: string;
   conversationId?: string;
   profileFingerprint?: string;
+  /** Canonical key read back when a Relay literal key misses (`generationParameterFallbackModelId`). */
+  fallbackModelId?: string;
   transient?: GenerationParameterOverrides;
   /** Reasoning chip level for the current conversation; anything but automatic is an explicit user choice. */
   reasoningMode?: ReasoningMode;
@@ -861,6 +889,7 @@ export function resolveGenerationParameterOverridesWithSources(
       modelId: input.modelId,
       conversationId: input.conversationId,
       profileFingerprint: input.profileFingerprint,
+      fallbackModelId: input.fallbackModelId,
     }), { activeParameterIds }, take('conversation'));
   }
   // The connection scope is the panel on the provider detail page (connection x model defaults plus
@@ -872,6 +901,7 @@ export function resolveGenerationParameterOverridesWithSources(
       providerId: input.providerId,
       modelId: input.modelId,
       profileFingerprint: input.profileFingerprint,
+      fallbackModelId: input.fallbackModelId,
     }),
     { allowReasoning: allowConnectionReasoning, activeParameterIds },
     take('connectionModel'),

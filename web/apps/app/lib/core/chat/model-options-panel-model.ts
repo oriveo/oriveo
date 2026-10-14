@@ -1,3 +1,4 @@
+import { type AttachmentLine, nativeFileModeOf } from '@oriveo/core/providers/attachment-transport';
 import type { ChatTemplateThinkingState } from './chat-template-thinking';
 import { generationParameterSummary, type GenerationParameterRow } from './generation-parameter-rows';
 import { modelControlFooterEntries, type ModelControlFooterEntry } from './model-control-capability-layout';
@@ -7,6 +8,7 @@ import {
   type ModelOptionCapabilityInput,
   type ModelOptionCapabilityShape,
   type ModelOptionConnection,
+  type ModelOptionLinkAction,
 } from './model-option-capability-shape';
 
 /**
@@ -57,6 +59,55 @@ export type ModelOptionsPanelFacts = {
   hasReadOnlyReason: boolean;
   generationRows: readonly GenerationParameterRow[];
   notes: Readonly<Record<ModelOptionCapability, ModelOptionsCapabilityNoteFacts>>;
+  vision: ModelOptionsVisionFacts;
+  file: ModelOptionsFileFacts;
+};
+
+/** Facts of the image recognition card: visibility uses only the same entry function as the input box, and "unknown" uses only the same predicate as the negative-cache record decision. */
+export type ModelOptionsVisionFacts = {
+  /** The input box photo library entry is visible (`resolveAttachmentCapabilities(...).supportsImage`). */
+  entryVisible: boolean;
+  isRelayForm: boolean;
+  /** The model has no positive image recognition evidence at any level (`relayImageSupportUnknown`). */
+  noPositiveEvidence: boolean;
+};
+
+/** Facts of the file card: the line comes from production `resolveAttachmentLine` (the Relay `file` negative cache is already folded into `nativeFilesSuppressed`). */
+export type ModelOptionsFileFacts = {
+  /** Missing = not resolved yet; `exact: false` = cannot be determined. Both are shown as "convert to text". */
+  line?: AttachmentLine & { exact: boolean };
+  nativeFileMimes: readonly string[];
+  pdfNativeDefault: boolean;
+};
+
+export type ModelOptionsVisionState = 'hidden' | 'unknown' | 'available';
+export type ModelOptionsFileState = 'text' | 'pdfNative' | 'nativeWhenSupported';
+
+/** One card of the 2x2 capability area; `corner` is what to draw in the top-right corner, and `action` is where to go when the whole card is clickable. */
+export type ModelOptionsTile =
+  | {
+    kind: 'capability';
+    capability: ModelOptionCapability;
+    row: ModelOptionsPanelRow;
+    corner: 'switch' | 'levels' | 'chevron' | 'none';
+    action?: ModelOptionLinkAction;
+  }
+  | { kind: 'vision'; state: ModelOptionsVisionState; corner: 'check' | 'question' | 'x' }
+  | { kind: 'file'; state: ModelOptionsFileState; corner: 'check' };
+
+/** "Actually sent this turn" lists only the choices that rewrite the request right now, with pinned web search first. */
+export type ModelOptionsSummaryItem =
+  | { kind: 'webOn' }
+  | { kind: 'thinkingLevel'; intent: string }
+  | { kind: 'thinkingOn' };
+
+export type ModelOptionsTiles = {
+  tiles: ModelOptionsTile[];
+  summary: ModelOptionsSummaryItem[];
+  /** First row of the parameters card; absent when the model has no temperature item. */
+  temperature?: GenerationParameterRow;
+  /** Chips of the parameters entry row (excluding temperature, which already has its own row). */
+  parameters: ReturnType<typeof generationParameterSummary>;
 };
 
 export type ModelOptionsPanelModel = {
@@ -64,6 +115,9 @@ export type ModelOptionsPanelModel = {
   header: { connection: ModelOptionsHeaderConnection; transport?: ModelOptionsHeaderTransport };
   card: ModelOptionsPanelCard;
   showsReadOnlyBanner: boolean;
+  tiles: ModelOptionsTile[];
+  summary: ModelOptionsSummaryItem[];
+  temperature?: GenerationParameterRow;
   parameters: ReturnType<typeof generationParameterSummary>;
   notes: Record<ModelOptionCapability, ModelControlFooterEntry[]>;
 };
@@ -76,6 +130,7 @@ const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 const UNCATALOGUED = new Set(['pending', 'unknown']);
 const SUPPORTED_MODELS: 'openSupportedModels' = 'openSupportedModels';
 const AUTOMATIC = 'automatic';
+const TEMPERATURE = 'temperature';
 
 export function modelOptionsPanelModel(facts: ModelOptionsPanelFacts): ModelOptionsPanelModel {
   const card = resolveModelOptionCapabilityCard({ web: facts.web, reasoning: facts.reasoning });
@@ -92,14 +147,88 @@ export function modelOptionsPanelModel(facts: ModelOptionsPanelFacts): ModelOpti
     && panelCard.rows.some((row) => row.kind === 'toggle' || row.kind === 'tiers' || row.kind === 'toggleWithTiming');
   const mark = statusMark(facts);
   const transport = headerTransport(facts);
+  const { tiles, summary, temperature, parameters } = modelOptionsTiles({
+    card: panelCard, vision: facts.vision, file: facts.file, generationRows: facts.generationRows,
+  });
   return {
     ...(mark ? { mark } : {}),
     header: { connection: headerConnection(facts), ...(transport ? { transport } : {}) },
     card: panelCard,
     showsReadOnlyBanner: facts.hasReadOnlyReason && !hasControl,
-    parameters: generationParameterSummary(facts.generationRows),
+    tiles,
+    summary,
+    ...(temperature ? { temperature } : {}),
+    parameters,
     notes: { web: capabilityNotes(facts.notes.web), reasoning: capabilityNotes(facts.notes.reasoning) },
   };
+}
+
+/**
+ * The 2x2 capability cards, summary bar and the temperature row of the parameters card. A whole card with an undecided protocol shows only a callout, without the four cards or the summary.
+ */
+export function modelOptionsTiles(input: {
+  card: ModelOptionsPanelCard;
+  vision: ModelOptionsVisionFacts;
+  file: ModelOptionsFileFacts;
+  generationRows: readonly GenerationParameterRow[];
+}): ModelOptionsTiles {
+  const temperature = input.generationRows.find((row) => row.id === TEMPERATURE);
+  const parameters = generationParameterSummary(input.generationRows.filter((row) => row.id !== TEMPERATURE));
+  const tail = { ...(temperature ? { temperature } : {}), parameters };
+  if (input.card.kind === 'protocolUndecided') return { tiles: [], summary: [], ...tail };
+  const vision = visionState(input.vision);
+  return {
+    tiles: [
+      ...input.card.rows.map(capabilityTile),
+      { kind: 'vision', state: vision, corner: vision === 'hidden' ? 'x' : vision === 'unknown' ? 'question' : 'check' },
+      // Files are always deliverable: in all three states the top right is a check mark.
+      { kind: 'file', state: fileState(input.file), corner: 'check' },
+    ],
+    summary: summaryItems(input.card.rows),
+    ...tail,
+  };
+}
+
+function capabilityTile(row: ModelOptionsPanelRow): ModelOptionsTile {
+  const base = { kind: 'capability' as const, capability: row.capability, row };
+  switch (row.kind) {
+    case 'toggle':
+    case 'toggleWithTiming':
+      return { ...base, corner: 'switch' };
+    case 'tiers':
+      return { ...base, corner: 'levels' };
+    case 'notice':
+    case 'disclosure':
+    case 'chatTemplateBlocked':
+    case 'protocolUndecided':
+      // The whole card is clickable when the explanatory card has a way out.
+      return row.link ? { ...base, corner: 'chevron', action: row.link } : { ...base, corner: 'none' };
+  }
+}
+
+/** Three states of image recognition; model library rows and the model options image card share this one mapping. */
+export function visionState(facts: ModelOptionsVisionFacts): ModelOptionsVisionState {
+  if (!facts.entryVisible) return 'hidden';
+  return facts.isRelayForm && facts.noPositiveEvidence ? 'unknown' : 'available';
+}
+
+function fileState(facts: ModelOptionsFileFacts): ModelOptionsFileState {
+  // When the line cannot be determined, no native block is sent either, so show it as "convert to text".
+  if (!facts.line?.exact || nativeFileModeOf(facts.line) === 'off' || facts.nativeFileMimes.length === 0) return 'text';
+  return facts.pdfNativeDefault ? 'pdfNative' : 'nativeWhenSupported';
+}
+
+function summaryItems(rows: readonly ModelOptionsPanelRow[]): ModelOptionsSummaryItem[] {
+  const items: ModelOptionsSummaryItem[] = [];
+  const web = rows.find((row) => row.capability === 'web');
+  if (web && (web.kind === 'toggleWithTiming' || (web.kind === 'toggle' && web.isOn))) items.push({ kind: 'webOn' });
+  const reasoning = rows.find((row) => row.capability === 'reasoning');
+  if (reasoning?.kind === 'tiers' && reasoning.selection && reasoning.selection !== AUTOMATIC) {
+    items.push({ kind: 'thinkingLevel', intent: reasoning.selection });
+  } else if (reasoning?.kind === 'toggle' && reasoning.isOn) {
+    items.push({ kind: 'thinkingOn' });
+  }
+  return items;
 }
 
 /**

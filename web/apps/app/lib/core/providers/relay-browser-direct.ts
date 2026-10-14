@@ -3,7 +3,9 @@ import {
   applyDirectQueryParams,
   type RelayDirectFetchConfig,
 } from '@oriveo/core/providers/relay-adapter';
+import { resolveRelayCodexClientVersion } from '@oriveo/core/providers/relay-runtime-support';
 import { isForbiddenIPv4, isForbiddenIPv6 } from '@oriveo/core/providers/ssrf';
+import { getRelayRuntimeConfig } from '../metadata/metadata-client';
 import { registerRelayRequestURL } from '../../sentry/redact-url';
 
 const RELAY_FORWARD_PATH = '/api/relay/forward';
@@ -70,13 +72,21 @@ export function shouldProxyRelayViaServer(upstreamURL: string): boolean {
  * - private: connects to the user endpoint directly. The browser owns User-Agent, so that
  *   forbidden header is dropped while the other relay compatibility headers are kept.
  */
+/** Fill in the Codex version delivered by the runtime config. Outbound configs of chat, verification, probing and catalog sync all pass through here. */
+export function withRelayCodexClientVersion(config: RelayDirectFetchConfig): RelayDirectFetchConfig {
+  return { ...config, codexClientVersion: resolveRelayCodexClientVersion(getRelayRuntimeConfig()) };
+}
+
 export function buildBrowserRelayFetchArgs(
   upstreamURL: string,
   directHeaders: Record<string, string>,
-  config: RelayDirectFetchConfig,
+  rawConfig: RelayDirectFetchConfig,
 ): { url: string; headers: Record<string, string> } {
+  const config = withRelayCodexClientVersion(rawConfig);
   const explicitlyLocal = config.securityMode === 'local_http' || config.securityMode === 'private_vpn';
   if (!explicitlyLocal && shouldProxyRelayViaServer(upstreamURL)) {
+    // A connection that needs no auth carries no credential material: a reverse proxy would not forward it anyway, and the key, custom headers and query must not leave the browser either.
+    const credentialFree = config.authMode === 'none';
     return {
       url: RELAY_FORWARD_PATH,
       headers: {
@@ -85,11 +95,13 @@ export function buildBrowserRelayFetchArgs(
         [RELAY_PROXY_CONFIG_HEADER]: JSON.stringify({
           transport: config.transport,
           authMode: config.authMode,
-          apiKey: config.apiKey,
+          apiKey: credentialFree ? undefined : config.apiKey,
           codexCompatIdentity: config.codexCompatIdentity,
-          customUserAgent: config.customUserAgent,
-          headers: config.headers,
-          queryParams: config.queryParams,
+          // The reverse proxy cannot read the client's runtime config on the server, so the version travels with the proxy config and the route side verifies it again.
+          codexClientVersion: config.codexClientVersion,
+          customUserAgent: credentialFree ? undefined : config.customUserAgent,
+          headers: credentialFree ? undefined : config.headers,
+          queryParams: credentialFree ? undefined : config.queryParams,
         }),
       },
     };

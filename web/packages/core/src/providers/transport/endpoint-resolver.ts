@@ -11,6 +11,7 @@
  * @oriveo/core/metadata/types.
  */
 
+import { providerDefaults } from '@oriveo/config';
 import type { Provider, ProviderKind } from '@oriveo/shared/pure-types';
 import type { ProviderTransportDefinition, TransportEndpoints } from '../../metadata/types';
 import type { EndpointKind } from './transport-kind';
@@ -49,7 +50,7 @@ const DEFAULT_BASE_URLS: Partial<Record<ProviderKind, string>> = {
   fireworksAI: 'https://api.fireworks.ai/inference',
   miniMax: 'https://api.minimax.io',
   zhipu: 'https://open.bigmodel.cn/api/paas',
-  qwen: 'https://dashscope.aliyuncs.com',
+  qwen: 'https://dashscope-intl.aliyuncs.com',
   siliconFlow: 'https://api.siliconflow.cn',
   moonshot: 'https://api.moonshot.ai',
 };
@@ -120,25 +121,321 @@ const DEFAULT_ENDPOINTS: Partial<Record<ProviderKind, TransportEndpoints>> = {
   },
 };
 
-// fallback only: official metadata baseUrl is public contract data and must not
-// be able to redirect user BYOK keys outside the vendor-owned domain boundary.
-const OFFICIAL_METADATA_BASE_URL_ALLOWLIST: Partial<Record<ProviderKind, string[]>> = {
-  openAI: ['openai.com'],
-  anthropic: ['anthropic.com'],
-  gemini: ['googleapis.com'],
-  openRouter: ['openrouter.ai'],
-  grok: ['x.ai'],
-  deepseek: ['deepseek.com'],
-  mistral: ['mistral.ai'],
-  groq: ['groq.com'],
-  togetherAI: ['together.xyz'],
-  fireworksAI: ['fireworks.ai'],
-  miniMax: ['minimax.io'],
-  zhipu: ['bigmodel.cn'],
-  qwen: ['aliyuncs.com'],
-  moonshot: ['moonshot.ai', 'moonshot.cn'],
-  siliconFlow: ['siliconflow.cn', 'siliconflow.com'],
+/* ── Trusted hosts (delivered by metadata as providerConfigs[].trustedHosts) ──────── */
+//
+// The baseUrl / regionOptions of official metadata are public contract data and must not carry a
+// user's BYOK key outside that vendor's own domain boundary. The server delivers the boundary per
+// vendor; when the delivered list is empty or missing, only the last two labels of that vendor's
+// built-in fallback host are trusted (none of the 15 fallback hosts sit under a second-level public
+// suffix, so the client ships no public suffix list).
+
+const TRUSTED_HOST_LABEL_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+const IPV4_RE = /^\d+(?:\.\d+){3}$/;
+
+/** Shape check for delivered trusted hosts: lowercase, at least two labels, not an IP, no port, no wildcard; malformed items are dropped one by one. */
+export function sanitizeTrustedHosts(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'string') continue;
+    if (item !== item.toLowerCase() || IPV4_RE.test(item)) continue;
+    const labels = item.split('.');
+    if (labels.length < 2 || !labels.every((label) => TRUSTED_HOST_LABEL_RE.test(label))) continue;
+    if (!out.includes(item)) out.push(item);
+  }
+  return out;
+}
+
+/** Fallback when the field is missing: the last two labels of that vendor's built-in fallback host. Returns undefined for a non-official vendor (no built-in fallback). */
+export function fallbackTrustedHosts(providerKind: ProviderKind | string): string[] | undefined {
+  const fallback = DEFAULT_BASE_URLS[providerKind as ProviderKind];
+  if (!fallback) return undefined;
+  const labels = new URL(fallback).hostname.toLowerCase().split('.');
+  return [labels.slice(-2).join('.')];
+}
+
+/**
+ * The trusted host list actually in effect for a vendor: the delivered value is used alone when it
+ * is non-empty after the shape check, otherwise the built-in fallback applies.
+ * Returns undefined = not an official vendor, so the caller applies no trusted-list constraint
+ * (the same behavior as a missing entry in the old allowlist).
+ */
+export function resolveTrustedHosts(
+  providerKind: ProviderKind | string,
+  raw: unknown,
+): string[] | undefined {
+  const delivered = sanitizeTrustedHosts(raw);
+  if (delivered.length > 0) return fallbackTrustedHosts(providerKind) ? delivered : undefined;
+  return fallbackTrustedHosts(providerKind);
+}
+
+/** The single matching function: https, and the host equals an entry or ends with ".entry". Shared by base URL validation and region option filtering. */
+export function trustedHostMatch(url: string, trustedHosts: readonly string[]): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  return parsed.protocol === 'https:' && hostnameAllowed(parsed.hostname, trustedHosts);
+}
+
+/* ── Official-vendor address source (endpointSource) and setup fields (setupFields) ────────── */
+//
+// default / region:<id> are computed from the current metadata at request time, so a server-side
+// address change reaches existing records; when that cannot be computed, the literal address in the
+// record is the fallback (baseURLText is still written, and older clients and sync read it).
+
+export type EndpointSource = 'default' | 'custom' | `region:${string}`;
+
+/** The closed set of setup fields the client knows; adding an id needs a release. */
+export const SETUP_FIELD_IDS = ['workspaceId'] as const;
+export type SetupFieldId = (typeof SETUP_FIELD_IDS)[number];
+export type SetupValues = Partial<Record<SetupFieldId, string>>;
+
+export interface SetupFieldSpec {
+  id: SetupFieldId;
+  required: boolean;
+}
+
+/** The part of providerConfig needed to resolve the address source (regionOptions should already have passed the trusted list). */
+export interface OfficialEndpointConfig {
+  defaultBaseURL?: string | null;
+  regionOptions?: ReadonlyArray<{ id: string; baseURL: string }> | null;
+  trustedHosts?: readonly string[] | null;
+  setupFields?: readonly SetupFieldSpec[] | null;
+}
+
+const SETUP_PLACEHOLDER_RE = /\{([^{}]*)\}/g;
+const SETUP_VALUE_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+/** The 15 official vendors (those with a built-in fallback address); relay / local connections do not take part in address sources. */
+export function isOfficialEndpointKind(providerKind: ProviderKind | string): boolean {
+  return Boolean(DEFAULT_BASE_URLS[providerKind as ProviderKind]);
+}
+
+function isSetupFieldId(id: string): id is SetupFieldId {
+  return (SETUP_FIELD_IDS as readonly string[]).includes(id);
+}
+
+/** Decode `providerConfigs[].setupFields`: keep only distinct items inside the closed set; missing / null / empty = none. */
+export function decodeSetupFields(raw: unknown): SetupFieldSpec[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: SetupFieldSpec[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const id = (item as { id?: unknown }).id;
+    if (typeof id !== 'string' || !isSetupFieldId(id) || out.some((field) => field.id === id)) continue;
+    out.push({ id, required: (item as { required?: unknown }).required === true });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+/** Placeholder ids appearing in an address template (deduplicated, in order of appearance). */
+export function templatePlaceholderIds(template: string): string[] {
+  const ids: string[] = [];
+  for (const match of template.matchAll(SETUP_PLACEHOLDER_RE)) {
+    const id = match[1] ?? '';
+    if (!ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+
+/**
+ * Template admission at decode time: a placeholder is accepted only if its id is in the closed set and
+ * declared in setupFields; with every placeholder replaced by `a`, the result must pass the trusted list.
+ * An address with no placeholder is the same as a plain trusted-list match.
+ */
+export function setupTemplateAllowed(
+  template: string,
+  setupFields: readonly SetupFieldSpec[] | null | undefined,
+  trustedHosts: readonly string[],
+): boolean {
+  const ids = templatePlaceholderIds(template);
+  if (ids.some((id) => !isSetupFieldId(id) || !setupFields?.some((field) => field.id === id))) return false;
+  return trustedHostMatch(template.trim().replace(SETUP_PLACEHOLDER_RE, 'a'), trustedHosts);
+}
+
+/** Setup field value: after trimming and lowercasing it must be a single DNS label; otherwise null. */
+export function normalizeSetupFieldValue(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const value = raw.trim().toLowerCase();
+  return SETUP_VALUE_RE.test(value) ? value : null;
+}
+
+/** Fill a template with the local setupValues; returns undefined if any placeholder has no value or an invalid one. */
+export function fillSetupTemplate(
+  template: string,
+  values: SetupValues | null | undefined,
+): string | undefined {
+  let missing = false;
+  const filled = template.replace(SETUP_PLACEHOLDER_RE, (_whole, id: string) => {
+    const value = isSetupFieldId(id) ? normalizeSetupFieldValue(values?.[id]) : null;
+    if (!value) missing = true;
+    return value ?? '';
+  });
+  return missing ? undefined : filled;
+}
+
+/** Normalization before classifying: trim, lowercase scheme and host, drop trailing slashes, drop a trailing `/compatible-mode/v1`. */
+export function normalizeEndpointSourceURL(url: string | null | undefined): string | undefined {
+  const trimmed = url?.trim();
+  if (!trimmed) return undefined;
+  let out = trimmed.replace(/^([a-z][a-z0-9+.-]*:\/\/)([^/?#]*)/i, (_whole, scheme: string, host: string) =>
+    `${scheme.toLowerCase()}${host.toLowerCase()}`);
+  out = out.replace(/\/+$/, '').replace(/\/compatible-mode\/v1$/i, '').replace(/\/+$/, '');
+  return out || undefined;
+}
+
+function trustedMetadataURL(
+  providerKind: ProviderKind | string,
+  url: string | null | undefined,
+  config: OfficialEndpointConfig,
+): string | undefined {
+  const trimmed = url?.trim();
+  if (!trimmed) return undefined;
+  const trustedHosts = resolveTrustedHosts(providerKind, config.trustedHosts);
+  if (!trustedHosts) return undefined;
+  return trustedHostMatch(trimmed, trustedHosts) ? trimmed : undefined;
+}
+
+/** The full address (from @oriveo/config, with the version segment) written literally by the setup page when there is no metadata. */
+function builtInDefaultBaseURL(providerKind: ProviderKind | string): string | undefined {
+  return (providerDefaults as Partial<Record<string, { defaultBaseURL: string }>>)[providerKind]?.defaultBaseURL;
+}
+
+/**
+ * Classify a literal address by the fixture rules: empty -> default; equal to a (trusted) region
+ * address after normalization -> region:<id> (region beats default); equal to the (trusted) default
+ * address -> default; equal to this client's built-in default -> default (a record created before the
+ * server moved the default address still counts as default and follows it); otherwise custom.
+ * Without metadata it cannot be classified and returns undefined.
+ */
+export function classifyEndpointSource(
+  providerKind: ProviderKind | string,
+  baseURLText: string | null | undefined,
+  config: OfficialEndpointConfig | null | undefined,
+): EndpointSource | undefined {
+  const literal = normalizeEndpointSourceURL(baseURLText);
+  if (!literal) return 'default';
+  if (!config) return undefined;
+  for (const option of config.regionOptions ?? []) {
+    const trusted = trustedMetadataURL(providerKind, option.baseURL, config);
+    if (trusted && normalizeEndpointSourceURL(trusted) === literal) return `region:${option.id}`;
+  }
+  const defaultURL = trustedMetadataURL(providerKind, config.defaultBaseURL, config);
+  if (defaultURL && normalizeEndpointSourceURL(defaultURL) === literal) return 'default';
+  if (normalizeEndpointSourceURL(builtInDefaultBaseURL(providerKind)) === literal) return 'default';
+  return 'custom';
+}
+
+/** Retired regions: the record migrates to `replacement`, using the built-in address when metadata is absent. */
+const RETIRED_REGIONS: ReadonlyArray<{
+  kind: string;
+  regionId: string;
+  host: string;
+  replacement: string;
+  builtInReplacementBaseURL: string;
+}> = [
+  {
+    kind: 'qwen',
+    regionId: 'us',
+    host: 'dashscope-us.aliyuncs.com',
+    replacement: 'sg',
+    builtInReplacementBaseURL: 'https://dashscope-intl.aliyuncs.com',
+  },
+];
+
+type StoredEndpoint = {
+  baseURLText?: string | null;
+  endpointSource?: string | null;
+  setupValues?: SetupValues | null;
 };
+
+function literalHost(url: string | null | undefined): string | undefined {
+  const trimmed = url?.trim();
+  if (!trimmed) return undefined;
+  try {
+    return new URL(trimmed).hostname.toLowerCase();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Lazy migration: the startup backfill persists it locally, and a request computes the same thing in
+ * memory first.
+ * R1, a retired region -> replacement, with the literal rewritten to that region's address in the
+ * current trusted metadata (the built-in one if none), independent of metadata;
+ * unclassified -> classified by the current metadata; R2, source default with a non-empty literal that
+ * matches a current trusted region -> region:<id>, literal unchanged.
+ * A non-official vendor is returned as is.
+ */
+export function reconcileEndpointSource<T extends StoredEndpoint>(
+  providerKind: ProviderKind | string,
+  stored: T,
+  config: OfficialEndpointConfig | null | undefined,
+): T {
+  if (!isOfficialEndpointKind(providerKind)) return stored;
+  const retired = RETIRED_REGIONS.find((item) => item.kind === providerKind && (
+    stored.endpointSource === `region:${item.regionId}` || literalHost(stored.baseURLText) === item.host
+  ));
+  if (retired) {
+    const option = config?.regionOptions?.find((item) => item.id === retired.replacement);
+    const metadataURL = option && templatePlaceholderIds(option.baseURL).length === 0
+      ? trustedMetadataURL(providerKind, option.baseURL, config!)
+      : undefined;
+    return {
+      ...stored,
+      endpointSource: `region:${retired.replacement}`,
+      baseURLText: metadataURL ?? retired.builtInReplacementBaseURL,
+    };
+  }
+  const source = stored.endpointSource
+    || (config ? classifyEndpointSource(providerKind, stored.baseURLText, config) : undefined);
+  if (source === 'default' && config) {
+    const literal = normalizeEndpointSourceURL(stored.baseURLText);
+    const region = literal
+      ? config.regionOptions?.find((option) => {
+        const trusted = trustedMetadataURL(providerKind, option.baseURL, config);
+        return trusted !== undefined && normalizeEndpointSourceURL(trusted) === literal;
+      })
+      : undefined;
+    if (region) return { ...stored, endpointSource: `region:${region.id}` };
+  }
+  return source && source !== stored.endpointSource ? { ...stored, endpointSource: source } : stored;
+}
+
+/**
+ * The root address of an official vendor at request time: run the lazy migration (R1 / R2) in memory
+ * first, then compute default / region:<id> from the current metadata (the template is filled from
+ * setupValues, and the result passes the trusted list again), falling back to the literal address when
+ * that cannot be computed; custom uses the literal address. When the literal is empty it returns
+ * undefined and the caller keeps the existing metadata -> built-in fallback chain. An unclassified
+ * record is classified on the spot from the current metadata.
+ */
+export function resolveEndpointSourceBaseURL(
+  providerKind: ProviderKind | string,
+  stored: StoredEndpoint | null | undefined,
+  config: OfficialEndpointConfig | null | undefined,
+): string | undefined {
+  const reconciled = stored && isOfficialEndpointKind(providerKind)
+    ? reconcileEndpointSource(providerKind, stored, config)
+    : stored;
+  const literal = reconciled?.baseURLText?.trim() || undefined;
+  if (!literal || !config || !isOfficialEndpointKind(providerKind)) return literal;
+  const source = reconciled?.endpointSource ?? classifyEndpointSource(providerKind, literal, config);
+  let template: string | null | undefined;
+  if (source === 'default') {
+    template = config.defaultBaseURL;
+  } else if (source?.startsWith('region:')) {
+    const regionId = source.slice('region:'.length);
+    template = config.regionOptions?.find((option) => option.id === regionId)?.baseURL;
+  }
+  if (!template) return literal;
+  const filled = fillSetupTemplate(template.trim(), reconciled?.setupValues);
+  return trustedMetadataURL(providerKind, filled, config) ?? literal;
+}
 
 /* ── Resolution ──────────────────────────────────────────── */
 
@@ -159,7 +456,7 @@ function reportRejectedMetadataBaseURL(
   reporter?.({ providerKind: String(providerKind), host, reason });
 }
 
-function hostnameAllowed(hostname: string, allowedSuffixes: string[]): boolean {
+function hostnameAllowed(hostname: string, allowedSuffixes: readonly string[]): boolean {
   const host = hostname.toLowerCase();
   return allowedSuffixes.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
 }
@@ -168,11 +465,13 @@ export function sanitizeMetadataBaseURL(
   providerKind: ProviderKind | string,
   raw: string | undefined | null,
   reporter?: MetadataBaseURLRejectionReporter,
+  /** `providerConfigs[].trustedHosts` delivered by metadata; empty / missing falls back to the built-in registered domain. */
+  trustedHosts?: unknown,
 ): string | undefined {
   const normalized = normalizeBaseURL(raw);
   if (!normalized) return undefined;
 
-  const allowedSuffixes = OFFICIAL_METADATA_BASE_URL_ALLOWLIST[providerKind as ProviderKind];
+  const allowedSuffixes = resolveTrustedHosts(providerKind, trustedHosts);
   if (!allowedSuffixes) return normalized;
 
   let parsed: URL;
@@ -360,11 +659,14 @@ export function resolveEndpoint(
   const endpoint = endpointTemplate
     ? applyEndpointPlaceholders(endpointTemplate, { model: opts.modelID })
     : undefined;
-  const userBase = normalizeBaseURL(provider?.baseURLText);
+  const userBase = normalizeBaseURL(
+    resolveEndpointSourceBaseURL(providerKind, provider, meta?.endpointConfig) ?? provider?.baseURLText,
+  );
   const metaBase = sanitizeMetadataBaseURL(
     providerKind,
     meta?.baseUrl,
     reportRejectedMetadataBaseURL,
+    meta?.trustedHosts,
   );
 
   // Base URL: user configuration beats metadata, metadata beats the built-in fallback.
@@ -394,12 +696,15 @@ export function resolveBaseURL(
   getProviderTransport?: GetProviderTransportFn,
   reportRejectedMetadataBaseURL?: MetadataBaseURLRejectionReporter,
 ): string {
-  const userBase = normalizeBaseURL(provider?.baseURLText);
   const meta = metadataOverride ?? getProviderTransport?.(providerKind);
+  const userBase = normalizeBaseURL(
+    resolveEndpointSourceBaseURL(providerKind, provider, meta?.endpointConfig) ?? provider?.baseURLText,
+  );
   const metaBase = sanitizeMetadataBaseURL(
     providerKind,
     meta?.baseUrl,
     reportRejectedMetadataBaseURL,
+    meta?.trustedHosts,
   );
   const base = (
     userBase ??

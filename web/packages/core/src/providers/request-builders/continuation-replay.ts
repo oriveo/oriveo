@@ -24,7 +24,6 @@ export function mapContinuationForRecipe(recipe: RuntimeRecipe, intent: Continua
   if (intent.kind === 'none') return { accepted: true, target: 'body', delta: {} };
   if (intent.kind === 'previous_id' && typeof intent.state.previousResponseId === 'string') {
     if (recipe.transport?.protocol === 'openai_responses') return { accepted: true, target: 'body', delta: { previous_response_id: intent.state.previousResponseId } };
-    if (recipe.transport?.protocol === 'gemini_interactions') return { accepted: true, target: 'body', delta: { previous_interaction_id: intent.state.previousResponseId } };
   }
   if (intent.kind === 'replay_blocks' && Array.isArray(intent.state.blocks)) {
     const route = recipe.route;

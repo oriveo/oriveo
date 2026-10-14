@@ -53,12 +53,12 @@ import { buildOpenAISubscriptionModels } from "../../../lib/core/providers/opena
 import { openAISubscriptionErrorToValidationMessage } from "../../../lib/core/providers/openai-subscription";
 import { fetchOpenAISubscriptionModels } from "../../../lib/core/providers/openai-subscription";
 import subscriptionStyles from "../../../components/providers/ProviderSubscription.module.css";
-import { resolveProviderSetupCatalog } from "./provider-config-catalog";
+import { resolveProviderSetupCatalog, resolveRegionLookupCatalog } from "./provider-config-catalog";
+import { resolveRegionId } from "../../../lib/core/provider-id-migration";
 import { OfficialEndpointSelector } from "../../../components/providers/OfficialEndpointSelector";
 import {
   getOfficialEndpointDescriptionTranslationKey,
   getOfficialEndpointOptionTranslationKey,
-  isOfficialEndpointProvider,
 } from "../../../components/providers/official-endpoint-utils";
 import {
   trackEvent,
@@ -73,6 +73,8 @@ import {
   type ProviderSetupStepValue,
 } from "../../../lib/core/telemetry";
 import { markRelayHandoff } from "./relay-handoff";
+import { buildOfficialSetupEndpoint } from "../../../lib/core/providers/endpoint-source";
+import type { SetupValues } from "@oriveo/core/providers/transport/endpoint-resolver";
 import { showToast } from "../../../components/Toast";
 import styles from "./ProviderSetup.module.css";
 
@@ -119,6 +121,7 @@ export function ProviderSetup() {
   const [baseURL, setBaseURL] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [selectedRegion, setSelectedRegion] = useState("sg");
+  const [setupValues, setSetupValues] = useState<SetupValues>({});
   const [state, setState] = useState<SetupState>("idle");
   const [error, setError] = useState<ProviderError | null>(null);
   const [keyCharsError, setKeyCharsError] = useState<string | null>(null);
@@ -154,10 +157,6 @@ export function ProviderSetup() {
     }
 
     return selectedRegionOptions.map((option) => {
-      if (!isOfficialEndpointProvider(selectedKind)) {
-        return option;
-      }
-
       const translationKey = getOfficialEndpointOptionTranslationKey(
         selectedKind,
         option.id,
@@ -169,15 +168,12 @@ export function ProviderSetup() {
     });
   }, [selectedKind, selectedRegionOptions, t]);
   const officialEndpointDescription = useMemo(() => {
-    if (
-      !selectedKind
-      || !isOfficialEndpointProvider(selectedKind)
-      || localizedEndpointOptions.length === 0
-    ) {
+    if (!selectedKind || localizedEndpointOptions.length === 0) {
       return null;
     }
 
-    return t(getOfficialEndpointDescriptionTranslationKey(selectedKind));
+    const descriptionKey = getOfficialEndpointDescriptionTranslationKey(selectedKind);
+    return descriptionKey ? t(descriptionKey) : null;
   }, [localizedEndpointOptions.length, selectedKind, t]);
   const selectedAPIKeyHelpURL =
     localizedEndpointOptions.find((option) => option.id === selectedRegion)?.apiKeyHelpURL
@@ -223,12 +219,28 @@ export function ProviderSetup() {
   // provider default). Used both for registration and for the abandoned event: an official
   // provider pointed at the wrong regional endpoint fails just the same, and the address is the
   // first thing to look at.
-  const effectiveBaseURL = useMemo(() => {
-    if (!defaults) return '';
-    return selectedRegionOptions.length > 0
-      ? (selectedRegionOptions.find((r) => r.id === selectedRegion)?.baseURL ?? defaults.defaultBaseURL)
-      : baseURL || defaults.defaultBaseURL;
-  }, [defaults, selectedRegionOptions, selectedRegion, baseURL]);
+  // The address, its source and the setup fields are computed in one place: when the selected template
+  // contains {workspaceId} an input slot appears, and while the value is missing or invalid the result is
+  // null and the primary button is disabled.
+  const selectedPublicConfig = selectedKind
+    ? providerConfigs?.find((config) => config.kind === selectedKind) ?? null
+    : null;
+  const setupEndpoint = useMemo(() => {
+    if (!selectedKind || !defaults) return null;
+    return buildOfficialSetupEndpoint({
+      kind: selectedKind,
+      config: {
+        defaultBaseURL: defaults.defaultBaseURL,
+        regionOptions: selectedRegionOptions,
+        trustedHosts: selectedPublicConfig?.trustedHosts ?? null,
+        setupFields: selectedPublicConfig?.setupFields ?? null,
+      },
+      regionId: selectedRegionOptions.length > 0 ? selectedRegion : null,
+      customBaseURL: baseURL,
+      values: setupValues,
+    });
+  }, [selectedKind, defaults, selectedRegionOptions, selectedPublicConfig, selectedRegion, baseURL, setupValues]);
+  const effectiveBaseURL = setupEndpoint?.result?.baseURLText ?? setupEndpoint?.template ?? '';
 
   useEffect(() => {
     setupStateRef.current.endpoint = effectiveBaseURL;
@@ -280,6 +292,7 @@ export function ProviderSetup() {
     setApiKey("");
     setShowKey(false);
     setBaseURL("");
+    setSetupValues({});
     setSelectedRegion(
       providerCatalog.configsByKind[kind].regionOptions[0]?.id ?? "sg",
     );
@@ -397,6 +410,8 @@ export function ProviderSetup() {
     // Read the latest value from the DOM to avoid the race where onPaste closes over stale state.
     const trimmedKey = (keyInputRef.current?.value ?? apiKey).trim();
     if (!trimmedKey) return;
+    const endpoint = setupEndpoint?.result;
+    if (!endpoint) return;
     setupStateRef.current.connectionAttempts += 1;
 
     // Prevent fetch() from throwing synchronously on a header containing non-Latin-1 characters (pasted keys often carry zero-width or full-width spaces).
@@ -417,7 +432,7 @@ export function ProviderSetup() {
     };
 
     try {
-      const effectiveBase = effectiveBaseURL;
+      const effectiveBase = endpoint.baseURLText ?? effectiveBaseURL;
 
       // Refresh metadata so the canonical catalog is current; awaited so a stale catalog is not used.
       // The new provider is not configured yet, so its catalog has to be requested by name.
@@ -425,8 +440,12 @@ export function ProviderSetup() {
 
       // The default or first instance gets a deterministic id (derived from kind and region, so
       // writes from several clients merge); an explicitly added extra account gets a random id.
-      const regionId =
-        selectedRegionOptions.length > 0 ? selectedRegion : "";
+      // The region segment only consults the frozen identity table, through the same function as the
+      // migration grouping, so a newly delivered region never derives a new id.
+      const regionId = resolveRegionId(
+        { kind: selectedKind, baseURLText: effectiveBase, endpointSource: endpoint.endpointSource },
+        resolveRegionLookupCatalog(),
+      );
       const id = additionalInstanceMode
         ? createCanonicalUUID()
         : await createDeterministicProviderId(selectedKind, regionId);
@@ -482,6 +501,8 @@ export function ProviderSetup() {
         apiKey: trimmedKey,
         apiKeyPreview: formatApiKeyPreview(trimmedKey),
         baseURLText: effectiveBase,
+        endpointSource: endpoint.endpointSource,
+        ...(endpoint.setupValues ? { setupValues: endpoint.setupValues } : {}),
         customName: makeDefaultProviderInstanceName(selectedKind, providers),
       };
 
@@ -549,6 +570,7 @@ export function ProviderSetup() {
     selectedKind,
     selectedRegion,
     effectiveBaseURL,
+    setupEndpoint,
     defaults,
     selectedRegionOptions,
     additionalInstanceMode,
@@ -574,7 +596,10 @@ export function ProviderSetup() {
     setError(null);
     setState("syncing");
     try {
-      const regionId = selectedRegionOptions.length > 0 ? selectedRegion : "";
+      const regionId = resolveRegionId(
+        { kind: "grok", baseURLText: effectiveBaseURL, endpointSource: setupEndpoint?.result?.endpointSource },
+        resolveRegionLookupCatalog(),
+      );
       const id = additionalInstanceMode
         ? createCanonicalUUID()
         : await createDeterministicProviderId("grok", regionId);
@@ -611,6 +636,9 @@ export function ProviderSetup() {
         apiKey: "",
         apiKeyPreview: "",
         baseURLText: effectiveBaseURL || defaults?.defaultBaseURL,
+        ...(setupEndpoint?.result?.endpointSource
+          ? { endpointSource: setupEndpoint.result.endpointSource }
+          : {}),
         customName: makeDefaultProviderInstanceName("grok", providers),
         authMode: "subscription",
         grokSubscription: credential,
@@ -657,9 +685,8 @@ export function ProviderSetup() {
     isFirstProvider,
     providers,
     router,
-    selectedRegion,
-    selectedRegionOptions.length,
     setHasCompletedOnboarding,
+    setupEndpoint?.result?.endpointSource,
     t,
   ]);
 
@@ -681,7 +708,10 @@ export function ProviderSetup() {
     setError(null);
     setState("syncing");
     try {
-      const regionId = selectedRegionOptions.length > 0 ? selectedRegion : "";
+      const regionId = resolveRegionId(
+        { kind: "openAI", baseURLText: effectiveBaseURL, endpointSource: setupEndpoint?.result?.endpointSource },
+        resolveRegionLookupCatalog(),
+      );
       const id = additionalInstanceMode
         ? createCanonicalUUID()
         : await createDeterministicProviderId("openAI", regionId);
@@ -721,6 +751,9 @@ export function ProviderSetup() {
         apiKey: "",
         apiKeyPreview: "",
         baseURLText: effectiveBaseURL || defaults?.defaultBaseURL,
+        ...(setupEndpoint?.result?.endpointSource
+          ? { endpointSource: setupEndpoint.result.endpointSource }
+          : {}),
         customName: makeDefaultProviderInstanceName("openAI", providers),
         authMode: "subscription",
         openAISubscription: credential,
@@ -767,9 +800,8 @@ export function ProviderSetup() {
     isFirstProvider,
     providers,
     router,
-    selectedRegion,
-    selectedRegionOptions.length,
     setHasCompletedOnboarding,
+    setupEndpoint?.result?.endpointSource,
     t,
   ]);
 
@@ -813,6 +845,7 @@ export function ProviderSetup() {
     !showAlreadyConnectedGuard &&
     !usesSubscriptionFlow &&
     apiKey.trim().length > 0 &&
+    setupEndpoint?.result != null &&
     !isWorking;
 
   return (
@@ -987,10 +1020,7 @@ export function ProviderSetup() {
                   <div className={styles.keyInputWrap}>
                     <input
                       ref={keyInputRef}
-                      className={[
-                        styles.keyInput,
-                        !showKey && apiKey ? styles.secretMasked : "",
-                      ].filter(Boolean).join(" ")}
+                      className={styles.keyInput}
                       placeholder={defaults.apiKeyPlaceholder}
                       value={apiKey}
                       onChange={(e) => {
@@ -1059,6 +1089,29 @@ export function ProviderSetup() {
                   </div>
                 )}
 
+                {/* Setup field: shown only when the selected template contains {workspaceId}, right after the region selector */}
+                {setupEndpoint?.fields.includes("workspaceId") && (
+                  <div className={styles.connectField}>
+                    <label className={styles.sectionLabel} htmlFor="provider-setup-workspace-id">
+                      {t("workspaceId")}
+                    </label>
+                    <input
+                      id="provider-setup-workspace-id"
+                      data-testid="provider-setup-workspace-id"
+                      type="text"
+                      className={styles.keyInput}
+                      autoComplete="off"
+                      spellCheck={false}
+                      value={setupValues.workspaceId ?? ""}
+                      onChange={(e) => {
+                        const workspaceId = e.target.value;
+                        setSetupValues((prev) => ({ ...prev, workspaceId }));
+                      }}
+                    />
+                    <div className={styles.fieldHint}>{t("workspaceIdHint")}</div>
+                  </div>
+                )}
+
                 {/* Advanced: Base URL, not needed for aggregators or Qwen */}
                 {!isAggregator && selectedRegionOptions.length === 0 && (
                   <div className={styles.advanced}>
@@ -1076,10 +1129,8 @@ export function ProviderSetup() {
                         strokeWidth="2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        style={{
-                          transform: advancedOpen ? "rotate(90deg)" : "none",
-                          transition: "transform 0.15s",
-                        }}
+                        className={styles.advancedCaret}
+                        data-expanded={advancedOpen}
                       >
                         <polyline points="9 18 15 12 9 6" />
                       </svg>

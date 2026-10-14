@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { AIModel, Provider } from "@oriveo/shared";
 import { findModelInProvider } from "../../../../lib/core/provider-model-ops";
 import { selectResolvedCatalog } from "../../../../lib/core/store/selectors";
@@ -8,6 +9,7 @@ import {
   buildModelBrowserGroups,
   type ModelBrowserGroup,
 } from "../../../../app/providers/[providerId]/model-browser-groups";
+import { relayDetailPageQuery } from "../../../../app/providers/[providerId]/relay-detail-nav";
 import {
   getDefaultExpandedModelSwitcherProviderIds,
   getModelSwitcherProviderLabel,
@@ -42,6 +44,8 @@ interface UseModelSwitcherDataParams {
   capabilityEvidenceTick?: number;
   /** Primary action: list only the models this generation parameter can actually drive (same test used for the chip counts). */
   requiredGenerationParameterId?: string;
+  /** Close the switcher when leaving for another page (relay "+" goes to the model library). */
+  onLeave?: () => void;
 }
 
 export interface ModelSwitcherData {
@@ -146,7 +150,9 @@ export function useModelSwitcherData({
   onAddManualAndSelect,
   capabilityEvidenceTick = 0,
   requiredGenerationParameterId,
+  onLeave,
 }: UseModelSwitcherDataParams): ModelSwitcherData {
+  const router = useRouter();
   const [view, setView] = useState<SwitcherView>({ kind: "browse" });
   const [query, setQuery] = useState("");
   const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(new Set());
@@ -473,8 +479,9 @@ export function useModelSwitcherData({
     setExpandedProviderIds(new Set([provider.id]));
 
     if (provider.kind === "relay") {
-      setManualModelId("");
-      setView({ kind: "manual", providerId: provider.id });
+      // The relay "+" goes to that connection model library (catalog visible, manual add possible) instead of only offering manual ID entry.
+      onLeave?.();
+      router.push(`/providers/${encodeURIComponent(provider.id)}${relayDetailPageQuery({ view: "library" })}`);
       return;
     }
 

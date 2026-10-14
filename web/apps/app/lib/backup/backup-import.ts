@@ -873,6 +873,11 @@ async function applyRestoredKeys(
   keyMap: Map<string, { apiKey: string; apiKeyPreview: string }> | null,
   result: ImportResult,
 ): Promise<Provider> {
+  // The key list is stored on this device only and is not part of backups: never written even if the file carries it; a dangling relayKeyID falls back to the primary key at read time.
+  if ('relayKeys' in provider) {
+    const { relayKeys: _relayKeys, ...rest } = provider;
+    provider = rest;
+  }
   if (!keyMap) return provider;
   const keys = keyMap.get(provider.id);
   if (!keys) return provider;

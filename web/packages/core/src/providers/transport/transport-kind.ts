@@ -33,6 +33,20 @@ export function isKnownTransportKind(kind: string | undefined | null): kind is T
 }
 
 /**
+ * Transports with no direct strategy: the line is decided by dispatch in `/api/chat/stream`
+ * from the current request. gemini_interactions only applies when web search is on and there
+ * is no video; everything else stays on generateContent. The model stays visible and sending
+ * goes through the gemini adapter. Not part of TRANSPORT_KINDS, so it is never mistaken for
+ * having a dedicated strategy.
+ */
+export const DISPATCH_ROUTED_TRANSPORT_KINDS: ReadonlySet<string> = new Set(['gemini_interactions']);
+
+/** Whether the catalog recognizes this transport (it has a strategy, or dispatch picks the line). */
+export function isCatalogVisibleTransportKind(kind: string): boolean {
+  return isKnownTransportKind(kind) || DISPATCH_ROUTED_TRANSPORT_KINDS.has(kind);
+}
+
+/**
  * Default endpoint kind for each transport kind.
  *
  * Different transports within one provider use different endpoints (OpenAI's `gpt-4o` goes

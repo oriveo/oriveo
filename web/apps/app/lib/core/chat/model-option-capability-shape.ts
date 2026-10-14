@@ -1,3 +1,5 @@
+import type { AIModel, Provider, RelayRequestedConfig } from '@oriveo/shared';
+import { effectiveTransport } from '@oriveo/core/providers/relay-effective';
 import { nearestAcceptedReasoningTier } from './capability-recovery-runtime';
 import type { ModelControlStatus } from './model-control-capability-layout';
 
@@ -15,7 +17,9 @@ export type ModelOptionLinkAction =
   | 'openSupportedModels'
   | 'openAdditionalRequestBody'
   | 'openConnectionProtocol'
-  | 'switchConnection';
+  | 'switchConnection'
+  /** Web search settings page of a Relay connection. */
+  | 'openConnectionWebSearch';
 
 export type ModelOptionCapabilityInput = {
   capability: ModelOptionCapability;
@@ -28,6 +32,26 @@ export type ModelOptionCapabilityInput = {
   rejectedIntents: readonly string[];
   chatTemplateThinkingIsOn: boolean;
   supportsChatTemplate: boolean;
+  /** Facts of a local-engine connection (one with an engineProfile); when present, the thinking row follows the write-path table, not the protocol. */
+  localEngine?: ModelOptionLocalEngine;
+  /** Relay-form web search facts: when present, the web row looks only at the connection-level fragment, not the verdict state. */
+  relayWeb?: ModelOptionRelayWeb;
+};
+
+export type ModelOptionRelayWeb = {
+  /** Local-engine connection (has an engineProfile): no web search. */
+  localEngine: boolean;
+  /** The effective protocol has a connection-level web fragment (including legacy fields mapped at read time). */
+  hasFragment: boolean;
+  /** Result of the local web probe record for the current fragment; absent = not tested or the fragment changed. */
+  probe?: 'searched' | 'rejected' | 'silent';
+};
+
+/** Connection-level channel + model-level thinking declaration. */
+export type ModelOptionLocalEngine = {
+  engineProfile: NonNullable<RelayRequestedConfig['engineProfile']>;
+  channel: 'chat' | 'native';
+  declaredThinking?: boolean;
 };
 
 /** Where a toggle writes: the capability preference (one intent each for on and off), or the chat-template thinking switch in the additional request body. */
@@ -48,12 +72,21 @@ export type ModelOptionTierFootnote =
   | { kind: 'tierNote'; intent: string }
   | { kind: 'costNote' };
 
-export type ModelOptionNoticeStatus = 'alwaysThinks' | 'needsOwnConfiguration' | 'modelDefault' | 'temporarilyUnavailable';
+export type ModelOptionNoticeStatus =
+  | 'alwaysThinks' | 'needsOwnConfiguration' | 'modelDefault' | 'temporarilyUnavailable' | 'alwaysOn'
+  /** Relay web search: the upstream rejected the attached fragment, so chat no longer attaches it. */
+  | 'relayWebRejected';
 
 export type ModelOptionNoticeBody =
   | { kind: 'fixedTier'; intent?: string }
   | { kind: 'customOnly'; capability: ModelOptionCapability }
-  | { kind: 'notCatalogued'; capability: ModelOptionCapability };
+  | { kind: 'notCatalogued'; capability: ModelOptionCapability }
+  /** Web search the subscription upstream keeps always on: the user cannot turn it off. */
+  | { kind: 'subscriptionAlwaysSearches' }
+  /** Relay has no generic web search switch; it is configured in the connection's web search settings. */
+  | { kind: 'relayWebManual' }
+  /** After a Relay web rejection: go to the connection's web search page and test again. */
+  | { kind: 'relayWebRetest' };
 
 export type ModelOptionReadOnlyValue =
   | { kind: 'webPreference'; preference: 'off' | 'automatic' | 'force' }
@@ -67,6 +100,8 @@ export type ModelOptionDisclosureStatus =
   | { kind: 'fixedByConnection' }
   /** Web search: "this model cannot search the web"; thinking: "this model has no thinking mode". */
   | { kind: 'modelLacksCapability' }
+  /** Relay web search: a fragment is configured; the status follows the local probe record (searched in the test / did not search in the test / unverified). */
+  | { kind: 'relayWebProbe'; result: 'searched' | 'silent' | 'unverified' }
   | { kind: 'currentValue'; value: ModelOptionReadOnlyValue };
 
 export type ModelOptionCapabilityShape =
@@ -126,12 +161,21 @@ export function resolveModelOptionCapabilityShape(input: ModelOptionCapabilityIn
   if (status === 'fixedByConnection') {
     return { kind: 'disclosure', capability, status: { kind: 'fixedByConnection' } };
   }
+  if (capability === 'web' && input.relayWeb) return relayWebShape(input, input.relayWeb);
   if (input.protocolUndecided) return { kind: 'protocolUndecided', capability, link: 'openConnectionProtocol' };
+  if (capability === 'reasoning' && input.localEngine) {
+    const engineShape = localEngineReasoningShape(input, input.localEngine);
+    if (engineShape) return engineShape;
+  }
   switch (status) {
     case 'automaticAvailable':
     case 'forceUnsupported':
       if (!input.isWritable) return { kind: 'disclosure', capability, status: { kind: 'currentValue', value: readOnlyValue(input) } };
       return capability === 'web' ? webShape(input) : reasoningShape(input);
+    case 'alwaysOn':
+      // Read-only and not clickable (no link). The presentation class comes only from the web reasonCode; thinking that receives it draws the current value, as for read-only.
+      if (capability !== 'web') return { kind: 'disclosure', capability, status: { kind: 'currentValue', value: readOnlyValue(input) } };
+      return { kind: 'notice', capability: 'web', status: 'alwaysOn', body: { kind: 'subscriptionAlwaysSearches' } };
     case 'customOnly':
       return customOnlyNotice(capability);
     case 'unsupported':
@@ -150,6 +194,73 @@ export function resolveModelOptionCapabilityShape(input: ModelOptionCapabilityIn
         body: { kind: 'notCatalogued', capability }, link: 'openSupportedModels',
       };
   }
+}
+
+/**
+ * Write-path table (fixture thinking.writePaths): only the llama.cpp Chat channel can write the chat-template thinking switch.
+ * Engines / channels outside the table return undefined, handing back to the existing Relay rules.
+ */
+const LOCAL_ENGINE_THINKING_WRITABLE: Readonly<Record<string, Partial<Record<ModelOptionLocalEngine['channel'], boolean>>>> = {
+  llamacpp: { chat: true, native: false },
+  ollama: { chat: false },
+  lmstudio: { chat: false },
+  vllm: { chat: false },
+  openwebui: { chat: false },
+};
+
+function localEngineReasoningShape(
+  input: ModelOptionCapabilityInput,
+  engine: ModelOptionLocalEngine,
+): ModelOptionCapabilityShape | undefined {
+  const writable = LOCAL_ENGINE_THINKING_WRITABLE[engine.engineProfile]?.[engine.channel];
+  if (writable === undefined) return undefined;
+  if (writable) return chatTemplateShape(input);
+  // The llama.cpp native channel keeps today's "not Chat" explanation.
+  if (engine.channel !== 'chat') return customOnlyNotice('reasoning');
+  if (engine.declaredThinking === false) {
+    return { kind: 'disclosure', capability: 'reasoning', status: { kind: 'modelLacksCapability' }, link: 'openSupportedModels' };
+  }
+  return {
+    kind: 'notice', capability: 'reasoning', status: 'modelDefault',
+    body: { kind: 'notCatalogued', capability: 'reasoning' }, link: 'openSupportedModels',
+  };
+}
+
+/** Takes the local-engine facts from the connection and model; returns nothing when there is no engineProfile or the channel is not chat / native (behavior unchanged). */
+export function modelOptionLocalEngine(
+  provider: Pick<Provider, 'baseURLText' | 'relayRequested'>,
+  model: Pick<AIModel, 'engineDeclaration' | 'relayTransport'> | null | undefined,
+): ModelOptionLocalEngine | undefined {
+  const engineProfile = provider.relayRequested?.engineProfile;
+  if (!engineProfile) return undefined;
+  const transport = effectiveTransport(provider, model);
+  const channel = transport === 'llamacpp_native' ? 'native' : transport === 'openai_chat_completions' ? 'chat' : undefined;
+  if (!channel) return undefined;
+  const declaredThinking = model?.engineDeclaration?.thinking;
+  return { engineProfile, channel, ...(typeof declaredThinking === 'boolean' ? { declaredThinking } : {}) };
+}
+
+/**
+ * Relay web search row (fixture presentationCases): local engine -> this connection cannot do it; protocol undecided -> choose a protocol first;
+ * the effective protocol has a fragment -> "set by you", tap into web search settings; otherwise -> needs manual setup + open web search settings.
+ */
+function relayWebShape(input: ModelOptionCapabilityInput, relayWeb: ModelOptionRelayWeb): ModelOptionCapabilityShape {
+  if (relayWeb.localEngine) return connectionCannot();
+  if (input.protocolUndecided) return { kind: 'protocolUndecided', capability: 'web', link: 'openConnectionProtocol' };
+  if (relayWeb.hasFragment && relayWeb.probe === 'rejected') {
+    return {
+      kind: 'notice', capability: 'web', status: 'relayWebRejected',
+      body: { kind: 'relayWebRetest' }, link: 'openConnectionWebSearch',
+    };
+  }
+  if (relayWeb.hasFragment) {
+    const result = relayWeb.probe === 'searched' || relayWeb.probe === 'silent' ? relayWeb.probe : 'unverified';
+    return { kind: 'disclosure', capability: 'web', status: { kind: 'relayWebProbe', result }, link: 'openConnectionWebSearch' };
+  }
+  return {
+    kind: 'notice', capability: 'web', status: 'needsOwnConfiguration',
+    body: { kind: 'relayWebManual' }, link: 'openConnectionWebSearch',
+  };
 }
 
 function connectionCannot(): ModelOptionCapabilityShape {

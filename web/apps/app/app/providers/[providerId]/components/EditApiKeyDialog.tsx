@@ -2,10 +2,12 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button } from '@oriveo/ui';
+import { Button, EyeIcon, EyeOffIcon } from '@oriveo/ui';
+import { getApiKeyInputProps } from '../../../../lib/forms/api-key-input-props';
 import { isPrintableAsciiKey } from '../../../../lib/utils/api-key-validation';
 import { useFocusTrap } from '../../../../lib/hooks/useFocusTrap';
 import styles from '../ProviderDetail.module.css';
+import setupStyles from '../../new/ProviderSetup.module.css';
 
 interface EditApiKeyDialogProps {
   /** Preview of the current key, shown in the subtitle so the user can tell which key is stored. */
@@ -17,8 +19,10 @@ interface EditApiKeyDialogProps {
 export function EditApiKeyDialog({ currentKeyPreview, onSave, onCancel }: EditApiKeyDialogProps) {
   const tSettings = useTranslations('pages.providerDetail.settings');
   const tc = useTranslations('common');
+  const td = useTranslations('pages.providerDetail');
 
   const [value, setValue] = useState('');
+  const [showKey, setShowKey] = useState(false);
   const [charsError, setCharsError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -75,8 +79,8 @@ export function EditApiKeyDialog({ currentKeyPreview, onSave, onCancel }: EditAp
       >
         <div id={titleId} className={styles.confirmTitle}>{tSettings('editApiKey')}</div>
         <form onSubmit={handleSubmit}>
+          <div className={setupStyles.keyInputWrap}>
           <input
-            type="text"
             className={styles.providerNameInput}
             value={value}
             placeholder={currentKeyPreview ? `••••••••••• ${currentKeyPreview}` : 'sk-...'}
@@ -86,13 +90,19 @@ export function EditApiKeyDialog({ currentKeyPreview, onSave, onCancel }: EditAp
               if (saveError) setSaveError(null);
             }}
             autoFocus
-            autoCapitalize="off"
-            autoCorrect="off"
-            autoComplete="off"
-            spellCheck={false}
+            {...getApiKeyInputProps('edit-api-key', showKey ? 'visible' : 'masked')}
             aria-label={tSettings('editApiKey')}
-            style={{ width: '100%' }}
+            style={{ width: '100%', paddingRight: 40 }}
           />
+          <button
+            type="button"
+            className={setupStyles.toggleVis}
+            onClick={() => setShowKey((v) => !v)}
+            aria-label={showKey ? td('hideKey') : td('showKey')}
+          >
+            {showKey ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
+          </div>
           {charsError && (
             <div className={styles.editFieldError} role="alert" style={{ marginTop: 8 }}>
               {charsError}

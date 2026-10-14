@@ -10,12 +10,14 @@ import { MessageActions } from "./MessageActions";
 import { TypingIndicator } from "./TypingIndicator";
 import { StreamActivityLine } from "./StreamActivityLine";
 import { MessageRecoveryCard } from "./MessageRecoveryCard";
+import { RelaySwitchKeyDialog, relaySwitchKeyChoices } from "./RelaySwitchKeyDialog";
 import {
   ContextMenu,
   useContextMenu,
   type ContextMenuItem,
 } from "../ContextMenu";
 import { ProviderIcon } from "../ProviderIcon";
+import { relayIconSource } from "../relay-avatar";
 import { loadFilePreviewUtils } from "../../lib/utils/file-preview-utils-lazy";
 import { stripMarkdownForClipboard } from "../../lib/utils/markdown-preview";
 import { copyToClipboard } from "../../lib/utils/clipboard";
@@ -44,6 +46,7 @@ import {
 } from "../../lib/core/store/selectors";
 import { createModelDisplayLookup } from "../../lib/core/providers/model-display-lookup";
 import { getProviderInstanceDisplayName } from "../../lib/core/providers/provider-display";
+import { localizeRelayGuidance } from "../../lib/core/providers/error-i18n";
 import { isRateLimitError } from "../../lib/utils/error-classify";
 import { getVanillaStore } from "../../providers/StoreProvider";
 import { createNote } from "../../lib/core/note-ops";
@@ -210,6 +213,7 @@ export const MessageBubble = memo(function MessageBubble({
   const tLibrary = useTranslations("library");
   const tCommon = useTranslations("common");
   const tCtx = useTranslations("contextMenu");
+  const tErrors = useTranslations("errors");
   const libraryFeatureEnabled = isLibraryFeatureEnabled();
   const {
     editing,
@@ -326,6 +330,13 @@ export const MessageBubble = memo(function MessageBubble({
     }
     return null;
   }, [libraryFeatureEnabled, message.errorKind, onRetry, tLibrary]);
+
+  // Relay "switch key": derived from the persisted relayDeniedKeyID and the alternate keys, so no new message field is needed.
+  const [switchKeyOpen, setSwitchKeyOpen] = useState(false);
+  const canSwitchRelayKey = useMemo(
+    () => isFailed && relaySwitchKeyChoices(resolvedProvider, message.modelID) !== null,
+    [isFailed, resolvedProvider, message.modelID],
+  );
 
   const rateLimited = useMemo(
     () =>
@@ -487,6 +498,7 @@ export const MessageBubble = memo(function MessageBubble({
             size={28}
             bare
             relayKind={resolvedProvider?.relayKind}
+            {...relayIconSource(resolvedProvider)}
           />
         </div>
       ) : (
@@ -661,7 +673,13 @@ export const MessageBubble = memo(function MessageBubble({
                   errorTitle={rejectedGenerationParameterTitle ?? message.errorTitle}
                   errorDetail={rejectedGenerationParameterTitle
                     ? tCommon('capabilityControlUpstreamRejected')
-                    : message.errorDetail}
+                    // Relay rejected an image: the way out is switching models, so the body says that and the upstream text stays under technical details.
+                    : message.relayImageUnsupported
+                      ? t('recovery.imageUnsupported')
+                      // Relay rejected a file and the fallback did not rescue it: same, only the way out in the body.
+                      : message.relayFileUnsupported
+                        ? t('recovery.fileUnsupported')
+                        : message.errorDetail}
                   errorKind={message.errorKind}
                   errorSource={message.errorSource}
                   // Transport failures persist raw technical text into errorDetail: a dropped
@@ -675,14 +693,20 @@ export const MessageBubble = memo(function MessageBubble({
                     message.errorKind !== CUSTOM_FRAGMENT_ERROR_KIND &&
                     message.errorKind !== ADDITIONAL_BODY_ERROR_KIND
                   }
-                  technicalDetail={message.errorTechnicalDetail}
+                  technicalDetail={message.relayImageUnsupported || message.relayFileUnsupported
+                    // The persisted relay guidance source sentence goes through the same resolver as the card body (localized at render time).
+                    ? message.errorTechnicalDetail ?? localizeRelayGuidance(message.errorDetail, tErrors)
+                    : message.errorTechnicalDetail}
                   onRetry={onRetry}
                   onEdit={onEditAndResend ? handleStartEdit : undefined}
                   onSwitchModel={rateLimited ? onSwitchModel : undefined}
                   // Way out of a custom request field fail-closed: a plain retry gets rejected the same way,
                   // so the only action that can send the message right now is "send without custom fields".
                   // A local additional request body rejection sends nothing, so there is no retry path; the only way out is to edit the content.
-                  primaryActionLabel={message.errorKind === ADDITIONAL_BODY_ERROR_KIND
+                  // Relay rejected an image or file: the only way out is a model that accepts it; no retry is offered.
+                  primaryActionLabel={(message.relayImageUnsupported || message.relayFileUnsupported) && onSwitchModel
+                    ? t('recovery.switchModelBtn')
+                    : message.errorKind === ADDITIONAL_BODY_ERROR_KIND
                     ? tCommon('openAdditionalBody')
                     : message.errorKind === CUSTOM_FRAGMENT_ERROR_KIND
                     ? tCommon('retryWithoutCustomRequestFields')
@@ -691,15 +715,26 @@ export const MessageBubble = memo(function MessageBubble({
                       ? tCommon('resendWithoutSetting')
                       : message.additionalBodyRetryEligible
                         ? tCommon('retryWithoutAdditionalBody') : libraryRecoveryAction?.label}
-                  onPrimaryAction={message.errorKind === ADDITIONAL_BODY_ERROR_KIND
+                  onPrimaryAction={(message.relayImageUnsupported || message.relayFileUnsupported) && onSwitchModel
+                    ? onSwitchModel
+                    : message.errorKind === ADDITIONAL_BODY_ERROR_KIND
                     ? openAdditionalBodyEditor
                     : message.errorKind === CUSTOM_FRAGMENT_ERROR_KIND
                     || message.capabilityRecovery?.action === 'user_confirmed_resend_without_located_setting'
                     || rejectedGenerationParameterTitle
                     || message.additionalBodyRetryEligible
                     ? onRetryWithoutCustom : libraryRecoveryAction?.run}
+                  onSwitchKey={canSwitchRelayKey ? () => setSwitchKeyOpen(true) : undefined}
                   disabled={interactionLocked}
                 />
+                {switchKeyOpen && canSwitchRelayKey && resolvedProvider && message.modelID && (
+                  <RelaySwitchKeyDialog
+                    provider={resolvedProvider}
+                    modelID={message.modelID}
+                    modelName={resolvedModelName || message.modelID}
+                    onClose={() => setSwitchKeyOpen(false)}
+                  />
+                )}
               </div>
             )}
             {isInterrupted && message.role === "assistant" && isLastMessage && (

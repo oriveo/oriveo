@@ -6,9 +6,11 @@ import type {
   RelayWebSearchToolName,
 } from '@oriveo/shared/pure-types';
 import type { UsageBreakdown } from '../chat/usage-breakdown';
+import type { RelayKeyAccessOutcome } from './relay-key-access';
 import type { CapabilityPreferenceInput, CapabilityRecipeOmission, GenerationParameterOverrides, GenerationParameterProfile } from './request-builders/types';
 import type { CapabilityLearningIdentity } from './unsupported-param';
 import type { ContinuationIntent } from './request-preference/continuation';
+import type { ProxyToolDefinition } from './request-builders/runtime';
 import type {
   ProviderErrorNextAction,
   ProviderErrorSeverity,
@@ -67,7 +69,12 @@ export type StreamEvent =
   | { type: 'model'; modelID: string }
   | { type: 'usage'; usage: StreamUsage }
   | { type: 'done' }
-  | { type: 'citations'; citations: Citation[] }
+  | {
+      type: 'citations';
+      citations: Citation[];
+      /** The upstream explicitly ran a web search (Responses web_search_call completed / a Messages result array that contains an empty array); may carry no citations. */
+      searchRan?: true;
+    }
   | { type: 'tool_calls'; toolCalls: StreamToolCallDelta[] }
   | { type: 'tool_call'; tool: string; args: Record<string, unknown>; step: number }
   | { type: 'tool_result'; tool: string; summary: string; step: number }
@@ -97,6 +104,14 @@ export type StreamEvent =
       streamErrorFrame?: true;
       /** Raw structured fields from an HTTP error body that can pinpoint the cause (such as `/error/param`); used for classification locally only. */
       errorFields?: Record<string, string>;
+      /** Key verdict for a relay non-2xx before any output: computed from the raw response body, because errorDetail keeps only allowlisted fragments and would lose a top-level code. Absent when none. */
+      relayKeyAccess?: Exclude<RelayKeyAccessOutcome, 'none'>;
+      /** The relay returned 2xx but the content is a web page (the gateway's SPA fallback page): this path is not an API route and is handled as a route-level rejection. */
+      relayHTMLPage?: true;
+      /** The raw error body of a relay non-2xx before any output named a reasoning parameter; carries only the conclusion, and the tier decision lives on the send side. */
+      relayReasoningNamed?: true;
+      /** `error` is a relay guidance sentence: the failure card body uses its localization, and the upstream original in `errorDetail` goes into the technical details. */
+      relayGuidance?: true;
     };
 
 export interface StreamHandle {
@@ -218,6 +233,8 @@ export interface StreamOptions {
    * `stream-options.ts`. The adapter layer only consumes the boolean and no longer decides for itself.
    */
   supportsWebSearch?: boolean;
+  /** The outbound history (the messages actually sent after context trimming) has a video attachment, including one whose bytes are not loaded and did not become a video_url part. */
+  outboundHistoryHasVideo?: boolean;
   /** Typed intent consumed by the recipe compiler. */
   capabilityPreferences?: CapabilityPreferenceInput;
   /** Explicit resend descriptors consumed only by the official recipe compiler. */
@@ -263,8 +280,29 @@ export interface StreamOptions {
     | 'x_goog_api_key'
     | 'query_key';
   relaySecurityMode?: 'remote_https' | 'local_http' | 'private_vpn' | 'tofu_https';
-  /** Production-builder probe limit; undefined omits the field, 0 remains explicit if a caller supplies it. */
+  /**
+   * Production-builder probe limit; undefined omits the field, 0 remains explicit if a caller supplies it.
+   * All four relay chat builders honor it (used by capability tests); builder output is unchanged when it is not passed.
+   */
   relayMaxOutputTokens?: number;
+  /**
+   * For the 1-token probe: the Responses builder omits the default built-in tools and `reasoning`. Chat has its own
+   * resend loop when the upstream rejects those fields, but a probe does not; probing with them would mix the rejection
+   * reason with "does this route accept this model". Output is unchanged when it is not passed.
+   */
+  relayOmitDefaultToolsAndReasoning?: boolean;
+  /**
+   * The tool item of a capability test: written into `tools` in the function-tool wire shape of this protocol, and
+   * `tools` holds only this one, so built-in tools such as Responses image_generation / web search and Gemini
+   * googleSearch are no longer merged in. Chat does not pass it.
+   */
+  relayFunctionTool?: ProxyToolDefinition;
+  /**
+   * The segment for the effective protocol of this turn, from the connection-level web search fragment: merged into the
+   * request body after the builder output and before the additional request body. Only chat requests carry it; capability
+   * tests and auxiliary requests do not, and neither do local engine connections.
+   */
+  relayWebFragment?: Record<string, unknown>;
   relayHeaderProfile?: 'none' | 'anthropic_v2023_06_01' | 'gemini_key';
   relayFamilyHint?: 'openai' | 'anthropic' | 'gemini' | 'unknown';
   /**
@@ -273,11 +311,6 @@ export interface StreamOptions {
    * transports ignore it silently.
    */
   relayServiceTier?: string;
-  /**
-   * Raw `reasoning_effort` entered in advanced mode, including extension values such as `xhigh`.
-   * Takes precedence over the `reasoning` mapping and is forwarded upstream verbatim.
-   */
-  relayReasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh';
   /** Relay advanced-mode stream switch; defaults to true, and an explicit false must take the non-streaming runtime. */
   relayStream?: boolean;
   /** `disable_response_storage` enabled in advanced mode; forwarded on the Responses transport only. */
@@ -290,6 +323,8 @@ export interface StreamOptions {
   relayHeaders?: RelayKeyValue[];
   /** Custom Relay query parameters, applied last and overriding system-generated query. */
   relayQueryParams?: RelayKeyValue[];
+  /** Values of every key of this relay connection: merged only into the local failure card / diagnostics redaction list, never sent out and never put into the request body. */
+  relayConnectionKeySecrets?: readonly string[];
   /** `tool.model` image tool model (e.g. `gpt-image-2`). Only takes effect with Responses + image_generation. */
   relayImageToolModelID?: string;
   /* -- `/images/generations` request parameters (imagesEndpoint route) --

@@ -7,13 +7,13 @@
  * from MCP / library state), so both cases are computed and the send is blocked only when neither fits;
  * anything else is left to the check at send time. If the line cannot be determined, nothing is blocked.
  */
-import type { AIModel, Attachment, Provider, ReasoningMode } from '@oriveo/shared';
+import type { AIModel, Attachment, ChatMessage, Provider, ReasoningMode } from '@oriveo/shared';
 import {
   attachmentOverLimitCode,
   findUnsendableTextAttachments,
 } from '../attachments/attachment-delivery';
 import type { SkippedAttachment } from '../attachments/attachment-injector';
-import { resolveAttachmentLine } from '../attachments/attachment-transport-resolver';
+import { outboundHistoryHasVideo, resolveAttachmentLine } from '../attachments/attachment-transport-resolver';
 import { telemetryProviderKind, trackEvent } from '../telemetry';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from './stream-options';
 
@@ -23,6 +23,8 @@ export interface AttachmentPreflightInput {
   model: AIModel;
   reasoningMode?: ReasoningMode;
   webSearchEnabled?: boolean;
+  /** The outbound history of this request (produced by buildOutboundMessages, including this turn); used only to decide whether there is video. */
+  outboundMessages?: ReadonlyArray<ChatMessage>;
 }
 
 export async function findUnsendableAttachmentsBeforeSend(
@@ -31,6 +33,10 @@ export async function findUnsendableAttachmentsBeforeSend(
   const { attachments, provider, model } = input;
   if (!attachments?.some((attachment) => attachment.kind === 'file')) return [];
   let blocked: SkippedAttachment[] | undefined;
+  // When this turn or the outbound history carries video, Gemini does not pick Interactions; same criterion as outbound history resolution.
+  // An attachment of video type counts regardless of whether the bytes are loaded.
+  const historyHasVideo = attachments.some((attachment) => attachment.kind === 'video')
+    || await outboundHistoryHasVideo(input.outboundMessages ?? []);
   for (const toolLoop of [false, true]) {
     const streamOptions = buildProviderStreamOptions(
       provider,
@@ -38,7 +44,7 @@ export async function findUnsendableAttachmentsBeforeSend(
       buildStreamOptionsFromIntent(model, input.reasoningMode, toolLoop ? false : input.webSearchEnabled),
       model,
     );
-    const line = await resolveAttachmentLine({ provider, model, streamOptions, toolLoop });
+    const line = await resolveAttachmentLine({ provider, model, streamOptions, toolLoop, ...(historyHasVideo ? { historyHasVideo } : {}) });
     if (!line.exact) return [];
     const skipped = findUnsendableTextAttachments(attachments, model, line);
     if (skipped.length === 0) return [];

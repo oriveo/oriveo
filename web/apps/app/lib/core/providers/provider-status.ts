@@ -1,4 +1,5 @@
 import { isValidProviderKind, type Provider, type ProviderKind } from '@oriveo/shared';
+import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
 
 /**
  * Effective status for display and statistics: "no API key on this device" is treated as an issue.
@@ -44,7 +45,7 @@ export function getEffectiveStatusKind(provider: Provider): EffectiveStatusKind 
   }
   if (
     allowsCredentialEditing(provider.kind)
-    && provider.apiKey.trim().length === 0
+    && resolveProviderAPIKey(provider).trim().length === 0
     && !provider.relayRequested?.engineProfile
   ) {
     return 'needsKey';

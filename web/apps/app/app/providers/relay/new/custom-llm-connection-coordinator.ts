@@ -45,6 +45,8 @@ export interface CustomLLMConnectionCoordinator {
     failureFor: (error: unknown) => T,
   ) => Promise<CustomLLMConnectionResult<T> | null>;
   canCommit: (result: CustomLLMConnectionResult | null) => boolean;
+  /** Cancellation signal for validation before persisting (e.g. the 1-token check in add step 2): aborted together on invalidation, rerun and unmount. */
+  commitSignal: () => AbortSignal;
 }
 
 export function useCustomLLMConnectionCoordinator(): CustomLLMConnectionCoordinator {
@@ -52,17 +54,32 @@ export function useCustomLLMConnectionCoordinator(): CustomLLMConnectionCoordina
   const [phase, setPhase] = useState<CustomLLMActionPhase>('ready');
   const generationRef = useRef(0);
   const controllerRef = useRef<AbortController | null>(null);
+  const commitControllerRef = useRef<AbortController | null>(null);
+
+  const abortCommit = useCallback(() => {
+    commitControllerRef.current?.abort();
+    commitControllerRef.current = null;
+  }, []);
 
   useEffect(() => () => {
     generationRef.current += 1;
     controllerRef.current?.abort();
     controllerRef.current = null;
-  }, []);
+    abortCommit();
+  }, [abortCommit]);
+
+  const commitSignal = useCallback(() => {
+    abortCommit();
+    const controller = new AbortController();
+    commitControllerRef.current = controller;
+    return controller.signal;
+  }, [abortCommit]);
 
   const invalidate = useCallback(() => {
     generationRef.current += 1;
     controllerRef.current?.abort();
     controllerRef.current = null;
+    abortCommit();
     setResult(null);
     setPhase('ready');
   }, []);
@@ -76,6 +93,7 @@ export function useCustomLLMConnectionCoordinator(): CustomLLMConnectionCoordina
     generationRef.current += 1;
     const generation = generationRef.current;
     controllerRef.current?.abort();
+    abortCommit();
     const controller = new AbortController();
     controllerRef.current = controller;
     setResult(null);
@@ -104,7 +122,7 @@ export function useCustomLLMConnectionCoordinator(): CustomLLMConnectionCoordina
         setPhase((current) => current === 'detecting' ? 'ready' : current);
       }
     }
-  }, []);
+  }, [abortCommit]);
 
   const canCommit = useCallback((candidate: CustomLLMConnectionResult | null) => (
     candidate !== null
@@ -114,5 +132,5 @@ export function useCustomLLMConnectionCoordinator(): CustomLLMConnectionCoordina
     && candidate.evidence.canCommit
   ), [phase, result]);
 
-  return { result, phase, canRun: phase !== 'detecting', invalidate, run, canCommit };
+  return { result, phase, canRun: phase !== 'detecting', invalidate, run, canCommit, commitSignal };
 }

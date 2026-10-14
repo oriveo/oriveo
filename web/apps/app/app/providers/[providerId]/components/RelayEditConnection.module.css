@@ -1,0 +1,422 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Content between the title bar and the action bar (the only scrolling area at phone width). */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+}
+
+.closeButton {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 4px;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--o-border);
+  border-radius: 10px;
+  background: var(--o-surface);
+  color: var(--o-text);
+  cursor: pointer;
+}
+
+.headerTitle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0 44px;
+  text-align: center;
+}
+
+.headerTitle h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--o-text);
+}
+
+.headerTitle p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--o-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.fieldRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+.rowHead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Address row: slot and footnote indented to the title (icon 22 + gap 14) */
+.fieldRow[data-has-icon='true'] > .fieldIndent {
+  margin-inline-start: 36px;
+}
+
+.footnoteClamp {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* Menu row: whole row vertically centered (left column icon + title / footnote, value and control together in the trailing column) */
+.menuRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 14px;
+}
+
+.rowLead {
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.rowText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rowTrailing {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: 55%;
+  min-width: 0;
+}
+
+/* Menu row column widths: value column up to 45% (including gap), title + footnote column at least 55%, so long values no longer squeeze the left column into a vertical stack */
+.menuRow > .rowLead {
+  min-width: 55%;
+}
+
+.menuRow > .rowTrailing {
+  max-width: calc(45% - 12px);
+}
+
+.menuTitle {
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--o-text);
+}
+
+.menu {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--o-border);
+  border-radius: 8px;
+  background: var(--o-bg-subtle);
+  color: var(--o-text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.menuValue {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 15px;
+  color: var(--o-text-secondary);
+  text-align: end;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.footnote {
+  display: block;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--o-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.securityRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.entryBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.entryBlock > [role='alert'] {
+  padding: 0 16px 10px;
+}
+
+/* Header / query-parameter row: whole row vertically centered */
+.entryRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+}
+
+/* Header / query parameter: when it does not fit, the category moves above */
+.entryRowWrap {
+  flex-wrap: wrap;
+}
+
+.entryFields {
+  display: flex;
+  flex: 1 1 260px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.entryKind {
+  flex: 0 0 auto;
+  min-width: 88px;
+  font-size: 13px;
+  color: var(--o-text-secondary);
+}
+
+.slot {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  outline: 0;
+  background: var(--o-bg-subtle);
+  color: var(--o-text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.slot:focus {
+  border-color: color-mix(in srgb, var(--o-primary) 70%, transparent);
+}
+
+.valueSlot {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.iconButton {
+  display: grid;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+}
+
+.iconButton:hover,
+.iconButton:focus-visible {
+  color: var(--o-primary-text-safe);
+  outline: none;
+}
+
+/* Add row: plus 14 + footnote semibold, min height 56, horizontal 14 */
+.addRow {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 56px;
+  padding: 0 14px;
+}
+
+.addButton {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--o-primary-text-safe);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.addMenu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: max-content;
+  min-width: 160px;
+  margin-top: 4px;
+  padding: 4px;
+  border: 1px solid var(--o-border);
+  border-radius: 10px;
+  background: var(--o-surface-raised);
+  box-shadow: var(--o-shadow-md);
+}
+
+.addMenuItem {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--o-text);
+  font: inherit;
+  font-size: 14px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.addMenuItem:hover,
+.addMenuItem:focus-visible {
+  background: var(--o-bg-subtle);
+  outline: none;
+}
+
+.toggle {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--o-primary);
+}
+
+.groupToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.groupToggle > :first-child {
+  flex: 1;
+}
+
+.caret {
+  color: var(--o-text-secondary);
+  transition: transform var(--o-transition-fast);
+}
+
+/* Collapsed points along the text direction, expanded points down. */
+.caret:dir(rtl) {
+  transform: scaleX(-1);
+}
+
+.caret[data-expanded='true'] {
+  transform: rotate(90deg);
+}
+
+.issues {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--o-text-secondary);
+}
+
+.status[data-tone='success'] {
+  color: var(--o-text);
+}
+
+.status[data-tone='success'] svg {
+  color: var(--o-success);
+}
+
+.status[data-tone='warning'] svg {
+  color: var(--o-warning);
+}
+
+.status[data-tone='warning'] {
+  color: var(--o-text);
+}
+
+.actionBar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Phone width: the whole surface is pinned to the viewport, title bar and action bar stay put, only the middle scrolls.
+   Not relying on sticky: the shell .content is overflow-y:auto without a height limit, so sticky inside never sticks. */
+@media (max-width: 767px) {
+  .page {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 16px 0;
+    background: var(--o-bg);
+  }
+
+  .header {
+    flex: none;
+    padding-bottom: 12px;
+  }
+
+  .body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  /* The compound selector overrides the shared actionBar (sticky + large padding). */
+  .page > .actionBar {
+    flex: none;
+    position: static;
+    padding: 12px 0 calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+}

@@ -3,7 +3,8 @@ import type { AIModel, Conversation, Provider } from '@oriveo/shared';
 import { useAppStore, getVanillaStore } from '../../../providers/StoreProvider';
 import { resolveActiveSelection } from '../../../lib/core/chat/active-selection';
 import * as conversationOps from '../../../lib/core/conversation-ops';
-import { addManualProviderModels, enableProviderModel, findModelInProvider } from '../../../lib/core/provider-model-ops';
+import { addManualProviderModels, findModelInProvider } from '../../../lib/core/provider-model-ops';
+import { enableProviderModelWithProbe } from '../../../lib/core/relay-model-probe-ops';
 import { trackEvent, telemetryProviderKind, telemetryModelID } from '../../../lib/core/telemetry';
 
 interface UseChatModelSelectionParams {
@@ -31,7 +32,7 @@ export function useChatModelSelection({
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
 
   // ── Resolve active provider and model ──
-  const { provider, currentModel } = useMemo(
+  const { provider, currentModel, modelRemoval } = useMemo(
     () => resolveActiveSelection(runtimeProviders, conversation, selectedProviderId, selectedModelId, lastUsedModelRef),
     [runtimeProviders, conversation, selectedProviderId, selectedModelId, lastUsedModelRef],
   );
@@ -68,7 +69,8 @@ export function useChatModelSelection({
   }, [setLastUsedModelRef, conversation, currentModel, provider, evaluateExpensiveHint]);
 
   const handleEnableAndSelect = useCallback((model: AIModel, prov: Provider) => {
-    enableProviderModel(getVanillaStore(), prov, model);
+    // Enabling a single model in the picker is the same action as in the model library: for the Relay form it also lazily verifies the protocol.
+    enableProviderModelWithProbe(getVanillaStore(), prov, model);
     handleModelSelect(model, prov);
   }, [handleModelSelect]);
 
@@ -103,6 +105,7 @@ export function useChatModelSelection({
   return {
     provider,
     currentModel,
+    modelRemoval,
     setSelectedModelId,
     setSelectedProviderId,
     showModelSwitcher,

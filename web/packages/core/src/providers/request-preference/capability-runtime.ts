@@ -284,6 +284,19 @@ export function resolveControls(
 
 const INTENT_ORDER = new Map(REASONING_INTENTS.map((value, index) => [value, index]));
 
+/**
+ * recipe verdict -> capability fact (capability-truth contract rules.official.web_search): the two usable states mean supported,
+ * `unavailable` is the Server explicitly saying no; `custom_only` / `unknown` / not delivered conclude nothing.
+ * Looks only at the state the Server wrote, with no recipe compilability check - that is the job of outbound compilation.
+ */
+export function controlStateCapabilitySupport(
+  state: string | undefined,
+): 'supported' | 'unsupported' | undefined {
+  if (state === 'auto_available' || state === 'managed_only') return 'supported';
+  if (state === 'unavailable') return 'unsupported';
+  return undefined;
+}
+
 export type IntentRejectReason =
   | 'intents_not_applicable'
   | 'invalid_available_intent'

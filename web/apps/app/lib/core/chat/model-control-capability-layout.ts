@@ -55,7 +55,12 @@ export type ModelControlStatus =
   | 'pending'
   | 'externalConnectorOnly'
   | 'unsupported'
-  | 'unknown';
+  | 'unknown'
+  /**
+   * Web search that the subscription upstream keeps always on (produced only by `auto_available` + `subscription_web_always_on`).
+   * Availability / official configuration / switch-model candidates match `automaticAvailable`; writability / stored-value handling / send summary match read-only.
+   */
+  | 'alwaysOn';
 
 /** Read-only substates of `unknown`: a reasonCode only refines the reason for the same state, it must never turn it into unavailable. */
 const PENDING_REASON_CODES = new Set([
@@ -67,7 +72,8 @@ export function resolveModelControlStatus(
   control: Pick<CapabilityControlPresentation, 'state'> & { reasonCode?: string },
 ): ModelControlStatus {
   switch (control.state) {
-    case 'auto_available': return 'automaticAvailable';
+    case 'auto_available':
+      return control.reasonCode === 'subscription_web_always_on' ? 'alwaysOn' : 'automaticAvailable';
     case 'managed_only': return 'fixedByConnection';
     case 'custom_only': return 'customOnly';
     case 'unavailable':
@@ -114,7 +120,7 @@ export type ModelControlBadgeClassification = 'none' | 'fixedByConnection' | 'ma
 /** Available is the normal case and carries no badge: three green "automatic" badges at once would drown the amber one that matters. */
 export function modelControlBadgeClassification(status: ModelControlStatus): ModelControlBadgeClassification {
   switch (status) {
-    case 'automaticAvailable': case 'forceUnsupported': return 'none';
+    case 'automaticAvailable': case 'forceUnsupported': case 'alwaysOn': return 'none';
     case 'fixedByConnection': return 'fixedByConnection';
     case 'customOnly': return 'manual';
     case 'pending': case 'unknown': return 'notReady';
@@ -205,6 +211,8 @@ export function clampModelControlWebPreference(
     case 'automaticAvailable':
     case 'forceUnsupported':
       return availableIntents.includes('force') ? 'force' : 'automatic';
+    // Always-on is not a user choice: the stored value stays as is and takes effect again when the user switches back to an adjustable model.
+    case 'alwaysOn':
     default:
       return selection;
   }
@@ -236,6 +244,8 @@ export function modelControlWebLayout(input: {
   switch (status) {
     case 'fixedByConnection':
       return webStatusRow('common.capabilityControlFixedByConnection', undefined, 'none', selection);
+    case 'alwaysOn':
+      return webStatusRow('common.modelOptionsAlwaysOn', 'common.modelOptionsSubscriptionAlwaysSearches', 'none', selection);
     case 'unsupported':
     case 'externalConnectorOnly':
       return webStatusRow(
@@ -502,7 +512,8 @@ export function modelControlTransportLabel(transport: string | undefined): strin
     // catalog's `openai_chat` and relay's `openai_chat_completions` are the same protocol
     case 'openai_chat': case 'openai_chat_completions': return 'Chat Completions';
     case 'anthropic_messages': return 'Messages';
-    case 'gemini_generate_content': case 'gemini_generate': return 'generateContent';
+    // gemini_interactions: the wire is chosen per request by dispatch (Interactions only when web search is on and there is no video); it reuses the Gemini label.
+    case 'gemini_generate_content': case 'gemini_generate': case 'gemini_interactions': return 'generateContent';
     case 'dashscope_native': return 'DashScope';
     // The image line goes through this table too: the panel does not filter by modality, so a user
     // who picked an image model in the chat page can still open it.

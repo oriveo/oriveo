@@ -204,11 +204,11 @@ beforeEach(() => {
 });
 
 describe("sendLibraryMessage", () => {
-  it('records a successful explicit fallback and keeps the static notice visible', async () => {
+  it('records a successful explicit fallback for a manual model id (D5 eligible) and keeps the static notice visible', async () => {
     mocks.runLoop.mockResolvedValue({
       text: 'Plain answer', citations: [], steps: [], toolFallbackApplied: true,
     });
-    const { store, handle } = start();
+    const { store, handle } = start({ model: { ...model(), isManual: true } });
     await handle.done;
 
     expect(mocks.recordToolFalse).toHaveBeenCalledWith(expect.objectContaining({
@@ -217,6 +217,18 @@ describe("sendLibraryMessage", () => {
       canonicalModelId: 'gpt-4o',
       finalTransport: 'openai_chat',
     }));
+    const assistant = store.getState().conversations[0].messages.find((message) => message.id === handle.msgId);
+    expect(assistant).toMatchObject({ state: 'delivered', toolFallbackNotice: 'library_not_searched' });
+  });
+
+  it('does not record false for a catalog model after a successful explicit fallback (D5)', async () => {
+    mocks.runLoop.mockResolvedValue({
+      text: 'Plain answer', citations: [], steps: [], toolFallbackApplied: true,
+    });
+    const { store, handle } = start();
+    await handle.done;
+
+    expect(mocks.recordToolFalse).not.toHaveBeenCalled();
     const assistant = store.getState().conversations[0].messages.find((message) => message.id === handle.msgId);
     expect(assistant).toMatchObject({ state: 'delivered', toolFallbackNotice: 'library_not_searched' });
   });

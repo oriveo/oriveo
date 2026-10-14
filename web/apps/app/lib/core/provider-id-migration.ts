@@ -22,11 +22,7 @@ import type { AppStore } from './store/app-store';
 import { getActiveUID } from '../infra/storage/partition';
 import { putProvider, deleteProvider } from '../infra/storage/idb';
 import {
-  hasPublicProviderConfigSource,
-  listPublicProviderConfigs,
-} from './metadata/metadata-client';
-import {
-  resolveProviderSetupCatalog,
+  resolveRegionLookupCatalog,
   type ProviderSetupCatalog,
 } from '../../app/providers/new/provider-config-catalog';
 import {
@@ -63,13 +59,23 @@ function markMigrationDone(uid: string): void {
 }
 
 /**
- * Look up the region option id from a provider's baseURLText.
- * A provider without a region returns an empty string, and so does a failed match (treated as the default instance).
+ * Region segment of the deterministic id: the catalog comes from `resolveRegionLookupCatalog` (frozen identity table).
+ * A `region:<id>` endpoint source whose id is in the table wins; otherwise look up by the literal address and fall
+ * back to the first option. A provider without a region returns an empty string.
+ * Shared by the migration grouping and by provider registration at setup time.
  */
-function resolveRegionId(provider: Provider, catalog: ProviderSetupCatalog): string {
+export function resolveRegionId(
+  provider: Pick<Provider, 'kind' | 'baseURLText' | 'endpointSource'>,
+  catalog: ProviderSetupCatalog,
+): string {
   const config = catalog.configsByKind[provider.kind as keyof typeof catalog.configsByKind];
   const regionOptions = config?.regionOptions ?? [];
   if (regionOptions.length === 0) return '';
+
+  const sourceRegionId = provider.endpointSource?.startsWith('region:')
+    ? provider.endpointSource.slice('region:'.length)
+    : null;
+  if (sourceRegionId && regionOptions.some((option) => option.id === sourceRegionId)) return sourceRegionId;
 
   const base = (provider.baseURLText ?? '').trim().replace(/\/+$/, '');
   if (!base) return regionOptions[0]?.id ?? '';
@@ -233,10 +239,8 @@ export async function collapseProvidersToDeterministicIds(store: Store): Promise
     return;
   }
 
-  // Fetch the provider config catalog the region lookup needs (falls back to constants when metadata is not ready)
-  const catalog = resolveProviderSetupCatalog(
-    hasPublicProviderConfigSource() ? listPublicProviderConfigs() : null,
-  );
+  // The region segment only consults the frozen identity table; it does not change with metadata.
+  const catalog = resolveRegionLookupCatalog();
 
   const plan = await planProviderIdMigration(providers, catalog);
 

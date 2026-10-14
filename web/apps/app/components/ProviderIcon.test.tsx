@@ -43,28 +43,57 @@ describe('ProviderIcon', () => {
     expect(image.getAttribute('height')).toBe('32');
   });
 
-  it('renders relay providers with the closest brand logo from name and model hints', () => {
-    render(
+  // Relay connections resolve only the unified avatar from name / address (relay-avatar.v1.json), no longer inferring a brand
+  // from model ids or relayKind; the old "Kimi-cn + kimi model -> Kimi logo" and "anthropic_compatible -> Anthropic logo"
+  // inferences are kept only for local-engine connections.
+  it('relay connections ignore model hints and relayKind: no brand -> initial without a plate', () => {
+    const { container } = render(
       <ProviderIcon
         kind="relay"
         size={40}
         bare
+        relayKind="anthropic_compatible"
         providerName="Kimi-cn"
         modelHints={['kimi-k2-0905-preview']}
       />,
     );
 
-    const image = screen.getByTestId('provider-icon-image');
-    expect(image.getAttribute('src')).toBe('/plogos/light/kimi.png');
-    expect(image.getAttribute('width')).toBe('40');
-    expect(image.getAttribute('height')).toBe('40');
+    expect(screen.queryByTestId('provider-icon-image')).toBeNull();
+    const avatar = container.querySelector('[data-relay-avatar]')!;
+    expect(avatar.getAttribute('data-relay-avatar')).toBe('initial:K');
+    expect(avatar.textContent).toBe('K');
   });
 
-  it('uses relayKind when relay brand hints do not identify a provider', () => {
-    render(<ProviderIcon kind="relay" size={36} bare relayKind="anthropic_compatible" providerName="Work Relay" />);
+  it('relay connections match aggregator brands by name or host and reuse the official artwork', () => {
+    render(<ProviderIcon kind="relay" size={36} bare providerName="Work Relay" baseURLText="https://openrouter.ai/api/v1" />);
 
-    const image = screen.getByTestId('provider-icon-image');
-    expect(image.getAttribute('src')).toBe('/plogos/light/anthropic.png');
+    expect(screen.getByTestId('provider-icon-image').getAttribute('src')).toBe('/plogos/light/openrouter.png');
+  });
+
+  it('does not borrow brand logos for a relay that mentions the app name', () => {
+    const { container } = render(
+      <ProviderIcon
+        kind="relay"
+        size={36}
+        bare
+        relayKind="anthropic_compatible"
+        providerName="Oriveo OpenRouter Home Relay"
+        baseURLText="https://oriveo-relay.example.com/v1"
+      />,
+    );
+
+    expect(screen.queryByTestId('provider-icon-image')).toBeNull();
+    expect(container.querySelector('[data-relay-avatar]')?.getAttribute('data-relay-avatar')).toBe('initial:O');
+  });
+
+  it('local engine connections keep the name / model hint and relayKind inference', () => {
+    const { rerender } = render(
+      <ProviderIcon kind="relay" size={40} bare localEngine providerName="Kimi-cn" modelHints={['kimi-k2-0905-preview']} />,
+    );
+    expect(screen.getByTestId('provider-icon-image').getAttribute('src')).toBe('/plogos/light/kimi.png');
+
+    rerender(<ProviderIcon kind="relay" size={36} bare localEngine relayKind="anthropic_compatible" providerName="Mac mini" />);
+    expect(screen.getByTestId('provider-icon-image').getAttribute('src')).toBe('/plogos/light/anthropic.png');
   });
 
   it('uses the official dark artwork when a dark provider surface requests it', () => {

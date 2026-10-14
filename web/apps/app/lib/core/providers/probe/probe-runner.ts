@@ -1,11 +1,13 @@
 import type {
   AIModel,
   RelayAuthMode,
+  RelayModelTransport,
   RelayConnectionSecurityMode,
   RelayKeyValue,
 } from '@oriveo/shared';
 import { buildCatalogModel } from '../catalog-model';
-import { buildDirectAuthHeaders } from '@oriveo/core/providers/relay-adapter';
+import { catalogEntryEndpointTypes } from '../relay-probe-candidates';
+import { applyRelayPromptCacheKey, buildDirectAuthHeaders } from '@oriveo/core/providers/relay-adapter';
 import { isRelayGenerationSuccessResponse } from '@oriveo/core/providers/relay-generation-response';
 import { relaySensitiveCredentialValues } from '@oriveo/core/providers/relay-runtime-support';
 import { extractErrorSnippet } from '@oriveo/core/util/error-snippet';
@@ -53,6 +55,12 @@ export interface RelayDetectedConfiguration {
   /** At least one real catalog request returned 2xx with a parseable shape; a legitimately empty catalog also counts as true. */
   catalogEvidenceSucceeded: boolean;
   detectionEvidence: 'catalog' | 'generation_probe';
+  /** `supported_endpoint_types` (new-api) of each model in the catalog; only orders probe candidates, not a transport source. */
+  catalogEndpointTypes?: Record<string, string[]>;
+  /** The catalog is obtained; per-model verification is left to the caller to do by per-model candidates (`deferModelVerification`). */
+  modelVerificationDeferred?: boolean;
+  /** Result of the caller's per-model probe pass: which model, which transport, which root was hit. */
+  modelProbe?: { modelID: string; transport: RelayModelTransport; apiBaseURL: string };
 }
 
 /**
@@ -89,6 +97,11 @@ export interface RelayDiscoveryInput {
   signal?: AbortSignal;
   retryBackoffMs?: readonly number[];
   sleep?: (durationMs: number, signal?: AbortSignal) => Promise<void>;
+  /**
+   * Without forcedTransport: after the catalog succeeds, no more 1-token verification by the catalog transport; the caller verifies
+   * the first checked model at save time (add step 1 has zero 1-token, same when the address carries a transport route). If the catalog cannot be obtained, generation-route discovery runs as before.
+   */
+  deferModelVerification?: boolean;
 }
 
 interface ResponseSnapshot {
@@ -101,6 +114,7 @@ interface ResponseSnapshot {
 interface CatalogSnapshot {
   candidate: RelayEndpointCandidate;
   modelIDs: string[];
+  endpointTypes: Record<string, string[]>;
   catalogModels: AIModel[];
   transports: RelayProbeTransportKind[];
 }
@@ -175,20 +189,37 @@ export async function probeRelayEndpoint(input: RelayDiscoveryInput): Promise<Re
         upstreamMessage: extractDiagnostic(snapshot.body, input),
       };
       if (is2xx(snapshot.statusCode)) {
-        const modelIDs = parseCatalogModelIDs(snapshot.body, transport);
-        if (modelIDs === null) {
+        const parsed = parseCatalogModelIDs(snapshot.body, transport);
+        if (parsed === null) {
           attempts.push({ ...baseAttempt, failure: 'invalid_response' });
           continue;
         }
         attempts.push(baseAttempt);
+        const { modelIDs, endpointTypes } = parsed;
         const catalog: CatalogSnapshot = {
           candidate,
           modelIDs,
+          endpointTypes,
           catalogModels: modelIDs.map((modelID) => buildRelayCatalogModel(modelID, transport)),
-          transports: transport === 'openai_chat_completions' && !descriptor.explicitTransport
+          // The user-selected transport is used to verify only once; when none is selected, Responses is also tried only if the catalog transport is Chat.
+          transports: transport === 'openai_chat_completions' && !descriptor.explicitTransport && !input.forcedTransport
             ? ['openai_chat_completions', 'openai_responses']
             : [transport],
         };
+        if (input.deferModelVerification && !input.forcedTransport) {
+          return finishDetected(attempts, {
+            transport: catalog.transports[0],
+            authMode: input.authMode ?? defaultAuthMode(catalog.transports[0]),
+            apiBaseURL: candidate.apiBaseURL,
+            modelIDs,
+            catalogModels: catalog.catalogModels,
+            generationVerified: false,
+            catalogEvidenceSucceeded: true,
+            detectionEvidence: 'catalog',
+            catalogEndpointTypes: endpointTypes,
+            modelVerificationDeferred: true,
+          });
+        }
         if (modelIDs.length === 0) {
           if (input.modelHint?.trim()) {
             return verifyCatalogDetection(input, catalog, attempts);
@@ -202,6 +233,7 @@ export async function probeRelayEndpoint(input: RelayDiscoveryInput): Promise<Re
             generationVerified: false,
             catalogEvidenceSucceeded: true,
             detectionEvidence: 'catalog',
+            catalogEndpointTypes: endpointTypes,
           });
         }
         return verifyCatalogDetection(input, catalog, attempts);
@@ -230,6 +262,7 @@ async function verifyCatalogDetection(
       transport,
       modelID,
       input.securityMode,
+      input.authMode,
     );
     let snapshot: ResponseSnapshot;
     try {
@@ -282,6 +315,7 @@ async function verifyCatalogDetection(
         generationVerified: true,
         catalogEvidenceSucceeded: true,
         detectionEvidence: 'catalog',
+        catalogEndpointTypes: catalog.endpointTypes,
       });
     }
 
@@ -310,7 +344,7 @@ async function probeGenerationRoutes(
 
   for (const transport of transports) {
     for (const candidate of buildRelayEndpointCandidates(descriptor, transport)) {
-      const request = generationRequest(candidate.apiBaseURL, transport, modelID, input.securityMode);
+      const request = generationRequest(candidate.apiBaseURL, transport, modelID, input.securityMode, input.authMode);
       let snapshot: ResponseSnapshot;
       try {
         snapshot = await executeWithRetry({
@@ -559,20 +593,29 @@ function generationRequest(
   transport: RelayProbeTransportKind,
   modelID: string,
   securityMode: RelayConnectionSecurityMode = 'remote_https',
+  authMode?: Exclude<RelayAuthMode, 'auto'>,
 ): { method: 'POST'; requestURL: string; body: Record<string, unknown> } {
   switch (transport) {
-    case 'openai_responses':
+    case 'openai_responses': {
+      const body: Record<string, unknown> = {
+        model: modelID,
+        input: [{ role: 'user', content: [{ type: 'input_text', text: 'ping' }] }],
+        max_output_tokens: 1,
+        stream: false,
+        store: false,
+      };
+      // The probe request does not pass codexCompatIdentity, so identity headers are injected by default; the criterion is the same auth method as used by executeWithRetry.
+      applyRelayPromptCacheKey(
+        body,
+        { transport, authMode: authMode ?? defaultAuthMode(transport) },
+        [{ role: 'user', content: 'ping' }],
+      );
       return {
         method: 'POST',
         requestURL: appendRelayEndpointPath(apiBaseURL, 'responses', securityMode),
-        body: {
-          model: modelID,
-          input: [{ role: 'user', content: [{ type: 'input_text', text: 'ping' }] }],
-          max_output_tokens: 1,
-          stream: false,
-          store: false,
-        },
+        body,
       };
+    }
     case 'anthropic_messages':
       return {
         method: 'POST',
@@ -606,7 +649,10 @@ function generationRequest(
   }
 }
 
-function parseCatalogModelIDs(body: string, transport: RelayProbeTransportKind): string[] | null {
+function parseCatalogModelIDs(
+  body: string,
+  transport: RelayProbeTransportKind,
+): { modelIDs: string[]; endpointTypes: Record<string, string[]> } | null {
   let payload: unknown;
   try {
     payload = JSON.parse(body);
@@ -627,6 +673,7 @@ function parseCatalogModelIDs(body: string, transport: RelayProbeTransportKind):
 
   const seen = new Set<string>();
   const modelIDs: string[] = [];
+  const endpointTypes: Record<string, string[]> = {};
   for (const entry of entries) {
     const object = entry && typeof entry === 'object' ? entry as Record<string, unknown> : undefined;
     const raw = typeof entry === 'string'
@@ -640,8 +687,10 @@ function parseCatalogModelIDs(body: string, transport: RelayProbeTransportKind):
     if (!modelID || seen.has(modelID)) continue;
     seen.add(modelID);
     modelIDs.push(modelID);
+    const types = catalogEntryEndpointTypes(object);
+    if (types) endpointTypes[modelID] = types;
   }
-  return modelIDs;
+  return { modelIDs, endpointTypes };
 }
 
 function buildRelayCatalogModel(modelID: string, transport: RelayProbeTransportKind): AIModel {
@@ -696,6 +745,20 @@ function defaultAuthMode(
   if (transport === 'anthropic_messages') return 'x_api_key';
   if (transport === 'gemini_generate_content') return 'x_goog_api_key';
   return 'bearer';
+}
+
+/**
+ * Which failure state a failed 1-token verification lands on: the same criterion as catalog verification (verifyCatalogDetection) --
+ * no status code = network; auth / rate limit / 5xx as is; the rest (404 / 400 etc.) = generation unverified.
+ */
+export function relayVerificationFailureKind(statusCode: number | undefined): RelayDiscoveryFailureKind {
+  if (statusCode === undefined) return 'network';
+  const failure = classifyStatus(statusCode);
+  return isBlockingFailure(failure) ? failure : 'generation_not_verified';
+}
+
+export function relayAttemptFailureKind(statusCode: number | undefined): RelayDiscoveryFailureKind {
+  return statusCode === undefined ? 'network' : classifyStatus(statusCode);
 }
 
 function classifyStatus(status: number): RelayDiscoveryFailureKind {

@@ -78,19 +78,35 @@ describe("resolveProviderSetupCatalog", () => {
       "moonshot",
       "mistral",
     ]);
+    // Hard-coded fallbacks also pass the trusted table: with missing fields only the last two labels of the fallback host are trusted, and the second domestic / international domain does not appear.
     expect(catalog.configsByKind.miniMax.regionOptions).toEqual(
-      FALLBACK_MINIMAX_REGIONS,
+      FALLBACK_MINIMAX_REGIONS.filter((region) => region.id === "global"),
     );
     expect(catalog.qwenRegions).toEqual(FALLBACK_QWEN_REGIONS);
     expect(catalog.configsByKind.siliconFlow.category).toBe("aggregator");
     expect(catalog.configsByKind.siliconFlow.regionOptions).toEqual(
-      FALLBACK_SILICONFLOW_REGIONS,
+      FALLBACK_SILICONFLOW_REGIONS.filter((region) => region.id === "cn"),
     );
-    expect(catalog.configsByKind.siliconFlow.regionOptions[1]).toMatchObject({
-      id: "intl",
-      baseURL: "https://api.siliconflow.com/v1",
-      apiKeyHelpURL: "https://cloud.siliconflow.com/account/ak",
-    });
+  });
+
+  it("hard-coded region fallback never yields hosts outside the trusted table (missing-field fallback / delivered table allowed)", () => {
+    const hosts = (regions: { baseURL: string }[]) => regions.map((region) => new URL(region.baseURL).hostname);
+    const fallback = resolveProviderSetupCatalog();
+    for (const kind of ["miniMax", "qwen", "moonshot", "siliconFlow"] as const) {
+      const allowed = { miniMax: "minimax.io", qwen: "aliyuncs.com", moonshot: "moonshot.ai", siliconFlow: "siliconflow.cn" }[kind];
+      for (const host of hosts(fallback.configsByKind[kind].regionOptions)) {
+        expect(host === allowed || host.endsWith(`.${allowed}`), `${kind} ${host}`).toBe(true);
+      }
+    }
+    // The backend gave a config but no regionOptions: fall back to the hard-coded table, filtered by the delivered trustedHosts.
+    const delivered = resolveProviderSetupCatalog([
+      { kind: "miniMax", displayName: "MiniMax", defaultBaseURL: "https://api.minimax.io/v1", trustedHosts: ["minimax.io", "minimaxi.com"] },
+    ]);
+    expect(delivered.configsByKind.miniMax.regionOptions.map((region) => region.id)).toEqual(["global", "cn"]);
+    const missing = resolveProviderSetupCatalog([
+      { kind: "miniMax", displayName: "MiniMax", defaultBaseURL: "https://api.minimax.io/v1" },
+    ]);
+    expect(hosts(missing.configsByKind.miniMax.regionOptions)).toEqual(["api.minimax.io"]);
   });
 
   it("keeps the local fallback when the backend config omits optional fields", () => {

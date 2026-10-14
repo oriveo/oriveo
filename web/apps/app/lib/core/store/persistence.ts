@@ -15,7 +15,7 @@ import { getPreference, setPreference } from '../../infra/storage/preferences';
 import type { AppPreference, LanguageOption, LastUsedModelRef } from '@oriveo/shared';
 import { getLocaleCookie, SUPPORTED_LOCALES } from '../../i18n/locale-utils';
 import { dedupeConversationsByID, dedupeNotesByID, dedupeProvidersByID } from '../../utils/id-utils';
-import { deduplicateByCanonical, enrichStoredModel } from '../providers/catalog-model';
+import { deduplicateModels, enrichStoredModel } from '../providers/catalog-model';
 import { initMetadata } from '../metadata/metadata-client';
 import { assignFolderColors } from '../folder-ops';
 import { readStreamPartialBackup, clearStreamPartialBackup } from './stream-partial-backup';
@@ -174,7 +174,7 @@ export async function hydrateStore(store: StoreApi<AppStore>, expectedUID?: stri
     const dedupedProviders = providers.map((p) => {
       const recovered = recoverPersistedProviderStatus(p);
       return recovered.catalogModels.length > 0
-        ? { ...recovered, catalogModels: deduplicateByCanonical(recovered.catalogModels) }
+        ? { ...recovered, catalogModels: deduplicateModels(recovered.catalogModels, recovered.kind) }
         : recovered;
     });
     const hydratedProviders = dedupeProvidersByID(dedupedProviders);
@@ -281,7 +281,7 @@ export function subscribeToChanges(store: StoreApi<AppStore>): () => void {
 
 function enrichProvider(provider: Provider): Provider {
   const enrichList = (models: Provider['models']) =>
-    deduplicateByCanonical(models.map((model) => enrichStoredModel(model, provider.kind)));
+    deduplicateModels(models.map((model) => enrichStoredModel(model, provider.kind)), provider.kind);
 
   return {
     ...provider,

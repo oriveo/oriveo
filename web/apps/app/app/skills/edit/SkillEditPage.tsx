@@ -31,6 +31,8 @@ import {
 import { parseOfficeFile } from '../../../lib/utils/office-parser';
 import styles from './SkillEditPage.module.css';
 import { BackButton } from '@oriveo/ui';
+import { requestBaseURLText } from '../../../lib/core/providers/endpoint-source';
+import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
 
 class KnowledgeApiError extends Error {
   code?: string;
@@ -138,7 +140,7 @@ function buildKnowledgeProviderCapabilityKey(
   provider:
     | {
       id?: string;
-      apiKey?: string;
+      apiKey: string;
       baseURLText?: string | null;
       models?: Array<{ id: string }>;
       apiKeyPreview?: string;
@@ -150,15 +152,15 @@ function buildKnowledgeProviderCapabilityKey(
   }
   return [
     provider.id ?? '',
-    provider.apiKey ?? '',
+    resolveProviderAPIKey(provider, null) ?? '',
     provider.baseURLText ?? '',
     ...(provider.models ?? []).map((model) => model.id),
   ].join('|');
 }
 
-function hasProviderKey(provider: { apiKey?: string; apiKeyPreview?: string } | undefined): boolean {
+function hasProviderKey(provider: { apiKey: string; apiKeyPreview?: string } | undefined): boolean {
   if (!provider) return false;
-  return Boolean(provider.apiKey?.trim() || provider.apiKeyPreview?.trim());
+  return Boolean(resolveProviderAPIKey(provider, null)?.trim() || provider.apiKeyPreview?.trim());
 }
 
 function applyKnowledgeFileTerminalStatus(
@@ -246,13 +248,13 @@ export function SkillEditPage() {
   const knowledgeCtaKeyRef = useRef<string | null>(null);
   const getOpenAIProvider = useCallback(() => {
     const providers = getVanillaStore().getState().providers ?? [];
-    return providers.find((provider) => provider.kind === 'openAI' && provider.apiKey.trim());
+    return providers.find((provider) => provider.kind === 'openAI' && resolveProviderAPIKey(provider).trim());
   }, []);
 
   useEffect(() => {
     const syncCapabilityKey = () => {
       const providers = getVanillaStore().getState().providers ?? [];
-      const openAIProvider = providers.find((provider) => provider.kind === 'openAI' && provider.apiKey.trim());
+      const openAIProvider = providers.find((provider) => provider.kind === 'openAI' && resolveProviderAPIKey(provider).trim());
       const nextKey = buildKnowledgeProviderCapabilityKey(openAIProvider);
       const nextSummary = {
         hasOpenAIKey: providers.some((provider) => provider.kind === 'openAI' && hasProviderKey(provider)),
@@ -348,8 +350,8 @@ export function SkillEditPage() {
       try {
         const openAIProvider = getOpenAIProvider();
         const eligibility = await checkKnowledgeEligibility({
-          apiKey: openAIProvider?.apiKey,
-          baseURL: openAIProvider?.baseURLText,
+          apiKey: openAIProvider ? resolveProviderAPIKey(openAIProvider) : undefined,
+          baseURL: requestBaseURLText(openAIProvider),
           retrievalModel: runtime.retrievalModel,
           enabledModels: openAIProvider?.models?.map((model) => model.id) ?? [],
         });
@@ -393,8 +395,8 @@ export function SkillEditPage() {
         }
 
         const result = await checkKnowledgeFileStatus({
-          apiKey: openAIProvider.apiKey,
-          baseURL: openAIProvider.baseURLText,
+          apiKey: resolveProviderAPIKey(openAIProvider),
+          baseURL: requestBaseURLText(openAIProvider),
           vectorStoreId: knowledgeBase.vectorStoreId,
           openAIFileId,
         });
@@ -459,8 +461,8 @@ export function SkillEditPage() {
 
     try {
       await cleanupDraftKnowledge({
-        apiKey: openAIProvider.apiKey,
-        baseURL: openAIProvider.baseURLText,
+        apiKey: resolveProviderAPIKey(openAIProvider),
+        baseURL: requestBaseURLText(openAIProvider),
         vectorStoreId: plan.vectorStoreId,
         openAIFileIds: plan.openAIFileIds,
         deleteVectorStore: plan.deleteVectorStore,
@@ -514,8 +516,8 @@ export function SkillEditPage() {
       useMemory,
       ...(needsRemoteCleanup && openAIProvider ? {
         knowledgeCleanup: {
-          apiKey: openAIProvider.apiKey,
-          baseURL: openAIProvider.baseURLText,
+          apiKey: resolveProviderAPIKey(openAIProvider),
+          baseURL: requestBaseURLText(openAIProvider),
         },
       } : {}),
     };
@@ -716,8 +718,8 @@ export function SkillEditPage() {
       const nextKnowledgeBase = targetFile
         ? targetIsPersistedRemoteFile
           ? await uploadKnowledgeFile({
-            apiKey: openAIProvider.apiKey,
-            baseURL: openAIProvider.baseURLText,
+            apiKey: resolveProviderAPIKey(openAIProvider),
+            baseURL: requestBaseURLText(openAIProvider),
             provider: knowledgeRuntime.provider,
             retrievalModel: knowledgeRuntime.retrievalModel,
             expiresAfterDays: knowledgeRuntime.expiresAfterDays,
@@ -738,8 +740,8 @@ export function SkillEditPage() {
             extractedFrom: prepared.extractedFrom,
           })
           : await replaceKnowledgeFile({
-            apiKey: openAIProvider.apiKey,
-            baseURL: openAIProvider.baseURLText,
+            apiKey: resolveProviderAPIKey(openAIProvider),
+            baseURL: requestBaseURLText(openAIProvider),
             provider: knowledgeRuntime.provider,
             retrievalModel: knowledgeRuntime.retrievalModel,
             expiresAfterDays: knowledgeRuntime.expiresAfterDays,
@@ -761,8 +763,8 @@ export function SkillEditPage() {
             extractedFrom: prepared.extractedFrom,
           })
         : await uploadKnowledgeFile({
-          apiKey: openAIProvider.apiKey,
-          baseURL: openAIProvider.baseURLText,
+          apiKey: resolveProviderAPIKey(openAIProvider),
+          baseURL: requestBaseURLText(openAIProvider),
           provider: knowledgeRuntime.provider,
           retrievalModel: knowledgeRuntime.retrievalModel,
           expiresAfterDays: knowledgeRuntime.expiresAfterDays,
@@ -872,8 +874,8 @@ export function SkillEditPage() {
 
     try {
       const nextKnowledgeBase = await retryKnowledgeFile({
-        apiKey: openAIProvider.apiKey,
-        baseURL: openAIProvider.baseURLText,
+        apiKey: resolveProviderAPIKey(openAIProvider),
+        baseURL: requestBaseURLText(openAIProvider),
         provider: knowledgeRuntime.provider,
         retrievalModel: knowledgeRuntime.retrievalModel,
         expiresAfterDays: knowledgeRuntime.expiresAfterDays,
@@ -941,8 +943,8 @@ export function SkillEditPage() {
           throw new KnowledgeApiError('openai_not_configured');
         }
         await cleanupDraftKnowledge({
-          apiKey: openAIProvider.apiKey,
-          baseURL: openAIProvider.baseURLText,
+          apiKey: resolveProviderAPIKey(openAIProvider),
+          baseURL: requestBaseURLText(openAIProvider),
           vectorStoreId: knowledgeBase.vectorStoreId,
           openAIFileIds: file.openAIFileId ? [file.openAIFileId] : [],
           deleteVectorStore: !originalKnowledgeBaseRef.current

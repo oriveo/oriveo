@@ -9,84 +9,116 @@
   width: min(100%, 560px);
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
 }
 
-.hero,
-.card {
-  border-radius: var(--o-radius-modal);
-  border: 1px solid var(--o-border-strong);
-  background: var(--o-surface);
-  box-shadow: var(--o-elevation-card);
-}
-
-.hero {
-  padding: 22px;
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--o-primary) 10%, var(--o-surface-raised)) 0%, var(--o-surface) 72%),
-    var(--o-surface);
-}
-
-.providerChip {
-  display: inline-flex;
+/* Header = back button + centered title (ManualModel board). */
+.header {
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
   align-items: center;
-  gap: 8px;
-  min-height: 32px;
-  padding: 0 12px;
-  border-radius: var(--o-radius-full);
-  background: color-mix(in srgb, var(--o-primary) 10%, var(--o-surface-raised));
-  color: var(--o-primary);
-  font-size: 12px;
-  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.backButton {
+  grid-column: 1;
+  margin-inline-start: -9px;
 }
 
 .title {
-  margin: 16px 0 0;
-  font-size: clamp(24px, 4vw, 30px);
-  line-height: 1.15;
+  grid-column: 2;
+  margin: 0;
+  text-align: center;
+  font-size: var(--o-text-lg);
+  font-weight: 650;
+  line-height: 1.3;
   color: var(--o-text);
 }
 
-.description {
-  margin: 10px 0 0;
+/* Small heading above the slot: secondary small text, description text color (same as .notes). */
+.slotCaption {
+  margin: 0 0 -6px;
+  font-size: var(--o-text-sm);
+  line-height: 1.4;
+  color: var(--o-text-secondary);
+}
+
+/* Input slot styling follows Setup: light fill, no border, monospace font, and a clear button at the end of the row when there is content. */
+.slot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 12px 0 16px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--o-primary) 8%, transparent);
+}
+
+.slotInput {
+  flex: 1;
+  min-width: 0;
+  height: 50px;
+  border: 0;
+  background: transparent;
+  color: var(--o-text);
+  font-family: var(--o-font-mono);
+  font-size: var(--o-text-base);
+  outline: none;
+}
+
+.slotInput::placeholder {
+  color: var(--o-text-tertiary);
+}
+
+.slot:focus-within {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--o-primary) 40%, transparent);
+}
+
+.clearButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--o-radius-full);
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+}
+
+.clearButton:hover,
+.clearButton:focus-visible {
+  color: var(--o-text-secondary);
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.notes p {
+  margin: 0;
   font-size: var(--o-text-sm);
   line-height: 1.6;
   color: var(--o-text-secondary);
 }
 
-.card {
-  padding: 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.inputField {
-  gap: 10px;
-}
-
-.inputField label {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.inputField input {
-  height: 48px;
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--o-surface) 88%, var(--o-surface-raised));
-}
-
 .actions {
+  position: sticky;
+  bottom: 0;
   display: flex;
-  gap: 12px;
+  padding: 24px 0 12px;
+  background: linear-gradient(to bottom, transparent, var(--o-bg) 28%);
 }
 
-.primaryButton,
-.secondaryButton,
-.singleButton {
+.primaryButton {
   flex: 1;
+  min-height: 52px;
+  border-radius: 8px;
 }
 
 .notFoundText {
@@ -100,15 +132,5 @@
 @media (max-width: 767px) {
   .page {
     padding-inline: 16px;
-  }
-
-  .hero,
-  .card {
-    border-radius: 20px;
-    padding: 18px;
-  }
-
-  .actions {
-    flex-direction: column;
   }
 }

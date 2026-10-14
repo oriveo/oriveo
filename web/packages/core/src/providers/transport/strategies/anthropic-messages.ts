@@ -207,9 +207,9 @@ export const anthropicMessagesStrategy: TransportStrategy = {
   },
 };
 
-function handleContentBlock(
+export function handleContentBlock(
   block: Record<string, unknown>,
-  ctx: StreamContext,
+  ctx: Pick<StreamContext, 'citations'>,
   shape: import('@oriveo/core/metadata/types').StreamShape | null,
 ): boolean {
   const blockType = shape?.citationsBlockType ?? DEFAULT_BLOCK_TYPE;

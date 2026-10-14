@@ -9,6 +9,7 @@
  */
 import type { AIModel, ChatMessage, Conversation, Provider, ProviderErrorSource } from "@oriveo/shared";
 import type { StreamOptions } from "@oriveo/core/providers/types";
+import { resolveProviderAPIKey } from "@oriveo/core/providers/provider-credential";
 import { upsertMessages } from "./message-merge";
 import {
   deriveConversationMetadata,
@@ -44,7 +45,7 @@ export async function prepareAgentSubscriptionOutbound(
   streamOptions: StreamOptions | undefined,
 ): Promise<{ apiKey: string; streamOptions: StreamOptions | undefined }> {
   if (provider.authMode !== "subscription") {
-    return { apiKey: provider.apiKey, streamOptions };
+    return { apiKey: resolveProviderAPIKey(provider, model.id), streamOptions };
   }
   await ensureModelFacts();
   const reasoningLevels = subscriptionDeclaredReasoningLevels(provider.kind, model);
@@ -65,6 +66,8 @@ export async function prepareAgentSubscriptionOutbound(
       apiKey: prepared.value.accessToken,
       streamOptions: {
         ...streamOptions,
+        // Same as stream-runner: when no tier is selected, fill in automatic so the route sends the default tier declared upstream.
+        reasoning: streamOptions?.reasoning ?? "automatic",
         grokSubscriptionAuth: true,
         grokSubscriptionWebSearchDeclared: model.capabilities.includes("web"),
         ...(model.upstreamDefaultReasoningLevel
@@ -99,7 +102,7 @@ export async function prepareAgentSubscriptionOutbound(
       },
     };
   }
-  return { apiKey: provider.apiKey, streamOptions };
+  return { apiKey: resolveProviderAPIKey(provider, model.id), streamOptions };
 }
 
 export function readProviderErrorSource(error: unknown): ProviderErrorSource | undefined {

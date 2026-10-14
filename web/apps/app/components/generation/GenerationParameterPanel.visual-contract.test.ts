@@ -253,7 +253,9 @@ describe('GenerationParameterPanel visual contract', () => {
 
   /** The forward chevron has to be mirrored under RTL, otherwise it points back. */
   it('the developer row forward chevron is mirrored under RTL', () => {
-    expect(panelCss).toMatch(/\[dir='rtl'\]\s*\.developerRow svg\s*\{[^}]*scaleX\(-1\)/);
+    // The mirroring sits on the arrow's own class (the repo-wide layout gate recognises flips by element class).
+    expect(panelCss).toMatch(/\.developerRowChevron:dir\(rtl\)\s*\{[^}]*scaleX\(-1\)/);
+    expect(panelCss).toMatch(/\.moreChevron:dir\(rtl\)\s*\{[^}]*scaleX\(-1\)/);
   });
 
   /**

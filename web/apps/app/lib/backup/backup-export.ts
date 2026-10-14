@@ -293,8 +293,10 @@ export async function saveBackupFile(blob: Blob, filename: string): Promise<void
 export function sanitizeProviders(providers: Provider[]): Provider[] {
   return providers.filter((p) => isValidProviderKind(p.kind)).map((p) => {
     const isRelay = p.kind === 'relay';
+    // endpointSource / setupValues / relayKeys are stored on this device only and never enter the portable copy
+    const { endpointSource: _endpointSource, setupValues: _setupValues, relayKeys: _relayKeys, ...portable } = p;
     return {
-      ...p,
+      ...portable,
       apiKey: '',
       apiKeyPreview: '',
       status: { kind: 'connected' as const },

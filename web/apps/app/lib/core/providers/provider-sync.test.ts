@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   validateOfficialProviderKey: vi.fn(),
   refreshMetadata: vi.fn(),
   getMetadataSnapshot: vi.fn(),
-  getRelayRuntimeConfig: vi.fn(() => ({ version: 'test' })),
+  getRelayRuntimeConfig: vi.fn(),
   didUpdateProvider: vi.fn(),
   buildOfficialEnabledModels: vi.fn(),
   enrichRelayCatalog: vi.fn((models: unknown) => models),
@@ -37,12 +37,22 @@ vi.mock('./service', () => ({
   validateOfficialProviderKey: mocks.validateOfficialProviderKey,
 }));
 
-vi.mock('../metadata/metadata-client', () => ({
+// After probing became the same shape as chat, pingRelay builds requests via stream-options / inferRelayHeaderProfile,
+// which read resolveGenerationProfileRef and the runtime config's transportRules: other exports take the real implementation, and the runtime config takes the production default table.
+vi.mock('../metadata/metadata-client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../metadata/metadata-client')>();
+  mocks.getRelayRuntimeConfig.mockImplementation(() => actual.DEFAULT_RELAY_RUNTIME_CONFIG);
+  return {
+  ...actual,
   refreshMetadata: mocks.refreshMetadata,
   getMetadataSnapshot: mocks.getMetadataSnapshot,
   getRelayRuntimeConfig: mocks.getRelayRuntimeConfig,
   resolveCatalogModel: () => null,
-}));
+  // The verification address is computed from endpointSource via requestBaseURLText; this group has no providerConfig → use the literal address.
+  getPublicProviderConfig: () => null,
+  hasPublicProviderConfigSource: () => false,
+  };
+});
 
 vi.mock('../sync-port', () => ({
   getSyncAdapter: () => ({
@@ -79,6 +89,14 @@ vi.mock('./openai-subscription', async (importOriginal) => ({
   refreshMetadataOnCodexClientVersionRejected: () => {},
 }));
 
+// provider-ops → relay-web-probe-auto → relay-model-probe-ops → provider-sync → provider-ops forms a cycle:
+// importOriginal in the provider-ops mock factory below would load provider-sync first, binding it to the real persist*SubscriptionCredential,
+// bypassing the mock and writing IndexedDB directly. This file does not test the automatic network probe after saving; the whole module is replaced to break the cycle.
+vi.mock('../relay-web-probe-auto', () => ({
+  runRelayWebAutoProbesAfterSave: () => {},
+  runRelayWebAutoProbeAfterEnable: () => {},
+}));
+
 vi.mock('../provider-ops', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../provider-ops')>()),
   persistGrokSubscriptionCredential: (...args: unknown[]) =>
@@ -86,6 +104,12 @@ vi.mock('../provider-ops', async (importOriginal) => ({
   persistOpenAISubscriptionCredential: (...args: unknown[]) =>
     mocks.persistOpenAISubscriptionCredential(...args),
 }));
+
+
+/** The relay verification sample needs an enabled model (the hard-coded 'gpt-4o' was removed). */
+function verifySampleModel(id: string): Provider['models'][number] {
+  return { id, name: id, capabilities: ['text'], reasoningModeAvailable: false, isAvailable: true, isDefault: false, priceTier: '' };
+}
 
 describe('resyncProviderInStore', () => {
   beforeEach(() => {
@@ -357,7 +381,12 @@ describe('resyncProviderInStore', () => {
     const cases: Array<[string, Provider, boolean, boolean]> = [
       ['endpoint', candidate(requested, { baseURLText: 'https://new.example/v1' }), true, true],
       ['transport', candidate({ ...requested, transport: 'openai_responses' }), true, true],
-      ['relay kind', candidate(requested, { relayKind: 'codex_style' }), true, true],
+      // relayKind is a display value derived from the default transport at save time, not read on the outbound path, and not part of connection identity.
+      ['relay kind', candidate(requested, { relayKind: 'codex_style' }), false, false],
+      // Addresses differing only by scheme / leading-trailing whitespace / trailing slash count as the same connection.
+      ['endpoint normalization only', candidate(requested, { baseURLText: ' relay.example/v1/ ' }), false, false],
+      // An explicit scheme is kept: swapping http ↔ https counts as changed.
+      ['endpoint scheme swap', candidate(requested, { baseURLText: 'http://relay.example/v1' }), true, true],
       ['auth', candidate({ ...requested, authMode: 'x_api_key' }), true, true],
       ['security', candidate({ ...requested, securityMode: 'tofu_https' }), true, false],
       ['key', { ...current, apiKey: 'sk-rotated' }, true, true],
@@ -375,27 +404,90 @@ describe('resyncProviderInStore', () => {
     }
   });
 
-  it('verifies a non-directory transport through generation without issuing an incompatible /models request', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ content: [{ type: 'text', text: 'ok' }] }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    }));
+  // Messages / Gemini connections no longer skip the catalog refresh; verification still goes only through the generation request, and the catalog is pulled separately via catalogAPIRoot + /models.
+  it('verifies a Messages transport through generation, then refreshes its catalog at the catalog API root', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ content: [{ type: 'text', text: 'ok' }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ id: 'claude-sonnet-4-5' }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }));
     const provider: Provider = {
       id: 'relay-anthropic-verify', kind: 'relay', status: { kind: 'issue', message: 'old' },
-      models: [], catalogModels: [], apiKey: 'sk-ant', apiKeyPreview: '••••',
+      // Verification sample = fallback model → first catalog entry; relayRequested.modelID is no longer read.
+      models: [verifySampleModel('claude-sonnet-4-5')], catalogModels: [], apiKey: 'sk-ant', apiKeyPreview: '••••',
       baseURLText: 'https://relay.example/v1', relayKind: 'anthropic_compatible',
       relayRequested: { transport: 'anthropic_messages', authMode: 'x_api_key', modelID: 'claude-sonnet-4-5' },
     };
 
     const result = await verifyRelayProviderCandidate(provider, { refreshCatalog: true });
 
-    expect(result).toMatchObject({ ok: true, catalogRefreshed: false });
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ ok: true, catalogRefreshed: true });
+    expect(fetch).toHaveBeenCalledTimes(2);
     expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe('/api/relay/forward');
     expect(vi.mocked(fetch).mock.calls[0]?.[1]).toMatchObject({
       method: 'POST',
       headers: expect.objectContaining({ 'X-Relay-Upstream-URL': 'https://relay.example/v1/messages' }),
     });
+    expect(vi.mocked(fetch).mock.calls[1]?.[1]).toMatchObject({
+      method: 'GET',
+      headers: expect.objectContaining({ 'X-Relay-Upstream-URL': 'https://relay.example/v1/models' }),
+    });
+  });
+
+  it('catalog refresh / resync replacing enabled models with catalog entries keeps model-level transport, source and capability overrides', async () => {
+    const catalogBody = () => new Response(JSON.stringify({ object: 'list', data: [
+      { id: 'claude-sonnet-4-5', object: 'model' },
+      { id: 'gpt-4o-mini', object: 'model' },
+    ] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    vi.mocked(fetch).mockResolvedValueOnce(catalogBody()).mockResolvedValueOnce(catalogBody());
+    const base = { capabilities: ['text' as const], reasoningModeAvailable: false, isAvailable: true, priceTier: '' };
+    const provider: Provider = {
+      id: 'relay-local-fields', kind: 'relay', status: { kind: 'connected' },
+      models: [
+        {
+          ...base, id: 'claude-sonnet-4-5', name: 'claude-sonnet-4-5', isDefault: true,
+          relayTransport: 'anthropic_messages', relayTransportSource: 'user',
+          relayCapabilityOverrides: { image: { value: true, source: 'tested' } },
+          engineDeclaration: { image: true, toolCall: false },
+        },
+        { ...base, id: 'gpt-4o-mini', name: 'gpt-4o-mini', isDefault: false },
+      ],
+      catalogModels: [], apiKey: 'sk-test', apiKeyPreview: '••••',
+      baseURLText: 'https://relay.example/v1', relayKind: 'openai_compatible',
+      relayRequested: { transport: 'openai_chat_completions', authMode: 'bearer' },
+    };
+    const store = createAppStore();
+    store.getState().addProvider(provider);
+
+    await expect(refreshRelayCatalogInStore(store, store.getState().providers[0])).resolves.toMatchObject({ state: 'loaded' });
+    const expectLocalFieldsKept = () => {
+      const [pinned, follower] = store.getState().providers[0].models;
+      expect(pinned).toMatchObject({
+        relayTransport: 'anthropic_messages',
+        relayTransportSource: 'user',
+        relayCapabilityOverrides: { image: { value: true, source: 'tested' } },
+        // The catalog (/v1/models) carries no engine declarations: when this run gives no new declarations, keep the old ones (RL2-ENGINE-02).
+        engineDeclaration: { image: true, toolCall: false },
+      // A relay has no default model: catalog refresh does not keep the old isDefault.
+        isDefault: false,
+      });
+      expect(follower).not.toHaveProperty('relayTransport');
+      expect(follower).not.toHaveProperty('engineDeclaration');
+      expect(follower).not.toHaveProperty('relayTransportSource');
+      // The catalog list likewise carries over by model id; models without old declarations in the refresh stay unknown.
+      const catalog = store.getState().providers[0].catalogModels;
+      expect(catalog.find((model) => model.id === 'claude-sonnet-4-5')?.engineDeclaration)
+        .toEqual({ image: true, toolCall: false });
+      expect(catalog.find((model) => model.id === 'gpt-4o-mini')).not.toHaveProperty('engineDeclaration');
+    };
+    expectLocalFieldsKept();
+
+    await resyncProviderInStore(store, store.getState().providers[0]);
+    expectLocalFieldsKept();
   });
 
   it('persists catalog failure as a connected soft error while preserving enabled and previous catalog models', async () => {
@@ -465,6 +557,20 @@ describe('resyncProviderInStore', () => {
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });
 
+  it('relay verification entry receiving an official provider reports a wiring error directly: no request sent, no connection status written', async () => {
+    const updateProvider = vi.fn();
+    const provider: Provider = {
+      id: 'official-misrouted', kind: 'openRouter', status: { kind: 'connected' },
+      models: [verifySampleModel('gpt-5.4')], catalogModels: [], apiKey: 'sk-or-key', apiKeyPreview: '••••',
+    };
+    const store = { getState: () => ({ providers: [provider], updateProvider }) } as never;
+
+    await expect(verifyRelayProviderInStore(store, provider)).rejects.toThrow('only accepts relay connections, got openRouter');
+    await expect(verifyRelayProviderCandidate(provider)).rejects.toThrow('only accepts relay connections, got openRouter');
+    expect(updateProvider).not.toHaveBeenCalled();
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
   it('persists Connected from the production 1-token request without making catalog a connection prerequisite', async () => {
     const updateProvider = vi.fn();
     const fetchMock = vi.mocked(fetch);
@@ -475,7 +581,7 @@ describe('resyncProviderInStore', () => {
       }));
     const provider: Provider = {
       id: 'relay-verify', kind: 'relay', status: { kind: 'issue', message: 'old' },
-      models: [], catalogModels: [], apiKey: 'sk-new-key', apiKeyPreview: '••••',
+      models: [verifySampleModel('gpt-5.4')], catalogModels: [], apiKey: 'sk-new-key', apiKeyPreview: '••••',
       baseURLText: 'https://relay.example/v1', relayKind: 'openai_compatible',
       relayRequested: { transport: 'openai_chat_completions', authMode: 'bearer' },
     };
@@ -503,7 +609,7 @@ describe('resyncProviderInStore', () => {
     }));
     const provider: Provider = {
       id: 'relay-verify-fail', kind: 'relay', status: { kind: 'connected' },
-      models: [], catalogModels: [], apiKey: echoedSecret, apiKeyPreview: '••••',
+      models: [verifySampleModel('gpt-5.4')], catalogModels: [], apiKey: echoedSecret, apiKeyPreview: '••••',
       baseURLText: 'https://relay.example/v1', relayKind: 'openai_compatible',
       relayRequested: { transport: 'openai_chat_completions', authMode: 'bearer' },
     };
@@ -526,7 +632,7 @@ describe('resyncProviderInStore', () => {
     }));
     const provider: Provider = {
       id: 'relay-deleted-midflight', kind: 'relay', status: { kind: 'issue', message: 'old' },
-      models: [], catalogModels: [], apiKey: 'sk-original-key', apiKeyPreview: '••••',
+      models: [verifySampleModel('gpt-5.4')], catalogModels: [], apiKey: 'sk-original-key', apiKeyPreview: '••••',
       baseURLText: 'https://relay.example/v1', relayKind: 'openai_compatible',
       relayRequested: { transport: 'openai_chat_completions', authMode: 'bearer' },
     };
@@ -553,7 +659,7 @@ describe('resyncProviderInStore', () => {
     }));
     const provider: Provider = {
       id: 'relay-rotated-midflight', kind: 'relay', status: { kind: 'connected' },
-      models: [], catalogModels: [], apiKey: 'sk-original-key', apiKeyPreview: '••••',
+      models: [verifySampleModel('gpt-5.4')], catalogModels: [], apiKey: 'sk-original-key', apiKeyPreview: '••••',
       baseURLText: 'https://relay.example/v1', relayKind: 'openai_compatible',
       relayRequested: { transport: 'openai_chat_completions', authMode: 'bearer' },
     };
@@ -811,7 +917,7 @@ describe('resyncProviderInStore', () => {
     expect(mocks.enrichRelayCatalog).toHaveBeenCalledWith(
       [expect.objectContaining({ id: 'gpt-4o' })],
       'openai_responses',
-      { version: 'test' },
+      mocks.getRelayRuntimeConfig(),
     );
   });
 
@@ -907,14 +1013,25 @@ describe('resyncProviderInStore', () => {
       }),
     } as never;
 
+    // Messages connections no longer skip the catalog refresh; pull by catalogAPIRoot + /models;
+    // manually enabled models absent from the catalog are still kept (the "keeps manual relay models" in the name still holds).
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ id: 'claude-opus-4.1' }] }),
+    } as Response);
+
     await resyncProviderInStore(store, provider);
 
-    expect(fetchMock).not.toHaveBeenCalled();
     expect(mocks.syncProviderModels).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith('/api/relay/forward', expect.objectContaining({
+      method: 'GET',
+      headers: expect.objectContaining({ 'X-Relay-Upstream-URL': 'https://relay.example/v1/models' }),
+    }));
     expect(updateProvider).toHaveBeenLastCalledWith(provider.id, expect.objectContaining({
       status: { kind: 'connected' },
       models: [manualModel],
-      catalogModels: [manualModel],
+      catalogModels: [expect.objectContaining({ id: 'claude-opus-4.1' })],
       lastError: undefined,
     }));
   });
@@ -998,5 +1115,116 @@ describe('resyncProviderInStore', () => {
     expect(updateProvider).toHaveBeenLastCalledWith(provider.id, expect.objectContaining({
       status: expect.objectContaining({ kind: 'issue' }),
     }));
+  });
+});
+
+describe('RL2-KEYSTATUS re-verification / resync writes key status', () => {
+  const okGeneration = () => new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
+    status: 200, headers: { 'Content-Type': 'application/json' },
+  });
+  const invalid401 = () => new Response(JSON.stringify({ error: { message: 'Invalid API key' } }), {
+    status: 401, headers: { 'Content-Type': 'application/json' },
+  });
+  const catalogOK = () => new Response(JSON.stringify({ object: 'list', data: [{ id: 'gpt-5.4', object: 'model' }] }), {
+    status: 200, headers: { 'Content-Type': 'application/json' },
+  });
+
+  function relay(extra: Partial<Provider> = {}): Provider {
+    return {
+      id: 'relay-keystatus', kind: 'relay', status: { kind: 'connected' },
+      models: [verifySampleModel('gpt-5.4')], catalogModels: [], apiKey: 'sk-primary', apiKeyPreview: '••••',
+      baseURLText: 'https://relay.example/v1', relayKind: 'openai_compatible',
+      relayRequested: { transport: 'openai_chat_completions', authMode: 'bearer' },
+      ...extra,
+    };
+  }
+
+  function seeded(provider: Provider) {
+    const store = createAppStore();
+    store.getState().addProvider(provider);
+    return store;
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    mocks.refreshMetadata.mockReset().mockRejectedValue(new Error('offline'));
+    mocks.didUpdateProvider.mockReset();
+    mocks.enrichRelayCatalog.mockImplementation((models: unknown) => models);
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  it('RL2-KEYSTATUS-01 single key re-verification succeeds → materialize one initial entry, primary key normal', async () => {
+    const store = seeded(relay());
+    vi.mocked(fetch).mockResolvedValueOnce(okGeneration());
+
+    await expect(verifyRelayProviderInStore(store, store.getState().providers[0]!)).resolves.not.toBeNull();
+
+    expect(store.getState().providers[0]!.relayKeys).toEqual([
+      { id: 'initial', apiKey: '', status: { state: 'ok', checkedAt: expect.any(String) } },
+    ]);
+  });
+
+  it('RL2-KEYSTATUS-02 multi-key re-verification 401 → the sample model\'s effective key is invalid, other keys untouched', async () => {
+    const store = seeded(relay({
+      models: [{ ...verifySampleModel('gpt-5.4'), relayKeyID: 'k2' }],
+      relayKeys: [{ id: 'initial', apiKey: '', status: { state: 'ok', checkedAt: '2026-10-01T00:00:00.000Z' } }, { id: 'k2', apiKey: 'sk-second' }],
+    }));
+    vi.mocked(fetch).mockResolvedValueOnce(invalid401());
+
+    await expect(verifyRelayProviderInStore(store, store.getState().providers[0]!)).rejects.toMatchObject({ kind: 'invalidKey' });
+
+    const keys = store.getState().providers[0]!.relayKeys!;
+    expect(keys[1]!.status).toEqual({ state: 'invalid', httpStatus: 401, checkedAt: expect.any(String) });
+    expect(keys[0]!.status).toEqual({ state: 'ok', checkedAt: '2026-10-01T00:00:00.000Z' });
+  });
+
+  it('RL2-KEYSTATUS-08 draft test connection (verifies the candidate only, no persistence) → no key status written', async () => {
+    const store = seeded(relay());
+    vi.mocked(fetch).mockResolvedValueOnce(okGeneration());
+
+    const verification = await verifyRelayProviderCandidate({ ...store.getState().providers[0]!, baseURLText: 'https://draft.example/v1' });
+
+    expect(verification.ok).toBe(true);
+    expect(store.getState().providers[0]).not.toHaveProperty('relayKeys');
+  });
+
+  it('RL2-KEYSTATUS-09 single-key resync (resyncRelayProvider) writes primary key status on both success and failure', async () => {
+    const store = seeded(relay());
+    vi.mocked(fetch).mockResolvedValueOnce(invalid401());
+    await resyncProviderInStore(store, store.getState().providers[0]!);
+    expect(store.getState().providers[0]!.relayKeys).toEqual([
+      { id: 'initial', apiKey: '', status: { state: 'invalid', httpStatus: 401, checkedAt: expect.any(String) } },
+    ]);
+
+    vi.mocked(fetch).mockResolvedValueOnce(catalogOK());
+    await resyncProviderInStore(store, store.getState().providers[0]!);
+    expect(store.getState().providers[0]!.relayKeys).toEqual([
+      { id: 'initial', apiKey: '', status: { state: 'ok', checkedAt: expect.any(String) } },
+    ]);
+  });
+
+  it('RL2-KEYSTATUS-18 re-verification 2xx but body is a web page → treated as failure, normal not written', async () => {
+    const store = seeded(relay());
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('<!doctype html><html><body>console</body></html>', {
+      status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    }));
+
+    await expect(verifyRelayProviderInStore(store, store.getState().providers[0]!)).rejects.toBeDefined();
+
+    expect(store.getState().providers[0]).not.toHaveProperty('relayKeys');
+  });
+
+  it('RL2-KEYSTATUS-12 primary key value replaced while re-verification is in flight → the old request\'s result does not write key status', async () => {
+    let resolveFetch: ((response: Response) => void) | undefined;
+    vi.mocked(fetch).mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveFetch = resolve; }));
+    const store = seeded(relay());
+
+    const verifying = verifyRelayProviderInStore(store, store.getState().providers[0]!);
+    await vi.waitFor(() => expect(resolveFetch).toBeTypeOf('function'));
+    await updateProviderKey(store, store.getState().providers[0]!, 'sk-rotated');
+    resolveFetch?.(okGeneration());
+
+    await expect(verifying).resolves.toBeNull();
+    expect(store.getState().providers[0]).not.toHaveProperty('relayKeys');
   });
 });

@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as Reac
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import type { AIModel, ChatMessage, Conversation, Provider, ProviderKind } from '@oriveo/shared';
 import { Button, CloseButton } from '@oriveo/ui';
 import { getVanillaStore, useAppStore } from '../../providers/StoreProvider';
@@ -13,11 +13,13 @@ import { createNoteFromCrosscheck } from '../../lib/core/note-ops';
 import { getProviderInstanceDisplayName } from '../../lib/core/providers/provider-display';
 import { showSavedNoteToast } from '../notes/note-toast';
 import { ProviderIcon } from '../ProviderIcon';
+import { relayIconSource } from '../relay-avatar';
 import { VendorIdentity } from '../VendorIdentity';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { groupModelsByVendor } from './ModelSwitcher/model-vendor-groups';
 import { getDefaultExpandedModelSwitcherProviderIds } from './model-switcher-sorting';
 import styles from './CrosscheckSheet.module.css';
+import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
 
 const SIDEBAR_WIDTH_KEY = 'oriveo:sidebarWidth';
 const SIDEBAR_WIDTH_MIN = 220;
@@ -69,7 +71,7 @@ interface CrosscheckExclusion {
 
 function buildOptions(providers: Provider[], excluding?: CrosscheckExclusion): ModelOption[] {
   const eligibleProviders = providers.filter(
-    (provider) => Boolean(provider.apiKey.trim()),
+    (provider) => Boolean(resolveProviderAPIKey(provider).trim()),
   );
   return eligibleProviders.flatMap((provider) =>
     provider.models
@@ -581,12 +583,12 @@ export function CrosscheckSheet({
                             }}
                           >
                             <span className={styles.modelGroupLead}>
-                              <ChevronDown
+                              <ChevronRight
                                 size={14}
                                 className={styles.modelGroupChevron}
-                                data-collapsed={!providerExpanded || undefined}
+                                data-expanded={providerExpanded}
                               />
-                              <ProviderIcon kind={providerGroup.provider.kind} size={22} bare />
+                              <ProviderIcon kind={providerGroup.provider.kind} size={22} bare {...relayIconSource(providerGroup.provider)} />
                               <span>{providerGroup.providerName}</span>
                             </span>
                             <span className={styles.modelGroupCount}>{providerGroup.options.length}</span>
@@ -618,10 +620,10 @@ export function CrosscheckSheet({
                                         }}
                                       >
                                         <span className={styles.modelGroupLead}>
-                                          <ChevronDown
+                                          <ChevronRight
                                             size={13}
                                             className={styles.modelGroupChevron}
-                                            data-collapsed={!vendorExpanded || undefined}
+                                            data-expanded={vendorExpanded}
                                           />
                                           <VendorIdentity
                                             groupId={vendorGroup.key}

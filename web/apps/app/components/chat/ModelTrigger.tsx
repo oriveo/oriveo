@@ -1,27 +1,26 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import type { ProviderKind, RelayKind } from '@oriveo/shared';
+import type { Provider, ProviderKind, RelayKind } from '@oriveo/shared';
 import { ProviderIcon } from '../ProviderIcon';
+import { relayIconSource } from '../relay-avatar';
 import { ChevronDownIcon } from '../icons';
 import styles from './TopBar.module.css';
 
 interface ModelTriggerProps {
   modelName?: string;
   providerKind?: ProviderKind;
-  /**
-   * Protocol type selected for a relay provider, which decides whose logo the icon shows:
-   * openai_compatible / codex_style -> OpenAI; anthropic_compatible -> Anthropic;
-   * gemini_compatible -> Gemini; custom or unset -> the Relay logo.
-   */
+  /** Only local-engine connections still show a logo by protocol type; relay connections use the unified avatar. */
   relayKind?: RelayKind;
+  /** The relay connection of the current conversation: its avatar is resolved from the display name and address. */
+  relayProvider?: Provider;
   onModelClick?: () => void;
 }
 
 /**
  * Top bar model trigger: provider icon, model name with the free suffix stripped, a Free badge and a chevron.
  */
-export function ModelTrigger({ modelName, providerKind, relayKind, onModelClick }: ModelTriggerProps) {
+export function ModelTrigger({ modelName, providerKind, relayKind, relayProvider, onModelClick }: ModelTriggerProps) {
   const t = useTranslations('pages.modelSwitcher');
   // Free model names usually carry a "(free)" suffix; the UI already shows a Free chip, so the
   // suffix is dropped to avoid repeating it.
@@ -46,7 +45,7 @@ export function ModelTrigger({ modelName, providerKind, relayKind, onModelClick 
       )}
       {providerKind === 'relay' && (
         <span className={styles.modelTriggerBadge} aria-hidden="true">
-          <ProviderIcon kind="relay" relayKind={relayKind} size={18} bare />
+          <ProviderIcon kind="relay" relayKind={relayKind} size={18} bare {...relayIconSource(relayProvider)} />
         </span>
       )}
       <span className={styles.modelName}>{cleanModelName ?? t('selectModel')}</span>

@@ -5,6 +5,7 @@
  * ResolvedProviderCatalog for the UI.
  */
 
+import { effectiveTransport } from '@oriveo/core/providers/relay-effective';
 import type {
   AIModel,
   Provider,
@@ -131,7 +132,8 @@ interface ProviderInput {
   models: AIModel[];
   catalogModels: AIModel[];
   authMode?: Provider['authMode'];
-  relayResolvedTransport?: Provider['relayResolvedTransport'];
+  baseURLText?: Provider['baseURLText'];
+  relayRequested?: Provider['relayRequested'];
 }
 
 /* -- Main entry ----------------------------------------- */
@@ -168,13 +170,15 @@ export function resolveProviderCatalog(
   const rawCatalog = usesSubscriptionCatalog
     ? provider.models
     : provider.kind === 'relay'
-      ? enrichRelayCatalog(
-        provider.catalogModels,
-        provider.relayResolvedTransport === 'llamacpp_native'
-          ? undefined
-          : provider.relayResolvedTransport,
-        getRelayRuntimeConfig(),
-      )
+      // Compute the envelope intersection per model by the transport it actually uses (Relay 2.0: transport is a model attribute).
+      ? provider.catalogModels.flatMap((model) => {
+        const transport = effectiveTransport(provider, model);
+        return enrichRelayCatalog(
+          [model],
+          transport === 'llamacpp_native' ? undefined : transport,
+          getRelayRuntimeConfig(),
+        );
+      })
       : buildCatalogFromMetadata(
         providerMeta,
         metadata?.capabilityContractVersion,

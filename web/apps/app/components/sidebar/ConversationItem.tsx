@@ -7,6 +7,7 @@ import { useAppStore } from '../../providers/StoreProvider';
 import { ContextMenu } from '../ContextMenu';
 import { MoveToFolderMenu } from './MoveToFolderMenu';
 import { ProviderIcon } from '../ProviderIcon';
+import { relayIconSource } from '../relay-avatar';
 import { StreamingPulseDot } from './StreamingPulseDot';
 import { formatRelativeTime } from '../../lib/utils/format-utils';
 import { stripMarkdownForPreview } from '../../lib/utils/markdown-preview';
@@ -211,6 +212,7 @@ export const ConversationItem = memo(function ConversationItem({
               relayKind={conversation.relayKind ?? resolvedProvider?.relayKind}
               size={22}
               bare
+              {...relayIconSource(resolvedProvider)}
             />
           </div>
         )}

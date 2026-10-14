@@ -22,6 +22,7 @@ import {
   saveConnectionGenerationParameterDefaults,
   saveGenerationParameterPreset,
   generationParameterProfileFingerprint,
+  generationParameterFallbackModelId,
   valueOverride,
   resolveGenerationParameterOverridesWithSources,
   type GenerationParameterLayer,
@@ -105,6 +106,29 @@ function generationCompatibilityIssueLabel(
   return `${parameter}: ${tc('issue')}`;
 }
 
+export type ParametersMoreSection = 'presets' | 'connection' | 'diagnostics' | 'compatibility' | 'clearLearned';
+
+/**
+ * Which blocks appear in the "More" fold at the end of the connection-scope parameters page, and in what order.
+ * Each block keeps its original visibility condition unchanged; an empty result means the whole row is not shown.
+ * The chat scope has no such row (the compatibility notice stays in place there).
+ */
+export function parametersMoreSections(input: {
+  scope: Scope;
+  showsConnectionTools: boolean;
+  canViewDiagnostics: boolean;
+  hasCompatibilityIssues: boolean;
+  canClearLearned: boolean;
+}): ParametersMoreSection[] {
+  if (input.scope === 'session') return [];
+  const sections: ParametersMoreSection[] = [];
+  if (input.showsConnectionTools) sections.push('presets', 'connection');
+  if (input.showsConnectionTools && input.canViewDiagnostics) sections.push('diagnostics');
+  if (input.hasCompatibilityIssues) sections.push('compatibility');
+  if (input.showsConnectionTools && input.canClearLearned) sections.push('clearLearned');
+  return sections;
+}
+
 type GenerationParameterPanelProps = {
   provider: Provider;
   model: AIModel;
@@ -175,6 +199,7 @@ export function GenerationParameterPanel({
     providerId: provider.id,
     modelId: model.id,
     profileFingerprint: generationParameterProfileFingerprint(provider, model),
+    fallbackModelId: generationParameterFallbackModelId(provider, model),
     ...(scope === 'session' && conversationId ? { conversationId } : {}),
   }), [conversationId, model, provider, scope]);
   const generationCapabilityOptions = useMemo(
@@ -219,6 +244,8 @@ export function GenerationParameterPanel({
   const [presetRevision, setPresetRevision] = useState(0);
   const [diagnosticRevision, setDiagnosticRevision] = useState(0);
   const [dormantExpanded, setDormantExpanded] = useState(false);
+  // The "More" fold at the page end: collapsed by default, not persisted, reset on leaving the page.
+  const [moreExpanded, setMoreExpanded] = useState(false);
   /** Carry the custom request fields layer here when the host has no pane stack of its own. */
   const [ownsCustomFieldsPage, setOwnsCustomFieldsPage] = useState(false);
   /** Pending confirmation for "restore defaults": it is an irreversible full wipe, so a single tap must not run it. */
@@ -293,6 +320,7 @@ export function GenerationParameterPanel({
       providerId: provider.id,
       modelId: model.id,
       profileFingerprint: key.profileFingerprint,
+      fallbackModelId: key.fallbackModelId,
       ...(reasoningMode ? { reasoningMode } : {}),
     };
     const below = resolveGenerationParameterOverridesWithSources(base) ?? {};
@@ -377,7 +405,7 @@ export function GenerationParameterPanel({
     <>
       <div className={styles.header}>
         <div>
-          {!hidesTitle && <strong>{tc('modelBehavior')}</strong>}
+          {!hidesTitle && <strong>{tc('generationParameters')}</strong>}
           <p>{scope === 'session' ? `${model.name} · ${tc('advancedThisConversationOnly')}` : model.name}</p>
         </div>
         {reset && !isReadOnly && (
@@ -446,7 +474,7 @@ export function GenerationParameterPanel({
     // verified", which is both true for a connection without a profile and the fail-safe side.
     const state: GenerationParameterEmptyState = emptyState ?? 'notVerified';
     return (
-      <section className={styles.panel} data-embedded={embedded ? 'true' : undefined} aria-label={tc('modelBehavior')}>
+      <section className={styles.panel} data-embedded={embedded ? 'true' : undefined} aria-label={tc('generationParameters')}>
         {panelHeader()}
         {scopeDetail}
         <div className={styles.group}>
@@ -478,6 +506,13 @@ export function GenerationParameterPanel({
     visible.map((parameter, index) => advancedRowAnnotationInput(parameter.id!, parameter.support, visibleEvidence[index]!)),
     visibleEvidence,
   );
+  const moreSections = parametersMoreSections({
+    scope,
+    showsConnectionTools,
+    canViewDiagnostics: true,
+    hasCompatibilityIssues: compatibilityIssues.length > 0,
+    canClearLearned: Boolean(unsupportedParamScope),
+  });
   const inlineAnnotated = new Set(annotations.inlineIds);
   const engineName = LOCAL_ENGINE_NAMES[provider.kind === 'relay' ? provider.relayRequested?.engineProfile ?? '' : ''];
   const rowExtras: Record<string, AdvancedRowExtras> = Object.fromEntries(visible.map((parameter, index) => {
@@ -529,7 +564,7 @@ export function GenerationParameterPanel({
     return [id, extras];
   }));
   return (
-    <section className={styles.panel} data-embedded={embedded ? 'true' : undefined} aria-label={tc('modelBehavior')}>
+    <section className={styles.panel} data-embedded={embedded ? 'true' : undefined} aria-label={tc('generationParameters')}>
       {panelHeader(reset)}
       {/* An explanatory sentence, not a parameter row: a single full-width line with its own
           background, rather than a hairline plus two columns, whose skeleton is identical to
@@ -545,86 +580,12 @@ export function GenerationParameterPanel({
       {annotations.showsPageNote && (
         <p className={styles.scopeHint}>{tc('generationParameterUnverifiedGroupNote')}</p>
       )}
-      {/* Connection-level tools (presets, backup, diagnostics, relay tools) appear only on the
-          provider detail side. The chat path is about changing this one conversation, and
-          connection-level tools there would bury the task at hand. Hidden while read-only too. */}
-      {showsConnectionTools && <div className={styles.presets}>
-        <input
-          value={presetName}
-          aria-label={tc('generationPresetName')}
-          placeholder={tc('generationPresetName')}
-          onChange={(event) => setPresetName(event.target.value)}
-        />
-        <button type="button" disabled={!presetName.trim()} onClick={() => {
-          saveGenerationParameterPreset({ ...key, name: presetName, values });
-          setPresetName('');
-          setPresetRevision((revision) => revision + 1);
-        }}>{tc('save')}</button>
-        {presets.map((preset) => <span key={`${preset.id}-${presetRevision}`} className={styles.preset}>
-          <button type="button" onClick={() => {
-            const applied = applyGenerationParameterPreset(preset, key, portableMapping);
-            if (applied) persist(applied);
-          }}>{preset.name}</button>
-          <button type="button" aria-label={preset.name} title={preset.name} onClick={() => {
-            const copied = applyGenerationParameterPreset(preset, key, portableMapping);
-            if (copied) saveGenerationParameterPreset({ ...key, name: preset.name, values: copied });
-            setPresetRevision((revision) => revision + 1);
-          }}> </button>
-          <button type="button" aria-label={tc('delete')} title={tc('delete')} onClick={() => {
-            removeGenerationParameterPreset(preset.id);
-            setPresetRevision((revision) => revision + 1);
-          }}>×</button>
-        </span>)}
-      </div>}
-      {showsConnectionTools && <div className={styles.portableActions}>
-        <button type="button" onClick={() => {
-          const portableIDs = new Set(profile.parameters
-            .filter((parameter) => parameter.portability === 'portable')
-            .map((parameter) => parameter.id));
-          saveConnectionGenerationParameterDefaults(provider.id, Object.fromEntries(
-            Object.entries(values).filter(([id]) => portableIDs.has(id)),
-          ));
-        }}>{tc('saveConnectionDefaults')}</button>
-        <button type="button" onClick={() => {
-          const blob = new Blob([exportGenerationParameterSettingsJSON()], { type: 'application/json' });
-          const url = URL.createObjectURL(blob);
-          const anchor = document.createElement('a');
-          anchor.href = url;
-          anchor.download = 'oriveo-generation-parameters.v1.json';
-          anchor.click();
-          URL.revokeObjectURL(url);
-        }}>{backupT('export')}</button>
-        <button type="button" onClick={() => importInput.current?.click()}>{backupT('import')}</button>
-        <input
-          ref={importInput}
-          className={styles.hiddenInput}
-          type="file"
-          accept="application/json,.json"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-            void file.text().then((raw) => {
-              importGenerationParameterSettingsJSON(raw);
-              setValues(loadGenerationParameterOverrides(key) ?? {});
-              setPresetRevision((revision) => revision + 1);
-            }).catch(() => {});
-            event.currentTarget.value = '';
-          }}
-        />
-      </div>}
-      {compatibilityIssues.length > 0 && <div className={styles.compatibility}>
+      {/* The chat scope has no "More" operations fold, so the compatibility notice stays in place. */}
+      {scope === 'session' && compatibilityIssues.length > 0 && <div className={styles.compatibility}>
         <span>{compatibilityIssues.map((issue) => generationCompatibilityIssueLabel(issue, tc)).join(' - ')}</span>
         {!isReadOnly && compatibilityIssues.some((issue) => issue.kind === 'conflict' || issue.kind === 'requires') && (
           <button type="button" onClick={() => persist(removeGenerationConflicts(values, compatibilityIssues))}>{tc('remove')}</button>
         )}
-      </div>}
-      {/* Clear the locally learned negative cache of which parameters this relay endpoint
-          rejects. This is not "restore defaults" and touches no user-set parameter value. */}
-      {showsConnectionTools && unsupportedParamScope && <div className={styles.portableActions}>
-        <button type="button" onClick={() => {
-          clearUnsupportedParamLearning(unsupportedParamScope);
-          setDiagnosticRevision((revision) => revision + 1);
-        }}>{tc('generationParameterClearLearnedCapabilities')}</button>
       </div>}
       <AdvancedSettingsList
         profile={profile}
@@ -662,35 +623,130 @@ export function GenerationParameterPanel({
           have no row. The summary must appear here too, or dormant values in the non-empty
           state become silent orphans. */}
       {dormantSummary}
-      {showsConnectionTools && <details className={styles.group} key={diagnosticRevision}>
-        <summary>{tc('generationDiagnosticsHistory')}</summary>
-        <div className={styles.diagnostics}>
-          {diagnostics.length === 0 && <p>{tc('generationDiagnosticsEmpty')}</p>}
-          {diagnostics.slice(0, 20).map((entry) => (
-            <div key={entry.id}>
-              <span>{generationParameterLabel(entry.parameter, tc)}</span>
-              <span>{entry.status === 'recovered' ? tc('connected') : tc('issue')} - {generationTransportLabel(entry.transport, tc)}</span>
-            </div>
-          ))}
-          {diagnostics.length > 0 && <div className={styles.portableActions}>
+      {/* The developer group does not disappear while read-only; the operations blocks are folded into "More" after it. */}
+      {developerGroup}
+      {/* Connection-level tools (presets, backup, diagnostics, relay tools) appear only on the
+          provider detail side. The chat path is about changing this one conversation, and
+          connection-level tools there would bury the task at hand. Hidden while read-only too. */}
+      {moreSections.length > 0 && <div className={styles.moreGroup} data-parameters-more="">
+        <button
+          type="button"
+          className={styles.developerRow}
+          data-interactive="true"
+          aria-expanded={moreExpanded}
+          onClick={() => setMoreExpanded((open) => !open)}
+        >
+          <span>{tc('advancedMore')}</span>
+          <ChevronRight size={14} aria-hidden="true" className={styles.moreChevron} data-expanded={moreExpanded ? 'true' : undefined} />
+        </button>
+        {moreExpanded && <>
+          {moreSections.includes('presets') && <div data-parameters-more-section="presets" className={styles.presets}>
+            <input
+              value={presetName}
+              aria-label={tc('generationPresetName')}
+              placeholder={tc('generationPresetName')}
+              onChange={(event) => setPresetName(event.target.value)}
+            />
+            <button type="button" disabled={!presetName.trim()} onClick={() => {
+              saveGenerationParameterPreset({ ...key, name: presetName, values });
+              setPresetName('');
+              setPresetRevision((revision) => revision + 1);
+            }}>{tc('save')}</button>
+            {presets.map((preset) => <span key={`${preset.id}-${presetRevision}`} className={styles.preset}>
+              <button type="button" onClick={() => {
+                const applied = applyGenerationParameterPreset(preset, key, portableMapping);
+                if (applied) persist(applied);
+              }}>{preset.name}</button>
+              <button type="button" aria-label={preset.name} title={preset.name} onClick={() => {
+                const copied = applyGenerationParameterPreset(preset, key, portableMapping);
+                if (copied) saveGenerationParameterPreset({ ...key, name: preset.name, values: copied });
+                setPresetRevision((revision) => revision + 1);
+              }}> </button>
+              <button type="button" aria-label={tc('delete')} title={tc('delete')} onClick={() => {
+                removeGenerationParameterPreset(preset.id);
+                setPresetRevision((revision) => revision + 1);
+              }}>×</button>
+            </span>)}
+          </div>}
+          {moreSections.includes('connection') && <div data-parameters-more-section="connection" className={styles.portableActions}>
             <button type="button" onClick={() => {
-              const blob = new Blob([exportGenerationParameterDiagnosticsJSON()], { type: 'application/json' });
+              const portableIDs = new Set(profile.parameters
+                .filter((parameter) => parameter.portability === 'portable')
+                .map((parameter) => parameter.id));
+              saveConnectionGenerationParameterDefaults(provider.id, Object.fromEntries(
+                Object.entries(values).filter(([id]) => portableIDs.has(id)),
+              ));
+            }}>{tc('saveConnectionDefaults')}</button>
+            <button type="button" onClick={() => {
+              const blob = new Blob([exportGenerationParameterSettingsJSON()], { type: 'application/json' });
               const url = URL.createObjectURL(blob);
               const anchor = document.createElement('a');
               anchor.href = url;
-              anchor.download = 'oriveo-generation-diagnostics.redacted.json';
+              anchor.download = 'oriveo-generation-parameters.v1.json';
               anchor.click();
               URL.revokeObjectURL(url);
-            }}>{tc('generationDiagnosticsExport')}</button>
-            <button type="button" onClick={() => {
-              clearGenerationParameterDiagnostics();
-              setDiagnosticRevision((revision) => revision + 1);
-            }}>{tc('delete')}</button>
+            }}>{backupT('export')}</button>
+            <button type="button" onClick={() => importInput.current?.click()}>{backupT('import')}</button>
+            <input
+              ref={importInput}
+              className={styles.hiddenInput}
+              type="file"
+              accept="application/json,.json"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                void file.text().then((raw) => {
+                  importGenerationParameterSettingsJSON(raw);
+                  setValues(loadGenerationParameterOverrides(key) ?? {});
+                  setPresetRevision((revision) => revision + 1);
+                }).catch(() => {});
+                event.currentTarget.value = '';
+              }}
+            />
           </div>}
-        </div>
-      </details>}
-      {/* The developer group is always the last cell and does not disappear while read-only. */}
-      {developerGroup}
+          {moreSections.includes('diagnostics') && <details data-parameters-more-section="diagnostics" className={styles.group} key={diagnosticRevision}>
+            <summary>{tc('generationDiagnosticsHistory')}</summary>
+            <div className={styles.diagnostics}>
+              {diagnostics.length === 0 && <p>{tc('generationDiagnosticsEmpty')}</p>}
+              {diagnostics.slice(0, 20).map((entry) => (
+                <div key={entry.id}>
+                  <span>{generationParameterLabel(entry.parameter, tc)}</span>
+                  <span>{entry.status === 'recovered' ? tc('connected') : tc('issue')} - {generationTransportLabel(entry.transport, tc)}</span>
+                </div>
+              ))}
+              {diagnostics.length > 0 && <div className={styles.portableActions}>
+                <button type="button" onClick={() => {
+                  const blob = new Blob([exportGenerationParameterDiagnosticsJSON()], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const anchor = document.createElement('a');
+                  anchor.href = url;
+                  anchor.download = 'oriveo-generation-diagnostics.redacted.json';
+                  anchor.click();
+                  URL.revokeObjectURL(url);
+                }}>{tc('generationDiagnosticsExport')}</button>
+                <button type="button" onClick={() => {
+                  clearGenerationParameterDiagnostics();
+                  setDiagnosticRevision((revision) => revision + 1);
+                }}>{tc('delete')}</button>
+              </div>}
+            </div>
+          </details>}
+          {moreSections.includes('compatibility') && <div data-parameters-more-section="compatibility" className={styles.compatibility}>
+            <span>{compatibilityIssues.map((issue) => generationCompatibilityIssueLabel(issue, tc)).join(' - ')}</span>
+            {!isReadOnly && compatibilityIssues.some((issue) => issue.kind === 'conflict' || issue.kind === 'requires') && (
+              <button type="button" onClick={() => persist(removeGenerationConflicts(values, compatibilityIssues))}>{tc('remove')}</button>
+            )}
+          </div>}
+          {/* Clear the locally learned negative cache of which parameters this relay endpoint
+              rejects. This is not "restore defaults" and touches no user-set parameter value. */}
+          {moreSections.includes('clearLearned') && unsupportedParamScope && <div data-parameters-more-section="clearLearned" className={styles.portableActions}>
+            <button type="button" onClick={() => {
+              clearUnsupportedParamLearning(unsupportedParamScope);
+              setDiagnosticRevision((revision) => revision + 1);
+            }}>{tc('generationParameterClearLearnedCapabilities')}</button>
+          </div>}
+        </>}
+      </div>}
     </section>
   );
 }
@@ -766,7 +822,7 @@ function DeveloperGroup({ provider, model, isReadOnly, onOpen, onSelectModel }: 
           onClick={() => (entry === 'unsupported' ? setExplained((open) => !open) : onOpen?.())}
         >
           {rowLabel}
-          {entry !== 'unsupported' && <ChevronRight size={14} aria-hidden="true" />}
+          {entry !== 'unsupported' && <ChevronRight size={14} aria-hidden="true" className={styles.developerRowChevron} />}
         </button>
       )}
       {!isReadOnly && entry === 'unsupported' && explained && (

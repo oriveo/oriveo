@@ -102,6 +102,10 @@ vi.mock('../../metadata/metadata-client', () => ({
   // These fixtures carry no metadata ETag, so identity has no revision and the negative cache fails closed.
   getMetadataRevision: () => undefined,
   getCapabilityRuntime: () => undefined,
+  // The send address is computed per request from endpointSource via requestBaseURLText; these fixtures
+  // have no providerConfig, so the literal address is used.
+  getPublicProviderConfig: () => null,
+  hasPublicProviderConfigSource: () => false,
   // The completion-time tool_call mismatch event also goes through the central evidence facade; no modelFacts here.
   getModelFacts: () => undefined,
   getModelFactsRevision: () => undefined,
@@ -973,7 +977,7 @@ describe('a failed half round is not synced (whole-round atomic sync)', () => {
       .messages.find((m) => m.role === 'assistant');
     expect(assistant?.state).toBe('failed');
     expect(assistant).toMatchObject({
-      errorTitle: 'requestFailed.title',
+      errorTitle: 'Provider Request Failed',
       errorDetail: 'engine_overloaded_error | The engine is currently overloaded, please try again later',
       errorKind: 'rateLimited',
       errorSource: 'provider',

@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, type ReactNode } from 'react';
-import type { ProviderKind, RelayKind } from '@oriveo/shared';
+import type { Provider, ProviderKind, RelayKind } from '@oriveo/shared';
 import { useTranslations } from 'next-intl';
 import { MenuIcon } from '../icons';
 import { ModelTrigger } from './ModelTrigger';
@@ -19,6 +19,8 @@ interface TopBarProps {
    * gemini_compatible -> Gemini; custom or unset -> the Relay logo.
    */
   relayKind?: RelayKind;
+  /** The relay connection of the current conversation; the top bar avatar is resolved from it. */
+  relayProvider?: Provider;
   sidebarOpen?: boolean;
   onToggleSidebar?: () => void;
   onModelClick?: () => void;
@@ -39,7 +41,7 @@ interface TopBarProps {
   conversationCost?: number;
 }
 
-export const TopBar = memo(function TopBar({ transparentChrome, modelName, providerKind, relayKind, sidebarOpen, onToggleSidebar, onModelClick, modelSwitcher, extraActions, memoryText, useMemory, onToggleMemory, skillIcon, skillName, isStreaming, conversationCost }: TopBarProps) {
+export const TopBar = memo(function TopBar({ transparentChrome, modelName, providerKind, relayKind, relayProvider, sidebarOpen, onToggleSidebar, onModelClick, modelSwitcher, extraActions, memoryText, useMemory, onToggleMemory, skillIcon, skillName, isStreaming, conversationCost }: TopBarProps) {
   const tSidebar = useTranslations('sidebar');
 
   return (
@@ -69,6 +71,7 @@ export const TopBar = memo(function TopBar({ transparentChrome, modelName, provi
           modelName={modelName}
           providerKind={providerKind}
           relayKind={relayKind}
+          relayProvider={relayProvider}
           onModelClick={onModelClick}
         />
 

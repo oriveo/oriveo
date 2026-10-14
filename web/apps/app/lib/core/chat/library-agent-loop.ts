@@ -43,7 +43,7 @@ import {
   type ToolRegistryEntry,
 } from "@oriveo/core/tools/tool-loop-contracts";
 import { ToolRegistry } from "@oriveo/core/tools/tool-registry";
-import { isDeterministicToolCallUnsupported } from './capability-recovery-runtime';
+import { isDeterministicToolCallUnsupported, type ToolCallRejectionContext } from './capability-recovery-runtime';
 
 export interface LibraryAgentLegRequest {
   messages: ProxyMessage[];
@@ -58,6 +58,8 @@ export interface LibraryAgentLoopResult {
   usage?: StreamUsage;
   /** D5: the first leg was explicitly resent once without tools and that resend succeeded. */
   toolFallbackApplied?: boolean;
+  /** The first-leg rejection (status code and structured error body) that triggered the D5 resend: Relay uses it to decide whether to record a negative toolCall cache entry. */
+  toolFallbackRejection?: ToolCallRejectionContext;
 }
 
 /**
@@ -102,6 +104,11 @@ export interface LibraryAgentLoopOptions {
   onFirstLegWithoutToolCalls?: (
     legText: string,
   ) => Promise<LibraryNoToolCallFallback | null>;
+  /**
+   * Called when the upstream rejects before any output (Relay key-verdict write-back); returning true means
+   * the tools-stripped resend must not happen (the key has no access to this model).
+   */
+  onPreOutputRejection?: (rejection: unknown) => boolean;
   onSteps?: (steps: LibraryResearchStep[]) => void;
   onQuota?: (quota: LibraryQuota) => void;
   onUsage?: (usage: StreamUsage) => void;
@@ -306,6 +313,7 @@ export async function runLibraryAgentLoop(
   const fallbackRef: { value: LibraryNoToolCallFallback | null } = { value: null };
   const firstLegHook = options.onFirstLegWithoutToolCalls;
   let toolFallbackApplied = false;
+  let toolFallbackRejection: ToolCallRejectionContext | undefined;
 
   const limits: ToolCallLoopOptions["limits"] = {
     maxSteps: options.config.maxSteps,
@@ -365,17 +373,21 @@ export async function runLibraryAgentLoop(
     result = await new ToolCallLoop(loopOptions).run(options.messages, onProgress);
   } catch (error) {
     const toolError = error instanceof ToolLoopError ? error : null;
+    const skipFallback = toolError !== null && toolError.source === "provider" && !toolError.streamStarted
+      && options.onPreOutputRejection?.(toolError.toolCallRejectionContext) === true;
     const eligible = toolsEnabled
       && activeLegIndex === 0
       && toolError !== null
       && toolError.source === "provider"
       && !toolError.streamStarted
-      && isDeterministicToolCallUnsupported(toolError.toolCallRejectionContext);
+      && isDeterministicToolCallUnsupported(toolError.toolCallRejectionContext)
+      && !skipFallback;
     if (!eligible) throw toLibraryAgentError(error);
     // The resend is deliberately depth 1: a resend that fails is rethrown as is, with no recursion and no negative capability observation.
     options.onText?.("");
     result = await resendWithoutTools(options, limits, onProgress);
     toolFallbackApplied = true;
+    toolFallbackRejection = toolError?.toolCallRejectionContext as ToolCallRejectionContext | undefined;
   }
 
   if (fallbackRef.value) {
@@ -393,6 +405,7 @@ export async function runLibraryAgentLoop(
     steps: state.steps,
     usage: result.usage,
     ...(toolFallbackApplied ? { toolFallbackApplied: true } : {}),
+    ...(toolFallbackRejection ? { toolFallbackRejection } : {}),
   };
 }
 

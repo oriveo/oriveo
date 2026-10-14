@@ -4,6 +4,12 @@ export type CapabilitySupport = 'supported' | 'unsupported' | 'unknown';
 export type CapabilityEvidenceSource =
   | 'server_typed'
   | 'server_profile'
+  /** Per-model fields declared by the subscription proxy `/models`. */
+  | 'upstream_declaration'
+  /** Server `model-facts` dictionary: cold-start fallback for subscription reasoning tiers. */
+  | 'model_facts'
+  /** The catalog-style truth source does not list this model. A marker, not a capability fact, so it has no priority. */
+  | 'catalog_absent'
   | 'relay_verification'
   | 'relay_declaration'
   | 'runtime_observation'
@@ -38,6 +44,7 @@ export type CapabilityEvidenceReason =
   | 'runtime_rejected'
   | 'user_accepted_unverified'
   | 'legacy_payload'
+  | 'catalog_absent'
   | 'unsupported'
   | 'supported';
 
@@ -47,6 +54,8 @@ export interface CapabilityEvidenceQuery {
   connectionGeneration: string;
   credentialEpoch: string;
   endpointFingerprint?: string;
+  /** Raw connection auth mode; an absent value is read as apiKey. */
+  authMode?: 'apiKey' | 'subscription';
   providerKind: string;
   modelId: string;
   canonicalModelId?: string;
@@ -61,7 +70,8 @@ export interface CapabilityEvidenceCandidate {
   key: string;
   support: CapabilitySupport;
   source: Exclude<CapabilityEvidenceSource, 'none'>;
-  grade: Exclude<CapabilityEvidenceGrade, 'none'>;
+  /** `none` belongs only to `catalog_absent` candidates: not a graded fact. */
+  grade: CapabilityEvidenceGrade;
   scope: CapabilityEvidenceScope;
   policy?: 'runtime_rejected';
   partitionId?: string;
@@ -104,13 +114,15 @@ export interface GenerationParameterEvidenceContext {
   endpointFingerprint?: string;
 }
 
-const SOURCE_PRIORITY: Record<Exclude<CapabilityEvidenceSource, 'runtime_observation' | 'none'>, number> = {
+const SOURCE_PRIORITY: Record<Exclude<CapabilityEvidenceSource, 'runtime_observation' | 'catalog_absent' | 'none'>, number> = {
   operator_override: 0,
   server_typed: 1,
   server_profile: 2,
-  relay_verification: 3,
-  relay_declaration: 4,
-  legacy_metadata: 5,
+  upstream_declaration: 3,
+  model_facts: 4,
+  relay_verification: 5,
+  relay_declaration: 6,
+  legacy_metadata: 7,
 };
 
 /**
@@ -133,22 +145,29 @@ export function resolveCapabilityEvidence(
   const fresh = scoped.filter((candidate) => !isExpired(candidate, query));
   const current = fresh.filter((candidate) => matchesRevision(candidate, query));
   const verdictCandidates = current.filter(
-    (candidate) => candidate.policy !== 'runtime_rejected' && candidate.source !== 'runtime_observation',
+    (candidate) => candidate.policy !== 'runtime_rejected'
+      && candidate.source !== 'runtime_observation'
+      && candidate.source !== 'catalog_absent',
   );
   const runtimeRejection = current.find(
     (candidate) => candidate.source === 'runtime_observation' && candidate.policy === 'runtime_rejected',
   );
 
-  let resolution = resolveVerdict(
-    key,
-    query,
-    verdictCandidates,
-    keyed,
-    identityMatches,
-    transportMatches,
-    scoped,
-    fresh,
-  );
+  // A model absent from the catalog only counts when no prioritized valid fact exists.
+  const catalogAbsent = verdictCandidates.length === 0
+    && current.some((candidate) => candidate.source === 'catalog_absent');
+  let resolution = catalogAbsent
+    ? catalogAbsentResolution(key)
+    : resolveVerdict(
+      key,
+      query,
+      verdictCandidates,
+      keyed,
+      identityMatches,
+      transportMatches,
+      scoped,
+      fresh,
+    );
   // Unverified is not the same as unsupported. Once the user has stated the intent explicitly,
   // "there is no evidence" must not be executed as "you may not use it". This check looks only at
   // hasExplicitValue, not at providerKind, and not at whether the evidence came from a relay
@@ -158,7 +177,8 @@ export function resolveCapabilityEvidence(
   // Those are real conclusions.
   if (query.hasExplicitValue
     && resolution.requestPolicy === 'omit_unknown'
-    && resolution.reasonCode !== 'conflict') {
+    && resolution.reasonCode !== 'conflict'
+    && resolution.reasonCode !== 'catalog_absent') {
     resolution = {
       ...resolution,
       requestPolicy: 'allow_explicit_unverified',
@@ -319,6 +339,18 @@ function matchesIdentity(candidate: CapabilityEvidenceCandidate, query: Capabili
   return candidate.modelId === query.modelId || candidate.modelId === query.canonicalModelId;
 }
 
+function catalogAbsentResolution(key: string): CapabilityEvidenceResolution {
+  return {
+    key,
+    support: 'unknown',
+    source: 'catalog_absent',
+    grade: 'none',
+    requestPolicy: 'omit_unknown',
+    reasonCode: 'catalog_absent',
+    policyEvidence: null,
+  };
+}
+
 function isUsableTransport(value: string | undefined): value is string {
   return typeof value === 'string' && value.trim().length > 0 && value.trim() !== 'unknown';
 }
@@ -351,7 +383,9 @@ function isExpired(candidate: CapabilityEvidenceCandidate, query: CapabilityEvid
 }
 
 function sourcePriority(candidate: CapabilityEvidenceCandidate): number {
-  return candidate.source === 'runtime_observation' ? Number.POSITIVE_INFINITY : SOURCE_PRIORITY[candidate.source];
+  return candidate.source === 'runtime_observation' || candidate.source === 'catalog_absent'
+    ? Number.POSITIVE_INFINITY
+    : SOURCE_PRIORITY[candidate.source];
 }
 
 function generationSupport(support: string): CapabilitySupport {

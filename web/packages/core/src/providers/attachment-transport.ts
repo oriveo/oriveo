@@ -122,11 +122,13 @@ const PROFILES = {
     nativeFiles: 'always',
     wrapper: 'xml-v1', maxNativeBytes: GEMINI_NATIVE_BYTES, toolLoopNativeFileBlock: null,
   },
-  // The builder reuses generateContent parts, but on this line files arrive as text (the same on every client).
+  // pre_activation (the only production tier): files arrive as text and images become a placeholder, so no media block goes out (the same on every client).
+  // Typed image / document blocks only appear in the builder's activated tier; raise this declaration once real samples are verified.
   gemini_interactions: {
-    nativeFileBlock: 'inline_data',
+    nativeFileBlock: null,
     nativeFiles: 'off',
     wrapper: 'xml-v1', maxNativeBytes: GEMINI_NATIVE_BYTES, toolLoopNativeFileBlock: null,
+    imagePlaceholderText: TEXT_ONLY_ROUTE_IMAGE_PLACEHOLDER,
   },
   // The tool leg is Chat Completions as well; turning on tools does not downgrade files to text.
   openrouter_chat: {
@@ -141,12 +143,14 @@ const PROFILES = {
     nativeFiles: 'off',
     wrapper: 'xml-v1', maxNativeBytes: DEFAULT_NATIVE_BYTES, toolLoopNativeFileBlock: null,
   },
-  minimax_chat: textOnly('markdown-v1'),
-  // The builder reuses the Anthropic Messages content, but MiniMax does not accept documents.
+  // The image placeholder is written by the builder (`withImagePlaceholders`).
+  minimax_chat: textOnly('markdown-v1', TEXT_ONLY_ROUTE_IMAGE_PLACEHOLDER),
+  // The builder reuses the Anthropic Messages content, but MiniMax does not accept documents, and images become a placeholder.
   minimax_anthropic_messages: {
     nativeFileBlock: 'document',
     nativeFiles: 'off',
     wrapper: 'markdown-v1', maxNativeBytes: DEFAULT_NATIVE_BYTES, toolLoopNativeFileBlock: null,
+    imagePlaceholderText: TEXT_ONLY_ROUTE_IMAGE_PLACEHOLDER,
   },
   // content takes a string only; the image placeholder is written by the builder (`buildDeepSeekMessages`).
   deepseek_chat: textOnly('markdown-v1', '[Image omitted: unsupported by DeepSeek]'),

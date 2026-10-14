@@ -1,6 +1,8 @@
 /**
  * @vitest-environment jsdom
  */
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIModel } from '@oriveo/shared';
 import { DEFAULT_RELAY_RUNTIME_CONFIG } from '../../metadata/metadata-client';
@@ -92,7 +94,7 @@ describe('enrichRelayLocalModel', () => {
     expect(enriched.relayMatchSource).toBe('transport_first');
   });
 
-  it('keeps user fields for a manual model (bare ID with isManual=true) while merging official pricing', () => {
+  it('a manual model (bare ID with isManual=true) keeps the user name, unions capabilities with the official ones and merges pricing', () => {
     resolveMock.mockReturnValueOnce({
       matchedProviderKind: 'openAI',
       canonicalModelId: 'gpt-5.4',
@@ -118,14 +120,14 @@ describe('enrichRelayLocalModel', () => {
     expect(resolveMock).toHaveBeenCalledWith('gpt-5.4', { transportPriority: 'openAI' });
     expect(enriched.id).toBe('gpt-5.4');
     expect(enriched.name).toBe('gpt-5.4 (manual)');
-    expect(enriched.capabilities).toEqual(['text', 'image']);
+    expect(enriched.capabilities).toEqual(['text', 'image', 'file', 'web', 'reasoning']);
     expect(enriched.canonicalModelId).toBe('gpt-5.4');
     expect(enriched.promptPrice).toBe(0.000002);
     expect(enriched.completionPrice).toBe(0.000008);
     expect(enriched.priceTier).not.toBe('');
   });
 
-  it('still takes the manual path for the legacy relay-manual- prefix format, keeping user fields', () => {
+  it('still takes the manual path for the legacy relay-manual- prefix format (keeps the user name, unions capabilities)', () => {
     resolveMock.mockReturnValueOnce({
       matchedProviderKind: 'openAI',
       canonicalModelId: 'gpt-5.4',
@@ -148,7 +150,7 @@ describe('enrichRelayLocalModel', () => {
     const enriched = enrichRelayLocalModel(local, 'openai_responses', DEFAULT_RELAY_RUNTIME_CONFIG);
 
     expect(enriched.name).toBe('gpt-5.4 (manual legacy)');
-    expect(enriched.capabilities).toEqual(['text', 'image']);
+    expect(enriched.capabilities).toEqual(['text', 'image', 'file', 'web', 'reasoning']);
     expect(enriched.canonicalModelId).toBe('gpt-5.4');
   });
 
@@ -477,7 +479,7 @@ describe('enrichRelayLocalModel native file allowlist inheritance', () => {
     expect(enriched.attachmentExtraction).toBeUndefined();
   });
 
-  it('a manual model also inherits on transport_first while keeping the user\'s name and capabilities', () => {
+  it('a manual model also inherits on transport_first while keeping the user\'s name and unioning capabilities', () => {
     mockClaudeMatch('transport_first');
     const local = makeLocalModel({
       id: 'claude-sonnet-4.5',
@@ -490,7 +492,58 @@ describe('enrichRelayLocalModel native file allowlist inheritance', () => {
     expect(enriched.pdfNativeDefault).toBe(true);
     expect(enriched.attachmentExtraction).toEqual({ maxLines: 1234 });
     expect(enriched.name).toBe('My Claude');
-    expect(enriched.capabilities).toEqual(['text', 'image']);
+    expect(enriched.capabilities).toEqual(['text', 'image', 'file', 'reasoning']);
+  });
+
+  // Fixture probe-orchestration.v1.json: reachable_does_not_authorize_the_native_file_whitelist.
+  const r7Scenario = (() => {
+    let dir = process.cwd();
+    for (let depth = 0; depth < 8; depth += 1) {
+      const candidate = path.join(dir, 'shared', 'test-fixtures', 'relay', 'probe-orchestration.v1.json');
+      if (existsSync(candidate)) {
+        const fixture = JSON.parse(readFileSync(candidate, 'utf8')) as {
+          scenarios: Array<{ caseId: string; sources?: Record<string, 'inherited' | 'not_inherited'> }>;
+        };
+        return fixture.scenarios.find((item) => item.caseId === 'reachable_does_not_authorize_the_native_file_whitelist')!;
+      }
+      dir = path.dirname(dir);
+    }
+    throw new Error('probe-orchestration.v1.json not found');
+  })();
+
+  it.each(Object.entries(r7Scenario.sources ?? {}))(
+    'RL2-PROBE-04 reachable_does_not_authorize_the_native_file_whitelist: source %s -> %s',
+    (source, verdict) => {
+      mockClaudeMatch('transport_first');
+      const local = makeLocalModel({
+        id: 'claude-sonnet-4.5',
+        relayTransport: 'anthropic_messages',
+        relayTransportSource: source as NonNullable<AIModel['relayTransportSource']>,
+        ...LOCAL_STALE,
+      });
+      const enriched = enrichRelayLocalModel(local, 'anthropic_messages', DEFAULT_RELAY_RUNTIME_CONFIG);
+      if (verdict === 'not_inherited') {
+        expect(enriched.nativeFileMimes ?? []).toEqual([]);
+        expect(enriched.pdfNativeDefault).toBe(false);
+      } else {
+        expect(enriched.nativeFileMimes).toEqual(['application/pdf']);
+        expect(enriched.pdfNativeDefault).toBe(true);
+      }
+      // The remaining capabilities / extraction threshold are carried regardless of the source.
+      expect(enriched.capabilities).toEqual(expect.arrayContaining(['image', 'file', 'reasoning']));
+      expect(enriched.attachmentExtraction).toEqual({ maxLines: 1234 });
+    },
+  );
+
+  it('RL2-PROBE-04 following the connection (model has no relayTransport) inherits as in S0', () => {
+    mockClaudeMatch('transport_first');
+    const enriched = enrichRelayLocalModel(
+      makeLocalModel({ id: 'claude-sonnet-4.5' }),
+      'anthropic_messages',
+      DEFAULT_RELAY_RUNTIME_CONFIG,
+    );
+    expect(enriched.nativeFileMimes).toEqual(['application/pdf']);
+    expect(enriched.pdfNativeDefault).toBe(true);
   });
 
   it('a manual model has the three fields cleared when the envelope turns nativeFile off', () => {
@@ -557,5 +610,116 @@ describe('enrichRelayCatalog', () => {
     expect(enriched[1].id).toBe('gpt-5.4');
     expect(enriched[1].relayMatchedProviderKind).toBe('openAI');
     expect(enriched[1].name).toBe('GPT-5.4');
+  });
+});
+
+// Inheritance rules (contract cases RL2-INHERIT-*): every assertion comes from what the production enrichRelayLocalModel produces.
+describe('RL2-INHERIT inheritance rules', () => {
+  function mockClaudeFull(source: 'transport_first' | 'cross_provider') {
+    resolveMock.mockReturnValueOnce({
+      matchedProviderKind: 'anthropic',
+      canonicalModelId: 'claude-sonnet-4.5',
+      source,
+      metadata: makeMatchedMetadata({
+        canonicalModelId: 'claude-sonnet-4.5',
+        displayName: 'Claude Sonnet 4.5',
+        capabilities: ['text', 'image', 'file', 'reasoning'],
+        profiles: { reasoning: 'anthropicThinking' },
+        pricingStatus: 'priced',
+        pricing: { promptPerToken: 0.000003, completionPerToken: 0.000015 },
+        nativeFileMimes: ['application/pdf'],
+        pdfNativeDefault: true,
+        attachmentExtraction: { maxLines: 1234 },
+      }),
+    });
+  }
+
+  it('RL2-INHERIT-01 matching family: capabilities / profile / pricing / all three allowlist fields are carried', () => {
+    mockClaudeFull('transport_first');
+    const enriched = enrichRelayLocalModel(
+      makeLocalModel({ id: 'claude-sonnet-4.5' }),
+      'anthropic_messages',
+      DEFAULT_RELAY_RUNTIME_CONFIG,
+    );
+    expect(enriched.capabilities).toEqual(expect.arrayContaining(['image', 'file', 'reasoning']));
+    expect(enriched.reasoningProfile).toBe('anthropicThinking');
+    expect(enriched.promptPrice).toBe(0.000003);
+    expect(enriched.completionPrice).toBe(0.000015);
+    expect(enriched.nativeFileMimes).toEqual(['application/pdf']);
+    expect(enriched.pdfNativeDefault).toBe(true);
+    expect(enriched.attachmentExtraction).toEqual({ maxLines: 1234 });
+  });
+
+  it('RL2-INHERIT-01 with envelope nativeFile=false the three fields are empty while capabilities / pricing are still carried', () => {
+    mockClaudeFull('transport_first');
+    const runtimeConfig = {
+      ...DEFAULT_RELAY_RUNTIME_CONFIG,
+      transportEnvelopes: {
+        ...DEFAULT_RELAY_RUNTIME_CONFIG.transportEnvelopes,
+        anthropic_messages: {
+          ...DEFAULT_RELAY_RUNTIME_CONFIG.transportEnvelopes.anthropic_messages,
+          nativeFile: false,
+        },
+      },
+    };
+    const enriched = enrichRelayLocalModel(
+      makeLocalModel({ id: 'claude-sonnet-4.5', nativeFileMimes: ['text/plain'], pdfNativeDefault: false, attachmentExtraction: { maxLines: 1 } }),
+      'anthropic_messages',
+      runtimeConfig,
+    );
+    expect(enriched.nativeFileMimes).toBeUndefined();
+    expect(enriched.pdfNativeDefault).toBeUndefined();
+    expect(enriched.attachmentExtraction).toBeUndefined();
+    expect(enriched.capabilities).toEqual(expect.arrayContaining(['image', 'reasoning']));
+    expect(enriched.promptPrice).toBe(0.000003);
+  });
+
+  it('RL2-INHERIT-02 cross-family match: capabilities / profile / pricing are carried and the three fields are empty', () => {
+    mockClaudeFull('cross_provider');
+    const enriched = enrichRelayLocalModel(
+      makeLocalModel({ id: 'claude-sonnet-4.5' }),
+      'openai_responses',
+      DEFAULT_RELAY_RUNTIME_CONFIG,
+    );
+    expect(enriched.relayMatchSource).toBe('cross_provider');
+    expect(enriched.capabilities).toEqual(expect.arrayContaining(['image', 'file', 'reasoning']));
+    expect(enriched.reasoningProfile).toBe('anthropicThinking');
+    expect(enriched.promptPrice).toBe(0.000003);
+    expect(enriched.nativeFileMimes).toBeUndefined();
+    expect(enriched.pdfNativeDefault).toBeUndefined();
+    expect(enriched.attachmentExtraction).toBeUndefined();
+  });
+
+  it('RL2-INHERIT-02 an exact-match manual model likewise inherits capabilities (union) / profile / pricing while the name stays the user\'s', () => {
+    mockClaudeFull('cross_provider');
+    const enriched = enrichRelayLocalModel(
+      makeLocalModel({
+        id: 'claude-sonnet-4.5',
+        name: 'My Claude',
+        capabilities: ['text', 'web'],
+        isManual: true,
+      }),
+      'openai_responses',
+      DEFAULT_RELAY_RUNTIME_CONFIG,
+    );
+    expect(enriched.name).toBe('My Claude');
+    expect(enriched.capabilities).toEqual(expect.arrayContaining(['text', 'image', 'file', 'reasoning', 'web']));
+    expect(enriched.reasoningProfile).toBe('anthropicThinking');
+    expect(enriched.reasoningModeAvailable).toBe(true);
+    expect(enriched.promptPrice).toBe(0.000003);
+    expect(enriched.nativeFileMimes).toBeUndefined();
+    expect(enriched.attachmentExtraction).toBeUndefined();
+  });
+
+  it('RL2-INHERIT-02 a manual model matched on transport_first carries the three allowlist fields', () => {
+    mockClaudeFull('transport_first');
+    const enriched = enrichRelayLocalModel(
+      makeLocalModel({ id: 'claude-sonnet-4.5', isManual: true }),
+      'anthropic_messages',
+      DEFAULT_RELAY_RUNTIME_CONFIG,
+    );
+    expect(enriched.capabilities).toEqual(expect.arrayContaining(['image', 'file', 'reasoning']));
+    expect(enriched.nativeFileMimes).toEqual(['application/pdf']);
+    expect(enriched.pdfNativeDefault).toBe(true);
   });
 });

@@ -1,0 +1,341 @@
+/* Model › Advanced. Colors use existing tokens only. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.headerText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* "Advanced" title2, on the same line as back and restore. */
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--o-text-xl);
+  font-weight: 700;
+  color: var(--o-text);
+}
+
+.subtitle {
+  overflow: hidden;
+  color: var(--o-text-secondary);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Model name title3 semibold. */
+.modelName {
+  color: var(--o-text);
+  font-size: 20px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* Section: icon + title above the card; the card is a plain background with no border. */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--o-surface);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Protocol segments: horizontally scrolling capsules with color dots (no dot for auto). */
+.segments {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.segment {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--o-border);
+  border-radius: 999px;
+  background: var(--o-surface);
+  color: var(--o-text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segment[data-active='true'] {
+  border-color: var(--o-primary);
+  background: var(--o-primary-subtle);
+  color: var(--o-primary-text-on-surface);
+}
+
+.segment:disabled,
+.level:disabled {
+  cursor: default;
+}
+
+.explain {
+  color: var(--o-text-secondary);
+  font-size: 12px;
+}
+
+.explain[data-protocol-status='notReachable'] {
+  color: var(--o-warning);
+}
+
+.segment > span[aria-hidden='true'] {
+  width: 7px;
+  height: 7px;
+}
+
+.channelValue {
+  flex: none;
+  color: var(--o-text-secondary);
+  font-size: 15px;
+}
+
+.capRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 0.5 separator between capability rows. */
+.capList {
+  gap: 0;
+  padding-block: 4px;
+}
+
+.capList > .capRow {
+  min-height: 52px;
+  padding-block: 8px;
+}
+
+.capList > .capRow + .capRow {
+  border-top: 0.5px solid var(--o-border);
+}
+
+/* Advanced key row: whole row vertically centered */
+.keyRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Name on 1 line: CSS approximates iOS middle truncation with single-line ellipsis; mask is monospaced. */
+.keyName {
+  overflow: hidden;
+  color: var(--o-text);
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.keyMask {
+  color: var(--o-text-secondary);
+  font-family: var(--o-font-mono, ui-monospace, monospace);
+  font-size: 13px;
+}
+
+.capIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--cap-color);
+}
+
+.capRow[data-cap-state='unknown'] .capIcon {
+  color: var(--o-text-secondary);
+  opacity: 0.6;
+}
+
+.capRow[data-cap-state='unsupported'] .capIcon {
+  color: var(--o-border-strong);
+}
+
+.capText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Capability title body regular. */
+.capTitle {
+  color: var(--o-text);
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.capSubtitle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  color: var(--o-text-secondary);
+  font-size: 12px;
+}
+
+.sourceBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--o-text-secondary);
+  font-size: 12px;
+}
+
+.selectWrap {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+/* Menu chip: keep the native select, only restyled as a capsule; auto = secondary, the rest primary. */
+.select {
+  height: 30px;
+  padding-block: 0;
+  padding-inline: 12px 26px;
+  border: 1px solid var(--o-border);
+  border-radius: 999px;
+  background: var(--o-surface);
+  color: var(--o-primary-text-on-surface);
+  font-size: 13px;
+  appearance: none;
+}
+
+.select[data-control='auto'] {
+  color: var(--o-text-secondary);
+}
+
+.selectCaret {
+  position: absolute;
+  inset-inline-end: 10px;
+  color: var(--o-text-tertiary);
+  pointer-events: none;
+}
+
+.testEntry {
+  display: flex;
+  justify-content: flex-start;
+}
+
+/* Bottom of the card: same separator as the capability rows */
+.capList > .testEntry {
+  align-items: center;
+  min-height: 48px;
+  border-top: 0.5px solid var(--o-border);
+}
+
+.restoreAll {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex: none;
+}
+
+.textAction {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--o-primary-text-on-surface);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.textAction:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.textAction:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+}
+
+.levels {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.level {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--o-border);
+  border-radius: 999px;
+  background: var(--o-surface);
+  color: var(--o-text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.level[data-selected='true'] {
+  border-color: var(--o-cap-reasoning);
+  background: var(--o-cap-reasoning-bg);
+  color: var(--o-cap-reasoning-text);
+}
+
+.level[data-available='false'] {
+  color: var(--o-text-tertiary);
+  text-decoration: line-through;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.footer {
+  margin: 0;
+  color: var(--o-text-tertiary);
+  font-size: 12px;
+}
+
+/* One line at the top of read-only Advanced */
+.readOnlyNote {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--o-bg-subtle);
+  color: var(--o-text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}

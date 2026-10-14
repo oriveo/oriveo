@@ -92,6 +92,8 @@ export interface MetadataProviderConfig {
   displayName?: string;
   endpoint?: string;
   regionOptions?: readonly unknown[];
+  /** Extra fields for the site-setup page (closed set `workspaceId`); missing / null = none. */
+  setupFields?: readonly unknown[] | null;
   attachmentSupport?: unknown;
   validation?: MetadataValidationContract;
   models?: readonly AIModel[];
@@ -119,6 +121,8 @@ export interface RelayTransportRule {
   // residue. Keep this in sync with the metadata client when the backend adds a value.
   headerProfile: 'none' | 'anthropic_v2023_06_01' | 'gemini_key' | 'codex_responses';
   codexIdentityDefault: boolean;
+  /** Only present for openai_responses; unvalidated, consumed via resolveRelayCodexClientVersion. */
+  codexClientVersion?: string;
   webSearchToolName: 'web_search' | 'web_search_preview' | 'disabled' | 'google_search';
   imageRoute: 'inline_responses_tool' | 'images_endpoint' | 'gemini_modality' | 'unsupported';
   forceStreamForImageGeneration: boolean;

@@ -9,7 +9,7 @@
  *
  * Shared by all 4 transports (openai_chat/responses, anthropic, gemini):
  *   - fetchRelayRequest: a single upstream POST
- *   - fetchRelayWithXHighRetry / fetchRelayWithFallbacks: the names are kept, but only one request is sent
+ *   - fetchRelayWithFallbacks: the name is kept, but only one request is sent (the re-send at a lower tier after a rejected reasoning tier lives in the Web send side's rejection loop)
  *   - createRelaySSEStream / createRelayJSONStream: streaming and non-streaming wrappers (they take a request callback that already carries the transport)
  *   - createRelayResponsesStreamWithRetry: the name is kept, and rejections are rethrown unchanged
  */
@@ -17,7 +17,10 @@
 import { sanitizeUpstreamErrorText } from './upstream-error-text';
 import type { StreamEvent } from './types';
 import { createSSEStream } from './sse-parser';
+import { isRelayGenerationSuccessResponse } from './relay-generation-response';
 import { toProviderError } from './errors';
+import { classifyRelayKeyAccess, type RelayKeyAccessOutcome } from './relay-key-access';
+import { relayErrorBodyNamesReasoning } from './relay-reasoning-rejection';
 import type { RelayErrorContext } from './relay-error-classifier';
 import {
   executeWithUnsupportedParamSelfHeal,
@@ -71,12 +74,97 @@ export interface RelayRequest {
 }
 
 export interface RelayRetryHints {
-  reasoningEffortOverride?: 'high';
   removeTools?: boolean;
 }
 
 export interface RelayResponsesRetryDetector {
   triggered: boolean;
+}
+
+/**
+ * The same sentence as the 1-token probe: the error body for a 2xx that is actually a web page. The English source sentence matches iOS,
+ * and apps/app `error-i18n.ts` looks up `errors.relay.webPageReturned`.
+ */
+export const RELAY_HTML_PAGE_ERROR = 'This connection returned a web page instead of a model response. Check the request URL and the protocol set for this model.';
+
+/**
+ * A 2xx whose response headers declare a web page (a gateway's SPA fallback page): this path is not an API route. Before reading the stream, close it out as a
+ * pre-output error event marked `relayHTMLPage`, and the send side switches protocol on it as a route-level rejection. Detection reuses the probe's success-shape check.
+ */
+function relayHTMLPageErrorEvent(response: Response): StreamEvent | null {
+  if (!response.ok || isRelayGenerationSuccessResponse('', response.headers.get('Content-Type'))) return null;
+  return htmlPageEvent(response);
+}
+
+function htmlPageEvent(response: Response): StreamEvent {
+  return {
+    type: 'error',
+    error: RELAY_HTML_PAGE_ERROR,
+    errorKind: 'upstream',
+    source: responseErrorSource(response) ?? 'provider',
+    status: response.status,
+    upstreamURL: response.headers.get(RELAY_UPSTREAM_URL_HEADER) ?? response.url,
+    relayHTMLPage: true,
+    // The web-page sentence is also relay guidance: the chat failure card takes the same localized branch.
+    relayGuidance: true,
+  };
+}
+
+/** The longest prefix the check needs (`<!doctype html`); if the first non-whitespace character is not `<`, it answers no immediately. */
+const HTML_SNIFF_CHARS = 16;
+
+/**
+ * A streaming 200 that declares `text/event-stream` but whose body is a web page: before any output, decide on the first non-empty line;
+ * if it is a web page, report the web-page sentence (also marked `relayHTMLPage`, which feeds the route-level rejection check); otherwise splice the bytes already read back unchanged and hand them to the SSE parser.
+ */
+async function sniffRelayStreamHTMLPage(response: Response): Promise<{ htmlPage: StreamEvent | null; response: Response }> {
+  if (!response.ok || !response.body) return { htmlPage: null, response };
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const buffered: Uint8Array[] = [];
+  let text = '';
+  let done = false;
+  let readError: unknown;
+  let failed = false;
+  while (true) {
+    const lead = text.replace(/^\uFEFF/, '').trimStart();
+    if (lead && (lead[0] !== '<' || lead.length >= HTML_SNIFF_CHARS || /[\r\n]/.test(lead))) break;
+    let chunk: ReadableStreamReadResult<Uint8Array>;
+    try {
+      chunk = await reader.read();
+    } catch (error) {
+      // A cancel / broken stream goes back to the SSE parser to wrap up with its original semantics; here we only splice the error back unchanged.
+      readError = error;
+      failed = true;
+      break;
+    }
+    if (chunk.done) { done = true; break; }
+    buffered.push(chunk.value);
+    text += decoder.decode(chunk.value, { stream: true });
+  }
+  if (!failed && !isRelayGenerationSuccessResponse(text.split(/\r?\n/).find((line) => line.trim()) ?? '')) {
+    void reader.cancel().catch(() => undefined);
+    return { htmlPage: htmlPageEvent(response), response };
+  }
+  const replay = new ReadableStream<Uint8Array>({
+    start(ctrl) {
+      for (const chunk of buffered) ctrl.enqueue(chunk);
+      if (failed) ctrl.error(readError);
+      else if (done) ctrl.close();
+    },
+    async pull(ctrl) {
+      const chunk = await reader.read();
+      if (chunk.done) ctrl.close();
+      else ctrl.enqueue(chunk.value);
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
+  });
+  const rebuilt = new Response(replay, { status: response.status, statusText: response.statusText, headers: response.headers });
+  // The Response constructor does not take a url; the downstream SSE parser still needs it when X-Relay-Upstream-URL is absent.
+  Object.defineProperty(rebuilt, 'url', { value: response.url });
+  return { htmlPage: null, response: rebuilt };
 }
 
 type RelayParseChunk = (
@@ -112,6 +200,20 @@ export function createRelaySSEStream(
         ctrl.close();
         return;
       }
+
+      const htmlPage = relayHTMLPageErrorEvent(response);
+      if (htmlPage) {
+        ctrl.enqueue(htmlPage);
+        ctrl.close();
+        return;
+      }
+      const sniffed = await sniffRelayStreamHTMLPage(response);
+      if (sniffed.htmlPage) {
+        ctrl.enqueue(sniffed.htmlPage);
+        ctrl.close();
+        return;
+      }
+      response = sniffed.response;
 
       const inner = createSSEStream(response, parseChunk, {
         signal,
@@ -180,7 +282,17 @@ export function createRelayJSONStream(
           source: responseErrorSource(response) ?? providerError.source,
           status: providerError.status,
           upstreamURL: providerError.upstreamURL,
+          ...relayKeyAccessField(response.status, detail),
+          ...(relayErrorBodyNamesReasoning(detail) ? { relayReasoningNamed: true as const } : {}),
+          ...(providerError.relayGuidance ? { relayGuidance: true as const } : {}),
         });
+        ctrl.close();
+        return;
+      }
+
+      const htmlPage = relayHTMLPageErrorEvent(response);
+      if (htmlPage) {
+        ctrl.enqueue(htmlPage);
         ctrl.close();
         return;
       }
@@ -275,17 +387,6 @@ function fnv1a32(value: string): string {
   return hash.toString(16).padStart(8, '0');
 }
 
-export async function fetchRelayWithXHighRetry(
-  buildRequest: (reasoningEffortOverride?: 'high') => RelayRequest,
-  signal: AbortSignal | undefined,
-  transport: UpstreamTransport,
-  onUnsupportedParamDropped?: UnsupportedParamDroppedReporter,
-): Promise<Response> {
-  // A rejected reasoning setting is user-visible recovery state. Never
-  // silently rewrite xhigh to high and dispatch a second request.
-  return fetchRelayRequest(buildRequest(), signal, transport, onUnsupportedParamDropped);
-}
-
 /** Legacy fetch fallback signature for Codex / Responses. Only the first leg is sent, and rejections are rethrown unchanged. */
 export async function fetchRelayWithFallbacks(
   buildRequest: (hints?: RelayRetryHints) => RelayRequest,
@@ -352,9 +453,24 @@ export function createRelayResponsesStreamWithRetry(
             source: responseErrorSource(response) ?? providerError.source,
             status: providerError.status,
             upstreamURL: providerError.upstreamURL,
+            ...relayKeyAccessField(response.status, detail),
+            ...(relayErrorBodyNamesReasoning(detail) ? { relayReasoningNamed: true as const } : {}),
+            ...(providerError.relayGuidance ? { relayGuidance: true as const } : {}),
           });
           return { retried: false };
         }
+
+        const htmlPage = relayHTMLPageErrorEvent(response);
+        if (htmlPage) {
+          ctrl.enqueue(htmlPage);
+          return { retried: false };
+        }
+        const sniffed = await sniffRelayStreamHTMLPage(response);
+        if (sniffed.htmlPage) {
+          ctrl.enqueue(sniffed.htmlPage);
+          return { retried: false };
+        }
+        response = sniffed.response;
 
         const inner = createSSEStream(response, parseChunk, {
           signal,
@@ -381,6 +497,12 @@ export function createRelayResponsesStreamWithRetry(
       ctrl.close();
     },
   });
+}
+
+/** Key verdict for a non-2xx before any output: computed from the raw response body, and the event carries only the conclusion; none is omitted. */
+function relayKeyAccessField(status: number, body: string): { relayKeyAccess?: Exclude<RelayKeyAccessOutcome, 'none'> } {
+  const outcome = classifyRelayKeyAccess(status, body);
+  return outcome === 'none' ? {} : { relayKeyAccess: outcome };
 }
 
 function redactRelayStreamEvent(

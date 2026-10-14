@@ -134,6 +134,7 @@ vi.mock('../../core/telemetry', async (importOriginal) => ({
 // The connection in the fixtures is not a real provider; the pre-send check's line is fixed to a Chat line
 // without native blocks, while whether the files fit is still computed by the production delivery decision.
 vi.mock('../../core/attachments/attachment-transport-resolver', () => ({
+  outboundHistoryHasVideo: async () => false,
   resolveAttachmentLine: async (input: { toolLoop?: boolean }) => ({
     transport: 'openai_chat', toolLoop: input.toolLoop === true, exact: true,
   }),
@@ -567,6 +568,61 @@ describe('useStreamChat send', () => {
     });
   });
 
+  it('RD1-BANNER-01 relay conversation model removed: send / retry / continue / regenerate make zero requests and the conversation model is unchanged', async () => {
+    const relayProvider: any = {
+      ...provider,
+      id: 'relay-a',
+      kind: 'relay',
+      customName: 'My Relay',
+      models: [{ ...currentModel, id: 'gpt-5.4', name: 'gpt-5.4', isDefault: true }],
+    };
+    const removedConversation: any = {
+      id: 'conversation-1',
+      providerID: relayProvider.id,
+      providerKind: 'relay',
+      modelID: 'claude-4-haiku',
+      messages: [
+        { id: 'user-1', role: 'user', text: 'Hello', state: 'delivered' },
+        { id: 'assistant-1', role: 'assistant', text: 'Hi', state: 'delivered' },
+      ],
+    };
+    mocks.mockStoreState.providers = [relayProvider];
+    mocks.mockStoreState.conversations = [removedConversation];
+
+    // Even when the render snapshot is still on the old model (stale), neither it nor the fallback model may be used to send.
+    const stale = renderHook(() => useStreamChat({
+      provider: relayProvider,
+      currentModel: relayProvider.models[0],
+      conversation: removedConversation,
+      messages: removedConversation.messages,
+      reasoningMode: 'automatic',
+      onSendFailed: vi.fn(),
+    }));
+    await act(async () => {
+      await stale.result.current.send('Hello again', removedConversation.messages, removedConversation);
+    });
+
+    // ChatView gets "no current model" from resolveActiveSelection: the other entry points return immediately.
+    const removed = renderHook(() => useStreamChat({
+      provider: relayProvider,
+      currentModel: undefined as any,
+      conversation: removedConversation,
+      messages: removedConversation.messages,
+      reasoningMode: 'automatic',
+      onSendFailed: vi.fn(),
+    }));
+    await act(async () => {
+      await removed.result.current.retry('assistant-1');
+      await removed.result.current.continueAnswering('assistant-1');
+      await removed.result.current.editAndResend('user-1', 'edited');
+    });
+
+    expect(mocks.mockLoadChatOperations).not.toHaveBeenCalled();
+    expect(mocks.mockSendMessage).not.toHaveBeenCalled();
+    expect(mocks.mockContinueAnswering).not.toHaveBeenCalled();
+    expect(mocks.mockUpdateConversation).not.toHaveBeenCalled();
+    expect(mocks.mockStoreState.conversations[0]?.modelID).toBe('claude-4-haiku');
+  });
 });
 
 describe('useStreamChat Library recovery routing', () => {

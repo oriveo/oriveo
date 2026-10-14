@@ -43,6 +43,9 @@ export function createOriveoNextConfig(phase: string): NextConfig {
     transpilePackages: ['@oriveo/config', '@oriveo/core', '@oriveo/shared', '@oriveo/ui'],
     outputFileTracingRoot: resolve(__dirname, '../../'),
     experimental: {
+      // Phosphor is not on Next's default optimized-import list, so barrel imports would pull
+      // every icon into the dev build.
+      optimizePackageImports: ['@phosphor-icons/react'],
       // Next.js defaults dynamic segments to a zero-second client router cache, so switching back
       // to a tab the user just left re-fetches its RSC payload. Thirty seconds makes dock
       // navigation a cache hit with no network at all.

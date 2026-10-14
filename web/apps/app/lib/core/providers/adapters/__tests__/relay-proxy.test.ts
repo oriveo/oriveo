@@ -69,6 +69,7 @@ function proxyConfigOf(call: [string, RequestInit]): {
   authMode?: string;
   apiKey?: string;
   codexCompatIdentity?: boolean;
+  codexClientVersion?: string;
   customUserAgent?: string;
 } {
   const init = call[1];
@@ -190,6 +191,8 @@ describe('Relay adapter - browser routing by address (public endpoints proxied, 
       expect(config.transport).toBe('openai_responses');
       expect(config.authMode).toBe('bearer');
       expect(config.apiKey).toBe('relay-abc');
+      // The proxy cannot read the client runtime config: the resolved Codex version travels with the proxy config (no pushed value here, so this is the built-in fallback).
+      expect(config.codexClientVersion).toBe('0.162.1');
       expect(call[1].credentials).toBe('omit');
     });
   });
@@ -706,7 +709,7 @@ describe('Relay adapter - browser routing by address (public endpoints proxied, 
     });
   });
 
-  it('openai_responses transport adds the image_generation tool by default and lets it coexist with web_search under the default protocol name', async () => {
+  it('openai_responses transport adds the image_generation tool by default and lets it coexist with the web_search of a connection-level fragment', async () => {
     await withBrowserWindow(async () => {
       const handle = relay.sendMessageStream(
         'sk-test',
@@ -715,7 +718,7 @@ describe('Relay adapter - browser routing by address (public endpoints proxied, 
         'https://relay.example.com/v1',
         {
           relayTransport: 'openai_responses',
-          supportsWebSearch: true,
+          relayWebFragment: { tools: [{ type: 'web_search' }] },
           relayImageToolModelID: 'gpt-image-2',
         },
       );
@@ -725,7 +728,7 @@ describe('Relay adapter - browser routing by address (public endpoints proxied, 
       const body = JSON.parse(init.body as string) as { tools?: Array<Record<string, unknown>> };
       expect(Array.isArray(body.tools)).toBe(true);
       expect(body.tools).toHaveLength(2);
-      // image_generation and web_search are not mutually exclusive and must coexist; the default protocol name is web_search, without _preview
+      // image_generation and web_search are not mutually exclusive and must coexist; the fragment tools are appended after the builder tools
       expect(body.tools).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ type: 'image_generation', model: 'gpt-image-2' }),
@@ -755,7 +758,7 @@ describe('Relay adapter - browser routing by address (public endpoints proxied, 
     });
   });
 
-  it('openai_responses transport adds image_generation plus web_search without _preview when only supportsWebSearch is true', async () => {
+  it('openai_responses transport no longer adds web_search automatically for supportsWebSearch=true (web search comes only from the connection-level fragment)', async () => {
     await withBrowserWindow(async () => {
       const handle = relay.sendMessageStream(
         'sk-test',
@@ -771,15 +774,11 @@ describe('Relay adapter - browser routing by address (public endpoints proxied, 
 
       const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
       const body = JSON.parse(init.body as string) as { tools?: Array<Record<string, unknown>> };
-      // image_generation is always added while web_search is gated on supportsWebSearch; the default protocol name web_search follows the OpenAI recommendation
-      expect(body.tools).toEqual([
-        { type: 'image_generation' },
-        { type: 'web_search' },
-      ]);
+      expect(body.tools).toEqual([{ type: 'image_generation' }]);
     });
   });
 
-  it('openai_responses transport with relayWebSearchToolName=web_search_preview uses the legacy protocol name', async () => {
+  it('openai_responses transport with a fragment that writes web_search_preview sends the legacy protocol name as is', async () => {
     await withBrowserWindow(async () => {
       const handle = relay.sendMessageStream(
         'sk-test',
@@ -788,8 +787,7 @@ describe('Relay adapter - browser routing by address (public endpoints proxied, 
         'https://relay.example.com/v1',
         {
           relayTransport: 'openai_responses',
-          supportsWebSearch: true,
-          relayWebSearchToolName: 'web_search_preview',
+          relayWebFragment: { tools: [{ type: 'web_search_preview' }] },
         },
       );
       await drainStream(handle);
@@ -825,7 +823,7 @@ describe('Relay adapter - browser routing by address (public endpoints proxied, 
     });
   });
 
-  it('gemini_generate_content transport injects the googleSearch tool when supportsWebSearch is true', async () => {
+  it('gemini_generate_content transport takes googleSearch only from the connection-level fragment (supportsWebSearch no longer injects it)', async () => {
     await withBrowserWindow(async () => {
       const handle = relay.sendMessageStream(
         'g-test',
@@ -835,6 +833,7 @@ describe('Relay adapter - browser routing by address (public endpoints proxied, 
         {
           relayTransport: 'gemini_generate_content',
           supportsWebSearch: true,
+          relayWebFragment: { tools: [{ googleSearch: {} }] },
         },
       );
       await drainStream(handle);
@@ -860,7 +859,7 @@ describe('Relay adapter - browser routing by address (public endpoints proxied, 
         'https://relay.test/v1',
         {
           relayTransport: 'openai_chat_completions',
-          relayReasoningEffort: 'medium',
+          reasoning: 'balanced',
         },
       );
 

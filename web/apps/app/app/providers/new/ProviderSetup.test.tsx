@@ -14,9 +14,6 @@ const mockProviderOpsAdd = vi.fn();
 const mockCreateCanonicalUUID = vi.fn();
 const mockCreateDeterministicProviderId = vi.fn();
 const mockSetHasCompletedOnboarding = vi.fn();
-const mockIsOfficialEndpointProvider = vi.fn();
-const mockGetOfficialEndpointDescriptionTranslationKey = vi.fn();
-const mockGetOfficialEndpointOptionTranslationKey = vi.fn();
 const mockGetGrokSubscriptionAvailability = vi.fn();
 const mockFetchGrokSubscriptionModels = vi.fn();
 const mockGetOpenAISubscriptionAvailability = vi.fn();
@@ -106,10 +103,13 @@ vi.mock('../../../lib/core/providers/official-model-sync', () => ({
 // pulled in getRelayRuntimeConfig, the whole file failed at collect time with
 // "No export is defined on the mock". The real getRelayRuntimeConfig returns
 // DEFAULT_RELAY_RUNTIME_CONFIG with no side effects when nothing is cached.
+// By default metadata has no providerConfigs; cases that need delivered config (e.g. trustedHosts) assign it themselves.
+const mockPublicProviderConfigs = vi.hoisted(() => ({ current: null as unknown[] | null }));
+
 vi.mock('../../../lib/core/metadata/metadata-client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../lib/core/metadata/metadata-client')>()),
-  hasPublicProviderConfigSource: () => false,
-  listPublicProviderConfigs: () => [],
+  hasPublicProviderConfigSource: () => mockPublicProviderConfigs.current !== null,
+  listPublicProviderConfigs: () => mockPublicProviderConfigs.current ?? [],
   initMetadata: () => Promise.resolve(),
   refreshMetadata: () => Promise.resolve(),
   getMetadataSnapshot: (...args: unknown[]) => mockGetMetadataSnapshot(...args),
@@ -254,15 +254,6 @@ vi.mock('../../../components/providers/OfficialEndpointSelector', () => ({
   ),
 }));
 
-vi.mock('../../../components/providers/official-endpoint-utils', () => ({
-  getOfficialEndpointDescriptionTranslationKey: (...args: unknown[]) =>
-    mockGetOfficialEndpointDescriptionTranslationKey(...args),
-  getOfficialEndpointOptionTranslationKey: (...args: unknown[]) =>
-    mockGetOfficialEndpointOptionTranslationKey(...args),
-  isOfficialEndpointProvider: (...args: unknown[]) =>
-    mockIsOfficialEndpointProvider(...args),
-}));
-
 // Pick the provider first, then fill the key inline: the openRouter showcase card has to be
 // selected before the key field appears.
 async function selectOpenRouter() {
@@ -271,6 +262,7 @@ async function selectOpenRouter() {
 
 describe('ProviderSetup', () => {
   beforeEach(() => {
+    mockPublicProviderConfigs.current = null;
     routerPush.mockReset();
     routerBack.mockReset();
     mockSearchParamsGet.mockReset();
@@ -281,13 +273,7 @@ describe('ProviderSetup', () => {
     mockCreateCanonicalUUID.mockReset();
     mockCreateDeterministicProviderId.mockReset();
     mockSetHasCompletedOnboarding.mockReset();
-    mockIsOfficialEndpointProvider.mockReset();
-    mockGetOfficialEndpointDescriptionTranslationKey.mockReset();
-    mockGetOfficialEndpointOptionTranslationKey.mockReset();
     mockSearchParamsGet.mockReturnValue(null);
-    mockIsOfficialEndpointProvider.mockReturnValue(false);
-    mockGetOfficialEndpointDescriptionTranslationKey.mockReturnValue('');
-    mockGetOfficialEndpointOptionTranslationKey.mockReturnValue(null);
     mockStore.providers = [];
     mockStore.conversations = [];
     mockGetMetadataSnapshot.mockReturnValue({ providers: {} });
@@ -349,9 +335,13 @@ describe('ProviderSetup', () => {
     await selectOpenRouter();
 
     const input = await screen.findByPlaceholderText('sk-or-...');
-    expect(input.getAttribute('autocomplete')).toBe('new-password');
+    expect(input.getAttribute('autocomplete')).toBe('off');
     expect(input.getAttribute('name')).toBe('provider-api-key');
-    expect(input.getAttribute('type')).toBe('text');
+    // Masking = a native password input plus the password-manager ignore markers.
+    expect(input.getAttribute('type')).toBe('password');
+    expect(input.hasAttribute('data-1p-ignore')).toBe(true);
+    expect(input.getAttribute('data-lpignore')).toBe('true');
+    expect(input.hasAttribute('data-bwignore')).toBe(true);
     expect(input.getAttribute('data-secret-visibility')).toBe('masked');
   });
 
@@ -359,15 +349,13 @@ describe('ProviderSetup', () => {
     mockSearchParamsGet.mockImplementation((key: string) =>
       key === 'kind' ? 'siliconFlow' : null,
     );
-    mockIsOfficialEndpointProvider.mockImplementation((kind: string) =>
-      kind === 'siliconFlow',
-    );
-    mockGetOfficialEndpointDescriptionTranslationKey.mockReturnValue(
-      'officialEndpointDescriptionSiliconFlow',
-    );
-    mockGetOfficialEndpointOptionTranslationKey.mockImplementation(
-      (_kind: string, optionId: string) => `endpointOptions.siliconFlow.${optionId}`,
-    );
+    // The international site siliconflow.com is not in the fallback registered domains, so it relies on the delivered trustedHosts.
+    mockPublicProviderConfigs.current = [{
+      kind: 'siliconFlow',
+      displayName: 'SiliconFlow',
+      defaultBaseURL: 'https://api.siliconflow.cn/v1',
+      trustedHosts: ['siliconflow.cn', 'siliconflow.com'],
+    }];
 
     render(<ProviderSetup />);
 
@@ -379,6 +367,89 @@ describe('ProviderSetup', () => {
     await waitFor(() => {
       expect(keyLink.getAttribute('href')).toBe('https://cloud.siliconflow.com/account/ak');
     });
+  });
+
+  // The region selector only depends on whether that provider's metadata has regionOptions, not on a fixed list of four.
+  it('shows the region selector for any provider whose metadata has regionOptions', async () => {
+    mockSearchParamsGet.mockImplementation((key: string) => (key === 'kind' ? 'deepseek' : null));
+    mockPublicProviderConfigs.current = [{
+      kind: 'deepseek',
+      displayName: 'DeepSeek',
+      defaultBaseURL: 'https://api.deepseek.com',
+      regionOptions: [
+        { id: 'global', label: 'Global', baseURL: 'https://api.deepseek.com' },
+        { id: 'eu', label: 'EU', baseURL: 'https://eu.api.deepseek.com' },
+      ],
+    }];
+
+    render(<ProviderSetup />);
+
+    expect(await screen.findByTestId('official-endpoint-selector')).toBeTruthy();
+    expect(screen.getByTestId('endpoint-eu')).toBeTruthy();
+  });
+
+  it('hides the region selector when metadata has no regionOptions', async () => {
+    mockSearchParamsGet.mockImplementation((key: string) => (key === 'kind' ? 'deepseek' : null));
+    mockPublicProviderConfigs.current = [{
+      kind: 'deepseek',
+      displayName: 'DeepSeek',
+      defaultBaseURL: 'https://api.deepseek.com',
+    }];
+
+    render(<ProviderSetup />);
+
+    await screen.findByRole('link', { name: 'getKeyAt' });
+    expect(screen.queryByTestId('official-endpoint-selector')).toBeNull();
+  });
+
+  // Setup fields: a selected template containing {workspaceId} shows an input slot under the region; the primary button is disabled while the value is missing or invalid.
+  it('shows the workspace slot for a template region and gates connect on its value', async () => {
+    mockBuildOfficialEnabledModels.mockReturnValue({
+      models: [mockModel],
+      defaultModelId: mockModel.id,
+      catalogModels: [],
+    });
+    mockSearchParamsGet.mockImplementation((key: string) => (key === 'kind' ? 'qwen' : null));
+    mockPublicProviderConfigs.current = [{
+      kind: 'qwen',
+      displayName: 'Qwen',
+      defaultBaseURL: 'https://dashscope-intl.aliyuncs.com',
+      trustedHosts: ['aliyuncs.com'],
+      setupFields: [{ id: 'workspaceId', required: true }],
+      regionOptions: [
+        { id: 'sg', label: 'Singapore', baseURL: 'https://dashscope-intl.aliyuncs.com' },
+        { id: 'sg-ws', label: 'Singapore · Workspace', baseURL: 'https://{workspaceId}.ap-southeast-1.maas.aliyuncs.com' },
+      ],
+    }];
+
+    render(<ProviderSetup />);
+
+    const keyInput = await screen.findByPlaceholderText(/sk-/);
+    fireEvent.change(keyInput, { target: { value: 'sk-qwen' } });
+    const connect = screen.getByRole('button', { name: 'connectAndSync' });
+    expect(screen.queryByTestId('provider-setup-workspace-id')).toBeNull();
+    expect((connect as HTMLButtonElement).disabled).toBe(false);
+
+    fireEvent.click(screen.getByTestId('endpoint-sg-ws'));
+    const slot = await screen.findByTestId('provider-setup-workspace-id');
+    expect(screen.getByText('workspaceId')).toBeTruthy();
+    expect(screen.getByText('workspaceIdHint')).toBeTruthy();
+    expect((connect as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(slot, { target: { value: 'ws_1' } });
+    expect((connect as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(slot, { target: { value: '  WS-123abc ' } });
+    expect((connect as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(connect);
+
+    await waitFor(() => expect(mockProviderOpsAdd).toHaveBeenCalled());
+    expect(mockProviderOpsAdd).toHaveBeenCalledWith(mockStore, expect.objectContaining({
+      kind: 'qwen',
+      baseURLText: 'https://ws-123abc.ap-southeast-1.maas.aliyuncs.com',
+      endpointSource: 'region:sg-ws',
+      setupValues: { workspaceId: 'ws-123abc' },
+    }));
   });
 
   // The submission telemetry has to come from a real click path: testing the builder alone only
@@ -437,6 +508,8 @@ describe('ProviderSetup', () => {
       kind: 'openRouter',
       apiKey: 'sk-test-key',
       baseURLText: 'https://openrouter.ai/api/v1',
+      // No region and the address unchanged -> default.
+      endpointSource: 'default',
       id: 'provider-uuid',
       apiKeyPreview: 'preview-sk-test-key',
     }));

@@ -2,6 +2,7 @@ import { BackButton, CloseButton } from "@oriveo/ui";
 import { useTranslations } from "next-intl";
 import type { Provider } from "@oriveo/shared";
 import { ProviderIcon } from "../../ProviderIcon";
+import { relayIconSource } from "../../relay-avatar";
 import { getModelSwitcherProviderLabel } from "../model-switcher-sorting";
 import styles from "../ModelSwitcher.module.css";
 import type { ModelSwitcherData } from "./hooks/useModelSwitcherData";
@@ -53,7 +54,7 @@ export function ManualEntryView({ data, activeProvider, onClose }: ManualEntryVi
         <div className={styles.manualHero}>
           <div className={styles.manualProvider}>
             <span className={styles.providerMark}>
-              <ProviderIcon kind={activeProvider.kind} size={18} bare />
+              <ProviderIcon kind={activeProvider.kind} size={18} bare {...relayIconSource(activeProvider)} />
             </span>
             <span>{getModelSwitcherProviderLabel(activeProvider)}</span>
           </div>

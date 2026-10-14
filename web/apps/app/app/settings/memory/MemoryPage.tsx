@@ -23,6 +23,8 @@ import { readStream } from '../../../lib/utils/chat-stream-utils';
 import { graphemeCount, takeGraphemes } from '../../../lib/utils/grapheme-utils';
 import { getConversationById } from '../../../lib/infra/storage/idb';
 import styles from './MemoryPage.module.css';
+import { requestBaseURLText } from '../../../lib/core/providers/endpoint-source';
+import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
 
 const MAX_MEMORY_CHARS = 2000;
 const SOFT_WARN_CHAR_THRESHOLD = 1700;
@@ -81,6 +83,7 @@ export function MemoryPage() {
   const preferences = useAppStore((s) => s.preferences);
   const memoryUsageCount = useAppStore((s) => s.memoryUsageCount);
   const providers = useAppStore((s) => s.providers);
+  const lastUsedModelRef = useAppStore((s) => s.lastUsedModelRef);
   const conversations = useAppStore((s) => s.conversations);
 
   const [text, setText] = useState(preferences.memoryText ?? '');
@@ -196,12 +199,23 @@ export function MemoryPage() {
   /* --------- Generate draft (round-robin across providers) --------- */
 
   const handleGenerateDraft = useCallback(async () => {
+    // If the last used model is still valid it goes first and is used; relays ignore the old isDefault and are not excluded for lacking a key
+    // (connections that need no authentication, such as local engines, never had a key).
+    const lastUsedModel = (p: typeof providers[number]) => (
+      lastUsedModelRef && p.id === lastUsedModelRef.providerID
+        ? p.models.find((m) => m.id === lastUsedModelRef.modelID) ?? null
+        : null
+    );
     const candidates = providers
-      .filter((p) => p.apiKey)
+      .filter((p) => p.kind === 'relay' || resolveProviderAPIKey(p))
       .map((p) => ({
         provider: p,
-        model: p.models.find((m) => m.isDefault) ?? p.models[0] ?? null,
+        model: lastUsedModel(p)
+          ?? (p.kind !== 'relay' ? p.models.find((m) => m.isDefault) : undefined)
+          ?? p.models[0]
+          ?? null,
       }))
+      .sort((lhs, rhs) => Number(Boolean(lastUsedModel(rhs.provider))) - Number(Boolean(lastUsedModel(lhs.provider))))
       .filter(
         (
           c,
@@ -210,7 +224,7 @@ export function MemoryPage() {
       );
 
     if (candidates.length === 0) {
-      const hasAnyKey = providers.some((p) => p.apiKey);
+      const hasAnyKey = providers.some((p) => resolveProviderAPIKey(p));
       setErrorDialog(
         hasAnyKey
           ? { title: t('errorNoModelTitle'), message: t('errorNoModelMessage') }
@@ -296,10 +310,10 @@ ${excerpts}`;
       try {
         const { stream } = sendStream(
           candidate.provider.kind,
-          candidate.provider.apiKey,
+          resolveProviderAPIKey(candidate.provider, candidate.model.id),
           candidate.model.id,
           [{ role: 'user', content: prompt }],
-          candidate.provider.baseURLText,
+          requestBaseURLText(candidate.provider),
         );
         const { fullText } = await readStream(stream, '', () => {});
         if (draftRequestIdRef.current !== thisRequestId) {
@@ -349,7 +363,7 @@ ${excerpts}`;
           : t('errorAggregated', { count: attempts }),
       });
     }
-  }, [providers, conversations, text, t, focusEditor]);
+  }, [providers, lastUsedModelRef, conversations, text, t, focusEditor]);
 
   /* ───────── Draft conflict resolution ───────── */
 

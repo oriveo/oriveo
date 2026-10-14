@@ -52,7 +52,8 @@ export function buildModelsFromCatalog(
     .sort(compareCatalogModels);
 }
 
-function compareCatalogModels(
+/** Catalog display order; the catalog merged from multiple relay keys is sorted by it too, the same order as the single-key path. */
+export function compareCatalogModels(
   left: { sortRank?: number; createdAt?: number; name: string },
   right: { sortRank?: number; createdAt?: number; name: string },
 ) {

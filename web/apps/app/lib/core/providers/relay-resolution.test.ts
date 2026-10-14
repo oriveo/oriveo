@@ -35,7 +35,8 @@ describe('relay capability bitmap structure guard', () => {
   );
 
   it.each([
-    'app/providers/relay/new/RelaySetup.tsx',
+    // The persisted shape of manual setup moved from RelaySetup.tsx to manual-setup-board.ts; the semantics it guards are unchanged.
+    'app/providers/relay/new/manual-setup-board.ts',
     'app/providers/relay/new/LocalComputeSetup.tsx',
     'lib/core/provider-ops.ts',
   ])('%s delegates its bitmap to relay-resolution', (relativePath) => {

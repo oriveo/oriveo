@@ -8,15 +8,17 @@ import {
 } from '../relay-error-classifier';
 
 describe('classifyRelayHTTPError', () => {
-  it('Rule 1: unknown input parameter points to Codex style Responses', () => {
-    const error = classifyRelayHTTPError(400, `{"error":{"message":"Unknown parameter: 'input[0].content[0].image_url.url'"}}`);
-    expect(error?.message).toContain('Codex style');
-    expect(error?.message).toContain('Responses');
+  // Guidance only applies to relays; the copy matches iOS word for word, and the per-sentence assertions live in the error-i18n test of apps/app.
+  const relay = { isRelay: true } as const;
+
+  it('Rule 1: unknown input parameter points to the per-model Protocol', () => {
+    const error = classifyRelayHTTPError(400, `{"error":{"message":"Unknown parameter: 'input[0].content[0].image_url.url'"}}`, undefined, relay);
+    expect(error?.message).toContain('Model Library → this model → Advanced and set Protocol to OpenAI Responses');
   });
 
-  it('Rule 2: image_url schema mismatch points to Relay type', () => {
-    const error = classifyRelayHTTPError(400, `{"error":{"message":"image_url is invalid for this protocol"}}`);
-    expect(error?.message).toContain('Relay type');
+  it('Rule 2: image_url schema mismatch points to the per-model Protocol', () => {
+    const error = classifyRelayHTTPError(400, `{"error":{"message":"image_url is invalid for this protocol"}}`, undefined, relay);
+    expect(error?.message).toContain('set Protocol to one that fits this model');
   });
 
   it('Rule 3: Anthropic auth mismatch points to x-api-key (relay context required)', () => {
@@ -30,61 +32,49 @@ describe('classifyRelayHTTPError', () => {
     expect(error?.message).toContain('x-api-key');
   });
 
-  it('Rule 4: Codex identity rejection first points non-Codex configs to Codex style', () => {
+  it('Rule 4: Codex identity rejection on a non-Responses protocol points to the per-model Protocol', () => {
     const error = classifyRelayHTTPError(403, 'Only Codex official clients are allowed.', undefined, {
+      isRelay: true,
       transport: 'openai_chat_completions',
-      relayKind: 'openai_compatible',
     });
-    expect(error?.message).toContain('Codex style');
+    expect(error?.message).toContain('set Protocol to OpenAI Responses');
   });
 
-  it('Rule 4: Codex identity rejection points disabled identity to the identity toggle', () => {
+  it('Rule 4b: Codex identity rejection on Responses points to custom User-Agent', () => {
     const error = classifyRelayHTTPError(403, 'Only Codex official clients are allowed.', undefined, {
+      isRelay: true,
       transport: 'openai_responses',
-      relayKind: 'codex_style',
-      codexCompatIdentity: false,
-    });
-    expect(error?.message).toContain('Codex compatible identity');
-  });
-
-  it('Rule 4b: Codex identity rejection after identity injection points to custom User-Agent', () => {
-    const error = classifyRelayHTTPError(403, 'Only Codex official clients are allowed.', undefined, {
-      transport: 'openai_responses',
-      relayKind: 'codex_style',
-      codexCompatIdentity: true,
     });
     expect(error?.message).toContain('custom User-Agent');
   });
 
-  it('Rule 5: Codex host 404 on chat completions points to Codex style', () => {
-    const error = classifyRelayHTTPError(404, '{"error":"not found"}', 'https://codex.relay.example.com/v1/chat/completions');
-    expect(error?.message).toContain('Codex style');
+  it('Rule 5: Codex host 404 on chat completions points to the per-model Protocol', () => {
+    const error = classifyRelayHTTPError(404, '{"error":"not found"}', 'https://codex.relay.example.com/v1/chat/completions', relay);
+    expect(error?.message).toContain('only exposes /v1/responses');
   });
 
-  it('Rule 6: max_tokens missing points to model max_tokens', () => {
-    const error = classifyRelayHTTPError(400, 'max_tokens: Field required');
+  it('Rule 6: max_tokens missing points to Max Tokens', () => {
+    const error = classifyRelayHTTPError(400, 'max_tokens: Field required', undefined, relay);
     expect(error?.message).toContain('max_tokens');
   });
 
-  it('Rule 7: invalid service tier points to OpenAI service tier', () => {
-    const error = classifyRelayHTTPError(400, 'service_tier is invalid');
-    expect(error?.message).toContain('OpenAI service tier');
+  it('Rule 7: invalid service tier points to Service Tier', () => {
+    const error = classifyRelayHTTPError(400, 'service_tier is invalid', undefined, relay);
+    expect(error?.message).toContain('Service Tier');
   });
 
   it('Rule 8: store parameter rejection points to response storage toggle', () => {
-    const error = classifyRelayHTTPError(400, `Unknown parameter: 'store'`);
+    const error = classifyRelayHTTPError(400, `Unknown parameter: 'store'`, undefined, relay);
     expect(error?.message).toContain('cloud');
   });
 
-  it('Rule 9: rate limit keeps a rateLimited action for a confirmed relay request', () => {
-    const error = classifyRelayHTTPError(429, 'rate limit exceeded', undefined, { isRelay: true });
-    expect(error?.kind).toBe('rateLimited');
-    expect(error?.message).toContain('rate limit');
+  it('Rule 9: relay 429 no longer has relay guidance (falls to the generic rateLimited)', () => {
+    expect(classifyRelayHTTPError(429, 'rate limit exceeded', undefined, { isRelay: true })).toBeNull();
   });
 
-  it('Rule 10: upstream_error points to relay administrator/upstream', () => {
-    const error = classifyRelayHTTPError(502, `{"error":{"type":"upstream_error","message":"Upstream authentication failed"}}`);
-    expect(error?.message).toContain('relay administrator');
+  it('Rule 10: upstream_error points to the connection administrator/upstream', () => {
+    const error = classifyRelayHTTPError(502, `{"error":{"type":"upstream_error","message":"Upstream authentication failed"}}`, undefined, relay);
+    expect(error?.message).toContain('its administrator');
   });
 
   // A Moonshot BYOK 429 straight from api.moonshot.cn was classified with relay rate-limit copy, because
@@ -129,12 +119,12 @@ describe('classifyRelayHTTPError', () => {
         { isRelay: true },
       );
       expect(error?.kind).toBe('invalidKey');
-      expect(error?.message).toContain('relay');
+      expect(error?.message).toContain('x-api-key');
     });
 
     it('404 model unavailable still resolves for a confirmed relay request', () => {
       const error = classifyRelayHTTPError(404, 'model_not_found: no such model', undefined, { isRelay: true });
-      expect(error?.message).toContain('relay upstream does not offer this model');
+      expect(error?.message).toContain("upstream does not offer this model");
     });
   });
 });

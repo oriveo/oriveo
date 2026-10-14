@@ -3,7 +3,7 @@
 import type { ComponentType, MouseEventHandler, ReactNode } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AppShellWrapper, resolveDesktopNavigationURL } from './AppShellWrapper';
+import { AppShellWrapper, hidesMobileNavChrome, resolveDesktopNavigationURL } from './AppShellWrapper';
 
 const mocks = vi.hoisted(() => ({
   pathname: '/chat',
@@ -69,6 +69,7 @@ vi.mock('@oriveo/ui', () => ({
     overlaySidebarOpen,
     mobileHomeMode,
     hideMobileTabBar,
+    hideMobileNavChrome,
     LinkComponent,
     onNavigate,
     onNewChat,
@@ -82,6 +83,7 @@ vi.mock('@oriveo/ui', () => ({
     overlaySidebarOpen?: boolean;
     mobileHomeMode?: boolean;
     hideMobileTabBar?: boolean;
+    hideMobileNavChrome?: boolean;
     LinkComponent?: ComponentType<{
       href: string;
       prefetch?: boolean;
@@ -101,6 +103,7 @@ vi.mock('@oriveo/ui', () => ({
       <div data-testid="overlay-sidebar-open">{String(overlaySidebarOpen)}</div>
       <div data-testid="mobile-home-mode">{String(mobileHomeMode)}</div>
       <div data-testid="hide-mobile-tabbar">{String(hideMobileTabBar)}</div>
+      <div data-testid="hide-mobile-nav-chrome">{String(hideMobileNavChrome)}</div>
       <button type="button" data-testid="new-chat" onClick={onNewChat}>new-chat</button>
       {navItems.map((item) => (
         <div key={item.href} data-testid={`nav-${item.href}`}>
@@ -335,6 +338,32 @@ describe('AppShellWrapper', () => {
     );
 
     expect(screen.getByTestId('active-path').textContent).toBe('/settings');
+  });
+
+  it('RL2-MOBILE-TABBAR-01 provider detail / sub-routes and relay setup hide the mobile tab bar and hamburger; the list keeps them', () => {
+    for (const pathname of ['/providers/relay-1', '/providers/relay-1/', '/providers/relay-1/manual-model', '/providers/relay/new', '/providers/relay/new/']) {
+      expect(hidesMobileNavChrome(pathname)).toBe(true);
+    }
+    for (const pathname of ['/providers', '/providers/', '/chat', '/settings', '/chat/conversation-1']) {
+      expect(hidesMobileNavChrome(pathname)).toBe(false);
+    }
+
+    mocks.isMobile = true;
+    mocks.pathname = '/providers/relay-1';
+    const { rerender } = render(
+      <AppShellWrapper>
+        <div>Inner Content</div>
+      </AppShellWrapper>,
+    );
+    expect(screen.getByTestId('hide-mobile-nav-chrome').textContent).toBe('true');
+
+    mocks.pathname = '/providers';
+    rerender(
+      <AppShellWrapper>
+        <div>Inner Content</div>
+      </AppShellWrapper>,
+    );
+    expect(screen.getByTestId('hide-mobile-nav-chrome').textContent).toBe('false');
   });
 
   it('keeps the settings dock item selected on the skills route', () => {

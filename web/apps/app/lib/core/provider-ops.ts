@@ -11,6 +11,7 @@ import {
   type RelayConnectionSecurityMode,
 } from '@oriveo/shared';
 import { formatApiKeyPreview } from '@oriveo/shared';
+import { applyRelayKeyOp, relayKeyIDs } from '@oriveo/shared/relay/relay-keys';
 import type { AppStore } from './store/app-store';
 import { getSyncAdapter } from './sync-port';
 import { makeUniqueProviderInstanceName } from './providers/provider-display';
@@ -59,11 +60,32 @@ import {
   beginCapabilityEvidenceIdentityIfAbsent,
   tombstoneCapabilityEvidenceIdentity,
 } from './providers/capability-evidence-identity';
+import {
+  withPreviousEngineDeclarations,
+  withRelayDiscoveredRoot,
+  withRelayModelLocalFields,
+} from './providers/relay-model-probe';
+import { effectiveTransport } from '@oriveo/core/providers/relay-effective';
+import { rememberRelayCatalogEndpointTypes } from './providers/relay-probe-candidates';
+import { clearRelayNegativeCacheConnection } from './chat/relay-negative-cache';
+import { clearRelayWebProbeRecordsConnection } from './chat/relay-web-probe-records';
+import {
+  deleteRelayWebFragmentsConnection,
+  effectiveRelayWebFragmentsForProvider,
+  replaceRelayWebFragments,
+} from './chat/relay-web-fragments';
+import { clearLegacyWebSearchFields, hasLegacyWebSearchFields } from '@oriveo/shared/relay/legacy-web-search';
+import type { RelayWebFragments } from '@oriveo/shared/relay/web-fragments';
+import { runRelayWebAutoProbesAfterSave, type RelayWebAutoProbeDeps } from './relay-web-probe-auto';
+import { endpointSourcePatchForBaseURL } from './providers/endpoint-source';
+import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
+import { emitRelayKeyConfirmation } from './providers/relay-key-confirmation';
+import { findRelayModel } from './providers/relay-model-identity';
 
 function relayConnectionSemantics(provider: Provider): string {
   return JSON.stringify({
     baseURLText: provider.baseURLText ?? null,
-    relayKind: provider.relayKind ?? null,
+    // relayKind is not part of the connection identity: it is derived from the default protocol at save time and never read when sending.
     requested: provider.relayRequested ? {
       transport: provider.relayRequested.transport ?? null,
       authMode: provider.relayRequested.authMode ?? null,
@@ -309,8 +331,8 @@ export async function updateProviderKey(store: StoreApi<AppStore>, provider: Pro
         status: { kind: 'issue' as const, message: PROVIDER_VALIDATION_MESSAGES.unverified },
         lastCheckedAt: undefined,
         lastError: PROVIDER_VALIDATION_MESSAGES.unverified,
-        // A new key can belong to a completely different account or model set, so the catalog is invalidated immediately; already-enabled models remain the user's own data.
-        catalogModels: [],
+        // Replacing the key value does not clear the catalog: the refresh after a successful verification re-pulls it, and a failed verification leaves the catalog as it was.
+        ...relayPrimaryKeyReplacedFields(canonical, newKey),
       }
     : {};
   const patch = {
@@ -324,7 +346,25 @@ export async function updateProviderKey(store: StoreApi<AppStore>, provider: Pro
   advanceCapabilityEvidenceIdentity(mutationUID, provider.id, { credentialEpoch: true });
   clearToolCallMemoryForConnection(mutationUID, provider.id);
   getSyncAdapter()?.didUpdateProvider(nextProvider);
+  // The relay's primary key really changed value: "not connected" no longer holds for models whose effective key is the primary one; only a non-empty new value that differs from the old one counts.
+  if (canonical.kind === 'relay' && newKey.trim() && newKey !== canonical.apiKey) { // key-choke: stored-field
+    emitRelayKeyConfirmation({ type: 'keySecretReplaced', store, providerID: canonical.id, keyIDs: [relayKeyIDs(canonical)[0]!] });
+  }
   return true;
+}
+
+/**
+ * Replacing the primary key's value = one replaceSecret on the primary key: clear the no-access marker it left on models and, when there is a list, its status.
+ * Returns only the fields that really changed; a single key with no marker carries nothing.
+ */
+function relayPrimaryKeyReplacedFields(provider: Provider, newKey: string): Partial<Pick<Provider, 'models' | 'relayKeys'>> {
+  const replaced = applyRelayKeyOp(provider, { type: 'replaceSecret', id: relayKeyIDs(provider)[0]!, apiKey: newKey });
+  if (replaced === 'refused') return {};
+  const modelsChanged = replaced.models.some((model, index) => model !== provider.models[index]);
+  return {
+    ...(modelsChanged ? { models: replaced.models } : {}),
+    ...(provider.relayKeys ? { relayKeys: replaced.relayKeys } : {}),
+  };
 }
 
 /** Clearing patch for all three kinds of credential material (key, custom headers, custom query), shared by both clear paths. */
@@ -364,7 +404,7 @@ export async function clearRelayCredentials(store: StoreApi<AppStore>, provider:
   const nextProvider = { ...provider, ...patch };
   store.getState().updateProvider(provider.id, patch);
   const connectionChanged = relayConnectionSemanticsChanged(provider, nextProvider);
-  const credentialChanged = provider.apiKey.trim().length > 0
+  const credentialChanged = resolveProviderAPIKey(provider).trim().length > 0
     || relayKVcredentialMaterialChanged(provider, nextProvider);
   if (connectionChanged || credentialChanged) {
     advanceCapabilityEvidenceIdentity(mutationUID, provider.id, {
@@ -402,7 +442,7 @@ export async function beginRelaySecurityModeReconnect(
   const hasCredentialMaterial = cleartext && relayHasCredentialMaterialAcross([
     {
       authMode: currentRequested.authMode,
-      hasStoredKey: provider.apiKey.trim().length > 0,
+      hasStoredKey: resolveProviderAPIKey(provider).trim().length > 0,
       headers: currentRequested.headers,
       queryParams: currentRequested.queryParams,
     },
@@ -451,7 +491,7 @@ export async function beginRelaySecurityModeReconnect(
   store.getState().updateProvider(provider.id, patch);
   const nextProvider = store.getState().providers.find((item) => item.id === provider.id);
   if (!nextProvider) return null;
-  const credentialChanged = (provider.apiKey.trim().length > 0 && nextProvider.apiKey.trim().length === 0)
+  const credentialChanged = (resolveProviderAPIKey(provider).trim().length > 0 && resolveProviderAPIKey(nextProvider).trim().length === 0)
     || relayKVcredentialMaterialChanged(provider, nextProvider);
   advanceCapabilityEvidenceIdentity(mutationUID, provider.id, {
     connectionGeneration: true,
@@ -481,15 +521,22 @@ export function finishRelaySecurityModeReconnect(
   if (store.getState().providers.find((item) => item.id === provider.id) !== provider) return null;
   const requested = provider.relayRequested
     ?? makeRelayRequested(provider.relayKind ?? 'openai_compatible');
-  const relayRequested = { ...requested, resolvedAPIBaseURL: detection.apiBaseURL };
-  const refreshedCatalog = detection.catalogModels;
-  const models = provider.models.map((model) => ({
-    ...(refreshedCatalog.find((candidate) => candidate.id === model.id) ?? model),
-    isDefault: model.isDefault,
-  }));
+  // A reconnect only updates the root and leaves the connection protocol alone: write the single-value root only when the discovered protocol is the connection's actual default, otherwise it goes into the per-protocol address table.
+  const relayRequested = withRelayDiscoveredRoot(
+    // relayRequested.modelID is no longer written: clear any old value on write-back.
+    { baseURLText: provider.baseURLText, relayRequested: { ...requested, modelID: undefined } },
+    detection.transport,
+    detection.apiBaseURL,
+  );
+  const refreshedCatalog = withPreviousEngineDeclarations(detection.catalogModels, provider);
+  const models = provider.models.map((model) => {
+    const match = findRelayModel(refreshedCatalog, model.id);
+    // A relay has no default model: a reconnect write-back never marks one.
+    return match ? withRelayModelLocalFields({ ...match, isDefault: false }, model) : model;
+  });
   const enabledModels = models.length > 0
     ? models
-    : refreshedCatalog[0] ? [{ ...refreshedCatalog[0], isDefault: true }] : provider.models;
+    : refreshedCatalog[0] ? [{ ...refreshedCatalog[0], isDefault: false }] : provider.models;
   const now = new Date().toISOString();
   const runtime = resolveRelayRuntimeFields({
     baseURLText: provider.baseURLText,
@@ -499,11 +546,24 @@ export function finishRelaySecurityModeReconnect(
       authMode: detection.authMode,
     },
   });
+  // Legacy connection-level dispatch fields are no longer written by probing (same as the create flow); keep the values already on the object.
+  const {
+    relayResolvedTransport: _relayResolvedTransport,
+    relayResolvedAuthMode: _relayResolvedAuthMode,
+    relayResolvedHeaderProfile,
+    relayResolvedFamilyHint,
+    ...runtimeWithoutTransport
+  } = runtime;
+  // The discovered protocol's auth / header profile is written only when it is the connection's actual default protocol; for an auto-detect
+  // connection, or a discovered protocol that is not the default, keep the original values, and models that follow the connection are derived from the request protocol by resolveRelayModelRuntime.
+  const discoveredIsConnectionDefault = requested.transport !== 'auto'
+    && detection.transport === effectiveTransport({ baseURLText: provider.baseURLText, relayRequested }, null);
   const patch: Partial<Provider> = {
     relayRequested,
-    ...runtime,
-    relayResolvedTransport: detection.transport,
-    relayResolvedAuthMode: detection.authMode,
+    ...runtimeWithoutTransport,
+    ...(discoveredIsConnectionDefault
+      ? { relayResolvedAuthMode: detection.authMode, relayResolvedHeaderProfile, relayResolvedFamilyHint }
+      : {}),
     relayResolvedBaseURLText: detection.apiBaseURL,
     relayCapabilityBitmap: buildRelayCapabilityBitmap(detection.transport, {
       catalogEvidenceSucceeded: detection.catalogEvidenceSucceeded,
@@ -517,6 +577,8 @@ export function finishRelaySecurityModeReconnect(
     updatedAt: now,
   };
   store.getState().updateProvider(provider.id, patch);
+  // The catalog from a reconnect is also parsed from the raw /models text: per-model probe candidates need it.
+  rememberRelayCatalogEndpointTypes(provider.id, detection.catalogEndpointTypes);
   const nextProvider = store.getState().providers.find((item) => item.id === provider.id);
   if (!nextProvider) return null;
   if (relayConnectionSemanticsChanged(provider, nextProvider)) {
@@ -547,9 +609,33 @@ export function updateProviderBaseURL(store: StoreApi<AppStore>, provider: Provi
     baseURLText: val,
     updatedAt: new Date().toISOString(),
     ...relayPatch,
+    ...endpointSourcePatchForBaseURL(provider.kind, val, provider),
   };
   store.getState().updateProvider(provider.id, patch);
   if (provider.baseURLText !== val) {
+    advanceCapabilityEvidenceIdentity(getActiveUIDSync(), provider.id, { connectionGeneration: true });
+    clearToolCallMemoryForConnection(getActiveUIDSync(), provider.id);
+  }
+  getSyncAdapter()?.didUpdateProvider({ ...provider, ...patch });
+}
+
+/**
+ * The official detail page selects a template region that contains placeholders: the address, region source and setupValues are written in one go, then synced as usual.
+ * Non-template regions still go through updateProviderBaseURL.
+ */
+export function updateProviderOfficialEndpoint(
+  store: StoreApi<AppStore>,
+  provider: Provider,
+  endpoint: Pick<Provider, 'baseURLText' | 'endpointSource' | 'setupValues'>,
+) {
+  const patch = {
+    baseURLText: endpoint.baseURLText,
+    endpointSource: endpoint.endpointSource,
+    setupValues: endpoint.setupValues,
+    updatedAt: new Date().toISOString(),
+  };
+  store.getState().updateProvider(provider.id, patch);
+  if (provider.baseURLText !== endpoint.baseURLText) {
     advanceCapabilityEvidenceIdentity(getActiveUIDSync(), provider.id, { connectionGeneration: true });
     clearToolCallMemoryForConnection(getActiveUIDSync(), provider.id);
   }
@@ -563,11 +649,11 @@ export function updateProviderName(store: StoreApi<AppStore>, provider: Provider
     store.getState().providers,
     provider.id,
   );
-  store.getState().updateProvider(provider.id, {
-    customName: trimmed,
-    updatedAt: new Date().toISOString(),
-  });
-  getSyncAdapter()?.didUpdateProvider({ ...provider, customName: trimmed });
+  const updatedAt = new Date().toISOString();
+  store.getState().updateProvider(provider.id, { customName: trimmed, updatedAt });
+  // Sync uploads the whole record: build on the live record so a stale snapshot held by the page cannot roll back changes made elsewhere.
+  const canonical = store.getState().providers.find((item) => item.id === provider.id);
+  getSyncAdapter()?.didUpdateProvider(canonical ?? { ...provider, customName: trimmed, updatedAt });
 }
 
 export type RelaySettingsPatch = Partial<Pick<Provider,
@@ -585,6 +671,7 @@ export type RelaySettingsPatch = Partial<Pick<Provider,
   | 'status'
   | 'lastCheckedAt'
   | 'lastError'
+  | 'relayKeys'
 >> & Pick<Provider, 'relayKind' | 'relayRequested'>;
 
 /**
@@ -604,7 +691,7 @@ function relaySettingsEffectivePatch(
   patch: RelaySettingsPatch,
 ): RelaySettingsPatch {
   const dropsCredentials = patch.relayRequested?.authMode === 'none'
-    && (provider.apiKey.trim().length > 0
+    && (resolveProviderAPIKey(provider).trim().length > 0
       || (patch.relayRequested.headers?.length ?? 0) > 0
       || (patch.relayRequested.queryParams?.length ?? 0) > 0);
   return dropsCredentials
@@ -612,23 +699,37 @@ function relaySettingsEffectivePatch(
     : patch;
 }
 
+/** The persist patch may be a function evaluated against the live record: the edit page merges per field, and fields it did not change take their value at persist time. */
+export type RelaySettingsPatchSource = RelaySettingsPatch | ((live: Provider) => RelaySettingsPatch);
+
+export function resolveRelaySettingsPatch(source: RelaySettingsPatchSource, live: Provider): RelaySettingsPatch {
+  return typeof source === 'function' ? source(live) : source;
+}
+
 export async function updateProviderRelaySettings(
   store: StoreApi<AppStore>,
   provider: Provider,
-  patch: RelaySettingsPatch,
+  patchSource: RelaySettingsPatchSource,
 ): Promise<boolean> {
   const mutationUID = getActiveUIDSync();
   const canonicalProvider = store.getState().providers.find((item) => item.id === provider.id);
   if (!canonicalProvider) return false;
+  const patch = resolveRelaySettingsPatch(patchSource, canonicalProvider);
   // When the auth mode falls back to "no authentication", the same write also deletes the stored
   // key and any sensitive transport credential. Keeping a key that is stored but never sent turns
   // into a zombie config on the next switch to a cleartext connection or a move to another
   // device: it saves fine but cannot be sent.
   const dropsCredentials = patch.relayRequested?.authMode === 'none'
-    && (canonicalProvider.apiKey.trim().length > 0
+    && (resolveProviderAPIKey(canonicalProvider).trim().length > 0
       || (patch.relayRequested.headers?.length ?? 0) > 0
       || (patch.relayRequested.queryParams?.length ?? 0) > 0);
-  const effectivePatch = relaySettingsEffectivePatch(canonicalProvider, patch);
+  const patched = relaySettingsEffectivePatch(canonicalProvider, patch);
+  // The primary key's value changed (including being emptied when auth becomes none) = replacing the primary key's value: first clear its status and no-access
+  // markers (regardless of the save exit); any relayKeys that arrive in the patch with the verification result come after and override it (the clearing comes first).
+  const nextPrimarySecret = (patched as Partial<Provider>).apiKey; // key-choke: stored-field
+  const effectivePatch = nextPrimarySecret !== undefined && nextPrimarySecret !== canonicalProvider.apiKey // key-choke: stored-field
+    ? { ...relayPrimaryKeyReplacedFields(canonicalProvider, nextPrimarySecret), ...patched }
+    : patched;
   const updatedAt = new Date().toISOString();
   const nextProvider = {
     ...canonicalProvider,
@@ -640,7 +741,7 @@ export async function updateProviderRelaySettings(
     updatedAt,
   });
   const connectionChanged = relayConnectionSemanticsChanged(canonicalProvider, nextProvider);
-  const credentialChanged = (dropsCredentials && canonicalProvider.apiKey.trim().length > 0)
+  const credentialChanged = (dropsCredentials && resolveProviderAPIKey(canonicalProvider).trim().length > 0)
     || relayKVcredentialMaterialChanged(canonicalProvider, nextProvider);
   if (connectionChanged || credentialChanged) {
     advanceCapabilityEvidenceIdentity(mutationUID, provider.id, {
@@ -651,6 +752,29 @@ export async function updateProviderRelaySettings(
   }
   getSyncAdapter()?.didUpdateProvider(nextProvider);
   return true;
+}
+
+/**
+ * Save on the web-search settings page: write the whole connection's fragments to local storage (a segment not given is deleted), then clear the two legacy fields and persist the connection.
+ * When the legacy fields were never there the connection is left alone.
+ */
+export async function saveRelayWebSearchSettings(
+  store: StoreApi<AppStore>,
+  provider: Provider,
+  fragments: RelayWebFragments,
+  autoProbeDeps: RelayWebAutoProbeDeps = {},
+): Promise<boolean> {
+  const canonical = store.getState().providers.find((item) => item.id === provider.id);
+  if (!canonical?.relayRequested) return false;
+  const previous = effectiveRelayWebFragmentsForProvider(canonical);
+  replaceRelayWebFragments(provider.id, fragments);
+  const saved = !hasLegacyWebSearchFields(canonical.relayRequested) || await updateProviderRelaySettings(store, canonical, {
+    relayKind: canonical.relayKind,
+    relayRequested: clearLegacyWebSearchFields(canonical.relayRequested),
+  });
+  // A successful save = one auto-probe event: serial in the background, not awaited, not cancelled when the page closes.
+  if (saved) runRelayWebAutoProbesAfterSave(store, provider.id, previous, autoProbeDeps);
+  return saved;
 }
 
 export async function deleteProvider(store: StoreApi<AppStore>, providerId: string): Promise<boolean> {
@@ -696,6 +820,9 @@ export async function deleteProvider(store: StoreApi<AppStore>, providerId: stri
   deleteAllCapabilityPreferencesForConnection(providerId);
   clearCapabilityRejectionsForConnection(providerId);
   clearToolCallMemoryForConnection(uid, providerId);
+  clearRelayNegativeCacheConnection(providerId);
+  deleteRelayWebFragmentsConnection(providerId);
+  clearRelayWebProbeRecordsConnection(providerId);
   if (shouldSyncDeletion) void flushPendingProviderDeletions(uid);
   trackEvent('provider_removed', {
     provider_kind: telemetryProviderKind(removed?.kind),

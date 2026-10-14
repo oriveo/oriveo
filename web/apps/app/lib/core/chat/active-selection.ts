@@ -1,10 +1,13 @@
 import type { AIModel, Conversation, LastUsedModelRef, Provider } from '@oriveo/shared';
 import { sameNormalizedID } from '../../utils/id-utils';
 import { createProviderSelectionSnapshot } from '../providers/provider-selection-snapshot';
+import { resolveConversationModelRemoval, type ConversationModelRemoval } from './conversation-model-status';
 
 export interface ActiveSelection {
   provider: Provider | undefined;
   currentModel: AIModel | undefined;
+  /** The relay session model has been removed: currentModel is empty here, and the send entry returns with zero requests accordingly. */
+  modelRemoval?: ConversationModelRemoval;
 }
 
 /**
@@ -22,8 +25,14 @@ export function resolveActiveSelection(
 ): ActiveSelection {
   if (conversation) {
     const p = runtimeProviders.find((pr) => sameNormalizedID(pr.id, conversation.providerID));
+    // Session model removed: do not silently swap in the fallback model and do not rewrite the session model; leave it to the banner so the user reselects.
+    const modelRemoval = resolveConversationModelRemoval(p, conversation.modelID);
+    if (p && modelRemoval) {
+      return { provider: p, currentModel: undefined, modelRemoval };
+    }
     const snapshot = createProviderSelectionSnapshot(p, {
       requestedModelId: conversation.modelID,
+      lastUsedModelRef,
     });
     if (snapshot) {
       return {
@@ -36,6 +45,7 @@ export function resolveActiveSelection(
     const p = runtimeProviders.find((pr) => sameNormalizedID(pr.id, selectedProviderId));
     const snapshot = createProviderSelectionSnapshot(p, {
       requestedModelId: selectedModelId,
+      lastUsedModelRef,
     });
     if (snapshot) {
       return {
@@ -48,6 +58,7 @@ export function resolveActiveSelection(
     const p = runtimeProviders.find((pr) => sameNormalizedID(pr.id, lastUsedModelRef.providerID));
     const snapshot = createProviderSelectionSnapshot(p, {
       requestedModelId: lastUsedModelRef.modelID,
+      lastUsedModelRef,
     });
     if (snapshot) {
       return {
@@ -57,7 +68,7 @@ export function resolveActiveSelection(
     }
   }
   const p = runtimeProviders[0];
-  const snapshot = createProviderSelectionSnapshot(p);
+  const snapshot = createProviderSelectionSnapshot(p, { lastUsedModelRef });
   return {
     provider: snapshot?.provider,
     currentModel: snapshot?.currentModel ?? undefined,

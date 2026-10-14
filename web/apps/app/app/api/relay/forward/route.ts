@@ -7,6 +7,7 @@ import {
   SsrfBlockedError,
 } from "../../_shared/ssrf-guard";
 import { checkRateLimit, getClientIp, buildRateLimitHeaders } from "../../chat/stream/rate-limit";
+import { codexIdentityUserAgent, relayInjectsCodexIdentity } from "@oriveo/core/providers/relay-codex-identity";
 
 export const runtime = "nodejs";
 
@@ -63,6 +64,7 @@ interface RelayProxyConfig {
   authMode?: string;
   apiKey?: string;
   codexCompatIdentity?: boolean;
+  codexClientVersion?: string;
   customUserAgent?: string;
   headers?: Array<{ key?: string; value?: string }>;
   queryParams?: Array<{ key?: string; value?: string }>;
@@ -317,6 +319,10 @@ function buildStructuredUpstreamHeaders(config: RelayProxyConfig): Record<string
     "Content-Type": "application/json",
   };
 
+  // Connections that need no auth: same as the direct path (relay-adapter's handling of none), send no credentials,
+  // and no Codex identity, custom UA or custom headers either; even if the proxy config carries an apiKey, it is not sent out.
+  if (config.authMode === "none") return headers;
+
   const apiKey = config.apiKey?.trim();
   switch (config.authMode) {
     case "x_api_key":
@@ -335,11 +341,10 @@ function buildStructuredUpstreamHeaders(config: RelayProxyConfig): Record<string
       break;
   }
 
-  if (
-    (config.transport === "openai_responses" || config.transport === "auto")
-    && config.codexCompatIdentity !== false
-  ) {
-    headers["User-Agent"] = "codex_cli_rs/0.50.0 (Oriveo Web; Node.js)";
+  // Same criterion as the direct path: only requests with identity headers get a client-built body containing prompt_cache_key; the two go in and out together.
+  if (relayInjectsCodexIdentity(config)) {
+    // The proxy config comes from request headers; the version is re-validated in codexIdentityUserAgent, and an invalid one falls back to the built-in value.
+    headers["User-Agent"] = codexIdentityUserAgent(config.codexClientVersion);
     headers.Originator = "codex_cli_rs";
     headers.session_id = crypto.randomUUID();
     headers["OpenAI-Beta"] = "responses=experimental";
@@ -361,6 +366,8 @@ function buildStructuredUpstreamHeaders(config: RelayProxyConfig): Record<string
 
 function applyQueryParams(url: URL, config: RelayProxyConfig | null): void {
   if (!config) return;
+  // No auth: neither the query key nor custom query params are added (same as direct applyDirectQueryParams).
+  if (config.authMode === "none") return;
   if (config.authMode === "query_key" && config.apiKey && !url.searchParams.has("key")) {
     url.searchParams.set("key", config.apiKey);
   }

@@ -26,6 +26,7 @@ import {
   sendWithNativeFileFallback,
 } from '../../attachments/native-file-fallback';
 import { buildOutboundChatHistory } from '../outbound-history';
+import { RELAY_NEGATIVE_CACHE_STORAGE_KEY } from '../relay-negative-cache';
 
 const PDF = 'application/pdf';
 const RAW_PDF = 'JVBERi0xLjQKb3JpdmVv';
@@ -251,6 +252,38 @@ describe('Relay Anthropic line: falls back to text injection after the file bloc
     const events = await sendRelay(relayProvider(), userMessage('u1', []));
     expect(upstreamBodies).toHaveLength(1);
     expect(errorsOf(events)).toEqual([expect.objectContaining({ status: 400 })]);
+  });
+});
+
+describe('Relay native file fallback records the local negative cache file tier', () => {
+  const fileEntries = () => {
+    const raw = localStorage.getItem(RELAY_NEGATIVE_CACHE_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as { entries: Array<{ connectionId: string; modelId: string; kind: string }> }).entries
+      .filter((entry) => entry.kind === 'file') : [];
+  };
+
+  it('400 -> fallback succeeds -> a file entry for the connection x model', async () => {
+    responders = [reject(400), anthropicOk()];
+    await sendRelay(relayProvider(), userMessage('u1', [textPdf()]));
+    expect(fileEntries()).toEqual([expect.objectContaining({ connectionId: 'relay-1', modelId: 'claude-relay' })]);
+  });
+
+  it('413 still falls back, but cannot be judged a rejection, so no entry is written', async () => {
+    responders = [reject(413), anthropicOk()];
+    const events = await sendRelay(relayProvider(), userMessage('u1', [textPdf()]));
+    expect(upstreamBodies).toHaveLength(2);
+    expect(textOf(events)).toBe('ANSWER');
+    expect(fileEntries()).toEqual([]);
+  });
+
+  it('another model on the same connection is unaffected: the file block is still sent first', async () => {
+    const provider = relayProvider();
+    responders = [reject(400), anthropicOk()];
+    await sendRelay(provider, userMessage('u1', [textPdf()]));
+    upstreamBodies.length = 0;
+    responders = [anthropicOk()];
+    await sendRelay(provider, userMessage('u2', [textPdf()]), model({ id: 'claude-relay-2' }));
+    expect(hasDocumentBlock(upstreamBodies[0])).toBe(true);
   });
 });
 

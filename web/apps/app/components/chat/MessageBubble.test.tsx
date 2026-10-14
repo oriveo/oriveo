@@ -839,6 +839,58 @@ describe("MessageBubble", () => {
     expect(onRetryWithoutCustom).toHaveBeenCalledTimes(1);
   });
 
+  it('RL2-NEGCACHE-03 relay image rejected: the body says images are unsupported and the primary action is switching models', () => {
+    mockCreateModelDisplayLookup.mockReturnValue({ resolve: vi.fn().mockReturnValue(null) });
+    const onSwitchModel = vi.fn();
+    render(
+      <MessageBubble
+        message={{
+          ...baseMessage,
+          id: 'assistant-relay-image-rejected',
+          state: 'failed',
+          errorTitle: 'requestFailed.title',
+          errorDetail: 'image_url is not supported',
+          errorSource: 'provider',
+          relayImageUnsupported: true,
+        }}
+        provider={provider}
+        onSwitchModel={onSwitchModel}
+        isLastMessage
+      />,
+    );
+
+    const card = screen.getByTestId('message-recovery-card');
+    expect(card.getAttribute('data-error-detail')).toBe('recovery.imageUnsupported');
+    fireEvent.click(screen.getByRole('button', { name: 'recovery.switchModelBtn' }));
+    expect(onSwitchModel).toHaveBeenCalledTimes(1);
+  });
+
+  it('BOARD-OPTIONS-11 relay file rejected and the fallback failed: the body says these files are unsupported and the primary action is switching models', () => {
+    mockCreateModelDisplayLookup.mockReturnValue({ resolve: vi.fn().mockReturnValue(null) });
+    const onSwitchModel = vi.fn();
+    render(
+      <MessageBubble
+        message={{
+          ...baseMessage,
+          id: 'assistant-relay-file-rejected',
+          state: 'failed',
+          errorTitle: 'requestFailed.title',
+          errorDetail: 'input_file is not supported',
+          errorSource: 'provider',
+          relayFileUnsupported: true,
+        }}
+        provider={provider}
+        onSwitchModel={onSwitchModel}
+        isLastMessage
+      />,
+    );
+
+    const card = screen.getByTestId('message-recovery-card');
+    expect(card.getAttribute('data-error-detail')).toBe('recovery.fileUnsupported');
+    fireEvent.click(screen.getByRole('button', { name: 'recovery.switchModelBtn' }));
+    expect(onSwitchModel).toHaveBeenCalledTimes(1);
+  });
+
   it("renders library_not_searched as a static Tool Call row", () => {
     mockCreateModelDisplayLookup.mockReturnValue({ resolve: vi.fn().mockReturnValue(null) });
     render(

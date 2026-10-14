@@ -19,7 +19,7 @@ import type { ProviderAttachmentSupport } from '../../lib/core/metadata/metadata
 import styles from './InputComposer.module.css';
 import type { LibraryDocumentRef } from '../../lib/core/library/types';
 import { QuoteContextChip } from './QuoteContextChip';
-import { generationParameterProfileFingerprint, loadGenerationParameterOverrides } from '../../lib/core/chat/generation-parameter-settings';
+import { generationParameterFallbackModelId, generationParameterProfileFingerprint, loadGenerationParameterOverrides } from '../../lib/core/chat/generation-parameter-settings';
 import { partitionGenerationParameterValues } from '../../lib/core/chat/generation-parameter-lifecycle';
 import type { CustomFragmentOwner } from '../../lib/core/chat/custom-fragment-settings';
 import type { CapabilityControlPresentation } from '../../lib/core/chat/capability-control-presentation';
@@ -95,8 +95,14 @@ interface InputComposerProps {
   onSelectAlternativeModel?: (model: AIModel) => void;
   /** Opens the existing model switcher; used as the managed/read-only alternative action. */
   onOpenModelSwitcher?: () => void;
+  /**
+   * Connection display name when the relay conversation's model has been removed: when set, a notice bar
+   * appears above the input and sending is disabled; "Choose model" goes through onOpenModelSwitcher.
+   */
+  modelRemovedConnectionName?: string;
   /** The only way forward when the relay protocol is undetermined: the panel does not route itself, ChatView pushes the provider detail page. */
   onOpenConnectionSettings?: () => void;
+  onOpenConnectionWebSearch?: () => void;
   /**
    * Primary action of the "not adjustable" row in the model behavior panel ("find models that
    * support this parameter"). The composer only forwards it; ChatView opens the model picker and
@@ -322,7 +328,9 @@ export function InputComposer({
   capabilityAlternativeModels,
   onSelectAlternativeModel,
   onOpenModelSwitcher,
+  modelRemovedConnectionName,
   onOpenConnectionSettings,
+  onOpenConnectionWebSearch,
   onFindModelsSupportingParameter,
   providerAttachmentSupport,
   providerKind,
@@ -412,6 +420,7 @@ export function InputComposer({
       modelId: currentModel.id,
       conversationId: generationParameterConversationId,
       profileFingerprint: generationParameterProfileFingerprint(generationParameterProvider, currentModel),
+      fallbackModelId: generationParameterFallbackModelId(generationParameterProvider, currentModel),
     });
     // The dot on the chip means "this conversation has custom behavior in effect". A dormant value
     // cannot be sent right now, so lighting the dot with it would be another fake state; its honest
@@ -493,8 +502,9 @@ export function InputComposer({
     };
   }, [closeModelControlsWithFocus, modelControlsOpen]);
 
+  const sendBlockedByRemovedModel = Boolean(modelRemovedConnectionName);
   const requestSend = useCallback(() => {
-    if (isStreaming || !value.trim()) return;
+    if (isStreaming || !value.trim() || sendBlockedByRemovedModel) return;
     const generation = ++sendGenerationRef.current;
     lastSentValueRef.current = value;
     suppressSendRestoreRef.current = true;
@@ -504,7 +514,7 @@ export function InputComposer({
       suppressSendRestoreRef.current = false;
       lastSentValueRef.current = '';
     }, SEND_RESTORE_SUPPRESS_MS);
-  }, [isStreaming, onSend, value]);
+  }, [isStreaming, onSend, sendBlockedByRemovedModel, value]);
 
   const revertSuppressedRestore = useCallback((el: HTMLTextAreaElement) => {
     el.value = value;
@@ -665,7 +675,7 @@ export function InputComposer({
   const modelControlStateDescription = [
     webModelControlGlyphActive ? tCommon('capabilityControlWebSearch') : null,
     reasoningModelControlGlyphActive ? tCommon('capabilityControlThinking') : null,
-    modelBehaviorGlyphActive ? tCommon('modelBehavior') : null,
+    modelBehaviorGlyphActive ? tCommon('generationParameters') : null,
   ].filter((label): label is string => label !== null).join(' - ') || undefined;
 
   return (
@@ -748,6 +758,16 @@ export function InputComposer({
             </div>
           </div>
         )}
+        {modelRemovedConnectionName && (
+          <div className={styles.attachmentSyncBanner} data-tone="warning" role="status" data-testid="model-removed-banner">
+            <span className={styles.modelRemovedBannerText}>
+              {t('modelRemovedBanner', { connection: modelRemovedConnectionName })}
+            </span>
+            <button type="button" className={styles.modelRemovedBannerAction} onClick={onOpenModelSwitcher}>
+              {t('modelRemovedChoose')}
+            </button>
+          </div>
+        )}
         {/* Attachment preview */}
         {attachments.length > 0 && (
           <AttachmentPreview
@@ -796,6 +816,7 @@ export function InputComposer({
             onSelectAlternativeModel={onSelectAlternativeModel}
             onOpenModelSwitcher={onOpenModelSwitcher}
             onOpenConnectionSettings={onOpenConnectionSettings}
+            onOpenConnectionWebSearch={onOpenConnectionWebSearch}
             onFindModelsSupportingParameter={onFindModelsSupportingParameter}
             onOverrideChange={setHasModelBehaviorOverride}
             onClose={closeModelControls}
@@ -878,7 +899,7 @@ export function InputComposer({
               type="button"
               className={styles.sendBtn}
               onClick={requestSend}
-              disabled={!value.trim() || disabled}
+              disabled={!value.trim() || disabled || sendBlockedByRemovedModel}
               aria-label={t('send')}
             >
               <SendIcon />

@@ -8,7 +8,7 @@
  * switched to text injection and the request is resent once. After a successful resend the connection
  * (provider id + line) is remembered in memory as not accepting file blocks, so later requests in this page
  * session go straight to text without the extra round trip. If the resend also fails, the user sees the
- * error of the first attempt.
+ * error of the first attempt. For relays the "remember" step instead writes a local negative cache (see below).
  *
  * Only the status code is used; the upstream error text is never parsed.
  */
@@ -16,15 +16,29 @@ import {
   type AttachmentTransport,
   NATIVE_FILE_FALLBACK_STATUSES,
 } from '@oriveo/core/providers/attachment-transport';
+import { classifyRelayCapabilityTestResponse } from '@oriveo/core/providers/relay-capability-test';
+import { relayKeyAccessOfEvent } from '../providers/relay-key-access-writeback';
 import type { ContentPart, StreamEvent, StreamHandle } from '../providers/types';
 import { telemetryProviderKind, trackEvent } from '../telemetry';
+import {
+  RELAY_NEGATIVE_CACHE_STORAGE_KEY,
+  isRelayNegativeCached,
+  recordRelayNegativeCache,
+  type RelayNegativeCacheModelKey,
+} from '../chat/relay-negative-cache';
+import { safeLocalStorage } from '../../infra/storage/web-storage';
 
 export type OutboundHistoryMessage = {
   role: 'user' | 'assistant' | 'system';
   content: string | ContentPart[];
 };
 
-/* -- This connection rejected file blocks (within this page session) -- */
+/*
+ * -- This connection rejected file blocks --
+ * Relay-form connections record this in the local negative cache under the `file` kind (connection x model x
+ * effective protocol, 7 days), and only when the first error is judged a rejection by the "test capability"
+ * classifier. Subscription lines still record it per connection x line within this page session.
+ */
 
 const rejectedConnections = new Set<string>();
 
@@ -32,13 +46,19 @@ function connectionKey(providerId: string, transport: AttachmentTransport): stri
   return `${providerId}\u0000${transport}`;
 }
 
-export function connectionRejectsNativeFiles(providerId: string | undefined, transport: AttachmentTransport): boolean {
+export function connectionRejectsNativeFiles(
+  providerId: string | undefined,
+  transport: AttachmentTransport,
+  relayKey?: RelayNegativeCacheModelKey | null,
+): boolean {
+  if (relayKey) return isRelayNegativeCached({ ...relayKey, kind: 'file' });
   return providerId !== undefined && rejectedConnections.has(connectionKey(providerId, transport));
 }
 
 /** Tests only. */
 export function __resetNativeFileFallbackForTest(): void {
   rejectedConnections.clear();
+  try { safeLocalStorage.removeItem(RELAY_NEGATIVE_CACHE_STORAGE_KEY); } catch { /* noop */ }
 }
 
 /* -- Fallback version carried along with the outbound history -- */
@@ -51,6 +71,8 @@ interface TextFallback {
   providerId: string;
   providerKind: string;
   transport: AttachmentTransport;
+  /** Negative cache key for Relay-form connections; omitted for other lines. */
+  relayKey?: RelayNegativeCacheModelKey;
 }
 
 /**
@@ -79,7 +101,7 @@ function carriesFilePart(content: string | ContentPart[]): boolean {
 export function attachTextFallback(
   history: OutboundHistoryMessage[],
   fallbackHistory: OutboundHistoryMessage[],
-  connection: { providerId: string; providerKind: string; transport: AttachmentTransport },
+  connection: { providerId: string; providerKind: string; transport: AttachmentTransport; relayKey?: RelayNegativeCacheModelKey },
 ): void {
   if (history.length !== fallbackHistory.length) return;
   history.forEach((message, index) => {
@@ -97,6 +119,7 @@ interface FallbackPlan {
   providerId: string;
   providerKind: string;
   transport: AttachmentTransport;
+  relayKey?: RelayNegativeCacheModelKey;
 }
 
 /**
@@ -128,9 +151,20 @@ function resolveFallbackPlan(history: OutboundHistoryMessage[]): FallbackPlan | 
       providerId: fallback.providerId,
       providerKind: fallback.providerKind,
       transport: fallback.transport,
+      ...(fallback.relayKey ? { relayKey: fallback.relayKey } : {}),
     };
   }
   return connection ? { history: rebuilt, ...connection } : null;
+}
+
+/**
+ * The text-fallback version of the whole outbound history (messages carrying file blocks swapped for text
+ * injection); null when it does not line up or there is no fallback version. Used when a protocol-level
+ * fallback switches to a protocol that does not accept native files, so the new protocol's builder does not
+ * reshape the file blocks into something else.
+ */
+export function textFallbackHistory(history: OutboundHistoryMessage[]): OutboundHistoryMessage[] | null {
+  return resolveFallbackPlan(history)?.history ?? null;
 }
 
 /* -- Sending -- */
@@ -141,6 +175,14 @@ type ErrorEvent = Extract<StreamEvent, { type: 'error' }>;
 function isNativeFileRejection(event: ErrorEvent): boolean {
   if (typeof event.status !== 'number' || !NATIVE_FILE_FALLBACK_STATUSES.has(event.status)) return false;
   return event.source !== 'oriveo' && event.source !== 'network';
+}
+
+function isRelayRejection(event: ErrorEvent): boolean {
+  return typeof event.status === 'number' && classifyRelayCapabilityTestResponse({
+    status: event.status,
+    contentType: 'application/json',
+    body: event.errorDetail ?? event.error ?? '',
+  }) === 'rejected';
 }
 
 /** The model has started producing output: later errors no longer fall back. */
@@ -218,6 +260,8 @@ export function sendWithNativeFileFallback<H extends StreamHandle>(
       try {
         await pipe(primary.stream, async (firstError) => {
           if (cancelled || !isNativeFileRejection(firstError)) return false;
+          // A key without access to this model is not a file block problem: no text-fallback resend, leave it to the outer layer to record on the model.
+          if (plan.relayKey && relayKeyAccessOfEvent(firstError) === 'model_access_denied') return false;
           const retry = send(plan.history);
           active = retry;
           await pipe(
@@ -228,7 +272,12 @@ export function sendWithNativeFileFallback<H extends StreamHandle>(
               return true;
             },
             () => {
-              rejectedConnections.add(connectionKey(plan.providerId, plan.transport));
+              if (plan.relayKey) {
+                // Statuses such as 413 that cannot be judged still fall back and resend, but write no negative cache.
+                if (isRelayRejection(firstError)) recordRelayNegativeCache({ ...plan.relayKey, kind: 'file' });
+              } else {
+                rejectedConnections.add(connectionKey(plan.providerId, plan.transport));
+              }
               // Recorded only after the resend is accepted: just provider_kind and the line name, never the model, file names or status codes.
               trackEvent('native_file_fallback', {
                 provider_kind: telemetryProviderKind(plan.providerKind as never),

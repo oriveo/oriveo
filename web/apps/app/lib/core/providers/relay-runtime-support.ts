@@ -6,7 +6,9 @@
  * This file keeps the renderer-only attachment / supports* UI gates, which intersect with the model
  * capabilities, and re-exports the core rule helpers so existing importers need no change.
  */
-import type { Provider, RelayAuthMode } from '@oriveo/shared';
+import type { AIModel, Provider, RelayAuthMode } from '@oriveo/shared';
+import { decidedTransport } from '@oriveo/core/providers/relay-effective';
+import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
 import type { ProviderAttachmentSupport, RelayRuntimeConfig } from '../metadata/metadata-client';
 import {
   isCleartextRelayConnection,
@@ -44,7 +46,7 @@ export function relayProviderRequiresCredential(provider: Provider): boolean {
 export function relayProviderHasCredentialMaterial(provider: Provider): boolean {
   return relayHasCredentialMaterial({
     authMode: relayProviderAuthMode(provider),
-    hasStoredKey: (provider.apiKey ?? '').trim().length > 0,
+    hasStoredKey: (resolveProviderAPIKey(provider) ?? '').trim().length > 0,
     headers: provider.relayRequested?.headers,
     queryParams: provider.relayRequested?.queryParams,
   });
@@ -59,7 +61,7 @@ export function relayProviderHasCredentialMaterial(provider: Provider): boolean 
 export function relayProviderCredentialState(provider: Provider): RelayCredentialState {
   return resolveRelayCredentialState({
     authMode: relayProviderAuthMode(provider),
-    hasStoredKey: (provider.apiKey ?? '').trim().length > 0,
+    hasStoredKey: (resolveProviderAPIKey(provider) ?? '').trim().length > 0,
     securityMode: provider.relayRequested?.securityMode,
     hasSensitiveTransportCredentials: relayHasCredentialMaterial({
       authMode: 'none',
@@ -71,15 +73,17 @@ export function relayProviderCredentialState(provider: Provider): RelayCredentia
 }
 
 /**
- * Provider-level attachmentSupport for a relay, derived from the transport envelope alone; the model
- * capabilities are intersected one layer up. Non-relay or an unresolved transport returns null and the composer stays disabled.
+ * attachmentSupport for a relay, derived from the transport envelope of the model's own protocol alone; the model
+ * capabilities are intersected one layer up. The protocol is Relay 2.0 `decidedTransport` (the model's own, or the connection default when not auto);
+ * non-relay or an undecided protocol returns null and the composer stays disabled (fail-closed).
  */
 export function resolveRelayAttachmentSupport(
   provider: Provider,
   runtimeConfig: RelayRuntimeConfig,
+  model?: Pick<AIModel, 'relayTransport'> | null,
 ): ProviderAttachmentSupport | null {
   if (provider.kind !== 'relay') return null;
-  const envelope = resolveRelayEnvelope(provider.relayResolvedTransport, runtimeConfig);
+  const envelope = resolveRelayEnvelope(decidedTransport(provider, model), runtimeConfig);
   if (!envelope) return null;
   return {
     image: envelope.image,
@@ -92,25 +96,28 @@ export function resolveRelayAttachmentSupport(
 export function transportSupportsWebSearch(
   provider: Provider,
   runtimeConfig: RelayRuntimeConfig,
+  model?: Pick<AIModel, 'relayTransport'> | null,
 ): boolean {
   if (provider.kind !== 'relay') return false;
-  return resolveRelayEnvelope(provider.relayResolvedTransport, runtimeConfig)?.webSearch ?? false;
+  return resolveRelayEnvelope(decidedTransport(provider, model), runtimeConfig)?.webSearch ?? false;
 }
 
 /** Whether the relay's current transport supports the image generation tool (decided by the backend envelope). */
 export function transportSupportsImageGeneration(
   provider: Provider,
   runtimeConfig: RelayRuntimeConfig,
+  model?: Pick<AIModel, 'relayTransport'> | null,
 ): boolean {
   if (provider.kind !== 'relay') return false;
-  return resolveRelayEnvelope(provider.relayResolvedTransport, runtimeConfig)?.imageGeneration ?? false;
+  return resolveRelayEnvelope(decidedTransport(provider, model), runtimeConfig)?.imageGeneration ?? false;
 }
 
 /** Whether the relay's current transport supports reasoning parameters (decided by the backend envelope). */
 export function transportSupportsReasoning(
   provider: Provider,
   runtimeConfig: RelayRuntimeConfig,
+  model?: Pick<AIModel, 'relayTransport'> | null,
 ): boolean {
   if (provider.kind !== 'relay') return false;
-  return resolveRelayEnvelope(provider.relayResolvedTransport, runtimeConfig)?.reasoning ?? false;
+  return resolveRelayEnvelope(decidedTransport(provider, model), runtimeConfig)?.reasoning ?? false;
 }

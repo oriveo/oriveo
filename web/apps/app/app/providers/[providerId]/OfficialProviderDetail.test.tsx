@@ -45,6 +45,8 @@ let storeProvidersMock: Provider[] = [];
 // Three-state subscription sign-in availability. The default "not served by the backend" is the current path for every other official provider.
 let grokSubscriptionAvailabilityMock: unknown = { state: 'unavailable' };
 let openAISubscriptionAvailabilityMock: unknown = { state: 'unavailable' };
+// The providerConfig delivered for this provider; whether the region shows depends only on whether it has regionOptions.
+let publicProviderConfigMock: unknown = { kind: 'openAI', defaultBaseURL: 'https://api.openai.com' };
 const mockSwitchProviderToApiKeyMode = vi.fn();
 const mockPersistGrokSubscriptionCredential = vi.fn();
 const mockPersistOpenAISubscriptionCredential = vi.fn();
@@ -80,6 +82,8 @@ vi.mock('@oriveo/ui', () => ({
     <button type="button" aria-label={label} onClick={onClick} />
   ),
   StatusPill: ({ label }: { label: string }) => <span>{label}</span>,
+  EyeIcon: () => <svg aria-hidden="true" />,
+  EyeOffIcon: () => <svg aria-hidden="true" />,
 }));
 
 vi.mock('../../../lib/hooks/useProviderActions', () => ({
@@ -172,8 +176,20 @@ vi.mock('./components/ProviderConnectionRecoveryCard', () => ({
 
 // SettingsPanel exposes the onDelete row, the interaction under test.
 vi.mock('./components/ProviderSettingsPanel', () => ({
-  ProviderSettingsPanel: ({ onDelete }: { onDelete?: () => void }) => (
-    <div data-testid="settings-panel">
+  ProviderSettingsPanel: ({
+    onDelete,
+    endpointOptions,
+    endpointSectionLabel,
+  }: {
+    onDelete?: () => void;
+    endpointOptions?: Array<{ id: string }>;
+    endpointSectionLabel?: string;
+  }) => (
+    <div
+      data-testid="settings-panel"
+      data-endpoint-options={(endpointOptions ?? []).map((option) => option.id).join(',')}
+      data-endpoint-label={endpointSectionLabel}
+    >
       {onDelete && (
         <button aria-label="deleteProvider" onClick={onDelete}>deleteProvider</button>
       )}
@@ -213,15 +229,8 @@ vi.mock('../../../lib/core/store/selectors', () => ({
   selectResolvedCatalog: () => resolvedCatalogMock,
 }));
 
-vi.mock('../../../components/providers/official-endpoint-utils', () => ({
-  getOfficialEndpointDescriptionTranslationKey: () => '',
-  getOfficialEndpointOptionTranslationKey: () => '',
-  isOfficialEndpointProvider: () => false,
-  resolveOfficialEndpointOptions: () => [],
-}));
-
 vi.mock('../../../lib/core/metadata/metadata-client', () => ({
-  getPublicProviderConfig: () => ({}),
+  getPublicProviderConfig: () => publicProviderConfigMock,
   initMetadata: initMetadataMock,
   refreshMetadata: refreshMetadataMock,
   onVersionChange: () => () => {},
@@ -270,6 +279,7 @@ describe('OfficialProviderDetail', () => {
     storeProvidersMock = [provider];
     grokSubscriptionAvailabilityMock = { state: 'unavailable' };
     openAISubscriptionAvailabilityMock = { state: 'unavailable' };
+    publicProviderConfigMock = { kind: 'openAI', defaultBaseURL: 'https://api.openai.com' };
     mockSwitchProviderToApiKeyMode.mockReset();
     mockSwitchProviderToApiKeyMode.mockResolvedValue(true);
     mockPersistGrokSubscriptionCredential.mockReset();
@@ -369,6 +379,44 @@ describe('OfficialProviderDetail', () => {
       render(<OfficialProviderDetail provider={{ ...provider, kind: 'openAI' }} />);
       expect(screen.queryByTestId('openai-subscription-card')).toBeNull();
     });
+  });
+
+  it('WEB-REGION-01 shows region options for any provider whose metadata has regionOptions', () => {
+    publicProviderConfigMock = {
+      kind: 'openAI',
+      defaultBaseURL: 'https://api.openai.com',
+      regionOptions: [
+        { id: 'global', label: 'Global', baseURL: 'https://api.openai.com' },
+        { id: 'us', label: 'US', baseURL: 'https://us.api.openai.com' },
+      ],
+    };
+    render(<OfficialProviderDetail provider={provider} />);
+    const panel = screen.getByTestId('settings-panel');
+    expect(panel.getAttribute('data-endpoint-options')).toBe('global,us');
+    expect(panel.getAttribute('data-endpoint-label')).toBe('officialEndpoint');
+  });
+
+  // Template regions containing {placeholders} are listed in the detail page's region selector, and picking one then asks for a Workspace ID (same behavior on all three platforms).
+  it('SETUP-FIELDS detail page lists template region options with placeholders', () => {
+    publicProviderConfigMock = {
+      kind: 'qwen',
+      defaultBaseURL: 'https://dashscope-intl.aliyuncs.com',
+      trustedHosts: ['aliyuncs.com'],
+      setupFields: [{ id: 'workspaceId', required: true }],
+      regionOptions: [
+        { id: 'sg', label: 'Singapore', baseURL: 'https://dashscope-intl.aliyuncs.com' },
+        { id: 'sg-ws', label: 'Singapore · Workspace', baseURL: 'https://{workspaceId}.ap-southeast-1.maas.aliyuncs.com' },
+      ],
+    };
+    render(<OfficialProviderDetail provider={{ ...provider, kind: 'qwen', baseURLText: 'https://dashscope-intl.aliyuncs.com' }} />);
+    expect(screen.getByTestId('settings-panel').getAttribute('data-endpoint-options')).toBe('sg,sg-ws');
+  });
+
+  it('WEB-REGION-01 hides region options when metadata has no regionOptions', () => {
+    render(<OfficialProviderDetail provider={provider} />);
+    const panel = screen.getByTestId('settings-panel');
+    expect(panel.getAttribute('data-endpoint-options')).toBe('');
+    expect(panel.getAttribute('data-endpoint-label')).toBe('baseURL');
   });
 
   it('shows a success toast after verifying a healthy connection', async () => {

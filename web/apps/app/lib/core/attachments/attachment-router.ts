@@ -26,6 +26,23 @@ const PDF_MIME = "application/pdf";
 const SCANNED_PDF = "scanned_pdf";
 
 /**
+  * The model's native file allowlist and PDF-native default, overlaid with the Relay file override: On = allowlist plus PDF, with PDF native by default,
+  * Off = allowlist treated as empty. Whether the protocol accepts native files, and the override beating the `file` negative cache, are both in wire resolution (`resolveAttachmentLine`).
+  * The send routing and the file card of the model options panel read this same place.
+ */
+export function nativeFileFieldsOf(
+  model: Pick<AIModel, "nativeFileMimes" | "pdfNativeDefault" | "relayCapabilityOverrides">
+): { nativeFileMimes: readonly string[]; pdfNativeDefault: boolean } {
+  const override = model.relayCapabilityOverrides?.file?.value;
+  const mimes = model.nativeFileMimes ?? [];
+  if (override === false) return { nativeFileMimes: [], pdfNativeDefault: false };
+  if (override === true) {
+    return { nativeFileMimes: mimes.includes(PDF_MIME) ? mimes : [...mimes, PDF_MIME], pdfNativeDefault: true };
+  }
+  return { nativeFileMimes: mimes, pdfNativeDefault: model.pdfNativeDefault === true };
+}
+
+/**
  * Size of the original file in bytes. Derived from the raw bytes themselves rather than from
  * `extractedSizeBytes`, which can be missing (attachments whose extraction failed used to omit it,
  * so the threshold was skipped entirely).
@@ -62,7 +79,7 @@ export function decideAttachmentRoute(
   if (mode === "off") return "client_extract";
 
   const mime = (attachment.mimeType ?? "").toLowerCase();
-  const supported = model.nativeFileMimes ?? [];
+  const { nativeFileMimes: supported, pdfNativeDefault } = nativeFileFieldsOf(model);
   if (!supported.includes(mime)) return "client_extract";
 
   if (!attachment.originalBase64Data) return "client_extract";
@@ -73,7 +90,7 @@ export function decideAttachmentRoute(
 
   if (mime === PDF_MIME) {
     if (attachment.extractionErrorCode === SCANNED_PDF) return "native";
-    if (model.pdfNativeDefault) return "native";
+    if (pdfNativeDefault) return "native";
     return "client_extract";
   }
 

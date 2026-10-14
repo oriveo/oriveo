@@ -390,3 +390,8 @@
     gap: 10px;
   }
 }
+
+/* Forward / next-level chevrons flip with the text direction. */
+.customEntryChevron:dir(rtl) {
+  transform: scaleX(-1);
+}

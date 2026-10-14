@@ -257,6 +257,139 @@ describe("/api/relay/forward", () => {
     expect(headers["OpenAI-Beta"]).toBe("responses=experimental");
   });
 
+  it("uses the UA codex_cli_rs/0.162.1 (Oriveo Web; Node.js) and passes prompt_cache_key through in the body unchanged", async () => {
+    const requestMock = vi.fn().mockResolvedValue(
+      new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+    setRelayForwardUpstreamRequesterForTest(requestMock);
+    const payload = '{"model":"gpt-5","prompt_cache_key":"2290bbc6e2bae08a11ede516e419f3c6"}';
+
+    const res = await POST(
+      buildRequest(
+        {
+          "Content-Type": "application/json",
+          "X-Relay-Upstream-URL": "https://relay.example.com/v1/responses",
+          "X-Relay-Proxy-Config": JSON.stringify({ transport: "openai_responses", authMode: "bearer", apiKey: "sk-test" }),
+        },
+        payload,
+      ),
+    );
+
+    expect(res.status).toBe(200);
+    const [{ headers, body }] = requestMock.mock.calls[0];
+    expect(headers["User-Agent"]).toBe("codex_cli_rs/0.162.1 (Oriveo Web; Node.js)");
+    expect(headers.Originator).toBe("codex_cli_rs");
+    expect(body).toBe(payload);
+  });
+
+  async function forwardedHeaders(proxyConfig: Record<string, unknown>): Promise<Record<string, string>> {
+    const requestMock = vi.fn().mockResolvedValue(
+      new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+    setRelayForwardUpstreamRequesterForTest(requestMock);
+    const res = await POST(
+      buildRequest(
+        {
+          "Content-Type": "application/json",
+          "X-Relay-Upstream-URL": "https://relay.example.com/v1/responses",
+          "X-Relay-Proxy-Config": JSON.stringify(proxyConfig),
+        },
+        '{"model":"gpt-5"}',
+      ),
+    );
+    expect(res.status).toBe(200);
+    return requestMock.mock.calls[0][0].headers as Record<string, string>;
+  }
+
+  it("proxy: a valid version in the proxy config sets the outbound UA; an invalid value falls back to 0.162.1", async () => {
+    const base = { transport: "openai_responses", authMode: "bearer", apiKey: "sk-test" };
+    expect((await forwardedHeaders({ ...base, codexClientVersion: "0.170.3" }))["User-Agent"])
+      .toBe("codex_cli_rs/0.170.3 (Oriveo Web; Node.js)");
+    for (const invalid of ["latest", "0.170.0-alpha.1", "0.170.0\nX-Injected: 1", "0.170.0\n", 170, null]) {
+      expect((await forwardedHeaders({ ...base, codexClientVersion: invalid }))["User-Agent"], String(invalid))
+        .toBe("codex_cli_rs/0.162.1 (Oriveo Web; Node.js)");
+    }
+  });
+
+  it("proxy: authMode=none does not inject the Codex identity headers", async () => {
+    const headers = await forwardedHeaders({ transport: "openai_responses", authMode: "none" });
+    expect(headers["User-Agent"]).toBeUndefined();
+    expect(headers.Originator).toBeUndefined();
+    expect(headers.session_id).toBeUndefined();
+    expect(headers["OpenAI-Beta"]).toBeUndefined();
+  });
+
+  it("proxy: authMode=none sends no auth headers or query key outbound even if the config carries an apiKey", async () => {
+    const requestMock = vi.fn().mockResolvedValue(
+      new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+    setRelayForwardUpstreamRequesterForTest(requestMock);
+    const res = await POST(
+      buildRequest(
+        {
+          "Content-Type": "application/json",
+          "X-Relay-Upstream-URL": "https://relay.example.com/v1/chat/completions",
+          "X-Relay-Proxy-Config": JSON.stringify({
+            transport: "openai_chat_completions",
+            authMode: "none",
+            apiKey: "must-not-leak",
+            customUserAgent: "Custom UA",
+            headers: [
+              { key: "Authorization", value: "Bearer must-not-leak" },
+              { key: "X-Private-Key", value: "must-not-leak" },
+            ],
+            queryParams: [{ key: "key", value: "must-not-leak" }],
+          }),
+        },
+        '{"model":"m"}',
+      ),
+    );
+    expect(res.status).toBe(200);
+    const [{ url, headers }] = requestMock.mock.calls[0];
+    // Same behavior as direct none: only Content-Type remains and the URL carries no query.
+    expect(headers).toEqual({ "Content-Type": "application/json" });
+    expect(url.toString()).toBe("https://relay.example.com/v1/chat/completions");
+    expect(JSON.stringify(headers) + url.toString()).not.toContain("must-not-leak");
+  });
+
+  it("proxy: authMode=bearer is unchanged; auth header, custom headers and query go out as usual", async () => {
+    const requestMock = vi.fn().mockResolvedValue(
+      new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+    setRelayForwardUpstreamRequesterForTest(requestMock);
+    await POST(
+      buildRequest(
+        {
+          "Content-Type": "application/json",
+          "X-Relay-Upstream-URL": "https://relay.example.com/v1/chat/completions",
+          "X-Relay-Proxy-Config": JSON.stringify({
+            transport: "openai_chat_completions",
+            authMode: "bearer",
+            apiKey: "sk-test",
+            customUserAgent: "Custom UA",
+            headers: [{ key: "X-Team", value: "a" }],
+            queryParams: [{ key: "tenant", value: "t1" }],
+          }),
+        },
+        '{"model":"m"}',
+      ),
+    );
+    const [{ url, headers }] = requestMock.mock.calls[0];
+    expect(headers).toEqual({
+      "Content-Type": "application/json",
+      Authorization: "Bearer sk-test",
+      "User-Agent": "Custom UA",
+      "X-Team": "a",
+    });
+    expect(url.toString()).toBe("https://relay.example.com/v1/chat/completions?tenant=t1");
+  });
+
+  it("proxy: transport=auto behaves like direct and does not inject the Codex identity headers", async () => {
+    const headers = await forwardedHeaders({ transport: "auto", authMode: "bearer", apiKey: "sk-test" });
+    expect(headers.Originator).toBeUndefined();
+    expect(headers.Authorization).toBe("Bearer sk-test");
+  });
+
   it("revalidates same-origin redirects hop by hop and follows them, with 307 preserving the POST body and credentials", async () => {
     const requestMock = vi.fn()
       .mockResolvedValueOnce(new Response(null, {

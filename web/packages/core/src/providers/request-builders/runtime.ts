@@ -173,6 +173,10 @@ export interface RuntimeMetadataResponse {
   providerConfigs?: Array<{
     kind: string;
     protocolFeatures?: Record<string, unknown> | null;
+    /** Actual protocol of this provider; when equal to the native family, missing or unknown, the per-provider builder is used. */
+    apiProtocol?: string | null;
+    /** Trusted host suffixes of this provider; empty is equivalent to missing, trusting only the built-in fallback registered domains. */
+    trustedHosts?: unknown;
   }>;
   /** Authoritative recipe registry; invalid or unknown versions are ignored fail-safe by the execution compiler. */
   capabilityRuntime?: CapabilityRuntimeEnvelope;
@@ -442,6 +446,22 @@ export function usesOfficialOpenAIAPI(baseURL?: string): boolean {
 }
 
 /**
+ * For wires that can only send plain text: each image is replaced by the placeholder line declared by the wire, and no image blocks go out.
+ * When `placeholder` is omitted the input is returned unchanged (the wire declares no placeholder).
+ */
+export function withImagePlaceholders(messages: ProxyMessage[], placeholder: string | undefined): ProxyMessage[] {
+  if (!placeholder) return messages;
+  return messages.map((message) => typeof message.content === 'string'
+    ? message
+    : {
+      ...message,
+      content: message.content.map((part): ContentPart => part.type === 'image_url'
+        ? { type: 'text', text: placeholder }
+        : part),
+    });
+}
+
+/**
  * @param options.nativeFileBlock This Chat line's request format has a native `file` block (OpenRouter).
  *   Other Chat lines have no file block: the client delivers files as text according to the line declaration,
  *   so a `file` part never reaches this point.
@@ -691,7 +711,7 @@ function extractTextContent(parts: ContentPart[]): string {
     .join('\n');
 }
 
-function parseDataURL(value: string): { mimeType: string; base64: string } | null {
+export function parseDataURL(value: string): { mimeType: string; base64: string } | null {
   const match = value.match(/^data:([^;]+);base64,(.+)$/);
   if (!match) return null;
   return {

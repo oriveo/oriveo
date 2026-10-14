@@ -13,7 +13,7 @@
  */
 
 import type { EnvPort, TelemetryPort } from '../../ports';
-import { isKnownTransportKind } from './transport-kind';
+import { isCatalogVisibleTransportKind } from './transport-kind';
 
 /** Client runtime version, taken from the injected EnvPort (falls back to '0.0.0' when absent). */
 function getClientVersion(env?: EnvPort): string {
@@ -75,7 +75,7 @@ export function shouldHideModelForTransport(
   env?: EnvPort,
 ): boolean {
   // 1. Unrecognized transport kind -> hide
-  if (model.transport && !isKnownTransportKind(model.transport)) {
+  if (model.transport && !isCatalogVisibleTransportKind(model.transport)) {
     const sig = `kind:${model.transport}`;
     if (!ctx.reportedSignatures.has(sig)) {
       ctx.reportedSignatures.add(sig);

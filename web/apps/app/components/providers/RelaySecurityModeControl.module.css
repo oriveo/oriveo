@@ -1,13 +1,18 @@
 .root { display: flex; flex-direction: column; gap: 8px; }
 .summary, .option { width: 100%; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.summary { display: flex; align-items: center; gap: 11px; min-height: 54px; padding: 10px 14px; border-radius: 10px; }
+/* Menu row (connection safety): the whole row is vertically centered */
+.summary { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 14px; border-radius: 10px; }
+.lead { display: flex; flex: 1; align-items: flex-start; gap: 14px; min-width: 0; }
+.trailing { display: flex; flex: 0 1 auto; align-items: center; gap: 6px; max-width: 55%; min-width: 0; color: var(--o-text-secondary); }
 .summary:hover:not(:disabled) { background: var(--o-bg-subtle); }
 .summary:disabled { cursor: not-allowed; opacity: .55; }
 .icon, .optionIcon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 32px; height: 32px; border-radius: 9px; color: var(--o-primary); background: var(--o-primary-subtle); }
+.plainIcon { display: inline-flex; flex: 0 0 auto; }
 .summaryText, .optionText { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
-.label { color: var(--o-text); font-size: 14px; font-weight: 600; }
-.value, .optionText small { color: var(--o-text-secondary); font-size: 12px; line-height: 1.35; }
-.change { color: var(--o-primary); font-size: 12px; font-weight: 650; }
+.label { color: var(--o-text); font-size: 15px; line-height: 1.45; }
+.description, .optionText small { color: var(--o-text-secondary); font-size: 12px; line-height: 1.35; }
+.value { min-width: 0; overflow: hidden; color: var(--o-text-secondary); font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.change { flex: none; color: var(--o-primary); font-size: 12px; font-weight: 650; }
 .error { color: var(--o-error); font-size: 12px; line-height: 1.35; }
 .panel { padding: 14px; border: 1px solid var(--o-border); border-radius: 12px; background: var(--o-surface-raised); box-shadow: var(--o-shadow-md); }
 .panelHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }

@@ -20,7 +20,7 @@ const legacyEnglishTestCopy: Record<string, string> = {
   'pages.chat.attachFile': 'Attach file', 'pages.chat.attachmentTooLargeTitle': 'File too large', 'pages.chat.attachmentTooLargeMessage': 'Files and images over {maxMb} MB cannot be uploaded. Large uploads are slow on your network and are difficult for AI models to read reliably.', 'pages.chat.attachmentTooLargeAction': 'OK',
   'pages.chat.quoteSelectedContent': 'Selected content', 'pages.chat.quoteFullContext': 'Full quoted context', 'pages.chat.quoteRemove': 'Remove quote', 'pages.chat.relatedNotesTitle': 'Related notes', 'pages.chat.attachNoteContext': 'Attach', 'pages.chat.dismissNoteSuggestion': 'Dismiss',
   'pages.chat.reasoning.auto': 'Search when needed', 'pages.chat.reasoning.fast': 'Fast', 'pages.chat.reasoning.balanced': 'Balanced', 'pages.chat.reasoning.deep': 'Deep', 'pages.chat.reasoning.max': 'Max', 'pages.chat.reasoning.off': 'Off', 'pages.chat.reasoning.supplierDefault': 'Automatic', 'pages.chat.reasoning.force': 'Search every message', 'pages.chat.reasoning.unavailable': 'Unavailable',
-  'capability.reasoning': 'Reasoning', 'capability.web': 'Web', 'common.modelBehavior': 'Advanced Settings', 'common.currentConversation': 'Current Conversation', 'common.capabilityControlFixedByConnection': 'Set by this connection',
+  'capability.reasoning': 'Reasoning', 'capability.web': 'Web', 'common.currentConversation': 'Current Conversation', 'common.capabilityControlFixedByConnection': 'Set by this connection',
   'capability.customRequestFieldsConfigurationMode': 'Request field configuration', 'capability.customRequestFieldsAutomatic': 'Oriveo automatic configuration', 'capability.customRequestFieldsCustom': 'Custom request fields', 'capability.customRequestFieldsUnavailable': 'No reviewed custom fields are available for this exact request transport.',
   'library.title': 'Library', 'library.researchButton': 'Research Library', 'library.addContext': 'Add context', 'library.contextDocumentsLabel': 'Document context', 'library.removeDocumentContext': 'Remove document context',
 };
@@ -57,7 +57,7 @@ function escapeForRegExp(value: string): string {
 function openAdvancedPane() {
   const common = localeMessages[activeLocale]!.common as Record<string, string>;
   fireEvent.click(modelOptionsPanel().getByRole('button', {
-    name: new RegExp(escapeForRegExp(common.modelBehavior!)),
+    name: new RegExp(escapeForRegExp(common.generationParameters!)),
   }));
   return modelOptionsPanel();
 }
@@ -83,7 +83,7 @@ describe('model controls entry', () => {
     expect(entry.disabled).toBe(false);
     fireEvent.click(entry);
     const panel = within(screen.getByRole('dialog', { name: 'Model Options' }));
-    for (const name of ['Web Search', 'Thinking Mode', 'Advanced Settings']) {
+    for (const name of ['Web Search', 'Thinking Mode', 'Parameters']) {
       expect(panel.getByText(name)).toBeTruthy();
     }
     expect(panel.getAllByText('Not ready')).toHaveLength(3);
@@ -162,6 +162,8 @@ vi.mock('../../providers/StoreProvider', () => ({
     providers: [],
     activeConversationId: null,
   }),
+  // ModelOptionsPopover reads the vanilla store once on open to get the conversation history for video detection; this file builds no store, so it returns "no store yet".
+  tryGetVanillaStore: () => null,
 }));
 
 afterEach(() => {
@@ -223,6 +225,41 @@ describe('InputComposer send clears draft', () => {
     expect(textarea().value).toBe('');
     fireEvent.change(textarea(), { target: { value: sentText } });
     expect(textarea().value).toBe('');
+  });
+});
+
+describe('RD-1 conversation model removed banner', () => {
+  it('RD1-BANNER-01 the banner is visible (with the connection name and a Choose model button) and sending is disabled', () => {
+    const onSend = vi.fn();
+    const onOpenModelSwitcher = vi.fn();
+    render(
+      <InputComposer
+        value="hello"
+        onChange={vi.fn()}
+        onSend={onSend}
+        isStreaming={false}
+        modelRemovedConnectionName="My Relay"
+        onOpenModelSwitcher={onOpenModelSwitcher}
+      />,
+    );
+
+    const banner = screen.getByTestId('model-removed-banner');
+    expect(banner.textContent).toContain('This chat’s model is no longer in My Relay.');
+    const choose = within(banner).getByRole('button', { name: 'Choose model' });
+    const send = screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+    fireEvent.click(send);
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Type a message…' }), { key: 'Enter' });
+    expect(onSend).not.toHaveBeenCalled();
+
+    fireEvent.click(choose);
+    expect(onOpenModelSwitcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('RD1-BANNER-01 a conversation whose model was not removed shows no banner', () => {
+    render(<InputComposer value="hello" onChange={vi.fn()} onSend={vi.fn()} isStreaming={false} />);
+    expect(screen.queryByTestId('model-removed-banner')).toBeNull();
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(false);
   });
 });
 
@@ -442,7 +479,7 @@ describe('InputComposer', () => {
     expect(panel.getByText('Layout Model')).toBeTruthy();
     const sections = screen.getByRole('dialog', { name: 'Model Options' }).textContent ?? '';
     expect(sections.indexOf('Web Search')).toBeLessThan(sections.indexOf('Thinking Mode'));
-    expect(sections.indexOf('Thinking Mode')).toBeLessThan(sections.indexOf('Advanced Settings'));
+    expect(sections.indexOf('Thinking Mode')).toBeLessThan(sections.indexOf('Parameters'));
     // Web search and thinking expand in place, so there are no aria-expanded disclosure rows.
     expect(panel.queryByRole('button', { name: 'Web Search' })).toBeNull();
     expect(panel.getByRole('switch', { name: 'Web Search' })).toBeTruthy();
@@ -575,7 +612,8 @@ describe('InputComposer', () => {
     expect(card.getByText('Needs manual setup')).toBeTruthy();
     expect(card.getAllByText('This provider has no standard switch for web search. Add its fields in the additional request body.')).toHaveLength(1);
     expect(card.queryByRole('switch')).toBeNull();
-    fireEvent.click(card.getByRole('button', { name: 'Open additional request body' }));
+    // A note card with a way out is clickable as a whole; the way out is no longer a separate "Open additional request body" button inside the card.
+    fireEvent.click(card.getByRole('button', { name: /^Web Search.*Needs manual setup/ }));
     expect(screen.getByRole('button', { name: 'Back' })).toBeTruthy();
   });
 
@@ -586,7 +624,8 @@ describe('InputComposer', () => {
       webPreference: 'off', onWebPreferenceChange: vi.fn(), onReasoningIntentChange,
     });
     const tiers = within(screen.getByRole('radiogroup', { name: 'Thinking Mode' }));
-    expect(tiers.getAllByRole('radio').map((node) => node.textContent))
+    // Cells draw only the tier icon; the tier word is the accessible name.
+    expect(tiers.getAllByRole('radio').map((node) => node.getAttribute('aria-label')))
       .toEqual(['Automatic', 'Off', 'Fast', 'Deep']);
     // Never chosen = "Automatic".
     expect(tiers.getByRole('radio', { name: 'Automatic' }).getAttribute('aria-checked')).toBe('true');
@@ -609,7 +648,7 @@ describe('InputComposer', () => {
       webPreference: 'off', onWebPreferenceChange: vi.fn(), onReasoningIntentChange,
     });
     const declared = within(screen.getByRole('radiogroup', { name: 'Thinking Mode' }));
-    expect(declared.getAllByRole('radio').map((node) => node.textContent)).toEqual(['Off', 'Fast', 'Deep']);
+    expect(declared.getAllByRole('radio').map((node) => node.getAttribute('aria-label'))).toEqual(['Off', 'Fast', 'Deep']);
     expect(declared.queryByRole('radio', { checked: true })).toBeNull();
     expect(screen.getByText('Uses the model’s default')).toBeTruthy();
   });
@@ -624,14 +663,15 @@ describe('InputComposer', () => {
     expect(screen.queryByText('Simple questions, fast answers.')).toBeNull();
   });
 
-  it('has no "off" cell when the recipe has no off level, and once a level is chosen the row end says it always thinks first', () => {
+  it('has no "off" cell when the recipe has no off level, and once a level is chosen the status line shows the level word', () => {
     renderPanel({
       webControl: control('auto_available'), reasoningControl: control('auto_available', ['low', 'deep']),
       reasoningIntent: 'low', webPreference: 'off', onWebPreferenceChange: vi.fn(), onReasoningIntentChange: vi.fn(),
     });
     expect(screen.queryByRole('radio', { name: 'Off' })).toBeNull();
-    // The row-end "always thinks" replaces the old "cannot turn thinking off" footnote; with nothing chosen the row end follows the panel model and says "uses the model default".
-    expect(screen.getByText('Always thinks before answering')).toBeTruthy();
+    // The status line in the card shows the selected level word, replacing the old row-end "always thinks"; not being able to turn it off is expressed by the missing "off" cell.
+    const reasoning = within(screen.getByRole('group', { name: 'Thinking Mode' }));
+    expect(reasoning.getByText('Fast', { selector: '.tileStatus' })).toBeTruthy();
     expect(screen.getByText('Higher levels take longer and may cost more.')).toBeTruthy();
   });
 
@@ -745,7 +785,8 @@ describe('InputComposer', () => {
     );
     openModelControls();
     // The "N adjusted" count is gone; the parameters card draws chips instead (same source as the chips: one per parameter that has a stored value).
-    expect(modelOptionsPanel().queryByText('Temperature 0.7')).toBeNull();
+    // Temperature is its own row in the parameters card (title + trailing value); the chips no longer include temperature.
+    expect(modelOptionsPanel().queryByRole('button', { name: /^Temperature\s*0\.7$/ })).toBeNull();
 
     // This fixture needs a transport identity so the panel is writable. Without one the whole page is read-only
     // ("settings haven't loaded"), and a read-only row draws no input at all.
@@ -755,14 +796,14 @@ describe('InputComposer', () => {
     expect(document.activeElement).toBe(input);
     fireEvent.change(input, { target: { value: '0.7' } });
     fireEvent.click(advanced.getByRole('button', { name: 'Back' }));
-    expect(modelOptionsPanel().getByText('Temperature 0.7')).toBeTruthy();
+    expect(modelOptionsPanel().getByRole('button', { name: /^Temperature\s*0\.7$/ })).toBeTruthy();
 
     // The reverse holds too: after resetting to defaults the chip must disappear rather than stick.
     const again = openAdvancedPane();
     fireEvent.click(again.getByRole('button', { name: /^Temperature/ }));
     fireEvent.change(again.getByLabelText('Temperature'), { target: { value: '' } });
     fireEvent.click(again.getByRole('button', { name: 'Back' }));
-    expect(modelOptionsPanel().queryByText(/^Temperature /)).toBeNull();
+    expect(modelOptionsPanel().queryByRole('button', { name: /^Temperature\s*0\.7$/ })).toBeNull();
   });
 
   it('shows no extra explanation group on either card in the normal state', () => {
@@ -783,7 +824,8 @@ describe('InputComposer', () => {
       webControl: control('auto_available'), reasoningControl: control('auto_available', ['low']),
       webPreference: 'automatic', onWebPreferenceChange: vi.fn(), webRuntimeRejected: true,
     });
-    expect(within(screen.getByRole('group', { name: 'Web Search' }))
+    // The rejected-setting warning stays below the capabilities grid instead of going inside a card.
+    expect(within(screen.getByRole('region', { name: 'Capabilities' }))
       .getByText('The provider rejected this setting for this model. Send again without it, or pick another model.'))
       .toBeTruthy();
   });
@@ -834,7 +876,7 @@ describe('InputComposer', () => {
       webControl: control('auto_available'), reasoningControl: control('auto_available', ['low']),
       webPreference: 'off', onWebPreferenceChange: vi.fn(),
     });
-    fireEvent.click(modelOptionsPanel().getByText('Advanced Settings'));
+    fireEvent.click(modelOptionsPanel().getByText('Parameters', { selector: 'button span' }));
     const back = screen.getByRole('button', { name: 'Back' });
 
     fireEvent.keyDown(back, { key: 'Escape' });
@@ -951,7 +993,7 @@ describe('InputComposer', () => {
     );
     // The entry row is always present: a model without a generationProfile only changes the empty state of the second pane.
     expect(modelOptionsPanel().getByRole('button', {
-      name: new RegExp(escapeForRegExp('Advanced Settings')),
+      name: new RegExp(escapeForRegExp('Parameters')),
     })).toBeTruthy();
 
     rerender(
@@ -961,7 +1003,7 @@ describe('InputComposer', () => {
         currentModel={{ ...model, generationProfile: undefined } as AIModel} />,
     );
     expect(modelOptionsPanel().getByRole('button', {
-      name: new RegExp(escapeForRegExp('Advanced Settings')),
+      name: new RegExp(escapeForRegExp('Parameters')),
     })).toBeTruthy();
   });
 
@@ -987,7 +1029,7 @@ describe('InputComposer', () => {
         generationParameterProvider={provider} generationParameterConversationId="draft-2" currentModel={model} />,
     );
     openAdvancedPane();
-    expect(screen.getAllByLabelText('Advanced Settings').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByLabelText('Parameters').length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows pending quote above the editor, removes it accessibly, and quote alone keeps Send disabled', () => {
@@ -1506,7 +1548,7 @@ describe('model control vocabulary', () => {
     expect(web.off).toBe(androidString('model_control_off'));
     expect(web.auto).toBe(androidString('model_control_web_search_when_needed'));
     expect(common.modelControls).toBe(androidString('model_controls'));
-    expect(common.modelBehavior).toBe(androidString('generation_model_behavior'));
+    expect(common.generationParameters).toBe(androidString('generation_parameters_section'));
     // The six level annotations are frozen across clients in the same way.
     for (const [webKey, androidKey] of [
       ['capabilityControlReasoningNoteOff', 'model_control_reasoning_note_off'],
@@ -1523,13 +1565,13 @@ describe('model control vocabulary', () => {
   it('ships the panel copy in all 16 locales, with no non-English bundle left in English', () => {
     expect(Object.keys(localeMessages)).toHaveLength(16);
     const keys = [
-      'modelControls', 'modelBehavior', 'capabilityControlFixedByConnection',
+      'modelControls', 'generationParameters', 'capabilityControlFixedByConnection',
       'capabilityControlWebSearch', 'capabilityControlThinking', 'capabilityControlWebSwitchNote',
       'capabilityControlSearchTiming', 'capabilityControlNotSupportedByModel',
       'capabilityControlCannotAdjustYet', 'capabilityControlWebNoOfficialConfig',
       'capabilityControlReasoningFixedLevel', 'capabilityControlCustomOnlyReason',
       'capabilityControlViewSupportedModels',
-      'capabilityControlNoSupportedModels', 'capabilityControlGoToAdvancedSettings',
+      'capabilityControlNoSupportedModels', 'capabilityControlGoToParameters',
       'capabilityControlChooseAnotherModel',
       'capabilityControlSupportedModelsIntro', 'capabilityControlSwitchToModel',
       'capabilityControlBadgeCustom', 'capabilityControlBadgeManual',
@@ -1573,6 +1615,8 @@ describe('model control vocabulary', () => {
       // After the main pane was redrawn from the panel model, these three have no references left.
       'capabilityControlReasoningNoOfficialConfig', 'capabilityControlReasoningOffUnavailable',
       'capabilityControlUnavailableForConnection',
+      // After the parameters page was renamed, the old title and the "go to advanced settings" link have no references left.
+      'modelBehavior', 'capabilityControlGoToAdvancedSettings',
     ];
     for (const [locale, messages] of Object.entries(localeMessages)) {
       const common = messages.common as Record<string, unknown>;

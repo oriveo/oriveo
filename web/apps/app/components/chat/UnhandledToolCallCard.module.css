@@ -98,3 +98,8 @@
   color: var(--o-text-tertiary);
   font-size: 11px;
 }
+
+/* Collapsed points along the text direction, expanded points down. */
+.chevron:not(.expanded):dir(rtl) {
+  transform: scaleX(-1);
+}

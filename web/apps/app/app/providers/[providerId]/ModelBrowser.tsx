@@ -19,6 +19,9 @@ import {
   createModelCapabilityPresentationProjector,
   type ModelCapabilityPresentationProjector,
 } from '../../../lib/core/chat/model-capability-presentation';
+import { RELAY_CATALOG_TEXT, type RelayCatalogRow } from './relay-catalog-board';
+import { RELAY_DETAIL_TEXT } from './relay-detail-board';
+import { RelayCatalogRowBody, useRelayCatalogRowLabel } from './components/RelayCatalogParts';
 
 export {
   getVendorBadgePresentation,
@@ -40,6 +43,26 @@ interface ModelBrowserProps {
   actionLabel?: (model: AIModel) => string;
   renderActionIcon?: () => ReactNode;
   preserveCatalogOrder?: boolean;
+  /**
+   * Relay / local model library: gives the board row by model id. When provided, the row content is
+   * swapped and no capability filter chips are shown (the caller draws the protocol chips above the two sections);
+   * official providers do not pass it, so their behavior and look are unchanged.
+   */
+  relayRows?: ReadonlyMap<string, RelayCatalogRow>;
+  /**
+   * Relay model library: no sort, count or vendor rail, just grouped cards; default false = official providers unchanged.
+   */
+  hideBrowseChrome?: boolean;
+  /** Relay catalog row tap: when tapTarget is readOnlyAdvanced it opens the read-only advanced view with zero requests; the trailing plus is still onToggleModel (enable). */
+  onOpenRow?: (model: AIModel) => void;
+  /**
+   * "Add all" on a relay model library group header: modelIDs computes from the group rows which to enable; empty = no button for that group.
+   * Only the relay model library passes it; official providers and the home add-model flow do not.
+   */
+  relayAddAll?: {
+    modelIDs: (models: AIModel[]) => string[];
+    onAddAll: (modelIDs: string[]) => void;
+  };
 }
 
 interface SearchResultItem {
@@ -61,6 +84,8 @@ interface ModelRowProps {
   /** Only passed in flat / search mode; not shown when nested. */
   groupId?: string;
   groupTitle?: string;
+  relayRow?: RelayCatalogRow;
+  onOpen?: () => void;
 }
 
 export function ModelBrowser({
@@ -73,8 +98,14 @@ export function ModelBrowser({
   actionLabel,
   renderActionIcon,
   preserveCatalogOrder = false,
+  relayRows,
+  hideBrowseChrome = false,
+  onOpenRow,
+  relayAddAll,
 }: ModelBrowserProps) {
   const t = useTranslations('pages.providerDetail');
+  const tRoot = useTranslations();
+  const tr = useTranslations('pages.relayDetail');
   const tc = useTranslations('capability');
   const [query, setQuery] = useState('');
   /**
@@ -105,6 +136,12 @@ export function ModelBrowser({
   const storageKey = useMemo(() => modelBrowserExpandedGroupStorageKey(providerKind), [providerKind]);
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(() => readExpandedGroup(storageKey));
   const groupRefs = useRef<Map<string, HTMLElement>>(new Map());
+  // Scroll only when the user opens a group: an expanded state restored from local storage does not scroll on first paint.
+  const scrollOnExpandRef = useRef(false);
+  const expandGroupByUser = (groupId: string | null) => {
+    scrollOnExpandRef.current = groupId !== null;
+    setExpandedGroupId(groupId);
+  };
 
   const groups = useMemo(
     () => buildModelBrowserGroups({
@@ -118,8 +155,9 @@ export function ModelBrowser({
       provider,
       capabilityProjector,
       preserveCatalogOrder,
+      otherGroupTitle: tr('catalogGroupOther'),
     }),
-    [catalogModels, popularitySourceModels, deferredQuery, capFilter, sortBy, providerKind, providerLabel, provider, capabilityProjector, preserveCatalogOrder],
+    [catalogModels, popularitySourceModels, deferredQuery, capFilter, sortBy, providerKind, providerLabel, provider, capabilityProjector, preserveCatalogOrder, tr],
   );
 
   // Must share a source with groups: deciding the branch on the immediate query while building
@@ -127,9 +165,10 @@ export function ModelBrowser({
   // from the previous round.
   const normalizedQuery = deferredQuery.trim().toLowerCase();
   const shortcutGroups = useMemo(() => groups.slice(0, SHORTCUT_LIMIT), [groups]);
+  // Relay / local model libraries draw group headers however many groups there are (the header carries "Add all"); official providers still decide by group count.
   const shouldGroup = useMemo(
-    () => shouldRenderGroupedModelBrowser(providerKind, groups),
-    [providerKind, groups],
+    () => (relayRows ? groups.length > 0 : shouldRenderGroupedModelBrowser(providerKind, groups)),
+    [providerKind, groups, relayRows],
   );
 
   const visibleCount = useMemo(
@@ -164,9 +203,10 @@ export function ModelBrowser({
     persistExpandedGroup(storageKey, shouldGroup ? expandedGroupId : null);
   }, [expandedGroupId, shouldGroup, storageKey]);
 
-  // Scroll a newly expanded group into view, so expanding does not leave its content off screen
+  // Scroll a group the user just expanded into view, so expanding does not leave its content off screen
   useEffect(() => {
-    if (!expandedGroupId || normalizedQuery) return;
+    if (!expandedGroupId || normalizedQuery || !scrollOnExpandRef.current) return;
+    scrollOnExpandRef.current = false;
     const el = groupRefs.current.get(expandedGroupId);
     if (typeof el?.scrollIntoView === 'function') {
       el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -187,9 +227,9 @@ export function ModelBrowser({
           />
         </div>
 
-        <div className={styles.toolbarRow}>
+        {!hideBrowseChrome && <div className={styles.toolbarRow}>
           <div className={styles.filters}>
-            {CAP_KEYS.map((cap) => (
+            {!relayRows && CAP_KEYS.map((cap) => (
               <button
                 key={cap}
                 type="button"
@@ -220,11 +260,13 @@ export function ModelBrowser({
             showSelectedDescription
             onChange={setSortBy}
           />
-        </div>
+        </div>}
 
-        <div className={styles.countBar}>
-          <span className={styles.count}>{t('catalogCount', { count: visibleCount })}</span>
-        </div>
+        {!hideBrowseChrome && (
+          <div className={styles.countBar}>
+            <span className={styles.count}>{t('catalogCount', { count: visibleCount })}</span>
+          </div>
+        )}
       </div>
 
       {visibleCount === 0 ? (
@@ -246,13 +288,15 @@ export function ModelBrowser({
                 actionLabel={actionLabel?.(model)}
                 renderActionIcon={renderActionIcon}
                 capabilityProjector={capabilityProjector}
+                relayRow={relayRows?.get(model.id)}
+                onOpen={onOpenRow ? () => onOpenRow(model) : undefined}
               />
             ))}
           </div>
         ) : (
           <>
             {/* Vendor shortcut bar: clicking one expands its group directly */}
-            {shortcutGroups.length > 0 && (
+            {!hideBrowseChrome && shortcutGroups.length > 0 && (
               <div className={styles.shortcutRail}>
                 <button
                   type="button"
@@ -273,7 +317,7 @@ export function ModelBrowser({
                     className={styles.shortcutButton}
                     data-active={expandedGroupId === group.id}
                     aria-pressed={expandedGroupId === group.id}
-                    onClick={() => setExpandedGroupId(expandedGroupId === group.id ? null : group.id)}
+                    onClick={() => expandGroupByUser(expandedGroupId === group.id ? null : group.id)}
                   >
                     <VendorIdentity groupId={group.id} title={group.title} small density="compact" />
                     <span className={styles.shortcutLabel}>{group.title}</span>
@@ -286,6 +330,12 @@ export function ModelBrowser({
             <div className={styles.groupSections}>
               {groups.map((group) => {
                 const isExpanded = expandedGroupId === group.id;
+                const addAllIDs = relayRows && relayAddAll ? relayAddAll.modelIDs(group.models) : [];
+                const chevron = isExpanded ? (
+                  <ChevronDown className={styles.groupChevron} data-expanded size={16} aria-hidden="true" />
+                ) : (
+                  <ChevronRight className={styles.groupChevron} size={16} aria-hidden="true" />
+                );
                 return (
                   <section
                     key={group.id}
@@ -297,23 +347,45 @@ export function ModelBrowser({
                     data-testid={`group-${group.id}`}
                     data-expanded={isExpanded}
                   >
-                    <button
-                      type="button"
-                      className={styles.groupButton}
-                      aria-expanded={isExpanded}
-                      onClick={() => setExpandedGroupId(isExpanded ? null : group.id)}
-                    >
-                      <VendorIdentity groupId={group.id} title={group.title} density="compact" />
-                      <div className={styles.groupCopy}>
-                        <span className={styles.groupTitle}>{group.title}</span>
-                      </div>
-                      <span className={styles.groupCount}>{group.models.length}</span>
-                      {isExpanded ? (
-                        <ChevronDown className={styles.groupChevron} data-expanded size={16} aria-hidden="true" />
-                      ) : (
-                        <ChevronRight className={styles.groupChevron} size={16} aria-hidden="true" />
+                    <div className={styles.groupHeader}>
+                      <button
+                        type="button"
+                        className={styles.groupButton}
+                        aria-expanded={isExpanded}
+                        onClick={() => expandGroupByUser(isExpanded ? null : group.id)}
+                      >
+                        {/* Relay group headers use a 36px vendor icon; other callers keep the compact default size. */}
+                        <VendorIdentity
+                          groupId={group.id}
+                          title={group.title}
+                          density="compact"
+                          {...(relayRows ? { size: 36 } : {})}
+                        />
+                        <div className={styles.groupCopy}>
+                          <span className={styles.groupTitle}>{group.title}</span>
+                          {/* Relay group header: an "N models" subtitle under the title; the count no longer sits at the row end. */}
+                          {relayRows && (
+                            <span className={styles.groupSubtitle} data-group-subtitle>
+                              {tRoot(RELAY_DETAIL_TEXT.modelCount, { count: group.models.length })}
+                            </span>
+                          )}
+                        </div>
+                        {!relayRows && <span className={styles.groupCount}>{group.models.length}</span>}
+                        {!relayRows && chevron}
+                      </button>
+                      {addAllIDs.length > 0 && (
+                        <button
+                          type="button"
+                          className={styles.groupAddAll}
+                          data-group-add-all
+                          onClick={() => relayAddAll?.onAddAll(addAllIDs)}
+                        >
+                          {tRoot(RELAY_CATALOG_TEXT.addAll)}
+                        </button>
                       )}
-                    </button>
+                      {/* Relay: "Add all" comes before the chevron; the chevron only marks the expanded state, and taps still go to the group button. */}
+                      {relayRows && <span className={styles.groupChevronSlot} aria-hidden="true">{chevron}</span>}
+                    </div>
 
                     {isExpanded && (
                       <div className={styles.groupBody}>
@@ -328,6 +400,8 @@ export function ModelBrowser({
                             actionLabel={actionLabel?.(model)}
                             renderActionIcon={renderActionIcon}
                             capabilityProjector={capabilityProjector}
+                            relayRow={relayRows?.get(model.id)}
+                            onOpen={onOpenRow ? () => onOpenRow(model) : undefined}
                           />
                         ))}
                       </div>
@@ -352,6 +426,8 @@ export function ModelBrowser({
               actionLabel={actionLabel?.(model)}
               renderActionIcon={renderActionIcon}
               capabilityProjector={capabilityProjector}
+              relayRow={relayRows?.get(model.id)}
+              onOpen={onOpenRow ? () => onOpenRow(model) : undefined}
             />
           ))}
         </div>
@@ -378,9 +454,54 @@ function ModelRow({
   capabilityProjector,
   groupId,
   groupTitle,
+  relayRow,
+  onOpen,
 }: ModelRowProps) {
   const canAdd = model.isAvailable;
   const label = actionLabel ?? `${t('addModel')}: ${model.name}`;
+  const relayRowLabel = useRelayCatalogRowLabel();
+  if (relayRow) {
+    // Relay / local catalog row: tapping the row dispatches by tapTarget only; the trailing plus = enable (the original lazy-verify path).
+    const openRow = relayRow.tapTarget === 'readOnlyAdvanced' && onOpen ? onOpen : canAdd ? onAdd : undefined;
+    return (
+      <div
+        className={styles.modelRow}
+        data-nested={nested}
+        data-available={model.isAvailable}
+        data-catalog-row={model.id}
+      >
+        {nested && <span className={styles.nestedIndent} aria-hidden="true" />}
+        <button
+          type="button"
+          className={styles.relayRowOpen}
+          data-row-open
+          onClick={openRow}
+          disabled={!openRow}
+          aria-label={relayRowLabel(relayRow)}
+        >
+          <RelayCatalogRowBody row={relayRow} />
+        </button>
+        <div className={styles.modelTrailing}>
+          {relayRow.trailing.map((item) => item === 'unavailable' ? (
+            <span key={item} className={styles.unavailableBadge} data-trailing="unavailable">{t('unavailable')}</span>
+          ) : item === 'add' ? (
+            <button
+              key={item}
+              type="button"
+              className={styles.relayAddButton}
+              data-trailing="add"
+              onClick={onAdd}
+              aria-label={label}
+            >
+              <span className={styles.addBubble} aria-hidden="true">
+                {renderActionIcon ? renderActionIcon() : <Plus size={14} strokeWidth={2.6} />}
+              </span>
+            </button>
+          ) : null)}
+        </div>
+      </div>
+    );
+  }
   return (
     <button
       type="button"

@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import type { AIModel, Provider } from "@oriveo/shared";
 import { sameNormalizedID } from "../../../lib/utils/id-utils";
 import { ProviderIcon } from "../../ProviderIcon";
+import { relayIconSource } from "../../relay-avatar";
 import { VendorIdentity } from "../../VendorIdentity";
 import styles from "../ModelSwitcher.module.css";
 import { ModelRowItem } from "./ModelRowItem";
@@ -97,6 +98,7 @@ export function ProviderSectionRow({
               kind={section.provider.kind}
               size={22}
               bare
+              {...relayIconSource(section.provider)}
             />
           </span>
           <span className={styles.providerName}>{section.providerName}</span>

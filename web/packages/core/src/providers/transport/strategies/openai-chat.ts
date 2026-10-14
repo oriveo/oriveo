@@ -124,9 +124,9 @@ function relayOpenAIEffort(mode: string): 'low' | 'medium' | 'high' {
   }
 }
 
-function emitAnnotationCitations(
+export function emitAnnotationCitations(
   annotations: unknown,
-  ctx: StreamContext,
+  ctx: Pick<StreamContext, 'citations'>,
   shape: StreamShape | null,
 ): boolean {
   if (!Array.isArray(annotations)) return false;

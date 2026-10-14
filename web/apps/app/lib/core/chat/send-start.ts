@@ -89,7 +89,7 @@ export function reportSendStartedTelemetry(input: {
     // User intent at click time; it is deliberately distinct from
     // `web_search_used`, which is emitted only after the final facade gate.
     web_search_enabled: Boolean(webSearchEnabled),
-    ...relaySendTelemetryProperties(provider),
+    ...relaySendTelemetryProperties(provider, model),
   });
 }
 

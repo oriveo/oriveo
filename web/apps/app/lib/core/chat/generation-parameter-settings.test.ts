@@ -211,18 +211,43 @@ describe('generation parameter local settings', () => {
     });
   });
 
-  it('keeps the raw Relay request URL out of the environment fingerprint and prefers the resolved transport', () => {
+  it('keeps the raw Relay request URL out of the environment fingerprint; the protocol follows the model effectiveTransport (a model-level choice beats the connection default)', () => {
     const fingerprint = generationParameterProfileFingerprint({
       id: 'relay-a', kind: 'relay', status: { kind: 'connected' }, models: [], catalogModels: [], apiKey: '', apiKeyPreview: '',
       baseURLText: 'https://user:secret@box.local/v1?token=private',
-      relayResolvedTransport: 'anthropic_messages',
       relayRequested: { transport: 'openai_chat_completions', authMode: 'auto' },
-    }, { id: 'private-model', name: 'Private', capabilities: [], reasoningModeAvailable: false, isAvailable: true, isDefault: true, priceTier: '' });
+    }, {
+      id: 'private-model', name: 'Private', capabilities: [], reasoningModeAvailable: false, isAvailable: true, isDefault: true, priceTier: '',
+      relayTransport: 'anthropic_messages', relayTransportSource: 'user',
+    });
 
     expect(fingerprint).toContain('anthropic_messages');
     expect(fingerprint).not.toContain('box.local');
     expect(fingerprint).not.toContain('secret');
     expect(fingerprint).not.toContain('token');
+  });
+
+  it('legacy regression: a Relay fingerprint without a model-level protocol is byte-identical to the old one, and previously saved parameters still read back', () => {
+    const base = { kind: 'relay' as const, status: { kind: 'connected' as const }, models: [], catalogModels: [], apiKey: '', apiKeyPreview: '' };
+    const legacyModel = { id: 'model-a', name: 'A', capabilities: [], reasoningModeAvailable: false, isAvailable: true, isDefault: true, priceTier: '' };
+    // Fingerprints the same input produced before the change, pinned: bare host with no probed root / connection default auto.
+    const cases = [
+      {
+        provider: { ...base, id: 'relay-bare', baseURLText: 'https://relay.example.com', relayRequested: { transport: 'openai_chat_completions' as const, authMode: 'auto' as const } },
+        before: 'ep_9cc37e51|openai_chat_completions||model-a',
+      },
+      {
+        provider: { ...base, id: 'relay-auto', baseURLText: 'https://relay.example.com/v1', relayRequested: { transport: 'auto' as const, authMode: 'auto' as const } },
+        before: 'ep_2b9b393c|auto||model-a',
+      },
+    ];
+    for (const { provider, before } of cases) {
+      expect(generationParameterProfileFingerprint(provider, legacyModel)).toBe(before);
+      const scope = { providerId: provider.id, modelId: legacyModel.id, profileFingerprint: before };
+      saveGenerationParameterOverrides(scope, { temperature: valueOverride(0.2) });
+      const current = { ...scope, profileFingerprint: generationParameterProfileFingerprint(provider, legacyModel) };
+      expect(loadGenerationParameterOverrides(current)?.temperature).toEqual(valueOverride(0.2));
+    }
   });
 
   it('migrates a draft conversation to a real one atomically and cascades deletes', () => {

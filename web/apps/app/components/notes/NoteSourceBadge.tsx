@@ -3,6 +3,7 @@
 import type { ProviderKind } from '@oriveo/shared';
 import type { CSSProperties } from 'react';
 import { ProviderIcon } from '../ProviderIcon';
+import { relayIconSource } from '../relay-avatar';
 import { PROVIDER_BRAND_COLORS } from '../../lib/constants/provider-brand-colors';
 import styles from './Notes.module.css';
 
@@ -26,7 +27,8 @@ export function NoteSourceBadge({ providerKind, providerName, modelName, compact
       title={label}
     >
       <span className={styles.sourceBadgeIcon}>
-        <ProviderIcon kind={providerKind} size={compact ? 13 : 14} bare providerName={providerName} />
+        {/* Notes do not record the connection: relay sources are always generic and are not inferred from the name */}
+        <ProviderIcon kind={providerKind} size={compact ? 13 : 14} bare {...relayIconSource(null)} />
       </span>
       {!compact ? <span className={styles.sourceBadgeText}>{label}</span> : null}
     </span>

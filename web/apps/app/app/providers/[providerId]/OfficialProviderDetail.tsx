@@ -12,7 +12,6 @@ import { useAppStore, getVanillaStore } from '../../../providers/StoreProvider';
 import { showToast } from '../../../components/Toast';
 import { selectResolvedCatalog } from '../../../lib/core/store/selectors';
 import { getEffectiveStatusKind, isEffectiveWarning } from '../../../lib/core/providers/provider-status';
-import { PROVIDER_VALIDATION_MESSAGES } from '../../../lib/core/providers/validation-messages';
 import { ModelCommercialMetaInline, ModelMetaInline } from '../../../components/chat/ModelMetaInline';
 import { ModelBrowser } from './ModelBrowser';
 import { sortEnabledModels } from './model-browser-groups';
@@ -27,6 +26,7 @@ import { GenerationParameterPanel } from '../../../components/generation/Generat
 import { RenameProviderDialog } from './components/RenameProviderDialog';
 import { getProviderInstanceDisplayName } from '../../../lib/core/providers/provider-display';
 import { useProviderChatLauncher } from './useProviderChatLauncher';
+import { localizeProviderLastError } from './provider-last-error';
 import {
   getCachedMetadataVersion,
   getGrokSubscriptionAvailability,
@@ -43,10 +43,13 @@ import { OpenAISubscriptionAuthorizationDialog } from '../../../components/provi
 import {
   getOfficialEndpointDescriptionTranslationKey,
   getOfficialEndpointOptionTranslationKey,
-  isOfficialEndpointProvider,
+  resolveOfficialEndpointLookupOptions,
   resolveOfficialEndpointOptions,
+  withStoredOfficialEndpointOption,
 } from '../../../components/providers/official-endpoint-utils';
 import styles from './ProviderDetail.module.css';
+import { endpointConfigFromPublic } from '../../../lib/core/providers/endpoint-source';
+import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
 
 interface OfficialProviderDetailProps {
   provider: Provider;
@@ -189,32 +192,33 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
     [metadataVersion, provider.kind],
   );
   const officialEndpointOptions = useMemo(() => {
-    const options = resolveOfficialEndpointOptions(provider.kind, providerConfig);
+    // Options pass through the trusted table; a region the user already stored is still shown even if filtered out
+    // (reverse lookup on the unfiltered table), so saving without a change keeps the address byte-for-byte.
+    // Template regions containing a {placeholder} are listed as usual; selecting one shows the setup field under the selector.
+    const options = withStoredOfficialEndpointOption(
+      resolveOfficialEndpointOptions(provider.kind, providerConfig),
+      resolveOfficialEndpointLookupOptions(provider.kind, providerConfig),
+      provider.baseURLText,
+    );
     if (options.length === 0) {
       return [];
     }
 
     return options.map((option) => {
-      if (!isOfficialEndpointProvider(provider.kind)) {
-        return option;
-      }
-
       const translationKey = getOfficialEndpointOptionTranslationKey(provider.kind, option.id);
       return {
         ...option,
         label: translationKey ? tSetup(translationKey) : option.label,
       };
     });
-  }, [provider.kind, providerConfig, tSetup]);
+  }, [provider.baseURLText, provider.kind, providerConfig, tSetup]);
   const officialEndpointDescription = useMemo(() => {
-    if (
-      !isOfficialEndpointProvider(provider.kind)
-      || officialEndpointOptions.length === 0
-    ) {
+    if (officialEndpointOptions.length === 0) {
       return null;
     }
 
-    return tSetup(getOfficialEndpointDescriptionTranslationKey(provider.kind));
+    const descriptionKey = getOfficialEndpointDescriptionTranslationKey(provider.kind);
+    return descriptionKey ? tSetup(descriptionKey) : null;
   }, [officialEndpointOptions.length, provider.kind, tSetup]);
   const endpointSectionLabel = officialEndpointOptions.length > 0
     ? tSetup('officialEndpoint')
@@ -263,7 +267,7 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
       />
 
       {/* Balance: only for providers that expose a balance endpoint, and only once a key exists. */}
-      {isBalanceCapable(provider.kind) && provider.apiKey && (
+      {isBalanceCapable(provider.kind) && resolveProviderAPIKey(provider) && (
         <ProviderBalanceCard provider={provider} />
       )}
 
@@ -336,8 +340,8 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
                     type="button"
                     className={styles.modelChatBtn}
                     onClick={() => setExpandedGenerationModelId((current) => current === model.id ? null : model.id)}
-                    aria-label={tc('modelBehavior')}
-                    title={tc('modelBehavior')}
+                    aria-label={tc('generationParameters')}
+                    title={tc('generationParameters')}
                     aria-expanded={expandedGenerationModelId === model.id}
                   >
                     <SlidersHorizontal size={16} strokeWidth={2.2} aria-hidden="true" />
@@ -406,6 +410,8 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
           endpointOptions={officialEndpointOptions}
           endpointDescription={officialEndpointDescription}
           endpointDisplayFallback={t('defaultURL')}
+          endpointSetupConfig={{ kind: provider.kind, config: endpointConfigFromPublic(providerConfig) }}
+          onSaveEndpoint={(endpoint) => providerOps.updateProviderOfficialEndpoint(getVanillaStore(), provider, endpoint)}
           onDelete={() => setShowConfirmDelete(true)}
           expandedRow={settingsExpandedRow}
           onExpandedRowChange={setSettingsExpandedRow}
@@ -475,55 +481,4 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
       )}
     </div>
   );
-}
-
-function localizeProviderLastError(
-  lastError: string | undefined,
-  t: (key: string) => string,
-): string | undefined {
-  if (!lastError) {
-    return undefined;
-  }
-
-  if (lastError === 'The API key you entered is invalid or has been revoked. Please check your key and try again.') {
-    return t('invalidKey.message');
-  }
-
-  if (lastError === 'You have exceeded the rate limit. Please wait a moment and try again.') {
-    return t('rateLimited.message');
-  }
-
-  if (lastError === 'Unable to connect. Please check your internet connection and try again.') {
-    return t('network.message');
-  }
-
-  if (lastError === 'The AI provider is experiencing issues. Please try again later.') {
-    return t('upstream.message');
-  }
-
-  if (lastError === 'The model catalog response was invalid. Please try again.') {
-    return t('emptyResponse.message');
-  }
-
-  if (lastError === 'The model catalog is empty. Please try again later or enter a model ID manually.') {
-    return t('emptyModelCatalog.message');
-  }
-
-  // BYOK key validation: invalid shows a red banner, unverified a muted soft hint.
-  if (lastError === PROVIDER_VALIDATION_MESSAGES.invalidKey) {
-    return t('validation.invalidKey');
-  }
-
-  if (lastError === PROVIDER_VALIDATION_MESSAGES.unverified) {
-    return t('validation.unverified');
-  }
-
-  if (
-    lastError === 'The request was malformed. Please check your input and try again.'
-    || /^Request failed with status \d+\. Please try again\.$/.test(lastError)
-  ) {
-    return t('requestFailed.message');
-  }
-
-  return lastError;
 }

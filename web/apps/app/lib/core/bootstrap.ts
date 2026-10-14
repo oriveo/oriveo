@@ -6,7 +6,7 @@
  */
 
 import type { StoreApi } from 'zustand';
-import type { Provider } from '@oriveo/shared';
+import type { AIModel, Provider } from '@oriveo/shared';
 import type { AppStore } from './store/app-store';
 import { hydrateStore } from './store/persistence';
 import { hydrateMcpStore } from './mcp/mcp-store';
@@ -23,6 +23,7 @@ import { migrateToPartitionedStorage } from '../infra/storage/migration';
 import { detectStorageHealth, reportStorageHealth } from './storage-health';
 import { reportSilentError } from '../sentry/report-silent';
 import { collapseProvidersToDeterministicIds } from './provider-id-migration';
+import { backfillOfficialEndpointSources } from './providers/endpoint-source';
 import { migrateLlamacppConnectionsToChatChannelIfNeeded } from './providers/llamacpp-channel-migration';
 import {
   ensureProviderCatalogs,
@@ -205,10 +206,13 @@ async function hydrateMetadataAndReconcileProviders(store: Store): Promise<void>
     }
 
     if (provider.kind === 'relay') {
-      const transport = resolveRelaySelectionTransport(provider);
-      const enrichedModels = enrichRelayCatalog(provider.models, transport, relayRuntimeConfig);
+      // Enrich each model by its own protocol (the protocol is a property of the model).
+      const enrich = (models: AIModel[]) => models.flatMap((model) => enrichRelayCatalog(
+        [model], resolveRelaySelectionTransport(provider, model), relayRuntimeConfig,
+      ));
+      const enrichedModels = enrich(provider.models);
       const enrichedCatalogModels = provider.catalogModels.length > 0
-        ? enrichRelayCatalog(provider.catalogModels, transport, relayRuntimeConfig)
+        ? enrich(provider.catalogModels)
         : provider.catalogModels;
       const sameModels = arraysShallowEqualByEnrichedFields(provider.models, enrichedModels);
       const sameCatalog = arraysShallowEqualByEnrichedFields(provider.catalogModels, enrichedCatalogModels);
@@ -255,6 +259,8 @@ async function hydrateMetadataAndReconcileProviders(store: Store): Promise<void>
   }
 
   await collapseProvidersToDeterministicIds(store);
+  // Backfill endpointSource on unclassified official records from metadata; written locally only (updatedAt untouched, nothing uploaded).
+  await backfillOfficialEndpointSources(store);
   // One-time switch of existing llama.cpp native-channel connections to the chat channel (the marker is partitioned per uid and runs only once).
   await migrateLlamacppConnectionsToChatChannelIfNeeded(store);
 }

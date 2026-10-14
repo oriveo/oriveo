@@ -138,6 +138,12 @@ function NavLink({
   );
 }
 
+/** Routes that hide the tab bar and hamburger at mobile width: provider detail and its sub-routes, and add-relay (which brings its own back button). */
+export function hidesMobileNavChrome(pathname: string): boolean {
+  const path = pathname.replace(/\/+$/, '');
+  return path.startsWith('/providers/');
+}
+
 export function AppShellWrapper({ children }: AppShellWrapperProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -261,6 +267,7 @@ export function AppShellWrapper({ children }: AppShellWrapperProps) {
       overlaySidebarOpen={overlaySidebarOpen}
       mobileHomeMode={isMobileHomeRoute}
       hideMobileTabBar={isMobileFullscreenChat}
+      hideMobileNavChrome={hidesMobileNavChrome(pathname)}
       onToggleSidebar={handleToggleSidebar}
       onCloseOverlaySidebar={() => setSidebarOpen(false)}
       LinkComponent={NavLink}

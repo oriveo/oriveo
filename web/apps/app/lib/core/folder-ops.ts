@@ -205,7 +205,9 @@ function resolveDefaultProviderModel(
   }
 
   for (const provider of active) {
-    const model = provider.models.find((m) => m.isDefault) ?? provider.models[0];
+    // Relay has no default model: the legacy isDefault is ignored and the first enabled model is taken.
+    const model = (provider.kind !== 'relay' ? provider.models.find((m) => m.isDefault) : undefined)
+      ?? provider.models[0];
     if (model) return { provider, modelId: model.id };
   }
   return null;

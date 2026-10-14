@@ -70,6 +70,10 @@ export interface ProviderError {
   severity?: ProviderErrorSeverity;
   status?: number;
   upstreamURL?: string;
+  /** The relay replied 2xx but the content is a web page: per-model probing treats it as a route-level rejection. */
+  relayHTMLPage?: true;
+  /** message is the relay guidance sentence produced by classifyRelayHTTPError: the body keeps the guidance, and the upstream original goes only into detail. */
+  relayGuidance?: true;
   quotaSource?: ProviderQuotaSource;
   traceId?: string;
   /** Comes from an upstream in-stream error frame (see StreamEvent.streamErrorFrame). */
@@ -157,6 +161,18 @@ export function toProviderError(
   // is the single source of truth for the user-facing body. kind and title only carry structured
   // recovery semantics and must not overwrite the upstream text with a message of our own.
   const upstreamMessage = extractErrorSnippet(body.trim(), 500, sensitiveCredentialValues);
+  // A relay guidance hit: the body is a guidance sentence telling the user where to change things, and the upstream original is demoted to detail.
+  if (classified.relayGuidance) {
+    return {
+      ...classified,
+      message: redactRelayCredentials(classified.message, sensitiveCredentialValues),
+      detail: upstreamMessage
+        ?? (classified.detail ? redactRelayCredentials(classified.detail, sensitiveCredentialValues) : undefined),
+      source: 'provider',
+      status,
+      ...(upstreamURL ? { upstreamURL } : {}),
+    };
+  }
   return {
     ...classified,
     message: upstreamMessage ?? redactRelayCredentials(classified.message, sensitiveCredentialValues),

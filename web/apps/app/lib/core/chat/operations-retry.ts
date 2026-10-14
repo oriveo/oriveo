@@ -126,6 +126,8 @@ export function retryMessageWithSender(
         errorTechnicalDetail: undefined,
         additionalBodyRetryEligible: undefined,
         generationParameterRejection: undefined,
+        relayImageUnsupported: undefined,
+        relayFileUnsupported: undefined,
         attachments: preservePartialAssistant ? messages[msgIndex].attachments : undefined,
         estimatedCost: preservePartialAssistant ? messages[msgIndex].estimatedCost : 0,
         providerID: provider.id,

@@ -315,3 +315,30 @@ describe('typed preference forward-port matrix', () => {
     expect(resolveCapabilityPreferences(current)).toEqual({ web: 'force' });
   });
 });
+
+describe('RL2-IDENT-06 relay capability preference keys', () => {
+  beforeEach(() => memory.clear());
+  const relay = {
+    id: 'A0000000-0000-0000-0000-0000000000A1', kind: 'relay', status: { kind: 'connected' }, models: [], catalogModels: [],
+    apiKey: '', apiKeyPreview: '', baseURLText: 'https://relay.example.com/v1',
+    relayRequested: { transport: 'openai_chat_completions', authMode: 'bearer' },
+  } as never;
+  const dated = { id: 'gpt-4o-2024-08-06', canonicalModelId: 'gpt-4o', relayTransport: 'openai_chat_completions', relayTransportSource: 'user' } as never;
+
+  it('RL2-IDENT-06 writes the literal key; a missed literal read falls back to the canonical key', () => {
+    const identity = capabilityRuntimeIdentity(relay, dated)!;
+    expect(identity).toMatchObject({ canonicalModelId: 'gpt-4o-2024-08-06', legacyCanonicalModelId: 'gpt-4o' });
+    const { legacyCanonicalModelId: _legacy, ...literal } = identity;
+
+    // A record written under the canonical key before literal matching existed: read it back when the literal key misses.
+    saveCapabilityPreferences({ ...literal, canonicalModelId: 'gpt-4o', scope: 'connection_model' }, { web: 'force' });
+    expect(displayCapabilityPreferences(identity)).toEqual({ web: 'force' });
+    expect(displayCapabilityPreferences(literal)).toEqual({ web: 'off' });
+
+    // New writes land on the literal key, and later reads use the literal key.
+    saveCapabilityPreferences({ ...identity, scope: 'connection_model' }, { web: 'automatic' });
+    expect(exportCapabilityPreferenceSyncPayload().records.map((record) => record.canonicalModelId).sort())
+      .toEqual(['gpt-4o', 'gpt-4o-2024-08-06']);
+    expect(displayCapabilityPreferences(identity)).toEqual({ web: 'automatic' });
+  });
+});

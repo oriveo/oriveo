@@ -1,0 +1,875 @@
+/* Detail page board (RelayDetail.png / LocalDetail.png): header + two row cards + two bottom buttons + footnote.
+   Relay icons purple, local icons green; in-row icons are uniformly duotone currentColor. */
+
+.board {
+  --board-accent: #8b5cf6;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.board[data-form='local'] {
+  --board-accent: #10b981;
+}
+
+/* Page header: top-aligned, status line may wrap. */
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.headerIcon {
+  display: inline-flex;
+  color: var(--board-accent);
+  flex-shrink: 0;
+}
+
+.headerIdentity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.headerName {
+  min-width: 0;
+}
+
+/* Header name: title1, up to 2 lines (iOS can shrink the font size; CSS approximates with 2-line truncation). */
+.headerName .boardName {
+  display: -webkit-box;
+  font-size: var(--o-text-2xl);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+/* Pencil 18 secondary. */
+.headerName .boardNamePencil {
+  color: var(--o-text-secondary);
+}
+
+.statusLine {
+  margin: 0;
+  font-size: 13px;
+  color: var(--o-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.editConnectionButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--o-border);
+  background: var(--o-surface);
+  color: var(--o-text);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--o-text-secondary);
+}
+
+/* Row card: no border; separators inset 14 on both sides. */
+.card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  background: var(--o-surface);
+  overflow: hidden;
+}
+
+.rowGroup {
+  display: flex;
+  flex-direction: column;
+}
+
+.card > * + *,
+.rowGroup + * {
+  position: relative;
+}
+
+.card > * + *::before,
+.rowGroup + *::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  inset-inline: 14px;
+  height: 1px;
+  background: color-mix(in srgb, var(--o-border) 70%, transparent);
+}
+
+/* Detail row: whole row vertically centered */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+button.row {
+  cursor: pointer;
+}
+
+button.row:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.rowIcon {
+  display: inline-flex;
+  color: var(--board-accent);
+  flex-shrink: 0;
+}
+
+.rowStack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.rowTitle {
+  font-size: 13px;
+  color: var(--o-text-secondary);
+}
+
+.rowValue {
+  font-size: 15px;
+  color: var(--o-text);
+  overflow-wrap: anywhere;
+}
+
+/* Title-only mode: body.semibold title + footnote value. */
+.rowStack[data-title-only='true'] > .rowTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+.rowStack[data-title-only='true'] > .rowValue {
+  font-size: 13px;
+  color: var(--o-text-secondary);
+}
+
+.rowValue[data-mono='true'] {
+  font-family: var(--o-font-mono, ui-monospace, monospace);
+}
+
+.rowTrailing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--o-text-secondary);
+  flex-shrink: 0;
+}
+
+.rowTrailing[data-tone='success'] {
+  color: var(--o-success);
+}
+
+.rowChevron {
+  color: var(--o-text-tertiary);
+  flex-shrink: 0;
+}
+
+.basePathsRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--o-text-secondary);
+}
+
+.basePathsTitle {
+  margin-right: 4px;
+}
+
+.basePath {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.basePathValue {
+  font-family: var(--o-font-mono, ui-monospace, monospace);
+}
+
+.rowExtras {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 12px 52px;
+  font-size: 13px;
+  color: var(--o-text-secondary);
+}
+
+.rowExtras[data-tone='error'] {
+  color: var(--o-error);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detectButton,
+.deleteButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  border-radius: 16px;
+  border: 1px solid var(--o-border);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Check button: surface background, primary text and icon. */
+.detectButton {
+  border-color: transparent;
+  background: var(--o-surface);
+  color: var(--o-primary);
+}
+
+.deleteButton {
+  background: color-mix(in srgb, var(--o-error) 10%, var(--o-surface));
+  border-color: color-mix(in srgb, var(--o-error) 20%, var(--o-border));
+  color: var(--o-error);
+}
+
+.detectButton:disabled,
+.deleteButton:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.footnote {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--o-text-tertiary);
+}
+
+/* Inline keys in the row: inside the left column of the API key row, each one is the same key-row component. */
+.inlineKeys {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.inlineKey {
+  display: block;
+}
+
+.inlineKeysMore {
+  font-size: 13px;
+  color: var(--o-text-tertiary);
+}
+
+.keyPreview {
+  font-family: var(--o-font-mono, ui-monospace, monospace);
+}
+
+.keysHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Keys page header: back and title on the same line. */
+.keysTitleLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.keysTitle {
+  margin: 0;
+  font-size: var(--o-text-xl);
+  font-weight: 700;
+  color: var(--o-text);
+}
+
+/* "The first one is the primary key": group title above the card. */
+.keysGroupTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--o-text-secondary);
+}
+
+/* Key card: no border, row padding 14 / 12. */
+.keysCard > .keyRow {
+  padding: 12px 14px;
+}
+
+/* Key row root: the mask always sits in the left column as the catalog row prefix. */
+.keyRow {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+button.keyRow {
+  cursor: pointer;
+}
+
+button.keyRow:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Key row: whole row vertically centered */
+.keyRowInner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Column area = before the trailing arrow (matches the total of iOS RelayMenuRowColumns.columnWidths). */
+.keyColumns {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.keyLead {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.keyTrailing {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  max-width: 50%;
+  text-align: end;
+}
+
+.keyNameLine {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.keyName {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--o-text);
+  overflow-wrap: anywhere;
+}
+
+/* Primary key badge: capsule primarySoft. */
+.keyBadge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--o-primary-subtle);
+  color: var(--o-primary-text-on-surface);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.keyMeta {
+  font-size: 13px;
+  color: var(--o-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.keyMeta[data-tone='warning'],
+.keyStatusLine[data-tone='warning'] {
+  color: var(--o-warning);
+}
+
+.keyActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.keyActionHint {
+  margin: -4px 0 4px;
+  font-size: 12px;
+  color: var(--o-text-tertiary);
+}
+
+.keyModelList {
+  margin: 0;
+  padding-left: 18px;
+  font-family: var(--o-font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  color: var(--o-text-secondary);
+}
+
+/* Relay / local recovery card: same card styling as the detail page; the whole card has color only on the warning icon. */
+.recoveryCard {
+  display: flex;
+  flex-direction: column;
+}
+
+/* First row of the recovery card: title row + × at the top right. */
+.recoveryTitleLine {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.recoveryTitleLine > .row {
+  flex: 1;
+  min-width: 0;
+}
+
+.recoveryDismiss {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 8px 8px 0 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--o-bg-inset);
+  color: var(--o-text-secondary);
+  cursor: pointer;
+}
+
+.recoveryDismiss:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+}
+
+.recoveryCard .rowIcon:not([style]) {
+  color: var(--o-text-secondary);
+}
+
+.spin {
+  animation: relayBoardSpin 0.9s linear infinite;
+}
+
+@keyframes relayBoardSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
+
+/* Key status (marker + word): one text flow, trailing-aligned. */
+.keyStatusLine {
+  display: block;
+  font-size: 13px;
+  text-align: end;
+  color: var(--o-text-secondary);
+}
+
+/* Marker before the status word: dot / warning / in progress; an inline prefix, height = one line height, centered with the first line. */
+.statusMark {
+  display: inline-flex;
+  align-items: center;
+  height: 1.4em;
+  margin-inline-end: 6px;
+  vertical-align: top;
+}
+
+/* Status word up to 2 lines (the marker follows the first line). */
+.keyStatusText {
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.statusMark[data-status-mark='dot']::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--o-success);
+}
+
+.statusMark[data-status-mark='warning'] {
+  color: var(--o-warning);
+}
+
+/* Add row: body.semibold, min height 52. */
+.keyAddRow {
+  min-height: 52px;
+  padding: 12px 14px;
+  color: var(--board-accent);
+}
+
+.keyAddTitle {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.keyNotices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-sm);
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  list-style: none;
+}
+
+/*
+ * Notices are always inline lines with no backing plate (same as iOS noticeLine): icon + body + trailing link;
+ * warning = warning icon + warning-colored text, add success = success-colored check + secondary-colored text.
+ */
+.keyNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 0;
+  background: none;
+}
+
+.keyNotice[data-tone='warning'] {
+  color: var(--o-warning-text);
+}
+
+.keyNotice[data-tone='success'] {
+  color: var(--o-text-secondary);
+}
+
+/* Spacing of inline notices from the key card and footer uses --o-space-sm (offsetting the 20px gap of .board); between notices it is also sm (iOS VStack spacing). */
+.keyNotices[data-inline='true'] {
+  margin-top: calc(var(--o-space-sm) - 20px);
+  margin-bottom: calc(var(--o-space-sm) - 20px);
+}
+
+.keyNoticeIcon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--o-success);
+}
+
+.keyNoticeIcon[data-tone='warning'] {
+  color: var(--o-warning);
+}
+
+.keyNoticeText {
+  flex: 1;
+  min-width: 0;
+}
+
+.keyNoticeLink {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--o-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.keyNoticeLink:hover {
+  text-decoration: underline;
+}
+
+.keyActionNotes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 14px;
+  list-style: none;
+}
+
+.keyActionNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--o-text-secondary);
+}
+
+.keyActionNoteIcon {
+  flex: none;
+}
+
+.keyActionNoteText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Action description title: caption.semibold. */
+.keyActionNoteTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+.keysFootnotes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Forward / next-level arrows flip with the text direction. */
+.rowChevron:dir(rtl) {
+  transform: scaleX(-1);
+}
+
+/* Single-line subtitle: CSS approximates iOS middle truncation with single-line ellipsis. */
+.singleLine {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Web-search page edit card: editor / divider / use template · clear. */
+.webCard {
+  padding: 0;
+}
+
+.webCard .webEditor {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.webCardActions {
+  display: flex;
+  gap: 16px;
+  padding: 10px 14px;
+}
+
+.textAction {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--o-primary-text-on-surface);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.textAction:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.textAction:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+}
+
+/* Model library page header subtitle: up to 2 lines, tail truncation. */
+.twoLineClamp {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* Add / replace key / rename input surface: × at top left + centered title; input same as the settings-page key slot; full-width Save at the bottom. */
+.keyInputHeader {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.keyInputClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--o-bg-inset);
+  color: var(--o-text-secondary);
+  cursor: pointer;
+}
+
+.keyInputClose:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+}
+
+.keyInputTitle {
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--o-text);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.keyInputField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.keyInputLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--o-text-secondary);
+}
+
+.keyInputSlot {
+  position: relative;
+}
+
+.keyInputBox {
+  width: 100%;
+  min-height: 50px;
+  padding: 0 15px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  outline: 0;
+  background: color-mix(in srgb, var(--o-primary) 7%, var(--o-surface));
+  color: var(--o-text);
+  font: inherit;
+  letter-spacing: 0;
+  transition: border-color var(--o-transition-fast), box-shadow var(--o-transition-fast);
+}
+
+.keyInputSecret {
+  padding-right: 48px;
+  font-family: var(--o-font-mono);
+}
+
+.keyInputBox:focus {
+  border-color: color-mix(in srgb, var(--o-primary) 70%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--o-primary) 12%, transparent);
+}
+
+.keyInputBox::placeholder {
+  color: var(--o-text-tertiary);
+}
+
+.keyInputReveal {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+}
+
+.keyInputReveal:hover,
+.keyInputReveal:focus-visible {
+  color: var(--o-primary);
+  outline: none;
+}
+
+.keyInputRemove {
+  align-self: center;
+  margin: 0 0 12px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--o-error-text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.keyInputSave {
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* Connection-level generation parameters: same shell as the key input surface; scrolls inside the box when the panel is long. */
+.parametersDialog {
+  max-height: min(86vh, 760px);
+  max-width: 520px;
+}
+
+.parametersBody {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Web-search page "models that rejected these settings": each row has the model name + a trailing "Retest"; a spinner replaces it while running. */
+.webRejectedList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.webRejectedRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 48px;
+  padding: 10px 14px;
+}
+
+.webRetestSpinner {
+  flex-shrink: 0;
+  color: var(--o-text-secondary);
+}

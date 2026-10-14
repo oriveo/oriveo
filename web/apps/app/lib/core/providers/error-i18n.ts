@@ -1,10 +1,40 @@
+import { RELAY_GUIDANCE } from '@oriveo/core/providers/relay-error-classifier';
+import { RELAY_HTML_PAGE_ERROR } from '@oriveo/core/providers/relay-stream';
 import { PROVIDER_VALIDATION_MESSAGES } from './validation-messages';
 
 // Maps the hardcoded English error messages from errors.ts to i18n keys.
 // The message produced by errors.ts is stored as a string in provider.status.message, so this
 // module looks the corresponding errors namespace key back up and returns the localized text.
 
+// Relay guidance sentences -> errors.relay.*. A chat failure card stores the English source sentence in its body
+// and localizes it at render time (aligned with iOS).
+const RELAY_GUIDANCE_TO_KEY: Record<string, string> = {
+  // Relay error guidance: English source sentences identical to iOS, produced by RELAY_GUIDANCE in the classifier.
+  [RELAY_GUIDANCE.codexIdentityRequiredSwitch]: 'relay.codexIdentityRequiredSwitch',
+  [RELAY_GUIDANCE.codexIdentityRejected]: 'relay.codexIdentityRejected',
+  [RELAY_GUIDANCE.imageGenerationEndpointUnavailable]: 'relay.imageGenerationEndpointUnavailable',
+  [RELAY_GUIDANCE.chatCompletionsRejectedByCodexHost]: 'relay.chatCompletionsRejectedByCodexHost',
+  [RELAY_GUIDANCE.imageResponseFormatRejected]: 'relay.imageResponseFormatRejected',
+  [RELAY_GUIDANCE.upstreamUnavailable]: 'relay.upstreamUnavailable',
+  [RELAY_GUIDANCE.modelUnavailable]: 'relay.modelUnavailable',
+  [RELAY_GUIDANCE.responsesProtocolRequired]: 'relay.responsesProtocolRequired',
+  [RELAY_GUIDANCE.storeRejected]: 'relay.storeRejected',
+  [RELAY_GUIDANCE.serviceTierRejected]: 'relay.serviceTierRejected',
+  [RELAY_GUIDANCE.maxTokensRequired]: 'relay.maxTokensRequired',
+  [RELAY_GUIDANCE.anthropicAuthRequired]: 'relay.anthropicAuthRequired',
+  [RELAY_GUIDANCE.imageSchemaMismatch]: 'relay.imageSchemaMismatch',
+  [RELAY_GUIDANCE.clientGated]: 'relay.clientGated',
+  [RELAY_HTML_PAGE_ERROR]: 'relay.webPageReturned',
+  // Image routing.
+  'Image generation is not available on this transport. Open Providers → this Relay → Advanced Settings → Transport and switch it to OpenAI Responses or Chat Completions.': 'relay.imageRouteUnsupported',
+  'Please add a chat model to this relay before using image generation.': 'relay.missingChatDriverModel',
+};
+
+/** Generic reason line for a local exception (e.g. a manual-setup write failing): the English source matches Android `error_generic_message` and is localized at render time. */
+export const UNEXPECTED_ERROR_MESSAGE = 'An unexpected error occurred.';
+
 const ERROR_MESSAGE_TO_KEY: Record<string, string> = {
+  [UNEXPECTED_ERROR_MESSAGE]: 'unexpected.message',
   'The request was malformed. Please check your input and try again.': 'requestFailed.message',
   'The API key you entered is invalid or has been revoked. Please check your key and try again.': 'invalidKey.message',
   'You have exceeded the rate limit. Please wait a moment and try again.': 'rateLimited.message',
@@ -30,22 +60,7 @@ const ERROR_MESSAGE_TO_KEY: Record<string, string> = {
   [PROVIDER_VALIDATION_MESSAGES.openAISubscriptionQuotaExhausted]: 'validation.openAISubscriptionQuotaExhausted',
   [PROVIDER_VALIDATION_MESSAGES.openAISubscriptionUnavailable]: 'validation.openAISubscriptionUnavailable',
   [PROVIDER_VALIDATION_MESSAGES.openAISubscriptionCatalogEmpty]: 'validation.openAISubscriptionCatalogEmpty',
-  'This relay requires Codex client identity. Open Settings → Providers → this relay → Edit → Relay type and switch to “Codex style (Responses)”, then retry.': 'relay.codexIdentityRequiredSwitch',
-  'This relay requires Codex client identity. Open Settings → Providers → this relay → Edit → Compatibility and turn on “Codex compatible identity”, then retry.': 'relay.codexIdentityEnable',
-  'This relay still rejects Oriveo\'s Codex client identity. Open Settings → Providers → this relay → Edit → Advanced HTTP and set a custom User-Agent or custom Header, or switch to another relay / contact its administrator.': 'relay.codexIdentityRejected',
-  'This relay only exposes /v1/responses and rejects /chat/completions. Open Settings → Providers → this relay → Edit → Relay type and switch to “Codex style (Responses)”, then retry.': 'relay.chatCompletionsRejectedByCodexHost',
-  'The relay could not reach its upstream provider. This is not your configuration — the relay administrator\'s upstream account may be invalid, out of credits, or rate-limited. Switch to another relay or contact its administrator.': 'relay.upstreamUnavailable',
-  'The relay upstream does not offer this model. Open Settings → Providers → this relay → Edit → Model and change it to a model ID your relay supports.': 'relay.modelUnavailable',
-  'This relay requires the OpenAI Responses protocol. Open Settings → Providers → this relay → Edit → Relay type and switch to “Codex style (Responses)”, then retry.': 'relay.responsesProtocolRequired',
-  'This relay rejects the store/disable_response_storage field. Open Settings → Providers → this relay → Edit → Compatibility and turn off “Don\'t keep responses in the cloud”, then retry.': 'relay.storeRejected',
-  'This relay does not accept the current OpenAI service tier value. Open Settings → Providers → this relay → Edit → Compatibility and clear “OpenAI service tier”, then retry.': 'relay.serviceTierRejected',
-  'This relay requires the max_tokens parameter. Open the model settings for this relay and set a max_tokens value, then retry.': 'relay.maxTokensRequired',
-  'This relay expects an Anthropic-style x-api-key header. Open Settings → Providers → this relay → Edit → Auth and switch to “x-api-key”, then retry.': 'relay.anthropicAuthRequired',
-  'Image attachments use the wrong schema for this relay protocol. The model and protocol may not match — open Settings → Providers → this relay → Edit → Relay type and switch to a type that fits your model, then retry.': 'relay.imageSchemaMismatch',
-  'This relay hit a rate limit. Wait a moment, lower request volume, or switch to another key / relay.': 'relay.rateLimited',
-  // Image routing.
-  'Image generation is not available on this transport. Open Providers → this Relay → Advanced Settings → Transport and switch it to OpenAI Responses or Chat Completions.': 'relay.imageRouteUnsupported',
-  'Please add a chat model to this relay before using image generation.': 'relay.missingChatDriverModel',
+  ...RELAY_GUIDANCE_TO_KEY,
 };
 
 type TranslationFn = (key: string) => string;
@@ -68,4 +83,18 @@ export function localizeProviderError(rawMessage: string, t: TranslationFn): str
     }
   }
   return rawMessage;
+}
+
+/** English source string persisted as the title of a provider-sourced failure card (aligned with iOS); localizeFailureTitle translates it at render time. */
+export const PROVIDER_REQUEST_FAILED_TITLE = 'Provider Request Failed';
+
+/** Failure-card title for display: the English source string is translated to the current language; anything else (including already-localized legacy strings) is returned as is. */
+export function localizeFailureTitle(title: string | undefined, t: TranslationFn): string | undefined {
+  return title === PROVIDER_REQUEST_FAILED_TITLE ? t('providerRequestFailed.title') : title;
+}
+
+/** Failure-card body for display: only text matching the relay guidance source table is localized; anything outside it (upstream raw text, already-localized legacy strings) is returned as is. */
+export function localizeRelayGuidance(detail: string | undefined, t: TranslationFn): string | undefined {
+  const key = detail ? RELAY_GUIDANCE_TO_KEY[detail] : undefined;
+  return key ? t(key) : detail;
 }

@@ -156,7 +156,8 @@ describe('model options main pane (rendering)', () => {
     expect(onWebPreferenceChange).toHaveBeenCalledWith('automatic');
 
     const tiers = within(row('Thinking Mode')).getByRole('radiogroup', { name: 'Thinking Mode' });
-    expect(within(tiers).getAllByRole('radio').map((node) => node.textContent)).toEqual(['Off', 'Fast', 'Deep']);
+    // In-card tiers draw only the icon; the tier word is the accessible name.
+    expect(within(tiers).getAllByRole('radio').map((node) => node.getAttribute('aria-label'))).toEqual(['Off', 'Fast', 'Deep']);
     fireEvent.click(within(tiers).getByRole('radio', { name: 'Deep' }));
     expect(onReasoningIntentChange).toHaveBeenCalledWith('deep');
   });
@@ -169,7 +170,7 @@ describe('model options main pane (rendering)', () => {
 
     expect(header().textContent).toContain('Local');
     const order = within(capabilities()).getAllByRole('group').map((node) => node.getAttribute('aria-label'));
-    expect(order).toEqual(['Thinking Mode', 'Web Search']);
+    expect(order).toEqual(['Thinking Mode', 'Web Search', 'Vision', 'Files']);
     expect(within(row('Web Search')).getByText('This connection can’t do this')).toBeTruthy();
     expect(within(row('Web Search')).queryByRole('switch')).toBeNull();
 
@@ -210,9 +211,31 @@ describe('model options main pane (rendering)', () => {
     }, { temperature: valueOverride(0.7), max_output_tokens: valueOverride(4096) });
     open({});
 
-    const card = screen.getByRole('button', { name: /^Advanced Settings/ });
-    expect(within(card).getByText(/^Temperature 0\.7$/)).toBeTruthy();
-    expect(card.querySelectorAll('[data-kind="set"]')).toHaveLength(2);
+    // Temperature is its own row; the entry row chips no longer repeat it.
+    const temperature = screen.getByRole('button', { name: /^Temperature/ });
+    expect(temperature.textContent).toContain('0.7');
+    const card = screen.getByRole('button', { name: /^Parameters/ });
+    expect(within(card).getByText(/^Max Tokens 4096$/)).toBeTruthy();
+    expect(card.querySelectorAll('[data-kind="set"]')).toHaveLength(1);
+  });
+
+  it('BOARD-OPTIONS-01 official model: 2x2 tiles (web / thinking / vision / file) and the "This turn will send" line', () => {
+    open({ webPreference: 'automatic', reasoningIntent: 'deep' as never });
+    const order = within(capabilities()).getAllByRole('group').map((node) => node.getAttribute('aria-label'));
+    expect(order).toEqual(['Web Search', 'Thinking Mode', 'Vision', 'Files']);
+    // The thinking tile's status line is the selected tier word.
+    expect(within(row('Thinking Mode')).getByText('Deep')).toBeTruthy();
+    expect(screen.getByTestId('model-options-turn-summary').textContent)
+      .toBe('This turn will send: Web search on · Thinking: Deep');
+    // The summary line comes after the parameters card (same on all platforms and the design board).
+    const summaryBar = screen.getByTestId('model-options-turn-summary');
+    const parameters = screen.getByRole('button', { name: /^Parameters/ });
+    expect(parameters.compareDocumentPosition(summaryBar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('BOARD-OPTIONS-07 web off and no thinking level chosen: no summary line', () => {
+    open({});
+    expect(screen.queryByTestId('model-options-turn-summary')).toBeNull();
   });
 
   it('thinking linkage: after choosing a thinking tier on a Relay Anthropic connection, the temperature row in advanced settings says the model does not accept this item while thinking is on', async () => {
@@ -245,7 +268,7 @@ describe('model options main pane (rendering)', () => {
     render(<Host />);
 
     fireEvent.click(within(row('Thinking Mode')).getByRole('radio', { name: 'Deep' }));
-    fireEvent.click(screen.getByRole('button', { name: /^Advanced Settings/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Parameters/ }));
     await act(async () => {});
     const temperature = await waitFor(() => {
       const node = document.querySelector<HTMLElement>('[data-advanced-row="temperature"]');

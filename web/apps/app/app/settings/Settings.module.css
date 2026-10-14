@@ -788,3 +788,18 @@
     min-width: 0;
   }
 }
+
+/* Forward / next-level arrows flip with the text direction. */
+.accountChevron:dir(rtl) {
+  transform: scaleX(-1);
+}
+
+/* Forward / next-level arrows flip with the text direction. */
+.hubCardChevron:dir(rtl) {
+  transform: scaleX(-1);
+}
+
+/* Forward / next-level arrows flip with the text direction. */
+.navRowChevron:dir(rtl) {
+  transform: scaleX(-1);
+}

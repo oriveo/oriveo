@@ -26,6 +26,9 @@ export type {
   Provider,
   ProviderAuthMode,
   ProviderSubscriptionCredential,
+  RelayKeyEntry,
+  RelayKeyStatus,
+  RelayKeyStatusState,
   ChatMessage,
   QuoteContentKind,
   QuoteContext,
@@ -47,6 +50,11 @@ export type {
 
 export type {
   RelayTransport,
+  RelayModelTransport,
+  RelayTransportSource,
+  RelayCapabilityOverride,
+  RelayCapabilityOverrides,
+  EngineDeclaration,
   RelayAuthMode,
   RelayReasoningEffort,
   RelayKind,

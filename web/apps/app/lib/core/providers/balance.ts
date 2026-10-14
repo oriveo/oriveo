@@ -357,7 +357,7 @@ export async function getProviderBalanceCached(
     const cached = cache.get(providerId);
     if (
       cached
-      && cached.apiKey === normalizedKey
+      && cached.apiKey === normalizedKey // key-choke: not-provider
       && cached.baseURL === normalizedBaseURL
       && Date.now() - cached.balance.fetchedAt.getTime() < CACHE_TTL_MS
     ) {

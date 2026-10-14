@@ -1536,6 +1536,8 @@ beforeEach(async () => {
     expect(screen.getByTestId('input-composer').getAttribute('data-disabled')).toBe('false');
     expect(mockCreateProviderSelectionSnapshot).toHaveBeenCalledWith(undefined, {
       requestedModelId: 'model-missing',
+      // The relay fallback looks at the last used model: the snapshot input is passed along as well.
+      lastUsedModelRef: null,
     });
   });
 

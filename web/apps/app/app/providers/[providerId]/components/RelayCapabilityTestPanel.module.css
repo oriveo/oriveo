@@ -1,0 +1,268 @@
+/* Capability test panel: centered on large screens, bottom-docked at ≤720px (same breakpoint as CrosscheckSheet). */
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  pointer-events: none;
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--o-overlay);
+  backdrop-filter: blur(8px) saturate(0.95);
+  -webkit-backdrop-filter: blur(8px) saturate(0.95);
+  pointer-events: auto;
+}
+
+.sheet {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(480px, 100%);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-modal);
+  background: var(--o-surface);
+  box-shadow: var(--o-elevation-modal);
+  padding: 24px;
+  pointer-events: auto;
+  overscroll-behavior: contain;
+}
+
+/* Capability test header: whole row vertically centered */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.headerText {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Title is title2, up to 2 lines. */
+.title {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--o-text-xl);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--o-bg-subtle);
+  color: var(--o-text-secondary);
+  font-size: 12px;
+}
+
+.progressBadge {
+  flex-shrink: 0;
+  color: var(--o-primary-text-on-surface);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.doneBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  color: var(--o-success-text);
+  font-size: 14px;
+}
+
+.stoppedBadge {
+  flex-shrink: 0;
+  color: var(--o-warning-text);
+  font-size: 14px;
+}
+
+.progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--o-bg-subtle);
+  overflow: hidden;
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--o-primary);
+  transition: width 200ms ease;
+}
+
+.sheet[data-phase='completed'] .progress span {
+  background: var(--o-success);
+}
+
+/* The progress bar stays primary when stopped. */
+.sheet[data-phase='stopped'] .progress span {
+  background: var(--o-primary);
+}
+
+.rows {
+  margin: 0;
+  padding: 4px 16px;
+  list-style: none;
+  border-radius: var(--o-radius-modal);
+  background: var(--o-surface-raised);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.row + .row {
+  border-top: 1px solid var(--o-border);
+}
+
+/* Icon box 26. */
+.rowIconFrame {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+}
+
+.rowIcon {
+  flex-shrink: 0;
+  color: var(--o-text-tertiary);
+}
+
+.row[data-icon='running'] .rowIcon {
+  color: var(--o-primary);
+  animation: spin 1s linear infinite;
+}
+
+.row[data-icon='accepted'] .rowIcon {
+  color: var(--o-success);
+}
+
+.row[data-icon='rejected'] .rowIcon,
+.row[data-icon='rejected'] .rowSubtitle {
+  color: var(--o-error);
+}
+
+.row[data-icon='undetermined'] .rowIcon {
+  color: var(--o-warning);
+}
+
+.rowText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Row text: title medium, subtitle and trailing caption. */
+.rowTitle {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.row[data-icon='waiting'] .rowTitle,
+.row[data-icon='notRun'] .rowTitle {
+  color: var(--o-text-secondary);
+}
+
+.rowSubtitle {
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.rowTrailing {
+  flex-shrink: 0;
+  color: var(--o-text-tertiary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.row[data-icon='running'] .rowTrailing {
+  color: var(--o-primary);
+}
+
+.footer {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  color: var(--o-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.footer svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.action {
+  width: 100%;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row[data-icon='running'] .rowIcon {
+    animation: none;
+  }
+
+  .progress span {
+    transition: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .layer {
+    align-items: flex-end;
+    padding: 12px 0 0;
+  }
+
+  .sheet {
+    width: 100%;
+    max-height: 88dvh;
+    border-radius: var(--o-radius-modal) var(--o-radius-modal) 0 0;
+    padding: 24px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+}

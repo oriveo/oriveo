@@ -48,6 +48,8 @@ function facts(overrides: Partial<ModelOptionsPanelFacts> = {}): ModelOptionsPan
     hasReadOnlyReason: false,
     generationRows: [],
     notes: { web: NO_NOTES, reasoning: NO_NOTES },
+    vision: { entryVisible: true, isRelayForm: false, noPositiveEvidence: false },
+    file: { nativeFileMimes: [], pdfNativeDefault: false },
     ...overrides,
   };
 }
@@ -172,7 +174,7 @@ describe('tapping a segment again', () => {
 });
 
 describe('parameter card and notes strip', () => {
-  it('parameters written through the production store → row model → at most 2 chips plus N more', () => {
+  it('parameters written through the production store → row model → temperature gets its own row, the rest go into chips', () => {
     const llama = localEngineGenerationProfile('llamacpp', undefined)!;
     const scope = { providerId: 'p1', modelId: 'm1', conversationId: 'c1' };
     saveGenerationParameterOverrides(scope, {
@@ -185,8 +187,10 @@ describe('parameter card and notes strip', () => {
       editingLayers: ['transient', 'conversation'],
     });
     const out = modelOptionsPanelModel(facts({ generationRows }));
-    expect(out.parameters.chips).toHaveLength(2);
-    expect(out.parameters.moreCount).toBe(1);
+    // Temperature gets its own row; the chips hold only the other two.
+    expect(out.temperature?.id).toBe('temperature');
+    expect(out.parameters.chips.map((chip) => chip.id)).toEqual(['top_k', 'min_p']);
+    expect(out.parameters.moreCount).toBe(0);
   });
 
   it('custom field takeover / risk tiers / upstream rejection go into the notes strip', () => {

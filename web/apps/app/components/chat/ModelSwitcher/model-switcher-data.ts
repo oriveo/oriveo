@@ -120,8 +120,10 @@ export function sortProviderModels(
   // grouping (ProviderSectionRow builds groups in order of first appearance) and would make a group.sort_order change in the admin console wait for a release to take effect.
   if (providerKind && usesServerOrderedModels(providerKind)) return [...models];
 
+  // A relay has no default model: the old isDefault is not moved to the front.
+  const defaultFirst = providerKind !== 'relay';
   return [...models].sort((lhs, rhs) => {
-    if (lhs.isDefault !== rhs.isDefault) {
+    if (defaultFirst && lhs.isDefault !== rhs.isDefault) {
       return lhs.isDefault ? -1 : 1;
     }
     // After the default, sort by recommended and then by name so recommended models stay visible near the top

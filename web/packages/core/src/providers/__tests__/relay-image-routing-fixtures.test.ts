@@ -43,7 +43,9 @@ interface Fixture {
   pickChatDriverModelID: {
     cases: (FixtureCase & {
       currentModelID: string;
-      models: { id: string; capabilities: string[]; available: boolean; isDefault: boolean }[];
+      /** Effective key of each model on a multi-key connection; single-key cases have none. */
+      currentKeyID?: string;
+      models: { id: string; capabilities: string[]; available: boolean; isDefault: boolean; keyID?: string }[];
       expectedSuccess?: string;
       expectedError?: string;
     })[];
@@ -127,12 +129,13 @@ describe('relay image routing - shared cross-client fixture', () => {
           id: model.id,
           capabilities: toWebCapabilities(model.capabilities),
           isAvailable: model.available,
-          isDefault: model.isDefault,
+          ...(model.keyID !== undefined ? { keyID: model.keyID } : {}),
         }));
+        // The isDefault in the fixture is the legacy data shape and is deliberately not fed in: a relay no longer has a default model.
         const result = pickChatDriverModelID({
           currentModelID: testCase.currentModelID,
           models,
-          defaultModelID: models.find((model) => model.isDefault)?.id ?? null,
+          ...(testCase.currentKeyID !== undefined ? { currentKeyID: testCase.currentKeyID } : {}),
         });
 
         if (testCase.expectedSuccess) {

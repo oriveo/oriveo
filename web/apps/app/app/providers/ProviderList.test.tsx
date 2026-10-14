@@ -87,7 +87,8 @@ vi.mock('../../lib/core/store/selectors', () => ({
   selectResolvedCatalog: () => ({ availableModelCount: 5 }),
 }));
 
-vi.mock('../../lib/core/metadata/metadata-client', () => ({
+vi.mock('../../lib/core/metadata/metadata-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/core/metadata/metadata-client')>()),
   onVersionChange: () => () => {},
 }));
 

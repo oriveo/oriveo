@@ -15,6 +15,10 @@ import type {
   RelayKind,
   RelayRequestedConfig,
   RelayImageConfig,
+  RelayModelTransport,
+  RelayTransportSource,
+  RelayCapabilityOverrides,
+  EngineDeclaration,
 } from './relay';
 
 /* ── Model ────────────────────────────────────────────── */
@@ -196,6 +200,32 @@ export interface AIModel {
    */
   transport?: string;
   /**
+   * Relay 2.0: the protocol this model uses itself. Absent = follow the connection default
+   * (`relayRequested.transport`). Not the same thing as `transport` above (that is the metadata
+   * strategy kind, with a different vocabulary).
+   *
+   * The three fields below stay on this device and in the user's own backup files and never enter
+   * cloud sync (`modelToFirestore` is a whitelist mapping, so it naturally excludes them); they are
+   * sanitized through `sanitizeRelayModelFields` when read back.
+   */
+  relayTransport?: RelayModelTransport;
+  /** Who decided `relayTransport`; absent when there is no `relayTransport`. */
+  relayTransportSource?: RelayTransportSource;
+  /** The user's manual override of this model's capabilities; a missing key means no override, so probing and facts apply. */
+  relayCapabilityOverrides?: RelayCapabilityOverrides;
+  /** Per-model capability declaration resolved by the local engine connector; also local only. Consumed only when the connection has an engineProfile. */
+  engineDeclaration?: EngineDeclaration;
+  /**
+   * Multiple keys: the id of the key this model is bound to; absent, or pointing at a key that no
+   * longer exists, means the primary key. Not written when the connection has a single key.
+   * The three fields below are also local only.
+   */
+  relayKeyID?: string;
+  /** Catalog entry: ids of the keys (in key order) whose catalog fetch listed this model; absent = listed by the primary key. */
+  relayListedByKeyIDs?: string[];
+  /** Id of the key most recently judged "this key cannot use this model"; only meaningful when it equals the currently effective key. */
+  relayDeniedKeyID?: string;
+  /**
    * Optional minimum client version (SemVer).
    * A client older than minClientVersion hides the model in the catalog.
    */
@@ -273,6 +303,23 @@ export interface ProviderSubscriptionCredential {
   planType?: string;
 }
 
+/** Key status vocabulary: comes only from catalog fetches and real requests; absent = not checked. */
+export type RelayKeyStatusState = 'ok' | 'invalid' | 'denied' | 'limited' | 'failed';
+
+export interface RelayKeyStatus {
+  state: RelayKeyStatusState;
+  httpStatus?: number;
+  checkedAt?: string;
+}
+
+/** One key of a relay connection. The value of a non-primary key is stored like `Provider.apiKey` (IndexedDB). */
+export interface RelayKeyEntry {
+  id: string;
+  name?: string;
+  apiKey: string;
+  status?: RelayKeyStatus;
+}
+
 export interface Provider {
   id: string;
   kind: ProviderKind;
@@ -284,6 +331,20 @@ export interface Provider {
   apiKeyPreview: string;
   lastError?: string;
   baseURLText?: string;
+  /**
+   * Official providers only, stored on this device only (not synced or exported): where baseURLText came from.
+   * default / region:<id> are computed from the current metadata at request time, custom uses the literal address;
+   * absent = unclassified, classified when resolved.
+   */
+  endpointSource?: "default" | "custom" | `region:${string}`;
+  /** Official providers only, stored on this device only: the setup field values (address template placeholders). */
+  setupValues?: { workspaceId?: string };
+  /**
+   * Relay only, stored on this device only (not synced or backed up): the ordered key list. The first key is
+   * the primary key, whose value is always `apiKey` (this entry's own `apiKey` is stored empty).
+   * Absent = one implicit key `initial`.
+   */
+  relayKeys?: RelayKeyEntry[];
   /** relay only: user-supplied name for the relay vendor. */
   customName?: string;
   /** relay only: UI preset kind; takes no part in runtime routing. */
@@ -409,6 +470,11 @@ export interface Citation {
   index?: number;
   startIndex?: number;
   endIndex?: number;
+  /** Source identity when `source === "mcp"`: which MCP server and document adapter (document id is in `docId`). Identity only, no body, endpoint or credentials. */
+  mcp?: {
+    serverId: string;
+    adapter: string;
+  };
 }
 
 export type ResearchStepStatus = 'pending' | 'running' | 'completed' | 'failed';
@@ -538,6 +604,10 @@ export interface ChatMessage {
   additionalBodyRetryEligible?: boolean;
   /** A pre-stream upstream 400 named exactly one panel generation parameter that was written: the error card points to it and offers "resend without this setting". Stored locally only. */
   generationParameterRejection?: { parameterId: string };
+  /** A relay model was sent an image and the upstream rejected it (image support was unknown, so it was sent anyway): the error card says "images not supported" and offers "switch model". Stored locally only. */
+  relayImageUnsupported?: boolean;
+  /** A relay model was sent a native file block and the upstream rejected it, and the fallback chain did not recover: the error card says "these files are not supported" and offers "switch model". Stored locally only. */
+  relayFileUnsupported?: boolean;
   attachments?: Attachment[];
   /** One-turn selected-text reference; never shares pinned-note lifetime. */
   quoteContext?: QuoteContext;

@@ -68,13 +68,14 @@ import {
 } from '../../lib/core/chat/capability-evidence';
 import { useCapabilityEvidenceExpiry } from '../../lib/core/chat/use-capability-evidence-expiry';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from '../../lib/core/chat/stream-options';
-import { capabilityControlIsConfigurable, capabilityControlReasonMessageKey, hasExactCapabilityTransportRecipe, presentCapabilityControl, webPreferenceReachesTheWire, type CapabilityControlPresentation } from '../../lib/core/chat/capability-control-presentation';
+import { capabilityControlIsConfigurable, capabilityControlReasonMessageKey, hasExactCapabilityTransportRecipe, presentCapabilityControl, reasoningModeIntent, webPreferenceReachesTheWire, type CapabilityControlPresentation } from '../../lib/core/chat/capability-control-presentation';
 import { CUSTOM_FRAGMENT_SETTINGS_EVENT, customFragmentOwnerFacts, forwardPortCustomFragmentsIfNeeded } from '../../lib/core/chat/custom-fragment-settings';
 import { CUSTOM_FRAGMENT_ERROR_KIND } from '../../lib/core/chat/custom-fragment-rejection';
 import type { ReasoningIntent } from '@oriveo/core/providers/request-preference/types';
 import { generationParameterProfileFingerprint } from '../../lib/core/chat/generation-parameter-settings';
 import { capabilityRuntimeIdentity, displayCapabilityPreferences, loadCapabilityPreferenceDraft, saveCapabilityPreferenceDraft, saveCapabilityPreferences, withCapabilityReasoningIntent } from '../../lib/core/chat/capability-preference-settings';
 import { capabilityRejectionIsDormant, capabilityRejectionState, invokeCapabilityRecoveryRetry } from '../../lib/core/chat/capability-recovery-runtime';
+import { relayReasoningTierCacheKey, relayRejectedReasoningTiers } from '../../lib/core/chat/relay-reasoning-tiers';
 import { resolveChatCapabilityOutboundDecision } from '../../lib/core/chat/chat-capability-outbound-decision';
 import { LibraryContextPicker } from './LibraryContextPicker';
 import { resolveDirectMaxDocuments } from '../../lib/core/library/types';
@@ -195,6 +196,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   const {
     provider,
     currentModel,
+    modelRemoval,
     setSelectedModelId,
     setSelectedProviderId,
     showModelSwitcher,
@@ -213,7 +215,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
 
   const providerAttachmentSupport = useMemo(() => (
     provider?.kind === 'relay'
-      ? resolveRelayAttachmentSupport(provider, getRelayRuntimeConfig())
+      ? resolveRelayAttachmentSupport(provider, getRelayRuntimeConfig(), currentModel)
       : provider?.kind
         ? getProviderAttachmentSupport(provider.kind)
         : null
@@ -536,9 +538,16 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
     ? capabilityRejectionIsDormant(capabilityRecoveryIdentity, 'web', 'provider_recipe')
     : false;
   // Reasoning rejections are per tier: the whole group goes dormant only when the tiers are not distinguished or every declared tier was rejected; otherwise just those tiers are.
-  const reasoningRejection = capabilityRecoveryIdentity
-    ? capabilityRejectionState(capabilityRecoveryIdentity, 'reasoning', 'provider_recipe', reasoningControl.availableIntents)
-    : undefined;
+  // Rejected tiers on a relay come only from the relay negative cache, the same one the outbound tier fallback uses; the 24-hour parameter self-heal cache is not read.
+  const relayTierKey = provider && currentModel ? relayReasoningTierCacheKey(provider, currentModel) : null;
+  const reasoningRejection = relayTierKey
+    ? {
+      dormant: false,
+      rejectedIntents: relayRejectedReasoningTiers(relayTierKey).map((tier) => reasoningModeIntent(tier)),
+    }
+    : capabilityRecoveryIdentity
+      ? capabilityRejectionState(capabilityRecoveryIdentity, 'reasoning', 'provider_recipe', reasoningControl.availableIntents)
+      : undefined;
   const reasoningRuntimeRejected = reasoningRejection?.dormant ?? false;
   const reasoningRejectedIntents = reasoningRejection?.rejectedIntents ?? [];
   /**
@@ -1141,6 +1150,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
           : currentModel?.name}
         providerKind={provider?.kind}
         relayKind={provider?.relayKind}
+        relayProvider={provider}
         skillIcon={currentSkill?.icon}
         skillName={currentSkill?.name}
         sidebarOpen={sidebarOpen}
@@ -1156,7 +1166,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
       {fromNote ? (
         <div className={styles.returnToNoteBar}>
           <button type="button" onClick={() => router.push(`/notes/${fromNote}`)}>
-            <ChevronLeftIcon size={14} />
+            <ChevronLeftIcon size={14} className="rtl-mirror" />
             {t('returnToNote')}
           </button>
         </div>
@@ -1270,7 +1280,9 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         capabilityAlternativeModels={capabilityAlternativeModels}
         onSelectAlternativeModel={handleSelectAlternativeModel}
         onOpenModelSwitcher={() => setShowModelSwitcher(true)}
+        modelRemovedConnectionName={modelRemoval?.connectionName}
         onOpenConnectionSettings={provider ? () => router.push(`/providers/${provider.id}`) : undefined}
+        onOpenConnectionWebSearch={provider ? () => router.push(`/providers/${provider.id}?view=web`) : undefined}
         onFindModelsSupportingParameter={handleFindModelsSupportingParameter}
         providerAttachmentSupport={providerAttachmentSupport}
         providerKind={telemetryProviderKind(provider?.kind)}

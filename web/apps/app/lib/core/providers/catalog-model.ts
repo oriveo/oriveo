@@ -1,6 +1,7 @@
 import type { AIModel, ProviderKind } from '@oriveo/shared';
 import { formatModelPriceTier } from '../../utils/format-utils';
 import { resolveCatalogModel, type ResolvedModelMetadata } from '../metadata/metadata-client';
+import { deduplicateRelayModels } from './relay-model-identity';
 
 export const PRICE_TIER_UNKNOWN_LABEL = 'Price unknown';
 export const PRICE_TIER_NON_STANDARD_BILLING_LABEL = 'Non-standard billing';
@@ -295,4 +296,9 @@ export function deduplicateByCanonical(models: AIModel[]): AIModel[] {
     }
   }
   return result;
+}
+
+/** De-duplication for loading and the model-library projection: relay de-duplicates by literal key, the rest fold by canonical. */
+export function deduplicateModels(models: AIModel[], kind: ProviderKind | string): AIModel[] {
+  return kind === 'relay' ? deduplicateRelayModels(models) : deduplicateByCanonical(models);
 }

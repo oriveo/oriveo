@@ -214,6 +214,26 @@ interface VendorIdentityProps {
   small?: boolean;
   density?: "default" | "compact";
   dataTestId?: string;
+  /** Explicit side length (px); when omitted it is picked from small / density, so existing callers are unchanged. */
+  size?: number;
+}
+
+// Monogram: split the localized display name into words by Unicode letters / combining marks / digits; with >= 2 words take the first character of the first two,
+// otherwise the first 2 characters of the first word (`Other` -> `OT`, `Sonstige` -> `SO`, a Japanese word for "other" -> its first two kana); an empty name or no words falls back to `AI`.
+// A "character" is a grapheme cluster (like Swift Character), otherwise combining marks in hi / th would be split apart.
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+function graphemes(word: string): string[] {
+  return Array.from(GRAPHEMES.segment(word), (part) => part.segment);
+}
+
+export function vendorMonogram(title: string): string {
+  const words = title.match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
+  if (words.length === 0) return "AI";
+  const letters = words.length >= 2
+    ? words.slice(0, 2).map((word) => graphemes(word)[0] ?? "").join("")
+    : graphemes(words[0] ?? "").slice(0, 2).join("");
+  return letters.toUpperCase();
 }
 
 export function VendorIdentity({
@@ -222,6 +242,7 @@ export function VendorIdentity({
   small = false,
   density = "default",
   dataTestId,
+  size,
 }: VendorIdentityProps) {
   const isDark = useIsDarkTheme();
   const normalizedKey = normalizeVendorKey(groupId);
@@ -229,16 +250,10 @@ export function VendorIdentity({
   const officialLogo = resolveOfficialVendorLogo(normalizedKey, isDark);
   const logoSrc = officialLogo ?? (isDark && visual?.darkLogo ? visual.darkLogo : visual?.logo);
   const presentation = getVendorBadgePresentation(groupId, Boolean(visual));
-  const frameSize = density === "compact" ? (small ? 26 : 38) : (small ? 30 : 42);
+  const frameSize = size ?? (density === "compact" ? (small ? 26 : 38) : (small ? 30 : 42));
   const paddingX = officialLogo ? 0 : (visual?.paddingX ?? visual?.padding ?? 0.18);
   const paddingY = officialLogo ? 0 : (visual?.paddingY ?? visual?.padding ?? 0.18);
-  const monogram =
-    title
-      .split(/[^a-zA-Z0-9]+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((chunk) => chunk[0]?.toUpperCase())
-      .join("") || title.slice(0, 2).toUpperCase();
+  const monogram = vendorMonogram(title);
 
   return (
     <span
@@ -265,6 +280,7 @@ export function VendorIdentity({
           "--vendor-logo-scale": String(visual?.scale ?? 1),
           "--vendor-logo-shift-x": `${Math.round(frameSize * (visual?.offsetX ?? 0))}px`,
           "--vendor-logo-shift-y": `${Math.round(frameSize * (visual?.offsetY ?? 0))}px`,
+          ...(size !== undefined ? { width: `${size}px`, height: `${size}px` } : {}),
         } as CSSProperties
       }
       aria-hidden="true"

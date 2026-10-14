@@ -28,17 +28,11 @@ describe('provider logo visual contract', () => {
     expect(knownVendor).not.toContain('border:');
   });
 
-  it('keeps Relay brand marks and provider cards free of decorative frames', () => {
-    const pickerCSS = readAppFile('components/providers/RelayKindPicker.module.css');
-    const relayHeroCSS = readAppFile('app/providers/[providerId]/components/RelayEditorHeroCard.module.css');
+  it('keeps provider cards free of decorative frames', () => {
     const providerCardSource = readAppFile('app/providers/new/ProviderCard.tsx');
     const providerCardCSS = readAppFile('app/providers/new/ProviderCard.module.css');
-    const logoBrand = cssClassBlock(pickerCSS, '.logoBrand');
-    const relayBadge = cssClassBlock(relayHeroCSS, '.badge');
     const selectedCard = cssClassBlock(providerCardCSS, ".showcaseCard[data-selected='true']");
 
-    expect(logoBrand).not.toMatch(/background|border|box-shadow/);
-    expect(relayBadge).not.toMatch(/background|border|box-shadow/);
     expect(providerCardSource).not.toContain('cardLogoGlow');
     expect(providerCardCSS).not.toContain('.cardLogoGlow');
     expect(selectedCard).not.toContain('inset');

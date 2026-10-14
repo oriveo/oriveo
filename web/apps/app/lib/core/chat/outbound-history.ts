@@ -10,8 +10,48 @@ import { type AttachmentLine, nativeFileModeOf } from '@oriveo/core/providers/at
 import { AttachmentOverLimitError, resolveFileAttachmentDelivery } from '../attachments/attachment-delivery';
 import { type OutboundHistoryMessage, attachTextFallback } from '../attachments/native-file-fallback';
 import type { SkippedAttachment } from '../attachments/attachment-injector';
-import { resolveAttachmentLineForMessages } from '../attachments/attachment-transport-resolver';
-import { buildChatHistory } from '../../utils/chat-stream-utils';
+import { outboundHistoryHasVideo, relayNativeFileCacheKey, resolveAttachmentLineForMessages } from '../attachments/attachment-transport-resolver';
+import { buildChatHistory, sanitizeOutboundMessages } from '../../utils/chat-stream-utils';
+import { filterCurrentTurnAttachments, withoutUnreceivableImages } from './attachment-policy';
+
+/**
+ * The messages actually to be sent in this request (normalized + attachments filtered by the current model capabilities). Sending, pre-send preflight and the model panel
+ * file card all use this one copy to judge video.
+ */
+export function buildOutboundMessages(input: {
+  messages: ChatMessage[];
+  currentTurnId: string;
+  keepAssistantId?: string;
+  provider: Provider;
+  model: AIModel;
+  streamOptions?: StreamOptions;
+}): ChatMessage[] {
+  return filterCurrentTurnAttachments(
+    withoutUnreceivableImages(
+      sanitizeOutboundMessages(input.messages, input.keepAssistantId),
+      input.provider, input.model, input.streamOptions,
+    ),
+    input.currentTurnId, input.provider, input.model,
+  );
+}
+
+const MODEL_PANEL_TURN_ID = '__model_panel_turn__';
+
+/**
+ * Model panel file card prediction: whether the outbound history has video. The panel has no input for this turn right now, so attach a non-empty placeholder
+ * user message as this turn (same convention as the other clients; the placeholder is not sent), so normalization and the attachment budget treat the history as a real send would.
+ * Video only affects Gemini route selection; other connections do not count.
+ */
+export async function modelPanelOutboundHasVideo(input: {
+  messages: ChatMessage[];
+  provider: Provider;
+  model: AIModel;
+  streamOptions?: StreamOptions;
+}): Promise<boolean> {
+  if (input.provider.kind !== 'gemini') return false;
+  const turn = { id: MODEL_PANEL_TURN_ID, role: 'user', text: '_' } as ChatMessage;
+  return outboundHistoryHasVideo(buildOutboundMessages({ ...input, messages: [...input.messages, turn], currentTurnId: turn.id }));
+}
 
 export interface OutboundHistoryCtx {
   /** Words the attachments that do not fit as one sentence for the user (provided by the UI layer, localized). */
@@ -78,9 +118,11 @@ async function attachNativeFileTextFallback(
   } catch {
     return;
   }
+  const relayKey = relayNativeFileCacheKey(input.provider, input.model);
   attachTextFallback(history, fallback, {
     providerId: input.provider.id,
     providerKind: input.provider.kind,
     transport: line.transport,
+    ...(relayKey ? { relayKey } : {}),
   });
 }

@@ -256,6 +256,41 @@ describe('AppShell mobile app chrome', () => {
     expect(screen.queryByRole('navigation', { name: 'Main navigation' })?.className).not.toContain('mobileTabBar');
   });
 
+  it('hideMobileNavChrome hides the tab bar and, on phone width only, the hamburger and tab-bar padding', () => {
+    const { container } = render(
+      <AppShell
+        navItems={navItems}
+        activePath="/providers"
+        sidebarOpen={false}
+        hideMobileNavChrome
+      >
+        <div>main</div>
+      </AppShell>,
+    );
+
+    const shell = container.firstChild as HTMLElement;
+    expect(shell.getAttribute('data-mobile-nav-chrome-hidden')).toBe('true');
+    expect(shell.getAttribute('data-mobile-tabbar-hidden')).toBe('true');
+    expect(screen.queryByRole('navigation', { name: 'Main navigation' })?.className ?? '').not.toContain('mobileTabBar');
+
+    // The hamburger is hidden only inside the phone-width media block; unchanged at desktop width.
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'AppShell.module.css'), 'utf8');
+    const phone = css.slice(css.indexOf('@media (max-width: 767px)'));
+    const phoneBlock = phone.slice(0, phone.indexOf('\n}\n') + 3);
+    expect(phoneBlock).toMatch(/\.shell\[data-mobile-nav-chrome-hidden='true'\] \.sidebarOpenBtn\s*\{\s*display:\s*none;/);
+    const outside = css.replace(phoneBlock, '');
+    expect(outside).not.toContain('data-mobile-nav-chrome-hidden');
+  });
+
+  it('without hideMobileNavChrome the shell is unchanged', () => {
+    const { container } = render(
+      <AppShell navItems={navItems} activePath="/providers" sidebarOpen={false}>
+        <div>main</div>
+      </AppShell>,
+    );
+    expect((container.firstChild as HTMLElement).hasAttribute('data-mobile-nav-chrome-hidden')).toBe(false);
+  });
+
   it('renders the notes entry in the sidebar actions (not the dock) with active state', () => {
     const { container } = render(
       <AppShell

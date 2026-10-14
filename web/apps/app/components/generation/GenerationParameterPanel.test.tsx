@@ -112,7 +112,8 @@ const model = {
  * and those cases are adjusted individually.
  */
 function expandAll() {
-  for (const selector of ['[data-advanced-cluster] > button[aria-expanded="false"]', '[data-advanced-row] > button[aria-expanded="false"]']) {
+  // The operations blocks of the connection scope are folded into a "More" section at the page end; open it as well so the old assertions stay unchanged.
+  for (const selector of ['[data-parameters-more] > button[aria-expanded="false"]', '[data-advanced-cluster] > button[aria-expanded="false"]', '[data-advanced-row] > button[aria-expanded="false"]']) {
     document.querySelectorAll<HTMLButtonElement>(selector).forEach((button) => fireEvent.click(button));
   }
 }
@@ -166,9 +167,9 @@ describe('GenerationParameterPanel', () => {
   //
   // There is no auto/custom segmented control and no global developer switch deciding whether it
   // shows. Custom request fields are reachable only through the developer group at the bottom.
-  it('uses the same advanced-settings title in both forms and leaves the scope difference to the subtitle', () => {
+  it('uses the same "Parameters" title in both forms and leaves the scope difference to the subtitle', () => {
     const { unmount } = renderPanel(<GenerationParameterPanel provider={provider} model={model} conversationId="conversation-1" scope="session" />);
-    expect(screen.getByLabelText('modelBehavior')).toBeTruthy();
+    expect(screen.getByLabelText('generationParameters')).toBeTruthy();
     expect(screen.getByText(`${model.name} · advancedThisConversationOnly`)).toBeTruthy();
     // The scope is carried by the "this conversation only" subtitle; there is no separate scope sentence.
     // Connection-level operations belong on the provider detail side only; this path in chat is
@@ -178,7 +179,7 @@ describe('GenerationParameterPanel', () => {
     unmount();
 
     renderPanel(<GenerationParameterPanel provider={provider} model={model} />);
-    expect(screen.getByLabelText('modelBehavior')).toBeTruthy();
+    expect(screen.getByLabelText('generationParameters')).toBeTruthy();
     expect(screen.getByText(model.name, { selector: 'p' })).toBeTruthy();
     expect(screen.getByLabelText('generationPresetName')).toBeTruthy();
   });
@@ -293,7 +294,8 @@ describe('GenerationParameterPanel', () => {
 
     renderPanel(<GenerationParameterPanel provider={provider} model={model} />);
 
-    expect(screen.getByText(/generationParameters$/)).toBeTruthy();
+    // The page title is also "Parameters" now; this asserts the title of the empty-state group itself.
+    expect(screen.getByText(/generationParameters$/, { selector: '.group > strong' })).toBeTruthy();
     expect(screen.getByText(/generationParameterEmptyNotVerified$/)).toBeTruthy();
     expect(screen.getByText(/generationParameterEmptyNotVerifiedBody/)).toBeTruthy();
     // The panel section is still there; it does not render as null.

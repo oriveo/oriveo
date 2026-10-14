@@ -13,7 +13,7 @@ import 'fake-indexeddb/auto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AIModel, ChatMessage, Conversation, Provider } from '@oriveo/shared';
+import type { AIModel, Attachment, ChatMessage, Conversation, Provider } from '@oriveo/shared';
 import {
   MCP_SAFETY_PROMPT,
   McpTransportError,
@@ -30,6 +30,8 @@ const mocks = vi.hoisted(() => ({
   reportSendCompletion: vi.fn(),
   executeLibraryTool: vi.fn(),
   activeUid: { value: 'uid-mcp-send' },
+  /** When set, replaces the continuation that continue-answering reads (a previous_id continuation); null = use the real implementation. */
+  explicitContinuation: { value: null as unknown },
 }));
 
 // Pipeline of the ordinary send path: all that matters here is whether the ordinary path was taken, not
@@ -38,6 +40,17 @@ vi.mock('./stream-runner', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./stream-runner')>()),
   runStreamPipeline: (...args: unknown[]) => mocks.runStreamPipeline(...args),
 }));
+vi.mock('./continuation-lifecycle', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./continuation-lifecycle')>();
+  return {
+    ...actual,
+    continuationForExplicitContinue: (...args: Parameters<typeof actual.continuationForExplicitContinue>) => (
+      mocks.explicitContinuation.value === null
+        ? actual.continuationForExplicitContinue(...args)
+        : Promise.resolve(mocks.explicitContinuation.value as Awaited<ReturnType<typeof actual.continuationForExplicitContinue>>)
+    ),
+  };
+});
 vi.mock('../../utils/chat-stream-utils', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/chat-stream-utils')>()),
   buildChatHistory: vi.fn(async (messages: ChatMessage[]) =>
@@ -82,6 +95,8 @@ vi.mock('../telemetry', async () => ({
   trackEvent: (...args: unknown[]) => mocks.trackEvent(...args),
   telemetryProviderKind: (kind: string) => kind,
   telemetryModelID: (await vi.importActual<typeof import('../telemetry')>('../telemetry')).telemetryModelID,
+  // Relay send telemetry properties need it (the key-access MCP send case).
+  sanitizeTelemetryURL: (await vi.importActual<typeof import('../telemetry')>('../telemetry')).sanitizeTelemetryURL,
 }));
 vi.mock('../library/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../library/api')>()),
@@ -117,8 +132,11 @@ import { __setMcpTransportForTests, mcpDraftScope, useMcpStore } from '../mcp/mc
 import { McpCredentialStore } from '@oriveo/core/mcp/index';
 import { deleteConversation } from '../conversation-ops';
 import { sendMessage } from './operations-send';
+import { continueAnswering } from './operations-continue';
 import { deleteMessage } from './operations-delete';
 import { sendLibraryMessage } from './operations-library-send';
+import { rememberRelayCatalogEndpointTypes } from '../providers/relay-probe-candidates';
+import { isRelayNegativeCached } from './relay-negative-cache';
 
 const CORPUS = resolve(__dirname, '../../../../../../shared/test-fixtures/provider-toolcall');
 const SERVER_ID = '00000000-0000-4000-8000-0000000000a1';
@@ -473,6 +491,91 @@ describe('when MCP tools are not sent', () => {
     expect(connectionSupportsMcpTools(provider(), model())).toBe(true);
   });
 
+  it('a connection whose final wire protocol is gemini_interactions sends no MCP tools (the Interactions wire does not send client tools)', () => {
+    // Interactions is chosen only when metadata judges the model transport to be gemini_interactions; the same
+    // transport vetoes tools here, so the tool-call wire adapter never receives an Interactions request.
+    expect(connectionSupportsMcpTools(provider({ kind: 'gemini' }), model({ transport: 'gemini_interactions' } as Partial<AIModel>))).toBe(false);
+    expect(connectionSupportsMcpTools(provider({ kind: 'gemini' }), model({ transport: 'gemini_generate' } as Partial<AIModel>))).toBe(true);
+  });
+
+  it('the ordinary send path (operations-send) computes the first-send attachment criterion from the original attachments before the loop and passes it to the send pipeline', async () => {
+    const scanned = { id: 'scan-1', kind: 'file', fileName: 'scan.pdf', mimeType: 'application/pdf',
+      originalBase64Data: 'JVBERi0xLjQKU2Nhbg==', base64Data: '', extractionErrorCode: 'scanned_pdf' } as Attachment;
+    const textFile = { id: 'txt-1', kind: 'file', fileName: 'notes.txt', mimeType: 'text/plain', base64Data: 'hello' } as Attachment;
+    const metadata = await import('../metadata/metadata-client');
+    vi.mocked(metadata.getRelayRuntimeConfig).mockReturnValue(metadata.DEFAULT_RELAY_RUNTIME_CONFIG);
+    const send = async (fileOverride: boolean | null, attachments: Attachment[]) => {
+      const claude = model({
+        id: 'claude-first-files',
+        ...(fileOverride === null ? {} : { relayCapabilityOverrides: { file: { value: fileOverride, source: 'user' } } }),
+      });
+      const relay = provider({
+        kind: 'relay', models: [claude], catalogModels: [claude],
+        baseURLText: 'https://relay.example.com/v1', relayKind: 'openai_compatible',
+        relayRequested: { transport: 'auto', authMode: 'bearer' },
+      });
+      rememberRelayCatalogEndpointTypes(relay.id, { [claude.id]: ['anthropic', 'openai'] });
+      const conv = conversation();
+      const store = createAppStore({ conversations: [conv], providers: [relay] });
+      mocks.runStreamPipeline.mockClear();
+      const handle = sendMessage({ store, appendChunk: vi.fn(), te: (key) => key }, {
+        text: 'Read this', prevMessages: [], conversation: conv, provider: relay, model: claude, reasoningMode: 'automatic', attachments,
+      });
+      await handle.done;
+      expect(mocks.runStreamPipeline).toHaveBeenCalledTimes(1);
+      return (mocks.runStreamPipeline.mock.calls[0]![0] as { relayMessagesBlockedByFiles?: boolean }).relayMessagesBlockedByFiles;
+    };
+    try {
+      // Has a file, no extracted text, and the Messages wire cannot send files natively (file override Off) -> criterion holds
+      expect(await send(false, [scanned])).toBe(true);
+      // Any one attachment has extracted text -> does not hold
+      expect(await send(false, [scanned, textFile])).toBe(false);
+      // The Messages wire can send files natively -> does not hold
+      expect(await send(null, [scanned])).toBe(false);
+    } finally {
+      rememberRelayCatalogEndpointTypes('provider-1', undefined);
+      vi.mocked(metadata.getRelayRuntimeConfig).mockReturnValue(undefined as never);
+    }
+  });
+
+  it('the continue-answering path (operations-continue) also computes the first-send attachment criterion from the original attachments; a previous_id continuation does not resend history -> false', async () => {
+    const scanned = { id: 'scan-1', kind: 'file', fileName: 'scan.pdf', mimeType: 'application/pdf',
+      originalBase64Data: 'JVBERi0xLjQKU2Nhbg==', base64Data: '', extractionErrorCode: 'scanned_pdf' } as Attachment;
+    const metadata = await import('../metadata/metadata-client');
+    vi.mocked(metadata.getRelayRuntimeConfig).mockReturnValue(metadata.DEFAULT_RELAY_RUNTIME_CONFIG);
+    const claude = model({ id: 'claude-first-files', relayCapabilityOverrides: { file: { value: false, source: 'user' } } });
+    const relay = provider({
+      kind: 'relay', models: [claude], catalogModels: [claude],
+      baseURLText: 'https://relay.example.com/v1', relayKind: 'openai_compatible',
+      relayRequested: { transport: 'auto', authMode: 'bearer' },
+    });
+    const continueOnce = async () => {
+      const conv = conversation();
+      const user = { id: 'u-files', role: 'user', text: 'Read this', state: 'delivered', createdAt: '2026-10-11T00:00:00.000Z', attachments: [scanned] } as ChatMessage;
+      const interrupted = { id: 'a-files', role: 'assistant', text: 'partial', state: 'interrupted', createdAt: '2026-10-11T00:00:00.001Z' } as ChatMessage;
+      const store = createAppStore({ conversations: [conv], providers: [relay] });
+      mocks.runStreamPipeline.mockClear();
+      const handle = continueAnswering({ store, appendChunk: vi.fn(), te: (key) => key }, {
+        messageId: interrupted.id, conversation: conv, messages: [user, interrupted], provider: relay, model: claude, reasoningMode: 'automatic',
+      });
+      await handle.done;
+      expect(mocks.runStreamPipeline).toHaveBeenCalledTimes(1);
+      return (mocks.runStreamPipeline.mock.calls[0]![0] as { relayMessagesBlockedByFiles?: boolean }).relayMessagesBlockedByFiles;
+    };
+    rememberRelayCatalogEndpointTypes(relay.id, { [claude.id]: ['anthropic', 'openai'] });
+    try {
+      // History has a file, no extracted text, and the Messages wire cannot send files natively -> criterion holds
+      expect(await continueOnce()).toBe(true);
+      // previous_id continuation: the upstream already holds the old context, history is not resent, no attachments -> does not hold
+      mocks.explicitContinuation.value = { kind: 'previous_id', step: 1, state: { previousResponseId: 'resp_1' } };
+      expect(await continueOnce()).toBe(false);
+    } finally {
+      mocks.explicitContinuation.value = null;
+      rememberRelayCatalogEndpointTypes(relay.id, undefined);
+      vi.mocked(metadata.getRelayRuntimeConfig).mockReturnValue(undefined as never);
+    }
+  });
+
   it('keeps quarantined, turned-off and oversized tools out of the outbound request body', async () => {
     await seedServer({
       enabledIn: ['conv-1'],
@@ -768,11 +871,12 @@ describe('failure, cancellation and recovery', () => {
     expect(mocks.trackEvent.mock.calls.some(([name]) => name === 'chat_message_failed')).toBe(true);
   });
 
-  it('resends once without tools and remembers it when the upstream deterministically rejects tools on the first leg, so the next send goes without them', async () => {
+  it('resends once without tools when the upstream deterministically rejects tools on the first leg; a manually added model (eligible for the D5 resend) is remembered, so the next send goes without them', async () => {
     await seedServer({ enabledIn: ['conv-1'] });
+    const manual = model({ isManual: true });
     const rejection = { status: 400, body: { error: { message: 'Unrecognized request argument supplied: tools', type: 'invalid_request_error' } } };
     const chat = scriptChatStream([rejection, textSse('Plain answer.'), textSse('Still plain.')]);
-    const first = start();
+    const first = start({ model: manual });
     await first.handle.done;
     expect(first.assistant()).toMatchObject({ state: 'delivered', text: 'Plain answer.' });
     expect(chat.bodies[0].tools?.length).toBe(2);
@@ -780,11 +884,124 @@ describe('failure, cancellation and recovery', () => {
     expect(server.requests).toEqual([]);
 
     // Remembered: the next send on this connection carries no tools from the first leg on
-    const second = start();
+    const second = start({ model: manual });
     await second.handle.done;
     expect(chat.bodies).toHaveLength(3);
     expect(chat.bodies[2].tools).toBeUndefined();
     expectValid(chat.bodies);
+  });
+
+  it('a catalog model whose first leg gets a tools 4xx is resent that time, writes no connection memory, and the next send still carries tools', async () => {
+    await seedServer({ enabledIn: ['conv-1'] });
+    const rejection = { status: 400, body: { error: { message: 'Unrecognized request argument supplied: tools', type: 'invalid_request_error' } } };
+    const chat = scriptChatStream([rejection, textSse('Plain answer.'), textSse('With tools again.')]);
+    const first = start();
+    await first.handle.done;
+    expect(first.assistant()).toMatchObject({ state: 'delivered', text: 'Plain answer.' });
+    expect(chat.bodies[1].tools).toBeUndefined();
+
+    const second = start();
+    await second.handle.done;
+    expect(chat.bodies).toHaveLength(3);
+    expect(chat.bodies[2].tools?.length).toBe(2);
+    expectValid(chat.bodies);
+  });
+
+  it('a Relay MCP first leg judged as key-has-no-access writes back the same way as an ordinary send and does not resend without tools', async () => {
+    await seedServer({ enabledIn: ['conv-1'] });
+    // Relay send telemetry reads the runtime config; this file mocks it as undefined by default.
+    const metadata = await import('../metadata/metadata-client');
+    vi.mocked(metadata.getRelayRuntimeConfig).mockReturnValue(metadata.DEFAULT_RELAY_RUNTIME_CONFIG);
+    const relayModel = model({ relayKeyID: 'k-claude' });
+    const relay = provider({
+      kind: 'relay', models: [relayModel], catalogModels: [relayModel],
+      baseURLText: 'https://relay.example.com/v1', relayKind: 'openai_compatible',
+      relayRequested: { transport: 'openai_chat_completions', authMode: 'bearer' },
+      relayKeys: [{ id: 'initial', apiKey: '' }, { id: 'k-claude', apiKey: 'sk-claude' }],
+    });
+    // The error body also looks like "tools unsupported": without judging the key first it would resend without tools.
+    const denial = { status: 404, body: { error: { message: 'Model "gpt-4o" is not available for this group; tools unsupported', code: 'model_not_found' } } };
+    const chat = scriptChatStream([denial, textSse('should not be sent')]);
+    const conv = conversation();
+    const store = createAppStore({ conversations: [conv], providers: [relay] });
+    const handle = sendMessage({ store, appendChunk: vi.fn(), te: (key) => key }, {
+      text: 'What is the weather?', prevMessages: [], conversation: conv, provider: relay, model: relayModel, reasoningMode: 'automatic',
+    });
+    await handle.done;
+    expect(chat.bodies).toHaveLength(1);
+    expect(chat.bodies[0].tools?.length).toBe(2);
+    expect(store.getState().providers[0]!.models[0]!.relayDeniedKeyID).toBe('k-claude');
+    const message = store.getState().conversations[0].messages.find((item) => item.id === handle.msgId)!;
+    expect(message.state).toBe('failed');
+
+    // 401: write that key's status; the model does not record no-access.
+    const chat2 = scriptChatStream([{ status: 401, body: { error: { message: 'Invalid API key' } } }]);
+    const store2 = createAppStore({ conversations: [conversation()], providers: [relay] });
+    const handle2 = sendMessage({ store: store2, appendChunk: vi.fn(), te: (key) => key }, {
+      text: 'Again', prevMessages: [], conversation: store2.getState().conversations[0], provider: relay, model: relayModel, reasoningMode: 'automatic',
+    });
+    await handle2.done;
+    expect(chat2.bodies).toHaveLength(1);
+    const after = store2.getState().providers[0]!;
+    expect(after.relayKeys![1]!.status).toEqual({ state: 'invalid', httpStatus: 401, checkedAt: expect.any(String) });
+    expect(after.models[0]!.relayDeniedKeyID).toBeUndefined();
+  });
+
+  it('an auto connection with an unverified Claude family does not enable MCP and falls back to the ordinary path; with its own protocol MCP is enabled and the tool negative-cache key is the protocol actually sent', async () => {
+    await seedServer({ enabledIn: ['conv-1'] });
+    const metadata = await import('../metadata/metadata-client');
+    const streamOptionsModule = await import('./stream-options');
+    const actualStreamOptions = await vi.importActual<typeof import('./stream-options')>('./stream-options');
+    vi.mocked(metadata.getRelayRuntimeConfig).mockReturnValue(metadata.DEFAULT_RELAY_RUNTIME_CONFIG);
+    vi.mocked(streamOptionsModule.buildProviderStreamOptions).mockImplementation(actualStreamOptions.buildProviderStreamOptions);
+    const relayWith = (relayModel: AIModel) => provider({
+      kind: 'relay', models: [relayModel], catalogModels: [relayModel],
+      baseURLText: 'https://relay.example.com/v1', relayKind: 'openai_compatible',
+      relayRequested: { transport: 'auto', authMode: 'bearer' },
+    });
+    const sendWith = async (relay: Provider, relayModel: AIModel) => {
+      const conv = conversation();
+      const store = createAppStore({ conversations: [conv], providers: [relay] });
+      const handle = sendMessage({ store, appendChunk: vi.fn(), te: (key) => key }, {
+        text: 'What is the weather?', prevMessages: [], conversation: conv, provider: relay, model: relayModel, reasoningMode: 'automatic',
+      });
+      await handle.done;
+    };
+    try {
+      // Unverified (no own protocol): the MCP gateway cannot tell the protocol, sends no tools, and takes the ordinary send path (the first-send protocol takes effect there)
+      const unverified = model({ id: 'claude-mcp-gate' });
+      const unverifiedRelay = relayWith(unverified);
+      rememberRelayCatalogEndpointTypes(unverifiedRelay.id, { [unverified.id]: ['anthropic', 'openai'] });
+      const none = scriptChatStream([]);
+      mocks.runStreamPipeline.mockClear();
+      await sendWith(unverifiedRelay, unverified);
+      expect(mocks.runStreamPipeline).toHaveBeenCalledTimes(1);
+      expect(none.bodies).toEqual([]);
+
+      // Own protocol (Messages): MCP is enabled, every leg goes out as Messages, and the tool-rejection negative cache is recorded under the Messages key
+      const verified = model({ id: 'claude-mcp-verified', relayTransport: 'anthropic_messages', relayTransportSource: 'reachable' });
+      const verifiedRelay = relayWith(verified);
+      const rejection = { status: 400, body: { error: { message: 'tools is not supported by this model', type: 'invalid_request_error' } } };
+      const chat = scriptChatStream([rejection, textSse('Plain answer.')]);
+      mocks.runStreamPipeline.mockClear();
+      await sendWith(verifiedRelay, verified);
+      expect(mocks.runStreamPipeline).not.toHaveBeenCalled();
+      expect(chat.bodies).toHaveLength(2);
+      expect(chat.bodies[0].tools?.length).toBe(2);
+      const sent = chat.bodies.map((body) => (body as unknown as { options?: { relayTransport?: string } }).options?.relayTransport);
+      expect(sent).toEqual(['anthropic_messages', 'anthropic_messages']);
+      const toolKey = (transport: string) => isRelayNegativeCached({
+        connectionId: verifiedRelay.id, modelId: verified.id, transport, kind: 'toolCall',
+      });
+      expect(toolKey('anthropic_messages')).toBe(true);
+      expect(toolKey('openai_chat_completions')).toBe(false);
+      // The MCP path's key = the protocol that path actually sent the request with (taken from the production outbound request parameters).
+      expect(toolKey(sent[0]!)).toBe(true);
+    } finally {
+      rememberRelayCatalogEndpointTypes('provider-1', undefined);
+      vi.mocked(streamOptionsModule.buildProviderStreamOptions).mockImplementation(() => ({}));
+      vi.mocked(metadata.getRelayRuntimeConfig).mockReturnValue(undefined as never);
+    }
   });
 
   it('does not resend or remember on a 4xx that is not a tools-unsupported rejection (such as 401)', async () => {

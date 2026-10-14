@@ -97,7 +97,7 @@ function open(overrides: Record<string, unknown> = {}) {
 }
 
 const popover = () => screen.getByRole('dialog', { name: 'common.modelControls' });
-const openAdvanced = () => fireEvent.click(screen.getByText('common.modelBehavior'));
+const openAdvanced = () => fireEvent.click(screen.getByText('common.generationParameters', { selector: 'button span' }));
 
 describe('WQA-6 / WSM-11 - focus and aria wiring', () => {
   afterEach(cleanup);
@@ -288,7 +288,8 @@ describe('WSM-17 - a capability that cannot be configured says so once, and no o
   it('customOnly: the explanation is printed once and the outlet is the additional request body', () => {
     open({ webControl: customOnly, alternativeModels: { web: [otherModel] } });
     expect(within(webRow()).getAllByText('common.modelOptionsWebNoGenericSwitch')).toHaveLength(1);
-    fireEvent.click(within(webRow()).getByRole('button', { name: 'common.openAdditionalBody' }));
+    // A note card with a way out is clickable as a whole; the way out is the card itself.
+    fireEvent.click(within(webRow()).getByRole('button'));
     // Pushed into a secondary pane: the header now carries a back button.
     expect(screen.getByLabelText('common.back')).toBeTruthy();
   });
@@ -310,7 +311,7 @@ describe('the advanced settings row does not hang a false "not ready" badge', ()
   beforeEach(() => localStorage.clear());
   afterEach(cleanup);
 
-  const advancedRow = () => screen.getByText('common.modelBehavior').closest('button')!;
+  const advancedRow = () => screen.getByText('common.generationParameters', { selector: 'button span' }).closest('button')!;
 
   it('the parameters row renders no "not ready" badge', () => {
     open();

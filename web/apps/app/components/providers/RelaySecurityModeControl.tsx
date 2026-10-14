@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { Check, ChevronRight, Globe2, LockKeyhole, Network, TriangleAlert } from 'lucide-react';
 import { Button, CloseButton } from '@oriveo/ui';
@@ -23,6 +23,10 @@ export interface RelaySecurityModeControlProps {
   }) => void | Promise<void>;
   busy?: boolean;
   error?: string;
+  /** Leading icon of the summary row: the edit-connection board uses a row icon (no base plate); when not given the mode icon is used. */
+  icon?: ReactNode;
+  /** Row footnote: drawn under the title in the left column (edit connection). */
+  footnote?: ReactNode;
 }
 
 export function RelaySecurityModeControl({
@@ -32,6 +36,8 @@ export function RelaySecurityModeControl({
   onChange,
   busy = false,
   error,
+  icon,
+  footnote,
 }: RelaySecurityModeControlProps) {
   const t = useTranslations('pages.relayDetail');
   const tc = useTranslations('common');
@@ -83,16 +89,22 @@ export function RelaySecurityModeControl({
         disabled={busy || applying}
         aria-label={t('changeConnectionType')}
       >
-        <span className={styles.icon} aria-hidden="true">{modeIcon(value)}</span>
-        <span className={styles.summaryText}>
-          <span className={styles.label}>{t('connectionType')}</span>
-          <span className={styles.value}>{t(modeLabelKey(value))}</span>
-          {value === 'tofu_https' ? (
-            <span className={styles.value}>{t(modeDescriptionKey(value))}</span>
-          ) : null}
+        {/* Left column icon + title / footnote; the value and "Change" + arrow share the trailing column of the row. */}
+        <span className={styles.lead} data-row-lead>
+          <span className={icon ? styles.plainIcon : styles.icon} aria-hidden="true">{icon ?? modeIcon(value)}</span>
+          <span className={styles.summaryText}>
+            <span className={styles.label}>{t('connectionType')}</span>
+            {value === 'tofu_https' ? (
+              <span className={styles.description}>{t(modeDescriptionKey(value))}</span>
+            ) : null}
+            {footnote}
+          </span>
         </span>
-        <span className={styles.change}>{t('changeConnectionTypeShort')}</span>
-        <ChevronRight size={14} aria-hidden="true" />
+        <span className={styles.trailing} data-row-trailing>
+          <span className={styles.value}>{t(modeLabelKey(value))}</span>
+          <span className={styles.change}>{t('changeConnectionTypeShort')}</span>
+          <ChevronRight size={14} className="rtl-mirror" aria-hidden="true" />
+        </span>
       </button>
       {error ? <span className={styles.error} role="alert">{error}</span> : null}
 

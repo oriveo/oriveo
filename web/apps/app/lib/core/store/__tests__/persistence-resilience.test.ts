@@ -30,7 +30,7 @@ const h = vi.hoisted(() => ({
   getSyncAdapter: vi.fn(),
   initMetadata: vi.fn(async () => {}),
   enrichStoredModel: vi.fn((m: unknown) => ({ ...(m as object) })),
-  deduplicateByCanonical: vi.fn((x: unknown) => x),
+  deduplicateModels: vi.fn((x: unknown) => x),
   assignFolderColors: vi.fn(),
   readStreamPartialBackup: vi.fn(() => ({})),
   clearStreamPartialBackup: vi.fn(),
@@ -71,7 +71,7 @@ vi.mock('../../sync-port', () => ({ getSyncAdapter: h.getSyncAdapter }));
 vi.mock('../../metadata/metadata-client', () => ({ initMetadata: h.initMetadata }));
 vi.mock('../../providers/catalog-model', () => ({
   enrichStoredModel: h.enrichStoredModel,
-  deduplicateByCanonical: h.deduplicateByCanonical,
+  deduplicateModels: h.deduplicateModels,
 }));
 vi.mock('../../folder-ops', () => ({ assignFolderColors: h.assignFolderColors }));
 vi.mock('../stream-partial-backup', () => ({
@@ -116,7 +116,7 @@ beforeEach(() => {
   h.readStreamPartialBackup.mockReturnValue({});
   h.initMetadata.mockImplementation(async () => {});
   h.enrichStoredModel.mockImplementation((m: unknown) => ({ ...(m as object) }));
-  h.deduplicateByCanonical.mockImplementation((x: unknown) => x);
+  h.deduplicateModels.mockImplementation((x: unknown) => x);
   h.getSyncAdapter.mockReturnValue({ didUpdatePreferences: h.didUpdatePreferences });
 });
 

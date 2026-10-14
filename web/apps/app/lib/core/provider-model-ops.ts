@@ -4,9 +4,12 @@ import type { AppStore } from './store/app-store';
 import { sameNormalizedID } from '../utils/id-utils';
 import { selectResolvedCatalog } from './store/selectors';
 import { findModelByIdentifier } from './providers/model-display-lookup';
+import { deduplicateRelayModels, findRelayModel, relayModelKey } from './providers/relay-model-identity';
 import { enrichRelayCatalog } from './providers/relay-official-catalog-match';
 import { resolveRelaySelectionTransport } from './providers/provider-selection-snapshot';
-import { getRelayRuntimeConfig } from './metadata/metadata-client';
+import { cachedModelFamilyByModel, getRelayRuntimeConfig } from './metadata/metadata-client';
+import { inferModelFamily } from '@oriveo/shared';
+import { bindRelayKey, relayKeyIDs } from '@oriveo/shared/relay/relay-keys';
 import { getActiveUIDSync } from '../infra/storage/partition';
 import { clearToolCallMemoryForConnection } from './chat/capability-recovery-runtime';
 
@@ -45,8 +48,9 @@ function uniqueModels(models: AIModel[]): AIModel[] {
  */
 export function enrichRelayProviderModels(provider: Provider, models: AIModel[]): AIModel[] {
   if (provider.kind !== 'relay') return models;
-  const transport = resolveRelaySelectionTransport(provider);
-  return enrichRelayCatalog(models, transport, getRelayRuntimeConfig());
+  const runtimeConfig = getRelayRuntimeConfig();
+  // Enrich each model per its own protocol (Relay 2.0: protocol is an attribute of the model).
+  return models.flatMap((model) => enrichRelayCatalog([model], resolveRelaySelectionTransport(provider, model), runtimeConfig));
 }
 
 /**
@@ -65,15 +69,48 @@ export function enrichRelayProvider(provider: Provider): Provider {
   };
 }
 
+/** Model family for binding: the cached Server by-model vendor family -> existing heuristics; taken synchronously, no request sent. */
+export function relayBindingFamily(modelID: string): string | null {
+  return cachedModelFamilyByModel(modelID) ?? inferModelFamily(modelID);
+}
+
+/**
+ * Pick a key for models newly entering the enabled list by bindCases; a connection with only one key is returned as is and nothing is written.
+ * Those that already carry a valid relayKeyID (e.g. undoing a removal) keep their original binding.
+ */
+export function withRelayKeyBindings(provider: Provider, models: AIModel[]): AIModel[] {
+  if (provider.kind !== 'relay') return models;
+  const keys = relayKeyIDs(provider);
+  if (keys.length < 2) return models;
+  const previous = new Set(provider.models.map((model) => relayModelKey(model.id)));
+  const enabled: AIModel[] = [...provider.models];
+  return models.map((model) => {
+    if (previous.has(relayModelKey(model.id))) return model;
+    let next = model;
+    if (!model.relayKeyID || !keys.includes(model.relayKeyID)) {
+      const keyID = bindRelayKey({
+        keys,
+        catalog: provider.catalogModels,
+        enabled,
+        targetModelID: model.id,
+        family: relayBindingFamily,
+      });
+      if (keyID) next = { ...model, relayKeyID: keyID };
+    }
+    enabled.push(next);
+    return next;
+  });
+}
+
 function patchProviderModels(
   store: StoreApi<AppStore>,
   provider: Provider,
   models: AIModel[],
 ) {
   clearToolCallMemoryForConnection(getActiveUIDSync(), provider.id);
-  const enriched = enrichRelayProviderModels(provider, models);
+  const enriched = enrichRelayProviderModels(provider, withRelayKeyBindings(provider, models));
   store.getState().updateProvider(provider.id, {
-    models: uniqueModels(enriched),
+    models: provider.kind === 'relay' ? deduplicateRelayModels(enriched) : uniqueModels(enriched),
     status: { kind: 'connected' },
     updatedAt: new Date().toISOString(),
   });
@@ -105,11 +142,9 @@ export function createManualModel(modelId: string, isDefault = false): AIModel {
   };
 }
 
-export function createRelayManualModel(
-  modelId: string,
-  isDefault = false,
-): AIModel {
-  const model = createManualModel(modelId, isDefault);
+/** Hand-typed relay models: relay has no default model, so none is ever marked default. */
+export function createRelayManualModel(modelId: string): AIModel {
+  const model = createManualModel(modelId, false);
   const capabilities = [...DEFAULT_MANUAL_MODEL_CAPABILITIES];
   return {
     ...model,
@@ -125,24 +160,53 @@ export function enableProviderModel(
   model: AIModel,
 ): AIModel {
   const latestProvider = resolveProvider(store, provider);
-  const existing = latestProvider.models.find((item) => item.id === model.id);
+  const existing = latestProvider.kind === 'relay'
+    ? findRelayModel(latestProvider.models, model.id)
+    : latestProvider.models.find((item) => item.id === model.id);
   if (existing) return existing;
 
   patchProviderModels(store, latestProvider, [...latestProvider.models, model]);
   return model;
 }
 
+/**
+ * Append several models at once to a relay / local connection (group "add all", CATALOG-19): only append those not yet enabled, write the connection back only once,
+ * zero probes (does not go through enableProviderModelWithProbe); key ownership uses the same binding rule as enabling a single model. Returns the number added.
+ */
+export function enableProviderModels(
+  store: StoreApi<AppStore>,
+  provider: Provider,
+  models: readonly AIModel[],
+): number {
+  const latestProvider = resolveProvider(store, provider);
+  // Relay matches by literal key; official providers keep exact IDs.
+  const identity = (id: string) => latestProvider.kind === 'relay' ? relayModelKey(id) : id;
+  const existing = new Set(latestProvider.models.map((model) => identity(model.id)));
+  const added = models.filter((model) => {
+    if (existing.has(identity(model.id))) return false;
+    existing.add(identity(model.id));
+    return true;
+  });
+  if (added.length === 0) return 0;
+  patchProviderModels(store, latestProvider, [...latestProvider.models, ...added]);
+  return added.length;
+}
+
+/**
+ * Disable a model. A relay / local connection keeps at least one model: when only one is left, refuse, write nothing and return false.
+ */
 export function disableProviderModel(
   store: StoreApi<AppStore>,
   provider: Provider,
   modelId: string,
-) {
+): boolean {
   const latestProvider = resolveProvider(store, provider);
-  patchProviderModels(
-    store,
-    latestProvider,
-    latestProvider.models.filter((model) => model.id !== modelId),
-  );
+  const remaining = latestProvider.kind === 'relay'
+    ? latestProvider.models.filter((model) => relayModelKey(model.id) !== relayModelKey(modelId))
+    : latestProvider.models.filter((model) => model.id !== modelId);
+  if (latestProvider.kind === 'relay' && remaining.length === 0 && latestProvider.models.length > 0) return false;
+  patchProviderModels(store, latestProvider, remaining);
+  return true;
 }
 
 export function replaceProviderModels(
@@ -159,12 +223,18 @@ export function addManualProviderModels(
   modelIds: string[],
 ): AIModel[] {
   const latestProvider = resolveProvider(store, provider);
-  const existingIds = new Set(latestProvider.models.map((model) => model.id));
+  const isRelay = latestProvider.kind === 'relay';
+  const identity = (id: string) => isRelay ? relayModelKey(id) : id;
+  const existingIds = new Set(latestProvider.models.map((model) => identity(model.id)));
   const trimmedIds = [...new Set(modelIds.map((id) => id.trim()).filter(Boolean))];
   const newModels = trimmedIds
-    .filter((id) => !existingIds.has(id))
+    .filter((id) => {
+      if (existingIds.has(identity(id))) return false;
+      existingIds.add(identity(id));
+      return true;
+    })
     .map((id, index) => latestProvider.kind === 'relay'
-      ? createRelayManualModel(id, latestProvider.models.length === 0 && index === 0)
+      ? createRelayManualModel(id)
       : createManualModel(id, latestProvider.models.length === 0 && index === 0));
 
   if (newModels.length === 0) {
@@ -180,6 +250,10 @@ export function findModelInProvider(
   modelId: string | null | undefined,
 ): AIModel | undefined {
   if (!provider || !modelId) return undefined;
+  // Relay is purely literal: a dated snapshot and its base are two models, with no canonical / date-stripping fallback.
+  if (provider.kind === 'relay') {
+    return findRelayModel(provider.models, modelId) ?? findRelayModel(provider.catalogModels, modelId);
+  }
 
   return findModelByIdentifier(provider.models, modelId)
     ?? findModelByIdentifier(provider.catalogModels, modelId);

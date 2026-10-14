@@ -12,8 +12,11 @@
  *   - The catch block, which depends on each caller's closure: sendStartedAt, prevMessages, interruptedMsg
  */
 import { sendWithNativeFileFallback } from '../attachments/native-file-fallback';
+import { sendWithRelayRejectionLoop } from './relay-rejection-loop';
+import { relayKeyIDs, relayKeySecrets } from '@oriveo/shared/relay/relay-keys';
 import type { StoreApi } from 'zustand';
 import type { Attachment, Citation, AIModel, Provider } from '@oriveo/shared';
+import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
 import type { AppStore } from '../store/app-store';
 import type { ContentPart, StreamEvent, StreamOptions, StreamUsage } from '../providers/types';
 import { sendStream } from '../providers/service';
@@ -40,6 +43,7 @@ import {
 import { persistGrokSubscriptionCredential, persistOpenAISubscriptionCredential } from '../provider-ops';
 import type { GrokSubscriptionErrorKind } from '@oriveo/core/providers/grok-subscription';
 import type { OpenAISubscriptionErrorKind } from '@oriveo/core/providers/openai-subscription';
+import { requestBaseURLText } from '../providers/endpoint-source';
 import {
   grokSubscriptionProviderError,
   openAISubscriptionProviderError,
@@ -142,6 +146,8 @@ export interface StreamPipelineParams {
   setAbortFn: (fn: (() => void) | null) => void;
   /** Direct Library context persists only its document-identity citations. */
   suppressStreamCitations?: boolean;
+  /** Relay first-send attachment criterion (relayFirstSendMessagesBlockedByFiles, computed by the send path from the raw attachments). */
+  relayMessagesBlockedByFiles?: boolean;
   /** Local-only replay captured from the authoritative proxy stream. */
   continuation?: ContinuationIntent;
   onContinuation?: (continuation: ContinuationIntent) => void;
@@ -168,6 +174,8 @@ export interface StreamPipelineResult {
   imageAttachments: Attachment[];
   capabilityResults: CapabilityResultRecord[];
   unhandledToolCalls: CompletedToolCall[];
+  /** Relay: the options of the last request actually sent (they differ from the input after a first-send transport change or a protocol-level fallback). */
+  relaySentStreamOptions?: StreamOptions;
 }
 
 export async function runStreamPipeline(
@@ -185,6 +193,7 @@ export async function runStreamPipeline(
     relayStreamOptions,
     setAbortFn,
     suppressStreamCitations = false,
+    relayMessagesBlockedByFiles = false,
     continuation,
     onContinuation,
   } = params;
@@ -234,6 +243,10 @@ export async function runStreamPipeline(
   const streamOptions = subscription?.ok
     ? {
       ...baseStreamOptions,
+      // With no reasoning tier chosen, the outbound gate carries no reasoning, so routing never reaches the
+      // "automatic = the default tier declared upstream" branch; set automatic explicitly, in line with
+      // iOS / Android where automatic sends the declared default.
+      reasoning: baseStreamOptions?.reasoning ?? 'automatic',
       grokSubscriptionAuth: true,
       grokSubscriptionWebSearchDeclared: model.capabilities.includes('web'),
       ...(model.upstreamDefaultReasoningLevel
@@ -267,24 +280,36 @@ export async function runStreamPipeline(
     ? grokSubscriptionFailureHandle(subscription.error)
     : codexSubscription && !codexSubscription.ok
       ? openAISubscriptionFailureHandle(codexSubscription.error)
-      // When the upstream rejects a native file block on a relay or subscription line, resend once with the
+      // Outer layer: the Relay upstream-rejection loop (one protocol-level fallback; an image rejection is
+      // recorded in the negative cache; see relay-rejection-loop; equivalent to a direct send for non-Relay).
+      // Inner layer: when the upstream rejects a native file block on a relay or subscription line, resend once with the
       // file injected as text (see native-file-fallback). Without a fallback version of the history this is
       // equivalent to calling sendStream directly.
-      : sendWithNativeFileFallback(chatHistory, (history) => sendStream(
-        provider.kind,
-        subscription?.ok
-          ? subscription.value.accessToken
-          : codexSubscription?.ok
-            ? codexSubscription.value.accessToken
-            : provider.apiKey,
-        // For inline relay image generation the main model may be swapped for a chat driver:
-        // gpt-image-* is not a chat model, and putting it in body.model gets ignored upstream while
-        // polluting the context. The original model has moved to relayImageToolModelID.
-        relayStreamOptions?.relayDriverModelID ?? model.id,
-        history,
-        provider.baseURLText,
+      : sendWithRelayRejectionLoop({
+        store,
+        provider,
+        model,
+        history: chatHistory,
         streamOptions,
-      ));
+        messagesBlockedByFiles: relayMessagesBlockedByFiles,
+        send: (outbound, options) => sendWithNativeFileFallback(outbound, (history) => sendStream(
+          provider.kind,
+          subscription?.ok
+            ? subscription.value.accessToken
+            : codexSubscription?.ok
+              ? codexSubscription.value.accessToken
+              : resolveProviderAPIKey(provider, model.id),
+          // For inline relay image generation the main model may be swapped for a chat driver:
+          // gpt-image-* is not a chat model, and putting it in body.model gets ignored upstream while
+          // polluting the context. The original model has moved to relayImageToolModelID. When the
+          // request is resent on another protocol it is derived again for the new protocol.
+          options?.relayDriverModelID ?? model.id,
+          history,
+          requestBaseURLText(provider),
+          // Multi-key relay: the redaction list for failure cards / diagnostics includes every key of the connection; used on this device only.
+          relayKeyIDs(provider).length > 1 ? { ...options, relayConnectionKeySecrets: relayKeySecrets(provider) } : options,
+        )),
+      });
   const { stream, abort } = streamHandle;
   setAbortFn(abort);
 
@@ -386,6 +411,8 @@ export async function runStreamPipeline(
         additionalBodyRetryEligible: resolveAdditionalBodyRetry(streamHandle, error, normalizedEvents),
         generationParameterRejection: resolveGenerationParameterRejection(streamHandle, error, normalizedEvents),
         capabilityRecovery: capabilityRecoveryDescriptorOf(streamHandle),
+        ...(relayImageRejectedOf(streamHandle) ? { relayImageUnsupported: true }
+          : relayFileRejectedOf(streamHandle) ? { relayFileUnsupported: true } : {}),
       });
     }
     throw error;
@@ -397,6 +424,8 @@ export async function runStreamPipeline(
   const citations = streamResult.citations ?? latestCitations;
   const capabilityContext = capabilityResultContextOf(streamHandle);
   const capabilityResults = collectCapabilityResults(capabilityContext, normalizedEvents);
+  const relaySentStreamOptions = (streamHandle as { getRelaySentStreamOptions?: () => StreamOptions | undefined })
+    .getRelaySentStreamOptions?.();
 
   // Reasoning was running and no text arrived before done -> close it out at the done timestamp.
   if (reasoningStartedAt !== null && reasoningEndedAt === null) {
@@ -432,6 +461,7 @@ export async function runStreamPipeline(
       imageAttachments,
       capabilityResults,
       unhandledToolCalls: toolCalls,
+      ...(relaySentStreamOptions ? { relaySentStreamOptions } : {}),
     };
   }
 
@@ -446,6 +476,7 @@ export async function runStreamPipeline(
     imageAttachments,
     capabilityResults,
     unhandledToolCalls: toolCalls,
+    ...(relaySentStreamOptions ? { relaySentStreamOptions } : {}),
   };
 }
 
@@ -453,6 +484,20 @@ function capabilityResultContextOf(handle: unknown): CapabilityResultContext | n
   if (typeof handle !== 'object' || handle === null || !('getCapabilityResultContext' in handle)) return null;
   const getter = (handle as { getCapabilityResultContext?: unknown }).getCapabilityResultContext;
   return typeof getter === 'function' ? getter() as CapabilityResultContext | null | undefined : null;
+}
+
+/** The relay upstream rejected the image: the failed message shows an "images not supported" card. */
+function relayImageRejectedOf(handle: unknown): boolean {
+  if (typeof handle !== 'object' || handle === null || !('getRelayImageRejected' in handle)) return false;
+  const getter = (handle as { getRelayImageRejected?: unknown }).getRelayImageRejected;
+  return typeof getter === 'function' && getter() === true;
+}
+
+/** A relay native file block was rejected and the fallback chain did not save it: the failed message shows a "these files are not supported" card. */
+function relayFileRejectedOf(handle: unknown): boolean {
+  if (typeof handle !== 'object' || handle === null || !('getRelayFileRejected' in handle)) return false;
+  const getter = (handle as { getRelayFileRejected?: unknown }).getRelayFileRejected;
+  return typeof getter === 'function' && getter() === true;
 }
 
 function capabilityCustomRetryEligibleOf(handle: unknown): boolean {

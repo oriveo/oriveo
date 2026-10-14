@@ -121,7 +121,7 @@ export const providerDefaults: Record<ConfiguredProviderKind, ProviderDefault> =
       shortName: "Together",
       apiKeyPlaceholder: "sk-...",
       defaultBaseURL: "https://api.together.xyz/v1",
-      keyHelpUrl: "https://api.together.xyz/settings/api-keys",
+      keyHelpUrl: "https://api.together.ai/settings/projects/~current/api-keys",
     },
     fireworksAI: {
       displayName: "Fireworks AI",
@@ -143,7 +143,7 @@ export const providerDefaults: Record<ConfiguredProviderKind, ProviderDefault> =
       shortName: "Z.ai",
       apiKeyPlaceholder: "sk-xxxxxxxx...",
       defaultBaseURL: "https://open.bigmodel.cn/api/paas/v4",
-      keyHelpUrl: "https://open.bigmodel.cn/usercenter/apikeys",
+      keyHelpUrl: "https://bigmodel.cn/usercenter/proj-mgmt/apikeys",
     },
     qwen: {
       displayName: "Qwen",
@@ -152,7 +152,7 @@ export const providerDefaults: Record<ConfiguredProviderKind, ProviderDefault> =
       // DashScope's native origin (chat uses the native path; key validation falls back to the metadata
       // validation contract's probePath=/compatible-mode/v1/models).
       defaultBaseURL: "https://dashscope-intl.aliyuncs.com",
-      keyHelpUrl: "https://bailian.console.alibabacloud.com/?apiKey=1#/api-key",
+      keyHelpUrl: "https://modelstudio.console.alibabacloud.com/ap-southeast-1/model/settings/api-key",
     },
     moonshot: {
       displayName: "Kimi",

@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import type { Provider } from '@oriveo/shared';
 import { isAggregatedProvider } from '@oriveo/shared';
 import { ProviderIcon } from '../ProviderIcon';
+import { relayIconSource } from '../relay-avatar';
 import { useIsDarkTheme } from '../../lib/hooks/useIsDarkTheme';
 import { PROVIDER_BRAND_COLORS } from '../../lib/constants/provider-brand-colors';
 import { formatCost } from '../../lib/utils/format-utils';
@@ -141,6 +142,7 @@ export function ProviderListCard({
           providerName={displayName}
           baseURLText={provider.baseURLText}
           modelHints={providerIconHints}
+          {...relayIconSource(provider)}
         />
       </span>
 

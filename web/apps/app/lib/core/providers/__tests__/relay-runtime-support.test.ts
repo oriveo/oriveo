@@ -37,13 +37,20 @@ describe('relay-runtime-support', () => {
     expect(resolveRelayAttachmentSupport(provider, DEFAULT_RELAY_RUNTIME_CONFIG)).toBeNull();
   });
 
-  it('resolveRelayAttachmentSupport: returns null while the transport is unresolved (stays disabled)', () => {
-    const provider = makeRelayProvider({ relayResolvedTransport: undefined });
+  it('resolveRelayAttachmentSupport: returns null while the transport is undecided (connection default auto, model sets none; stays disabled)', () => {
+    const provider = makeRelayProvider({ relayRequested: { transport: 'auto', authMode: 'auto' } });
     expect(resolveRelayAttachmentSupport(provider, DEFAULT_RELAY_RUNTIME_CONFIG)).toBeNull();
   });
 
+  it('resolveRelayAttachmentSupport: the protocol a model sets itself wins over the connection default (per model)', () => {
+    const provider = makeRelayProvider({ relayRequested: { transport: 'openai_chat_completions', authMode: 'auto' } });
+    expect(resolveRelayAttachmentSupport(provider, DEFAULT_RELAY_RUNTIME_CONFIG)?.nativeFile).toBe(false);
+    expect(resolveRelayAttachmentSupport(provider, DEFAULT_RELAY_RUNTIME_CONFIG, { relayTransport: 'openai_responses' })?.nativeFile)
+      .toBe(true);
+  });
+
   it('resolveRelayAttachmentSupport: openai_responses inherits envelope.image/nativeFile/textFileInline', () => {
-    const provider = makeRelayProvider({ relayResolvedTransport: 'openai_responses' });
+    const provider = makeRelayProvider({ relayRequested: { transport: 'openai_responses', authMode: 'auto' } });
     expect(resolveRelayAttachmentSupport(provider, DEFAULT_RELAY_RUNTIME_CONFIG)).toEqual({
       image: true,
       nativeFile: true,
@@ -52,7 +59,7 @@ describe('relay-runtime-support', () => {
   });
 
   it('resolveRelayAttachmentSupport: openai_chat_completions has no nativeFile (a protocol-level limit)', () => {
-    const provider = makeRelayProvider({ relayResolvedTransport: 'openai_chat_completions' });
+    const provider = makeRelayProvider({ relayRequested: { transport: 'openai_chat_completions', authMode: 'auto' } });
     expect(resolveRelayAttachmentSupport(provider, DEFAULT_RELAY_RUNTIME_CONFIG)).toEqual({
       image: true,
       nativeFile: false,
@@ -61,7 +68,7 @@ describe('relay-runtime-support', () => {
   });
 
   it('resolveRelayAttachmentSupport: when the backend envelope turns images off, the composer turns them off too', () => {
-    const provider = makeRelayProvider({ relayResolvedTransport: 'openai_responses' });
+    const provider = makeRelayProvider({ relayRequested: { transport: 'openai_responses', authMode: 'auto' } });
     const runtimeConfig = {
       ...DEFAULT_RELAY_RUNTIME_CONFIG,
       transportEnvelopes: {
@@ -78,25 +85,25 @@ describe('relay-runtime-support', () => {
   it('transportSupportsWebSearch: follows the envelope, not the model capabilities', () => {
     expect(
       transportSupportsWebSearch(
-        makeRelayProvider({ relayResolvedTransport: 'openai_responses' }),
+        makeRelayProvider({ relayRequested: { transport: 'openai_responses', authMode: 'auto' } }),
         DEFAULT_RELAY_RUNTIME_CONFIG,
       ),
     ).toBe(true);
     expect(
       transportSupportsWebSearch(
-        makeRelayProvider({ relayResolvedTransport: 'openai_chat_completions' }),
+        makeRelayProvider({ relayRequested: { transport: 'openai_chat_completions', authMode: 'auto' } }),
         DEFAULT_RELAY_RUNTIME_CONFIG,
       ),
     ).toBe(false);
     expect(
       transportSupportsWebSearch(
-        makeRelayProvider({ relayResolvedTransport: 'anthropic_messages' }),
+        makeRelayProvider({ relayRequested: { transport: 'anthropic_messages', authMode: 'auto' } }),
         DEFAULT_RELAY_RUNTIME_CONFIG,
       ),
     ).toBe(false);
     expect(
       transportSupportsWebSearch(
-        makeRelayProvider({ relayResolvedTransport: 'gemini_generate_content' }),
+        makeRelayProvider({ relayRequested: { transport: 'gemini_generate_content', authMode: 'auto' } }),
         DEFAULT_RELAY_RUNTIME_CONFIG,
       ),
     ).toBe(true);
@@ -105,19 +112,19 @@ describe('relay-runtime-support', () => {
   it('transportSupportsImageGeneration: openai_chat_completions / anthropic_messages are off by default', () => {
     expect(
       transportSupportsImageGeneration(
-        makeRelayProvider({ relayResolvedTransport: 'openai_responses' }),
+        makeRelayProvider({ relayRequested: { transport: 'openai_responses', authMode: 'auto' } }),
         DEFAULT_RELAY_RUNTIME_CONFIG,
       ),
     ).toBe(true);
     expect(
       transportSupportsImageGeneration(
-        makeRelayProvider({ relayResolvedTransport: 'openai_chat_completions' }),
+        makeRelayProvider({ relayRequested: { transport: 'openai_chat_completions', authMode: 'auto' } }),
         DEFAULT_RELAY_RUNTIME_CONFIG,
       ),
     ).toBe(false);
     expect(
       transportSupportsImageGeneration(
-        makeRelayProvider({ relayResolvedTransport: 'anthropic_messages' }),
+        makeRelayProvider({ relayRequested: { transport: 'anthropic_messages', authMode: 'auto' } }),
         DEFAULT_RELAY_RUNTIME_CONFIG,
       ),
     ).toBe(false);
@@ -132,7 +139,7 @@ describe('relay-runtime-support', () => {
     ] as const) {
       expect(
         transportSupportsReasoning(
-          makeRelayProvider({ relayResolvedTransport: transport }),
+          makeRelayProvider({ relayRequested: { transport: transport, authMode: 'auto' } }),
           DEFAULT_RELAY_RUNTIME_CONFIG,
         ),
       ).toBe(true);

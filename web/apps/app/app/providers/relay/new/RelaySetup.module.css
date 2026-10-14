@@ -34,6 +34,21 @@
   margin: 34px 0 48px;
 }
 
+.hero .heroLabel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  color: var(--o-primary-text-on-surface);
+  font-size: var(--o-text-sm);
+  font-weight: 650;
+  letter-spacing: 0.06em;
+}
+
+.page[data-scenario='local'] .heroLabel {
+  color: var(--o-success);
+}
+
 .hero h1 {
   margin: 0;
   font-family: var(--o-font-display);
@@ -65,9 +80,110 @@
 }
 
 .field label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--o-text);
   font-size: var(--o-text-sm);
   font-weight: 650;
+}
+
+.field label > svg {
+  color: var(--o-primary);
+}
+
+.labelRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.labelFootnote {
+  color: var(--o-text-tertiary);
+  font-size: var(--o-text-xs);
+  font-weight: 400;
+}
+
+.labelFootnote::before {
+  content: '·';
+  margin-right: 6px;
+}
+
+/* Input slot: light fill, no border; prefix chip / color dot / protocol chip on the same row as the input */
+.inputShell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 50px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--o-primary) 7%, var(--o-surface));
+  transition: border-color var(--o-transition-fast), box-shadow var(--o-transition-fast);
+}
+
+.inputShell:focus-within {
+  border-color: color-mix(in srgb, var(--o-primary) 70%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--o-primary) 12%, transparent);
+}
+
+.shellInput {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--o-text);
+  font: inherit;
+  letter-spacing: 0;
+}
+
+/* The shell's focus-within already draws an outline; the inner input does not stack the global :focus-visible one on top */
+.shellInput:focus-visible {
+  box-shadow: none;
+}
+
+.shellInput::placeholder {
+  color: var(--o-text-tertiary);
+}
+
+.schemeChip,
+.valueChip {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: var(--o-text-xs);
+  line-height: 1.4;
+}
+
+.schemeChip {
+  background: color-mix(in srgb, var(--o-primary) 18%, transparent);
+  color: var(--o-text);
+  font-weight: 650;
+}
+
+.valueChip {
+  background: color-mix(in srgb, var(--o-text) 8%, transparent);
+  color: var(--o-text-secondary);
+}
+
+.protocolDot,
+.successDot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.protocolDot {
+  background: var(--protocol-light);
+  opacity: var(--protocol-opacity, 1);
+}
+
+.successDot {
+  background: var(--o-success);
 }
 
 .field small {
@@ -219,6 +335,114 @@
   color: var(--o-error);
 }
 
+.statusCard[data-state='warning'] {
+  border-color: color-mix(in srgb, var(--o-warning) 40%, transparent);
+  background: color-mix(in srgb, var(--o-warning) 8%, var(--o-surface));
+}
+
+.statusCard[data-state='detecting'] {
+  border-color: var(--o-border);
+  background: var(--o-surface);
+}
+
+.statusCard[data-state='detecting'] > strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--o-text-secondary);
+}
+
+.cardHeadline {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.cardHeadline > svg {
+  flex: none;
+  color: var(--o-success);
+}
+
+.statusCard[data-state='warning'] .cardHeadline > svg {
+  color: var(--o-warning);
+}
+
+.cardHeadline strong {
+  color: var(--o-text);
+  font-size: var(--o-text-base);
+}
+
+.cardHeadline p {
+  margin-top: 4px;
+}
+
+.shareBlock {
+  margin-top: 14px;
+}
+
+.shareBar {
+  display: flex;
+  gap: 3px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+}
+
+.shareSegment {
+  flex-basis: 0;
+  min-width: 6px;
+  background: var(--protocol-light);
+  opacity: var(--protocol-opacity, 1);
+}
+
+.shareLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-sm);
+}
+
+.shareLegend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+:global([data-theme='dark']) .protocolDot,
+:global([data-theme='dark']) .shareSegment {
+  background: var(--protocol-dark);
+}
+
+.summaryTiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 14px 0 0;
+}
+
+.summaryTiles > div {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--o-text) 5%, transparent);
+}
+
+.summaryTiles dt {
+  color: var(--o-text-tertiary);
+  font-size: var(--o-text-xs);
+}
+
+.summaryTiles dd {
+  margin: 4px 0 0;
+  color: var(--o-text);
+  font-size: var(--o-text-sm);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
 .statusCard p {
   margin: 7px 0 0;
   color: var(--o-text-secondary);
@@ -250,7 +474,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
-  align-items: start;
+  align-items: center;
 }
 
 .technicalDetails code {
@@ -294,9 +518,9 @@
 }
 
 .manualToggle {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 16px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
   align-items: center;
   width: 100%;
   padding: 18px 0 0;
@@ -309,9 +533,9 @@
 }
 
 .manualToggle span {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  color: var(--o-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .manualToggle small {
@@ -323,8 +547,720 @@
   transition: transform var(--o-transition-fast);
 }
 
-.manualToggle svg[data-open='true'] {
-  transform: rotate(180deg);
+/* Collapse indicator: collapsed points in the text direction, expanded points down (no flipped down chevron). */
+.disclosureCaret {
+  flex: none;
+  transition: transform var(--o-transition-fast);
+}
+
+.disclosureCaret:dir(rtl) {
+  transform: scaleX(-1);
+}
+
+.disclosureCaret[data-open='true'] {
+  transform: rotate(90deg);
+}
+
+/* ── Two-step relay add (boards Setup / SetupModels) ── */
+/* "Will request" row: baseline-aligned, <= 2 lines, secondary */
+.field .previewLine {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--o-text-secondary);
+}
+
+.previewText {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.previewArrow {
+  flex: none;
+  color: var(--o-text-tertiary);
+}
+
+.previewArrow:dir(rtl) {
+  transform: scaleX(-1);
+}
+
+.keyEntry {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Key slot title row: the whole row is vertically centered (title + trailing "Remove") */
+.keyHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.keyRemove {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--o-text-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.formFootnote {
+  display: block;
+  width: 100%;
+  color: var(--o-text-tertiary);
+  font-size: var(--o-text-xs);
+  line-height: 1.45;
+}
+
+.keyFooter,
+.stepFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stepFooter {
+  color: var(--o-text-tertiary);
+  font-size: var(--o-text-sm);
+}
+
+.linkButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--o-primary-text-on-surface);
+  font: inherit;
+  font-size: var(--o-text-sm);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.stepFooter .linkButton {
+  color: var(--o-text-secondary);
+  font-weight: 400;
+}
+
+.detectionCard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--o-border);
+  border-radius: 14px;
+  background: var(--o-surface);
+}
+
+/* Card background and border follow the state (in progress / success / warning) */
+.detectionCard[data-tone='progress'] {
+  border-color: color-mix(in srgb, var(--o-primary) 28%, var(--o-border));
+  background: color-mix(in srgb, var(--o-primary) 5%, var(--o-surface));
+}
+
+.detectionCard[data-tone='success'] {
+  border-color: color-mix(in srgb, var(--o-success) 28%, var(--o-border));
+  background: color-mix(in srgb, var(--o-success) 6%, var(--o-surface));
+}
+
+.detectionCard[data-tone='warning'] {
+  border-color: color-mix(in srgb, var(--o-warning) 28%, var(--o-border));
+  background: color-mix(in srgb, var(--o-warning) 6%, var(--o-surface));
+}
+
+.detectionHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.detectionHeader > span:not(.detectionProgress) {
+  flex: 1;
+  min-width: 0;
+  color: var(--o-text-tertiary);
+  font-size: var(--o-text-sm);
+}
+
+.detectionHeader > .detectionSubtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detectionProgress {
+  color: var(--o-primary);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.detectionBar {
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-text) 10%, transparent);
+  overflow: hidden;
+}
+
+.detectionBar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--o-primary);
+  transition: width var(--o-transition-fast);
+}
+
+.checkList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Detection row: the whole row is vertically centered (left column icon + title column, elapsed time alone in the trailing column) */
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.checkLead {
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.checkText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.checkText > strong {
+  font-size: var(--o-text-sm);
+}
+
+.checkTrailing {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+.checkDetail,
+.keyRows {
+  min-width: 0;
+  color: var(--o-text-secondary);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.checkDetail[data-tone='warning'],
+.keyRow [data-tone='warning'] {
+  color: var(--o-warning);
+}
+
+.keyRows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.checkUpstream {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-xs);
+}
+
+.checkUpstream pre {
+  max-height: 160px;
+  margin: 0;
+  overflow: auto;
+  color: var(--o-text);
+  font-family: var(--o-font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.checkAttempts {
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-xs);
+}
+
+.checkAttempts summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.checkAttempts ul {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One row per request */
+.checkAttempts li {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.checkAttempts code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--o-text);
+  text-overflow: ellipsis;
+}
+
+.keyRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.keyChip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-text) 8%, transparent);
+  color: var(--o-text-secondary);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.checkElapsed {
+  flex: none;
+  color: var(--o-text-tertiary);
+  font-size: var(--o-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.checkDone {
+  flex: none;
+  color: var(--o-success);
+}
+
+.checkFailed {
+  flex: none;
+  color: var(--o-warning);
+}
+
+.checkMuted {
+  flex: none;
+  color: var(--o-text-tertiary);
+}
+
+.detectionNote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--o-text-tertiary);
+  font-size: var(--o-text-xs);
+}
+
+/* Step 2: the whole page = a column as tall as the viewport, the footer is fixed at the bottom and the content above scrolls on its own.
+   No sticky: the shell .content is overflow-y:auto without a height limit, so sticky inside it never sticks. */
+.page:has(> .modelsStep) {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  padding-bottom: 0;
+}
+
+.modelsStep {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.modelsScroll {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.modelsStep > .actionBar {
+  flex: none;
+  position: static;
+}
+
+.modelsHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modelsHeader h1 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+}
+
+.modelsHeader p {
+  margin: 4px 0 0;
+  color: var(--o-text-tertiary);
+  font-size: var(--o-text-sm);
+}
+
+.modelsEmpty {
+  margin: 0;
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-sm);
+}
+
+.modelGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modelGroupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modelGroupToggle {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--o-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+
+.modelGroupTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modelGroupCaret {
+  color: var(--o-text-secondary);
+}
+
+.modelGroupCount {
+  flex: none;
+  color: var(--o-text-tertiary);
+  font-size: 13px;
+}
+
+.modelGroupSelected {
+  color: var(--o-primary-text-on-surface);
+  font-size: var(--o-text-sm);
+}
+
+.pillButton {
+  flex: none;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-primary) 12%, var(--o-surface));
+  color: var(--o-primary-text-on-surface);
+  font: inherit;
+  font-size: var(--o-text-sm);
+  cursor: pointer;
+}
+
+.pillButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* "Select group" footnote medium */
+.modelGroupHeader .pillButton {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.modelRows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 4px 14px;
+  border-radius: 14px;
+  background: var(--o-bg-inset);
+  list-style: none;
+}
+
+.modelRows > li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+
+/* The divider is inset to the text column (row start 48 = card padding 14 + checkbox 24 + gap 10) */
+.modelRows > li + li::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 34px 0;
+  border-top: 1px solid var(--o-border);
+}
+
+.modelRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 0;
+  cursor: pointer;
+}
+
+.modelRowText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.modelRowLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.modelRow input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--o-primary);
+}
+
+.modelRow .visuallyHiddenCheckbox {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.checkboxIcon {
+  flex: none;
+  color: var(--o-text-tertiary);
+  border-radius: 4px;
+}
+
+.checkboxIcon[data-checked='true'] {
+  color: var(--o-primary);
+}
+
+.modelRow .visuallyHiddenCheckbox:focus-visible + .checkboxIcon {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+}
+
+.modelRowID {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Protocol chip: dot 7 inside the capsule + caption */
+.modelRow .modelProtocolChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.modelProtocolChip .protocolDot {
+  width: 7px;
+  height: 7px;
+}
+
+/* Row 2 key chip: key 12 + caption */
+.modelKeyChip {
+  font-size: 12px;
+}
+
+.addManualButton {
+  min-height: 44px;
+}
+
+.saveFailure {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: var(--o-space-md);
+  border: 1px solid color-mix(in srgb, var(--o-warning) 30%, transparent);
+  border-radius: var(--o-radius-lg);
+  background: var(--o-warning-subtle);
+  color: var(--o-warning-text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.saveFailure > svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.manualModelDialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-md);
+}
+
+.manualModelDialogTitle {
+  margin: 0;
+  color: var(--o-text);
+  font-size: var(--o-text-base);
+  font-weight: 700;
+}
+
+.manualModelDialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--o-space-sm);
+}
+
+.addManualHint {
+  margin: -4px 0 0;
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-sm);
+}
+
+.saveNote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  color: var(--o-text-tertiary);
+  font-size: var(--o-text-xs);
+}
+
+/* ── Manual setup (board ManualSetup): same shell as step 1 ── */
+.quickSetupButton {
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--o-primary-text-on-surface);
+  font: inherit;
+  font-size: var(--o-text-sm);
+  font-weight: 650;
+  text-align: start;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Three tiers: 100% one line -> 85% one line -> 85% wrapped; no tier truncates or shows an ellipsis */
+.quickSetupButton[data-fit='scaled'] {
+  font-size: calc(var(--o-text-sm) * 0.85);
+}
+
+.quickSetupButton[data-fit='wrapped'] {
+  font-size: calc(var(--o-text-sm) * 0.85);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Ruler: laid out on a single line at 100% font size inside a zero-size clip box, only to read the width */
+.quickSetupMeasureBox {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.quickSetupMeasure {
+  display: inline-block;
+  font-size: var(--o-text-sm);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.hero .heroTrailing {
+  margin-inline-start: auto;
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-xs);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/* In-slot left label (body tertiary) + right-aligned input */
+.slotTag {
+  flex: none;
+  color: var(--o-text-tertiary);
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.slotInputEnd {
+  text-align: end;
+}
+
+.manualIssues {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 @keyframes spin {

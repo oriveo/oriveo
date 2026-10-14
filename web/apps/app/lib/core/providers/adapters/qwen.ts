@@ -5,8 +5,8 @@
  *   - the compatible mode cannot return structured search_info citations, and citations come first
  *   - the DashScope native mode exposes output.search_info.search_results[]
  *
- * Endpoint resolution: metadata value -> user-supplied baseURLText override -> built-in default
- *   `https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation`
+ * Endpoint resolution: user-supplied baseURLText (resolved through the endpoint source) -> metadata value -> built-in default,
+ * with the chat path appended: `https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions`
  *
  * The model catalog truth comes from metadata; this adapter only handles:
  *   1. validateKey, a non-empty check
@@ -84,7 +84,7 @@ function buildQwenSyncResult(remoteModels: RemoteModel[]): SyncResult {
  * baseURL resolution has three levels, handled by EndpointResolver:
  *   1. provider.baseURLText, e.g. a self-hosted relay
  *   2. `providers.qwen.transport.{baseUrl, endpoints.chat}` from metadata
- *   3. the built-in fallback https://dashscope.aliyuncs.com + /api/v1/.../generation
+ *   3. the built-in fallback https://dashscope-intl.aliyuncs.com + /compatible-mode/v1/chat/completions
  *
  * A webSearch profile such as `qwen_web` is injected through the mergeParams metadata carries.
  * DashScope native mode needs the `X-DashScope-SSE: enable` header to stream.

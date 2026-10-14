@@ -87,6 +87,12 @@ beforeEach(() => {
 });
 
 describe("isLibraryAgentSupported", () => {
+  it("does not use the agent when the final wire transport is gemini_interactions (the Interactions line sends no client tools)", () => {
+    const gemini = provider({ kind: "gemini" });
+    expect(isLibraryAgentSupported(gemini, model({ id: "gemini-x", transport: "gemini_interactions" }), config)).toBe(false);
+    expect(isLibraryAgentSupported(gemini, model({ id: "gemini-x", transport: "gemini_generate" }), config)).toBe(true);
+  });
+
   it("treats a v2 catalog null as unknown and fails open instead of letting a legacy libraryAgentic decide tool routing", () => {
     resolveCatalogModel.mockReturnValue({
       canonicalModelId: "gpt-x",
@@ -297,12 +303,15 @@ describe("isLibraryAgentSupported", () => {
     ).toBe(true);
   });
 
+  // The transport is resolved only through relay-effective per (connection, model): the model-level
+  // relayTransport takes precedence over the connection's relayRequested.transport; the provider-level
+  // relayResolvedTransport is no longer read.
   it("decides locally from the exact relay transport and connection-level tool evidence", () => {
     resolveCatalogModel.mockReturnValue({ libraryAgentic: false });
     expect(
       isLibraryAgentSupported(
-        provider({ kind: "relay", relayResolvedTransport: "openai_chat_completions" }),
-        model({ libraryAgentic: true }),
+        provider({ kind: "relay" }),
+        model({ libraryAgentic: true, relayTransport: "openai_chat_completions" }),
         config,
         relayIdentity,
       ),
@@ -338,20 +347,18 @@ describe("isLibraryAgentSupported", () => {
   });
 
   it("still requires the negotiated relay transport to agree even when the authoritative flag allows it", () => {
+    // The transport settled by probing / an actual send is written on the model-level relayTransport, not a provider-level field.
     expect(
       isLibraryAgentSupported(
-        provider({ kind: "relay", relayResolvedTransport: "anthropic_messages" }),
-        model({ libraryAgentic: true }),
+        provider({ kind: "relay" }),
+        model({ libraryAgentic: true, relayTransport: "anthropic_messages", relayTransportSource: "reachable" }),
         config,
       ),
     ).toBe(true);
     expect(
       isLibraryAgentSupported(
-        provider({
-          kind: "relay",
-          relayResolvedTransport: "openai_chat_completions",
-        }),
-        model({ libraryAgentic: true }),
+        provider({ kind: "relay" }),
+        model({ libraryAgentic: true, relayTransport: "openai_chat_completions", relayTransportSource: "observed" }),
         config,
         relayIdentity,
       ),
@@ -380,15 +387,14 @@ describe("isLibraryAgentSupported", () => {
     ).toBe(true);
   });
 
-  it("keeps resolved authoritative so the requested intent cannot override the measured result", () => {
+  it("keeps the model-level transport authoritative so a connection default of auto cannot override the measured result", () => {
     expect(
       isLibraryAgentSupported(
         provider({
           kind: "relay",
-          relayResolvedTransport: "anthropic_messages",
           relayRequested: { transport: "auto", authMode: "auto" },
         }),
-        model({ libraryAgentic: true }),
+        model({ libraryAgentic: true, relayTransport: "anthropic_messages", relayTransportSource: "observed" }),
         config,
       ),
     ).toBe(true);
@@ -410,14 +416,23 @@ describe("isLibraryAgentSupported", () => {
       config,
     )).toBe(true);
 
+    // A subscription's tool_call accepts only the first-party upstream declaration > model-facts; the
+    // persisted model flag is not a source (subscription column of the capability truth table:
+    // upstream_declaration > model_facts).
     expect(isLibraryAgentSupported(
       provider({ authMode: "subscription" }),
       model({ toolCall: false, transport: undefined }),
       config,
+    )).toBe(true);
+    getModelFacts.mockReturnValue({ toolCall: false });
+    expect(isLibraryAgentSupported(
+      provider({ authMode: "subscription" }),
+      model({ toolCall: true, transport: undefined }),
+      config,
     )).toBe(false);
   });
 
-  it("uses the real final transport for subscriptions, and consumes modelFacts for a Relay with a recognizable upstream", () => {
+  it("uses the real final transport for subscriptions and consumes modelFacts; relay tool truth does not query modelFacts", () => {
     resolveCatalogModel.mockReturnValue(null);
     getModelFacts.mockReturnValue({ toolCall: true });
 
@@ -428,20 +443,18 @@ describe("isLibraryAgentSupported", () => {
     )).toBe(true);
 
     expect(isLibraryAgentSupported(
-      provider({
-        kind: "relay",
-        relayResolvedTransport: "anthropic_messages",
-      }),
+      provider({ kind: "relay" }),
       model({
         id: "claude-external",
         toolCall: false,
         transport: undefined,
+        relayTransport: "anthropic_messages",
         relayMatchedProviderKind: "anthropic",
       } as Partial<AIModel>),
       config,
       relayIdentity,
-    )).toBe(true);
-    expect(getModelFacts).toHaveBeenCalledWith("anthropic", "claude-external");
+    )).toBe(false);
+    expect(getModelFacts).not.toHaveBeenCalledWith("anthropic", "claude-external");
   });
 
   it("always prefers a catalog hit over modelFacts", () => {

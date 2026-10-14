@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Provider } from '@oriveo/shared';
 import { planProviderIdMigration } from './provider-id-migration';
-import { resolveProviderSetupCatalog } from '../../app/providers/new/provider-config-catalog';
+import { resolveProviderSetupCatalog, resolveRegionLookupCatalog } from '../../app/providers/new/provider-config-catalog';
+import { createDeterministicProviderId } from '../utils/id-utils';
+import type { PublicProviderConfig } from './metadata/metadata-client';
 
-const catalog = resolveProviderSetupCatalog(null);
+// Production migration uses the reverse-lookup catalog that does not go through the trusted table (see collapseProvidersToDeterministicIds).
+const catalog = resolveRegionLookupCatalog(null);
 
 // Deterministic id for openRouter with no region, from the golden vectors
 const OPENROUTER_DET = '644B24B7-E017-5253-BDDA-2E1D24A0608E';
@@ -84,5 +87,35 @@ describe('planProviderIdMigration', () => {
     expect(plan.changed).toBe(false);
     expect(plan.toDelete).toHaveLength(0);
     expect(plan.nextProviders[0].id).toBe(OPENROUTER_DET);
+  });
+});
+
+describe('E2-TRUST-03 region reverse lookup bypasses the trusted table: deterministic ids of existing China-site / international-site connections are the same as before', () => {
+  const regions = [
+    { id: 'global', label: 'Global', baseURL: 'https://api.minimax.io/v1' },
+    { id: 'cn', label: 'China Mainland', baseURL: 'https://api.minimaxi.com/v1' },
+  ];
+  // Product of the metadata decoding layer: the options were already filtered by the missing-field fallback to drop the China site; the original table is kept separately.
+  const decoded: PublicProviderConfig[] = [{
+    kind: 'miniMax', displayName: 'MiniMax', defaultBaseURL: 'https://api.minimax.io/v1',
+    regionOptions: [regions[0]], unfilteredRegionOptions: regions,
+  }];
+  const cnProvider = provider({ id: 'rand-cn', kind: 'miniMax', apiKey: 'sk-cn', baseURLText: 'https://api.minimaxi.com/v1' });
+
+  it.each([
+    ['metadata delivered', decoded],
+    ['metadata not ready (hard-coded fallback table)', null],
+  ])('%s: the China site reverse-resolves to cn and is not merged into the default region', async (_label, configs) => {
+    const plan = await planProviderIdMigration([cnProvider], resolveRegionLookupCatalog(configs));
+    expect(plan.nextProviders[0].id).toBe(await createDeterministicProviderId('miniMax', 'cn'));
+    // Contrast: reverse lookup against the filtered options catalog would land on the default region and derive a different id (the root cause of duplicate connections in cloud sync).
+    const filtered = await planProviderIdMigration([cnProvider], resolveProviderSetupCatalog(configs));
+    expect(filtered.nextProviders[0].id).toBe(await createDeterministicProviderId('miniMax', 'global'));
+  });
+
+  it('SiliconFlow international site likewise: still reverse-resolves to intl when the trusted field is missing', async () => {
+    const intl = provider({ id: 'rand-intl', kind: 'siliconFlow', apiKey: 'sk-sf', baseURLText: 'https://api.siliconflow.com/v1' });
+    const plan = await planProviderIdMigration([intl], resolveRegionLookupCatalog(null));
+    expect(plan.nextProviders[0].id).toBe(await createDeterministicProviderId('siliconFlow', 'intl'));
   });
 });

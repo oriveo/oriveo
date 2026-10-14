@@ -94,7 +94,6 @@ describe("metadata-client", () => {
     expect(metadata.subscriptionDeclaredReasoningLevels("grok", {
       id: "grok-4.6", upstreamReasoningLevels: [],
     } as never)).toEqual(["low", "medium", "high", "xhigh"]);
-    expect(metadata.subscriptionDeclaredToolCall("grok", { id: "grok-4.6" } as never)).toBe(true);
     expect(metadata.normalizeModelFactsID("accounts/fireworks/models/Model-3p1-20260822"))
       .toBe("model-3.1");
 
@@ -2059,6 +2058,7 @@ describe("metadata-client", () => {
               openai_responses: {
                 defaultAuthMode: "query_key",
                 codexIdentityDefault: false,
+                codexClientVersion: "0.170.3",
               },
             },
             verificationPolicy: {
@@ -2093,6 +2093,13 @@ describe("metadata-client", () => {
     expect(runtime.transportRules.openai_responses.codexIdentityDefault).toBe(
       false,
     );
+    // The delivered Codex version number passes through the field-by-field merge; a transport that did not deliver it carries no such field.
+    expect(runtime.transportRules.openai_responses.codexClientVersion).toBe(
+      "0.170.3",
+    );
+    expect(
+      "codexClientVersion" in runtime.transportRules.openai_chat_completions,
+    ).toBe(false);
     expect(runtime.transportRules.openai_responses.imageRoute).toBe(
       "inline_responses_tool",
     );

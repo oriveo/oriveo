@@ -60,6 +60,11 @@ interface AppShellProps {
   mobileHomeMode?: boolean;
   /** Hide the mobile bottom tab bar on full-screen child surfaces such as active chats. */
   hideMobileTabBar?: boolean;
+  /**
+   * Phone width only: hide the tab bar and the floating sidebar button (and drop the tab-bar bottom padding)
+   * on pushed child pages that carry their own back button. Desktop width is unchanged.
+   */
+  hideMobileNavChrome?: boolean;
   onToggleSidebar?: () => void;
   onCloseOverlaySidebar?: () => void;
   /**
@@ -99,6 +104,7 @@ export function AppShell({
   overlaySidebarOpen,
   mobileHomeMode,
   hideMobileTabBar,
+  hideMobileNavChrome,
   onToggleSidebar,
   onCloseOverlaySidebar,
   LinkComponent,
@@ -278,7 +284,8 @@ export function AppShell({
       data-sidebar-open={sidebarOpen}
       data-overlay-sidebar-open={isOverlaySidebarOpen}
       data-mobile-home={mobileHomeMode || undefined}
-      data-mobile-tabbar-hidden={hideMobileTabBar || undefined}
+      data-mobile-tabbar-hidden={hideMobileTabBar || hideMobileNavChrome || undefined}
+      data-mobile-nav-chrome-hidden={hideMobileNavChrome || undefined}
       data-resizing={isResizing || undefined}
       style={widthVarStyle}
     >
@@ -373,7 +380,7 @@ export function AppShell({
         {children}
       </main>
 
-      {navItems && navItems.length > 0 && !hideMobileTabBar && (
+      {navItems && navItems.length > 0 && !hideMobileTabBar && !hideMobileNavChrome && (
         <nav className={styles.mobileTabBar} aria-label="Main navigation">
           {navItems.map((item) => renderNavItem(item, styles.mobileTabItem))}
         </nav>

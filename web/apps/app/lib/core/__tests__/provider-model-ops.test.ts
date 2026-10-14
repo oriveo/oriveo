@@ -136,14 +136,14 @@ describe('provider-model-ops', () => {
     expect(store.getState().providers[0].models.map((model) => model.id)).toEqual(['m2', 'm3']);
   });
 
-  it('addManualProviderModels - appends only new models and marks the first one as default', () => {
+  it('addManualProviderModels - appends only new models and never marks manually entered Relay models as default', () => {
     const provider = makeProvider({ kind: 'relay' });
     store.getState().addProvider(provider);
 
     const added = addManualProviderModels(store, provider, ['openai/gpt-5.4-mini', 'openai/gpt-5.4-mini', 'anthropic/claude-sonnet-4']);
 
     expect(added.map((model) => model.id)).toEqual(['openai/gpt-5.4-mini', 'anthropic/claude-sonnet-4']);
-    expect(added[0]?.isDefault).toBe(true);
+    expect(added[0]?.isDefault).toBe(false);
     expect(added[1]?.isDefault).toBe(false);
     // A manually entered Relay model must not assume upstream supports images, files, web search or reasoning; enrichment injects those after a catalog hit.
     expect(added[0]?.capabilities).toEqual(['text']);

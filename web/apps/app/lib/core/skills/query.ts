@@ -117,7 +117,9 @@ export function resolveModelForSkill(
   }
 
   for (const provider of activeProviders) {
-    const model = provider.models.find((candidate) => candidate.isDefault) ?? provider.models[0];
+    // A relay has no default model: ignore the legacy isDefault and take the first enabled model.
+    const model = (provider.kind !== 'relay' ? provider.models.find((candidate) => candidate.isDefault) : undefined)
+      ?? provider.models[0];
     if (model) return { provider, model };
   }
 

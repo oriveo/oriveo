@@ -2,12 +2,16 @@
 //
 // stream-options: the mergeRelayRuntime helper, plus buildProviderStreamOptions pass-through for
 // non-relay providers. mergeRelayRuntime is a pure field mapping with no IO, so these tests feed
-// it a runtime produced by the real resolveRelayRuntimeFields.
+// it a runtime produced by the real resolveRelayModelRuntime.
 
 import { describe, expect, it } from 'vitest';
 import type { AIModel, Provider, StreamOptions } from '@oriveo/shared';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent, mergeRelayRuntime } from '../stream-options';
-import { resolveRelayRuntimeFields } from '../../providers/relay-resolution';
+import { resolveRelayModelRuntime } from '../../providers/relay-resolution';
+import {
+  buildRelayChatCompletionsBody,
+  buildRelayResponsesBody,
+} from '@oriveo/core/providers/relay-orchestrator';
 
 function makeRelayProvider(overrides: Partial<Provider> = {}): Provider {
   return {
@@ -98,10 +102,7 @@ describe('buildProviderStreamOptions E.27 ', () => {
 describe('mergeRelayRuntime E.27 ', () => {
   it('maps the relayRequested fields and the supportsWebSearch argument', () => {
     const provider = makeRelayProvider();
-    const runtime = resolveRelayRuntimeFields({
-      baseURLText: provider.baseURLText,
-      relayRequested: provider.relayRequested,
-    });
+    const runtime = resolveRelayModelRuntime(provider, null);
 
     const merged = mergeRelayRuntime(provider, runtime, { reasoning: 'deep' }, true);
 
@@ -113,20 +114,52 @@ describe('mergeRelayRuntime E.27 ', () => {
     expect(merged.supportsWebSearch).toBe(true);
     // relayImageToolModelID is always undefined here.
     expect(merged.relayImageToolModelID).toBeUndefined();
-    // transport and authMode fall back to the values resolved from the runtime.
-    expect(merged.relayTransport).toBe(runtime.relayResolvedTransport);
-    expect(merged.relayAuthMode).toBe(runtime.relayResolvedAuthMode);
+    // transport/authMode/root all come from the runtime resolved per (provider, model).
+    expect(merged.relayTransport).toBe(runtime.transport);
+    expect(merged.relayAuthMode).toBe(runtime.authMode);
+    expect(merged.relayResolvedBaseURLText).toBe('https://relay.example/v1');
+    expect(merged.relayResolvedAPIBaseURLIsExact).toBe(true);
   });
 
-  it('prefers relayResolved* already resolved on the provider over the runtime values', () => {
+  it('connection-level reasoning is retired: for a stored reasoningEffort=high connection, Chat / Responses bodies carry only this turn\'s tier', () => {
+    const messages = [{ role: 'user' as const, content: 'hi' }];
+    for (const transport of ['openai_chat_completions', 'openai_responses'] as const) {
+      const provider = makeRelayProvider({
+        relayRequested: { transport, authMode: 'bearer', reasoningEffort: 'high' },
+      } as Partial<Provider>);
+      const runtime = resolveRelayModelRuntime(provider, null);
+      const build = transport === 'openai_responses'
+        ? (options: StreamOptions) => buildRelayResponsesBody('m', messages, options, null).body
+        : (options: StreamOptions) => buildRelayChatCompletionsBody('m', messages, options).body;
+
+      // This turn picks fast -> low: not overridden by the high stored on the connection.
+      const fast = build(mergeRelayRuntime(provider, runtime, { reasoning: 'fast' }, false));
+      // This turn is automatic -> no tier: the connection's high is not sent out.
+      const automatic = build(mergeRelayRuntime(provider, runtime, { reasoning: 'automatic' }, false));
+      if (transport === 'openai_responses') {
+        expect(fast.reasoning).toEqual({ effort: 'low', summary: 'auto' });
+        expect(automatic.reasoning).toEqual({ summary: 'auto' });
+      } else {
+        expect(fast.reasoning_effort).toBe('low');
+        expect(automatic).not.toHaveProperty('reasoning_effort');
+      }
+    }
+  });
+
+  it('the protocol goes only through effectiveTransport: the provider-level relayResolvedTransport no longer participates, and the model\'s own protocol wins', () => {
     const provider = makeRelayProvider({ relayResolvedTransport: 'openai_responses' });
-    const runtime = resolveRelayRuntimeFields({
-      baseURLText: provider.baseURLText,
-      relayRequested: provider.relayRequested,
-    });
-    const merged = mergeRelayRuntime(provider, runtime, undefined, false);
-    expect(merged.relayTransport).toBe('openai_responses');
+    const merged = mergeRelayRuntime(provider, resolveRelayModelRuntime(provider, null), undefined, false);
+    expect(merged.relayTransport).toBe('openai_chat_completions');
     expect(merged.supportsWebSearch).toBe(false);
+    const perModel = mergeRelayRuntime(
+      provider,
+      resolveRelayModelRuntime(provider, { relayTransport: 'anthropic_messages' }),
+      undefined,
+      false,
+    );
+    expect(perModel.relayTransport).toBe('anthropic_messages');
+    expect(perModel.relayAuthMode).toBe('x_api_key');
+    expect(perModel.relayHeaderProfile).toBe('anthropic_v2023_06_01');
   });
 
   it('passes the resolvedAPIBaseURL stored by discovery to the adapter as the exact runtime base URL', () => {

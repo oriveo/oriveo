@@ -22,6 +22,8 @@ import { citationFromRaw, mergeCitation, readPath } from '../citation-utils';
 import { deepMerge } from '../merge-utils';
 import { parseUsageGemini } from '../usage-parsers';
 import { nativeToolCallEvents } from '../../tool-call-protocol';
+// Relay special case: custom Gemini-compatible endpoints have no official profile, so the budget uses the same mapping as the relay builders.
+import { mapGeminiReasoningBudget } from '../../relay-adapter';
 
 function convertToGeminiParts(parts: ContentPart[]): Array<Record<string, unknown>> {
   return parts.map((p) => {
@@ -52,24 +54,6 @@ function convertToGeminiParts(parts: ContentPart[]): Array<Record<string, unknow
   });
 }
 
-// Relay and heuristic-allow exception: a user-defined Gemini-compatible endpoint has no official profile to rely on.
-function relayGeminiThinkingBudget(mode: string): number {
-  // gemini-2.5-pro caps thinkingBudget at 24576, and a higher value such as 32768 is
-  // rejected by the Gemini API, so every client uses the same numbers.
-  switch (mode) {
-    case 'fast':
-      return 1024;
-    case 'balanced':
-      return 4096;
-    case 'deep':
-      return 16384;
-    case 'max':
-      return 24576;
-    default:
-      return 4096;
-  }
-}
-
 /** Relay exception: a Gemini-compatible custom endpoint has no official profile to rely on. */
 function relayUsesGeminiThinkingLevel(modelID: string): boolean {
   const lowered = modelID.toLowerCase();
@@ -91,9 +75,9 @@ function relayGeminiThinkingLevel(mode: string): 'LOW' | 'MEDIUM' | 'HIGH' {
   }
 }
 
-const DEFAULT_CITATIONS_PATH = 'candidates.0.groundingMetadata.groundingChunks';
-const DEFAULT_URL_FIELD = 'web.uri';
-const DEFAULT_TITLE_FIELD = 'web.title';
+export const DEFAULT_CITATIONS_PATH = 'candidates.0.groundingMetadata.groundingChunks';
+export const DEFAULT_URL_FIELD = 'web.uri';
+export const DEFAULT_TITLE_FIELD = 'web.title';
 
 /**
  * Gemini finishReason values that mean the content policy stopped generation. Letting one
@@ -179,7 +163,7 @@ export const geminiGenerateStrategy: TransportStrategy = {
         };
       } else {
         genConfig.thinkingConfig = {
-          thinkingBudget: relayGeminiThinkingBudget(input.options.reasoning),
+          thinkingBudget: mapGeminiReasoningBudget(input.options.reasoning),
           includeThoughts: true,
         };
       }

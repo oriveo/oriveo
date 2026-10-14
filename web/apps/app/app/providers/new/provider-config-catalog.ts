@@ -9,6 +9,7 @@ import type {
   ProviderRegionOption,
   PublicProviderConfig,
 } from "../../../lib/core/metadata/metadata-client";
+import { resolveTrustedHosts, trustedHostMatch } from "@oriveo/core/providers/transport/endpoint-resolver";
 
 export interface ProviderSetupDefaults extends ProviderDefault {
   autoFillNote?: string | null;
@@ -99,11 +100,6 @@ export const FALLBACK_QWEN_REGIONS: ProviderRegionOption[] = [
     label: "Hong Kong",
     baseURL: "https://cn-hongkong.dashscope.aliyuncs.com",
   },
-  {
-    id: "us",
-    label: "Virginia (US)",
-    baseURL: "https://dashscope-us.aliyuncs.com",
-  },
 ];
 
 export const FALLBACK_MINIMAX_REGIONS: ProviderRegionOption[] = [
@@ -152,13 +148,65 @@ export const FALLBACK_SILICONFLOW_REGIONS: ProviderRegionOption[] = [
 export function resolveProviderSetupCatalog(
   providerConfigs?: PublicProviderConfig[] | null,
 ): ProviderSetupCatalog {
+  return buildProviderSetupCatalog(providerConfigs, true);
+}
+
+/**
+ * Frozen identity table of the region segment of deterministic provider ids (verbatim the same as `identityRegions` in the fixture endpoint-source.v1.json,
+ * pinned by tests). It does not change with metadata: regions added / removed by delivery must never derive a new id, otherwise cloud sync produces duplicate
+ * connections; Qwen keeps the retired us, so the id of an existing us connection does not change. A home region segment outside the table is always the empty string.
+ */
+export const IDENTITY_REGIONS: Readonly<Record<string, ReadonlyArray<{ id: string; baseURL: string }>>> = {
+  miniMax: [
+    { id: "global", baseURL: "https://api.minimax.io/v1" },
+    { id: "cn", baseURL: "https://api.minimaxi.com/v1" },
+  ],
+  qwen: [
+    { id: "sg", baseURL: "https://dashscope-intl.aliyuncs.com" },
+    { id: "bj", baseURL: "https://dashscope.aliyuncs.com" },
+    { id: "hk", baseURL: "https://cn-hongkong.dashscope.aliyuncs.com" },
+    { id: "us", baseURL: "https://dashscope-us.aliyuncs.com" },
+  ],
+  moonshot: [
+    { id: "intl", baseURL: "https://api.moonshot.ai/v1" },
+    { id: "cn", baseURL: "https://api.moonshot.cn/v1" },
+  ],
+  siliconFlow: [
+    { id: "cn", baseURL: "https://api.siliconflow.cn/v1" },
+    { id: "intl", baseURL: "https://api.siliconflow.com/v1" },
+  ],
+};
+
+/**
+ * Catalog used for identity lookup: the region table takes only the frozen identity table and does not read metadata. Used only to map the address / source the user has saved
+ * back to the region segment of a deterministic id (migration grouping and registration); selectable options always use `resolveProviderSetupCatalog`.
+ * The parameter is kept for old callers and no longer takes part in computation.
+ */
+export function resolveRegionLookupCatalog(
+  _providerConfigs?: PublicProviderConfig[] | null,
+): ProviderSetupCatalog {
+  const catalog = buildFallbackCatalog(false);
+  for (const kind of FALLBACK_PROVIDER_ORDER) {
+    catalog.configsByKind[kind] = {
+      ...catalog.configsByKind[kind],
+      regionOptions: (IDENTITY_REGIONS[kind] ?? []).map((region) => ({ ...region, label: region.id })),
+    };
+  }
+  catalog.qwenRegions = catalog.configsByKind.qwen.regionOptions;
+  return catalog;
+}
+
+function buildProviderSetupCatalog(
+  providerConfigs: PublicProviderConfig[] | null | undefined,
+  trustFiltered: boolean,
+): ProviderSetupCatalog {
   if (providerConfigs == null) {
-    return buildFallbackCatalog();
+    return buildFallbackCatalog(trustFiltered);
   }
 
   const knownConfigs = (providerConfigs ?? []).filter(isKnownProviderConfig);
   const defaultsByKind = buildFallbackDefaults();
-  const configsByKind = buildFallbackProviderConfigs();
+  const configsByKind = buildFallbackProviderConfigs({}, trustFiltered);
   if (knownConfigs.length === 0) {
     return {
       providers: [],
@@ -173,7 +221,7 @@ export function resolveProviderSetupCatalog(
 
   for (const config of sortedConfigs) {
     defaultsByKind[config.kind] = mergeWithFallback(config);
-    configsByKind[config.kind] = mergeProviderConfig(config);
+    configsByKind[config.kind] = mergeProviderConfig(config, trustFiltered);
   }
 
   const providers = sortedConfigs.map((config) => ({
@@ -199,7 +247,7 @@ export function resolveProviderSetupCatalog(
   };
 }
 
-function buildFallbackCatalog(): ProviderSetupCatalog {
+function buildFallbackCatalog(trustFiltered: boolean): ProviderSetupCatalog {
   return {
     providers: FALLBACK_PROVIDER_ORDER.map((kind) => ({
       kind,
@@ -207,7 +255,7 @@ function buildFallbackCatalog(): ProviderSetupCatalog {
       category: FALLBACK_PROVIDER_CATEGORIES[kind],
     })),
     defaultsByKind: buildFallbackDefaults(),
-    configsByKind: buildFallbackProviderConfigs(),
+    configsByKind: buildFallbackProviderConfigs({}, trustFiltered),
     qwenRegions: [...FALLBACK_QWEN_REGIONS],
     defaultKind: DEFAULT_KIND,
   };
@@ -229,7 +277,31 @@ function buildFallbackDefaults(): Record<
   );
 }
 
-function buildFallbackProviderConfigs(): Record<
+/**
+ * Hard-coded region fallbacks also pass the trusted table (same matcher as the metadata decoding layer): when the delivered table is missing / empty,
+ * only the last two labels of the built-in fallback host for that provider are trusted, so the fallback cannot become a way around the trusted table.
+ */
+function trustedFallbackRegions(
+  kind: ConfiguredProviderKind,
+  regions: ProviderRegionOption[],
+  trustedHostsRaw?: unknown,
+): ProviderRegionOption[] {
+  const trustedHosts = resolveTrustedHosts(kind, trustedHostsRaw);
+  if (!trustedHosts) return [];
+  return regions.filter((region) => trustedHostMatch(region.baseURL, trustedHosts));
+}
+
+function untrustedFallbackRegions(
+  _kind: ConfiguredProviderKind,
+  regions: ProviderRegionOption[],
+): ProviderRegionOption[] {
+  return regions;
+}
+
+function buildFallbackProviderConfigs(
+  trustedHostsByKind: Partial<Record<ConfiguredProviderKind, unknown>> = {},
+  trustFiltered = true,
+): Record<
   ConfiguredProviderKind,
   ProviderSetupProviderConfig
 > {
@@ -237,7 +309,7 @@ function buildFallbackProviderConfigs(): Record<
     (acc, kind) => {
       acc[kind] = {
         category: FALLBACK_PROVIDER_CATEGORIES[kind],
-        regionOptions:
+        regionOptions: (trustFiltered ? trustedFallbackRegions : untrustedFallbackRegions)(kind,
           kind === "miniMax"
             ? [...FALLBACK_MINIMAX_REGIONS]
             : kind === "qwen"
@@ -247,6 +319,7 @@ function buildFallbackProviderConfigs(): Record<
                 : kind === "siliconFlow"
                   ? [...FALLBACK_SILICONFLOW_REGIONS]
                   : [],
+          trustedHostsByKind[kind]),
       };
       return acc;
     },
@@ -276,11 +349,16 @@ function mergeWithFallback(
 
 function mergeProviderConfig(
   config: KnownPublicProviderConfig,
+  trustFiltered: boolean,
 ): ProviderSetupProviderConfig {
-  const fallback = buildFallbackProviderConfigs()[config.kind];
-  const regionOptions = normalizeRegionOptions(config.regionOptions);
+  const fallback = buildFallbackProviderConfigs({ [config.kind]: config.trustedHosts }, trustFiltered)[config.kind];
+  // Lookup uses the region table kept verbatim by the decoding layer; inputs that did not go through the decoding layer (tests, old callers) fall back to regionOptions.
+  const rawRegionOptions = trustFiltered
+    ? config.regionOptions
+    : config.unfilteredRegionOptions !== undefined ? config.unfilteredRegionOptions : config.regionOptions;
+  const regionOptions = normalizeRegionOptions(rawRegionOptions);
   const usesFallbackRegionOptions =
-    typeof config.regionOptions === "undefined" && regionOptions.length === 0;
+    typeof rawRegionOptions === "undefined" && regionOptions.length === 0;
 
   return {
     category: normalizeCategory(config.category) ?? fallback.category,

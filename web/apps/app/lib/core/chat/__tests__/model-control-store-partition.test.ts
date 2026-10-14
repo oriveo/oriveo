@@ -316,7 +316,7 @@ describe('capabilityRuntimeIdentity is still produced by the production resolver
   it('the three identity parts come from provider/model/metadata and carry no UID', () => {
     partitionMocks.activeUID = 'uid-a';
     const resolved = capabilityRuntimeIdentity(
-      { id: scope.providerId, kind: 'relay', relayResolvedTransport: 'openai_responses' } as never,
+      { id: scope.providerId, kind: 'relay', relayRequested: { transport: 'openai_responses', authMode: 'auto' } } as never,
       { id: 'model-a', canonicalModelId: 'model-a', transport: 'openai_responses' } as never,
     );
     expect(resolved?.transportIdentity).toBe(transportIdentity);

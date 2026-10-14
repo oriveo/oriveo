@@ -14,6 +14,41 @@ export type RelayTransport =
   /** llama.cpp native server `/completion`; used only when engineProfile=llamacpp is explicit. */
   | 'llamacpp_native';
 
+/** Model-level protocol: one of the concrete protocols. `auto` is only the connection-level "not decided yet", not a property of the model. */
+export type RelayModelTransport = Exclude<RelayTransport, 'auto'>;
+
+/**
+ * Who decided the model-level protocol: manually picked by the user / a real send succeeded once / a 1-token probe passed.
+ * The legacy values `gateway` / `facts` / `probed` are dropped as unknown when read back.
+ */
+export type RelayTransportSource = 'user' | 'observed' | 'reachable';
+
+/** Override of a single model capability: manually picked by the user or obtained by testing. */
+export interface RelayCapabilityOverride<T> {
+  value: T;
+  source: 'user' | 'tested';
+}
+
+export interface RelayCapabilityOverrides {
+  image?: RelayCapabilityOverride<boolean>;
+  file?: RelayCapabilityOverride<boolean>;
+  imageGeneration?: RelayCapabilityOverride<boolean>;
+  toolCall?: RelayCapabilityOverride<boolean>;
+  reasoningLevels?: RelayCapabilityOverride<string[]>;
+  /** Relay web search: written as tested only by the web-search probe, or picked by the user. */
+  web?: RelayCapabilityOverride<boolean>;
+}
+
+/**
+ * Capability declaration of a single model by the local engine: written only by the local-engine connector.
+ * A missing key = unknown (not false); when no key remains the whole field is not written out.
+ */
+export interface EngineDeclaration {
+  image?: boolean;
+  toolCall?: boolean;
+  thinking?: boolean;
+}
+
 export type RelayAuthMode =
   | 'auto'
   | 'none'
@@ -65,6 +100,12 @@ export interface RelayRequestedConfig {
   securityMode?: import('../relay/endpoint-policy').RelayConnectionSecurityMode;
   /** Exact API root confirmed by Quick Setup; the runtime must not guess a version on top of it. */
   resolvedAPIBaseURL?: string;
+  /**
+   * Exact API root per protocol (keys are concrete protocols, no `auto`). When different models on one connection use different protocols,
+   * the root of each protocol is recorded here; `resolvedAPIBaseURL` represents only the one for the connection's default protocol.
+   * The key type is relaxed to string: unknown protocol keys written by other versions can be read in, and are filtered against the vocabulary at outbound time and when resolving.
+   */
+  resolvedAPIBaseURLs?: Record<string, string>;
   /** Explicit local engine profile. Absent for every existing/cloud Relay. */
   engineProfile?: 'llamacpp' | 'ollama' | 'lmstudio' | 'vllm' | 'openwebui';
   /** SHA-256 leaf certificate pin for explicit TOFU HTTPS mode. */

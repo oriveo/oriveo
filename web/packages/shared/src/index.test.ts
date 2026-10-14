@@ -42,7 +42,7 @@ describe('@oriveo/shared', () => {
   });
 
   it('formats API keys and folder colors with safe fallbacks', () => {
-    expect(formatApiKeyPreview('  sk-abc123xyz7890  ')).toBe('sk-a...7890');
+    expect(formatApiKeyPreview('  sk-abc123xyz7890  ')).toBe('sk-a…7890');
     expect(formatApiKeyPreview('short-key')).toBe('••••••••');
     expect(formatApiKeyPreview('')).toBe('');
     expect(getFolderColorPair('purple')).toEqual(['#8B5CF6', '#7C3AED']);

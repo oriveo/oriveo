@@ -2,10 +2,12 @@
 import { resolveLayers, type ScopeLayer } from '@oriveo/core/providers/request-preference/preference-resolution';
 import type { ReasoningIntent, ScopeId } from '@oriveo/core/providers/request-preference/types';
 import type { AIModel, Provider } from '@oriveo/shared';
+import { decidedTransport } from '@oriveo/core/providers/relay-effective';
 import { getCapabilityRuntime, resolveCatalogModel } from '../metadata/metadata-client';
 import { normalizeUUID } from '../../utils/id-utils';
 import { hasLegacyBareStore, readPartitionedStore, writePartitionedStore } from '../../infra/storage/partitioned-local-store';
 import { compareWireId } from './sync-wire-order';
+import { relayParameterFallbackModelId } from '../providers/relay-model-identity';
 
 /**
  * Local keys are partitioned per UID (`oriveo.{uid}.*`, see `partitioned-local-store`): this table
@@ -33,6 +35,11 @@ export type CapabilityRuntimeIdentity = {
   finalTransport: string;
   runtimeRevision: string;
   transportIdentity: string;
+  /**
+   * Read-only fallback key for relays: when the literal key `canonicalModelId` misses, old records under this
+   * canonical key are read. Never used for writes, recordId or the sync envelope.
+   */
+  legacyCanonicalModelId?: string;
 };
 export type CapabilityPreferenceSyncRecord = {
   recordId: string;
@@ -96,8 +103,8 @@ export function subscriptionFinalTransport(
 
 /** Builds the only active preference identity. Missing runtime/transport means no automatic configuration. */
 export function capabilityRuntimeIdentity(
-  provider: Pick<Provider, 'id' | 'kind' | 'authMode' | 'relayResolvedTransport' | 'relayResolvedBaseURLText' | 'baseURLText' | 'relayRequested'>,
-  model: Pick<AIModel, 'id' | 'canonicalModelId' | 'transport' | 'upstreamApiBackend'>,
+  provider: Pick<Provider, 'id' | 'kind' | 'authMode' | 'baseURLText' | 'relayRequested'>,
+  model: Pick<AIModel, 'id' | 'canonicalModelId' | 'transport' | 'upstreamApiBackend' | 'relayTransport'>,
   finalTransport?: string,
 ): CapabilityRuntimeIdentity | null {
   const runtimeRevision = clean(getCapabilityRuntime()?.revision);
@@ -122,18 +129,18 @@ export function capabilityRuntimeIdentity(
     };
   }
   const catalog = provider.kind === 'relay' ? null : resolveCatalogModel(model.id, provider.kind);
-  const relayTransportIsExact = provider.kind === 'relay'
-    && (clean(provider.relayResolvedTransport) != null
-      || (provider.relayRequested?.transport != null && provider.relayRequested.transport !== 'auto'));
+  const relayDecided = provider.kind === 'relay' ? decidedTransport(provider, model) : undefined;
   const dispatchTransport = provider.kind === 'relay'
-    ? (relayTransportIsExact ? clean(finalTransport) ?? clean(provider.relayResolvedTransport) ?? clean(provider.relayRequested?.transport) : undefined)
+    ? (relayDecided ? clean(finalTransport) ?? relayDecided : undefined)
     : catalog?.transport;
   const transport = canonicalFinalTransport(provider.kind === 'relay' ? clean(finalTransport) ?? clean(dispatchTransport) : clean(dispatchTransport));
   if (provider.kind !== 'relay' && clean(finalTransport)
     && canonicalFinalTransport(clean(finalTransport)) !== transport) return null;
+  // Relays key by the literal ID: a dated snapshot and its base are two different models; canonical is only a read fallback.
   const canonicalModelId = provider.kind === 'relay'
-    ? clean(model.canonicalModelId) ?? clean(model.id)
+    ? clean(model.id)
     : clean(catalog?.canonicalModelId);
+  const legacyCanonicalModelId = provider.kind === 'relay' ? relayParameterFallbackModelId(model) : undefined;
   const providerId = norm(provider.id);
   if (!providerId || !canonicalModelId || !transport || !runtimeRevision) return null;
   return {
@@ -142,6 +149,7 @@ export function capabilityRuntimeIdentity(
     finalTransport: transport,
     runtimeRevision,
     transportIdentity: encodeCapabilityTransportIdentity(transport, runtimeRevision),
+    ...(legacyCanonicalModelId ? { legacyCanonicalModelId } : {}),
   };
 }
 
@@ -361,6 +369,26 @@ export function deleteCapabilityPreferences(input: CapabilityPreferenceInput): v
   publish();
 }
 
+/**
+ * Model disable: tombstones every record of this connection whose model key is in
+ * `modelIds`, across scopes, transports and runtimes — the same keys generation parameters drop.
+ */
+export function deleteCapabilityPreferencesForModels(providerId: string, modelIds: readonly string[]): void {
+  const normalized = norm(providerId);
+  const models = new Set(modelIds.map((id) => clean(id)).filter((id): id is string => Boolean(id)));
+  if (!normalized || models.size === 0) return;
+  const current = read();
+  const doomed = current.records.filter((item) => item.providerId === normalized && models.has(item.canonicalModelId));
+  if (doomed.length === 0) return;
+  const keys = new Set(doomed.map((item) => item.recordId));
+  const tombstones = [...keys].map((recordId) => {
+    const latest = [...current.records, ...current.tombstones].filter((item) => item.recordId === recordId).sort((a, b) => newer(a, b) ? -1 : 1)[0];
+    return { recordId, revision: (latest?.revision ?? 0) + 1, mutationId: uid() };
+  });
+  write(compact({ records: current.records.filter((item) => !keys.has(item.recordId)), tombstones: [...current.tombstones.filter((item) => !keys.has(item.recordId)), ...tombstones] }));
+  publish();
+}
+
 /** Connection deletion tombstones every model/transport/runtime variant so stale sync cannot resurrect one. */
 export function deleteAllCapabilityPreferencesForConnection(providerId: string): void {
   const normalized = norm(providerId);
@@ -507,10 +535,14 @@ function capabilityScopeValues(input: CapabilityPreferenceScopeQuery): {
 } {
   forwardPortCapabilityPreferencesIfNeeded(input);
   const records = read().records;
-  const match = (scope: CapabilityPreferenceScope) => records.find((record) => record.scope === scope
-    && sameIdentity(record, input)
+  const matchFor = (scope: CapabilityPreferenceScope, identity: CapabilityPreferenceScopeQuery) => records.find((record) => record.scope === scope
+    && sameIdentity(record, identity)
     && (scope !== 'conversation_connection_model' || record.conversationId === norm(input.conversationId))
     && (scope !== 'skill_agent' || record.skillId === norm(input.skillId)));
+  // When the relay literal key misses, read the canonical key; each scope falls back on its own.
+  const legacy = input.legacyCanonicalModelId;
+  const match = (scope: CapabilityPreferenceScope) => matchFor(scope, input)
+    ?? (legacy && legacy !== input.canonicalModelId ? matchFor(scope, { ...input, canonicalModelId: legacy }) : undefined);
   return {
     conversation: toValueOrUndefined(match('conversation_connection_model')),
     skill: toValueOrUndefined(match('skill_agent')),

@@ -111,7 +111,7 @@ describe('W3 - scope upgrade row (U1-U11)', () => {
     toggleWeb();
     expect(upgradeRow()).not.toBeNull();
 
-    fireEvent.click(screen.getByText('common.modelBehavior'));
+    fireEvent.click(screen.getByText('common.generationParameters', { selector: 'button span' }));
     expect(upgradeRow()).toBeNull();
 
     fireEvent.click(screen.getByLabelText('common.back'));

@@ -166,3 +166,9 @@ select {
   z-index: 10000;
   box-shadow: var(--o-elevation-modal);
 }
+
+/* Utility class that flips directional arrows (forward / back / next level) with the text direction.
+   Rotating expand arrows do not use it: the component manages them via its own :dir(rtl) rule so the expanded state still points down. */
+.rtl-mirror:dir(rtl) {
+  transform: scaleX(-1);
+}

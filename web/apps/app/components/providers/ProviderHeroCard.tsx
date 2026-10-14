@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import type { Provider } from '@oriveo/shared';
 import { isAggregatedProvider } from '@oriveo/shared';
 import { ProviderIcon } from '../ProviderIcon';
+import { relayIconSource } from '../relay-avatar';
 import { PROVIDER_BRAND_COLORS } from '../../lib/constants/provider-brand-colors';
 import { formatCost, COST_EPSILON } from '../../lib/utils/format-utils';
 import { getProviderInstanceDisplayName } from '../../lib/core/providers/provider-display';
@@ -105,16 +106,17 @@ export function ProviderHeroCard({
   const availableCount = resolvedCatalog.availableModelCount;
   const enabledCount = resolvedCatalog.enabledModels.length;
 
-  // Representative model: prefer default and available, then the first available, then simply the first
+  // Representative model: prefer default and available, then the first available, then simply the first.
+  // Relays have no default model, so the legacy isDefault flag is ignored for them.
   const primaryModel = useMemo(() => {
     const candidate =
-      provider.models.find((m) => m.isDefault && m.isAvailable) ??
+      (provider.kind !== 'relay' ? provider.models.find((m) => m.isDefault && m.isAvailable) : undefined) ??
       provider.models.find((m) => m.isAvailable) ??
       provider.models[0];
     if (!candidate) return null;
     const raw = (candidate.name?.trim() || candidate.id || '').trim();
     return raw ? shortenedModelName(raw) : null;
-  }, [provider.models]);
+  }, [provider.kind, provider.models]);
   const ChipIcon = primaryModel ? modelFamilyIcon(primaryModel) : null;
 
   const modelsText =
@@ -188,6 +190,7 @@ export function ProviderHeroCard({
                 relayKind={provider.relayKind}
                 providerName={displayName}
                 baseURLText={provider.baseURLText}
+                {...relayIconSource(provider)}
                 forceDark
               />
             </span>

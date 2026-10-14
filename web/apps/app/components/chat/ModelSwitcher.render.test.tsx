@@ -27,6 +27,12 @@ import {
 import { ModelSwitcher } from './ModelSwitcher';
 
 const mockShowToast = vi.hoisted(() => vi.fn());
+const mockRouterPush = vi.hoisted(() => vi.fn());
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mockRouterPush, replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => '/',
+  useSearchParams: () => new URLSearchParams(),
+}));
 vi.mock('../Toast', () => ({
   showToast: (...args: unknown[]) => mockShowToast(...args),
 }));
@@ -358,5 +364,21 @@ describe('ModelSwitcher rendering layer', () => {
     expect(onEnableAndSelect).toHaveBeenCalledTimes(1);
     expect(onEnableAndSelect.mock.calls[0][0].id).toBe('charlie');
     expect(mockShowToast).toHaveBeenCalledWith('toast.modelAdded', 3000, undefined, 'success');
+  });
+
+  it('W3 the relay "+" opens that connection model library (the catalog is visible) instead of only offering manual ID entry; the switcher closes with it', () => {
+    mockRouterPush.mockReset();
+    const relay = makeProvider({
+      id: 'relay-w3',
+      kind: 'relay' as ProviderKind,
+      customName: 'myrelay.dev',
+      models: [makeModel({ id: 'gpt-4o', name: 'GPT-4o' })],
+      catalogModels: [makeModel({ id: 'gpt-4o', name: 'GPT-4o' }), makeModel({ id: 'gpt-4.1', name: 'GPT-4.1' })],
+    });
+    const { onClose } = renderSwitcher({ providers: [relay] });
+    fireEvent.click(screen.getByRole('button', { name: 'addModel' }));
+    expect(mockRouterPush).toHaveBeenCalledWith('/providers/relay-w3?view=library');
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByPlaceholderText('manualPlaceholder')).toBeNull();
   });
 });

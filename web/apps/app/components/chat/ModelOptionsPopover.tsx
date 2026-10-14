@@ -1,5 +1,6 @@
 'use client';
 
+import { decidedTransport } from '@oriveo/core/providers/relay-effective';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Check, ChevronRight, Lock, RefreshCw, Settings2 } from 'lucide-react';
@@ -10,10 +11,10 @@ import { GenerationParameterPanel } from '../generation/GenerationParameterPanel
 import { CustomRequestFieldsEditor } from '../generation/CustomRequestFieldsEditor';
 import {
   generationParameterProfileFingerprint,
+  generationParameterFallbackModelId,
   resolveGenerationParameterOverridesWithSources,
 } from '../../lib/core/chat/generation-parameter-settings';
 import { generationParameterRows } from '../../lib/core/chat/generation-parameter-rows';
-import { resolveGenerationProfileForModel } from '../../lib/core/chat/stream-options';
 import {
   ADDITIONAL_BODY_SETTINGS_EVENT,
   additionalBodyScope,
@@ -24,9 +25,33 @@ import {
   chatTemplateThinkingState,
   writeChatTemplateThinking,
 } from '../../lib/core/chat/chat-template-thinking';
-import type { ModelOptionCapabilityInput, ModelOptionLinkAction } from '../../lib/core/chat/model-option-capability-shape';
-import { modelOptionsPanelModel, reasoningTierAfterTap } from '../../lib/core/chat/model-options-panel-model';
-import { ModelOptionsCapabilityCard, ModelOptionsHeaderLine, ModelOptionsParametersCard, type ModelOptionsCardActions } from './ModelOptionsMainCards';
+import {
+  modelOptionLocalEngine,
+  resolveModelOptionCapabilityShape,
+  type ModelOptionCapabilityInput,
+  type ModelOptionLinkAction,
+} from '../../lib/core/chat/model-option-capability-shape';
+import {
+  modelOptionsPanelModel,
+  reasoningTierAfterTap,
+  type ModelOptionsFileFacts,
+} from '../../lib/core/chat/model-options-panel-model';
+import { resolveAttachmentCapabilities, resolveProviderAttachmentSupport } from '../../lib/core/chat/attachment-policy';
+import { relayImageSupportUnknown } from '../../lib/core/chat/relay-rejection-loop';
+import { resolveAttachmentLine } from '../../lib/core/attachments/attachment-transport-resolver';
+import { modelPanelOutboundHasVideo } from '../../lib/core/chat/outbound-history';
+import { tryGetVanillaStore } from '../../providers/StoreProvider';
+import { nativeFileFieldsOf } from '../../lib/core/attachments/attachment-router';
+import { buildProviderStreamOptions, buildStreamOptionsFromIntent, resolveGenerationProfileForModel } from '../../lib/core/chat/stream-options';
+import { providerFormOf } from '../../lib/core/capability/truth/provider-form';
+import { relayWebModelOptionFacts } from '../../lib/core/chat/relay-web-probe-records';
+import {
+  ModelOptionsCapabilityCard,
+  ModelOptionsHeaderLine,
+  ModelOptionsParametersCard,
+  ModelOptionsTurnSummary,
+  type ModelOptionsCardActions,
+} from './ModelOptionsMainCards';
 import mainStyles from './ModelOptionsMainCards.module.css';
 import { capabilityRuntimeIdentity, saveCapabilityPreferences, type CapabilityWebPreference } from '../../lib/core/chat/capability-preference-settings';
 import {
@@ -131,6 +156,8 @@ export type ModelOptionsPopoverProps = {
   onOpenModelSwitcher?: () => void;
   /** The only way out when the relay protocol is undetermined: the popover does not route itself, the mount point opens provider details. */
   onOpenConnectionSettings?: () => void;
+  /** The relay connection's web search settings page (detail `?view=web`). */
+  onOpenConnectionWebSearch?: () => void;
   onFindModelsSupportingParameter?: (parameterId: string) => void;
   onOverrideChange?: (hasOverride: boolean) => void;
   /** Pane to open straight into (used by the error card's "edit" action). */
@@ -141,7 +168,7 @@ export type ModelOptionsPopoverProps = {
 const CAPABILITY_TITLE_KEYS: Record<CustomFragmentOwner, ModelControlMessageKey> = {
   web: 'common.capabilityControlWebSearch',
   reasoning: 'common.capabilityControlThinking',
-  generation: 'common.modelBehavior',
+  generation: 'common.generationParameters',
 };
 
 const UNKNOWN_CONTROL: CapabilityControlPresentation = {
@@ -169,6 +196,7 @@ export function ModelOptionsPopover({
   onSelectAlternativeModel,
   onOpenModelSwitcher,
   onOpenConnectionSettings,
+  onOpenConnectionWebSearch,
   onFindModelsSupportingParameter,
   onOverrideChange,
   initialPane,
@@ -273,10 +301,7 @@ export function ModelOptionsPopover({
 
   const identityGap = resolveModelControlsIdentityGap({
     ...(provider ? { providerKind: provider.kind } : {}),
-    relayTransportIsDecided: Boolean(
-      provider?.relayResolvedTransport?.trim()
-      || (provider?.relayRequested?.transport && provider.relayRequested.transport !== 'auto'),
-    ),
+    relayTransportIsDecided: Boolean(provider && decidedTransport(provider, model)),
     runtimeIsReady: getCapabilityRuntime() != null,
   });
 
@@ -440,6 +465,7 @@ export function ModelOptionsPopover({
         providerId: provider.id,
         modelId: model.id,
         profileFingerprint: generationParameterProfileFingerprint(provider, model),
+        fallbackModelId: generationParameterFallbackModelId(provider, model),
         ...(conversationId ? { conversationId } : {}),
       }),
       editingLayers: ['transient', 'conversation'],
@@ -463,7 +489,8 @@ export function ModelOptionsPopover({
   );
 
   const finalTransport = provider && model
-    ? capabilityRuntimeIdentity(provider, model)?.finalTransport ?? provider.relayResolvedTransport
+    ? capabilityRuntimeIdentity(provider, model)?.finalTransport
+      ?? (provider.kind === 'relay' ? decidedTransport(provider, model) : undefined)
     : undefined;
   const connection = provider?.kind === 'relay' ? 'custom' : 'official';
   const sharedCapabilityInput = {
@@ -474,6 +501,7 @@ export function ModelOptionsPopover({
     chatTemplateThinkingIsOn: chatTemplateState === 'on',
     supportsChatTemplate: chatTemplateThinkingApplies(finalTransport),
   } as const;
+  const localEngine = provider?.kind === 'relay' ? modelOptionLocalEngine(provider, model) : undefined;
   const webInput: ModelOptionCapabilityInput = {
     ...sharedCapabilityInput,
     capability: 'web',
@@ -481,15 +509,59 @@ export function ModelOptionsPopover({
     availableIntents: webIntents,
     selectedIntent: webLayout.effectiveSelection,
     isWritable: canPersist && !webFacts.isActive,
+    // Relay web search only looks at connection-level fragments and the local probe record, the same decision as the outbound path.
+    ...(provider && providerFormOf(provider) === 'relay' ? { relayWeb: relayWebModelOptionFacts(provider, model) } : {}),
   };
   const reasoningInput: ModelOptionCapabilityInput = {
     ...sharedCapabilityInput,
     capability: 'reasoning',
     status: reasoningStatus,
+    ...(localEngine ? { localEngine } : {}),
     availableIntents: reasoningIntents,
     ...(reasoningIntent ? { selectedIntent: reasoningIntent } : {}),
     isWritable: canPersist && !reasoningFacts.isActive,
   };
+  /**
+   * Vision card: visibility uses the same function as the composer's photo-library entry (vision entry criteria x whether the route accepts images); "unknown" and "image rejected on send" share one predicate.
+   */
+  const visionFacts = useMemo(() => {
+    if (!provider || !model) return { entryVisible: false, isRelayForm: false, noPositiveEvidence: false };
+    return {
+      entryVisible: resolveAttachmentCapabilities(provider, model, resolveProviderAttachmentSupport(provider, model)).supportsImage,
+      isRelayForm: providerFormOf(provider) === 'relay',
+      noPositiveEvidence: relayImageSupportUnknown(provider, model),
+    };
+  }, [model, provider]);
+  /**
+   * File card: resolves the outbound route from the same inputs as the pre-send check, taking the panel's current web switch and treating the tool loop as false.
+   * Resolution is asynchronous (an official connection has to dry-run a builder once); until it resolves the card shows "converted to text".
+   */
+  const webRow = resolveModelOptionCapabilityShape(webInput);
+  const webIsOn = webRow.kind === 'toggleWithTiming' || (webRow.kind === 'toggle' && webRow.isOn);
+  const [fileLine, setFileLine] = useState<ModelOptionsFileFacts['line']>();
+  useEffect(() => {
+    setFileLine(undefined);
+    if (!provider || !model) return;
+    let cancelled = false;
+    const streamOptions = buildProviderStreamOptions(provider, buildStreamOptionsFromIntent(model, reasoningMode, webIsOn), model);
+    // Video detection uses the conversation history produced by the same outbound builder as sending (the current turn is a placeholder, see modelPanelOutboundHasVideo);
+    // the store is read once on open (the panel opens by conversationId and does not subscribe to the message stream).
+    const conversationMessages = conversationId
+      ? tryGetVanillaStore()?.getState().conversations.find((conversation) => conversation.id === conversationId)?.messages
+      : undefined;
+    void modelPanelOutboundHasVideo({ messages: conversationMessages ?? [], provider, model, streamOptions })
+      .then((historyHasVideo) => resolveAttachmentLine({ provider, model, streamOptions, toolLoop: false, ...(historyHasVideo ? { historyHasVideo } : {}) }))
+      .then((line) => {
+        if (!cancelled) setFileLine(line);
+      }, () => {});
+    return () => { cancelled = true; };
+  }, [conversationId, model, provider, reasoningMode, webIsOn]);
+  const fileFacts: ModelOptionsFileFacts = {
+    ...(fileLine ? { line: fileLine } : {}),
+    // Overlay the relay file overrides at the same place as the send route.
+    ...(model ? nativeFileFieldsOf(model) : { nativeFileMimes: [], pdfNativeDefault: false }),
+  };
+
   const transportLabel = finalTransport ? modelControlTransportLabel(finalTransport) ?? tCommon('capabilityControlProtocol') : undefined;
   const panelModel = modelOptionsPanelModel({
     connection,
@@ -507,6 +579,8 @@ export function ModelOptionsPopover({
       web: { overridden: webFacts.isActive, riskTiers: webFacts.riskTiers, upstreamRejected: webRuntimeRejected },
       reasoning: { overridden: reasoningFacts.isActive, riskTiers: reasoningFacts.riskTiers, upstreamRejected: reasoningRuntimeRejected },
     },
+    vision: visionFacts,
+    file: fileFacts,
   });
 
   const cardActions: ModelOptionsCardActions = {
@@ -515,6 +589,7 @@ export function ModelOptionsPopover({
         case 'openSupportedModels': case 'openAdditionalRequestBody': return true;
         case 'openConnectionProtocol': return Boolean(onOpenConnectionSettings);
         case 'switchConnection': return Boolean(onOpenModelSwitcher);
+        case 'openConnectionWebSearch': return Boolean(onOpenConnectionWebSearch);
       }
     },
     follow: (link, capability) => {
@@ -523,6 +598,7 @@ export function ModelOptionsPopover({
         case 'openAdditionalRequestBody': setPane({ kind: 'customFields' }); break;
         case 'openConnectionProtocol': onOpenConnectionSettings?.(); break;
         case 'switchConnection': onOpenModelSwitcher?.(); break;
+        case 'openConnectionWebSearch': onOpenConnectionWebSearch?.(); break;
       }
     },
     onToggle: (row, isOn) => {
@@ -586,7 +662,7 @@ export function ModelOptionsPopover({
                 className={styles.modelControlInlineAction}
                 onClick={() => setPane({ kind: 'advanced' })}
               >
-                {tCommon('capabilityControlGoToAdvancedSettings')}
+                {tCommon('capabilityControlGoToParameters')}
               </button>
             );
           }
@@ -711,6 +787,7 @@ export function ModelOptionsPopover({
         <ModelOptionsCapabilityCard model={panelModel} actions={cardActions} notes={renderFooterEntries} />
         <p className={mainStyles.sectionLabel}>{tCommon('generationParameters')}</p>
         <ModelOptionsParametersCard model={panelModel} onOpen={() => setPane({ kind: 'advanced' })} />
+        <ModelOptionsTurnSummary model={panelModel} />
       </div>
     </>
   );
@@ -724,7 +801,7 @@ export function ModelOptionsPopover({
           label={tCommon('back')}
           onClick={() => setPane({ kind: 'main' })}
         />
-        <strong className={styles.modelControlsTitle}>{tCommon('modelBehavior')}</strong>
+        <strong className={styles.modelControlsTitle}>{tCommon('generationParameters')}</strong>
       </header>
       <div className={styles.modelControlSections}>
         {readOnlyBanner}

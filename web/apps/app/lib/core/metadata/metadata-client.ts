@@ -35,6 +35,14 @@ import {
   type OpenAISubscriptionAvailability,
 } from "@oriveo/core/providers/openai-subscription";
 import { parseMcpRuntimeConfig, type McpRuntimeConfig } from "@oriveo/core/mcp/mcp-types";
+import {
+  decodeSetupFields,
+  resolveTrustedHosts,
+  sanitizeTrustedHosts,
+  setupTemplateAllowed,
+  templatePlaceholderIds,
+  type SetupFieldSpec,
+} from "@oriveo/core/providers/transport/endpoint-resolver";
 import { PUBLIC_METADATA_BASE_URL } from "@oriveo/shared";
 import { APP_VERSION } from "../../version";
 import { readBlob, writeBlob, pruneBlobs, deleteBlob } from "../../infra/storage/blob-cache";
@@ -83,7 +91,8 @@ export interface PublicProviderConfig {
   shortName?: NullableString;
   selectionLabel?: NullableString;
   autoFillNote?: NullableString;
-  defaultBaseURL: string;
+  /** Missing = not delivered, or dropped at decode time by the trusted-host table / setup fields; consumers fall back to the built-in default. */
+  defaultBaseURL?: string;
   apiKeyPlaceholder?: NullableString;
   apiKeyHelpURL?: NullableString;
   apiProtocol?: string;
@@ -93,6 +102,20 @@ export interface PublicProviderConfig {
   attachmentSupport?: ProviderAttachmentSupport;
   modelFilter?: Record<string, unknown> | null;
   regionOptions?: ProviderRegionOption[] | null;
+  /** Trusted host suffixes for this provider (shape-validated; an empty table is not kept). Missing = trust only the built-in fallback registered domains. */
+  trustedHosts?: string[];
+  /**
+   * The delivered region table as is (not run through the trusted-host table). Used only to look up which
+   * region a user's saved address belongs to (deterministic id, current value on the detail page), exactly
+   * as before; selectable options always use the filtered `regionOptions` above.
+   */
+  unfilteredRegionOptions?: ProviderRegionOption[] | null;
+  /**
+   * Extra values the setup page asks for: already decoded, keeping only ids from the closed set; missing = none.
+   * A region whose address template contains `{<id>}` is filtered at decode time by "substitute a for the
+   * placeholder, then check the trusted-host table; the placeholder must be declared".
+   */
+  setupFields?: SetupFieldSpec[];
   sortOrder?: number;
 }
 
@@ -375,6 +398,8 @@ export interface RelayTransportRule {
   headerProfile:
     "none" | "anthropic_v2023_06_01" | "gemini_key" | "codex_responses";
   codexIdentityDefault: boolean;
+  /** Only openai_responses carries it; it is not validated, and consumers go through resolveRelayCodexClientVersion. */
+  codexClientVersion?: string;
   webSearchToolName:
     "web_search" | "web_search_preview" | "disabled" | "google_search";
   imageRoute:
@@ -888,6 +913,12 @@ let cachedETag: string | null = null;
 let modelFactsCache: ModelFactsBlob | null = null;
 let modelFactsPromise: Promise<void> | null = null;
 let modelFactsInitialized = false;
+/** Family of every normalized id in the by-model view; fetched lazily only when a Relay probe needs a family, kept in memory only. */
+let modelFamilyIndexPromise: ReturnType<typeof fetchModelFamilyIndex> | null = null;
+/** The by-model family index once fetched; synchronous readers (the ratio bar on the add page) read only this and never issue a request for display. */
+let modelFamilyIndexCache: Record<string, string> | null = null;
+/** The `facts.reasoningEfforts` of each model from the same by-model fetch (automatic reasoning tiers for a relay); kept in memory only. */
+let modelReasoningEffortsIndexCache: Record<string, string[]> | null = null;
 /** When the in-memory snapshot was last written or confirmed; used for the startup TTL check. */
 let cachedAt: number | null = null;
 /** Catalog projection is memoized on the identity of the underlying snapshot, so the same snapshot is never walked twice. */
@@ -1053,6 +1084,9 @@ export function __resetMetadataClientForTest(): void {
   modelFactsCache = null;
   modelFactsPromise = null;
   modelFactsInitialized = false;
+  modelFamilyIndexPromise = null;
+  modelFamilyIndexCache = null;
+  modelReasoningEffortsIndexCache = null;
   cachedAt = null;
   projectedMetadataSource = null;
   projectedMetadataSnapshot = null;
@@ -1275,10 +1309,80 @@ export function subscriptionDeclaredReasoningLevels(providerKind: string, model:
   return getModelFacts(providerKind, model.id)?.reasoningEfforts?.filter((value) => value.length > 0) ?? [];
 }
 
-/** First-party subscription declaration > persisted models.dev facts > unknown. */
-export function subscriptionDeclaredToolCall(providerKind: string, model: AIModel): boolean | undefined {
-  if (typeof model.toolCall === 'boolean') return model.toolCall;
-  return getModelFacts(providerKind, model.id)?.toolCall;
+/**
+ * Family path for Relay per-model probing: look up the model family in the Server by-model view.
+ * Normalize with normalizeModelFactsID first; on a miss take the segment after the last `/` (same as
+ * Server modelsDevJoinLastSegment). A failed view / 404 / no network always returns undefined (family
+ * unknown); the family is never guessed from the id text. A successful result is cached in memory for
+ * the session; a failure is not cached and is fetched again when next needed.
+ */
+export async function lookupModelFamilyByModel(modelID: string): Promise<string | undefined> {
+  const normalized = normalizeModelFactsID(modelID);
+  if (!normalized) return undefined;
+  if (!modelFamilyIndexPromise) {
+    const pending = fetchModelFamilyIndex();
+    modelFamilyIndexPromise = pending;
+    void pending.then((index) => {
+      if (!index && modelFamilyIndexPromise === pending) modelFamilyIndexPromise = null;
+      if (index && modelFamilyIndexPromise === pending) {
+        modelFamilyIndexCache = index.families;
+        modelReasoningEffortsIndexCache = index.reasoningEfforts;
+      }
+    });
+  }
+  const index = await modelFamilyIndexPromise;
+  return familyFromIndex(index?.families ?? null, normalized);
+}
+
+/** Read only the cached family index: never fetched, failed to fetch, or missed all return undefined, and no request is ever issued. */
+export function cachedModelFamilyByModel(modelID: string): string | undefined {
+  const normalized = normalizeModelFactsID(modelID);
+  return normalized ? familyFromIndex(modelFamilyIndexCache, normalized) : undefined;
+}
+
+/**
+ * Read only the `reasoningEfforts` of this model in the cached by-model view (same normalization and last-segment fallback as {@link cachedModelFamilyByModel}).
+ * The facts of a view entry are byte-identical to the default view (metadata view contract), so this is the tier list of the vendor entry the model belongs to.
+ * Never fetched / missed / the entry gives no tiers all return undefined, and no request is ever issued.
+ */
+export function cachedModelReasoningEffortsByModel(modelID: string): string[] | undefined {
+  const normalized = normalizeModelFactsID(modelID);
+  return normalized ? familyFromIndex(modelReasoningEffortsIndexCache, normalized) : undefined;
+}
+
+function familyFromIndex<T>(index: Record<string, T> | null, normalized: string): T | undefined {
+  if (!index) return undefined;
+  if (Object.hasOwn(index, normalized)) return index[normalized];
+  const lastSegment = normalized.slice(normalized.lastIndexOf('/') + 1);
+  return lastSegment && Object.hasOwn(index, lastSegment) ? index[lastSegment] : undefined;
+}
+
+async function fetchModelFamilyIndex(): Promise<{
+  families: Record<string, string>;
+  reasoningEfforts: Record<string, string[]>;
+} | null> {
+  try {
+    const response = await fetchWithReachability(
+      `${resolveMetadataBackendURL()}/api/metadata/model-facts?view=by-model`,
+    );
+    if (!response.ok) return null;
+    const json = await response.json();
+    const data = isRecord(json) && isRecord(json.data) ? json.data : json;
+    if (!isRecord(data) || !isRecord(data.byModel)) return null;
+    const families: Record<string, string> = {};
+    const reasoningEfforts: Record<string, string[]> = {};
+    for (const [key, entry] of Object.entries(data.byModel)) {
+      if (!isRecord(entry)) continue;
+      if (typeof entry.family === 'string' && entry.family) families[key] = entry.family;
+      const efforts = isRecord(entry.facts) ? entry.facts.reasoningEfforts : undefined;
+      if (Array.isArray(efforts)) {
+        reasoningEfforts[key] = efforts.filter((item): item is string => typeof item === 'string' && item.length > 0);
+      }
+    }
+    return { families, reasoningEfforts };
+  } catch {
+    return null;
+  }
 }
 
 /** Mirrors Server normalizeModelsDevJoinID; order is part of the contract. */
@@ -1625,9 +1729,22 @@ export function getProviderTransport(
   const provider = resolveProviderData(providerKind);
   const transport = provider?.transport;
   if (!transport || typeof transport.baseUrl !== "string") return null;
+  const config = getPublicProviderConfig(providerKind);
+  const trustedHosts = config?.trustedHosts;
   return {
     baseUrl: transport.baseUrl,
     endpoints: { ...(transport.endpoints ?? {}) },
+    ...(trustedHosts?.length ? { trustedHosts: [...trustedHosts] } : {}),
+    ...(config
+      ? {
+          endpointConfig: {
+            defaultBaseURL: config.defaultBaseURL,
+            regionOptions: config.regionOptions ?? null,
+            trustedHosts: trustedHosts ?? null,
+            setupFields: config.setupFields ?? null,
+          },
+        }
+      : {}),
   };
 }
 
@@ -2177,6 +2294,9 @@ function mergeTransportRules(
       headerProfile: override.headerProfile ?? merged[key].headerProfile,
       codexIdentityDefault:
         override.codexIdentityDefault ?? merged[key].codexIdentityDefault,
+      ...(typeof override.codexClientVersion === "string"
+        ? { codexClientVersion: override.codexClientVersion }
+        : {}),
       webSearchToolName:
         override.webSearchToolName ?? merged[key].webSearchToolName,
       imageRoute: override.imageRoute ?? merged[key].imageRoute,
@@ -3559,6 +3679,39 @@ function isSafeEvidenceString(value: unknown): value is string {
 }
 
 /**
+ * Decode layer for providerConfigs: trustedHosts is shape-validated, and regionOptions is filtered item by item
+ * with the same matching function as base-URL validation, so every consumer (add page, detail page, region
+ * picker) already receives the filtered table.
+ */
+function normalizePublicProviderConfig(config: PublicProviderConfig): PublicProviderConfig {
+  if (!config || typeof config !== "object") return config;
+  const { trustedHosts: rawTrustedHosts, setupFields: rawSetupFields, ...rest } = config;
+  const trustedHosts = sanitizeTrustedHosts(rawTrustedHosts);
+  const effective = resolveTrustedHosts(config.kind, trustedHosts);
+  const setupFields = decodeSetupFields(rawSetupFields);
+  const regionOptions = Array.isArray(config.regionOptions) && effective
+    ? config.regionOptions.filter((option) => typeof option?.baseURL === "string"
+      && setupTemplateAllowed(option.baseURL, setupFields, effective))
+    : config.regionOptions;
+  // A default address template containing {placeholders} goes through the same filter: if unusable it counts as
+  // not delivered and consumers fall back to the built-in default. A default address without placeholders is left
+  // as is (the trusted-host table is checked again at request time).
+  const { defaultBaseURL, ...restWithoutDefault } = rest;
+  const keepDefault = typeof defaultBaseURL !== "string"
+    || !effective
+    || templatePlaceholderIds(defaultBaseURL).length === 0
+    || setupTemplateAllowed(defaultBaseURL, setupFields, effective);
+  return {
+    ...restWithoutDefault,
+    ...(keepDefault && defaultBaseURL !== undefined ? { defaultBaseURL } : {}),
+    ...(trustedHosts.length > 0 ? { trustedHosts } : {}),
+    ...(setupFields ? { setupFields } : {}),
+    ...(regionOptions !== undefined ? { regionOptions } : {}),
+    ...(config.regionOptions !== undefined ? { unfilteredRegionOptions: config.regionOptions } : {}),
+  };
+}
+
+/**
  * Rewrites the response/cache boundary to the public allowlist. This prevents
  * an unexpected server provenance field from being retained in localStorage
  * or re-exposed by a later catalog projection.
@@ -3571,6 +3724,9 @@ function normalizeMetadataEvidenceViews(
     ...data,
     ...(data.modelFacts !== undefined
       ? { modelFacts: normalizeModelFacts(data.modelFacts) }
+      : {}),
+    ...(Array.isArray(data.providerConfigs)
+      ? { providerConfigs: data.providerConfigs.map(normalizePublicProviderConfig) }
       : {}),
     providers: Object.fromEntries(
       Object.entries(data.providers).map(([providerKind, provider]) => [

@@ -8,95 +8,26 @@ import {
   type CapabilityEvidenceQuery,
   type CapabilityEvidenceResolution,
 } from '@oriveo/core/providers/capability-evidence-facade';
-import {
-  getDeclaredReasoningLevels,
-  getModelFacts,
-  getModelFactsRevision,
-  getMetadataRevision,
-  getRelayRuntimeConfig,
-  resolveCatalogModel,
-} from '../metadata/metadata-client';
+import { getMetadataRevision, getRelayRuntimeConfig } from '../metadata/metadata-client';
 import type { CapabilityLearningIdentity } from '@oriveo/core/providers/unsupported-param';
 import { relayGenerationEndpointFingerprint } from '@oriveo/core/providers/relay-orchestrator';
+import { decidedTransport } from '@oriveo/core/providers/relay-effective';
 import { capabilityEvidenceIdentityForQuery } from '../providers/capability-evidence-identity';
 import { resolveModelTransport } from '../providers/transport/model-transport-resolver';
 import { getActiveUIDSync } from '../../infra/storage/partition';
 import { canonicalFinalTransport, subscriptionFinalTransport } from './capability-preference-settings';
+import type {
+  ModelCapabilityKey,
+  RelayCapabilityEvidenceIdentity,
+} from '../capability/truth/capability-truth-adapter';
+import { capabilityTruthRegistry } from '../capability/truth/capability-truth-registry';
+import { currentCapabilityEvidenceModel } from '../capability/truth/evidence-model';
+import { providerFormOf } from '../capability/truth/provider-form';
 
-export type ModelCapabilityKey =
-  | 'web_search'
-  | 'vision_input'
-  | 'tool_call'
-  | `reasoning_level/${string}`;
-
-type CapabilityEvidenceModel = AIModel & {
-  capabilityEvidenceCandidates?: CapabilityEvidenceCandidate[];
-  /** Allowlisted raw evidence keys, including malformed candidates intentionally dropped by decoding. */
-  capabilityEvidenceOwnedKeys?: string[];
-  /** The evidence view was present but failed schema decoding; keys it owns fail closed. */
-  capabilityEvidenceViewMalformed?: boolean;
-  metadataRevision?: string;
-};
-type CatalogEvidenceModel = CapabilityEvidenceModel & {
-  profiles?: {
-    reasoning?: string;
-    webSearch?: string;
-    generation?: AIModel['generationProfile'];
-  };
-};
-
-type RelayMatchedModel = CapabilityEvidenceModel & {
-  relayMatchedProviderKind?: string;
-};
-
-function resolvedEvidenceCatalog(
-  provider: Provider,
-  model: AIModel,
-): { model: CatalogEvidenceModel | null; providerKind?: string } {
-  const providerKind = provider.kind === 'relay'
-    ? (model as RelayMatchedModel).relayMatchedProviderKind
-    : provider.kind;
-  if (!providerKind) return { model: null };
-  const catalog = resolveCatalogModel(model.id, providerKind) as CatalogEvidenceModel | null;
-  if (catalog || !model.canonicalModelId || model.canonicalModelId === model.id) {
-    return { model: catalog, providerKind };
-  }
-  return {
-    model: resolveCatalogModel(model.canonicalModelId, providerKind) as CatalogEvidenceModel | null,
-    providerKind,
-  };
-}
-
-/** Current metadata wins over a persisted connection model for evidence only. */
-export function currentCapabilityEvidenceModel(provider: Provider, model: AIModel): CapabilityEvidenceModel {
-  const catalog = resolvedEvidenceCatalog(provider, model).model;
-  if (!catalog) return model as CapabilityEvidenceModel;
-  const fields = [
-    'canonicalModelId', 'capabilityEvidenceCandidates', 'capabilityEvidenceOwnedKeys', 'capabilityEvidenceViewMalformed', 'metadataRevision',
-    'toolCall', 'transport', 'capabilities', 'reasoningProfile',
-    'reasoningModeAvailable', 'webSearchProfile', 'generationProfile',
-  ] as const;
-  const current = { ...model } as CapabilityEvidenceModel;
-  // Presence—not truthiness—is the catalog withdrawal protocol. In
-  // particular an ETag disappearing or a present empty candidate namespace
-  // must erase the stale persisted value rather than quietly resurrect it.
-  for (const field of fields) {
-    if (Object.prototype.hasOwnProperty.call(catalog, field)) {
-      Object.assign(current, { [field]: catalog[field] });
-    }
-  }
-  // resolveCatalogModel exposes profiles as a nested authoritative shape,
-  // whereas AIModel stores the consumed fields flat. Project them explicitly
-  // (including undefined withdrawals) so persisted models cannot retain a
-  // stale web/reasoning/generation profile after metadata refresh.
-  if (Object.prototype.hasOwnProperty.call(catalog, 'profiles')) {
-    current.reasoningProfile = catalog.profiles?.reasoning;
-    current.webSearchProfile = catalog.profiles?.webSearch;
-    current.generationProfile = catalog.profiles?.generation;
-    current.reasoningModeAvailable = Boolean(catalog.profiles?.reasoning);
-  }
-  return current;
-}
+// Callers of these names are spread across chat and the model picker; the definitions moved into
+// capability/truth together with the adapters, and this entry point stays the same.
+export type { ModelCapabilityKey, RelayCapabilityEvidenceIdentity };
+export { currentCapabilityEvidenceModel };
 
 /**
  * Resolves the transport that the production dispatcher will actually use.
@@ -109,15 +40,14 @@ export function effectiveCapabilityTransport(
   explicitTransport?: string,
   streamOptions?: StreamOptions,
 ): string {
+  const form = providerFormOf(provider);
   const explicit = canonicalFinalTransport(explicitTransport);
   if (explicit) return explicit;
-  if (provider.authMode === 'subscription') {
+  if (form === 'subscription') {
     return subscriptionFinalTransport(provider, model) ?? 'unknown';
   }
-  if (provider.kind === 'relay') {
-    const relay = streamOptions?.relayTransport
-      ?? provider.relayResolvedTransport
-      ?? (provider.relayRequested?.transport !== 'auto' ? provider.relayRequested?.transport : undefined);
+  if (form === 'relay') {
+    const relay = streamOptions?.relayTransport ?? decidedTransport(provider, model);
     return canonicalFinalTransport(relay) ?? 'unknown';
   }
   const evidenceModel = currentCapabilityEvidenceModel(provider, model);
@@ -125,9 +55,6 @@ export function effectiveCapabilityTransport(
     evidenceModel.transport ?? model.transport ?? resolveModelTransport(provider.kind, model.id),
   ) ?? 'unknown';
 }
-
-export type RelayCapabilityEvidenceIdentity = Pick<CapabilityEvidenceQuery,
-  'partitionId' | 'connectionInstanceId' | 'connectionGeneration' | 'credentialEpoch' | 'endpointFingerprint'>;
 
 /**
  * The sole Web consumer adapter for the full Relay capability key. It uses
@@ -139,7 +66,7 @@ export function relayCapabilityEvidenceIdentity(
   model: AIModel,
   streamOptions?: StreamOptions,
 ): RelayCapabilityEvidenceIdentity | undefined {
-  if (provider.kind !== 'relay') return undefined;
+  if (providerFormOf(provider) !== 'relay') return undefined;
   // A Relay declaration is scoped to the endpoint selected by the actual
   // dispatch options. Never reconstruct that endpoint from model metadata:
   // image/Gemini routing can select a different final path.
@@ -182,9 +109,9 @@ export function capabilityLearningIdentity(
 }
 
 /**
- * The only Web adapter allowed to interpret legacy model fields. It turns
- * metadata's old capability bits into low-priority facts before consumers ask
- * the shared facade. New `capabilityEvidenceCandidates` always wins.
+ * The capability candidates visible for this connection x model. Candidates are produced by the truth adapter
+ * for the form (official metadata / Relay connection / subscription / Free catalog); this only hands the form
+ * to the registry and no longer branches on provider itself.
  */
 export function modelCapabilityEvidenceCandidates(
   provider: Provider,
@@ -193,72 +120,9 @@ export function modelCapabilityEvidenceCandidates(
   relayIdentity?: RelayCapabilityEvidenceIdentity,
   key?: ModelCapabilityKey,
 ): CapabilityEvidenceCandidate[] {
-  const evidenceModel = currentCapabilityEvidenceModel(provider, model);
-  const catalog = resolvedEvidenceCatalog(provider, model);
-  // A transport-specific fact cannot safely match an unknown transport. Relay
-  // declarations are additionally connection scoped, so they need the local
-  // opaque identity supplied by the producer before they can be consumed.
-  if (effectiveTransport === 'unknown') return [];
-  // Namespace presence is itself a three-state protocol: `undefined` means
-  // the evidence view is absent and legacy fallback remains allowed; an explicit empty list
-  // means the view answered but has no fact for this key, so stale local bits must
-  // not revive it.
-  const serverCandidates = relayScopedCandidates(
-    provider,
-    evidenceModel,
-    key === 'tool_call' && !catalog.model
-      ? undefined
-      : evidenceModel.capabilityEvidenceCandidates,
-    relayIdentity,
-  );
-  const evidenceOwnedDimension = key === 'tool_call';
-  if (evidenceModel.capabilityEvidenceViewMalformed && evidenceOwnedDimension) return [];
-  if (serverCandidates !== undefined) {
-    // The evidence view currently owns tool_call only. Generation is derived exclusively
-    // from profiles.generation + the referenced parameter table. Its namespace
-    // is authoritative for that key—even an empty list
-    // means tool unknown—but cannot withdraw the legacy public facts for web,
-    // vision, or reasoning before Server begins publishing them.
-    if (key === 'tool_call' || evidenceModel.capabilityEvidenceOwnedKeys?.includes(key ?? '')) return serverCandidates;
-    return [...serverCandidates, ...legacyCapabilityCandidates(provider, evidenceModel, effectiveTransport, relayIdentity)];
-  }
-  const legacy = legacyCapabilityCandidates(provider, evidenceModel, effectiveTransport, relayIdentity);
-  if (key !== 'tool_call') return legacy;
-
-  // Subscription catalogs are first-party declarations fetched with the
-  // signed-in account. They outrank the persisted models.dev snapshot.
-  if (provider.authMode === 'subscription' && typeof model.toolCall === 'boolean') {
-    return [toolCallCandidate({
-      provider,
-      model: evidenceModel,
-      transport: effectiveTransport,
-      support: model.toolCall ? 'supported' : 'unsupported',
-      relayIdentity,
-      evidenceRevision: 'subscription',
-    })];
-  }
-
-  // modelFacts is a catalog-external fallback only. A catalog hit (including
-  // an authoritative null/empty evidence view) must never be overwritten by a
-  // lower-tier models.dev snapshot.
-  const facts = !catalog.model && catalog.providerKind
-    ? getModelFacts(catalog.providerKind, model.id)
-      ?? (model.canonicalModelId ? getModelFacts(catalog.providerKind, model.canonicalModelId) : undefined)
-    : undefined;
-  if (typeof facts?.toolCall === 'boolean') {
-    return [
-      toolCallCandidate({
-        provider,
-        model: evidenceModel,
-        transport: effectiveTransport,
-        support: facts.toolCall ? 'supported' : 'unsupported',
-        relayIdentity,
-        evidenceRevision: getModelFactsRevision(),
-      }),
-      ...legacy,
-    ];
-  }
-  return legacy;
+  return capabilityTruthRegistry.adapterFor(providerFormOf(provider)).candidates({
+    provider, model, effectiveTransport, relayIdentity, key,
+  });
 }
 
 /**
@@ -287,6 +151,9 @@ export function modelCapabilityEvidenceQuery(input: {
     endpointFingerprint: relayIdentity?.endpointFingerprint,
     providerKind: provider.kind,
     modelId: model.id,
+    // An absent authMode on the connection object means apiKey (the Free builder does not write this field);
+    // the identity carries the raw value, so "absent" is not left for each consumer to interpret.
+    authMode: provider.authMode ?? 'apiKey',
     // Catalog re-enrichment is authoritative for aliases too. Keeping the
     // persisted model's old canonical id here lets a stale candidate match
     // after the catalog has withdrawn or retargeted it.
@@ -301,46 +168,6 @@ export function modelCapabilityEvidenceQuery(input: {
     generationRevision: input.generationRevision,
     now: Date.now(),
     hasExplicitValue: input.hasExplicitValue === true,
-  };
-}
-
-function relayScopedCandidates(
-  provider: Provider,
-  model: CapabilityEvidenceModel,
-  candidates: CapabilityEvidenceCandidate[] | undefined,
-  relayIdentity?: RelayCapabilityEvidenceIdentity,
-): CapabilityEvidenceCandidate[] | undefined {
-  if (provider.kind !== 'relay' || candidates === undefined) return candidates;
-  if (!relayIdentity) return [];
-  return candidates.map((candidate) => ({
-    ...candidate,
-    providerKind: 'relay',
-    modelId: model.canonicalModelId ?? model.id,
-    scope: 'connection_model_transport' as const,
-    ...relayIdentity,
-  }));
-}
-
-function toolCallCandidate(input: {
-  provider: Provider;
-  model: CapabilityEvidenceModel;
-  transport: string;
-  support: 'supported' | 'unsupported';
-  relayIdentity?: RelayCapabilityEvidenceIdentity;
-  evidenceRevision?: string;
-}): CapabilityEvidenceCandidate {
-  const relay = input.provider.kind === 'relay';
-  return {
-    key: 'tool_call',
-    support: input.support,
-    source: 'server_typed',
-    grade: 'declared',
-    scope: relay ? 'connection_model_transport' : 'provider_model_transport',
-    providerKind: input.provider.kind,
-    modelId: input.model.canonicalModelId ?? input.model.id,
-    transport: input.transport,
-    evidenceRevision: input.evidenceRevision,
-    ...(relay ? input.relayIdentity : {}),
   };
 }
 
@@ -367,16 +194,30 @@ export function resolveModelCapabilityEvidence(input: {
     input.streamOptions,
   );
   const query = modelCapabilityEvidenceQuery({ ...input, relayIdentity });
+  const candidates = modelCapabilityEvidenceCandidates(
+    input.provider,
+    currentCapabilityEvidenceModel(input.provider, input.model),
+    query.effectiveTransport,
+    relayIdentity,
+    input.key,
+  );
+  // "Explicit means allowed" presumes "no evidence = nobody has verified it". A closed-world adapter (a catalog)
+  // producing no candidate for a key means the catalog did not declare it, i.e. does not offer it, so an explicit
+  // intent does not count here; a model outside the catalog gets a catalog_absent candidate from the adapter,
+  // handled by the facade's dedicated verdict, with no need to rewrite the intent here.
+  const adapter = capabilityTruthRegistry.adapterFor(providerFormOf(input.provider));
+  // State 1 (snapshot not fetched) is reported by the adapter itself: for keys the catalog owns the identity is
+  // incomplete, and even the open world does not let them through.
+  const failsClosed = adapter.failsClosed?.({
+    provider: input.provider, model: input.model, effectiveTransport: query.effectiveTransport,
+    relayIdentity, key: input.key,
+  }) === true;
+  const explicitIntentApplies = !failsClosed && (adapter.acceptsUnverifiedExplicitIntent
+    || candidates.some((candidate) => candidate.key === input.key));
   return resolveCapabilityEvidence(
     input.key,
-    query,
-    modelCapabilityEvidenceCandidates(
-      input.provider,
-      currentCapabilityEvidenceModel(input.provider, input.model),
-      query.effectiveTransport,
-      relayIdentity,
-      input.key,
-    ),
+    explicitIntentApplies ? query : { ...query, hasExplicitValue: false },
+    candidates,
   );
 }
 
@@ -435,7 +276,7 @@ export function resolveGenerationParameterEvidence(input: {
     // metadata TransportKind (e.g. openai_chat). Relay is the sole case
     // whose actual dispatch transport comes from stream options.
     effectiveTransport: input.effectiveTransport
-      ?? (input.provider.kind === 'relay'
+      ?? (providerFormOf(input.provider) === 'relay'
         ? input.streamOptions?.relayTransport ?? 'unknown'
         : currentModel.transport ?? 'unknown'),
     relayIdentity,
@@ -460,47 +301,4 @@ export function resolveGenerationParameterEvidence(input: {
     query,
     candidates,
   );
-}
-
-function legacyCapabilityCandidates(
-  provider: Provider,
-  model: AIModel,
-  transport: string,
-  relayIdentity?: RelayCapabilityEvidenceIdentity,
-): CapabilityEvidenceCandidate[] {
-  if (provider.kind === 'relay' && !relayIdentity) return [];
-  const supports = (capability: string, profile?: unknown): 'supported' | 'unknown' => (
-    model.capabilities.includes(capability) && (profile === undefined || Boolean(profile))
-      ? 'supported'
-      : 'unknown'
-  );
-  const base = {
-    source: 'legacy_metadata' as const,
-    grade: 'legacy_unverified' as const,
-    scope: 'provider_model_transport' as const,
-    providerKind: provider.kind,
-    modelId: model.canonicalModelId ?? model.id,
-    transport,
-    ...(provider.kind === 'relay'
-      ? { scope: 'connection_model_transport' as const, ...relayIdentity! }
-      : {}),
-  };
-  return [
-    // Web has a separate request profile. Missing/withdrawn profile is an
-    // unknown verdict even when an old persisted capabilities array says web.
-    { ...base, key: 'web_search', support: model.capabilities.includes('web') && Boolean(model.webSearchProfile) ? 'supported' : 'unknown' },
-    { ...base, key: 'vision_input', support: supports('image') },
-    {
-      ...base,
-      key: 'tool_call',
-      support: model.toolCall === true ? 'supported' : model.toolCall === false ? 'unsupported' : 'unknown',
-    },
-    ...(model.reasoningProfile
-      ? getDeclaredReasoningLevels(model.reasoningProfile).map((level) => ({
-          ...base,
-          key: `reasoning_level/${level}`,
-          support: model.reasoningModeAvailable ? 'supported' as const : 'unknown' as const,
-        }))
-      : []),
-  ];
 }

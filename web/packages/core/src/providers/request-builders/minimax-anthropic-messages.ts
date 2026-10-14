@@ -6,7 +6,8 @@
  */
 import { resolveProviderBaseURL } from '../url-utils';
 import { credentialHeader } from './generation-parameters';
-import { buildAnthropicRequestPayload } from './runtime';
+import { attachmentTransportProfile } from '../attachment-transport';
+import { buildAnthropicRequestPayload, withImagePlaceholders } from './runtime';
 import type { MiniMaxAnthropicMessagesRoute } from './capability-execution';
 import type { ProviderRequest, RequestParams } from './types';
 
@@ -15,7 +16,10 @@ export function buildMiniMaxAnthropicMessagesRequest(
   route: MiniMaxAnthropicMessagesRoute,
   maxOutputTokens?: number,
 ): ProviderRequest {
-  const payload = buildAnthropicRequestPayload(params.messages);
+  const payload = buildAnthropicRequestPayload(withImagePlaceholders(
+    params.messages,
+    attachmentTransportProfile('minimax_anthropic_messages').imagePlaceholderText,
+  ));
   const body: Record<string, unknown> = {
     model: params.modelID,
     max_tokens: typeof maxOutputTokens === 'number'

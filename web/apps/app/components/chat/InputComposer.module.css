@@ -56,6 +56,27 @@
   flex-shrink: 0;
 }
 
+.modelRemovedBannerText {
+  flex: 1;
+  min-width: 0;
+}
+
+.modelRemovedBannerAction {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.modelRemovedBannerAction:hover {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
 /* ── Unified composer — frosted glass + hairline highlight ── */
 .composer {
   position: relative;

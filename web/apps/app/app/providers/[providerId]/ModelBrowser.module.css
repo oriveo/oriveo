@@ -273,6 +273,36 @@
   transition: background 200ms ease;
 }
 
+/* Relay group header: the expand button and "Add all" sit side by side (buttons cannot be nested). */
+.groupHeader {
+  display: flex;
+  align-items: center;
+}
+
+.groupAddAll {
+  flex: none;
+  min-height: 44px;
+  margin-inline-end: 8px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--o-primary-text-on-surface);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.groupAddAll:hover {
+  background: var(--o-bg-subtle);
+}
+
+.groupAddAll:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+}
+
 .groupButton {
   display: flex;
   align-items: center;
@@ -320,6 +350,18 @@
   white-space: nowrap;
 }
 
+.groupSubtitle {
+  color: var(--o-text-secondary);
+  font-size: 13px;
+}
+
+.groupChevronSlot {
+  display: inline-flex;
+  flex: none;
+  padding-inline-end: 12px;
+  pointer-events: none;
+}
+
 .groupCount {
   display: inline-flex;
   align-items: center;
@@ -344,6 +386,11 @@
 
 .groupChevron[data-expanded] {
   color: var(--o-text-secondary);
+}
+
+/* The collapsed right chevron points along the reading direction; when expanded it becomes a down chevron. */
+.groupChevron:not([data-expanded]):dir(rtl) {
+  transform: scaleX(-1);
 }
 
 /* Expanded content keeps the same clean surface as the detail panel; hierarchy comes from the expanded title and the divider. */
@@ -406,6 +453,36 @@
 .modelRow:disabled {
   cursor: not-allowed;
   opacity: 0.62;
+}
+
+/* Relay catalog row: the row itself (read-only advanced view) and the trailing plus (enable) are two buttons */
+.relayRowOpen {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.relayRowOpen:focus-visible,
+.relayAddButton:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.relayAddButton {
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
 }
 
 /* nested mode: a 56px transparent spacer so the name lines up with the group header title

@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
-import type { Provider } from '@oriveo/shared';
+import type { AIModel, Provider } from '@oriveo/shared';
 import { createAppStore } from '../store/app-store';
 import {
   addProvider,
@@ -17,6 +17,10 @@ import {
 import { relayProviderCredentialState } from '../providers/relay-runtime-support';
 import { PROVIDER_VALIDATION_MESSAGES } from '../providers/validation-messages';
 import { probeRelayEndpoint } from '../providers/probe/probe-runner';
+import { withRelayModelProbePass } from '../providers/relay-model-probe';
+import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from '../chat/stream-options';
+import { sendStream } from '../providers/service';
+import { relayCatalogEndpointTypes, rememberRelayCatalogEndpointTypes } from '../providers/relay-probe-candidates';
 import {
   exportGenerationParameterSyncPayload,
   saveConnectionGenerationParameterDefaults,
@@ -95,6 +99,33 @@ const baseProvider: Provider = {
   models: [], catalogModels: [],
   createdAt: '', updatedAt: '',
 };
+
+
+/** The request the production send chain (stream-options -> service.sendStream('relay') -> adapter) actually sends to the relay. */
+async function captureRelaySend(provider: Provider, model: AIModel): Promise<{ url: string; headers: Headers }> {
+  const calls: Array<{ url: string; headers: Headers }> = [];
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    const url = headers.get('X-Relay-Upstream-URL') ?? String(input);
+    if (url.includes('/api/metadata')) throw new Error('metadata unavailable');
+    calls.push({ url, headers });
+    return new Response('data: [DONE]\n\n', { status: 200, headers: { 'content-type': 'text/event-stream' } });
+  }));
+  try {
+    const options = buildProviderStreamOptions(provider, buildStreamOptionsFromIntent(model, undefined, false), model);
+    const handle = sendStream('relay', provider.apiKey, model.id, [{ role: 'user', content: 'hi' }], provider.baseURLText, options);
+    const reader = handle.stream.getReader();
+    for (let i = 0; i < 20 && calls.length === 0; i += 1) {
+      const { done } = await reader.read();
+      if (done) break;
+    }
+    await reader.cancel().catch(() => undefined);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+  if (!calls[0]) throw new Error('relay send issued no request');
+  return calls[0];
+}
 
 describe('provider-ops', () => {
   let store: ReturnType<typeof createAppStore>;
@@ -528,15 +559,195 @@ describe('provider-ops', () => {
     expect(store.getState().providers[0]).toMatchObject({
       status: { kind: 'connected' },
       relayResolvedBaseURLText: 'http://192.168.1.20:8080/v1',
-      relayResolvedTransport: 'openai_chat_completions',
       relayResolvedAuthMode: 'none',
       relayRequested: { resolvedAPIBaseURL: 'http://192.168.1.20:8080/v1' },
       catalogModels: [{ id: 'local-model' }],
-      models: [{ id: 'local-model', isDefault: true }],
+      // A relay has no default model: reconnecting enables the first catalog entry without marking it default.
+      models: [{ id: 'local-model', isDefault: false }],
     });
+    // Reconnecting no longer lets the probe write a connection-level protocol field.
+    expect(store.getState().providers[0].relayResolvedTransport).toBeUndefined();
+    expect(store.getState().providers[0].relayRequested?.transport).toBe('openai_chat_completions');
     const identityAfter = readCapabilityEvidenceIdentity('user-1', pending.id)!;
     expect(identityAfter.connectionGeneration).not.toBe(identityBefore.connectionGeneration);
     expect(identityAfter.credentialEpoch).toBe(identityBefore.credentialEpoch);
+  });
+
+  it('a mode reconnect leaves the connection protocol alone, and a discovered root for a non-default protocol goes into the per-protocol address table', async () => {
+    const pending = {
+      ...relayProvider,
+      apiKey: '',
+      apiKeyPreview: '',
+      baseURLText: 'http://192.168.1.20:8080',
+      relayRequested: {
+        ...relayProvider.relayRequested!,
+        transport: 'auto' as const,
+        authMode: 'none' as const,
+        securityMode: 'local_http' as const,
+        resolvedAPIBaseURL: 'http://192.168.1.20:8080/v1',
+        headers: undefined,
+        queryParams: undefined,
+      },
+      status: { kind: 'issue', message: 'Connection has not been verified.' } as const,
+    };
+    store.getState().addProvider(pending);
+    const pendingInStore = await beginRelaySecurityModeReconnect(store, pending, {
+      securityMode: 'local_http',
+      normalizedEndpoint: 'http://192.168.1.20:8080',
+      unverifiedMessage: 'Connection has not been verified.',
+    });
+    const transportBefore = pendingInStore!.relayResolvedTransport;
+    const committed = finishRelaySecurityModeReconnect(store, pendingInStore!, {
+      transport: 'anthropic_messages',
+      authMode: 'none',
+      apiBaseURL: 'http://192.168.1.20:8080/claude/v1',
+      modelIDs: [],
+      catalogModels: [],
+      generationVerified: true,
+      catalogEvidenceSucceeded: true,
+      detectionEvidence: 'catalog',
+    });
+
+    expect(committed).not.toBeNull();
+    const saved = store.getState().providers[0];
+    expect(saved.relayRequested?.transport).toBe('auto');
+    expect(saved.relayResolvedTransport).toBe(transportBefore);
+    expect(saved.relayRequested?.resolvedAPIBaseURLs).toEqual({
+      anthropic_messages: 'http://192.168.1.20:8080/claude/v1',
+    });
+
+    // The single-value root is written only when the discovered protocol is the connection's actual default (auto means Chat).
+    const again = await beginRelaySecurityModeReconnect(store, saved, {
+      securityMode: 'local_http',
+      normalizedEndpoint: 'http://192.168.1.20:8080',
+      unverifiedMessage: 'Connection has not been verified.',
+    });
+    finishRelaySecurityModeReconnect(store, again!, {
+      transport: 'openai_chat_completions',
+      authMode: 'none',
+      apiBaseURL: 'http://192.168.1.20:8080/openai/v1',
+      modelIDs: [],
+      catalogModels: [],
+      generationVerified: true,
+      catalogEvidenceSucceeded: true,
+      detectionEvidence: 'catalog',
+    });
+    expect(store.getState().providers[0].relayRequested).toMatchObject({
+      transport: 'auto',
+      resolvedAPIBaseURL: 'http://192.168.1.20:8080/openai/v1',
+    });
+  });
+
+  it('the catalog resolved by a mode reconnect fills the endpoint types cache, and model-level fields of enabled models are not overwritten by catalog entries', async () => {
+    const pinned = {
+      id: 'claude-sonnet-4-5',
+      name: 'claude-sonnet-4-5',
+      capabilities: ['text' as const],
+      reasoningModeAvailable: false,
+      isAvailable: true,
+      isDefault: true,
+      priceTier: '',
+      relayTransport: 'anthropic_messages' as const,
+      relayTransportSource: 'user' as const,
+      relayCapabilityOverrides: { image: { value: true, source: 'tested' as const } },
+      engineDeclaration: { image: true, toolCall: false },
+    };
+    const pending = { ...relayProvider, models: [pinned] };
+    store.getState().addProvider(pending);
+    const pendingInStore = await beginRelaySecurityModeReconnect(store, pending, {
+      securityMode: 'local_http',
+      normalizedEndpoint: 'http://192.168.1.20:1234/v1',
+      unverifiedMessage: 'Connection has not been verified.',
+    });
+    const catalogEntry = { ...pinned, name: 'Claude Sonnet 4.5', isDefault: false };
+    delete (catalogEntry as Partial<typeof pinned>).relayTransport;
+    delete (catalogEntry as Partial<typeof pinned>).relayTransportSource;
+    delete (catalogEntry as Partial<typeof pinned>).relayCapabilityOverrides;
+    delete (catalogEntry as Partial<typeof pinned>).engineDeclaration;
+    const newcomer = { ...catalogEntry, id: 'qwen3:0.6b', name: 'qwen3:0.6b' };
+    finishRelaySecurityModeReconnect(store, pendingInStore!, {
+      transport: 'openai_chat_completions',
+      authMode: 'bearer',
+      apiBaseURL: 'http://192.168.1.20:1234/v1',
+      modelIDs: [pinned.id],
+      catalogModels: [catalogEntry, newcomer],
+      generationVerified: true,
+      catalogEvidenceSucceeded: true,
+      detectionEvidence: 'catalog',
+      catalogEndpointTypes: { [pinned.id]: ['anthropic', 'openai'] },
+    });
+    // The catalog list keeps the old declaration by model id; newly appearing models stay unknown.
+    const [keptEntry, newEntry] = store.getState().providers[0].catalogModels;
+    expect(keptEntry?.engineDeclaration).toEqual({ image: true, toolCall: false });
+    expect(newEntry).not.toHaveProperty('engineDeclaration');
+
+    expect(relayCatalogEndpointTypes(relayProvider.id, pinned.id)).toEqual(['anthropic', 'openai']);
+    expect(store.getState().providers[0].models[0]).toMatchObject({
+      name: 'Claude Sonnet 4.5',
+      isDefault: false,
+      relayTransport: 'anthropic_messages',
+      relayTransportSource: 'user',
+      relayCapabilityOverrides: { image: { value: true, source: 'tested' } },
+      engineDeclaration: { image: true, toolCall: false },
+    });
+    rememberRelayCatalogEndpointTypes(relayProvider.id, undefined);
+  });
+
+  it('an auto-detect connection whose mode reconnect discovers Messages writes no auth / header profile for the discovered protocol: following the connection and a lazily verified chat gpt-4o-mini both use bearer with no Anthropic headers', async () => {
+    const gpt = {
+      id: 'gpt-4o-mini', name: 'gpt-4o-mini', capabilities: ['text' as const],
+      reasoningModeAvailable: false, isAvailable: true, isDefault: true, priceTier: '',
+    };
+    const pending: Provider = {
+      ...relayProvider,
+      apiKey: 'sk-ant-relay-0123456789',
+      baseURLText: 'https://relay.example.com',
+      models: [gpt],
+      relayRequested: {
+        transport: 'auto',
+        authMode: 'auto',
+        securityMode: 'remote_https',
+      },
+      relayResolvedAuthMode: undefined,
+      relayResolvedHeaderProfile: undefined,
+      relayResolvedFamilyHint: undefined,
+    };
+    store.getState().addProvider(pending);
+    const pendingInStore = await beginRelaySecurityModeReconnect(store, pending, {
+      securityMode: 'remote_https',
+      normalizedEndpoint: 'https://relay.example.com',
+      unverifiedMessage: 'Connection has not been verified.',
+    });
+    const committed = finishRelaySecurityModeReconnect(store, pendingInStore!, {
+      transport: 'anthropic_messages',
+      authMode: 'x_api_key',
+      apiBaseURL: 'https://relay.example.com/v1',
+      modelIDs: [gpt.id],
+      catalogModels: [gpt],
+      generationVerified: true,
+      catalogEvidenceSucceeded: true,
+      detectionEvidence: 'catalog',
+    });
+    expect(committed).not.toBeNull();
+    const saved = store.getState().providers[0];
+
+    const probed = withRelayModelProbePass(saved, gpt.id, {
+      transport: 'openai_chat_completions',
+      apiBaseURL: 'https://relay.example.com/v1',
+    });
+    for (const [label, provider] of [['follows the connection', saved], ['lazily verified as chat', probed]] as const) {
+      const model = provider.models.find((item) => item.id === gpt.id)!;
+      const sent = await captureRelaySend(provider, model);
+      expect(sent.url, label).toBe('https://relay.example.com/v1/chat/completions');
+      const proxy = JSON.parse(sent.headers.get('x-relay-proxy-config') ?? '{}') as { authMode?: string; transport?: string };
+      expect(proxy, label).toMatchObject({ transport: 'openai_chat_completions', authMode: 'bearer' });
+      expect(sent.headers.get('x-api-key'), label).toBeNull();
+      expect(sent.headers.get('anthropic-version'), label).toBeNull();
+    }
+    expect(saved.relayRequested?.transport).toBe('auto');
+    expect(saved.relayResolvedAuthMode).toBeUndefined();
+    expect(saved.relayResolvedHeaderProfile).toBeUndefined();
+    expect(saved.relayResolvedFamilyHint).toBeUndefined();
   });
 
   it('a stale-generation probe cannot overwrite any provider write made after begin', async () => {

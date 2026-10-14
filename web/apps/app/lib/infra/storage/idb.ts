@@ -1,6 +1,7 @@
 import { openDB, deleteDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { Conversation, Provider, Folder, Note, NoteFolder } from '@oriveo/shared';
-import { sanitizeMessageQuoteContext } from '@oriveo/shared';
+import { adoptLegacyResolvedRelayTransport, sanitizeMessageQuoteContext, sanitizeProviderRelayModelFields } from '@oriveo/shared';
+import { sanitizeProviderRelayKeys } from '@oriveo/shared/relay/relay-keys';
 import { getActiveUID, getActiveUIDSync, getDBName } from './partition';
 import { reportIDBUpgradeBlocked } from './idb-lifecycle';
 import { normalizeUUID } from '../../utils/id-utils';
@@ -470,7 +471,17 @@ export async function clearPendingConversationDeletions(ids: string[]): Promise<
 
 export async function getAllProviders(expectedUID?: string): Promise<Provider[]> {
   const db = await getDB(expectedUID);
-  return db.getAll('providers');
+  // Single read entry for locally stored providers: per-model relay fields written by other
+  // versions or backup files are sanitized here, and hydration, backup export and post-import
+  // read-back all go through it. Legacy records whose connection default is auto but which
+  // already carry a concrete relayResolvedTransport are treated in memory as that transport
+  // (dispatch only reads relayRequested.transport); nothing is written back.
+  // The relay key list is sanitized as well: malformed entries are dropped and the first
+  // key's value is stored empty.
+  return (await db.getAll('providers'))
+    .map(sanitizeProviderRelayModelFields)
+    .map(sanitizeProviderRelayKeys)
+    .map(adoptLegacyResolvedRelayTransport);
 }
 
 export async function putProvider(provider: Provider, expectedUID?: string): Promise<void> {

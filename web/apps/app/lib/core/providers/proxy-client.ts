@@ -24,6 +24,7 @@ import { ADDITIONAL_BODY_ERROR_KIND, validateAdditionalBody } from '@oriveo/core
 import { additionalBodyRetryEligible } from '../chat/additional-body-retry';
 import { generationWriteFacts } from '@oriveo/core/providers/generation-rejection-facts';
 import { sanitizeUpstreamErrorText } from '@oriveo/core/providers/upstream-error-text';
+import { classifyRelayKeyAccess } from '@oriveo/core/providers/relay-key-access';
 import {
   CAPABILITY_RECOVERY_HEADER,
   decodeCapabilityRecoveryDescriptor,
@@ -137,7 +138,7 @@ export async function syncModelsProxy(
  * sending it has no effect other than putting one more local identifier on the wire.
  */
 function withoutCapabilityIdentity(options?: StreamOptions): StreamOptions | undefined {
-  if (!options?.capabilityIdentity && !options?.capabilityRecoveryIdentity && !options?.capabilityRecipeResendOwners && !options?.continuation && !options?.grokSubscriptionAuth && !options?.openAISubscriptionAuth) return options;
+  if (!options?.capabilityIdentity && !options?.capabilityRecoveryIdentity && !options?.capabilityRecipeResendOwners && !options?.continuation && !options?.grokSubscriptionAuth && !options?.openAISubscriptionAuth && !options?.relayConnectionKeySecrets) return options;
   // `grokSubscriptionAuth` and `openAISubscriptionAuth` travel as a top-level `authMode` on the
   // request body rather than inside options: options is passed through to the builder verbatim,
   // and mixing in a local flag that only picks an endpoint would create two sources of truth.
@@ -145,7 +146,7 @@ function withoutCapabilityIdentity(options?: StreamOptions): StreamOptions | und
   // Codex is the exception: `openAISubscriptionAccountID` and `upstreamReasoningLevels` really
   // are request parameters (one becomes a header, the other decides the effort value) and the
   // route needs them to build a valid request, so they stay in options and go with it.
-  const { capabilityIdentity: _localOnly, capabilityRecoveryIdentity: _recoveryLocalOnly, capabilityRecipeResendOwners: _resendLocalOnly, continuation: _continuation, grokSubscriptionAuth: _subscriptionLocalOnly, openAISubscriptionAuth: _codexLocalOnly, ...rest } = options;
+  const { capabilityIdentity: _localOnly, capabilityRecoveryIdentity: _recoveryLocalOnly, capabilityRecipeResendOwners: _resendLocalOnly, continuation: _continuation, grokSubscriptionAuth: _subscriptionLocalOnly, openAISubscriptionAuth: _codexLocalOnly, relayConnectionKeySecrets: _keySecretsLocalOnly, ...rest } = options;
   return rest;
 }
 
@@ -412,18 +413,25 @@ export function sendLibraryAgentLeg(
             return;
           }
           const payload = await readErrorPayload(response, 'Library model request failed');
-          if (payload.structuredError !== undefined) {
+          const source = responseErrorSource(response) ?? 'provider';
+          // Relay key verdict: decided where the raw upstream text is available, and carried out with the rejection context rather than parsed from fragments afterwards.
+          const relayKeyAccess = providerKind === 'relay' && source === 'provider'
+            ? classifyRelayKeyAccess(response.status, payload.text)
+            : 'none';
+          if (payload.structuredError !== undefined || relayKeyAccess !== 'none') {
             toolCallRejectionContext = {
               status: response.status,
-              structuredError: payload.structuredError,
+              ...(payload.structuredError !== undefined ? { structuredError: payload.structuredError } : {}),
+              ...(relayKeyAccess !== 'none' ? { relayKeyAccess } : {}),
             };
           }
           ctrl.enqueue({
             type: 'error',
             error: payload.detail,
             errorKind: response.status === 429 ? 'rate_limited' : 'unknown',
-            source: responseErrorSource(response) ?? 'provider',
+            source,
             status: response.status,
+            ...(relayKeyAccess !== 'none' ? { relayKeyAccess } : {}),
           });
           ctrl.close();
           return;
@@ -475,9 +483,9 @@ async function readErrorDetail(res: Response, fallback: string): Promise<string>
 async function readErrorPayload(
   res: Response,
   fallback: string,
-): Promise<{ detail: string; structuredError?: unknown }> {
+): Promise<{ detail: string; structuredError?: unknown; text: string }> {
   const text = await res.text().catch(() => '');
-  if (!text) return { detail: fallback };
+  if (!text) return { detail: fallback, text };
 
   try {
     const parsed = JSON.parse(text) as unknown;
@@ -485,11 +493,11 @@ async function readErrorPayload(
       const record = parsed as { error?: unknown; message?: unknown };
       const error = typeof record.error === 'string' ? record.error : undefined;
       const message = typeof record.message === 'string' ? record.message : undefined;
-      return { detail: error || message || text, structuredError: parsed };
+      return { detail: error || message || text, structuredError: parsed, text };
     }
-    return { detail: text };
+    return { detail: text, text };
   } catch {
-    return { detail: text };
+    return { detail: text, text };
   }
 }
 

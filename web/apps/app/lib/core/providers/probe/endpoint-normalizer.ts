@@ -1,4 +1,6 @@
-import { requireSecureRelayEndpoint, type RelayConnectionSecurityMode } from '@oriveo/shared';
+import { requireSecureRelayEndpoint, type Provider, type RelayConnectionSecurityMode } from '@oriveo/shared';
+import { connectionTransport, verifiedConnectionAPIRoot } from '@oriveo/core/providers/relay-effective';
+import { normalizeRelayBaseURL, type RelayEndpointTransport } from '@oriveo/core/providers/relay-endpoints';
 
 export type RelayProbeTransportKind =
   | 'openai_responses'
@@ -125,6 +127,63 @@ export function buildRelayEndpointCandidates(
   });
   append(undefined, 'versionless_fallback');
   return candidates;
+}
+
+/**
+ * Root address for the "Will request ..." preview on the add page (fixture address-normalize.v1.json previewCases):
+ * strip the terminal route, then append the version by the protocol of the explicit terminal route (otherwise Chat Completions). Returns null when it cannot be a safe request address
+ * (empty, userinfo, embedded query, non-local plaintext http), and the preview row is hidden.
+ */
+export function previewAPIRoot(
+  input: string,
+  securityMode: RelayConnectionSecurityMode = 'remote_https',
+): string | null {
+  let descriptor: RelayEndpointDescriptor;
+  try {
+    descriptor = describeRelayEndpoint(input, securityMode);
+  } catch {
+    return null;
+  }
+  if (descriptor.containsEmbeddedQuery) return null;
+  const transport = descriptor.explicitTransport ?? 'openai_chat_completions';
+  try {
+    return versionCompletedRoot(descriptor, transport, securityMode);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Root address for every catalog GET (fixture catalogCases): the connection-level verified root address wins;
+ * otherwise baseURL with the terminal route stripped, plus the version by the connection protocol. Catalog URL = root + `/models`.
+ * Returns undefined when the address fails the security policy, and the party sending the request reports the error.
+ */
+export function catalogAPIRoot(
+  provider: Pick<Provider, 'baseURLText' | 'relayRequested'>,
+): string | undefined {
+  const verified = verifiedConnectionAPIRoot(provider);
+  if (verified) return verified;
+  const securityMode = provider.relayRequested?.securityMode;
+  try {
+    const descriptor = describeRelayEndpoint(provider.baseURLText ?? '', securityMode);
+    return versionCompletedRoot(descriptor, connectionTransport(provider), securityMode);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * After stripping the terminal route, append the version with the same rule as effectiveAPIRoot: if any path segment is already v<N>[alpha|beta] use it as is
+ * (e.g. /api/paas/v4 must not become /v4/v1), llamacpp_native appends nothing, the others append that protocol's standard version.
+ */
+function versionCompletedRoot(
+  descriptor: RelayEndpointDescriptor,
+  transport: RelayEndpointTransport,
+  securityMode: RelayConnectionSecurityMode | undefined,
+): string {
+  const path = [descriptor.pathPrefix, descriptor.explicitVersion ? `/${descriptor.explicitVersion}` : '']
+    .join('');
+  return normalizeRelayBaseURL(`${descriptor.origin}${path}`, transport, securityMode);
 }
 
 export function appendRelayEndpointPath(

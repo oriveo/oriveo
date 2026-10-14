@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChevronRight, Globe, SlidersHorizontal, Trash2 } from 'lucide-react';
 import type { Provider } from '@oriveo/shared';
@@ -20,6 +20,9 @@ interface ProviderSettingsPanelProps {
   endpointOptions?: OfficialEndpointCardOption[];
   endpointDescription?: string | null;
   endpointDisplayFallback?: string;
+  /** For official providers with setup fields: the Workspace ID slot of the template region and the one-shot write */
+  endpointSetupConfig?: ComponentProps<typeof BaseURLEditor>['setupConfig'];
+  onSaveEndpoint?: ComponentProps<typeof BaseURLEditor>['onSaveEndpoint'];
   /** Advanced Settings row tap; the row is not rendered when undefined */
   onOpenAdvanced?: () => void;
   /** Subtitle under the Advanced row; shows the transport hint in Relay mode */
@@ -51,6 +54,8 @@ export function ProviderSettingsPanel({
   endpointOptions,
   endpointDescription,
   endpointDisplayFallback,
+  endpointSetupConfig,
+  onSaveEndpoint,
   onOpenAdvanced,
   advancedSubtitle,
   advancedTitle,
@@ -59,7 +64,7 @@ export function ProviderSettingsPanel({
   onExpandedRowChange,
 }: ProviderSettingsPanelProps) {
   const t = useTranslations('pages.providerDetail');
-  const tSettings = useTranslations('pages.providerDetail.settings');
+  const tc = useTranslations('common');
 
   const [internalExpanded, setInternalExpanded] = useState<ExpandedRow>(null);
   const isControlled = expandedRow !== undefined;
@@ -119,6 +124,13 @@ export function ProviderSettingsPanel({
                   onSaveBaseURL(newURL);
                   setExpanded(null);
                 }}
+                setupConfig={endpointSetupConfig}
+                storedEndpointSource={provider.endpointSource}
+                storedSetupValues={provider.setupValues}
+                onSaveEndpoint={onSaveEndpoint && ((endpoint) => {
+                  onSaveEndpoint(endpoint);
+                  setExpanded(null);
+                })}
               />
             </div>
           )}
@@ -137,7 +149,7 @@ export function ProviderSettingsPanel({
               <SlidersHorizontal size={14} strokeWidth={2.4} />
             </span>
             <span className={styles.copy}>
-              <span className={styles.title}>{advancedTitle ?? tSettings('advanced')}</span>
+              <span className={styles.title}>{advancedTitle ?? tc('generationParameters')}</span>
               {advancedSubtitle && <span className={styles.value}>{advancedSubtitle}</span>}
             </span>
             <ChevronRight className={styles.chevron} size={14} strokeWidth={2.4} aria-hidden="true" />

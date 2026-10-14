@@ -48,6 +48,15 @@ describe('shouldHideModelForTransport', () => {
     expect(trackEvent).not.toHaveBeenCalled();
   });
 
+  it('lets gemini_interactions through unhidden: dispatch picks the route', () => {
+    const ctx = createCatalogFilterContext();
+    expect(
+      shouldHideModelForTransport({ id: 'gemini-3.5-flash', transport: 'gemini_interactions' }, ctx),
+    ).toBe(false);
+    expect(ctx.modelIdsHidden).toEqual([]);
+    expect(trackEvent).not.toHaveBeenCalled();
+  });
+
   it('lets a missing transport through, for compatibility with older metadata', () => {
     const ctx = createCatalogFilterContext();
     expect(shouldHideModelForTransport({ id: 'baz' }, ctx)).toBe(false);

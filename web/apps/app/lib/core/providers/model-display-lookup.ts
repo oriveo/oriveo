@@ -1,5 +1,6 @@
 import type { AIModel, Provider } from '@oriveo/shared';
 import { resolveCatalogModel } from '../metadata/metadata-client';
+import { resolveRelayStoredModel } from './relay-model-identity';
 
 const SNAPSHOT_DATE_RE = /(?:-\d{8}|-\d{4}-\d{2}-\d{2})$/;
 
@@ -23,7 +24,10 @@ export function createModelDisplayLookup(
       const trimmed = modelId?.trim();
       if (!trimmed) return null;
 
-      const localModel = findModelByIdentifier(provider?.models ?? [], trimmed);
+      // Resolving the stored value for the relay session row display name uses read compatibility, not date-stripping / canonical folding.
+      const localModel = provider?.kind === 'relay'
+        ? resolveRelayStoredModel(provider.models, trimmed)
+        : findModelByIdentifier(provider?.models ?? [], trimmed);
       if (provider && provider.kind !== 'relay') {
         const resolved = resolveCatalogModel(trimmed, provider.kind);
         if (resolved) {

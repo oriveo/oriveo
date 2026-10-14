@@ -223,13 +223,14 @@ describe('chat operations with relay image config', () => {
         relayHeaderProfile: 'none',
         relayFamilyHint: 'openai',
         relayServiceTier: 'fast',
-        relayReasoningEffort: 'xhigh',
         relayDisableResponseStorage: true,
         // toolModelID is not forwarded to the adapter
         relayImageToolModelID: undefined,
         supportsImageGen: true,
       }),
     );
+    // The fixture connection stores reasoningEffort=xhigh: with the connection-level tier retired it no longer enters StreamOptions.
+    expect(mocks.sendStream.mock.lastCall?.[5]).not.toHaveProperty('relayReasoningEffort');
   });
 
   it('continueAnswering forwards the advanced relay fields too, and relayImage config produces no toolModelID', async () => {
@@ -282,7 +283,6 @@ describe('chat operations with relay image config', () => {
       'https://relay.example.com/v1',
       expect.objectContaining({
         relayServiceTier: 'fast',
-        relayReasoningEffort: 'xhigh',
         relayDisableResponseStorage: true,
         relayImageToolModelID: undefined,
         supportsImageGen: true,

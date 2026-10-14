@@ -232,7 +232,7 @@ describe('per-parameter revalidation by id after a profile change', () => {
     });
 
     // Runtime probing corrects transport from one concrete value to another, which is the real window here.
-    const after = relayProvider({ relayResolvedTransport: 'anthropic_messages' });
+    const after = relayProvider({ relayRequested: { transport: 'anthropic_messages' } });
     expect(generationParameterProfileFingerprint(after, model))
       .not.toBe(generationParameterProfileFingerprint(before, model));
 
@@ -258,13 +258,13 @@ describe('per-parameter revalidation by id after a profile change', () => {
       frequency_penalty: valueOverride(0.5),
     });
 
-    const corrected = relayProvider({ relayResolvedTransport: 'anthropic_messages' });
+    const corrected = relayProvider({ relayRequested: { transport: 'anthropic_messages' } });
     expect(partitionGenerationParameterValues({
       provider: corrected, model, values: loadGenerationParameterOverrides(scopeOf(corrected))!,
     }).dormantIds).toEqual(['frequency_penalty']);
 
     // Transport is corrected back, by switching upstream back or by a re-probe: the value was never deleted, so it returns as soon as the condition changes.
-    const restored = relayProvider({ relayResolvedTransport: 'openai_chat_completions' });
+    const restored = relayProvider({ relayRequested: { transport: 'openai_chat_completions' } });
     const partition = partitionGenerationParameterValues({
       provider: restored, model, values: loadGenerationParameterOverrides(scopeOf(restored))!,
     });
@@ -285,7 +285,7 @@ describe('preset identity carries no profile fingerprint and values are handled 
       values: { temperature: valueOverride(0.4), frequency_penalty: valueOverride(0.5) },
     });
     // The fingerprint really did change, which is the case a record-level invalidation would drop entirely.
-    const after = relayProvider({ relayResolvedTransport: 'anthropic_messages' });
+    const after = relayProvider({ relayRequested: { transport: 'anthropic_messages' } });
     expect(generationParameterProfileFingerprint(after, model)).not.toBe(preset.profileFingerprint);
 
     expect(listGenerationParameterPresets(scopeOf(after)).map((item) => item.id)).toEqual([preset.id]);
@@ -296,7 +296,7 @@ describe('preset identity carries no profile fingerprint and values are handled 
   });
 
   it('never trims by the local active decision when saving or applying: dormant values stay and go out again once the profile returns', async () => {
-    const after = relayProvider({ relayResolvedTransport: 'anthropic_messages' });
+    const after = relayProvider({ relayRequested: { transport: 'anthropic_messages' } });
     // The panel's current values come from the production write and read chain, and the production partition decides which are dormant; the test does not decide that itself.
     saveGenerationParameterOverrides(scopeOf(after), {
       temperature: valueOverride(0.4),
@@ -310,7 +310,7 @@ describe('preset identity carries no profile fingerprint and values are handled 
     // Trimming dormant values would let one device's profile switch a value off for another device.
     expect(preset.values.frequency_penalty).toEqual(valueOverride(0.5));
 
-    const restored = relayProvider({ relayResolvedTransport: 'openai_chat_completions' });
+    const restored = relayProvider({ relayRequested: { transport: 'openai_chat_completions' } });
     const applied = applyGenerationParameterPreset(preset, scopeOf(restored))!;
     saveGenerationParameterOverrides(scopeOf(restored), applied);
     const resolved = resolveGenerationParameterOverrides({
@@ -341,7 +341,7 @@ describe('preset identity carries no profile fingerprint and values are handled 
   });
 });
 
-describe('handling of old scoped records after relayResolvedTransport is corrected at runtime', () => {
+describe('handling of old scoped records after the connection protocol is corrected at runtime (since U5 the protocol is read only through effectiveTransport)', () => {
   it('migrates old records to the new scope with per-field decisions and never sends dormant values', async () => {
     const before = relayProvider();
     saveGenerationParameterOverrides(scopeOf(before), {
@@ -349,7 +349,7 @@ describe('handling of old scoped records after relayResolvedTransport is correct
       frequency_penalty: valueOverride(0.5),
     });
 
-    const after = relayProvider({ relayResolvedTransport: 'anthropic_messages' });
+    const after = relayProvider({ relayRequested: { transport: 'anthropic_messages' } });
     const resolved = resolveGenerationParameterOverrides({
       ...scopeOf(after),
       reasoningMode: 'automatic',
@@ -372,7 +372,7 @@ describe('handling of old scoped records after relayResolvedTransport is correct
     const before = relayProvider();
     saveGenerationParameterOverrides(scopeOf(before), { temperature: valueOverride(0.4) });
 
-    const after = relayProvider({ relayResolvedTransport: 'anthropic_messages' });
+    const after = relayProvider({ relayRequested: { transport: 'anthropic_messages' } });
     saveGenerationParameterOverrides(scopeOf(after), { temperature: valueOverride(0.9) });
 
     const raw = JSON.parse(localStorage.getItem('oriveo.guest.generation-parameter-settings.v1')!) as {

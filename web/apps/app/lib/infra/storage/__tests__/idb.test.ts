@@ -30,6 +30,8 @@ import {
 import { getActiveUIDSync, setActiveUID } from '../partition';
 import { resetImageDBConnection } from '../image-store';
 import type { ChatMessage, Conversation, Provider } from '@oriveo/shared';
+import { effectiveTransport } from '@oriveo/core/providers/relay-effective';
+import { buildProviderStreamOptions } from '../../../core/chat/stream-options';
 
 const partitionSyncGate = vi.hoisted(() => ({
   switchAtCall: -1,
@@ -435,6 +437,25 @@ describe('idb.ts', () => {
       const all = await getAllProviders();
       expect(all).toHaveLength(1);
       expect(all[0].id).toBe('p1');
+    });
+
+    it('legacy record: auto connection default with a concrete relayResolvedTransport dispatches by the original transport and is not written back', async () => {
+      await putProvider(makeProvider({
+        id: 'relay-auto-legacy',
+        kind: 'relay',
+        baseURLText: 'https://relay.example.com/v1',
+        relayRequested: { transport: 'auto', authMode: 'auto' },
+        relayResolvedTransport: 'openai_responses',
+      }));
+
+      const [loaded] = await getAllProviders();
+      expect(loaded.relayRequested?.transport).toBe('openai_responses');
+      expect(effectiveTransport(loaded, null)).toBe('openai_responses');
+      expect(buildProviderStreamOptions(loaded)?.relayTransport).toBe('openai_responses');
+
+      const raw = await openDB('oriveo--guest');
+      expect((await raw.get('providers', 'relay-auto-legacy'))?.relayRequested?.transport).toBe('auto');
+      raw.close();
     });
 
     it('aborts a cancellable create whose commit point has expired on a real IDB, leaving no provider row', async () => {

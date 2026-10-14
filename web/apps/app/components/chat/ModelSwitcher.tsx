@@ -59,6 +59,7 @@ export function ModelSwitcher({
     onAddManualAndSelect,
     capabilityEvidenceTick,
     requiredGenerationParameterId,
+    onLeave: onClose,
   });
 
   const handleKeyDown = useArrowKeyboardNavigation({
