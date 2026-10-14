@@ -337,7 +337,10 @@ object ModelSelectionUtils {
         val uniqueManuals = manualModels.filter { manual ->
             syncedModels.none { synced -> modelsShareSameRemoteModel(manual, synced, providerKind) }
         }
-        return uniqueManuals + syncedModels
+        val existingByID = existingModels.associateBy { it.id }
+        return uniqueManuals + syncedModels.map { synced ->
+            existingByID[synced.id]?.let { synced.carryingRelayModelFields(it) } ?: synced
+        }
     }
 
     /**
