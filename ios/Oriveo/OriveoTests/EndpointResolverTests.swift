@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("Endpoint Resolver Tests")
+@Suite("Endpoint Resolver Tests", .serialized)
 struct EndpointResolverTests {
 
     // MARK: - Helpers
@@ -94,40 +94,50 @@ struct EndpointResolverTests {
     }
 
 
-    @Test("Moonshot CNBase URLAllowed")
-    func moonshotCNBaseURLAllowed() throws {
-        let provider = makeProvider(kind: .moonshot)
-        let metadata = MetadataClient.ProviderTransportDefinition(
-            baseUrl: "https://api.moonshot.cn/v1",
-            endpoints: MetadataClient.TransportEndpoints(
-                chat: "/chat/completions",
-                responses: nil, images: nil, embeddings: nil, files: nil
-            )
-        )
-        let resolved = try EndpointResolver.resolve(
-            provider: provider,
-            kind: .chat,
-            metadataTransport: metadata
-        )
-        #expect(resolved.baseURL == "https://api.moonshot.cn/v1")
-        #expect(resolved.url.absoluteString == "https://api.moonshot.cn/v1/chat/completions")
+    /// The trusted table is delivered by the server through `providerConfigs[].trustedHosts`. When the field is missing
+    /// only the last two labels of the fallback host are trusted, so a second domain such as moonshot.cn or
+    /// siliconflow.com has to be admitted by the delivered table.
+    private func loadTrustedHosts(kind: String, hosts: [String]) async throws {
+        let list = hosts.map { "\"\($0)\"" }.joined(separator: ", ")
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: """
+        {"version": 1, "updatedAt": "2026-10-10T00:00:00Z", "providers": {},
+         "providerConfigs": [{"kind": "\(kind)", "displayName": "\(kind)",
+           "defaultBaseURL": "https://example.invalid/v1", "trustedHosts": [\(list)]}]}
+        """)
     }
 
-    @Test("Silicon Flow International Base URLAllowed")
-    func siliconFlowInternationalBaseURLAllowed() throws {
-        let provider = makeProvider(kind: .siliconFlow)
-        let metadata = MetadataClient.ProviderTransportDefinition(
-            baseUrl: "https://api.siliconflow.com/v1",
-            endpoints: MetadataClient.TransportEndpoints(
-                chat: "/chat/completions",
-                responses: nil, images: nil, embeddings: nil, files: nil
+    private func resolvedChat(kind: ProviderKind, metadataBaseURL: String) throws -> EndpointResolver.ResolvedEndpoint {
+        try EndpointResolver.resolve(
+            provider: makeProvider(kind: kind),
+            kind: .chat,
+            metadataTransport: MetadataClient.ProviderTransportDefinition(
+                baseUrl: metadataBaseURL,
+                endpoints: MetadataClient.TransportEndpoints(
+                    chat: "/chat/completions",
+                    responses: nil, images: nil, embeddings: nil, files: nil
+                )
             )
         )
-        let resolved = try EndpointResolver.resolve(
-            provider: provider,
-            kind: .chat,
-            metadataTransport: metadata
-        )
+    }
+
+    @Test("Moonshot CN base URL is accepted by the delivered trusted table; with the field missing only moonshot.ai is trusted")
+    func moonshotCNBaseURLAllowed() async throws {
+        try await loadTrustedHosts(kind: "moonshot", hosts: ["moonshot.ai", "moonshot.cn"])
+        let resolved = try resolvedChat(kind: .moonshot, metadataBaseURL: "https://api.moonshot.cn/v1")
+        #expect(resolved.baseURL == "https://api.moonshot.cn/v1")
+        #expect(resolved.url.absoluteString == "https://api.moonshot.cn/v1/chat/completions")
+
+        await MetadataClient.shared.resetForTesting()
+        let fallback = try resolvedChat(kind: .moonshot, metadataBaseURL: "https://api.moonshot.cn/v1")
+        #expect(fallback.baseURL == EndpointResolver.fallbackBaseURL(for: .moonshot))
+    }
+
+    @Test("The international siliconflow.com base URL is accepted by the delivered trusted table")
+    func siliconFlowInternationalBaseURLAllowed() async throws {
+        try await loadTrustedHosts(kind: "siliconFlow", hosts: ["siliconflow.cn", "siliconflow.com"])
+        defer { Task { await MetadataClient.shared.resetForTesting() } }
+        let resolved = try resolvedChat(kind: .siliconFlow, metadataBaseURL: "https://api.siliconflow.com/v1")
         #expect(resolved.baseURL == "https://api.siliconflow.com/v1")
         #expect(resolved.url.absoluteString == "https://api.siliconflow.com/v1/chat/completions")
     }

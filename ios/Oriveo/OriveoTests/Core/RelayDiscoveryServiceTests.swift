@@ -245,7 +245,14 @@ struct RelayDiscoveryServiceTests {
             let payload = try #require(
                 try JSONSerialization.jsonObject(with: body) as? [String: Any]
             )
-            probedModels.append(try #require(payload["model"] as? String))
+            let probedModel = try #require(payload["model"] as? String)
+            probedModels.append(probedModel)
+            // A Responses probe body with a key carries prompt_cache_key (same algorithm as the connection test's ping).
+            #expect(
+                payload["prompt_cache_key"] as? String == RelayRuntimeSupport.promptCacheKey(
+                    model: probedModel, instructions: "", firstUserText: "ping"
+                )
+            )
             return (
                 400,
                 Data(#"{"code":400,"msg":"/,: Codex-Api"}"#.utf8)

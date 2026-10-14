@@ -53,7 +53,7 @@ private func selfHealIdentity(
         connectionInstanceID: "test-connection",
         connectionGeneration: "test-connection-generation",
         credentialEpoch: "test-credential-epoch",
-        providerKind: providerKind.rawValue,
+        providerKind: providerKind.rawValue, authMode: ProviderAuthMode.apiKey.rawValue,
         modelID: modelID,
         effectiveTransport: transport,
         endpointFingerprint: nil,

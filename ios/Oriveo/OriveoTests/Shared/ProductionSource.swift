@@ -12,4 +12,18 @@ enum ProductionSource {
         try String(contentsOf: root.appendingPathComponent(relativePath), encoding: .utf8)
     }
 
+    /// The per-language values of one key in `<table>.xcstrings` (language code -> text).
+    static func localizations(table: String, key: String) throws -> [String: String] {
+        let data = try Data(contentsOf: root.appendingPathComponent("\(table).xcstrings"))
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let strings = json?["strings"] as? [String: Any]
+        let entry = strings?[key] as? [String: Any]
+        let localizations = entry?["localizations"] as? [String: Any] ?? [:]
+        var result: [String: String] = [:]
+        for (language, value) in localizations {
+            let unit = (value as? [String: Any])?["stringUnit"] as? [String: Any]
+            if let text = unit?["value"] as? String { result[language] = text }
+        }
+        return result
+    }
 }

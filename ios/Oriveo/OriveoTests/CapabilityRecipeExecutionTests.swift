@@ -13,7 +13,9 @@ struct CapabilityRecipeExecutionTests {
             let actual: [String: Any]
             switch targetProtocol {
             case "openai_responses": let body = CapabilityRecipeExecution.openAIResponsesPreviousID(state?["previousResponseId"] as? String); actual = body.isEmpty ? [:] : ["bodyDelta": body]
-            case "gemini_interactions": let body = CapabilityRecipeExecution.geminiInteractionsPreviousID(state?["previousResponseId"] as? String); actual = body.isEmpty ? [:] : ["bodyDelta": body]
+            case "gemini_interactions":
+                // Continuation none: even with a stale previousResponseId the production builder sends only the full Step[], so nothing extra goes on the wire.
+                actual = try Self.interactionsContinuationWire(item.caseId ?? "gemini_interactions", kind: item.kind)
             case "anthropic_messages": let blocks = CapabilityRecipeExecution.anthropicReplayContentBlocks(state?["blocks"] as? [[String: Any]]); actual = blocks.isEmpty ? [:] : ["messageAppend": [["role": "assistant", "content": blocks]]]
             case "gemini_generate_content": actual = (state?["blocks"] == nil) ? [:] : ["contentsAppend": state?["blocks"] ?? []]
             case "openai_chat":
@@ -33,6 +35,33 @@ struct CapabilityRecipeExecutionTests {
             }
             #expect(Self.json(actual) == Self.json(expectedWire.mapValues { $0.foundationValue }))
         }
+    }
+
+    private static func interactionsContinuationWire(_ caseId: String, kind: String?) throws -> [String: Any] {
+        let fixture = try Self.fixture()
+        let registryData = try Data(contentsOf: Self.findFile(
+            fixture.registryPath.split(separator: "/").map(String.init)
+        ))
+        let registry = try #require(JSONSerialization.jsonObject(with: registryData) as? [String: Any])
+        let rawRecipe = try #require((registry["recipes"] as? [String: Any])?["gemini.interactions.web.v1"])
+        let recipe = try JSONDecoder().decode(
+            MetadataClient.CapabilityRecipe.self, from: JSONSerialization.data(withJSONObject: rawRecipe)
+        )
+        #expect(recipe.continuationKind == kind, "\(caseId): registry continuationKind does not match the shared row kind")
+        let turns = [ChatRole.user, .assistant, .user].enumerated().map { index, role in
+            ChatMessage(
+                id: UUID(), role: role, text: "turn \(index)", providerKind: .gemini,
+                providerName: "Gemini", modelName: "gemini-3-flash", state: .delivered
+            )
+        }
+        let request = try GeminiService().buildInteractionsRequest(
+            modelID: "gemini-3-flash", messages: turns, apiKey: "fixture-key", stream: true, recipe: recipe
+        )
+        let httpBody = try #require(request.httpBody)
+        let body = try #require(try JSONSerialization.jsonObject(with: httpBody) as? [String: Any])
+        #expect(body["previous_interaction_id"] == nil, "\(caseId): Interactions must not send previous_interaction_id")
+        #expect((body["input"] as? [Any])?.count == turns.count, "\(caseId): the full Step[] should be replayed")
+        return body["previous_interaction_id"].map { ["bodyDelta": ["previous_interaction_id": $0]] } ?? [:]
     }
 
     @Test("safe custom fragment fixture rejects losslessly before Foundation decoding")
@@ -394,7 +423,7 @@ struct CapabilityRecipeExecutionTests {
         }
     }
 
-    @Test("Gemini Interactions GA builder uses origin route and Content wire for both modes")
+    @Test("Gemini Interactions GA builder uses origin route and Step[] wire for both modes")
     func geminiInteractionsProductionBuilder() throws {
         let fixture = try Self.fixture()
         let registryData = try Data(contentsOf: Self.findFile(
@@ -418,14 +447,15 @@ struct CapabilityRecipeExecutionTests {
                 modelID: "gemini-3-flash", messages: [userMessage, assistantMessage], apiKey: "fixture-key",
                 stream: stream, recipe: recipe, systemPrompt: "be brief"
             )
-            #expect(request.url?.absoluteString == "https://generativelanguage.googleapis.com/v1/interactions")
+            #expect(request.url?.absoluteString == "https://generativelanguage.googleapis.com/v1beta/interactions")
             let bodyData = try #require(request.httpBody)
             let body = try #require(
                 try JSONSerialization.jsonObject(with: bodyData) as? [String: Any]
             )
             #expect(body["stream"] as? Bool == stream)
-            #expect((body["input"] as? [[String: Any]])?.first?["parts"] != nil)
-            #expect((body["input"] as? [[String: Any]])?.map { $0["role"] as? String } == ["user", "model"])
+            #expect(body["store"] as? Bool == false)
+            #expect(body["previous_interaction_id"] == nil)
+            #expect((body["input"] as? [[String: Any]])?.map { $0["type"] as? String } == ["user_input", "model_output"])
             #expect(body["system_instruction"] as? String == "be brief")
             #expect((body["tools"] as? [[String: Any]])?.first?["type"] as? String == "google_search")
         }
@@ -632,7 +662,7 @@ struct CapabilityRecipeExecutionTests {
         // The force reason stays visible; it is no longer gated on "a selected-but-unselectable tier", which is unreachable.
         #expect(!sheet.contains("forceRequested"))
         // Subpages always push. Dismissing this sheet to open another loses the reader's place.
-        #expect(sheet.contains("path.append(.modelBehavior)"))
+        #expect(sheet.contains("path.append(.parameters)"))
         #expect(!sheet.contains("opensModelBehavior"))
         // Detents belong to the panel. The composer **must not declare another copy**:
         // presentation preferences let the outer sheet override the inner one, and the
@@ -717,7 +747,7 @@ struct CapabilityRecipeExecutionTests {
         let recipeRef: String?; let executionKind: String; let expected: Expected
     }
     private struct Expected: Decodable { let noExecute: Bool? }
-    private struct Continuation: Decodable { let kind: String; let targetProtocol: String?; let state: MetadataClient.JSONValue?; let expectedWire: [String: MetadataClient.JSONValue]? }
+    private struct Continuation: Decodable { let caseId: String?; let kind: String; let targetProtocol: String?; let state: MetadataClient.JSONValue?; let expectedWire: [String: MetadataClient.JSONValue]? }
     private struct Safe: Decodable {
         let caseId: String; let owner: String; let configurationMode: String?; let raw: String?
         let declaredOwners: [String: String]?; let controlRefs: [String]?

@@ -56,6 +56,8 @@ struct RelayRuntimeRoutingTests {
                 /// (some cases use platform-specific ID namespaces and are not cross-client).
                 let platform: String?
                 let currentModelID: String
+                /// RK-2 (PC-08 / PC-09): the effective key for an image model; omitted by cases where the connection has a single key.
+                let currentKeyID: String?
                 let models: [ModelFixture]
                 let expectedSuccess: String?
                 let expectedError: String?
@@ -65,6 +67,7 @@ struct RelayRuntimeRoutingTests {
                 let capabilities: [String]
                 let available: Bool
                 let isDefault: Bool
+                let keyID: String?
             }
         }
     }
@@ -224,7 +227,12 @@ struct RelayRuntimeRoutingTests {
             Issue.record("fixture \(c.id): currentModelID=\(c.currentModelID) is not in the models list")
             return
         }
-        let result = RelayRuntimeSupport.pickChatDriverModelID(in: provider, currentModel: current)
+        let keyIDs = Dictionary(uniqueKeysWithValues: c.models.compactMap { m in m.keyID.map { (m.id, $0) } })
+        let result = c.currentKeyID == nil
+            ? RelayRuntimeSupport.pickChatDriverModelID(in: provider, currentModel: current)
+            : RelayRuntimeSupport.pickChatDriverModelID(
+                in: provider, currentModel: current, currentKeyID: c.currentKeyID, keyID: { keyIDs[$0.id] }
+            )
         switch (result, c.expectedSuccess, c.expectedError) {
         case let (.success(id), expected?, nil):
             #expect(id == expected, "fixture \(c.id): success expected=\(expected) actual=\(id)")
@@ -248,6 +256,44 @@ struct RelayRuntimeRoutingTests {
         #expect(ua.hasPrefix("codex_cli_rs/"))
         #expect(ua.contains("iOS"))
         #expect(ua.contains("arm64"))
+    }
+
+    @Test("UA prefix is codex_cli_rs/0.162.1")
+    func codexUAVersionPrefix() {
+        #expect(RelayRuntimeSupport.codexCliUserAgent.hasPrefix("codex_cli_rs/0.162.1 "))
+    }
+
+    @Test("A valid delivered version -> UA uses the delivered value")
+    func deliveredCodexVersionIsUsed() {
+        #expect(RelayRuntimeSupport.resolvedCodexCliVersion(delivered: "0.170.3") == "0.170.3")
+        #expect(RelayRuntimeSupport.resolvedCodexCliVersion(delivered: "123456.0.999999") == "123456.0.999999")
+    }
+
+    @Test(
+        "Missing / latest / prerelease / newline-bearing delivered version -> UA uses 0.162.1",
+        arguments: [
+            nil, "", "latest", "0.170.0-alpha.1", "0.170.0\n", "0.170.0\r\nX-Injected: 1", " 0.170.0",
+            "0.170", "0.170.0.1", "1234567.0.0", "0..1", "０.１７０.０", "v0.170.0",
+        ] as [String?]
+    )
+    func invalidDeliveredCodexVersionFallsBack(delivered: String?) {
+        #expect(RelayRuntimeSupport.resolvedCodexCliVersion(delivered: delivered) == "0.162.1")
+    }
+
+    @Test(
+        "Expected values of the pure cache-key function (three cases)",
+        arguments: [
+            ("golden-relay-model", "You are a golden fixture.", "Hello", "2290bbc6e2bae08a11ede516e419f3c6"),
+            ("gpt-6-sol", "", "ping", "cd6af1a9ab51099a01ed5bf53656a023"),
+            ("m", "", "\u{4F60}\u{597D} 👋", "c1417132a678c57242b1b6476f059be0"),
+        ]
+    )
+    func promptCacheKeyExpectedValues(model: String, instructions: String, firstUserText: String, expected: String) {
+        #expect(
+            RelayRuntimeSupport.promptCacheKey(
+                model: model, instructions: instructions, firstUserText: firstUserText
+            ) == expected
+        )
     }
 }
 

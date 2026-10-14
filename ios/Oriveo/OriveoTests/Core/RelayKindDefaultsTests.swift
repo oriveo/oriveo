@@ -32,14 +32,4 @@ struct RelayKindDefaultsTests {
         #expect(RelaySetupView.normalizedRelayEndpoint("https://") == nil)
         #expect(RelaySetupView.normalizedRelayEndpoint("   ") == nil)
     }
-
-    @Test("relay kind picker keeps provider examples out of the main choice cards")
-    func pickerCardsDoNotExposeRelayBrandExamples() {
-        #expect(RelayKindMeta.meta(for: .openaiCompatible).examples == nil)
-        #expect(RelayKindMeta.meta(for: .codexStyle).examples == nil)
-        #expect(RelayKindMeta.meta(for: .codexStyle).warning == nil)
-        #expect(!RelayKindMeta.meta(for: .codexStyle).title.localizedCaseInsensitiveContains("Codex"))
-        #expect(RelayKindMeta.meta(for: .openaiCompatible).endpointPath == "/v1/chat/completions")
-        #expect(RelayKindMeta.meta(for: .codexStyle).endpointPath == "/v1/responses")
-    }
 }

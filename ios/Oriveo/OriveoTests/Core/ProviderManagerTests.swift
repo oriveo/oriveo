@@ -873,7 +873,7 @@ struct ProviderManagerTests {
         #expect(provider.models.first(where: { $0.id == "openAI-gpt-4o" })?.isDefault == true)
     }
 
-    @Test("Ensure Model Enabled As Default Promotes Relay Catalog Model")
+    @Test("Ensure Model Enabled As Default Enables The Requested Relay Catalog Model But Relays Mark No Default")
     func ensureModelEnabledAsDefaultPromotesRelayCatalogModel() {
         let appState = makeState()
         let providerID = UUID()
@@ -896,7 +896,8 @@ struct ProviderManagerTests {
         #expect(didApply == true)
         let provider = try! #require(appState.providers.first(where: { $0.id == providerID }))
         #expect(provider.models.map(\.id).contains("gpt-5.5"))
-        #expect(provider.defaultModel?.id == "gpt-5.5")
+        #expect(provider.models.allSatisfy { !$0.isDefault })
+        #expect(provider.defaultModel?.id == "gpt-5.4")
     }
 
     @Test("Relay Manual Official Model Writes Back Pricing")
@@ -931,7 +932,8 @@ struct ProviderManagerTests {
         let updatedProvider = try #require(appState.providers.first(where: { $0.id == providerID }))
         let updatedModel = try #require(updatedProvider.models.first)
         #expect(updatedModel.name == "gpt-5.4 (manual)")
-        #expect(updatedModel.capabilities == [.text, .image])
+        // An exact hand-entered match inherits the union of capabilities (same rule as RelayOfficialCatalogResolverTests).
+        #expect(updatedModel.capabilities == [.text, .image, .file, .web, .reasoning])
         #expect(updatedModel.canonicalModelId == "gpt-5.4")
         #expect(updatedModel.promptPrice == 0.000002)
         #expect(updatedModel.completionPrice == 0.000008)
@@ -1182,7 +1184,8 @@ struct ProviderManagerTests {
         #expect(provider.catalogModels.contains(where: { $0.id == "gpt-4.1" }))
         #expect(provider.models.count == 1)
         #expect(provider.models.first?.id == "relay-manual-custom-model")
-        #expect(provider.models.first?.isDefault == true)
+        // A relay has no default model: after a resync the old isDefault is written back as false.
+        #expect(provider.models.first?.isDefault == false)
     }
 
     @Test("Resync Provider Official Skips Upstream Rate Limit")
@@ -1395,7 +1398,8 @@ struct ProviderManagerTests {
         #expect(provider.apiKey == "sk-new-relay")
         #expect(provider.apiKeyPreview == "••••••••")
         #expect(provider.models.contains(where: { $0.id == manualModel.id }))
-        #expect(provider.catalogModels.isEmpty)
+        // Replacing only the key does not clear the catalog; when validation fails the catalog stays as it was.
+        #expect(provider.catalogModels.map(\.id) == [manualModel.id])
         #expect(provider.status != .connected)
         #expect(provider.lastCheckedAt == nil)
         #expect(provider.lastError?.contains("relay.example.com") == false)
@@ -1518,7 +1522,8 @@ struct ProviderManagerTests {
         #expect(updated.status == .connected)
         #expect(updated.lastCheckedAt != nil)
         #expect(updated.lastError == ProviderIssueMessage.catalogUnavailableKey)
-        #expect(updated.catalogModels.isEmpty)
+        // Replacing only the key does not clear the catalog; when the catalog fetch fails the previous catalog is kept.
+        #expect(updated.catalogModels.map(\.id) == [staleCatalog.id])
         #expect(updated.models.contains(where: { $0.id == enabled.id }))
     }
 

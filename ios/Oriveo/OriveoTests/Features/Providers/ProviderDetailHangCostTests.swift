@@ -133,7 +133,8 @@ struct ProviderDetailHangCostTests {
     private func runScenario(
         label: String,
         provider: Provider,
-        catalog: [AIModel]
+        catalog: [AIModel],
+        startsInModelLibrary: Bool = false
     ) async -> Sample {
         let state = AppState(seedDemoData: false, sessionUID: "hang-cost-\(UUID().uuidString)")
         defer {
@@ -147,7 +148,10 @@ struct ProviderDetailHangCostTests {
         AppLanguage.debugSystemPreferredResolveCount = 0
         ProviderEnabledModelRow.debugBodyEvaluationCount = 0
 
-        let host = UIHostingController(rootView: ProviderDetailView(providerID: provider.id).environment(state))
+        let host = UIHostingController(rootView: ProviderDetailView(
+            providerID: provider.id,
+            startsInModelLibrary: startsInModelLibrary
+        ).environment(state))
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
         window.rootViewController = host
         window.isHidden = false
@@ -236,12 +240,18 @@ struct ProviderDetailHangCostTests {
             baseURLText: "https://relay.example.com/v1"
         )
 
-        let sample = await runScenario(label: "Relay 777 catalog / 150 enabled", provider: provider, catalog: catalog)
+        // A relay's enabled models and catalog live on the Model Library subpage of the detail page, so measure that page.
+        let sample = await runScenario(
+            label: "Relay 777 catalog / 150 enabled",
+            provider: provider,
+            catalog: catalog,
+            startsInModelLibrary: true
+        )
         #expect(sample.appearRowBodies < 40)
         #expect(sample.invalidationRowBodies == 0)
-        // The hero card reads the logo a dozen times per body: with unchanged inputs it is inferred
-        // once for the first screen and never again across writes.
-        #expect(sample.appearLogoInferences == 1)
+        // The old hero card read the logo a dozen times per body. The board header uses a fixed Phosphor icon, so
+        // neither the subpage nor a write-back infers a logo any more.
+        #expect(sample.appearLogoInferences == 0)
         #expect(sample.invalidationLogoInferences == 0)
     }
 }

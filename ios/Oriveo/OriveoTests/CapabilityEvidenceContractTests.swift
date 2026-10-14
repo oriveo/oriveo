@@ -49,7 +49,8 @@ struct CapabilityEvidenceContractTests {
     func missingPartitionCannotMatchConnectionEvidence() {
         let query = CapabilityEvidenceFacade.Query(
             partitionID: "u1", connectionInstanceID: "relay-1", connectionGeneration: "cg3",
-            credentialEpoch: "ce8", providerKind: "relay", modelID: "local-model",
+            credentialEpoch: "ce8", providerKind: "relay", authMode: ProviderAuthMode.apiKey.rawValue,
+            modelID: "local-model",
             effectiveTransport: "openai_chat_completions", endpointFingerprint: "ep_abc",
             metadataRevision: "local-7", now: 1_000, hasExplicitValue: true
         )
@@ -72,7 +73,8 @@ struct CapabilityEvidenceContractTests {
     func missingEndpointCannotMatchConnectionEvidence() {
         let query = CapabilityEvidenceFacade.Query(
             partitionID: "u1", connectionInstanceID: "relay-1", connectionGeneration: "cg3",
-            credentialEpoch: "ce8", providerKind: "relay", modelID: "local-model",
+            credentialEpoch: "ce8", providerKind: "relay", authMode: ProviderAuthMode.apiKey.rawValue,
+            modelID: "local-model",
             effectiveTransport: "openai_chat_completions", endpointFingerprint: nil,
             metadataRevision: "local-7", now: 1_000, hasExplicitValue: true
         )
@@ -92,7 +94,8 @@ struct CapabilityEvidenceContractTests {
     func emptyLocalIdentityCannotMatchConnectionEvidence() {
         let query = CapabilityEvidenceFacade.Query(
             partitionID: "", connectionInstanceID: "", connectionGeneration: "", credentialEpoch: "",
-            providerKind: "relay", modelID: "local-model", effectiveTransport: "openai_chat_completions",
+            providerKind: "relay", authMode: ProviderAuthMode.apiKey.rawValue, modelID: "local-model",
+            effectiveTransport: "openai_chat_completions",
             endpointFingerprint: "ep_final", metadataRevision: "local-7", now: 1_000, hasExplicitValue: true
         )
         let candidate = CapabilityEvidenceFacade.Candidate(
@@ -111,7 +114,8 @@ struct CapabilityEvidenceContractTests {
     func unknownTransportCannotMatchEvidence() {
         let query = CapabilityEvidenceFacade.Query(
             partitionID: "u1", connectionInstanceID: "p1", connectionGeneration: "cg1", credentialEpoch: "ce1",
-            providerKind: "openAI", modelID: "gpt-5", effectiveTransport: "unknown",
+            providerKind: "openAI", authMode: ProviderAuthMode.apiKey.rawValue, modelID: "gpt-5",
+            effectiveTransport: "unknown",
             metadataRevision: "etag-1", now: 1_000, hasExplicitValue: true
         )
         let candidate = CapabilityEvidenceFacade.Candidate(
@@ -195,7 +199,7 @@ struct CapabilityEvidenceContractTests {
 
         let query = CapabilityEvidenceFacade.Query(
             partitionID: "u1", connectionInstanceID: "p1", connectionGeneration: "cg1", credentialEpoch: "ce1",
-            providerKind: "openAI", modelID: "gpt-5.4", canonicalModelID: "gpt-5.4",
+            providerKind: "openAI", authMode: ProviderAuthMode.apiKey.rawValue, modelID: "gpt-5.4", canonicalModelID: "gpt-5.4",
             effectiveTransport: "openai_responses", metadataRevision: "9001", generationRevision: "fixture-gen",
             now: 1_000, hasExplicitValue: true
         )
@@ -217,7 +221,7 @@ struct CapabilityEvidenceContractTests {
         ))
         let query = CapabilityEvidenceFacade.Query(
             partitionID: "u1", connectionInstanceID: "relay-1", connectionGeneration: "cg1", credentialEpoch: "ce1",
-            providerKind: "relay", modelID: "private-model", effectiveTransport: "openai_chat_completions",
+            providerKind: "relay", authMode: ProviderAuthMode.apiKey.rawValue, modelID: "private-model", effectiveTransport: "openai_chat_completions",
             endpointFingerprint: "ep_final", metadataRevision: "m1", generationRevision: "m1",
             now: 1_000, hasExplicitValue: true
         )
@@ -235,7 +239,7 @@ struct CapabilityEvidenceContractTests {
     func runtimeProducerCandidateOverlaysRequestPolicyOnly() throws {
         let query = CapabilityEvidenceFacade.Query(
             partitionID: "u1", connectionInstanceID: "p1", connectionGeneration: "cg1", credentialEpoch: "ce1",
-            providerKind: "openAI", modelID: "gpt-5", effectiveTransport: "openai_responses",
+            providerKind: "openAI", authMode: ProviderAuthMode.apiKey.rawValue, modelID: "gpt-5", effectiveTransport: "openai_responses",
             endpointFingerprint: "ep_final", metadataRevision: "m1", generationRevision: "g1",
             now: 1_000, hasExplicitValue: true
         )
@@ -260,7 +264,7 @@ struct CapabilityEvidenceContractTests {
     func runtimeSelfHealProducerFeedsFacadeAndFailsClosedWithoutRevision() throws {
         let query = CapabilityEvidenceFacade.Query(
             partitionID: "u1", connectionInstanceID: "p1", connectionGeneration: "cg1", credentialEpoch: "ce1",
-            providerKind: "openAI", modelID: "gpt-5", effectiveTransport: "openai_responses",
+            providerKind: "openAI", authMode: ProviderAuthMode.apiKey.rawValue, modelID: "gpt-5", effectiveTransport: "openai_responses",
             endpointFingerprint: "ep_final", metadataRevision: "etag-200", generationRevision: nil,
             now: 1_000, hasExplicitValue: true
         )
@@ -290,7 +294,7 @@ struct CapabilityEvidenceContractTests {
 
         let noRevision = CapabilityEvidenceRequestIdentity(query: .init(
             partitionID: "u1", connectionInstanceID: "p1", connectionGeneration: "cg1", credentialEpoch: "ce1",
-            providerKind: "openAI", modelID: "gpt-5", effectiveTransport: "openai_responses",
+            providerKind: "openAI", authMode: ProviderAuthMode.apiKey.rawValue, modelID: "gpt-5", effectiveTransport: "openai_responses",
             endpointFingerprint: "ep_final", metadataRevision: nil, generationRevision: nil,
             now: 1_000, hasExplicitValue: true
         ))
@@ -441,7 +445,7 @@ struct CapabilityEvidenceContractTests {
         let initial = CapabilityEvidenceRequestIdentity(query: .init(
             partitionID: "u1", connectionInstanceID: "relay-1",
             connectionGeneration: "cg1", credentialEpoch: "ce1",
-            providerKind: "relay", modelID: "private-model",
+            providerKind: "relay", authMode: ProviderAuthMode.apiKey.rawValue, modelID: "private-model",
             effectiveTransport: "", endpointFingerprint: nil,
             metadataRevision: "relay-etag-v1", generationRevision: "relay-etag-v1",
             now: 1_000, hasExplicitValue: true
@@ -472,7 +476,7 @@ struct CapabilityEvidenceContractTests {
         let initial = CapabilityEvidenceRequestIdentity(query: .init(
             partitionID: "u1", connectionInstanceID: "relay-1",
             connectionGeneration: "cg1", credentialEpoch: "ce1",
-            providerKind: "relay", modelID: "private-model",
+            providerKind: "relay", authMode: ProviderAuthMode.apiKey.rawValue, modelID: "private-model",
             effectiveTransport: "", endpointFingerprint: nil,
             metadataRevision: "relay-etag-v1", generationRevision: "relay-etag-v1",
             now: 1_000, hasExplicitValue: true
@@ -508,7 +512,7 @@ struct CapabilityEvidenceContractTests {
         let initial = CapabilityEvidenceRequestIdentity(query: .init(
             partitionID: "u1", connectionInstanceID: "relay-1",
             connectionGeneration: "cg1", credentialEpoch: "ce1",
-            providerKind: "relay", modelID: "private-model",
+            providerKind: "relay", authMode: ProviderAuthMode.apiKey.rawValue, modelID: "private-model",
             effectiveTransport: "", endpointFingerprint: nil,
             metadataRevision: "relay-etag-v1", generationRevision: "relay-etag-v1",
             now: 1_000, hasExplicitValue: true
@@ -909,7 +913,7 @@ struct CapabilityEvidenceContractTests {
         model.webSearchProfile = "relay-web"
         let incomplete = CapabilityEvidenceRequestIdentity(query: .init(
             partitionID: "", connectionInstanceID: "", connectionGeneration: "", credentialEpoch: "",
-            providerKind: ProviderKind.relay.rawValue, modelID: model.id,
+            providerKind: ProviderKind.relay.rawValue, authMode: ProviderAuthMode.apiKey.rawValue, modelID: model.id,
             effectiveTransport: RelayTransport.openaiResponses.rawValue,
             endpointFingerprint: nil, metadataRevision: nil, generationRevision: nil,
             now: Int64(Date().timeIntervalSince1970 * 1_000), hasExplicitValue: true
@@ -944,13 +948,13 @@ struct CapabilityEvidenceContractTests {
         UnsupportedParamCache.shared.resetForTesting()
         let first = CapabilityEvidenceRequestIdentity(query: .init(
             partitionID: "u1", connectionInstanceID: "relay-1", connectionGeneration: "cg1", credentialEpoch: "ce1",
-            providerKind: "relay", modelID: "local", effectiveTransport: "openai_chat_completions",
+            providerKind: "relay", authMode: ProviderAuthMode.apiKey.rawValue, modelID: "local", effectiveTransport: "openai_chat_completions",
             endpointFingerprint: "ep_a", metadataRevision: "etag-a", generationRevision: nil,
             now: 1_000, hasExplicitValue: true
         ))
         let otherPartition = CapabilityEvidenceRequestIdentity(query: .init(
             partitionID: "u2", connectionInstanceID: "relay-1", connectionGeneration: "cg1", credentialEpoch: "ce1",
-            providerKind: "relay", modelID: "local", effectiveTransport: "openai_chat_completions",
+            providerKind: "relay", authMode: ProviderAuthMode.apiKey.rawValue, modelID: "local", effectiveTransport: "openai_chat_completions",
             endpointFingerprint: "ep_b", metadataRevision: "etag-a", generationRevision: nil,
             now: 1_000, hasExplicitValue: true
         ))
@@ -1253,7 +1257,7 @@ struct CapabilityEvidenceContractTests {
                 CapabilityEvidenceFacade.Query(
                     partitionID: partitionId, connectionInstanceID: connectionInstanceId,
                     connectionGeneration: connectionGeneration, credentialEpoch: credentialEpoch,
-                    providerKind: providerKind, modelID: modelId, canonicalModelID: canonicalModelId,
+                    providerKind: providerKind, authMode: ProviderAuthMode.apiKey.rawValue, modelID: modelId, canonicalModelID: canonicalModelId,
                     effectiveTransport: effectiveTransport, endpointFingerprint: endpointFingerprint,
                     metadataRevision: metadataRevision, generationRevision: generationRevision,
                     now: now, hasExplicitValue: hasExplicitValue

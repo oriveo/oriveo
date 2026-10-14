@@ -58,8 +58,9 @@ struct ProviderDetailVisualRefreshTests {
             from: "struct ProviderEnabledModelRow",
             to: "    private var modelActions"
         )
+        // The catalog row is split into a board row (name in RelayCatalogRowContent) and a plain row; the name-wrapping constraint is checked on the plain row.
         let catalogRowSource = try modelLibrarySource.requiredSlice(
-            from: "struct ProviderCatalogModelRow",
+            from: "    private func plainRow",
             to: "        .buttonStyle(.plain)"
         )
 
@@ -160,13 +161,18 @@ struct ProviderDetailVisualRefreshTests {
         #expect(providerModelSpecifications(for: modelWithoutCachePricing).map(\.id) == ["context", "input", "output"])
     }
 
-    @Test("Relay Edit Sheet Uses Premium Settings Structure")
+    @Test("The edit-connection sheet draws its own header and protects against unsaved dismissal")
     func relayEditSheetUsesPremiumSettingsStructure() throws {
         let relayEditSource = try String(contentsOf: providerSourceURL("RelayEditView.swift"), encoding: .utf8)
 
         #expect(relayEditSource.contains(".interactiveDismissDisabled(shouldDisableInteractiveDismiss)"))
         #expect(relayEditSource.contains("private var shouldDisableInteractiveDismiss"))
-        #expect(relayEditSource.contains(".principal"))
+        // The header is drawn by hand (close at top left, centered "Edit connection", connection name as subtitle)
+        // instead of the system navigation bar.
+        #expect(!relayEditSource.contains("NavigationStack"))
+        #expect(!relayEditSource.contains(".toolbar"))
+        #expect(relayEditSource.contains("L10n.tr(RelayEditBoardModel.titleKey, table: .providers)"))
+        #expect(RelayEditBoardModel.titleKey == RelayDetailBoardModel.editConnectionKey, "The entry name and the destination page share one name")
     }
 
     private func providerSourceURL(_ filename: String) -> URL {
@@ -191,6 +197,22 @@ private extension String {
             throw SliceError.missingBoundary
         }
         return String(self[startRange.lowerBound..<endRange.lowerBound])
+    }
+}
+
+extension ProviderDetailVisualRefreshTests {
+    @Test("The one-off notice after an unverified save: its title says the connection was not verified, not that no model catalog was obtained")
+    func unverifiedSaveNoticeTitleSaysNotVerified() throws {
+        #expect(ProviderDetailNotice.Kind.unverifiedSaveTitleKey == ProviderIssueMessage.unverifiedConnectionKey)
+        #expect(ProviderDetailNotice.Kind.unverifiedSaveTitleKey == "Connection has not been verified.")
+        let values = try ProductionSource.localizations(
+            table: "Providers", key: ProviderDetailNotice.Kind.unverifiedSaveTitleKey
+        )
+        #expect(values.count == 16)
+
+        let source = try ProductionSource.read("Features/Providers/ProviderDetailView.swift")
+        #expect(source.contains("Text(ProviderIssueMessage.localized(ProviderDetailNotice.Kind.unverifiedSaveTitleKey))"))
+        #expect(!source.contains("Saved without a model catalog"))
     }
 }
 

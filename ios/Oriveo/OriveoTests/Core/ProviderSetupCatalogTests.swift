@@ -10,8 +10,10 @@ struct ProviderSetupCatalogTests {
         #expect(catalog.directProviders.first == .openAI)
         #expect(catalog.aggregatorProviders.contains(.openRouter))
         #expect(catalog.defaultBaseURLText(for: .openAI) == "api.openai.com/v1")
-        #expect(catalog.setupEndpointOptions(for: .siliconFlow).map(\.id) == ["cn", "intl"])
-        #expect(catalog.setupEndpointOptions(for: .siliconFlow).last?.baseURLText == "api.siliconflow.com/v1")
+        // The local region-table fallback also goes through the trusted table: when the shipped table is missing, only siliconflow.cn is trusted and the international site is not shown.
+        #expect(catalog.setupEndpointOptions(for: .siliconFlow).map(\.id) == ["cn"])
+        // Deterministic-ID reverse lookup is not filtered: existing international-site connections still resolve to intl.
+        #expect(catalog.resolvedIdentityEndpointOption(for: .siliconFlow, baseURLText: "api.siliconflow.com/v1")?.id == "intl")
     }
 
     @Test("Remote Provider Configs Drive Setup Catalog")
@@ -37,7 +39,9 @@ struct ProviderSetupCatalogTests {
                         baseURL: "https://hk.example/v1"
                     )
                 ],
-                sortOrder: 20
+                sortOrder: 20,
+                // Region options must pass the trusted table: shown only if the shipped table contains its host.
+                trustedHosts: TrustedHostList(hosts: ["hk.example"])
             ),
             MetadataClient.PublicProviderConfig(
                 kind: "miniMax",

@@ -923,3 +923,47 @@ extension McpToolBridgeTests {
         #expect(McpScriptedURLProtocol.requests(method: "tools/call").isEmpty, "a name outside the name table is not executed")
     }
 }
+
+// MARK: - Remote MCP first-leg tools 4xx
+
+private let mcpToolsRejected422 = #"{"detail":[{"type":"extra_forbidden","loc":["body","tools"],"msg":"Extra inputs are not permitted","input":[]}]}"#
+
+extension McpToolBridgeTests {
+
+    @Test("MCP_TOOLS_4XX_resend_once_without_tools：a deterministic first-leg tools 4xx resends once without tools in the same turn and shows no error card; a 4xx on a non-first leg is still an ordinary failure")
+    @MainActor
+    func MCP_TOOLS_4XX_resend_once_without_tools() async throws {
+        // First leg, no structured tool_calls seen: resend once without tools, and the answer is delivered as usual; a connection eligible for memory records false.
+        let database = try McpTestDatabase.make(); defer { database.cleanUp() }
+        McpScriptedURLProtocol.reset()
+        let (message, state, _) = try await sendThroughChatManager(
+            database: database,
+            modelLegs: [(422, mcpToolsRejected422), (200, stepTextLeg("Plain answer"))]
+        )
+        defer { state.providers.forEach { RelayNegativeCache.shared.clearConnection($0.id.uuidString) } }
+        let requests = ScriptedModelURLProtocol.snapshot()
+        #expect(message.state == .delivered, "No error card:\(message.state) \(message.errorDetail ?? "")")
+        #expect(message.text == "Plain answer")
+        #expect(requests.count == 2, "One first leg plus one resend without tools")
+        #expect((requests.first?.body["tools"] as? [Any])?.isEmpty == false, "Precondition: the first leg carries MCP tools")
+        #expect(requests.last?.body["tools"] == nil && requests.last?.body["tool_choice"] == nil, "The resend carries no tools")
+        let provider = try #require(state.providers.first)
+        let model = try #require(provider.models.first)
+        #expect(ToolCallCapabilityPolicy.memoryEligible(provider: provider, model: model), "Precondition: a Relay connection is eligible for memory")
+        #expect(!McpToolBridge.connectionSupportsTools(provider: provider, model: model, memory: state.chatManager.toolCallMemory),
+                "Eligible for memory: recorded as unsupported, so MCP tools are not carried next time")
+
+        // A leg after structured tool_calls were already seen is rejected with a 4xx: that is not "the connection does not support tools", so it follows the ordinary failure path with an error card and no resend.
+        let laterDatabase = try McpTestDatabase.make(); defer { laterDatabase.cleanUp() }
+        McpScriptedURLProtocol.reset()
+        McpScriptedURLProtocol.enqueue(try McpClientFixture.stub("protocol/stateless/tools-list.response.json"))
+        McpScriptedURLProtocol.setFallback(try McpClientFixture.stub("protocol/stateless/tools-call.response.json"))
+        let (failed, laterState, _) = try await sendThroughChatManager(
+            database: laterDatabase,
+            modelLegs: [(200, stepToolLeg(arguments: #"{"city":"Melbourne"}"#)), (422, mcpToolsRejected422), (200, stepTextLeg("unused"))]
+        )
+        defer { laterState.providers.forEach { RelayNegativeCache.shared.clearConnection($0.id.uuidString) } }
+        #expect(failed.state == .failed, "A 4xx on a non-first leg is an ordinary failure:\(failed.state)")
+        #expect(ScriptedModelURLProtocol.snapshot().count == 2, "A 4xx on a non-first leg is not resent")
+    }
+}

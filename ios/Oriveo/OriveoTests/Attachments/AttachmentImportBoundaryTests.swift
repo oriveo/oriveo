@@ -57,7 +57,7 @@ struct AttachmentImportBoundaryTests {
         bytes.append(Data((0..<4_096).map { UInt8(truncatingIfNeeded: $0 &* 31 &+ 7) }))
         try bytes.write(to: url)
 
-        let result = await ChatAttachmentPicker.processFileURL(url, importContext: .init(provider: nil))
+        let result = await ChatAttachmentPicker.processFileURL(url, importContext: .init(provider: nil, model: nil))
         switch result {
         case let .extractionFailed(reason, name):
             #expect(name == fileName)
@@ -89,7 +89,7 @@ struct AttachmentImportBoundaryTests {
         let file = try temporaryFile(named: "report.pdf", data: bytes)
         defer { file.cleanup() }
         guard case let .extractionFailed(reason, name) = await ChatAttachmentPicker.processFileURL(
-            file.url, importContext: .init(provider: nil)
+            file.url, importContext: .init(provider: nil, model: nil)
         ) else {
             Issue.record("A damaged PDF should end in an extraction failure")
             return
@@ -118,7 +118,7 @@ struct AttachmentImportBoundaryTests {
         let file = try temporaryFile(named: "contract.pdf", data: data as Data)
         defer { file.cleanup() }
         guard case let .extractionFailed(reason, name) = await ChatAttachmentPicker.processFileURL(
-            file.url, importContext: .init(provider: nil)
+            file.url, importContext: .init(provider: nil, model: nil)
         ) else {
             Issue.record("An encrypted PDF should end in an extraction failure")
             return
@@ -139,7 +139,7 @@ struct AttachmentImportBoundaryTests {
         let file = try temporaryFile(named: "plan.docx", data: bytes)
         defer { file.cleanup() }
         guard case let .extractionFailed(reason, name) = await ChatAttachmentPicker.processFileURL(
-            file.url, importContext: .init(provider: nil)
+            file.url, importContext: .init(provider: nil, model: nil)
         ) else {
             Issue.record("A password-protected docx should end in an extraction failure")
             return
@@ -161,7 +161,7 @@ struct AttachmentImportBoundaryTests {
         let file = try temporaryFile(named: "big.txt", data: Data(repeating: 0x61, count: limits.maxInputFileBytes + 1))
         defer { file.cleanup() }
         guard case let .extractionFailed(reason, name) = await ChatAttachmentPicker.processFileURL(
-            file.url, importContext: .init(provider: nil), extractionLimits: limits
+            file.url, importContext: .init(provider: nil, model: nil), extractionLimits: limits
         ) else {
             Issue.record("A file over the extractor limit should end in an extraction failure")
             return
@@ -376,7 +376,7 @@ struct AttachmentImportBoundaryTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appendingPathComponent(name)
         try Data((1...lines).map { "line \($0)" }.joined(separator: "\n").utf8).write(to: url)
-        guard case let .imported(attachment) = await ChatAttachmentPicker.processFileURL(url, importContext: .init(provider: nil)) else {
+        guard case let .imported(attachment) = await ChatAttachmentPicker.processFileURL(url, importContext: .init(provider: nil, model: nil)) else {
             throw CocoaError(.fileReadUnknown)
         }
         return attachment

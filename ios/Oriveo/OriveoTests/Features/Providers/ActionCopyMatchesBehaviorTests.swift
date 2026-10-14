@@ -6,19 +6,23 @@ import Testing
 /// tapping it only clears the error and moves focus to the model field; it does not retry.
 @Suite("Button titles match their actions")
 struct ActionCopyMatchesBehaviorTests {
-    @Test("The context-too-long recovery button does the same as choosing a model and says so, not Retry")
+    @Test("Recoveries without a landing point show no button, and the rest map to their real action instead of Retry")
     func shortenContextRecoveryTitleMatchesItsAction() throws {
+        // The local page no longer has a model slot: "choose another model" recoveries (no model / context too long)
+        // have nowhere to land, so only the error is shown with no button, and it must never fall back to a button
+        // that says "Retry" without retrying. The other recovery actions each have a landing point.
+        #expect(LocalRecoveryButton(.chooseModel) == nil)
+        #expect(LocalRecoveryButton(.shortenContext) == nil)
+        #expect(LocalRecoveryButton(.editAddress) == .editAddress)
+        #expect(LocalRecoveryButton(.chooseEngine) == .chooseEngine)
+        #expect(LocalRecoveryButton(.openSettings) == .openSettings)
+        for action: LocalConnectionRecoveryAction in [.waitAndRetry, .startEngine, .freeMemory] {
+            #expect(LocalRecoveryButton(action) == .retry)
+        }
         let source = try ProductionSource.read("Features/Providers/LocalComputeSetupView.swift")
-        let titles = try Self.switchArms(in: source, function: "private func recoveryTitle(for action: LocalConnectionRecoveryAction)")
-        let actions = try Self.switchArms(in: source, function: "private func performRecovery(_ action: LocalConnectionRecoveryAction)")
-
-        // Action side: shortenContext and chooseModel do the same thing (clear the error, focus the model field)
-        #expect(actions[".shortenContext"] != nil)
-        #expect(actions[".shortenContext"] == actions[".chooseModel"])
-        // The title follows the action
-        let title = try #require(titles[".shortenContext"], "recoveryTitle has no .shortenContext")
-        #expect(title == titles[".chooseModel"], "the shortenContext title is \(title), which does not match what it does (choose a model)")
-        #expect(!title.contains("\"Retry\""))
+        #expect(!source.contains("accessibilityFocus = .model"))
+        #expect(!source.contains("local_compute_recovery_choose_model_button"))
+        #expect(!source.contains("local_compute_recovery_shorten_context_button"))
     }
 
     /// The arms of the switch in a function: `case .a, .b: <expression>` or `case .a:` followed by a block on the

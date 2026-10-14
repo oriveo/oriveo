@@ -31,7 +31,7 @@ struct ProviderEndpointOptionsTests {
     func qwenOfficialEndpoints() {
         let options = ProviderKind.qwen.setupEndpointOptions
 
-        #expect(options.count == 4)
+        #expect(options.map(\.id) == ["sg", "bj", "hk"])  // us is retired and no longer selectable
         #expect(options.first?.id == "sg")
         #expect(options.first?.baseURLText == "dashscope-intl.aliyuncs.com")
         #expect(ProviderKind.qwen.defaultSetupEndpointID == "sg")

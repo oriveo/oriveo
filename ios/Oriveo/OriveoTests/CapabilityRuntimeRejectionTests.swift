@@ -17,7 +17,7 @@ struct CapabilityRuntimeRejectionTests {
     ) -> CapabilityEvidenceRequestIdentity {
         CapabilityEvidenceRequestIdentity(query: .init(
             partitionID: "u1", connectionInstanceID: connectionID, connectionGeneration: "cg1",
-            credentialEpoch: "ce1", providerKind: "openAI", modelID: modelID,
+            credentialEpoch: "ce1", providerKind: "openAI", authMode: ProviderAuthMode.apiKey.rawValue, modelID: modelID,
             canonicalModelID: modelID, effectiveTransport: transport,
             endpointFingerprint: endpoint, metadataRevision: metadataRevision,
             generationRevision: generationRevision,
@@ -307,14 +307,15 @@ struct CapabilityRuntimeRejectionTests {
             id: UUID(), kind: .relay, status: .connected, models: [], catalogModels: [],
             apiKey: "", apiKeyPreview: "", relayRequested: .init(transport: .auto)
         )
+        let model = TestFactories.makeModel(id: "model/a")
         #expect(CapabilityPreferenceRuntimeIdentity.relayFinalTransport(
-            provider: provider, resolvedFinalTransport: nil
+            provider: provider, model: model, resolvedFinalTransport: nil
         ) == nil)
         let responses = CapabilityPreferenceRuntimeIdentity.relayFinalTransport(
-            provider: provider, resolvedFinalTransport: "openai_responses"
+            provider: provider, model: model, resolvedFinalTransport: "openai_responses"
         )
         let anthropic = CapabilityPreferenceRuntimeIdentity.relayFinalTransport(
-            provider: provider, resolvedFinalTransport: "anthropic_messages"
+            provider: provider, model: model, resolvedFinalTransport: "anthropic_messages"
         )
         #expect(responses == "openai_responses")
         #expect(anthropic == "anthropic_messages")

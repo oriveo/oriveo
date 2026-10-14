@@ -137,9 +137,6 @@ enum JoinedContinuationFixture {
         else { return false }
         switch continuationKind {
         case "previous_id":
-            if recipeRef == "gemini.interactions.web.v1" {
-                return body["previous_interaction_id"] as? String == previousInteractionID
-            }
             return body["previous_response_id"] as? String == previousResponseID
         case "replay_blocks":
             if recipeRef == "minimax.messages.web.v1" {
@@ -267,7 +264,7 @@ enum JoinedContinuationFixture {
         Data("""
         data: {"event_type":"step.delta","delta":{"type":"text","text":"\(joinedText)"}}
 
-        data: {"interaction":{"id":"\(previousInteractionID)","status":"completed"}}
+        data: {"event_type":"interaction.completed","interaction":{"id":"\(previousInteractionID)","status":"completed"}}
 
         data: [DONE]
         """.utf8)

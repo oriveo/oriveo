@@ -251,6 +251,143 @@ struct RelayResponsesFallbackTests {
         #expect(hasPartial)
     }
 
+    // MARK: - Streaming 200 whose body is a web page (only the body gives it away when Content-Type is not html)
+
+    /// Runs the production stream inside the Relay rejection recorder and returns the events received,
+    /// the error thrown, and the upstream response the recorder captured.
+    private func runRecorded(
+        _ makeStream: () -> AsyncThrowingStream<StreamEvent, Error>
+    ) async -> (events: [StreamEvent], failure: Error?, rejection: RelayPreOutputRejection?) {
+        let recorder = RelayPreOutputRejection.Recorder()
+        let (events, failure): ([StreamEvent], Error?) = await RelayPreOutputRejection.$current.withValue(recorder) {
+            var events: [StreamEvent] = []
+            do {
+                for try await event in makeStream() { events.append(event) }
+                return (events, nil)
+            } catch {
+                return (events, error)
+            }
+        }
+        return (events, failure, recorder.rejection)
+    }
+
+    /// Body of a gateway's SPA fallback page; `.sse` serves it with status 200 and the requested text/event-stream Content-Type.
+    private static let webPageBody =
+        "\n<!DOCTYPE html>\n<html lang=\"en\"><head><title>Console</title></head><body><div id=\"root\"></div></body></html>\n"
+
+    @Test(
+        "Stream: 200 + text/event-stream with a web page body fails as a route-level rejection before any output instead of ending as an empty reply",
+        arguments: [RelayTransport.openaiResponses, .openaiChatCompletions]
+    )
+    func streamWebPageBodyBehindEventStreamTypeIsRouteRejection(transport: RelayTransport) async throws {
+        ScriptedRelayProtocol.reset()
+        ScriptedRelayProtocol.script = [.sse(status: 200, body: Self.webPageBody)]
+
+        let service = OpenAIService(session: makeMockSession())
+        let relay = RelayRequestedConfig(transport: transport, authMode: .bearer)
+        let run = await runRecorded {
+            service.sendMessageStream(
+                apiKey: "yls-test", modelID: "gpt-5.4",
+                messages: [makeMessage("hi")],
+                baseURL: "https://code.example.com/codex",
+                relayRequested: relay
+            )
+        }
+
+        guard case let .upstream(statusCode, _)? = run.failure as? ProviderServiceError else {
+            Issue.record("\(transport.rawValue): expected an error, got failure=\(String(describing: run.failure)) events=\(run.events.count)")
+            return
+        }
+        #expect(statusCode == 200)
+        #expect(run.events.isEmpty, "\(transport.rawValue): no output event may precede the web page")
+        // The recorder holds the response noted by the production stream parser; the sender's protocol fallback reads only that.
+        let rejection = try #require(run.rejection)
+        #expect(rejection.status == 200)
+        #expect(RelayProtocolFallback.isRouteRejection(rejection))
+        let other: RelayTransport = transport == .openaiResponses ? .openaiChatCompletions : .openaiResponses
+        #expect(RelayProtocolFallback.next(
+            current: transport, source: .reachable,
+            candidates: [.openaiResponses, .openaiChatCompletions],
+            rejection: rejection, outputStarted: false, alreadySwitched: false
+        ) == other)
+        #expect(ScriptedRelayProtocol.snapshot().bodies.count == 1, "the service sends once; the sender decides whether to switch protocol")
+    }
+
+    @Test(
+        "Streaming Messages / Gemini: 200 + text/event-stream with a web page body fails as a route-level rejection before any output instead of ending as an empty reply",
+        arguments: [RelayTransport.anthropicMessages, .geminiGenerateContent]
+    )
+    func streamWebPageBodyOnMessagesAndGeminiIsRouteRejection(transport: RelayTransport) async throws {
+        ScriptedRelayProtocol.reset()
+        ScriptedRelayProtocol.script = [.sse(status: 200, body: Self.webPageBody)]
+
+        let session = makeMockSession()
+        let relay = RelayRequestedConfig(transport: transport, authMode: .bearer)
+        let messages = [makeMessage("hi")]
+        // The relay streaming entry points for these two protocols live in their own services.
+        let run = await runRecorded {
+            if transport == .anthropicMessages {
+                return AnthropicService(session: session).sendMessageStream(
+                    apiKey: "sk-test", modelID: "claude-sonnet-4-5", messages: messages,
+                    baseURL: "https://relay.example.com", relayRequested: relay
+                )
+            }
+            return GeminiService(session: session).sendMessageStream(
+                apiKey: "sk-test", modelID: "gemini-2.5-flash", messages: messages,
+                baseURL: "https://relay.example.com", relayRequested: relay
+            )
+        }
+
+        guard case let .upstream(statusCode, detail)? = run.failure as? ProviderServiceError else {
+            Issue.record("\(transport.rawValue): expected an error, got failure=\(String(describing: run.failure)) events=\(run.events.count)")
+            return
+        }
+        #expect(statusCode == 200)
+        let webPageKey = try RelayGuidanceKeys.webPage()
+        #expect(detail == L10n.tr(webPageKey, table: .providers))
+        #expect(run.events.isEmpty, "\(transport.rawValue): no output event may precede the web page")
+        let rejection = try #require(run.rejection)
+        #expect(rejection.status == 200)
+        #expect(RelayProtocolFallback.isRouteRejection(rejection))
+        #expect(RelayProtocolFallback.next(
+            current: transport, source: .reachable,
+            candidates: [transport, .openaiChatCompletions],
+            rejection: rejection, outputStarted: false, alreadySwitched: false
+        ) == .openaiChatCompletions)
+        #expect(ScriptedRelayProtocol.snapshot().requests.count == 1, "the service sends once; the sender decides whether to switch protocol")
+    }
+
+    @Test("Stream: a normal stream whose first body line is an SSE comment and whose Content-Type is not html is not mistaken for a web page")
+    func streamStartingWithCommentLineIsNotWebPage() async {
+        ScriptedRelayProtocol.reset()
+        let body = """
+        : keep-alive
+
+        data: {"choices":[{"delta":{"content":"hi"}}]}
+
+        data: [DONE]
+
+        """
+        ScriptedRelayProtocol.script = [.sse(status: 200, body: body)]
+
+        let service = OpenAIService(session: makeMockSession())
+        let relay = RelayRequestedConfig(transport: .openaiChatCompletions, authMode: .bearer)
+        let run = await runRecorded {
+            service.sendMessageStream(
+                apiKey: "yls-test", modelID: "gpt-5.4",
+                messages: [makeMessage("hi")],
+                baseURL: "https://code.example.com/codex",
+                relayRequested: relay
+            )
+        }
+
+        #expect(run.failure == nil, "\(String(describing: run.failure))")
+        #expect(run.rejection == nil)
+        #expect(run.events.contains { event in
+            if case .delta(let text) = event { return text == "hi" }
+            return false
+        })
+    }
 
     private func doneResult(from events: [StreamEvent]) -> ProviderChatResult? {
         var result: ProviderChatResult?

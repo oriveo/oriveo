@@ -16,7 +16,7 @@ struct BaseAPIServiceTests {
     }
 
     @Test("Map HTTPError Identifies Responses Protocol Mismatch")
-    func mapHTTPErrorIdentifiesResponsesProtocolMismatch() {
+    func mapHTTPErrorIdentifiesResponsesProtocolMismatch() throws {
         let service = BaseAPIService()
         let body = #"{"error":{"message":"Unknown parameter: 'input[4].content[1].url'.","type":"invalid_request_error","param":"input[4].content[1].url","code":"unknown_parameter"}}"#
         let data = body.data(using: .utf8)!
@@ -28,12 +28,17 @@ struct BaseAPIServiceTests {
             return
         }
         #expect(statusCode == 400)
-        // The quoted option must be the real name on the protocol type page.
-        #expect(detail.contains(L10n.tr("OpenAI Responses compatible", table: .providers)))
+        // Point at this model's own protocol (Model Library > this model > Advanced) instead of asking the user to
+        // switch the whole connection. The assertions sit on the key the production code emitted; the protocol name
+        // is how the Protocol row of the Advanced page spells it.
+        let key = try #require(try RelayGuidanceKeys.producing(detail), "actual: \(detail)")
+        #expect(key.contains(RelayGuidanceKeys.modelAdvancedPath), "actual: \(key)")
+        #expect(key.contains("set Protocol to OpenAI Responses"), "actual: \(key)")
+        #expect(!key.contains("Edit connection"), "actual: \(key)")
     }
 
-    // Codex identity 403: a non-Responses protocol points to the protocol type; Responses, or a call
-    // site that does not know the protocol, points to Advanced HTTP.
+    // Codex identity 403 splits two ways: a non-Responses protocol points to this model's protocol (the model-level
+    // Advanced page); Responses, or a call site that does not know the protocol, points to the connection's headers.
     @Test(
         "mapHTTPError: a Codex identity 403 splits by relayTransport",
         arguments: [
@@ -43,7 +48,7 @@ struct BaseAPIServiceTests {
             (RelayTransport?.none, false),
         ]
     )
-    func mapHTTPErrorSplitsCodexIdentity403ByTransport(transport: RelayTransport?, expectsSwitchType: Bool) {
+    func mapHTTPErrorSplitsCodexIdentity403ByTransport(transport: RelayTransport?, expectsSwitchType: Bool) throws {
         let service = BaseAPIService()
         let body = #"{"error":{"message":"Only Codex official clients are allowed"}}"#
 
@@ -56,10 +61,9 @@ struct BaseAPIServiceTests {
             return
         }
         #expect(statusCode == 403)
-        let switchLabel = L10n.tr("OpenAI Responses compatible", table: .providers)
-        let advancedHTTP = L10n.tr("Advanced HTTP", table: .providers)
-        #expect(detail.contains(switchLabel) == expectsSwitchType, "actual: \(detail)")
-        #expect(detail.contains(advancedHTTP) == !expectsSwitchType, "actual: \(detail)")
+        let key = try #require(try RelayGuidanceKeys.producing(detail), "actual: \(detail)")
+        #expect(key.contains(RelayGuidanceKeys.modelAdvancedPath) == expectsSwitchType, "actual: \(key)")
+        #expect(key.contains("Edit connection → Headers & query params") == !expectsSwitchType, "actual: \(key)")
     }
 
     @Test("mapStreamError: production Nvidia overloaded → rateLimited")

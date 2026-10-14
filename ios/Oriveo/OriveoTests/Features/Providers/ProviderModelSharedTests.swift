@@ -36,19 +36,20 @@ struct ProviderModelSharedTests {
                 return makeProviderCatalogProjectionInput(for: provider)
             }
         )
+        // Relay groups are by family (group order = first appearance in the catalog): use ids with prefixes the family heuristic recognizes; the group order is still anthropic -> openai.
         let provider = makeProvider(
             kind: .relay,
             models: [],
             catalogModels: [
                 TestFactories.makeModel(
-                    id: "anthropic/claude-sonnet",
+                    id: "claude-sonnet",
                     name: "Claude Sonnet",
                     groupKey: "anthropic",
                     groupName: "Anthropic",
                     sortRank: 200
                 ),
                 TestFactories.makeModel(
-                    id: "openai/gpt-4.1",
+                    id: "gpt-4.1",
                     name: "GPT-4.1",
                     groupKey: "openai",
                     groupName: "OpenAI",

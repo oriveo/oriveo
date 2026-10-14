@@ -87,7 +87,7 @@ struct ProviderManagerRelaySyncTests {
         #expect(provider.models.contains(where: { $0.id == "still-sendable" && $0.isAvailable }))
     }
 
-    @Test("Catalog Refresh Write Gate Preserves Concurrent Provider Changes")
+    @Test("Catalog Refresh Write Gate Merges The Latest Names Without Re-marking The Default And Rejects Old Results After A Key Change")
     func catalogRefreshWriteGatePreservesConcurrentProviderChanges() async throws {
         ProviderManagerRelaySyncURLProtocol.reset()
         let manager = ProviderManager()
@@ -111,8 +111,6 @@ struct ProviderManagerRelaySyncTests {
         var current = starting
         current.status = .syncing
         current.customName = "Renamed while loading"
-        current.relayRequested?.modelID = newDefault.id
-        current = ProviderManager.applyingRelayDefaultModelSelection(to: current, modelID: newDefault.id)
         #expect(RelayCatalogRefreshWritePolicy.mayFinish(
             requestToken: token,
             activeToken: token,
@@ -127,11 +125,14 @@ struct ProviderManagerRelaySyncTests {
             baseURL: starting.baseURLText,
             relayRequested: starting.relayRequested
         )
-        let latestDefaultModelID = current.relayRequested?.modelID ?? current.defaultModel?.id
         manager.applyRelaySyncResult(syncResult, to: &current)
-        current = ModelResolver.synchronizeDefaultSelection(in: current, preferredModelID: latestDefaultModelID)
         #expect(current.customName == "Renamed while loading")
-        #expect(current.defaultModel?.id == newDefault.id)
+        // A relay has no default model: after the catalog merge nothing is marked default, and the representative model is the first enabled one.
+        #expect(current.catalogModels.allSatisfy { !$0.isDefault })
+        // Write-side rule before persisting (refreshRelayCatalog persists through updateProvider): models keep no isDefault and no modelID.
+        let persisted = ProviderManager.relayWriteNormalized(current)
+        #expect(persisted.models.allSatisfy { !$0.isDefault })
+        #expect(persisted.relayRequested?.modelID == nil)
 
         var rotatedKey = current
         rotatedKey.apiKey = "rotated-key"
@@ -142,15 +143,60 @@ struct ProviderManagerRelaySyncTests {
             connectionIdentity: identity
         ))
 
+        // relayKind is a display value derived from the default protocol at save time and is never read for outbound
+        // requests. An existing "fully custom + chosen protocol" connection has it rewritten to the protocol's kind the
+        // first time only the headers are saved, and that must not void an in-flight catalog refresh.
         var changedKind = current
         changedKind.relayKind = .custom
-        #expect(!RelayCatalogRefreshWritePolicy.mayFinish(
+        #expect(RelayCatalogRefreshWritePolicy.mayFinish(
             requestToken: token,
             activeToken: token,
             current: changedKind,
             connectionIdentity: identity
         ))
+        #expect(RelayCatalogConnectionIdentity(provider: changedKind).sameConnection(as: identity))
+        #expect(RelayGenerationVerificationWritePolicy.mayCommit(current: changedKind, connectionIdentity: identity))
+
+        // A field that really affects outbound requests (the protocol) still voids it.
+        var changedTransport = current
+        changedTransport.relayRequested?.transport = .openaiResponses
+        #expect(!RelayCatalogRefreshWritePolicy.mayFinish(
+            requestToken: token,
+            activeToken: token,
+            current: changedTransport,
+            connectionIdentity: identity
+        ))
     }
+
+    // MARK: - RD2-REFRESH (the address-normalize.v1.json catalogCases fixture, through the production refresh path)
+
+    private static var retainedStates: [AppState] = []
+
+    private func runRefresh(_ caseId: String) async throws {
+        ProviderManagerRelaySyncURLProtocol.reset()
+        await MetadataClient.shared.resetForTesting()
+        let (provider, catalogURL) = try RelayAddressNormalizeFixture.catalogProvider(caseId)
+        let state = AppState(
+            seedDemoData: false,
+            sessionUID: "rd2-refresh-\(UUID().uuidString)",
+            providerSession: makeProviderManagerRelaySyncSession()
+        )
+        Self.retainedStates.append(state)
+        state.providers = [provider]
+
+        #expect(await state.providerManager.refreshRelayCatalog(providerID: provider.id), "\(caseId)")
+        let requested = ProviderManagerRelaySyncURLProtocol.capturedRequests().compactMap { $0.url?.absoluteString }
+        #expect(requested == [catalogURL], "\(caseId)")
+    }
+
+    @Test("RD2-REFRESH-host_only_connection_refreshes_v1_models") func refreshHostOnly() async throws { try await runRefresh("host_only_connection_refreshes_v1_models") }
+    @Test("RD2-REFRESH-verified_root_from_detection_wins") func refreshVerifiedRoot() async throws { try await runRefresh("verified_root_from_detection_wins") }
+    @Test("RD2-REFRESH-versionless_verified_root_is_not_versioned_again") func refreshVersionless() async throws { try await runRefresh("versionless_verified_root_is_not_versioned_again") }
+    @Test("RD2-REFRESH-per_transport_root_of_the_connection_transport_wins") func refreshPerTransport() async throws { try await runRefresh("per_transport_root_of_the_connection_transport_wins") }
+    @Test("RD2-REFRESH-stored_chat_route_is_trimmed_before_models") func refreshStoredChatRoute() async throws { try await runRefresh("stored_chat_route_is_trimmed_before_models") }
+    @Test("RD2-REFRESH-messages_connection_refreshes_its_v1_root") func refreshMessages() async throws { try await runRefresh("messages_connection_refreshes_its_v1_root") }
+    @Test("RD2-REFRESH-gemini_connection_refreshes_its_v1beta_root") func refreshGemini() async throws { try await runRefresh("gemini_connection_refreshes_its_v1beta_root") }
+    @Test("RD2-REFRESH-existing_v4_segment_is_not_versioned_again") func refreshExistingV4() async throws { try await runRefresh("existing_v4_segment_is_not_versioned_again") }
 
     @Test("Catalog Refresh Write Gate Keeps Connection State Out Of Band")
     func catalogRefreshWriteGateKeepsConnectionStateOutOfBand() {

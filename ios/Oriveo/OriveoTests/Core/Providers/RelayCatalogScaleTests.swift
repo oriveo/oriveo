@@ -37,7 +37,7 @@ struct RelayCatalogScaleTests {
             isAvailable: true,
             isDefault: isDefault,
             priceTier: "",
-            summary: "Discovered from relay catalog",
+            summary: "Discovered from the model catalog",
             groupKey: ModelResolver.groupKey(forManualModelID: id, providerKind: .relay),
             groupName: ModelResolver.groupName(forManualModelID: id, providerKind: .relay)
         )
@@ -354,7 +354,7 @@ struct RelayCatalogScaleTests {
 
     /// One "add" from the Home picker with 1,500 conversations on this relay: every Provider write normalizes their
     /// model ids against the new catalog, which used to run `matchingModel` over the whole 22k catalog for each one.
-    @Test("conversation normalization: adding a model with a 22k catalog and 1.5k conversations stalls the main thread < 50ms and matches per-conversation matchingModel")
+    @Test("conversation normalization: adding a model with a 22k catalog and 1.5k conversations stalls the main thread < 50ms, and relay conversation models are not rewritten")
     func conversationNormalizationKeepsMainThreadResponsive() async throws {
         try await loadWhitelistMetadata()
         defer { ProviderCatalogResolver.resetMemoForTesting() }
@@ -373,10 +373,7 @@ struct RelayCatalogScaleTests {
         let callMs = Self.measure {
             state.enableModel(modelID: modelID, for: provider.id)
         }
-        let written = try #require(state.providers.first { $0.id == provider.id })
         await state.providerManager.waitForRelayFinalizeForTesting(providerID: provider.id)
-        // The write and the finalize merge each queue a normalization; wait until everything queued has merged.
-        await state.providerManager.waitForConversationNormalizationForTesting(providerID: provider.id)
         pumpMainRunLoop(0.05)
         probe.stop()
         let stallMs = probe.maxStall * 1_000
@@ -385,14 +382,10 @@ struct RelayCatalogScaleTests {
         let updated = try #require(state.providers.first { $0.id == provider.id })
         #expect(updated.models.contains { $0.id == modelID })
         let storedByID = Dictionary(uniqueKeysWithValues: state.conversations.map { ($0.id, $0.modelID) })
-        // Every retired-model conversation is checked (fuzzy pass + default fallback) and the rest are sampled (a full
-        // comparison is itself conversations x catalog).
+        // Relay conversations are not normalized: even conversations on a retired model keep their model as is, and the
+        // input area asks the user to pick again.
         for (position, conversation) in conversations.enumerated() where position % 100 == 3 || position % 60 == 0 {
-            // The old timing: normalize against `written` at write time, then once more against the finalized
-            // Provider when the finalize merge changed it.
-            var expected = Self.referenceNormalizedModelID(conversation.modelID, in: written)
-            if updated != written { expected = Self.referenceNormalizedModelID(expected, in: updated) }
-            #expect(storedByID[conversation.id] == expected, "conversation #\(position) \(conversation.modelID)")
+            #expect(storedByID[conversation.id] == conversation.modelID, "conversation #\(position) \(conversation.modelID)")
         }
         #expect(stallMs < Self.mainThreadBudgetMs, "longest main-thread stall \(stallMs)ms exceeds \(Self.mainThreadBudgetMs)ms")
     }
@@ -421,13 +414,12 @@ struct RelayCatalogScaleTests {
                 let clock = ContinuousClock()
                 let start = clock.now
                 calls.append(Self.measure { state.providerManager.updateProvider(edited) })
-                await state.providerManager.waitForConversationNormalizationForTesting(providerID: provider.id)
                 settles.append(Self.milliseconds(clock.now - start))
+                // Relay conversations are not normalized: conversations on a retired model are kept as is.
                 let stale = conversations.filter { $0.modelID.contains("/Retired-") }.map(\.id)
                 #expect(!stale.isEmpty)
-                #expect(state.conversations.filter { stale.contains($0.id) }.allSatisfy { !$0.modelID.contains("/Retired-") })
+                #expect(state.conversations.filter { stale.contains($0.id) }.allSatisfy { $0.modelID.contains("/Retired-") })
                 await state.providerManager.waitForRelayFinalizeForTesting(providerID: provider.id)
-                await state.providerManager.waitForConversationNormalizationForTesting(providerID: provider.id)
             }
             return (calls.min() ?? .infinity, settles.min() ?? .infinity)
         }
@@ -436,7 +428,9 @@ struct RelayCatalogScaleTests {
         let many = try await bestSettleMs(conversationCount: Self.conversationCount)
         let ratio = many.settled / few.settled
         print("[RelayCatalogScale] updateProvider \(Self.catalogCount) catalog → normalization committed: conversations 15 = \(String(format: "%.1f", few.settled))ms (call \(String(format: "%.1f", few.call))ms), conversations \(Self.conversationCount) = \(String(format: "%.1f", many.settled))ms (call \(String(format: "%.1f", many.call))ms), ratio = \(String(format: "%.2f", ratio))")
-        #expect(ratio < 3, "conversation normalization grows with the conversation count: \(few.settled)ms → \(many.settled)ms")
+        // Relays no longer normalize, so both sides are down to the small remainder of the write itself: allow a 5ms
+        // absolute margin so sub-millisecond jitter does not inflate the ratio.
+        #expect(many.settled < few.settled * 3 + 5, "conversation normalization grows with the conversation count: \(few.settled)ms → \(many.settled)ms (ratio \(ratio))")
     }
 
     /// Normalization results merge on the main thread through `AppState.updateConversationModelProjections`, which
@@ -677,8 +671,9 @@ struct RelayCatalogScaleTests {
         if let name = lookup.modelDisplayName(providerID: provider.id, modelID: conversation.modelID) {
             return name
         }
-        return ModelResolver.matchingModel(
-            modelID: conversation.modelID,
+        // Stored values are resolved back through resolveStoredModel (a relay prefers the literal id and falls back to a unique canonical match); official providers behave like matchingModel.
+        return ModelResolver.resolveStoredModel(
+            conversation.modelID,
             in: ProviderSelectionSnapshot.enabledModels(in: provider),
             providerKind: provider.kind
         )?.name
@@ -846,10 +841,8 @@ struct RelayCatalogScaleTests {
 
             state.providerManager.updateProvider(provider)
             let written = try #require(state.providers.first { $0.id == provider.id })
-            // A relay's normalization and finalize both run in the background: wait for the finalize merge, then for
-            // every queued normalization.
+            // A relay's finalize runs in the background: wait for the finalize merge (relay conversations are not normalized).
             await state.providerManager.waitForRelayFinalizeForTesting(providerID: provider.id)
-            await state.providerManager.waitForConversationNormalizationForTesting(providerID: provider.id)
             let settled = try #require(state.providers.first { $0.id == provider.id })
             // The old timing: normalize against `written` at write time, then once more against the finalized
             // Provider when the finalize merge changed it.
@@ -859,7 +852,7 @@ struct RelayCatalogScaleTests {
             let storedByID = Dictionary(uniqueKeysWithValues: state.conversations.map { ($0.id, $0.modelID) })
             for conversation in conversations {
                 var expected = conversation.modelID
-                if conversation.providerID == provider.id {
+                if conversation.providerID == provider.id, kind != .relay {
                     expected = reference(expected, in: written)
                     if settled != written { expected = reference(expected, in: settled) }
                 }
@@ -919,9 +912,10 @@ struct RelayCatalogScaleTests {
                 if isManual { hasManualModels = true }
             }
         }
-        // resolveDefaultModel (metadataDefaultId == nil), unchanged
+        // resolveDefaultModel (metadataDefaultId == nil), unchanged; a relay's legacy isDefault is not read.
         var defaultModel: ResolvedModel? = enabledModels.first
-        if let userDefault = provider.models.first(where: \.isDefault),
+        if provider.kind != .relay,
+           let userDefault = provider.models.first(where: \.isDefault),
            let match = enabledModels.first(where: {
                $0.model.id.caseInsensitiveCompare(userDefault.id) == .orderedSame
                    || ModelResolver.modelsShareSameRemoteModel($0.model, userDefault, providerKind: provider.kind)
@@ -1161,6 +1155,13 @@ struct RelayCatalogScaleTests {
                     #expect(
                         actual?.id == expected?.id && actual?.canonicalModelId == expected?.canonicalModelId,
                         "kind=\(kind) query=\(query) expected=\(expected?.id ?? "nil") actual=\(actual?.id ?? "nil")"
+                    )
+                    let expectedStored = ModelResolver.resolveStoredModel(query, in: list, providerKind: kind)
+                    let actualStored = index.resolveStored(query)
+                    #expect(
+                        actualStored?.id == expectedStored?.id
+                            && actualStored?.canonicalModelId == expectedStored?.canonicalModelId,
+                        "resolveStored kind=\(kind) query=\(query) expected=\(expectedStored?.id ?? "nil") actual=\(actualStored?.id ?? "nil")"
                     )
                 }
             }

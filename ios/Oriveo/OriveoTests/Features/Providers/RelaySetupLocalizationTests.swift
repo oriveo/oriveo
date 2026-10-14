@@ -16,45 +16,39 @@ struct RelaySetupLocalizationTests {
         "Basic Settings",
         "Catalog detection is not enough. Automatic testing sends at most 1 token through the real chat path and selects a working protocol for you.",
         "Catalog found, but it returned no model IDs. Enter a model above to continue.",
-        "Add Custom Relay",
         "Choose a protocol manually",
         "Clear learned capabilities",
-        "Confirmed the %@ protocol, but this relay does not publish a model catalog. Enter a model ID above to continue.",
         "Connect a relay",
         "Connect a relay or local engine",
         "Connect and save",
         "Connection has not been verified.",
         "Connection settings",
-        "Could not detect this relay",
         "Custom Relay",
         "Detect connection settings",
         "Detect settings",
         "Detecting...",
         "Detection failed",
-        "Discovered from relay catalog",
-        "Edit • %@",
-        "Edit Relay Settings",
-        "Enter the API address provided by your relay.",
+        "Discovered from the model catalog",
+        "Edit connection",
         "Enter the access token required by this engine.",
         "Enter a request URL.",
         "Enter a valid HTTPS request URL.",
         "Enter the request URL and API key. Oriveo will detect the connection settings for you.",
-        "Enter what your relay gave you. Oriveo will detect the API root, authentication style, and compatible protocol.",
         "Found %d model(s) in the catalog.",
         "Hide API key",
-        "Image generation is not available on this transport. Open Providers → this Relay → Advanced Settings → Transport and switch it to OpenAI Responses or Chat Completions.",
+        "Image generation is not available on this protocol. Open Providers → this connection → this model → Advanced and set Protocol to OpenAI Responses or Chat Completions.",
+        "This connection doesn't offer a separate image generation API. Open Providers → this connection → Model Library → this model → Advanced and set Protocol to OpenAI Responses. Oriveo will then generate images inside the chat instead.",
         "Invalid request URL",
         "Manual setup",
         "Local compute",
         "Model catalog found",
         "Neither a model catalog nor a known generation endpoint answered at this address. Check the address, or choose the protocol manually.",
         "No detected protocol completed the test request.",
-        "No supported relay configuration was detected.",
+        "No supported configuration was detected at this address.",
         "Opens manual connection settings",
         "Paste the host, /v1 or /v1beta base URL, or a full API route. Oriveo will normalize it safely.",
         "Please add a chat model to this relay before using image generation.",
         "Quick Setup",
-        "Recommended. Used when the relay does not return a model list.",
         "Remove query parameters from the request URL. Oriveo never tries API keys from query parameters automatically.",
         "Request URL",
         "Retried %d time(s) automatically.",
@@ -68,10 +62,10 @@ struct RelaySetupLocalizationTests {
         "The local network is unavailable.",
         "This engine requires an encrypted connection for its access token.",
         "The catalog cannot distinguish these OpenAI-compatible protocols. You do not need to guess—use automatic testing below and Oriveo will select one that completes a real request.",
-        "The relay answered, but its model catalog format was not recognized.",
-        "The relay could not be reached reliably. Check the address and try again.",
+        "The service at this address answered, but its model catalog format was not recognized.",
+        "Couldn't connect to this address reliably. Check the address and try again.",
         "The server did not return an HTTP response.",
-        "The relay is rate limited. Wait and try again; Oriveo did not rotate credentials or protocols.",
+        "The service at this address is rate limiting requests. Wait a moment and try again; Oriveo didn't switch to another key or protocol.",
         "The server rejected the API key. Check the key or choose the documented protocol manually.",
         "Verified %@ through the actual chat path.",
         "Verified through the actual chat path",
@@ -80,7 +74,6 @@ struct RelaySetupLocalizationTests {
         "Use only if automatic detection fails.",
         "Use an HTTPS request URL. Local-network and VPN addresses are supported when they use a valid TLS certificate.",
         "Use your own request URL and API key",
-        "Your API key is stored securely on this device and is sent only to your relay.",
     ]
 
     @Test("Relay setup copy has real translations for every supported locale")
@@ -92,7 +85,9 @@ struct RelaySetupLocalizationTests {
     func customLLMSettingsCopyUsesProvidersTableAtEveryConsumer() throws {
         let httpsCall = "L10n.tr(RelayEndpointPolicy.httpsRequiredMessageKey, table: .providers)"
         let expectedHTTPSCallCounts = [
-            "Oriveo/Features/Providers/RelaySetupView.swift": 3,
+            // Quick setup shows an address error as a single line on the detection card (RelaySetupTwoStep); manual setup
+            // leaves address problems to the shared form validation notes (RelayFormIssueNotes), so this page no longer builds the sentence itself.
+            "Oriveo/Features/Providers/RelaySetupView.swift": 0,
             "Oriveo/Features/Providers/RelayEditView.swift": 3,
             "Oriveo/Features/Providers/LocalComputeSetupView.swift": 1,
         ]
@@ -115,7 +110,7 @@ struct RelaySetupLocalizationTests {
 
     @Test("Image-generation relay errors use Providers and match the Web production catalog")
     func imageGenerationErrorsUseProvidersAndMatchWebProductionValues() throws {
-        let routeKey = "Image generation is not available on this transport. Open Providers → this Relay → Advanced Settings → Transport and switch it to OpenAI Responses or Chat Completions."
+        let routeKey = "Image generation is not available on this protocol. Open Providers → this connection → this model → Advanced and set Protocol to OpenAI Responses or Chat Completions."
         let modelKey = "Please add a chat model to this relay before using image generation."
         let providers = try catalogValues(table: "Providers")
         let routeValues = try #require(providers[routeKey])
@@ -142,6 +137,16 @@ struct RelaySetupLocalizationTests {
         #expect(chatManager.contains("L10n.tr(\"\(modelKey)\", table: .providers)"))
         #expect(!chatManager.contains("L10n.tr(\"\(routeKey)\", table: .chat)"))
         #expect(!chatManager.contains("L10n.tr(\"\(modelKey)\", table: .chat)"))
+
+        // The two image-generation sentences now point to the model-level Advanced page; the old pair (Advanced Settings → Transport) was deleted once its call sites dropped to zero.
+        let endpointKey = "This connection doesn't offer a separate image generation API. Open Providers → this connection → Model Library → this model → Advanced and set Protocol to OpenAI Responses. Oriveo will then generate images inside the chat instead."
+        #expect(providers[endpointKey].map { Set($0.keys) } == supportedLocales)
+        #expect(!providers.keys.contains { $0.contains("Advanced Settings → Transport") })
+        let baseAPIService = try String(
+            contentsOf: projectRoot.appendingPathComponent("Oriveo/Core/Providers/BaseAPIService.swift"),
+            encoding: .utf8
+        )
+        #expect(baseAPIService.contains("L10n.tr(\"\(endpointKey)\", table: .providers)"))
     }
 
     @Test("Custom Relay Copy Uses Production Catalog Values")
@@ -150,16 +155,27 @@ struct RelaySetupLocalizationTests {
         #expect(providers["Custom Relay"]?["en"] == "Custom Relay")
         #expect(providers["Connect a relay"]?["en"] == "Connect a custom relay")
         #expect(providers["Connect a relay"]?.values.allSatisfy { !$0.localizedCaseInsensitiveContains("LLM") } == true)
-        #expect(providers["Add Custom Relay"]?["en"] == "Add Custom Relay")
+        // Manual setup shares the title of quick setup; the old "Add Custom Relay" went away with the type-card page.
+        #expect(providers["Add Custom Relay"] == nil)
+        #expect(providers["Connect a Custom Relay"]?["zh-Hans"] == "\u{8FDE}\u{63A5}\u{81EA}\u{5B9A}\u{4E49}\u{4E2D}\u{8F6C}\u{7AD9}")
         #expect(providers["Connect a relay or local engine"]?["en"] == "Connect your own model service, or local & LAN compute")
-        #expect(providers["Edit Relay Settings"]?["en"] == "Connection settings")
+        // The old keys from the default-model era have no call sites left and were deleted.
+        for retired in [
+            "Edit Relay Settings", "Default Model", "Default model verified with a 1-token request",
+            "The engine reports the default model doesn’t support thinking.",
+        ] {
+            #expect(providers[retired] == nil, "\(retired) should have been deleted from the Providers table")
+        }
         #expect(providers["Relay"]?["en"] == "Relay service")
         #expect(providers["Connection security"]?["en"] == "Connection security")
         #expect(providers["Local compute"]?["en"] == "Local & LAN compute")
         #expect(providers["Custom Relay"]?["zh-Hans"] != "Custom Relay")
 
         let edit = try String(contentsOf: projectRoot.appendingPathComponent("Oriveo/Features/Providers/RelayEditView.swift"), encoding: .utf8)
-        #expect(edit.contains("L10n.tr(\"Edit • %@\", table: .providers)"))
+        // The title has the same name as the entry point, "Edit connection"; the old "Edit · name" is gone.
+        #expect(edit.contains("L10n.tr(RelayEditBoardModel.titleKey, table: .providers)"))
+        #expect(RelayEditBoardModel.titleKey == "Edit connection")
+        #expect(providers["Edit • %@"] == nil)
         #expect(!edit.contains("L10n.tr(\"Edit Relay\", table: .providers)"))
     }
 
@@ -175,7 +191,9 @@ struct RelaySetupLocalizationTests {
         #expect(providers["Compatibility"]?["en"] == "Compatibility")
         #expect(providers["Request Behavior"]?["en"] == "Compatibility")
         #expect(providers["Model"]?["en"] == "Model")
-        #expect(providers["Advanced HTTP"]?["en"] == "Advanced HTTP")
+        #expect(providers["Headers & query params"]?["en"] == "Headers & query params")
+        #expect(providers["Headers & query params"].map { Set($0.keys) } == supportedLocales)
+        #expect(providers["Advanced HTTP"] == nil)
         #expect(providers["Relay"]?["en"] == "Relay service")
         for key in ["Protocol", "Auth Mode", "Request URL", "Model", "Relay"] {
             let values = try #require(providers[key])
@@ -216,7 +234,9 @@ struct RelaySetupLocalizationTests {
             encoding: .utf8
         )
         let key = "We couldn't verify the connection. You can retry from the provider details."
-        #expect(source.components(separatedBy: "L10n.tr(\"\(key)\")").count - 1 == 3)
+        // A failed connection test, and a failed reconnect after switching the security mode, both reuse this Localizable sentence
+        // (the confirmation dialog for failed verification is gone and the failure card shows the upstream reason).
+        #expect(source.components(separatedBy: "L10n.tr(\"\(key)\")").count - 1 == 2)
         #expect(!source.contains("L10n.tr(\"\(key)\", table: .providers)"))
     }
 
@@ -233,9 +253,12 @@ struct RelaySetupLocalizationTests {
         for relativePath in [
             "Oriveo/Features/Providers/RelaySetupView.swift",
             "Oriveo/Features/Providers/RelaySimpleSection.swift",
+            "Oriveo/Features/Providers/RelayManualSetupView.swift",
+            "Oriveo/Features/Providers/RelayManualSetupBoardModel.swift",
+            "Oriveo/Features/Providers/RelayManualSetupFlow.swift",
             "Oriveo/Features/Providers/RelayEditView.swift",
             "Oriveo/Features/Providers/RelayConnectionCard.swift",
-            "Oriveo/Features/Providers/RelayAdvancedFieldsView.swift",
+            "Oriveo/Features/Providers/RelayEnumLabels.swift",
         ] {
             let source = try String(contentsOf: projectRoot.appendingPathComponent(relativePath), encoding: .utf8)
             for bannedTerm in bannedTerms {
@@ -265,15 +288,23 @@ struct RelaySetupLocalizationTests {
             contentsOf: projectRoot.appendingPathComponent("Oriveo/Features/Providers/RelaySimpleSection.swift"),
             encoding: .utf8
         )
-        #expect(section.contains("if discoveredModelIDs.isEmpty {"))
-        #expect(section.contains("RelayDiscoveredModelField("))
-
         let setup = try String(
             contentsOf: projectRoot.appendingPathComponent("Oriveo/Features/Providers/RelaySetupView.swift"),
             encoding: .utf8
         )
-        #expect(setup.contains("guard !discoveredModelIDs.contains(trimmed) else { return }"))
-        #expect(setup.contains("defaultModelID = firstDiscovered"))
+        let flow = try String(
+            contentsOf: projectRoot.appendingPathComponent("Oriveo/Features/Providers/RelaySetupTwoStep.swift"),
+            encoding: .utf8
+        )
+        // The catalog no longer drives a "default model" picker: step 2 lets the user tick models by group,
+        // and the first catalog entry is never pre-selected for them.
+        #expect(!section.contains("RelayDiscoveredModelField("))
+        #expect(!setup.contains("defaultModelID = firstDiscovered"))
+        // Ticking only changes step-2 state and does not invalidate the detection result of step 1.
+        let toggle = try #require(flow.range(of: "func toggle(modelID: String) {"))
+        let body = flow[toggle.upperBound...].prefix(400)
+        #expect(!body.contains("invalidate"))
+        #expect(RelaySetupModelsBoard.make(.init(groups: [.init(id: "g", title: "g", modelIDs: ["a", "b"])])).selectedCount == 0)
     }
 
     @Test("Empty Catalog Still Has An Exit")
@@ -282,11 +313,16 @@ struct RelaySetupLocalizationTests {
             contentsOf: projectRoot.appendingPathComponent("Oriveo/Features/Providers/RelaySetupView.swift"),
             encoding: .utf8
         )
-        #expect(setup.contains("} else if needsDefaultModelInput {"))
-        #expect(setup.contains("await saveDetectedRelay(verified: false)"))
-        #expect(setup.contains("if needsDefaultModelInput { return L10n.tr(\"Save and continue\""))
-        #expect(setup.contains(": .issue(L10n.tr(\"Connection has not been verified.\""))
-        #expect(setup.contains("context: .onboarding"))
+        // An empty catalog stops at the step-1 explanation; tapping Next enters the manual-add state of step 2. Nothing unverified is persisted any more.
+        #expect(!setup.contains("await saveDetectedRelay(verified: false)"))
+        var detection = RelaySetupDetection(keys: [.init(id: RelayKeyBinding.implicitKeyID, label: "sk-…")])
+        detection.connection.status = .done
+        detection.catalog.status = .failed
+        detection.protocols.status = .skipped
+        detection.failure = .emptyCatalog
+        #expect(RelaySetupBoardModel.make(.init(detection: detection, canAct: true)).nextAction == .models(manualAdd: true))
+        #expect(RelaySetupFailure.emptyCatalog.textKey == "Couldn’t get the model list. Add the model IDs you want to use.")
+        #expect(RelaySetupModelsBoard.make(.init()).showsEmptyNote)
     }
 
     @Test("Relay Edit Persists Unverified Stable Key")
@@ -296,7 +332,7 @@ struct RelaySetupLocalizationTests {
             encoding: .utf8
         )
         #expect(edit.contains("transitioning.status = .issue(ProviderIssueMessage.unverifiedConnectionKey)"))
-        #expect(edit.contains("updated.lastError = ProviderIssueMessage.unverifiedConnectionKey"))
+        #expect(edit.contains("out.lastError = ProviderIssueMessage.unverifiedConnectionKey"))
         #expect(!edit.contains("transitioning.status = .issue(L10n.tr(\"Connection has not been verified.\""))
     }
 
@@ -319,12 +355,19 @@ struct RelaySetupLocalizationTests {
         #expect(detail.contains("return provider.kind == .relay"))
         #expect(detail.contains("!provider.catalogModels.isEmpty"))
 
+        // Manual setup no longer fetches the catalog itself before saving: once verification passes and the connection is
+        // persisted, the catalog refreshes without blocking, and a failed refresh does not roll the save back.
+        // The catalog request that is actually sent is asserted by BOARD-MANUAL-07.
         let setup = try String(
             contentsOf: projectRoot.appendingPathComponent("Oriveo/Features/Providers/RelaySetupView.swift"),
             encoding: .utf8
         )
-        #expect(setup.contains("let catalogIDs = await discoveredCatalogIDs("))
-        #expect(setup.contains("catalogModelIDs: catalogIDs"))
+        let manualFlow = try String(
+            contentsOf: projectRoot.appendingPathComponent("Oriveo/Features/Providers/RelayManualSetupFlow.swift"),
+            encoding: .utf8
+        )
+        #expect(!setup.contains("discoveredCatalogIDs("))
+        #expect(manualFlow.contains("await manager.refreshRelayCatalog(providerID: providerID)"))
     }
 
     private func assertCatalog(_ table: String, contains keys: Set<String>) throws {
@@ -356,6 +399,8 @@ struct RelaySetupLocalizationTests {
         let strings = try #require(root["strings"] as? [String: Any])
         return try strings.reduce(into: [:]) { result, item in
             let localizations = try #require((item.value as? [String: Any])?["localizations"] as? [String: Any])
+            // Plural entries (variations / substitutions) have no single value, so this table compares plain entries only.
+            guard localizations.values.allSatisfy({ ($0 as? [String: Any])?["variations"] == nil }) else { return }
             result[item.key] = try localizations.reduce(into: [:]) { values, locale in
                 let unit = try #require((locale.value as? [String: Any])?["stringUnit"] as? [String: Any])
                 values[locale.key] = try #require(unit["value"] as? String)

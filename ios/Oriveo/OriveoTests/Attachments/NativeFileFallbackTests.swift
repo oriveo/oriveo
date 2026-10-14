@@ -156,7 +156,8 @@ final class NativeFileFallbackTests: XCTestCase {
         XCTAssertFalse(hasDocumentBlock(bodies[1]), String(bodies[1].prefix(400)))
         XCTAssertTrue(bodies[1].contains("EXTRACTED-PDF-BODY"))
         XCTAssertTrue(bodies[1].contains("ATTACHMENT_FILE"))
-        XCTAssertTrue(NativeFileFallback.isKnownTextOnly(connectionID: connection, transport: .relayAnthropicMessages))
+        // Relay memory now lives in the local negative cache (connection x model x protocol x file), no longer the in-process connection x protocol.
+        XCTAssertTrue(NativeFileFallback.isKnownTextOnly(.relayScope(.anthropicMessages, connectionID: connection, modelID: model.id)))
 
         // The next message on the same connection: straight to text, with a single request.
         ScriptedProtocol.reset([(200, Self.okStream)])
@@ -187,7 +188,7 @@ final class NativeFileFallbackTests: XCTestCase {
         XCTAssertTrue(hasDocumentBlock(bodies[0]))
         XCTAssertFalse(hasDocumentBlock(bodies[1]))
         XCTAssertTrue(bodies[1].contains("EXTRACTED-PDF-BODY"))
-        XCTAssertTrue(NativeFileFallback.isKnownTextOnly(connectionID: connection, transport: .relayAnthropicMessages))
+        XCTAssertTrue(NativeFileFallback.isKnownTextOnly(.relayScope(.anthropicMessages, connectionID: connection, modelID: model.id)))
     }
 
     // MARK: - No fallback
@@ -203,7 +204,7 @@ final class NativeFileFallbackTests: XCTestCase {
         }
         XCTAssertEqual(ScriptedProtocol.recordedBodies().count, 1)
         XCTAssertTrue(hasDocumentBlock(ScriptedProtocol.recordedBodies()[0]))
-        XCTAssertFalse(NativeFileFallback.isKnownTextOnly(connectionID: connection, transport: .relayAnthropicMessages))
+        XCTAssertFalse(NativeFileFallback.isKnownTextOnly(.relayScope(.anthropicMessages, connectionID: connection, modelID: model.id)))
     }
 
     func testAuthRateLimitAndServerErrorsDoNotFallBack() async throws {
@@ -216,7 +217,7 @@ final class NativeFileFallbackTests: XCTestCase {
             } catch is ProviderServiceError {}
             XCTAssertEqual(ScriptedProtocol.recordedBodies().count, 1, "HTTP \(status)")
             XCTAssertFalse(
-                NativeFileFallback.isKnownTextOnly(connectionID: connection, transport: .relayAnthropicMessages),
+                NativeFileFallback.isKnownTextOnly(.relayScope(.anthropicMessages, connectionID: connection, modelID: model.id)),
                 "HTTP \(status)"
             )
         }
@@ -234,7 +235,7 @@ final class NativeFileFallbackTests: XCTestCase {
             XCTAssertFalse(shown.contains("SECOND-REJECTION"), shown)
         }
         XCTAssertEqual(ScriptedProtocol.recordedBodies().count, 2)
-        XCTAssertFalse(NativeFileFallback.isKnownTextOnly(connectionID: connection, transport: .relayAnthropicMessages))
+        XCTAssertFalse(NativeFileFallback.isKnownTextOnly(.relayScope(.anthropicMessages, connectionID: connection, modelID: model.id)))
     }
 
     func testDirectAnthropicDoesNotFallBack() async throws {

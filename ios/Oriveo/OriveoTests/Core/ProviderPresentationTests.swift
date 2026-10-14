@@ -130,7 +130,11 @@ struct ProviderPresentationTests {
         }
         let active = RelayCatalogMembership.Index(provider: providers[0])
         #expect(active.isMissingEnabledModel(enabled[4]))
-        #expect(!active.isMissingEnabledModel(enabled[2]))
+        // A relay judges sameness by the literal ID: matching only by display name / canonical does not count as in the catalog
+        #expect(active.isMissingEnabledModel(enabled[2]))
+        #expect(active.isMissingEnabledModel(enabled[1]))
+        #expect(!active.isMissingEnabledModel(enabled[0]))
+        #expect(!active.isMissingEnabledModel(enabled[3]))
     }
 
     @Test("enabled model rows compare by rendering inputs: different closures are equal, model, highlight and catalog state are not")

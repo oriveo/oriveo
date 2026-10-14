@@ -119,6 +119,32 @@ struct ModelDisplayLookupTests {
         #expect(ProviderCatalogResolver.debugResolveCallCount == 0)
     }
 
+    @Test("RL2-IDENT-09 Relay message header: when a legacy canonical stored value misses literally, read-compat takes the name of the single enabled row; with several rows sharing the canonical it falls back")
+    func RL2_IDENT_09_relayLegacyCanonicalStoredValueResolvesUniqueEnabledName() async {
+        let unique = TestFactories.makeProvider(
+            kind: .relay,
+            models: [TestFactories.makeModel(id: "gpt-4o-2024-08-06", name: "GPT-4o Aug", canonicalModelId: "gpt-4o")],
+            catalogModels: [TestFactories.makeModel(id: "gpt-4o-2024-08-06", name: "GPT-4o Aug", canonicalModelId: "gpt-4o")],
+            customName: "My Relay"
+        )
+        let ambiguous = TestFactories.makeProvider(
+            kind: .relay,
+            models: [
+                TestFactories.makeModel(id: "gpt-4o-2024-08-06", name: "GPT-4o Aug", canonicalModelId: "gpt-4o"),
+                TestFactories.makeModel(id: "gpt-4o-2024-11-20", name: "GPT-4o Nov", canonicalModelId: "gpt-4o")
+            ],
+            customName: "Other Relay"
+        )
+
+        let lookup = await MainActor.run {
+            ModelDisplayLookup(providers: [unique, ambiguous])
+        }
+
+        #expect(lookup.modelDisplayName(providerID: unique.id, modelID: "gpt-4o", fallback: "Fallback") == "GPT-4o Aug")
+        #expect(lookup.modelDisplayName(providerID: ambiguous.id, modelID: "gpt-4o", fallback: "Fallback") == "Fallback")
+        // A literal hit still wins.
+        #expect(lookup.modelDisplayName(providerID: ambiguous.id, modelID: "gpt-4o-2024-11-20", fallback: "Fallback") == "GPT-4o Nov")
+    }
 
     @Test("Context Length Prefers Metadata")
     func contextLengthPrefersMetadata() async throws {

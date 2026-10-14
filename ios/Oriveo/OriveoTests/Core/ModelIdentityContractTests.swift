@@ -11,6 +11,44 @@ struct ModelIdentityContractTests {
         let dedupeCases: [DedupeCase]
         let storedIdentifierCases: [StoredIdentifierCase]
         let sameRemoteCases: [SameRemoteCase]
+        let relayCases: RelayCases
+    }
+
+    /// Relay section: sameness is judged by the literal ID; date snapshots / canonical / display name do not take part.
+    private struct RelayCases: Decodable {
+        let providerKind: String
+        let sameRemoteCases: [RelaySameRemoteCase]
+        let lookupCases: [RelayLookupCase]
+        let storedIdentifierCases: [RelayStoredIdentifierCase]
+        let dedupeCases: [DedupeCase]
+        let readCompatCases: [RelayReadCompatCase]
+    }
+
+    private struct RelaySameRemoteCase: Decodable {
+        let id: String
+        let left: ContractModel
+        let right: ContractModel
+        let expected: Bool
+    }
+
+    private struct RelayLookupCase: Decodable {
+        let id: String
+        let query: String
+        let models: [ContractModel]
+        let expectedModelId: String?
+    }
+
+    private struct RelayStoredIdentifierCase: Decodable {
+        let id: String
+        let model: ContractModel
+        let expectedStoredModelId: String
+    }
+
+    private struct RelayReadCompatCase: Decodable {
+        let id: String
+        let storedModelId: String
+        let enabledModels: [ContractModel]
+        let expectedModelId: String?
     }
 
     private struct LookupCase: Decodable {
@@ -138,6 +176,76 @@ struct ModelIdentityContractTests {
             #expect(
                 result == testCase.expected,
                 "same remote \(testCase.id) expected \(testCase.expected), got \(result)"
+            )
+        }
+    }
+
+    @Test("relay same remote cases")
+    func relaySameRemoteCases() {
+        let kind = providerKind(from: Self.contract.relayCases.providerKind)
+        for testCase in Self.contract.relayCases.sameRemoteCases {
+            let left = makeModel(testCase.left)
+            let right = makeModel(testCase.right)
+            #expect(
+                ModelResolver.modelsShareSameRemoteModel(left, right, providerKind: kind) == testCase.expected,
+                "relay same remote \(testCase.id) expected \(testCase.expected)"
+            )
+            #expect(
+                ModelResolver.modelsShareSameRemoteModel(right, left, providerKind: kind) == testCase.expected,
+                "relay same remote (swapped) \(testCase.id) expected \(testCase.expected)"
+            )
+        }
+    }
+
+    @Test("relay lookup cases")
+    func relayLookupCases() {
+        let kind = providerKind(from: Self.contract.relayCases.providerKind)
+        for testCase in Self.contract.relayCases.lookupCases {
+            let provider = makeProvider(kind: kind, models: testCase.models)
+            let resolved = ModelResolver.matchingModel(for: testCase.query, in: provider)
+            #expect(
+                resolved?.id == testCase.expectedModelId,
+                "relay lookup \(testCase.id) expected \(testCase.expectedModelId ?? "nil"), got \(resolved?.id ?? "nil")"
+            )
+        }
+    }
+
+    @Test("relay stored identifier cases")
+    func relayStoredIdentifierCases() {
+        let kind = providerKind(from: Self.contract.relayCases.providerKind)
+        for testCase in Self.contract.relayCases.storedIdentifierCases {
+            let stored = ModelResolver.preferredStoredModelIdentifier(for: makeModel(testCase.model), providerKind: kind)
+            #expect(
+                stored == testCase.expectedStoredModelId,
+                "relay stored id \(testCase.id) expected \(testCase.expectedStoredModelId), got \(stored)"
+            )
+        }
+    }
+
+    @Test("relay dedupe cases")
+    func relayDedupeCases() {
+        let kind = providerKind(from: Self.contract.relayCases.providerKind)
+        for testCase in Self.contract.relayCases.dedupeCases {
+            let deduped = CatalogModelBuilder.deduplicate(testCase.models.map(makeModel), providerKind: kind)
+            #expect(
+                deduped.map(\.id) == testCase.expectedModelIds,
+                "relay dedupe \(testCase.id) expected \(testCase.expectedModelIds), got \(deduped.map(\.id))"
+            )
+        }
+    }
+
+    @Test("relay read compat cases")
+    func relayReadCompatCases() {
+        let kind = providerKind(from: Self.contract.relayCases.providerKind)
+        for testCase in Self.contract.relayCases.readCompatCases {
+            let resolved = ModelResolver.resolveStoredModel(
+                testCase.storedModelId,
+                in: testCase.enabledModels.map(makeModel),
+                providerKind: kind
+            )
+            #expect(
+                resolved?.id == testCase.expectedModelId,
+                "relay read compat \(testCase.id) expected \(testCase.expectedModelId ?? "nil"), got \(resolved?.id ?? "nil")"
             )
         }
     }

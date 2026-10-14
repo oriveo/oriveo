@@ -26,6 +26,7 @@ struct PushedRouteBackAffordanceTests {
         "Features/Skills/SkillEditView.swift",
         "Features/Backup/BackupView.swift",
         "Features/Providers/ProviderDetailView.swift",
+        "Features/Providers/RelayKeysPage.swift",
         "Features/Providers/ProviderSetupView.swift",
         "Features/Providers/ManualModelEntryView.swift",
         "Features/Providers/RelaySetupView.swift",

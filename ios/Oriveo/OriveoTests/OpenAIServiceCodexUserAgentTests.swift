@@ -97,6 +97,136 @@ struct OpenAIServiceCodexUserAgentTests {
         #expect(req.url?.path.hasSuffix("/responses") == true)
     }
 
+    // MARK: - prompt_cache_key (packyapi: a Responses request without this key gets a 403)
+
+    /// Sends one Relay chat and returns the intercepted request body.
+    private func capturedRelayChatBody(
+        relay: RelayRequestedConfig,
+        modelID: String = "golden-relay-model",
+        messages: [ChatMessage],
+        baseURL: String = "https://code.example.com/codex",
+        options: ChatRequestOptions = ChatRequestOptions(systemPrompt: "You are a golden fixture.")
+    ) async -> [String: Any]? {
+        CapturingProtocol.reset()
+        let service = OpenAIService(session: makeMockSession())
+        await drain(service.sendMessageStream(
+            apiKey: "test-key", modelID: modelID, messages: messages, baseURL: baseURL,
+            reasoningMode: .automatic, requestOptions: options, relayRequested: relay
+        ))
+        guard let body = CapturingProtocol.snapshot().bodies.first else { return nil }
+        return try? JSONSerialization.jsonObject(with: body) as? [String: Any]
+    }
+
+    private func makeAssistantMessage(_ text: String) -> ChatMessage {
+        ChatMessage(
+            id: UUID(), role: .assistant, text: text, providerKind: .relay,
+            providerName: "Relay", modelName: "test-model", state: .delivered
+        )
+    }
+
+    @Test("A Relay Responses chat body carries prompt_cache_key, and its value stays the same on the second turn of a conversation")
+    func relayResponsesBodyCarriesStablePromptCacheKey() async throws {
+        let relay = RelayRequestedConfig(transport: .openaiResponses, authMode: .bearer)
+        let first = try #require(await capturedRelayChatBody(relay: relay, messages: [makeMessage("Hello")]))
+        #expect(first["prompt_cache_key"] as? String == "2290bbc6e2bae08a11ede516e419f3c6")
+
+        let second = try #require(await capturedRelayChatBody(
+            relay: relay,
+            messages: [makeMessage("Hello"), makeAssistantMessage("Hi there"), makeMessage("And then?")]
+        ))
+        #expect(second["prompt_cache_key"] as? String == "2290bbc6e2bae08a11ede516e419f3c6")
+    }
+
+    @Test("No prompt_cache_key when codexCompatIdentity is false")
+    func relayResponsesWithoutCodexIdentityOmitsPromptCacheKey() async throws {
+        let off = RelayRequestedConfig(transport: .openaiResponses, authMode: .bearer, codexCompatIdentity: false)
+        let body = try #require(await capturedRelayChatBody(relay: off, messages: [makeMessage("Hello")]))
+        #expect(body["prompt_cache_key"] == nil)
+        #expect(CapturingProtocol.snapshot().requests.first?.value(forHTTPHeaderField: "Originator") == nil)
+
+        // auth=none likewise injects no identity headers, and the body gets no key either.
+        let noAuth = RelayRequestedConfig(transport: .openaiResponses, authMode: .none)
+        let noAuthBody = try #require(await capturedRelayChatBody(relay: noAuth, messages: [makeMessage("Hello")]))
+        #expect(noAuthBody["prompt_cache_key"] == nil)
+    }
+
+    @Test("A prompt_cache_key already set in the additional request body keeps the user's value")
+    func relayResponsesKeepsUserSuppliedPromptCacheKey() async throws {
+        var options = ChatRequestOptions(systemPrompt: "You are a golden fixture.")
+        options.localAdditionalRequestBody = AdditionalRequestBodyPayload(raw: #"{"prompt_cache_key":"user-own-key"}"#)
+        let body = try #require(await capturedRelayChatBody(
+            relay: RelayRequestedConfig(transport: .openaiResponses, authMode: .bearer),
+            messages: [makeMessage("Hello")], options: options
+        ))
+        #expect(body["prompt_cache_key"] as? String == "user-own-key")
+    }
+
+    @Test("Relay Chat Completions / Anthropic / Gemini bodies carry no prompt_cache_key")
+    func otherRelayTransportsOmitPromptCacheKey() async throws {
+        let chat = try #require(await capturedRelayChatBody(
+            relay: RelayRequestedConfig(transport: .openaiChatCompletions, authMode: .bearer),
+            messages: [makeMessage("Hello")], baseURL: "https://gateway.example.com/v1"
+        ))
+        #expect(chat["prompt_cache_key"] == nil)
+
+        let options = ChatRequestOptions(systemPrompt: "You are a golden fixture.")
+        CapturingProtocol.reset()
+        await drain(AnthropicService(session: makeMockSession()).sendMessageStream(
+            apiKey: "test-key", modelID: "golden-relay-model", messages: [makeMessage("Hello")],
+            baseURL: "https://gateway.example.com", reasoningMode: .automatic, requestOptions: options,
+            relayRequested: RelayRequestedConfig(transport: .anthropicMessages, authMode: .xApiKey)
+        ))
+        let anthropic = try #require(CapturingProtocol.snapshot().bodies.first)
+        #expect(!String(decoding: anthropic, as: UTF8.self).contains("prompt_cache_key"))
+
+        CapturingProtocol.reset()
+        await drain(GeminiService(session: makeMockSession()).sendMessageStream(
+            apiKey: "test-key", modelID: "golden-relay-model", messages: [makeMessage("Hello")],
+            baseURL: "https://gateway.example.com", reasoningMode: .automatic, webSearchEnabled: false,
+            supportsImageGen: false, requestOptions: options,
+            relayRequested: RelayRequestedConfig(transport: .geminiGenerateContent, authMode: .xGoogApiKey)
+        ))
+        let gemini = try #require(CapturingProtocol.snapshot().bodies.first)
+        #expect(!String(decoding: gemini, as: UTF8.self).contains("prompt_cache_key"))
+    }
+
+    @Test("A Responses ping body carries prompt_cache_key")
+    func pingRelayResponsesCarriesPromptCacheKey() async throws {
+        CapturingProtocol.reset()
+        CapturingProtocol.setResponse(contentType: "application/json", body: Data(#"{"id":"resp_1","output":[]}"#.utf8))
+        let service = OpenAIService(session: makeMockSession())
+        let result = try await service.pingRelay(
+            apiKey: "test-key", baseURL: "https://code.example.com/codex", modelID: "gpt-6-sol",
+            relayRequested: RelayRequestedConfig(transport: .openaiResponses, authMode: .bearer)
+        )
+        #expect(result.probedEndpoint == "POST /responses")
+        let body = try #require(CapturingProtocol.snapshot().bodies.first)
+        let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(json["prompt_cache_key"] as? String == "cd6af1a9ab51099a01ed5bf53656a023")
+
+        // With the identity headers turned off, the ping omits the key too.
+        CapturingProtocol.reset()
+        CapturingProtocol.setResponse(contentType: "application/json", body: Data(#"{"id":"resp_1","output":[]}"#.utf8))
+        _ = try await service.pingRelay(
+            apiKey: "test-key", baseURL: "https://code.example.com/codex", modelID: "gpt-6-sol",
+            relayRequested: RelayRequestedConfig(
+                transport: .openaiResponses, authMode: .bearer, codexCompatIdentity: false
+            )
+        )
+        let offBody = try #require(CapturingProtocol.snapshot().bodies.first)
+        #expect(!String(decoding: offBody, as: UTF8.self).contains("prompt_cache_key"))
+    }
+
+    @Test("The UA prefix is codex_cli_rs/0.162.1")
+    func responsesUserAgentCarriesCurrentCodexVersion() async throws {
+        _ = await capturedRelayChatBody(
+            relay: RelayRequestedConfig(transport: .openaiResponses, authMode: .bearer),
+            messages: [makeMessage("Hello")]
+        )
+        let request = try #require(CapturingProtocol.snapshot().requests.first)
+        #expect(request.value(forHTTPHeaderField: "User-Agent")?.hasPrefix("codex_cli_rs/0.162.1 ") == true)
+    }
+
     @Test("Codex subscription outbound includes web search and reasoning effort from upstream declarations")
     func codexSubscriptionSendsWebSearchAndReasoningEffort() async {
         // The subscription body must not hard-code tools and reasoning.effort to nil: that is
@@ -338,7 +468,12 @@ struct OpenAIServiceCodexUserAgentTests {
                 return
             }
             #expect(statusCode == 200)
-            #expect(detail.contains("HTML"))
+            // The detail is the localized production copy: take the key from production source instead of hand-copying sentence fragments.
+            guard let key = try? RelayGuidanceKeys.webPage() else {
+                Issue.record("could not find the web-page message key in BaseAPIService.rejectRelayWebPageSuccess")
+                return
+            }
+            #expect(detail == L10n.tr(key, table: .providers), "actual: \(detail)")
         } catch {
             Issue.record("expected ProviderServiceError, got \(error)")
         }
@@ -472,7 +607,7 @@ struct OpenAIServiceCodexUserAgentTests {
         }
     }
 
-    @Test("Responses transport + webSearchEnabled=true → body.tools defaults to web_search (no _preview) + image_generation")
+    @Test("Responses transport + webSearchEnabled=true → a relay no longer auto-mounts web_search from the preference; only image_generation is sent")
     func responsesBodyContainsWebSearchTool() async throws {
         CapturingProtocol.reset()
         let service = OpenAIService(session: makeMockSession())
@@ -500,17 +635,14 @@ struct OpenAIServiceCodexUserAgentTests {
             Issue.record("expected request body captured, got: \(snap.bodies.count) bodies")
             return
         }
-        // `web_search` is the current protocol name; `web_search_preview` is the legacy one and
-        // must not be sent by default.
+        // Web search is decided only by the connection-level fragment: the chat web preference
+        // no longer makes the builder mount web_search.
         let tools = json["tools"] as? [[String: Any]] ?? []
         let types = tools.compactMap { $0["type"] as? String }
-        #expect(types.contains("image_generation"), "default should include image_generation, got types=\(types)")
-        #expect(types.contains("web_search"), "should include web_search (default protocol name), got types=\(types)")
-        #expect(!types.contains("web_search_preview"), "default must not use legacy web_search_preview, got types=\(types)")
-        #expect(tools.count == 2, "should mount 2 tools (image_generation + web_search), got \(tools.count)")
+        #expect(types == ["image_generation"], "only image_generation expected, got types=\(types)")
     }
 
-    @Test("Responses transport + webSearchEnabled + supportsImageGeneration → body.tools contains both tools")
+    @Test("Responses transport + webSearchEnabled + supportsImageGeneration → body.tools has only image_generation")
     func responsesBodyContainsBothTools() async throws {
         CapturingProtocol.reset()
         let service = OpenAIService(session: makeMockSession())
@@ -542,9 +674,8 @@ struct OpenAIServiceCodexUserAgentTests {
         }
         let tools = json["tools"] as? [[String: Any]] ?? []
         let types = tools.compactMap { $0["type"] as? String }
-        #expect(types.contains("image_generation"), "tools should include image_generation, got types=\(types)")
-        #expect(types.contains("web_search"), "tools should include web_search (default protocol name), got types=\(types)")
-        #expect(tools.count == 2, "should mount 2 tools, got \(tools.count)")
+        #expect(types == ["image_generation"], "only image_generation expected, got types=\(types)")
+        #expect(tools.first?["model"] as? String == "gpt-image-2", "tool.model is still passed through")
     }
 
     @Test("Responses transport + webSearchEnabled=false → body.tools contains only the default image_generation")
@@ -579,7 +710,7 @@ struct OpenAIServiceCodexUserAgentTests {
         #expect(!types.contains("web_search_preview"), "must not inject web_search_preview when disabled, got types=\(types)")
     }
 
-    @Test("Responses transport + webSearchToolName=.webSearchPreview → emit the legacy protocol name (old-relay compat)")
+    @Test("Responses transport + webSearchToolName=.webSearchPreview → the builder no longer mounts a tool from it (it is only used when mapping legacy fields on read)")
     func responsesBodyUsesLegacyWebSearchPreview() async throws {
         CapturingProtocol.reset()
         let service = OpenAIService(session: makeMockSession())
@@ -613,8 +744,43 @@ struct OpenAIServiceCodexUserAgentTests {
         }
         let tools = json["tools"] as? [[String: Any]] ?? []
         let types = tools.compactMap { $0["type"] as? String }
-        #expect(types.contains("web_search_preview"), "selecting .webSearchPreview should emit the legacy name, got types=\(types)")
-        #expect(!types.contains("web_search"), "legacy selection must not emit the new protocol name, got types=\(types)")
+        #expect(types == ["image_generation"], "the builder does not mount a web tool from the preference, got types=\(types)")
+    }
+
+    /// The official cross-protocol route (`officialProtocolRoute`) shares the builder with relays. The
+    /// web-search change only affects the relay path: with web search on, the official route still
+    /// sends its original tool (Responses web_search / Gemini googleSearch).
+    @Test("Official cross-protocol route + webSearchEnabled → Responses still mounts web_search and Gemini still mounts googleSearch")
+    func officialForeignRouteKeepsWebTools() async throws {
+        let baseURL = "https://api.official.example/v1"
+        for transport in [RelayTransport.openaiResponses, .geminiGenerateContent] {
+            CapturingProtocol.reset()
+            let requested = RelayRequestedConfig(transport: transport, authMode: .bearer)
+            let scope = relayWebCapabilityScope(modelID: "gpt-5.4", baseURL: baseURL, relay: requested)
+            let services = ProviderServiceRouter.Services(session: makeMockSession())
+            func stream(official: Bool) -> AsyncThrowingStream<StreamEvent, Error> {
+                CapabilityEvidenceRequestContext.$current.withValue(scope.identity) {
+                    services.protocolStream(
+                        .init(transport: transport, baseURL: baseURL, requested: requested, isOfficialForeign: official),
+                        apiKey: "test-key", modelID: "gpt-5.4", messages: [makeMessage("what is the weather today")],
+                        reasoningMode: .automatic, webSearchEnabled: true, supportsImageGen: false,
+                        requestOptions: scope.options
+                    )
+                }
+            }
+            await drain(stream(official: true))
+            await drain(stream(official: false))
+            let bodies = CapturingProtocol.snapshot().bodies.compactMap {
+                try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
+            }
+            #expect(bodies.count == 2, "\(transport.rawValue): each route sends exactly one request")
+            guard bodies.count == 2 else { continue }
+            let officialText = String(decoding: try JSONSerialization.data(withJSONObject: bodies[0]), as: UTF8.self)
+            let relayText = String(decoding: try JSONSerialization.data(withJSONObject: bodies[1]), as: UTF8.self)
+            let marker = transport == .openaiResponses ? "\"web_search\"" : "googleSearch"
+            #expect(officialText.contains(marker), "the official route should keep its original web tool: \(officialText)")
+            #expect(!relayText.contains(marker), "the relay route does not mount a web tool from the preference: \(relayText)")
+        }
     }
 
     @Test("Responses transport + webSearchToolName=.disabled → do not emit a web_search tool even if web search is on")
@@ -810,10 +976,16 @@ struct OpenAIServiceCodexUserAgentTests {
             return
         }
         #expect(code == 403)
-        // Off the Responses protocol the Codex identity is never sent: point to the protocol type.
-        #expect(detail.contains(L10n.tr("Relay type", table: .providers)), "actual: \(detail)")
-        #expect(detail.contains(L10n.tr("OpenAI Responses compatible", table: .providers)), "actual: \(detail)")
-        #expect(!detail.contains(L10n.tr("Advanced HTTP", table: .providers)), "actual: \(detail)")
+        // Off the Responses protocol the Codex identity is never sent: point the user to this model's
+        // Advanced page to set the protocol to OpenAI Responses, not to switching the whole connection.
+        // The assertions run on the key that production maps back to.
+        guard let key = try? RelayGuidanceKeys.producing(detail) else {
+            Issue.record("not any relay guidance, actual: \(detail)")
+            return
+        }
+        #expect(key.contains(RelayGuidanceKeys.modelAdvancedPath), "actual: \(key)")
+        #expect(key.contains("set Protocol to OpenAI Responses"), "actual: \(key)")
+        #expect(!key.contains("Edit connection"), "actual: \(key)")
     }
 
     private func expectCodexStillRejectedGuidance(_ error: ProviderServiceError?) {
@@ -822,12 +994,15 @@ struct OpenAIServiceCodexUserAgentTests {
             return
         }
         #expect(code == 403)
-        #expect(detail.contains(L10n.tr("Connection settings", table: .providers)), "actual: \(detail)")
-        #expect(detail.contains(L10n.tr("Advanced HTTP", table: .providers)), "actual: \(detail)")
-        #expect(!detail.contains(L10n.tr("OpenAI Responses compatible", table: .providers)), "actual: \(detail)")
+        guard let key = try? RelayGuidanceKeys.producing(detail) else {
+            Issue.record("not any relay guidance, actual: \(detail)")
+            return
+        }
+        #expect(key.contains("Edit connection → Headers & query params"), "actual: \(key)")
+        #expect(!key.contains(RelayGuidanceKeys.modelAdvancedPath), "actual: \(key)")
     }
 
-    @Test("Production stream: a Codex identity 403 on Chat Completions points to the protocol type")
+    @Test("Production stream: a Codex identity 403 on Chat Completions points to changing this model's protocol")
     func chatCompletionsCodexIdentity403GuidesToProtocolType() async {
         CapturingProtocol.reset()
         CapturingProtocol.setResponse(
@@ -851,7 +1026,7 @@ struct OpenAIServiceCodexUserAgentTests {
         expectCodexSwitchTypeGuidance(error)
     }
 
-    @Test("Production ping: a Codex identity 403 on Chat Completions points to the protocol type")
+    @Test("Production ping: a Codex identity 403 on Chat Completions points to changing this model's protocol")
     func chatCompletionsPingCodexIdentity403GuidesToProtocolType() async {
         CapturingProtocol.reset()
         CapturingProtocol.setResponse(
@@ -1041,6 +1216,68 @@ struct OpenAIServiceCodexUserAgentTests {
         } else {
             Issue.record("expected .upstream 400 mapping, got \(err)")
         }
+    }
+
+    // MARK: - RL2-GUIDE-19 / 20 traced to the real call sites
+
+    /// The same body as the GUIDE-19/20 mapping cases in RelayErrorGuidanceTests.
+    private static let guide19And20Body = Data(#"{"error":{"message":"Only Codex official clients are allowed"}}"#.utf8)
+
+    /// The error thrown at the call site maps back to the guidance key that produced it; the expectations match the GUIDE-19/20 mapping cases in RelayErrorGuidanceTests.
+    private func expectStillRejectedGuidance(_ error: Error, _ name: String) throws {
+        let detail: String
+        switch error as? ProviderServiceError {
+        case let .upstream(_, text)?, let .invalidAPIKey(text)?: detail = text
+        default:
+            Issue.record("\(name): expected an error carrying guidance, got \(error)")
+            return
+        }
+        let key = try #require(try RelayGuidanceKeys.producing(detail), "\(name): not any guidance: \(detail)")
+        #expect(key.hasPrefix("This connection still rejects Oriveo's Codex client identity."), "\(name): \(key)")
+        #expect(key.contains("Providers → this connection → Edit connection → Headers & query params"), "\(name): \(key)")
+        #expect(!key.contains(RelayGuidanceKeys.modelAdvancedPath), "\(name): \(key)")
+        #expect(!key.contains("OpenAI Responses"), "\(name): \(key)")
+    }
+
+    @Test("RL2-GUIDE-19 call site syncProvider: a Codex identity 403 on the catalog sync /models points to \"still rejected → Headers & query params\"")
+    func RL2_GUIDE_19_syncProviderCallSiteCodexIdentity403() async throws {
+        CapturingProtocol.reset()
+        CapturingProtocol.setResponse(statusCode: 403, contentType: "application/json", body: Self.guide19And20Body)
+        defer { CapturingProtocol.reset() }
+        let service = OpenAIService(session: makeMockSession())
+        // The connection protocol is Chat: catalog sync does not depend on the model protocol, so the protocol is treated as unknown and the "still rejected" guidance applies.
+        let relay = RelayRequestedConfig(transport: .openaiChatCompletions, authMode: .bearer)
+
+        do {
+            _ = try await service.syncProvider(
+                apiKey: "test-key", preferredModelID: nil,
+                baseURL: "https://relay.example.com/v1", relayRequested: relay
+            )
+            Issue.record("RL2-GUIDE-19: the 403 should throw")
+        } catch {
+            try expectStillRejectedGuidance(error, "RL2-GUIDE-19 syncProvider")
+        }
+        #expect(CapturingProtocol.snapshot().requests.first?.url?.path.hasSuffix("/models") == true)
+    }
+
+    @Test("RL2-GUIDE-20 call site sendMessageViaImagesAPIForRelay: a Codex identity 403 on standalone image generation points to \"still rejected → Headers & query params\"")
+    func RL2_GUIDE_20_imagesAPICallSiteCodexIdentity403() async throws {
+        CapturingProtocol.reset()
+        CapturingProtocol.setResponse(statusCode: 403, contentType: "application/json", body: Self.guide19And20Body)
+        defer { CapturingProtocol.reset() }
+        let service = OpenAIService(session: makeMockSession())
+        let relay = RelayRequestedConfig(transport: .openaiChatCompletions, authMode: .bearer)
+
+        do {
+            _ = try await service.sendMessageViaImagesAPIForRelay(
+                apiKey: "test-key", modelID: "gpt-image-1", messages: [makeMessage("draw a cat")],
+                baseURL: "https://relay.example.com/v1", relayRequested: relay
+            )
+            Issue.record("RL2-GUIDE-20: the 403 should throw")
+        } catch {
+            try expectStillRejectedGuidance(error, "RL2-GUIDE-20 sendMessageViaImagesAPIForRelay")
+        }
+        #expect(CapturingProtocol.snapshot().requests.first?.url?.path.hasSuffix("/images/generations") == true)
     }
 }
 

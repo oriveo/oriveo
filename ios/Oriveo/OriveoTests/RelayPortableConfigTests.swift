@@ -107,6 +107,12 @@ struct RelayPortableConfigTests {
                     "\(item.caseId): \(key) is \(portable[key] ?? "<missing>")"
                 )
             }
+            // Keys absent from expect must really be absent from the outbound copy: comparing only the keys in expect
+            // would never catch "dropped what should be dropped" (e.g. an unparseable root that is percent-escaped and synced anyway).
+            #expect(
+                Set(portable.keys) == Set(expected.keys),
+                "\(item.caseId): outbound keys are \(portable.keys.sorted())"
+            )
             for entry in contract.localOnlyFields {
                 #expect(portable[entry.field] == nil, "\(item.caseId): \(entry.field) must never leave the device")
             }

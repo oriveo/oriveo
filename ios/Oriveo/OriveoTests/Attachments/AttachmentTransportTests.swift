@@ -37,6 +37,8 @@ final class AttachmentTransportTests: XCTestCase {
         case .openAIResponses: return row(.openAI, native: .always, emitsNative: true)
         case .codexSubscription, .relayOpenAIResponses:
             return row(.openAI, native: .alwaysWithTextFallback, emitsNative: true)
+        // The Grok subscription Responses builder sends input_file in the same shape as the Codex subscription, and falls back to text when rejected.
+        case .grokSubscription: return row(.grok, native: .alwaysWithTextFallback, emitsNative: true)
         case .anthropicMessages: return row(.anthropic, native: .always, emitsNative: true)
         case .relayAnthropicMessages: return row(.anthropic, native: .alwaysWithTextFallback, emitsNative: true)
         case .geminiGenerateContent: return row(.gemini, native: .always, emitsNative: true)
@@ -44,7 +46,7 @@ final class AttachmentTransportTests: XCTestCase {
         // Previously this skipped the delivery decision and dropped files entirely; now it only injects text, and the builder has no native file block branch.
         case .geminiInteractions: return row(.gemini, placeholder: textOnlyRouteImagePlaceholder)
         case .openRouterChat: return row(.openRouter, native: .always, emitsNative: true)
-        case .grokChat, .grokResponses, .grokSubscription: return row(.grok)
+        case .grokChat, .grokResponses: return row(.grok)
         // Routes that send only a string content: images arrive as a placeholder instead of being dropped silently.
         case .miniMaxChat, .miniMaxAnthropicWeb: return row(.miniMax, placeholder: textOnlyRouteImagePlaceholder)
         case .deepSeekChat: return row(.deepseek, placeholder: "[Image omitted: unsupported by DeepSeek]")
@@ -58,6 +60,9 @@ final class AttachmentTransportTests: XCTestCase {
         case .fireworksChat: return row(.fireworks)
         // The OpenRouter leg sends Chat Completions, so files are not downgraded to text just because tools are on.
         case .toolLoop(.openRouter): return row(.openRouter, native: .always, emitsNative: true)
+        // The tool-loop leg reuses the image placeholder of that provider's Chat route.
+        case .toolLoop(.deepseek): return row(.deepseek, placeholder: "[Image omitted: unsupported by DeepSeek]")
+        case .toolLoop(.miniMax): return row(.miniMax, placeholder: textOnlyRouteImagePlaceholder)
         case .toolLoop(let provider): return row(provider)
         }
     }
@@ -107,7 +112,7 @@ final class AttachmentTransportTests: XCTestCase {
         )
         XCTAssertEqual(
             Self.allTransports.filter { $0.profile.effectiveNativeFiles == .alwaysWithTextFallback },
-            [.codexSubscription, .relayOpenAIResponses, .relayAnthropicMessages, .relayGeminiGenerateContent]
+            [.codexSubscription, .relayOpenAIResponses, .relayAnthropicMessages, .relayGeminiGenerateContent, .grokSubscription]
         )
     }
 
@@ -116,6 +121,7 @@ final class AttachmentTransportTests: XCTestCase {
         let switches: [(AttachmentTransport, NativeFileMode)] = [
             (.openAIResponses, NativeFileUploadSwitch.openAIResponses),
             (.codexSubscription, NativeFileUploadSwitch.codexSubscription),
+            (.grokSubscription, NativeFileUploadSwitch.grokSubscription),
             (.relayOpenAIResponses, NativeFileUploadSwitch.relayOpenAIResponses),
             (.anthropicMessages, NativeFileUploadSwitch.anthropicMessages),
             (.relayAnthropicMessages, NativeFileUploadSwitch.relayAnthropicMessages),
@@ -133,6 +139,7 @@ final class AttachmentTransportTests: XCTestCase {
         }
         // Subscription and Relay routes not verified against the real provider: routed like direct ones, with a text fallback.
         XCTAssertEqual(NativeFileUploadSwitch.codexSubscription, .alwaysWithTextFallback)
+        XCTAssertEqual(NativeFileUploadSwitch.grokSubscription, .alwaysWithTextFallback)
         XCTAssertEqual(NativeFileUploadSwitch.relayOpenAIResponses, .alwaysWithTextFallback)
         XCTAssertEqual(NativeFileUploadSwitch.relayAnthropicMessages, .alwaysWithTextFallback)
         XCTAssertEqual(NativeFileUploadSwitch.relayGeminiGenerateContent, .alwaysWithTextFallback)
@@ -175,7 +182,7 @@ final class AttachmentTransportTests: XCTestCase {
         )
         XCTAssertEqual(direct.native.map(\.fileName), ["text.pdf", "scan.pdf", "memo.docx"])
 
-        for transport in [AttachmentTransport.relayAnthropicMessages, .relayOpenAIResponses, .relayGeminiGenerateContent, .codexSubscription] {
+        for transport in [AttachmentTransport.relayAnthropicMessages, .relayOpenAIResponses, .relayGeminiGenerateContent, .codexSubscription, .grokSubscription] {
             let plan = try AttachmentDelivery.deliver(
                 isOutgoingTurn: true, userText: "Q", attachments: files, transport: transport, model: model
             )

@@ -693,7 +693,7 @@ struct MetadataCatalogSplitTests {
                     connectionInstanceID: "connection",
                     connectionGeneration: "generation",
                     credentialEpoch: "credential",
-                    providerKind: item.providerKind.rawValue,
+                    providerKind: item.providerKind.rawValue, authMode: ProviderAuthMode.apiKey.rawValue,
                     modelID: match.modelID,
                     effectiveTransport: transport,
                     metadataRevision: client.syncMetadataETag(),

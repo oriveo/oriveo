@@ -40,7 +40,7 @@ final class GeminiInteractionsAttachmentTests: XCTestCase {
             try JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any]
         )
         let input = try XCTUnwrap(body["input"] as? [[String: Any]])
-        return input.map { (($0["parts"] as? [[String: Any]])?.first?["text"] as? String) ?? "" }
+        return input.map { (($0["content"] as? [[String: Any]])?.first?["text"] as? String) ?? "" }
     }
 
     func testFileAttachmentReachesTheRequestAsInjectedText() throws {
@@ -131,7 +131,8 @@ final class GeminiInteractionsAttachmentTests: XCTestCase {
         XCTAssertTrue(texts[2].contains("current-body"), texts[2])
     }
 
-    func testContinuationSendsOnlyTheLastTurnWithItsFile() throws {
+    /// There is no previous_interaction_id continuation, so every turn replays the full Step[]; the message being sent still carries its file.
+    func testEveryTurnIsReplayedInFullWithoutPreviousInteractionID() throws {
         let file = textFile("now.txt", content: "continued-body")
         let request = try GeminiService().buildInteractionsRequest(
             modelID: "gemini-3-flash",
@@ -141,13 +142,15 @@ final class GeminiInteractionsAttachmentTests: XCTestCase {
                 message(.user, "next", attachments: [file]),
             ],
             apiKey: "fixture-key", stream: false, recipe: try recipe(),
-            previousResponseID: "interaction-1",
             capabilityEvidenceModel: model()
         )
         let texts = try inputTexts(request)
-        XCTAssertEqual(texts.count, 1)
-        XCTAssertTrue(texts[0].hasPrefix("next"), texts[0])
-        XCTAssertTrue(texts[0].contains("continued-body"), texts[0])
+        XCTAssertEqual(texts.count, 3)
+        XCTAssertEqual(texts[0], "earlier")
+        XCTAssertTrue(texts[2].hasPrefix("next"), texts[2])
+        XCTAssertTrue(texts[2].contains("continued-body"), texts[2])
+        let body = String(decoding: try XCTUnwrap(request.httpBody), as: UTF8.self)
+        XCTAssertFalse(body.contains("previous_interaction_id"), body)
     }
 
     /// This route has a single text part per message: images stay out of the request, and a placeholder in the body tells the model an image was not delivered.
@@ -164,7 +167,7 @@ final class GeminiInteractionsAttachmentTests: XCTestCase {
         let body = try XCTUnwrap(
             try JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any]
         )
-        let parts = try XCTUnwrap((body["input"] as? [[String: Any]])?.first?["parts"] as? [[String: Any]])
+        let parts = try XCTUnwrap((body["input"] as? [[String: Any]])?.first?["content"] as? [[String: Any]])
         XCTAssertEqual(parts.count, 1)
         XCTAssertEqual(parts[0]["text"] as? String, "look\n\n[Image omitted: this route sends text only]")
         XCTAssertFalse(String(decoding: try XCTUnwrap(request.httpBody), as: UTF8.self).contains("aGk="))

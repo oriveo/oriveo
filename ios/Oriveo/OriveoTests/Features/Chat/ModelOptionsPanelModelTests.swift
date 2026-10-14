@@ -236,7 +236,7 @@ struct ModelOptionsPanelModelTests {
         )
     }
 
-    @Test("the summary only shows items changed in this conversation that will be sent: two chips at most, the rest only counted, in the order of the rows passed in")
+    @Test("the summary only shows items changed in this conversation that will be sent: two chips at most, the rest only counted, in the order of the rows passed in; temperature is its own row and not a chip")
     func advancedSummaryShowsSentConversationOverridesOnly() {
         var facts = Self.facts()
         facts.advancedRows = [
@@ -249,10 +249,11 @@ struct ModelOptionsPanelModelTests {
             Self.row("frequency_penalty", nil, source: .providerDecides),
         ]
         let advanced = ModelOptionsPanelModel.make(facts).advanced
-        #expect(advanced.chips.map(\.id) == ["temperature", "max_output_tokens"])
-        #expect(advanced.chips.map(\.value) == ["0.7", "4096"])
-        #expect(advanced.chips[0].title == GenerationParameterVocabulary.title("temperature"))
-        #expect(advanced.moreCount == 2)
+        // Temperature gets its own row in the parameter card, so the entry row's chips no longer repeat it.
+        #expect(advanced.chips.map(\.id) == ["max_output_tokens", "top_p"])
+        #expect(advanced.chips.map(\.value) == ["4096", "0.9"])
+        #expect(advanced.chips[0].title == GenerationParameterVocabulary.title("max_output_tokens"))
+        #expect(advanced.moreCount == 1)
     }
 
     @Test("nothing changed: no chips and no remaining count")

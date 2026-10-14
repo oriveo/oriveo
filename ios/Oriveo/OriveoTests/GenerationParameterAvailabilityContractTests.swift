@@ -96,14 +96,16 @@ struct GenerationParameterAvailabilityContractTests {
 
     @Test("Official And Relay Share The Same IA")
     func officialAndRelayShareTheSameIA() {
-        #expect(
-            ProviderSettingsRow.rows(hasEndpointOptions: false) == [.connection, .modelBehavior, .delete],
-            "settings-section IA drifted from three rows"
-        )
-        #expect(
-            ProviderSettingsRow.rows(hasEndpointOptions: true) == [.endpoint, .connection, .modelBehavior, .delete],
-            "settings-section IA drifted when the connection offers endpoint options"
-        )
+        let model = TestFactories.makeModel(id: Self.modelID)
+        for kind in [ProviderKind.openAI, .anthropic, .gemini, .deepseek] {
+            let provider = Self.makeProvider(kind: kind, model: model)
+            let rows = ProviderSettingsRow.rows(for: provider, hasEndpointOptions: false)
+            #expect(rows == [.connection, .parameters, .delete], "\(kind.rawValue): settings-section IA drifted from three rows")
+        }
+        // Relay keeps edit-connection and delete in the detail page header and bottom buttons,
+        // so only the parameters row remains.
+        let relay = Self.makeProvider(kind: .relay, model: model)
+        #expect(ProviderSettingsRow.rows(for: relay, hasEndpointOptions: false) == [.parameters])
     }
 
     // MARK: - Production-shaped inputs
@@ -180,7 +182,7 @@ struct GenerationParameterAvailabilityContractTests {
             connectionInstanceID: provider.id.uuidString,
             connectionGeneration: "connection-generation",
             credentialEpoch: "credential-epoch",
-            providerKind: ProviderKind.relay.rawValue,
+            providerKind: ProviderKind.relay.rawValue, authMode: ProviderAuthMode.apiKey.rawValue,
             modelID: model.id,
             canonicalModelID: model.canonicalModelId,
             effectiveTransport: RelayTransport.openaiChatCompletions.rawValue,

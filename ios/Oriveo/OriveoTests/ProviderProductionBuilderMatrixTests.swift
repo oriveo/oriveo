@@ -461,19 +461,19 @@ struct ProviderProductionBuilderMatrixTests {
         #expect(outcome.tracker.terminalResult().states["web"] == .unconfirmed)
     }
 
-    @Test("a non-empty Gemini Interactions google_search_result yields tool_result, and a url_citation in text_annotation_delta yields a source")
+    @Test("a Gemini Interactions google_search_result (is_error not true, result may be absent) yields tool_result, and a url_citation in text_annotation_delta yields a source")
     func geminiInteractionsSearchResultAndAnnotations() async throws {
         // Each signal stands on its own: a stream with only google_search_result shows that tool_result alone is enough.
         let searchOnly = try await Self.webEvidenceOutcome(
             providerKind: "gemini", transport: "gemini_generate_content",
-            recipeRef: "gemini.interactions.web.v1", modelID: "gemini-3-flash"
+            recipeRef: "gemini.interactions.web.v1", modelID: "gemini-3-flash", modelTransport: "gemini_interactions"
         ) { _, _ in
             Data("""
-            data: {"event_type":"step.delta","index":0,"delta":{"type":"google_search_result","call_id":"c1","is_error":false,"result":[{"url":"https://g.example/1","title":"G"}]}}
+            data: {"event_type":"step.delta","index":0,"delta":{"type":"google_search_result","signature":"...","is_error":false}}
 
             data: {"event_type":"step.delta","index":1,"delta":{"type":"text","text":"ok"}}
 
-            data: {"event_type":"interaction.complete","interaction":{"id":"i1","status":"completed"}}
+            data: {"event_type":"interaction.completed","interaction":{"id":"i1","status":"completed"}}
 
             """.utf8)
         }
@@ -483,14 +483,14 @@ struct ProviderProductionBuilderMatrixTests {
 
         let annotated = try await Self.webEvidenceOutcome(
             providerKind: "gemini", transport: "gemini_generate_content",
-            recipeRef: "gemini.interactions.web.v1", modelID: "gemini-3-flash"
+            recipeRef: "gemini.interactions.web.v1", modelID: "gemini-3-flash", modelTransport: "gemini_interactions"
         ) { _, _ in
             Data("""
             data: {"event_type":"step.delta","index":0,"delta":{"type":"text","text":"ok"}}
 
             data: {"event_type":"step.delta","index":0,"delta":{"type":"text_annotation_delta","annotations":[{"type":"url_citation","url":"https://g.example/1","title":"G","start_index":0,"end_index":2},{"type":"file_citation","document_uri":"files/x"}]}}
 
-            data: {"event_type":"interaction.complete","interaction":{"id":"i2","status":"completed"}}
+            data: {"event_type":"interaction.completed","interaction":{"id":"i2","status":"completed"}}
 
             """.utf8)
         }
@@ -498,17 +498,17 @@ struct ProviderProductionBuilderMatrixTests {
         #expect(annotated.citations.first?.title == "G")
         #expect(annotated.tracker.terminalResult().states["web"] == .observed)
 
-        // A failed or empty search and plain body text are not evidence.
+        // A failed search and plain body text are not evidence.
         let failed = try await Self.webEvidenceOutcome(
             providerKind: "gemini", transport: "gemini_generate_content",
-            recipeRef: "gemini.interactions.web.v1", modelID: "gemini-3-flash"
+            recipeRef: "gemini.interactions.web.v1", modelID: "gemini-3-flash", modelTransport: "gemini_interactions"
         ) { _, _ in
             Data("""
             data: {"event_type":"step.delta","index":0,"delta":{"type":"google_search_result","is_error":true,"result":[{"url":"https://g.example/1"}]}}
 
-            data: {"event_type":"step.delta","index":0,"delta":{"type":"google_search_result","result":[]}}
-
             data: {"event_type":"step.delta","index":1,"delta":{"type":"text","text":"ok"}}
+
+            data: {"event_type":"interaction.completed","interaction":{"id":"i3","status":"completed"}}
 
             """.utf8)
         }
@@ -553,6 +553,7 @@ struct ProviderProductionBuilderMatrixTests {
     /// service's own parsing path.
     private static func webEvidenceOutcome(
         providerKind: String, transport: String, recipeRef: String, modelID: String,
+        modelTransport: String? = nil,
         responder: @escaping (URLRequest, Data?) -> Data
     ) async throws -> WebEvidenceOutcome {
         let kind = try #require(localProviderKind(forServerKey: providerKind))
@@ -568,7 +569,7 @@ struct ProviderProductionBuilderMatrixTests {
             registry: registry,
             row: ProviderCoverage(
                 providerKind: baseRow.providerKind, transport: baseRow.transport,
-                selectorTransport: baseRow.selectorTransport, recipeRef: baseRow.recipeRef, modelId: modelID
+                selectorTransport: modelTransport ?? baseRow.selectorTransport, recipeRef: baseRow.recipeRef, modelId: modelID
             ),
             capabilityRecipeRefs: ["web": recipeRef]
         ))
@@ -1871,7 +1872,11 @@ struct ProviderProductionBuilderMatrixTests {
                   let kind = recipe["continuationKind"] as? String, kind != "none" else { return nil }
             return continuationAliases[key] ?? key
         })
-        #expect(Set(fixture.continuationRecipeCoverage.map(\.recipeRef)) == nonNone)
+        #expect(Set(fixture.continuationRecipeCoverage.filter { $0.continuationKind != "none" }.map(\.recipeRef)) == nonNone)
+        for row in fixture.continuationRecipeCoverage {
+            let recipe = registryRecipes[row.recipeRef] as? [String: Any]
+            #expect(recipe?["continuationKind"] as? String == row.continuationKind, "\(row.recipeRef) continuationKind does not match the registry")
+        }
 
         for row in fixture.continuationRecipeCoverage {
             let kind = try #require(Self.localProviderKind(forServerKey: row.providerKind))
@@ -1889,7 +1894,12 @@ struct ProviderProductionBuilderMatrixTests {
                     webSearchEnabled: row.capability == "web", reasoningMode: row.capability == "reasoning" ? .deep : .automatic,
                     continuationKind: row.continuationKind, parser: { $0 == row.responseParserKind }
                 )
-                #expect(runtimeSelected?.id == row.recipeRef, "\(row.recipeRef) failed parser/kind exact gate")
+                if row.continuationKind == "none" {
+                    // A recipe whose continuation is none has no continuation runtime to choose.
+                    #expect(runtimeSelected == nil, "\(row.recipeRef) continuation none must not select a continuation runtime")
+                } else {
+                    #expect(runtimeSelected?.id == row.recipeRef, "\(row.recipeRef) failed parser/kind exact gate")
+                }
 
                 await MetadataClient.shared.resetForTesting()
                 try await MetadataClient.shared.loadForTesting(json: try Self.continuationMetadata(
@@ -1957,6 +1967,28 @@ struct ProviderProductionBuilderMatrixTests {
                     provider: provider, session: session, modelID: row.modelId, messages: [producer],
                     options: producerOptions, webSearchEnabled: webEnabled, reasoningMode: reasoningMode
                 ) {}
+            }
+            // Continuation none (currently only Gemini Interactions): no sidecar is stored, and the next turn replays the full Step[] without previous_interaction_id.
+            if row.continuationKind == "none" {
+                #expect(try isolated.store.load(messageID: assistantID) == nil, "Interactions must not store a continuation sidecar")
+                let before = JoinedURLProtocol.capturedRequests().count
+                try await RecipeContinuationRuntime.withStore(isolated.store) {
+                    for try await _ in Self.sendStream(
+                        provider: provider, session: session, modelID: row.modelId,
+                        messages: [producer, partial, followUp], options: explicitOptions,
+                        webSearchEnabled: webEnabled, reasoningMode: reasoningMode
+                    ) {}
+                }
+                let followUps = JoinedURLProtocol.capturedRequests().dropFirst(before)
+                #expect(!followUps.isEmpty)
+                for request in followUps {
+                    let body = try #require(try JSONSerialization.jsonObject(with: request.body ?? Data()) as? [String: Any])
+                    #expect(body["previous_interaction_id"] == nil)
+                    #expect((body["input"] as? [Any])?.count == 3, "Interactions replays the full history every turn")
+                }
+                try isolated.store.dbPoolForTesting.close()
+                try FileManager.default.removeItem(at: isolated.directory)
+                continue
             }
             guard let produced = try isolated.store.load(messageID: assistantID) else {
                 Issue.record("\(row.recipeRef) produced no sidecar after its real stream parser")
@@ -2193,6 +2225,46 @@ struct ProviderProductionBuilderMatrixTests {
         #expect(doneText == String(repeating: "partial", count: 5))
     }
 
+    @Test("Gemini Interactions non-streaming and streaming reach the same terminal state and usage: failed / cancelled / requires_action throw even with body text, and an unknown status is treated as stream_closed")
+    func geminiInteractionsNonstreamTerminal() async throws {
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: try interactionsMetadataJSON())
+        defer { ProviderMatrixURLProtocol.responder = nil }
+        let service = GeminiService(session: providerMatrixSession())
+        let user = ChatMessage(id: UUID(), role: .user, text: "news", providerKind: .gemini,
+                               providerName: "Gemini", modelID: "gemini-interactions", modelName: "gemini-interactions", state: .delivered)
+        func body(_ status: String, usage: String = "") -> Data {
+            Data(#"{"id":"i","status":"\#(status)",\#(usage)"steps":[{"type":"model_output","content":[{"type":"text","text":"partial answer"}]}]}"#.utf8)
+        }
+        for (status, code) in [
+            ("failed", "interaction_failed"), ("cancelled", "interaction_cancelled"),
+            ("requires_action", "interaction_requires_action"), ("in_progress", "interaction_stream_closed"),
+        ] {
+            ProviderMatrixURLProtocol.responder = { _, _ in body(status) }
+            do {
+                _ = try await service.sendMessage(
+                    apiKey: "test-key", modelID: "gemini-interactions", messages: [user], webSearchEnabled: true
+                )
+                Issue.record("status=\(status) must throw even with body text")
+            } catch let error as ProviderServiceError {
+                #expect(error.technicalDetail.contains(code), "status=\(status): \(error.technicalDetail)")
+            }
+        }
+        let usage = #""usage":{"total_input_tokens":11,"total_cached_tokens":3,"total_output_tokens":16,"total_thought_tokens":5},"#
+        for status in ["completed", "incomplete"] {
+            ProviderMatrixURLProtocol.responder = { _, _ in body(status, usage: usage) }
+            let result = try await service.sendMessage(
+                apiKey: "test-key", modelID: "gemini-interactions", messages: [user], webSearchEnabled: true
+            )
+            #expect(result.text == "partial answer", "status=\(status)")
+            let breakdown = try #require(result.usageBreakdown)
+            #expect(breakdown.promptTokens == 8, "prompt excludes cached")
+            #expect(breakdown.cachedInputTokens == 3)
+            #expect(breakdown.completionTokens == 21, "completion = output + thought")
+            #expect(breakdown.reasoningTokens == 5)
+        }
+    }
+
     @Test("Gemini Interactions uses GA route and parses root/nonstream plus step.delta stream")
     func geminiInteractionsNetworkWire() async throws {
         await MetadataClient.shared.resetForTesting()
@@ -2208,9 +2280,11 @@ struct ProviderProductionBuilderMatrixTests {
             requests.append(.init(url: request.url, body: body))
             if (try? JSONSerialization.jsonObject(with: body ?? Data()) as? [String: Any])?["stream"] as? Bool == true {
                 return Data("""
+                event: step.delta
                 data: {"event_type":"step.delta","delta":{"type":"text","text":"stream"}}
 
-                data: {"interaction":{"id":"interaction_stream","status":"completed"}}
+                event: interaction.completed
+                data: {"event_type":"interaction.completed","interaction":{"id":"interaction_stream","status":"completed"}}
 
                 data: [DONE]
                 """.utf8)
@@ -2231,7 +2305,7 @@ struct ProviderProductionBuilderMatrixTests {
         #expect(streamed == "stream")
         #expect(requests.count == 2)
         for request in requests {
-            #expect(request.url?.absoluteString == "https://generativelanguage.googleapis.com/v1/interactions")
+            #expect(request.url?.absoluteString == "https://generativelanguage.googleapis.com/v1beta/interactions")
         }
         let nonstreamData = try #require(requests.first?.body)
         let streamingData = try #require(requests.last?.body)
@@ -2239,7 +2313,11 @@ struct ProviderProductionBuilderMatrixTests {
         let streaming = try #require(try JSONSerialization.jsonObject(with: streamingData) as? [String: Any])
         #expect(nonstream["stream"] as? Bool == false)
         #expect(streaming["stream"] as? Bool == true)
-        #expect((nonstream["input"] as? [[String: Any]])?.map { $0["role"] as? String } == ["user", "model"])
+        for body in [nonstream, streaming] {
+            #expect((body["input"] as? [[String: Any]])?.map { $0["type"] as? String } == ["user_input", "model_output"])
+            #expect(body["store"] as? Bool == false)
+            #expect(body["previous_interaction_id"] == nil)
+        }
 
         let activeRecipe = try #require(MetadataClient.shared.syncCapabilityRecipe(
             modelID: "gemini-interactions", providerKind: .gemini, capability: "web"
@@ -2303,12 +2381,12 @@ struct ProviderProductionBuilderMatrixTests {
         let recipes = try #require(registry["recipes"] as? [String: Any])
         let interactionsRecipe = try #require(recipes["gemini.interactions.web.v1"] as? [String: Any])
         #expect(interactionsRecipe["executionKind"] as? String == "endpoint_route")
-        #expect((interactionsRecipe["route"] as? [String: Any])?["path"] as? String == "/v1/interactions")
+        #expect((interactionsRecipe["route"] as? [String: Any])?["path"] as? String == "/v1beta/interactions")
         let document: [String: Any] = [
             "version": 1,
             "providers": ["gemini": [
                 "resolveMap": ["gemini-interactions": "gemini-interactions"],
-                "models": ["gemini-interactions": ["canonicalModelId": "gemini-interactions", "transport": "gemini_generate",
+                "models": ["gemini-interactions": ["canonicalModelId": "gemini-interactions", "transport": "gemini_interactions",
                                                        "capabilityControls": ["web": ["state": "auto_available", "recipeRef": "gemini.interactions.web.v1"]]]],
             ]],
             "capabilityRuntime": ["schemaVersion": 2, "revision": "interactions-test", "generatedAt": "2026-08-11T00:00:00Z",
@@ -2638,7 +2716,7 @@ struct ProviderProductionBuilderMatrixTests {
         .init(query: .init(
             partitionID: "matrix", connectionInstanceID: "matrix-connection",
             connectionGeneration: "matrix-generation", credentialEpoch: "matrix-credential",
-            providerKind: providerKind.rawValue, modelID: modelID,
+            providerKind: providerKind.rawValue, authMode: ProviderAuthMode.apiKey.rawValue, modelID: modelID,
             effectiveTransport: transport, now: 0, hasExplicitValue: true
         ))
     }

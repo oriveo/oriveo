@@ -55,11 +55,24 @@ struct ModelControlsPanelStructureTests {
     @Test("the capability card is drawn case by case from the shape, and the panel view holds no business criterion")
     func panelViewOnlyDrawsTheModel() throws {
         let panel = try Self.panelViewSource()
+        // The capability area is a 2x2 grid of four cards: each shape is first laid out as a card by
+        // `ModelOptionsTiles.tile(for:)` (top-right control, status line, small print), and the panel view only draws
+        // the cards and places the in-card control for each shape.
+        let layout = try Self.source(Self.modelControls + ["ModelControlCapabilityLayout.swift"])
+        let tileStart = try #require(layout.range(of: "static func tile(for row: ModelOptionsPanelModel.Row) -> Tile {"))
+        let tileEnd = try #require(layout.range(of: "// MARK: Vision", range: tileStart.upperBound..<layout.endIndex))
+        let tileSource = String(layout[tileStart.lowerBound..<tileEnd.lowerBound])
         for pattern in [
             "case let .toggle(toggle):", "case let .tiers(tiers):",
-            "case let .toggleWithTiming(toggle, timing):", "case let .notice(notice):",
+            "case let .toggleWithTiming(toggle, _):", "case let .notice(notice):",
             "case let .disclosure(disclosure):",
-            "case let .protocolUndecided(callout):", "case let .callout(callout):",
+            "case let .protocolUndecided(callout):",
+        ] {
+            #expect(tileSource.contains(pattern), "the four cards do not lay out this shape: \(pattern)")
+        }
+        for pattern in [
+            "case let .toggle(toggle):", "case let .tiers(tiers):",
+            "case let .toggleWithTiming(_, timing):", "case let .callout(callout):",
         ] {
             #expect(panel.contains(pattern), "the panel does not draw this shape: \(pattern)")
         }
@@ -172,7 +185,7 @@ struct ModelControlsPanelStructureTests {
     func onlyTwoRoutesAndNoNestedModal() throws {
         let sheet = try Self.source(Self.modelControls + ["ModelControlsSheet.swift"])
         #expect(sheet.contains(
-            "case modelBehavior\n    case additionalRequestBody\n    case supportedModels(capability: String)\n}"
+            "case parameters\n    case additionalRequestBody\n    case supportedModels(capability: String)\n}"
         ))
         // "Open additional request body" goes straight to the editor without passing through the advanced settings page.
         #expect(sheet.contains("case .openAdditionalRequestBody:\n            // Goes straight to the editor without passing through the advanced settings page; back returns to the panel.\n            path.append(.additionalRequestBody)"))
@@ -373,7 +386,7 @@ struct ModelControlsPanelStructureTests {
         #expect(sheet.contains("ModelControlsMissingModelSheet("))
         #expect(sheet.contains("L10n.tr(\"Web Search\", table: .chat)"))
         #expect(sheet.contains("L10n.tr(\"Thinking Mode\", table: .chat)"))
-        #expect(sheet.contains("L10n.tr(\"Advanced Settings\")"))
+        #expect(sheet.contains("L10n.tr(\"Parameters\", table: .providers)"))
         // The missing-model state keeps its bottom close bar; the main panel's close button is in the header.
         #expect(sheet.contains("ModelControlsCloseBar { dismiss() }"))
     }

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import Oriveo
 
@@ -146,28 +147,35 @@ struct ProviderCatalogSortingTests {
 
     @Test("Unweighted Open Router Vendors Sort Alphabetically")
     func unweightedOpenRouterVendorsSortAlphabetically() {
-        let provider = TestFactories.makeProvider(
-            kind: .relay,
-            models: [],
-            catalogModels: [
-                TestFactories.makeModel(
-                    id: "nvidia/llama-3.1-nemotron-super",
-                    name: "Nemotron Super",
-                    groupKey: "nvidia",
-                    groupName: "NVIDIA",
-                    sortRank: 100
-                ),
-                TestFactories.makeModel(
-                    id: "bytedance-seed/seed-1.6",
-                    name: "Seed 1.6",
-                    groupKey: "bytedance-seed",
-                    groupName: "ByteDance Seed",
-                    sortRank: 100
-                )
-            ]
+        // Three-platform rule: group ordering only consumes metadata.uiHints.rank and never branches on provider.kind.
+        // Relays now group by family, so feed the projection input directly and avoid the global MetadataClient.shared state.
+        // Two vendors, one model each with the same score -> equal groupScore -> alphabetical fallback (bytedance-seed < nvidia).
+        let catalog = [
+            TestFactories.makeModel(
+                id: "nvidia/llama-3.1-nemotron-super",
+                name: "Nemotron Super",
+                groupKey: "nvidia",
+                groupName: "NVIDIA",
+                sortRank: 100
+            ),
+            TestFactories.makeModel(
+                id: "bytedance-seed/seed-1.6",
+                name: "Seed 1.6",
+                groupKey: "bytedance-seed",
+                groupName: "ByteDance Seed",
+                sortRank: 100
+            )
+        ]
+        let input = ProviderCatalogProjectionInput(
+            providerID: UUID(),
+            providerKind: .openRouter,
+            providerDisplayName: "OpenRouter",
+            enabledModels: [],
+            catalogModels: catalog,
+            priorityScores: Dictionary(uniqueKeysWithValues: catalog.map { ($0.id, 100) })
         )
 
-        let groups = buildProviderCatalogGroups(for: provider, searchText: "")
+        let groups = projectProviderCatalogGroups(input: input, searchText: "")
 
         #expect(groups.map(\.id) == ["bytedance-seed", "nvidia"])
         #expect(groups.first?.models.map(\.name) == ["Seed 1.6"])
