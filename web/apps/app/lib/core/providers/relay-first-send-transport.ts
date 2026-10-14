@@ -39,3 +39,15 @@ export function relayFirstSendTransport(
   if (first !== 'anthropic_messages') return fallback;
   return options.messagesBlockedByFiles ? fallback : 'anthropic_messages';
 }
+
+/**
+ * Returns the first-send protocol when the model protocol is undecided but the first send switches to another protocol (Messages), otherwise undefined.
+ * The chat preference identity (`capabilityPreferenceIdentity`) uses it so the switch has somewhere to be stored before sending.
+ */
+export function relayUndecidedFirstSendTransport(
+  provider: Pick<Provider, 'id' | 'kind' | 'relayRequested'>,
+  model: Pick<AIModel, 'id' | 'relayTransport'>,
+): RelayModelTransport | undefined {
+  const first = relayFirstSendTransport(provider as Provider, model as AIModel);
+  return first !== effectiveTransport(provider as Provider, model as AIModel) ? first : undefined;
+}

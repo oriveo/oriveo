@@ -103,6 +103,7 @@ interface InputComposerProps {
   /** The only way forward when the relay protocol is undetermined: the panel does not route itself, ChatView pushes the provider detail page. */
   onOpenConnectionSettings?: () => void;
   onOpenConnectionWebSearch?: () => void;
+  onOpenRelayModelAdvanced?: () => void;
   /**
    * Primary action of the "not adjustable" row in the model behavior panel ("find models that
    * support this parameter"). The composer only forwards it; ChatView opens the model picker and
@@ -331,6 +332,7 @@ export function InputComposer({
   modelRemovedConnectionName,
   onOpenConnectionSettings,
   onOpenConnectionWebSearch,
+  onOpenRelayModelAdvanced,
   onFindModelsSupportingParameter,
   providerAttachmentSupport,
   providerKind,
@@ -817,6 +819,7 @@ export function InputComposer({
             onOpenModelSwitcher={onOpenModelSwitcher}
             onOpenConnectionSettings={onOpenConnectionSettings}
             onOpenConnectionWebSearch={onOpenConnectionWebSearch}
+            onOpenRelayModelAdvanced={onOpenRelayModelAdvanced}
             onFindModelsSupportingParameter={onFindModelsSupportingParameter}
             onOverrideChange={setHasModelBehaviorOverride}
             onClose={closeModelControls}

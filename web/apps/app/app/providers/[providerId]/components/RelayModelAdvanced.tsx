@@ -9,6 +9,7 @@ import {
   CheckCircleIcon,
   DatabaseIcon,
   EyeIcon,
+  GlobeIcon,
   HardDrivesIcon,
   ImageIcon,
   KeyIcon,
@@ -34,12 +35,13 @@ import {
 } from '../relay-model-advanced-board';
 import styles from './RelayModelAdvanced.module.css';
 
-/** Capability row icons and capability color tokens (eye / paperclip / image / wrench). */
+/** Capability row icons and capability color tokens (eye / paperclip / image / wrench / globe). */
 const CAP_ICONS: Record<RelayAdvancedCapabilityKey, { Icon: Icon; color: string }> = {
   image: { Icon: EyeIcon, color: 'var(--o-cap-vision)' },
   file: { Icon: PaperclipIcon, color: 'var(--o-cap-attachment)' },
   imageGeneration: { Icon: ImageIcon, color: 'var(--o-cap-image-gen-text)' },
   toolCall: { Icon: WrenchIcon, color: 'var(--o-cap-tools)' },
+  web: { Icon: GlobeIcon, color: 'var(--o-cap-web-search)' },
 };
 
 /** Source badge: database / scan / check-circle / hard-drives / user. */

@@ -750,6 +750,11 @@
   cursor: not-allowed;
 }
 
+/* Greyed-out switch (relay web search overridden off / rejected): the track fades and does not darken on hover. */
+.modelControlSwitch:disabled + .modelControlSwitchTrack {
+  opacity: 0.45;
+}
+
 .modelControlSwitch:disabled + .modelControlSwitchTrack {
   background: color-mix(in srgb, var(--o-text-disabled-on-control) 20%, var(--o-surface));
 }

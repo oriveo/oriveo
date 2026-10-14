@@ -75,6 +75,7 @@ import {
 import { RelayEditConnection } from './components/RelayEditConnection';
 import { RelaySettingsFailureCard } from './components/RelaySettingsFailureCard';
 import { buildRelaySettingsCandidate } from '../../../lib/core/provider-ops';
+import { relayWebProbeSource } from '../../../lib/core/relay-web-probe-ops';
 import {
   applyRelayKeyOperation,
   enableProviderModelWithProbe,
@@ -142,7 +143,7 @@ interface RelayDetailProps {
 }
 
 /** "Test capability" bottom panel: starts testing as soon as it is tapped; running -> done / interrupted. */
-type CapabilityTestPanelState = { modelName: string; state: RelayCapabilityTestPanelProps['state'] };
+type CapabilityTestPanelState = { modelName: string; modelID: string; state: RelayCapabilityTestPanelProps['state'] };
 
 export function RelayDetail({ provider }: RelayDetailProps) {
   const router = useRouter();
@@ -369,6 +370,7 @@ export function RelayDetail({ provider }: RelayDetailProps) {
     };
     setCapabilityTestPanel({
       modelName: model.name,
+      modelID: model.id,
       state: {
         transport: relayCapabilityTestTransport(provider, model) ?? 'chat',
         items,
@@ -378,6 +380,8 @@ export function RelayDetail({ provider }: RelayDetailProps) {
         running: { kind: 'text', startedAt: Date.now() },
         written: false,
         stopReason: null,
+        // Fragment source of the web item: no stored fragment = test with the protocol template (the template is the effective fragment).
+        webSource: relayWebProbeSource(provider, model),
       },
     });
     void runRelayCapabilityTest(getVanillaStore(), provider.id, model.id, {
@@ -396,6 +400,7 @@ export function RelayDetail({ provider }: RelayDetailProps) {
         running: null,
         written: result.written,
         stopReason: result.stopReason ?? null,
+        webSource: result.webSource ?? state.webSource,
       })))
       // Threw before writing: nothing was written, reported as "Interrupted: this model can no longer be tested". An error thrown after writing is handed out by the executor together with the results.
       .catch(() => update((state) => ({ ...state, phase: 'stopped', running: null, written: false, stopReason: 'unavailable' })))
@@ -418,6 +423,11 @@ export function RelayDetail({ provider }: RelayDetailProps) {
 
   useEffect(() => () => capabilityTestAbortRef.current?.abort(), []);
 
+  // Screenshot preset (dev builds only): once the injected save failure lands, focus the address (same address reveal as "Edit connection").
+  useEffect(() => {
+    if (relaySettingsSaveFailure && relayShotSeed()?.detail?.settingsFailure) setEndpointRevealVersion((version) => version + 1);
+  }, [relaySettingsSaveFailure]);
+
   // Screenshot preset (dev builds only): the advanced page opens with the capability-test panel already in its running state, built like the initial state of runCapabilityTest.
   const shotCapabilityTestAppliedRef = useRef(false);
   useEffect(() => {
@@ -426,6 +436,7 @@ export function RelayDetail({ provider }: RelayDetailProps) {
     shotCapabilityTestAppliedRef.current = true;
     setCapabilityTestPanel({
       modelName: advancedModel.name,
+      modelID: advancedModel.id,
       state: {
         transport: relayCapabilityTestTransport(provider, advancedModel) ?? 'chat',
         items: relayCapabilityTestPlan(advancedModel),

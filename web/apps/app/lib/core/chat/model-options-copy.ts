@@ -8,6 +8,7 @@ import type {
   AdvancedFamilyNote, AdvancedModeLabel, AdvancedSectionTitle,
 } from './advanced-settings-layout';
 import type { ReasoningRowWithoutWritePath } from './advanced-settings-reasoning';
+import type { RelayWebStatusId } from './relay-web-probe-records';
 import type { ChatTemplateThinkingState } from './chat-template-thinking';
 import type {
   GenerationParameterDisplayValue, GenerationParameterRow,
@@ -134,7 +135,9 @@ export const MODEL_OPTION_LINK_KEYS: Readonly<Record<ModelOptionLinkAction, stri
   openAdditionalRequestBody: 'common.openAdditionalBody',
   openConnectionProtocol: 'common.modelOptionsChooseProtocol',
   switchConnection: 'common.modelOptionsSwitchConnection',
-  openConnectionWebSearch: 'common.modelOptionsRelayWebOpenSettings',
+  // Retest exit after a stored fragment is rejected: Test again in Web Search.
+  openConnectionWebSearch: 'common.modelOptionsRelayWebRetest',
+  testCapabilities: 'pages.relayDetail.capabilityTest.action',
 };
 export const MODEL_OPTION_WEB_TIMING_KEYS: Readonly<Record<'automatic' | 'force', string>> = {
   automatic: 'common.modelOptionsWebWhenNeeded',
@@ -146,12 +149,19 @@ export const MODEL_OPTION_NOTICE_STATUS_KEYS: Readonly<Record<ModelOptionNoticeS
   modelDefault: 'common.modelOptionsUsesModelDefault',
   temporarilyUnavailable: 'common.modelOptionsNotAvailableYet',
   alwaysOn: 'common.modelOptionsAlwaysOn',
-  relayWebRejected: 'common.modelOptionsRelayWebRejected',
 };
-const RELAY_WEB_PROBE_STATUS_KEYS: Readonly<Record<'searched' | 'silent' | 'unverified', string>> = {
-  searched: 'common.modelOptionsRelayWebSearchConfirmed',
-  silent: 'common.modelOptionsRelayWebNoSearchInTest',
-  unverified: 'common.modelOptionsRelayWebSetUnverified',
+/**
+ * Relay web status row (fixture web-probe.v1.json presentationCases statusId) -> copy key.
+ * The model options web row and the web row on the model's Advanced page read the same table; web_user_on uses the source badge "Set by you".
+ */
+export const RELAY_WEB_STATUS_KEYS: Readonly<Record<RelayWebStatusId, string>> = {
+  web_probe_searched: 'common.modelOptionsRelayWebSearchConfirmed',
+  web_probe_silent: 'common.modelOptionsRelayWebNoSearchInTest',
+  web_probe_rejected: 'common.modelOptionsRelayWebRejected',
+  web_probe_unverified: 'common.modelOptionsRelayWebSetUnverified',
+  web_probe_untested: 'common.modelOptionsRelayWebUntested',
+  web_user_off: 'common.modelOptionsRelayWebUserOff',
+  web_user_on: 'pages.relayDetail.catalogStatusSetByYou',
 };
 export const MODEL_OPTION_PROTOCOL_UNDECIDED_KEYS = {
   title: 'common.modelOptionsChooseProtocolFirst',
@@ -169,8 +179,6 @@ export function modelOptionNoticeBodyCopy(body: ModelOptionNoticeBody): CopyRef 
     case 'customOnly':
     case 'notCatalogued': return { key: CAPABILITY_BODY_KEYS[body.kind][body.capability] };
     case 'subscriptionAlwaysSearches': return common('modelOptionsSubscriptionAlwaysSearches');
-    case 'relayWebManual': return common('modelOptionsRelayWebManualBody');
-    case 'relayWebRetest': return common('modelOptionsRelayWebRetest');
   }
 }
 
@@ -188,7 +196,6 @@ export function modelOptionDisclosureStatusCopy(status: ModelOptionDisclosureSta
     case 'cannotDoOnThisConnection': return common('modelOptionsConnectionCannot');
     case 'fixedByConnection': return common('capabilityControlFixedByConnection');
     case 'modelLacksCapability': return { key: CAPABILITY_BODY_KEYS.modelLacksCapability[capability] };
-    case 'relayWebProbe': return { key: RELAY_WEB_PROBE_STATUS_KEYS[status.result] };
     case 'currentValue': return modelOptionReadOnlyValueCopy(status.value);
   }
 }
@@ -237,7 +244,9 @@ export function modelOptionsTileStatusCopy(tile: ModelOptionsTile): CopyRef | un
   if (tile.kind === 'file') return { key: FILE_STATUS_KEYS[tile.state] };
   const row = tile.row;
   switch (row.kind) {
-    case 'toggle': return row.caption ? { key: MODEL_OPTION_CAPTION_KEYS[row.caption] } : undefined;
+    case 'toggle':
+      if (row.relayStatus) return { key: RELAY_WEB_STATUS_KEYS[row.relayStatus] };
+      return row.caption ? { key: MODEL_OPTION_CAPTION_KEYS[row.caption] } : undefined;
     case 'toggleWithTiming': return undefined;
     case 'tiers':
       if (row.selection) return reasoningTierLabelCopy(row.selection);

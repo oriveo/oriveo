@@ -341,6 +341,13 @@
   margin-top: var(--o-space-xs);
 }
 
+.relayWebReplyNotice {
+  margin: var(--o-space-xs) 0 0;
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .meta {
   display: flex;
   flex-direction: column;

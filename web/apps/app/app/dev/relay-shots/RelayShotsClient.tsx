@@ -6,6 +6,7 @@ import { setRelayShotSeed } from '../../../lib/dev/relay-shots-mode';
 import { safeLocalStorage } from '../../../lib/infra/storage/web-storage';
 import { ProviderDetailRouter } from '../../providers/[providerId]/ProviderDetailRouter';
 import { RelaySetup } from '../../providers/relay/new/RelaySetup';
+import { RelayModelOptionsHost } from './RelayModelOptionsHost';
 import { relayShotsFenceInstalled } from './relay-shots-fence';
 import { prepareRelayShot, type RelayShotDrive, type RelayShotPlan, type ShotsManifest } from './relay-shots-data';
 import type { RelayShotPage } from './relay-shots-pages';
@@ -84,6 +85,7 @@ export function RelayShotsClient({ page, manifest }: { page: RelayShotPage; mani
   }
   if (state.kind === 'preparing') return null;
   const { target } = state.plan;
+  if (target.kind === 'modelOptions') return <RelayModelOptionsHost providerId={target.providerId} modelId={target.modelId} />;
   return target.kind === 'detail'
     ? <ProviderDetailRouter providerId={target.providerId} />
     : <RelaySetup />;

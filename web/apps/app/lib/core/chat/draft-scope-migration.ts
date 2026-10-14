@@ -1,7 +1,7 @@
 import type { AIModel, Conversation, Provider } from '@oriveo/shared';
 import { providerControlsAreManaged } from './stream-options';
 import { generationParameterProfileFingerprint, migrateGenerationParameterSession } from './generation-parameter-settings';
-import { capabilityRuntimeIdentity, migrateCapabilityPreferenceDraft } from './capability-preference-settings';
+import { capabilityPreferenceIdentity, migrateCapabilityPreferenceDraft, relayWebPreferenceIdentity } from './capability-preference-settings';
 import { migrateAdditionalBodySession } from './additional-body-settings';
 
 /**
@@ -45,6 +45,10 @@ export function migrateDraftScopedModelControls(input: {
     fromConversationId: draftSessionId,
     toConversationId: conversationId,
   });
-  const identity = capabilityRuntimeIdentity(provider, model);
+  // Same identity the composer writes drafts under (relay without metadata falls back / undecided protocol uses the first-send protocol): if the two differ, the draft cannot be moved over.
+  const identity = capabilityPreferenceIdentity(provider, model);
   if (identity) migrateCapabilityPreferenceDraft(draftSessionId, { ...identity, conversationId });
+  // The relay web switch's draft record (fixed identity) moves to the real conversation with the first send.
+  const relayWebIdentity = relayWebPreferenceIdentity(provider, model);
+  if (relayWebIdentity) migrateCapabilityPreferenceDraft(draftSessionId, { ...relayWebIdentity, conversationId });
 }

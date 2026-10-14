@@ -719,10 +719,11 @@ export function buildProviderStreamOptions(
       runtimeRevision: recoveryIdentity.runtimeRevision,
     } } : {}),
     ...(mergedRecipeOmissions.length ? { capabilityRecipeOmissions: mergedRecipeOmissions } : {}),
-    // Connection-level web search fragment: one fragment taken by the transport actually dispatched this turn,
-    // independent of the chat web search preference; test capabilities and auxiliary requests drop it at the call site.
-    // It is not attached when the local probe record is rejected under the current fragment.
-    relayWebFragment: relayWebFragmentForChat(provider, model, merged.relayTransport),
+    // Relay web search: only while the chat switch is on (the web intent after the outbound gate) is the effective fragment of the protocol dispatched this turn attached (the stored one, or the template when none is stored);
+    // not attached when the user override is off or the current record is rejected (without a user override on). Not intersected with the transport envelope: relay web search relies on the fragment alone.
+    relayWebFragment: relayWebFragmentForChat(provider, model, merged.relayTransport, Boolean(options?.supportsWebSearch)),
+    // The switch is on this turn: a protocol fallback uses it to recompute the fragment for the target protocol, and it attaches the reply notice when the delivered request carried no fragment. Not part of the request body.
+    relayWebOn: options?.supportsWebSearch && model && !provider.relayRequested?.engineProfile ? true : undefined,
     ...resolveRelayImageRouting(
       provider,
       model,

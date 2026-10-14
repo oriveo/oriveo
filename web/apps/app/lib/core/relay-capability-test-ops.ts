@@ -27,8 +27,13 @@ import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credentia
 import { relayGenerationKeyStatus } from '@oriveo/core/providers/relay-key-access';
 import { recordRelayGenerationKeyStatus } from './providers/relay-key-access-writeback';
 import { withErrorReporting } from '../sentry/report-silent';
-import { relayWebFragmentForTransport } from './chat/relay-web-fragments';
-import { runRelayWebProbe, type RelayWebProbeStopReason } from './relay-web-probe-ops';
+import {
+  relayWebProbeSource,
+  relayWebProbeTransport,
+  runRelayWebProbe,
+  type RelayWebProbeSource,
+  type RelayWebProbeStopReason,
+} from './relay-web-probe-ops';
 
 /**
  * Relay user-initiated "test capability" (C3 section 3.6; fixture capability-test.v1.json):
@@ -39,7 +44,7 @@ import { runRelayWebProbe, type RelayWebProbeStopReason } from './relay-web-prob
  */
 
 export type RelayCapabilityTestItem = 'image' | 'toolCall';
-/** Items in the panel and results: text + vision + tool calling + web (the web item goes last when the first-send transport has a stored snippet). */
+/** Items in the panel and results: text + vision + tool calling + web (the web item goes last once the first-send protocol is decided). */
 export type RelayCapabilityTestPanelKind = 'text' | RelayCapabilityTestItem | 'web';
 export type RelayCapabilityTestStopReason = 'cancelled' | 'connection' | 'protocol' | 'unavailable';
 
@@ -80,6 +85,8 @@ export interface RelayCapabilityTestResult {
   /** Readings of image / toolCall (same shape as fixture expect.items). */
   items: Partial<Record<RelayCapabilityTestItem, RelayCapabilityTestVerdict>>;
   stopReason?: RelayCapabilityTestStopReason;
+  /** Fragment source of the web item when it is listed (template = the protocol's built-in template, not saved; the template is the effective fragment, so the result is written as an override as usual). */
+  webSource?: RelayWebProbeSource;
   /** A write-back happened (only in completed). */
   written: boolean;
   /** Error thrown after the write to the store (e.g. sync): the result still counts as written, and the error is handed out together. */
@@ -105,7 +112,7 @@ function canSendRelayCapabilityTest(provider: Provider, model: AIModel): boolean
 
 /**
  * Entry: a test can be sent, and vision and tools are not both already hand-selected by the user;
- * if both are hand-selected but the web item is listable (the first-send transport has a stored snippet), still provide the entry (unified across all three platforms).
+ * if both are hand-selected but the web item is listable (the first-send protocol is decided), still provide the entry (unified across all three platforms).
  */
 export function canTestRelayModelCapabilities(provider: Provider, model: AIModel): boolean {
   if (!canSendRelayCapabilityTest(provider, model)) return false;
@@ -116,14 +123,14 @@ export function canTestRelayModelCapabilities(provider: Provider, model: AIModel
 
 /**
  * Items to be tested: text always first; vision / tools only when not set by the user;
- * web last, listed only when the model's first-send transport has a stored snippet.
+ * web last, listed once the model's first-send protocol is decided (probeable and one of the four web protocols); when no fragment is stored, that protocol's template is used.
  */
 export function relayCapabilityTestPlan(model: AIModel, provider?: Provider): RelayCapabilityTestPanelKind[] {
   const plan: RelayCapabilityTestPanelKind[] = [
     'text',
     ...ITEMS.filter((item) => model.relayCapabilityOverrides?.[item]?.source !== 'user'),
   ];
-  if (provider && relayWebFragmentForTransport(provider, relayFirstSendTransport(provider, model))) plan.push('web');
+  if (provider && relayWebProbeTransport(provider, model)) plan.push('web');
   return plan;
 }
 
@@ -299,6 +306,7 @@ export async function runRelayCapabilityTest(
   const provider = findProvider(store, providerID);
   const model = provider?.models.find((item) => item.id === modelID);
   const plan = model ? relayCapabilityTestPlan(model, provider) : ['text', ...ITEMS] as RelayCapabilityTestPanelKind[];
+  const webSource = provider && model && plan.includes('web') ? relayWebProbeSource(provider, model) : undefined;
   const results: RelayCapabilityTestResults = {};
   const finish = (
     outcome: RelayCapabilityTestResult['outcome'],
@@ -306,6 +314,7 @@ export async function runRelayCapabilityTest(
   ): RelayCapabilityTestResult => ({
     outcome,
     plan,
+    ...(webSource ? { webSource } : {}),
     results: { ...results },
     items: Object.fromEntries(ITEMS.flatMap((item) => results[item] ? [[item, results[item]!.verdict]] : [])),
     written: false,
@@ -340,8 +349,9 @@ export async function runRelayCapabilityTest(
     if (kind === 'web') {
       // Manual web probe (web-probe.v1.json triggers): no cap, no de-duplication, not into the automatic history.
       const startedAt = now();
+      // Production uses the web probe's own judge-while-streaming send; an injected whole-body send (test double) is used only when given.
       const probe = await runRelayWebProbe(store, providerID, modelID, {
-        send,
+        ...(deps.send ? { send: deps.send } : {}),
         signal,
         ...(deps.deadlineMs !== undefined ? { deadlineMs: deps.deadlineMs } : {}),
         now,

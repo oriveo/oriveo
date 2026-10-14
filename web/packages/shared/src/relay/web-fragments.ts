@@ -1,8 +1,8 @@
 /**
  * Connection-level web-search fragments of a relay (capability spec: RELAY x web search).
  *
- * Each connection stores one JSON object per protocol; once stored it is always sent with every chat request of that protocol: merged into the request body after the builder produces it and
- * before the extra request body is attached. Only pure functions live here (template, validation, merge, referenced-profile derivation);
+ * Each connection stores one JSON object per protocol (not stored = that protocol's template); it is merged into the request body only while the chat web switch is on:
+ * after the builder produces it and before the extra request body is attached. Only pure functions live here (template, validation, merge, referenced-profile derivation);
  * storage is local to each client, and the read-time mapping of the legacy fields is in `legacy-web-search.ts`.
  * Fixture: `shared/test-fixtures/relay/web-fragment.v1.json`.
  */

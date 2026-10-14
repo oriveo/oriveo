@@ -53,7 +53,7 @@ import {
   type ModelOptionsCardActions,
 } from './ModelOptionsMainCards';
 import mainStyles from './ModelOptionsMainCards.module.css';
-import { capabilityRuntimeIdentity, saveCapabilityPreferences, type CapabilityWebPreference } from '../../lib/core/chat/capability-preference-settings';
+import { capabilityRuntimeIdentity, relayWebPreferenceIdentity, saveCapabilityPreferences, type CapabilityWebPreference } from '../../lib/core/chat/capability-preference-settings';
 import {
   customFragmentOwnerFacts,
   forwardPortCustomFragmentsIfNeeded,
@@ -158,6 +158,8 @@ export type ModelOptionsPopoverProps = {
   onOpenConnectionSettings?: () => void;
   /** The relay connection's web search settings page (detail `?view=web`). */
   onOpenConnectionWebSearch?: () => void;
+  /** The relay model's "Advanced" page (where capability tests live): the retest exit after the template is rejected. */
+  onOpenRelayModelAdvanced?: () => void;
   onFindModelsSupportingParameter?: (parameterId: string) => void;
   onOverrideChange?: (hasOverride: boolean) => void;
   /** Pane to open straight into (used by the error card's "edit" action). */
@@ -197,6 +199,7 @@ export function ModelOptionsPopover({
   onOpenModelSwitcher,
   onOpenConnectionSettings,
   onOpenConnectionWebSearch,
+  onOpenRelayModelAdvanced,
   onFindModelsSupportingParameter,
   onOverrideChange,
   initialPane,
@@ -427,8 +430,11 @@ export function ModelOptionsPopover({
         ...(reasoningIntent ? { reasoningIntent } : {}),
       },
     );
+    // The relay web switch reads the fixed identity; the model-default layer is also written under it.
+    const relayWebIdentity = provider && model ? relayWebPreferenceIdentity(provider, model) : null;
+    if (relayWebIdentity) saveCapabilityPreferences({ ...relayWebIdentity, scope: 'connection_model' }, { web: webLayout.effectiveSelection });
     setScopeUpgradeConfirmed(true);
-  }, [canPersist, reasoningIntent, runtimeIdentity, webLayout.effectiveSelection]);
+  }, [canPersist, model, provider, reasoningIntent, runtimeIdentity, webLayout.effectiveSelection]);
 
   /**
    * The confirmation sentence fades out with its row after 3 seconds. It is inline state rather
@@ -509,7 +515,7 @@ export function ModelOptionsPopover({
     availableIntents: webIntents,
     selectedIntent: webLayout.effectiveSelection,
     isWritable: canPersist && !webFacts.isActive,
-    // Relay web search only looks at connection-level fragments and the local probe record, the same decision as the outbound path.
+    // Relay web search is a chat switch: its shape, the outbound path and the badge read the same facts (first-send protocol fragment, local probe record, user override).
     ...(provider && providerFormOf(provider) === 'relay' ? { relayWeb: relayWebModelOptionFacts(provider, model) } : {}),
   };
   const reasoningInput: ModelOptionCapabilityInput = {
@@ -590,6 +596,7 @@ export function ModelOptionsPopover({
         case 'openConnectionProtocol': return Boolean(onOpenConnectionSettings);
         case 'switchConnection': return Boolean(onOpenModelSwitcher);
         case 'openConnectionWebSearch': return Boolean(onOpenConnectionWebSearch);
+        case 'testCapabilities': return Boolean(onOpenRelayModelAdvanced);
       }
     },
     follow: (link, capability) => {
@@ -599,6 +606,7 @@ export function ModelOptionsPopover({
         case 'openConnectionProtocol': onOpenConnectionSettings?.(); break;
         case 'switchConnection': onOpenModelSwitcher?.(); break;
         case 'openConnectionWebSearch': onOpenConnectionWebSearch?.(); break;
+        case 'testCapabilities': onOpenRelayModelAdvanced?.(); break;
       }
     },
     onToggle: (row, isOn) => {

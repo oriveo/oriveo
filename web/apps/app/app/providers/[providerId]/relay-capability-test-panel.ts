@@ -34,6 +34,9 @@ export interface RelayCapabilityTestPanelRow {
   trailing: RelayCapabilityTestPanelTrailing;
 }
 
+/** Fragment used by the web item probe: saved = the fragment stored for the first-send protocol; template = that protocol's built-in template (the effective fragment when none is stored). */
+export type RelayCapabilityTestWebSource = 'saved' | 'template';
+
 export interface RelayCapabilityTestPanelInput {
   transport: RelayCapabilityTestShortTransport;
   items: RelayCapabilityTestPanelKind[];
@@ -44,6 +47,8 @@ export interface RelayCapabilityTestPanelInput {
   running: { kind: RelayCapabilityTestPanelKind; elapsedMs: number } | null;
   written: boolean;
   stopReason: RelayCapabilityTestStopReason | null;
+  /** Defaults to saved; only affects the running subtitle. */
+  webSource?: RelayCapabilityTestWebSource;
 }
 
 export interface RelayCapabilityTestPanel {
@@ -137,6 +142,7 @@ export function relayCapabilityTestPanel(input: RelayCapabilityTestPanelInput): 
   const finished = items.filter((kind) => results[kind]).length;
   const textFailed = results.text !== undefined && results.text.verdict !== 'accepted';
   const written = phase === 'completed' && input.written;
+  const template = input.webSource === 'template';
 
   const rows = items.map((kind): RelayCapabilityTestPanelRow => {
     const title = TITLE[kind];
@@ -154,7 +160,7 @@ export function relayCapabilityTestPanel(input: RelayCapabilityTestPanelInput): 
         kind,
         title,
         icon: 'running',
-        subtitle: { key: RUNNING[kind] },
+        subtitle: { key: kind === 'web' && template ? `${P}runningWebDefault` : RUNNING[kind] },
         trailing: { kind: 'running', seconds: relayCapabilityTestSeconds(input.running.elapsedMs) },
       };
     }

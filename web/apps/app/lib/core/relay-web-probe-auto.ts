@@ -1,6 +1,6 @@
 import type { StoreApi } from 'zustand';
 import type { Provider } from '@oriveo/shared';
-import type { RelayWebFragments, RelayWebTransport } from '@oriveo/shared/relay/web-fragments';
+import { RELAY_WEB_FRAGMENT_TEMPLATES, isRelayWebTransport, type RelayWebFragments, type RelayWebTransport } from '@oriveo/shared/relay/web-fragments';
 import { relayWebFragmentHash } from '@oriveo/core/providers/relay-web-probe';
 import {
   pruneRelayWebProbeAutoHistory,
@@ -12,7 +12,11 @@ import type { AppStore } from './store/app-store';
 import { sameNormalizedID } from '../utils/id-utils';
 import { withErrorReporting } from '../sentry/report-silent';
 import { canProbeRelayModels } from './relay-model-probe-ops';
-import { dropRelayTestedWebOverride, relayWebProbeTransport, runRelayWebProbe } from './relay-web-probe-ops';
+import {
+  dropRelayTestedWebOverride,
+  relayWebProbeTransport,
+  runRelayWebProbe,
+} from './relay-web-probe-ops';
 import { effectiveRelayWebFragmentsForProvider, relayWebFragmentForTransport } from './chat/relay-web-fragments';
 import {
   appendRelayWebProbeAutoHistory,
@@ -123,8 +127,12 @@ export function runRelayWebAutoProbesAfterSave(
   if (!provider || !canProbeRelayModels(provider)) return;
   const before = fragmentHashes(previousFragments);
   const after = fragmentHashes(effectiveRelayWebFragmentsForProvider(provider));
+  // The comparison is on the effective fragment (stored, or the template when none is stored): saving a fragment equal to the template is not a change, and the tested web from the template probe stays.
+  const effectiveHash = (hashes: Partial<Record<string, string>>, transport: string) => hashes[transport]
+    ?? (isRelayWebTransport(transport) ? relayWebFragmentHash(RELAY_WEB_FRAGMENT_TEMPLATES[transport]) : undefined);
   const changed = new Set(
-    [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((transport) => before[transport] !== after[transport]),
+    [...new Set([...Object.keys(before), ...Object.keys(after)])]
+      .filter((transport) => effectiveHash(before, transport) !== effectiveHash(after, transport)),
   );
   if (changed.size > 0) {
     for (const model of provider.models) {

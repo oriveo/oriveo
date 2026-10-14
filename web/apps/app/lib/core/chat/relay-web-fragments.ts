@@ -3,8 +3,9 @@
  * (not in cloud sync or backups), deleted along with the connection. Effective fragment = if the store has any segment use only the store, otherwise map legacy fields at read time.
  * Fixture: `test-fixtures/relay/web-fragment.v1.json`.
  */
-import type { AIModel, Provider } from '@oriveo/shared';
+import type { Provider } from '@oriveo/shared';
 import {
+  RELAY_WEB_FRAGMENT_TEMPLATES,
   isRelayWebTransport,
   validateRelayWebFragment,
   type RelayWebFragment,
@@ -13,7 +14,6 @@ import {
   type RelayWebTransport,
 } from '@oriveo/shared/relay/web-fragments';
 import { effectiveRelayWebFragments } from '@oriveo/shared/relay/legacy-web-search';
-import { effectiveTransport } from '@oriveo/core/providers/relay-effective';
 import { safeLocalStorage } from '../../infra/storage/web-storage';
 import { getWebSearchProfile } from '../metadata/metadata-client';
 
@@ -119,10 +119,17 @@ export function relayWebFragmentForTransport(
   return effectiveRelayWebFragmentsForProvider(provider)[transport];
 }
 
-/** The single decision for relay web search (outbound, badge and panel read the same): the model's effective protocol has a fragment. */
-export function relayWebFragmentIsActive(
+/**
+ * Effective fragment of a protocol: the stored fragment, or that protocol's built-in template when none is stored; source says which one it is.
+ * The "current record" is a record whose hash equals its hash; with the chat switch on, the request merges this one too. A protocol outside the four web protocols -> undefined.
+ */
+export function relayEffectiveWebFragment(
   provider: Pick<Provider, 'id' | 'relayRequested'>,
-  model: Pick<AIModel, 'relayTransport'> | null | undefined,
-): boolean {
-  return relayWebFragmentForTransport(provider, effectiveTransport(provider, model)) !== undefined;
+  transport: string | undefined,
+): { fragment: RelayWebFragment; source: 'saved' | 'template' } | undefined {
+  if (!isRelayWebTransport(transport)) return undefined;
+  const saved = relayWebFragmentForTransport(provider, transport);
+  return saved
+    ? { fragment: saved, source: 'saved' }
+    : { fragment: structuredClone(RELAY_WEB_FRAGMENT_TEMPLATES[transport]) as RelayWebFragment, source: 'template' };
 }

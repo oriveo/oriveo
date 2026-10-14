@@ -2,6 +2,7 @@ import type { AIModel, Provider, RelayRequestedConfig } from '@oriveo/shared';
 import { effectiveTransport } from '@oriveo/core/providers/relay-effective';
 import { nearestAcceptedReasoningTier } from './capability-recovery-runtime';
 import type { ModelControlStatus } from './model-control-capability-layout';
+import { resolveRelayWebPresentation, type RelayWebFacts, type RelayWebStatusId } from './relay-web-probe-records';
 
 /**
  * What shape each row of the "Model options" capability card (web search / thinking) takes.
@@ -19,7 +20,9 @@ export type ModelOptionLinkAction =
   | 'openConnectionProtocol'
   | 'switchConnection'
   /** Web search settings page of a Relay connection. */
-  | 'openConnectionWebSearch';
+  | 'openConnectionWebSearch'
+  /** The relay model's "Advanced" page (where capability tests live): the retest exit after the template is rejected. */
+  | 'testCapabilities';
 
 export type ModelOptionCapabilityInput = {
   capability: ModelOptionCapability;
@@ -34,18 +37,14 @@ export type ModelOptionCapabilityInput = {
   supportsChatTemplate: boolean;
   /** Facts of a local-engine connection (one with an engineProfile); when present, the thinking row follows the write-path table, not the protocol. */
   localEngine?: ModelOptionLocalEngine;
-  /** Relay-form web search facts: when present, the web row looks only at the connection-level fragment, not the verdict state. */
+  /**
+   * Relay-form web search facts: when present, the web row is a chat switch (selectedIntent = the chat web
+   * preference already resolved through the default layer), shaped by the fixture presentationCases, not by the verdict state.
+   */
   relayWeb?: ModelOptionRelayWeb;
 };
 
-export type ModelOptionRelayWeb = {
-  /** Local-engine connection (has an engineProfile): no web search. */
-  localEngine: boolean;
-  /** The effective protocol has a connection-level web fragment (including legacy fields mapped at read time). */
-  hasFragment: boolean;
-  /** Result of the local web probe record for the current fragment; absent = not tested or the fragment changed. */
-  probe?: 'searched' | 'rejected' | 'silent';
-};
+export type ModelOptionRelayWeb = RelayWebFacts;
 
 /** Connection-level channel + model-level thinking declaration. */
 export type ModelOptionLocalEngine = {
@@ -73,20 +72,14 @@ export type ModelOptionTierFootnote =
   | { kind: 'costNote' };
 
 export type ModelOptionNoticeStatus =
-  | 'alwaysThinks' | 'needsOwnConfiguration' | 'modelDefault' | 'temporarilyUnavailable' | 'alwaysOn'
-  /** Relay web search: the upstream rejected the attached fragment, so chat no longer attaches it. */
-  | 'relayWebRejected';
+  | 'alwaysThinks' | 'needsOwnConfiguration' | 'modelDefault' | 'temporarilyUnavailable' | 'alwaysOn';
 
 export type ModelOptionNoticeBody =
   | { kind: 'fixedTier'; intent?: string }
   | { kind: 'customOnly'; capability: ModelOptionCapability }
   | { kind: 'notCatalogued'; capability: ModelOptionCapability }
   /** Web search the subscription upstream keeps always on: the user cannot turn it off. */
-  | { kind: 'subscriptionAlwaysSearches' }
-  /** Relay has no generic web search switch; it is configured in the connection's web search settings. */
-  | { kind: 'relayWebManual' }
-  /** After a Relay web rejection: go to the connection's web search page and test again. */
-  | { kind: 'relayWebRetest' };
+  | { kind: 'subscriptionAlwaysSearches' };
 
 export type ModelOptionReadOnlyValue =
   | { kind: 'webPreference'; preference: 'off' | 'automatic' | 'force' }
@@ -100,8 +93,6 @@ export type ModelOptionDisclosureStatus =
   | { kind: 'fixedByConnection' }
   /** Web search: "this model cannot search the web"; thinking: "this model has no thinking mode". */
   | { kind: 'modelLacksCapability' }
-  /** Relay web search: a fragment is configured; the status follows the local probe record (searched in the test / did not search in the test / unverified). */
-  | { kind: 'relayWebProbe'; result: 'searched' | 'silent' | 'unverified' }
   | { kind: 'currentValue'; value: ModelOptionReadOnlyValue };
 
 export type ModelOptionCapabilityShape =
@@ -112,6 +103,10 @@ export type ModelOptionCapabilityShape =
     target: ModelOptionToggleTarget;
     caption?: ModelOptionCaption;
     link?: ModelOptionLinkAction;
+    /** Greyed out (relay web search overridden off by the user). */
+    disabled?: boolean;
+    /** Status row of relay web search (replaces the caption). */
+    relayStatus?: RelayWebStatusId;
   }
   | {
     kind: 'toggleWithTiming';
@@ -241,25 +236,24 @@ export function modelOptionLocalEngine(
 }
 
 /**
- * Relay web search row (fixture presentationCases): local engine -> this connection cannot do it; protocol undecided -> choose a protocol first;
- * the effective protocol has a fragment -> "set by you", tap into web search settings; otherwise -> needs manual setup + open web search settings.
+ * Relay web search row (fixtures web-fragment.v1.json + web-probe.v1.json presentationCases): local engine -> this connection cannot do it;
+ * protocol undecided -> choose a protocol first; otherwise it is a chat switch: tappable (toggle) or greyed out (toggleDisabled + retest exit), with the status row following statusId.
  */
 function relayWebShape(input: ModelOptionCapabilityInput, relayWeb: ModelOptionRelayWeb): ModelOptionCapabilityShape {
   if (relayWeb.localEngine) return connectionCannot();
   if (input.protocolUndecided) return { kind: 'protocolUndecided', capability: 'web', link: 'openConnectionProtocol' };
-  if (relayWeb.hasFragment && relayWeb.probe === 'rejected') {
-    return {
-      kind: 'notice', capability: 'web', status: 'relayWebRejected',
-      body: { kind: 'relayWebRetest' }, link: 'openConnectionWebSearch',
-    };
-  }
-  if (relayWeb.hasFragment) {
-    const result = relayWeb.probe === 'searched' || relayWeb.probe === 'silent' ? relayWeb.probe : 'unverified';
-    return { kind: 'disclosure', capability: 'web', status: { kind: 'relayWebProbe', result }, link: 'openConnectionWebSearch' };
-  }
+  const selected = input.selectedIntent === AUTOMATIC || input.selectedIntent === 'force' || input.selectedIntent === 'off'
+    ? input.selectedIntent
+    : null;
+  const presentation = resolveRelayWebPresentation(relayWeb, selected);
   return {
-    kind: 'notice', capability: 'web', status: 'needsOwnConfiguration',
-    body: { kind: 'relayWebManual' }, link: 'openConnectionWebSearch',
+    kind: 'toggle',
+    capability: 'web',
+    isOn: presentation.isOn,
+    target: { kind: 'capabilityPreference', on: AUTOMATIC, off: 'off' },
+    relayStatus: presentation.statusId,
+    ...(presentation.row === 'toggleDisabled' ? { disabled: true } : {}),
+    ...(presentation.retestLink ? { link: presentation.retestLink } : {}),
   };
 }
 

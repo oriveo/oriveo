@@ -15,7 +15,7 @@ import type {
 } from '@oriveo/shared';
 import { formatApiKeyPreview, makeRelayRequested } from '@oriveo/shared';
 import { RELAY_IMPLICIT_KEY_ID } from '@oriveo/shared/relay/relay-keys';
-import type { RelayWebFragments, RelayWebTransport } from '@oriveo/shared/relay/web-fragments';
+import { RELAY_WEB_FRAGMENT_TEMPLATES, type RelayWebFragments, type RelayWebTransport } from '@oriveo/shared/relay/web-fragments';
 import { relayWebFragmentHash, type RelayWebProbeRecord } from '@oriveo/core/providers/relay-web-probe';
 import { RELAY_WEB_FRAGMENTS_STORAGE_KEY } from '../../../lib/core/chat/relay-web-fragments';
 import { RELAY_WEB_PROBE_RECORDS_STORAGE_KEY } from '../../../lib/core/chat/relay-web-probe-records';
@@ -27,6 +27,7 @@ import { buildRelayCapabilityBitmap } from '../../../lib/core/providers/relay-re
 import { toProviderError } from '../../../lib/core/providers/errors';
 import { beginCapabilityEvidenceIdentityIfAbsent } from '../../../lib/core/providers/capability-evidence-identity';
 import { getActiveUIDSync } from '../../../lib/infra/storage/partition';
+import { capabilityPreferenceIdentity, relayWebPreferenceIdentity, saveCapabilityPreferences } from '../../../lib/core/chat/capability-preference-settings';
 import type { RelayShotSeed } from '../../../lib/dev/relay-shots-mode';
 import type { RelayShotPage } from './relay-shots-pages';
 import { relayKeyNotice } from '../../providers/[providerId]/relay-keys-board';
@@ -45,7 +46,8 @@ export interface ShotsManifestKey {
 export interface ShotsManifestPage {
   name: string;
   host: 'relay' | 'local' | 'setup';
-  view: 'detail' | 'keys' | 'library' | 'advanced' | 'webSearch' | 'setup';
+  /** modelOptions = the production chat model options panel (expanded), for the model given by `model`. */
+  view: 'detail' | 'keys' | 'library' | 'advanced' | 'webSearch' | 'modelOptions' | 'setup';
   model?: string;
   connection?: { transport?: RelayRequestedConfig['transport']; modelTransports?: 'unset'; status?: 'unverified'; enabled?: string[] };
   preset?: {
@@ -63,8 +65,12 @@ export interface ShotsManifestPage {
     draftFromTemplate?: string[];
     /** Web fragments already stored before entering the page (per protocol; the capability test panel's web item needs a fragment on the first protocol). */
     webFragments?: RelayWebFragments;
-    /** Web probe records that already exist before entering the page (rejected area): the hash comes from the same-protocol webFragments, and `at` is the time the page opens. */
+    /** Web probe records that already exist before entering the page (rejected area): the hash comes from the effective fragment of the same protocol (webFragments, or that protocol's template when none is stored), and `at` is the time the page opens. */
     webProbeRecords?: Array<{ model: string; transport: RelayWebTransport; result: RelayWebProbeRecord['result']; source: RelayWebProbeRecord['source'] }>;
+    /** Web capability overrides on enabled models (the tested override written by a probe). */
+    webOverrides?: Array<{ model: string; value: boolean; source: NonNullable<RelayCapabilityOverrides['web']>['source'] }>;
+    /** Chat web preference: on = write "on" for this page's model through the production preference store. */
+    webPreference?: 'on';
     editConnection?: boolean;
     saveFailure?: { afterMs: number; httpStatus: number; reason: string; canSaveUnverified: boolean };
     setup?: {
@@ -207,13 +213,15 @@ function enabledRelayModels(manifest: ShotsManifest, entry: ShotsManifestPage): 
     .filter((item) => !only || only.includes(item.id))
     .map((item): AIModel => {
       const model: AIModel = { ...catalogModel(manifest, item.id), relayKeyID: keyID(manifest, item.key) };
+      const overrides: RelayCapabilityOverrides = {};
       if (item.capabilities) {
-        const overrides: RelayCapabilityOverrides = {};
         for (const [capability, value] of Object.entries(item.capabilities) as Array<[keyof typeof item.capabilities, boolean]>) {
           overrides[capability] = { value, source: item.capabilitySource! };
         }
-        model.relayCapabilityOverrides = overrides;
       }
+      const web = entry.preset?.webOverrides?.find((override) => override.model === item.id);
+      if (web) overrides.web = { value: web.value, source: web.source };
+      if (Object.keys(overrides).length > 0) model.relayCapabilityOverrides = overrides;
       // Leave the protocol unset when the manifest gives none (long names etc.): production drops a protocol without a source, and the chip follows the connection default.
       if (item.transport) return { ...model, relayTransport: item.transport, relayTransportSource: item.transportSource! };
       return model;
@@ -321,6 +329,8 @@ export function demoInvalidKeyError(manifest: ShotsManifest) {
 
 export type RelayShotTarget =
   | { kind: 'detail'; providerId: string; query: string }
+  /** The production chat model options panel (expanded); see RelayModelOptionsHost for the host. */
+  | { kind: 'modelOptions'; providerId: string; modelId: string }
   | { kind: 'setup' };
 
 /** DOM-driven steps: only click buttons that carry a data-testid on the production page. */
@@ -333,6 +343,8 @@ export interface RelayShotPlan {
   /** Key/values written to the in-memory localStorage before entering the page (in sample mode localStorage is an in-memory stand-in). */
   localStorage: Record<string, string>;
   drive: RelayShotDrive;
+  /** Chat web preferences (connection x model) written through the production capability preference store before entering the page. */
+  webPreferences: Array<{ providerId: string; modelId: string; web: 'automatic' }>;
   /** The manifest and page name that built this plan; applyRelayShotPlan uses them to set the fence fake upstream's data source and per-page replies. */
   manifest: ShotsManifest;
   page: RelayShotPage;
@@ -374,6 +386,7 @@ export function relayShotPlan(page: RelayShotPage, manifest: ShotsManifest): Rel
       target: { kind: 'setup' },
       seed: { setup: seed },
       localStorage: {},
+      webPreferences: [],
       drive: setup?.submit ? 'manualSubmit' : setup?.detect ? 'detect' : 'none',
       manifest,
       page,
@@ -423,7 +436,8 @@ export function relayShotPlan(page: RelayShotPage, manifest: ShotsManifest): Rel
     // Same shape as the production probe record storage; the hash must belong to a fragment already stored for the same protocol, otherwise production reads it as untested (a broken manifest throws instead of silently drawing an empty page).
     const at = new Date().toISOString();
     const entries = preset.webProbeRecords.map((record) => {
-      const fragment = preset.webFragments?.[record.transport];
+      // Effective fragment = the stored fragment, or that protocol's built-in template when none is stored (same as production relayEffectiveWebFragment); a protocol outside the four web protocols is an error.
+      const fragment = preset.webFragments?.[record.transport] ?? RELAY_WEB_FRAGMENT_TEMPLATES[record.transport];
       if (!fragment) throw new Error(`[relay-shots] webProbeRecords ${record.model} has no ${record.transport} fragment`);
       return {
         connectionId: manifest.relay.id,
@@ -437,15 +451,15 @@ export function relayShotPlan(page: RelayShotPage, manifest: ShotsManifest): Rel
     });
     storage[RELAY_WEB_PROBE_RECORDS_STORAGE_KEY] = JSON.stringify({ version: 1, entries });
   }
+  const providerId = entry.host === 'local' ? manifest.local.id : manifest.relay.id;
   return {
     providers: [demoRelayProvider(page, manifest), studioOllamaProvider(manifest)],
-    target: {
-      kind: 'detail',
-      providerId: entry.host === 'local' ? manifest.local.id : manifest.relay.id,
-      query: entry.host === 'local' ? '' : detailQuery(manifest, entry),
-    },
+    target: entry.view === 'modelOptions'
+      ? { kind: 'modelOptions', providerId, modelId: entry.model! }
+      : { kind: 'detail', providerId, query: entry.host === 'local' ? '' : detailQuery(manifest, entry) },
     seed: Object.keys(detail).length > 0 ? { detail } : {},
     localStorage: storage,
+    webPreferences: preset.webPreference === 'on' ? [{ providerId, modelId: entry.model!, web: 'automatic' }] : [],
     drive: 'none',
     manifest,
     page,
@@ -468,6 +482,15 @@ export function applyRelayShotPlan(plan: RelayShotPlan, store: StoreApi<AppStore
   store.setState({ lastUsedModelRef: null });
   const uid = getActiveUIDSync();
   for (const provider of plan.providers) beginCapabilityEvidenceIdentityIfAbsent(uid, provider.id);
+  // The chat web preference is written through the production store (connection x model layer, the same intent the panel's "on" writes); if the identity cannot be computed, fail instead of silently drawing a switch that is off.
+  for (const preference of plan.webPreferences) {
+    const provider = plan.providers.find((item) => item.id === preference.providerId);
+    const model = provider?.models.find((item) => item.id === preference.modelId);
+    // Fixed identity of the relay web switch.
+    const identity = provider && model ? relayWebPreferenceIdentity(provider, model) ?? capabilityPreferenceIdentity(provider, model) : null;
+    if (!identity) throw new Error(`[relay-shots] no capability preference identity for ${preference.modelId}`);
+    saveCapabilityPreferences({ ...identity, scope: 'connection_model' }, { web: preference.web });
+  }
 }
 
 /**

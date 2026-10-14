@@ -11,14 +11,14 @@ import { networkError, type ProviderError } from '../providers/errors';
 import { mapErrorKindKey } from '../../utils/chat-stream-utils';
 import { buildOutboundChatHistory, buildOutboundMessages } from './outbound-history';
 import { outboundHistoryHasVideo } from '../attachments/attachment-transport-resolver';
-import { relayFirstSendMessagesBlockedByFiles, relayNegativeCacheModelKey } from './relay-rejection-loop';
+import { relayFirstSendMessagesBlockedByFiles } from './relay-rejection-loop';
 import { processImageAttachments, backfillStorageRefs } from '../../utils/stream-image-utils';
 import { createUserMessage, createAssistantMessage } from './message-factory';
 import { upsertMessages } from './message-merge';
 import { deriveConversationMetadata, computeConversationActivityAt } from '../conversation-metadata';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent, filterGenerationParameterOverrides, filterRequestCapabilityIntent, providerControlsAreManaged } from './stream-options';
 import { generationParameterFallbackModelId, generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from './generation-parameter-settings';
-import { capabilityRuntimeIdentity, resolveCapabilityPreferences } from './capability-preference-settings';
+import { capabilityPreferenceIdentity, resolveCapabilityPreferences, resolveRelayWebPreference, type CapabilityPreferences } from './capability-preference-settings';
 import { migrateDraftScopedModelControls } from './draft-scope-migration';
 import { customFragmentFailurePatch } from './custom-fragment-rejection';
 import { customFragmentAllowedPaths } from './custom-fragment-allowed-paths';
@@ -26,6 +26,8 @@ import { additionalBodyFailurePatch } from './additional-body-rejection';
 import { forwardPortCustomFragmentsIfNeeded, resolveCustomFragments } from './custom-fragment-settings';
 import { withAdditionalBody } from './additional-body-settings';
 import { webPreferenceReachesTheWire } from './capability-control-presentation';
+import { relayWebProviderDefault, webSearchDispatched } from './relay-web-probe-records';
+import { relayWebReplyNoticeFor, setRelayWebReplyNotice } from './relay-web-reply-notice';
 import { getCapabilityRuntime } from '../metadata/metadata-client';
 import { resolveModelCapabilityEvidence } from './capability-evidence';
 import { trackEvent, telemetryProviderKind, telemetryModelID } from '../telemetry';
@@ -306,6 +308,8 @@ export function sendMessage(
   // Local-only pending marker: no sync/backup/telemetry. Completion removes a bare marker but
   // retains a complete captured tool block for an explicit later continue; refresh never resumes.
   void Promise.resolve(continuationSendStarted(finalConvId, assistantMsg.id)).catch(() => undefined);
+  // The web reply notice of this reply is recomputed from the actual outbound only on delivery (a failure attaches none).
+  setRelayWebReplyNotice(assistantMsg.id, null);
   // New conversation: both kinds of draft move together, all of it inside `migrateDraftScopedModelControls` (see its comment).
   migrateDraftScopedModelControls({
     provider,
@@ -439,7 +443,8 @@ export function sendMessage(
         // pre-drop values here: it would make lifecycle and request policy
         // diverge after metadata/identity changes.
       }) : undefined;
-      const capabilityIdentity = clientControlsAllowed ? capabilityRuntimeIdentity(provider, model) : null;
+      // A relay without metadata uses the fallback identity, so the web switch can still be sent.
+      const capabilityIdentity = clientControlsAllowed ? capabilityPreferenceIdentity(provider, model) : null;
       // Sending is a discrete event, so forward porting runs once here. Typed preferences are
       // ported by the read chain inside `resolveCapabilityPreferences`; local custom fields have
       // no such chain and must be ported explicitly.
@@ -448,11 +453,18 @@ export function sendMessage(
           provider, model, transportIdentity: capabilityIdentity.transportIdentity,
         });
       }
+      const singleSendPreferences = directContextDocuments.length > 0 || serverResearch ? { web: 'off' as const } : undefined;
       const storedCapabilityPreferences = clientControlsAllowed ? capabilityPreferences ?? (capabilityIdentity
-        ? resolveCapabilityPreferences({
+        ? withRelayWebPreference(resolveCapabilityPreferences({
           ...capabilityIdentity, conversationId: finalConvId, skillId,
-          singleSend: directContextDocuments.length > 0 || serverResearch ? { web: 'off' } : undefined,
-        })
+          singleSend: singleSendPreferences,
+          // Relay default layer: when nothing was ever set, a stored fragment on the first-send protocol turns web search on.
+          providerDefault: relayWebProviderDefault(provider, model),
+        }), resolveRelayWebPreference(provider, model, {
+          conversationId: finalConvId, ...(skillId ? { skillId } : {}),
+          ...(singleSendPreferences ? { singleSend: singleSendPreferences } : {}),
+          ...(relayWebProviderDefault(provider, model) ? { providerDefault: relayWebProviderDefault(provider, model) } : {}),
+        }))
         : undefined) : undefined;
       const resolvedCapabilityPreferences = storedCapabilityPreferences ? {
         ...storedCapabilityPreferences,
@@ -528,7 +540,8 @@ export function sendMessage(
       // Field boundary: provider_kind / model_id are reported as usual, since without them the
       // whole "web search usage per model" view falls apart; execution facts - recipe identifier,
       // requested/observed state, search terms, response evidence - never enter telemetry.
-      if (relayStreamOptions?.supportsWebSearch) {
+      // For a relay, "used" means the effective fragment was actually merged into this turn (webSearchDispatched).
+      if (webSearchDispatched(provider, relayStreamOptions)) {
         trackEvent('web_search_used', {
           provider_kind: telemetryProviderKind(provider.kind),
           model_id: telemetryModelID(provider.kind, model.id),
@@ -658,6 +671,7 @@ export function sendMessage(
       // atomically from the conversation snapshot taken after the round was written back, so
       // metadata such as messageCount matches the absolute delivered count. Failures and
       // interruptions sync nothing from the catch block.
+      const deliveredRelayOptions = pipeline.relaySentStreamOptions ?? relayStreamOptions;
       const syncConv = store.getState().conversations.find((c) => c.id === finalConvId);
       getSyncAdapter()?.didCompleteRound(latestUserMsg, deliveredAssistantMsg, finalConvId, syncConv, updatedCost);
       reportSendCompletion({
@@ -675,15 +689,15 @@ export function sendMessage(
         promptContext,
         sendStartedAt,
         completedAt,
-        // Take the transport and fragment from the request actually sent; if it differs from the first-send
-        // transport at the start of this turn (a protocol-level fallback), nothing is written.
+        // Take the transport and fragment from the request actually delivered (a protocol-level fallback is recorded under the protocol actually used).
         relayWebObservation: {
-          sentFragment: (pipeline.relaySentStreamOptions ?? relayStreamOptions)?.relayWebFragment,
-          transport: (pipeline.relaySentStreamOptions ?? relayStreamOptions)?.relayTransport,
-          firstSendTransport: relayNegativeCacheModelKey(provider, model, { messagesBlockedByFiles: relayMessagesBlockedByFiles })?.transport,
+          sentFragment: deliveredRelayOptions?.relayWebFragment,
+          transport: deliveredRelayOptions?.relayTransport,
           citations,
         },
       });
+      // Web switch on but the delivered request carried no fragment -> a one-line notice under the reply (kept in session memory only).
+      setRelayWebReplyNotice(assistantMsg.id, relayWebReplyNoticeFor(provider, deliveredRelayOptions));
       void Promise.resolve(continuationSendCompleted(finalConvId, assistantMsg.id)).catch(() => undefined);
 
       // Upload attachments asynchronously.
@@ -1023,4 +1037,12 @@ function generationParameterRejectionOf(error: unknown): { parameterId: string }
     : undefined;
   const parameterId = value && typeof value === 'object' ? (value as { parameterId?: unknown }).parameterId : undefined;
   return typeof parameterId === 'string' && parameterId ? { parameterId } : undefined;
+}
+
+/** The relay web switch reads the fixed identity: the web value resolved under the protocol-bearing identity is replaced by it; thinking levels are untouched. */
+function withRelayWebPreference(
+  preferences: CapabilityPreferences,
+  relayWeb: CapabilityPreferences['web'] | undefined,
+): CapabilityPreferences {
+  return relayWeb ? { ...preferences, web: relayWeb } : preferences;
 }

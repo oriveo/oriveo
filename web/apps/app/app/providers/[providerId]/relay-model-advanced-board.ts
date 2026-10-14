@@ -9,6 +9,12 @@ import {
   relayAutomaticReasoningLevels,
 } from '../../../lib/core/chat/capability-control-presentation';
 import { canTestRelayModelCapabilities } from '../../../lib/core/relay-capability-test-ops';
+import {
+  relayWebModelOptionFacts,
+  resolveRelayWebPresentation,
+  type RelayWebStatusId,
+} from '../../../lib/core/chat/relay-web-probe-records';
+import { RELAY_WEB_STATUS_KEYS } from '../../../lib/core/chat/model-options-copy';
 import { canRestoreAllRelayAutomatic, type RelayAdvancedCapabilityKey } from '../../../lib/core/relay-model-advanced-ops';
 import { localChannelDisplayName, setupProtocolForTransport, type SetupProtocol } from '../relay/new/setup-board';
 import { catalogCaps, enabledStatus, type RelayCatalogCapState } from './relay-catalog-board';
@@ -42,6 +48,7 @@ export const RELAY_ADVANCED_TEXT = {
     file: 'common.modelOptionsFilesTitle',
     imageGeneration: 'pages.relayDetail.advanced.imageGeneration',
     toolCall: 'pages.relayDetail.advanced.toolCalls',
+    web: 'pages.relayDetail.capabilityTest.panel.itemWeb',
   },
   state: {
     supported: 'pages.relayDetail.capabilityTest.supported',
@@ -86,7 +93,8 @@ export const RELAY_ADVANCED_SEGMENTS = [
 ] as const;
 export type RelayAdvancedSegment = typeof RELAY_ADVANCED_SEGMENTS[number];
 
-export const RELAY_ADVANCED_CAPS: readonly RelayAdvancedCapabilityKey[] = ['image', 'file', 'imageGeneration', 'toolCall'];
+/** Web search is listed after tool calling. */
+export const RELAY_ADVANCED_CAPS: readonly RelayAdvancedCapabilityKey[] = ['image', 'file', 'imageGeneration', 'toolCall', 'web'];
 
 export type RelayAdvancedSource = keyof typeof RELAY_ADVANCED_TEXT.source;
 export type RelayAdvancedControl = keyof typeof RELAY_ADVANCED_TEXT.control;
@@ -116,6 +124,8 @@ export interface RelayAdvancedCapabilityRow {
   cap: RelayAdvancedCapabilityKey;
   state: RelayCatalogCapState;
   stateKey: string;
+  /** Only the web row has this: status id (web-probe.v1.json presentationCases advanced.statusId); absent for local engines / undecided protocols (shown as Unknown). */
+  webStatusId?: RelayWebStatusId;
   source: RelayAdvancedSource | null;
   control: RelayAdvancedControl;
 }
@@ -284,8 +294,10 @@ function capabilityRows(provider: Provider, model: AIModel, now: number, isLocal
     imageGeneration: overrideState('imageGeneration')
       ?? ((model.capabilities ?? []).includes('imageGeneration') ? 'supported' : 'unknown'),
     toolCall: auto.tool as RelayCatalogCapState,
+    web: 'unknown',
   };
   return RELAY_ADVANCED_CAPS.map((cap) => {
+    if (cap === 'web') return webRow(provider, model, isLocal);
     const state = states[cap];
     const value = overrides?.[cap]?.value;
     return {
@@ -299,6 +311,33 @@ function capabilityRows(provider: Provider, model: AIModel, now: number, isLocal
       control: typeof value === 'boolean' ? (value ? 'on' : 'off') : 'auto',
     };
   });
+}
+
+/**
+ * Web row (fixture web-probe.v1.json presentationCases advanced): the status only looks at records valid for the effective fragment,
+ * source user (override) > tested (current record searched / rejected) > none; local engine / undecided protocol -> Unknown (the source only accepts user).
+ */
+function webRow(provider: Provider, model: AIModel, isLocal: boolean): RelayAdvancedCapabilityRow {
+  const value = model.relayCapabilityOverrides?.web?.value;
+  const userSet = model.relayCapabilityOverrides?.web?.source === 'user' && typeof value === 'boolean';
+  // Same convention as the other capability rows on the card: override true -> On, false -> Off (tested and user both count), no value -> Auto; choosing Auto clears the override.
+  const control: RelayAdvancedControl = typeof value === 'boolean' ? (value ? 'on' : 'off') : 'auto';
+  if (isLocal || decidedTransport(provider, model) === undefined) {
+    return {
+      cap: 'web', state: 'unknown', stateKey: RELAY_ADVANCED_TEXT.imageGenerationUnknown,
+      source: userSet ? 'user' : null, control,
+    };
+  }
+  const presentation = resolveRelayWebPresentation(relayWebModelOptionFacts(provider, model), null);
+  const { statusId, source } = presentation.advanced;
+  return {
+    cap: 'web',
+    state: statusId === 'web_probe_searched' ? 'supported' : statusId === 'web_probe_rejected' ? 'unsupported' : 'unknown',
+    stateKey: RELAY_WEB_STATUS_KEYS[statusId],
+    webStatusId: statusId,
+    source,
+    control,
+  };
 }
 
 /**
@@ -323,7 +362,7 @@ function sourceOf(
     return typeof declared === 'boolean' ? 'engine' : null;
   }
   const key = relayNegativeCacheModelKey(provider, model);
-  if (key && cap !== 'imageGeneration' && isRelayNegativeCached({ ...key, kind: cap }, now)) return 'detected';
+  if (key && cap !== 'imageGeneration' && cap !== 'web' && isRelayNegativeCached({ ...key, kind: cap }, now)) return 'detected';
   return state === 'supported' ? 'catalog' : null;
 }
 

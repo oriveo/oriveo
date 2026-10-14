@@ -7,7 +7,7 @@ import type {
 import { metadataTruthCandidates, type MetadataCandidateScope } from './official-truth-adapter';
 import { relayFirstSendTransport } from '../../providers/relay-first-send-transport';
 import { isRelayNegativeCached } from '../../chat/relay-negative-cache';
-import { relayWebModelOptionFacts } from '../../chat/relay-web-probe-records';
+import { relayWebModelOptionFacts, resolveRelayWebPresentation } from '../../chat/relay-web-probe-records';
 
 /**
   * Relay facts are bound to "this one connection": the same model name on another machine, with another key, or at another endpoint
@@ -120,9 +120,9 @@ function relayLocalFactCandidates(query: CapabilityTruthQuery): CapabilityEviden
 }
 
 /**
-  * Relay web truth (capability spec, RELAY x web): when the first-send protocol has a connection-level fragment, decide by the local probe record -
-  * the first-send protocol's record under the current fragment: searched -> supported, rejected -> unsupported, silent / untested / old hash -> unknown;
-  * with no fragment it is always unknown, and official web candidates from catalog matching do not count. Local engine connections have no web and fall back to the existing rules.
+ * Relay web truth (capability spec: RELAY x web; fixture web-probe.v1.json presentationCases truth):
+ * user override web (user source) > a record valid for the effective fragment (stored, or the template when none is stored) on the first-send protocol (searched -> supported, rejected -> unsupported) > unknown.
+ * The tested override is only a mirror of the record and does not count on its own; official web candidates from catalog matching do not count. Local engine connections have no web search and fall back to the existing rules.
  */
 function relayWebCandidates(
   query: CapabilityTruthQuery,
@@ -133,15 +133,15 @@ function relayWebCandidates(
   if (key !== undefined && key !== 'web_search') return candidates;
   const rest = candidates.filter((candidate) => candidate.key !== 'web_search');
   if (!relayIdentity || effectiveTransport === 'unknown') return rest;
-  // The fragment gate and the record both read the first-send protocol (same protocol as chat / probe); a hash different from the current fragment means untested.
-  const { hasFragment, probe } = relayWebModelOptionFacts(provider, model);
-  if (!hasFragment) return rest;
-  if (probe !== 'searched' && probe !== 'rejected') return rest;
+  const facts = relayWebModelOptionFacts(provider, model);
+  const { truth } = resolveRelayWebPresentation(facts, null);
+  if (truth === 'unknown') return rest;
+  const byUser = facts.userOverride !== undefined;
   return [...rest, {
     key: 'web_search',
-    support: probe === 'searched' ? 'supported' : 'unsupported',
-    source: 'relay_verification',
-    grade: 'observed',
+    support: truth,
+    source: byUser ? 'relay_declaration' : 'relay_verification',
+    grade: byUser ? 'declared' : 'observed',
     providerKind: 'relay',
     modelId: model.canonicalModelId ?? model.id,
     transport: effectiveTransport,

@@ -303,6 +303,11 @@ export interface StreamOptions {
    * tests and auxiliary requests do not, and neither do local engine connections.
    */
   relayWebFragment?: Record<string, unknown>;
+  /**
+   * The relay chat web switch is on this turn (the web intent after the outbound gate): a protocol fallback uses it to recompute the fragment for the target protocol,
+   * and it is how the reply notice is attached when the delivered request carried no fragment. Only present in relay (non-local-engine) chats while on; not part of the request body.
+   */
+  relayWebOn?: true;
   relayHeaderProfile?: 'none' | 'anthropic_v2023_06_01' | 'gemini_key';
   relayFamilyHint?: 'openai' | 'anthropic' | 'gemini' | 'unknown';
   /**

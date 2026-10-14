@@ -15,6 +15,8 @@ export const RELAY_SHOT_PAGES = [
   'relayCapabilityTestWeb',
   'relayWebSearch',
   'relayWebSearchRejected',
+  'relayModelOptionsWeb',
+  'relayModelOptionsWebRejected',
   'relayEdit',
   'relayEditFailure',
   'localEdit',

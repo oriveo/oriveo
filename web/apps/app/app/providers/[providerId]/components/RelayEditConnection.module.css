@@ -91,10 +91,11 @@
   padding: 10px 14px;
 }
 
+/* The icon is vertically centered against the whole "title + footnote" block, not pinned to the title row (layout: multi-line rows center the whole row). */
 .rowLead {
   display: flex;
   flex: 1;
-  align-items: flex-start;
+  align-items: center;
   gap: 14px;
   min-width: 0;
 }

@@ -71,6 +71,7 @@ import {
   userMessagePreview,
 } from "../../lib/core/chat/user-message-fold";
 import styles from "./MessageBubble.module.css";
+import { useRelayWebReplyNotice } from "../../lib/core/chat/relay-web-reply-notice";
 
 function hasActiveTextSelectionInside(element: HTMLElement): boolean {
   const selection = window.getSelection?.();
@@ -214,6 +215,8 @@ export const MessageBubble = memo(function MessageBubble({
   const tCommon = useTranslations("common");
   const tCtx = useTranslations("contextMenu");
   const tErrors = useTranslations("errors");
+  // Reply notice for relay web search: kept in session memory only, not a message field.
+  const relayWebNotice = useRelayWebReplyNotice(message.id);
   const libraryFeatureEnabled = isLibraryFeatureEnabled();
   const {
     editing,
@@ -759,6 +762,9 @@ export const MessageBubble = memo(function MessageBubble({
                   onSaveNote={handleSaveNote}
                 />
               )}
+            {relayWebNotice === 'web_not_used' && message.role === "assistant" && !isStreaming && !isFailed && (
+              <p className={styles.relayWebReplyNotice}>{tCommon("relayWebReplyNotUsed")}</p>
+            )}
             {showMeta && (
               <MessageMeta
                 providerName={resolvedProviderName}

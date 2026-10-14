@@ -128,7 +128,14 @@ export function ModelOptionsCapabilityCard({ model, actions, notes }: {
     switch (tile.corner) {
       case 'switch': {
         const row = tile.kind === 'capability' && (tile.row.kind === 'toggle' || tile.row.kind === 'toggleWithTiming') ? tile.row : undefined;
-        return row ? <Switch label={title} checked={row.isOn} onChange={(isOn) => actions.onToggle(row, isOn)} /> : null;
+        return row ? (
+          <Switch
+            label={title}
+            checked={row.isOn}
+            disabled={row.kind === 'toggle' && row.disabled === true}
+            onChange={(isOn) => actions.onToggle(row, isOn)}
+          />
+        ) : null;
       }
       case 'levels':
         return tile.kind === 'capability' && tile.row.kind === 'tiers'
@@ -269,7 +276,7 @@ export function ModelOptionsParametersCard({ model, onOpen }: { model: ModelOpti
   );
 }
 
-function Switch({ label, checked, onChange }: { label: string; checked: boolean; onChange: (isOn: boolean) => void }) {
+function Switch({ label, checked, disabled = false, onChange }: { label: string; checked: boolean; disabled?: boolean; onChange: (isOn: boolean) => void }) {
   return (
     <label className={styles.modelControlSwitchHit}>
       <input
@@ -278,6 +285,7 @@ function Switch({ label, checked, onChange }: { label: string; checked: boolean;
         className={styles.modelControlSwitch}
         aria-label={label}
         checked={checked}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
       />
       <span className={styles.modelControlSwitchTrack} aria-hidden="true">

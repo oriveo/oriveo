@@ -22,10 +22,11 @@ import { deriveConversationMetadata, computeConversationActivityAt } from '../co
 import { withErrorReporting } from '../../sentry/report-silent';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent, filterGenerationParameterOverrides, filterRequestCapabilityIntent, providerControlsAreManaged } from './stream-options';
 import { generationParameterFallbackModelId, generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from './generation-parameter-settings';
-import { capabilityRuntimeIdentity, resolveCapabilityPreferences } from './capability-preference-settings';
+import { capabilityPreferenceIdentity, resolveCapabilityPreferences, resolveRelayWebPreference } from './capability-preference-settings';
 import { forwardPortCustomFragmentsIfNeeded, resolveCustomFragments } from './custom-fragment-settings';
 import { withAdditionalBody } from './additional-body-settings';
 import { webPreferenceReachesTheWire } from './capability-control-presentation';
+import { relayWebProviderDefault, webSearchDispatched } from './relay-web-probe-records';
 import { getCapabilityRuntime } from '../metadata/metadata-client';
 import { withoutUnreceivableImages } from './attachment-policy';
 import { relayFirstSendMessagesBlockedByFiles } from './relay-rejection-loop';
@@ -234,7 +235,8 @@ export function continueAnswering(
         transient: transientGenerationParameters,
         reasoningMode,
       }) : undefined;
-      const capabilityIdentity = clientControlsAllowed ? capabilityRuntimeIdentity(provider, model) : null;
+      // A relay without metadata uses the fallback identity, so the web switch can still be sent.
+      const capabilityIdentity = clientControlsAllowed ? capabilityPreferenceIdentity(provider, model) : null;
       // Continuing an answer is a discrete event too. Typed preferences are advanced by the read
       // chain itself, while local custom fields are run explicitly once here.
       if (capabilityIdentity) {
@@ -242,11 +244,21 @@ export function continueAnswering(
           provider, model, transportIdentity: capabilityIdentity.transportIdentity,
         });
       }
-      const capabilityPreferences = capabilityIdentity ? resolveCapabilityPreferences({
+      const resolvedPreferences = capabilityIdentity ? resolveCapabilityPreferences({
         ...capabilityIdentity, conversationId: conversation.id,
         skillId: conversation.skillId,
         singleSend: directContextDocuments.length > 0 ? { web: 'off' } : undefined,
+        // Relay default layer: when nothing was ever set, a stored fragment on the first-send protocol turns web search on.
+        providerDefault: relayWebProviderDefault(provider, model),
       }) : undefined;
+      // The relay web switch reads the fixed identity; thinking levels still use the protocol-bearing identity.
+      const relayWeb = resolvedPreferences ? resolveRelayWebPreference(provider, model, {
+        conversationId: conversation.id,
+        ...(conversation.skillId ? { skillId: conversation.skillId } : {}),
+        ...(directContextDocuments.length > 0 ? { singleSend: { web: 'off' as const } } : {}),
+        ...(relayWebProviderDefault(provider, model) ? { providerDefault: relayWebProviderDefault(provider, model) } : {}),
+      }) : undefined;
+      const capabilityPreferences = resolvedPreferences && relayWeb ? { ...resolvedPreferences, web: relayWeb } : resolvedPreferences;
       const preliminaryOptions = clientControlsAllowed ? buildProviderStreamOptions(
         provider,
         buildStreamOptionsFromIntent(model, reasoningMode, directContextDocuments.length > 0 ? false : webSearchEnabled, unresolvedGenerationParameters, capabilityPreferences),
@@ -304,7 +316,8 @@ export function continueAnswering(
       // Field boundary: provider_kind / model_id are reported as registered, while execution
       // facts such as recipe identity, requested/observed state, search terms and response
       // evidence never enter telemetry.
-      if (providerStreamOptions?.supportsWebSearch) {
+      // For a relay, "used" means the effective fragment was actually merged into this turn (webSearchDispatched).
+      if (webSearchDispatched(provider, providerStreamOptions)) {
         trackEvent('web_search_used', {
           provider_kind: telemetryProviderKind(provider.kind),
           model_id: telemetryModelID(provider.kind, model.id),

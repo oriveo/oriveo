@@ -73,7 +73,10 @@ import { CUSTOM_FRAGMENT_SETTINGS_EVENT, customFragmentOwnerFacts, forwardPortCu
 import { CUSTOM_FRAGMENT_ERROR_KIND } from '../../lib/core/chat/custom-fragment-rejection';
 import type { ReasoningIntent } from '@oriveo/core/providers/request-preference/types';
 import { generationParameterProfileFingerprint } from '../../lib/core/chat/generation-parameter-settings';
-import { capabilityRuntimeIdentity, displayCapabilityPreferences, loadCapabilityPreferenceDraft, saveCapabilityPreferenceDraft, saveCapabilityPreferences, withCapabilityReasoningIntent } from '../../lib/core/chat/capability-preference-settings';
+import { relayWebPreferenceDefaultFor } from '../../lib/core/chat/relay-web-probe-records';
+import { readComposerCapabilityPreferences, writeComposerWebPreference } from '../../lib/core/chat/composer-web-preference';
+import { relayDetailPageQuery } from '../../app/providers/[providerId]/relay-detail-nav';
+import { capabilityPreferenceIdentity as resolveCapabilityPreferenceIdentity, capabilityRuntimeIdentity, displayCapabilityPreferences, saveCapabilityPreferenceDraft, saveCapabilityPreferences, withCapabilityReasoningIntent } from '../../lib/core/chat/capability-preference-settings';
 import { capabilityRejectionIsDormant, capabilityRejectionState, invokeCapabilityRecoveryRetry } from '../../lib/core/chat/capability-recovery-runtime';
 import { relayReasoningTierCacheKey, relayRejectedReasoningTiers } from '../../lib/core/chat/relay-reasoning-tiers';
 import { resolveChatCapabilityOutboundDecision } from '../../lib/core/chat/chat-capability-outbound-decision';
@@ -307,7 +310,8 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   // from state + reasonCode by the pure helpers in `model-control-capability-layout`
   // (`capabilityControlReasonMessageKey` is still used by the model list badges).
   const capabilityPreferenceIdentity = useMemo(
-    () => provider && currentModel ? capabilityRuntimeIdentity(provider, currentModel) : null,
+    // A relay with no metadata uses the fallback identity: the web switch can still be stored and read.
+    () => provider && currentModel ? resolveCapabilityPreferenceIdentity(provider, currentModel) : null,
     [metadataVersion, provider, currentModel],
   );
   // A missing identity no longer backfills a read-only reason here: an empty
@@ -381,15 +385,16 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
     reachesTheWire: boolean;
   } => {
     if (!provider || !currentModel) return { values: { web: 'off' }, reachesTheWire: false };
-    const identity = capabilityRuntimeIdentity(provider, currentModel);
+    const identity = resolveCapabilityPreferenceIdentity(provider, currentModel);
     // Reading follows the same ladder as sending, and the display layer does no final
     // collapsing: `resolveCapabilityPreferences` folds `provider_default` into a single
     // value for the outbound compiler, so copying it would render "never set" as a user
     // choice. `displayCapabilityPreferences` only answers which layer first really stored a value.
-    const values = identity
-      ? loadCapabilityPreferenceDraft(!effectiveId ? generationParameterDraftSessionId : undefined, identity)
-        ?? displayCapabilityPreferences({ ...identity, conversationId: effectiveId ?? undefined })
-      : { web: 'off' as const };
+    // Relay default layer: when nothing was ever set, a stored fragment on the first-send protocol
+    // turns web search on (resolved as the default layer only, no migration is written).
+    const values = readComposerCapabilityPreferences({
+      provider, model: currentModel, conversationId: effectiveId ?? undefined, draftSessionId: generationParameterDraftSessionId,
+    });
     return {
       values,
       // `web !== 'off'` only means the user expressed something. When this metadata has no
@@ -743,18 +748,17 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   }, [libraryResearchEnabled, readStoredWebIntent, setLibraryResearchEnabled]);
 
   const handleWebPreferenceChange = useCallback((next: 'off' | 'automatic' | 'force') => {
-    const input = capabilityPreferenceIdentity;
-    if (!input) return;
+    if (!capabilityPreferenceIdentity || !provider || !currentModel) return;
     setWebPreference(next);
     setWebSearchEnabled(next !== 'off');
     if (next !== 'off') {
       setLibraryResearchEnabled(false);
       setLibraryContextDocuments([]);
     }
-    const previous = displayCapabilityPreferences({ ...input, conversationId: effectiveId ?? undefined });
-    if (!effectiveId) saveCapabilityPreferenceDraft(generationParameterDraftSessionId, input, { ...previous, web: next });
-    else saveCapabilityPreferences({ ...input, scope: 'conversation_connection_model', conversationId: effectiveId }, { ...previous, web: next });
-  }, [capabilityPreferenceIdentity, effectiveId, generationParameterDraftSessionId, setLibraryResearchEnabled]);
+    writeComposerWebPreference({
+      provider, model: currentModel, conversationId: effectiveId ?? undefined, draftSessionId: generationParameterDraftSessionId,
+    }, next);
+  }, [capabilityPreferenceIdentity, currentModel, effectiveId, generationParameterDraftSessionId, provider, setLibraryResearchEnabled]);
 
   /**
    * Scoped-research toggle inside the panel. It no longer opens the entry point: the
@@ -1005,7 +1009,9 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
     setReasoningMode(next);
     setReasoningIntent(nextIntent);
     if (provider && currentModel) {
-      const previous = displayCapabilityPreferences({ ...identity, conversationId: effectiveId ?? undefined });
+      // Carry the relay default layer along: changing only thinking must not write a "never set -> on" web preference as off.
+      const defaultWeb = relayWebPreferenceDefaultFor(provider, currentModel);
+      const previous = displayCapabilityPreferences({ ...identity, conversationId: effectiveId ?? undefined, ...(defaultWeb ? { defaultWeb } : {}) });
       const nextPreferences = withCapabilityReasoningIntent(previous, nextIntent);
       if (!effectiveId) { saveCapabilityPreferenceDraft(generationParameterDraftSessionId, identity, nextPreferences); return; }
       const scope = 'conversation_connection_model';
@@ -1027,13 +1033,14 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
       if (!input) return;
       setReasoningMode('automatic');
       setReasoningIntent('off');
-      const previous = displayCapabilityPreferences({ ...input, conversationId: effectiveId ?? undefined });
+      const defaultWeb = relayWebPreferenceDefaultFor(provider, currentModel);
+      const previous = displayCapabilityPreferences({ ...input, conversationId: effectiveId ?? undefined, ...(defaultWeb ? { defaultWeb } : {}) });
       if (!effectiveId) saveCapabilityPreferenceDraft(generationParameterDraftSessionId, input, { ...previous, reasoningIntent: 'off' });
       else saveCapabilityPreferences({ ...input, scope: 'conversation_connection_model', conversationId: effectiveId }, { ...previous, reasoningIntent: 'off' });
       return;
     }
     handleReasoningModeChange(REASONING_MODE_BY_INTENT[intent ?? ''] ?? 'automatic');
-  }, [capabilityPreferenceIdentity, effectiveId, generationParameterDraftSessionId, handleReasoningModeChange]);
+  }, [capabilityPreferenceIdentity, currentModel, effectiveId, generationParameterDraftSessionId, handleReasoningModeChange, provider]);
 
   // ── Messages listener ──
   useEffect(() => {
@@ -1283,6 +1290,9 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         modelRemovedConnectionName={modelRemoval?.connectionName}
         onOpenConnectionSettings={provider ? () => router.push(`/providers/${provider.id}`) : undefined}
         onOpenConnectionWebSearch={provider ? () => router.push(`/providers/${provider.id}?view=web`) : undefined}
+        onOpenRelayModelAdvanced={provider && currentModel
+          ? () => router.push(`/providers/${provider.id}${relayDetailPageQuery({ view: 'advanced', modelID: currentModel.id, readOnly: false })}`)
+          : undefined}
         onFindModelsSupportingParameter={handleFindModelsSupportingParameter}
         providerAttachmentSupport={providerAttachmentSupport}
         providerKind={telemetryProviderKind(provider?.kind)}

@@ -2,7 +2,7 @@
 .summary, .option { width: 100%; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 /* Menu row (connection safety): the whole row is vertically centered */
 .summary { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 14px; border-radius: 10px; }
-.lead { display: flex; flex: 1; align-items: flex-start; gap: 14px; min-width: 0; }
+.lead { display: flex; flex: 1; align-items: center; gap: 14px; min-width: 0; }
 .trailing { display: flex; flex: 0 1 auto; align-items: center; gap: 6px; max-width: 55%; min-width: 0; color: var(--o-text-secondary); }
 .summary:hover:not(:disabled) { background: var(--o-bg-subtle); }
 .summary:disabled { cursor: not-allowed; opacity: .55; }

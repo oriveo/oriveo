@@ -23,7 +23,8 @@ import { clearRelayReasoningTierRejections } from './chat/relay-reasoning-tiers'
  * `models` and `catalogModels` are written together by id; persistence goes through `updateProvider`, the same path as per-model probing / capability testing.
  */
 
-export type RelayAdvancedCapabilityKey = 'image' | 'file' | 'imageGeneration' | 'toolCall';
+/** web = web search: the user source of the web override; Auto clears it (both user and tested). */
+export type RelayAdvancedCapabilityKey = 'image' | 'file' | 'imageGeneration' | 'toolCall' | 'web';
 
 /** Negative-cache tier to clear when an override is written as user; image generation has no tier. */
 const NEGATIVE_CACHE_KIND: Record<RelayAdvancedCapabilityKey, RelayNegativeCacheKind | null> = {
@@ -31,6 +32,7 @@ const NEGATIVE_CACHE_KIND: Record<RelayAdvancedCapabilityKey, RelayNegativeCache
   file: 'file',
   imageGeneration: null,
   toolCall: 'toolCall',
+  web: null,
 };
 
 function findProvider(store: StoreApi<AppStore>, providerID: string): Provider | undefined {

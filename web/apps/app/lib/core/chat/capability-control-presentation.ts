@@ -14,7 +14,7 @@ import { customFragmentOwnerFacts } from './custom-fragment-settings';
 import { modelControlWebReachesTheWire, resolveModelControlStatus } from './model-control-capability-layout';
 import { subscriptionFinalTransport } from './capability-preference-settings';
 import { providerFormOf } from '../capability/truth/provider-form';
-import { relayWebModelOptionFacts } from './relay-web-probe-records';
+import { relayWebModelOptionFacts, resolveRelayWebPresentation } from './relay-web-probe-records';
 import { relayAutomaticReasoningIntents } from './relay-reasoning-tiers';
 
 export type CapabilityControlPresentation = {
@@ -214,14 +214,14 @@ export function presentCapabilityControl(
   };
 }
 
-/** Relay web search is decided by the connection-level fragment: once saved it is always sent and there is no chat switch, like custom_only "effective once saved". */
-export const RELAY_CONNECTION_WEB_FRAGMENT_REASON = 'relay_connection_web_fragment';
+/** Relay web search is a chat switch: the switch is tappable, and outbound attaches the effective fragment of the first-send protocol (the stored one, or the template when none is stored). */
+export const RELAY_CONNECTION_WEB_TOGGLE_REASON = 'relay_connection_web_toggle';
+/** Relay web switch greyed out: only when the user override is off (a rejected current record does not grey it out). */
+export const RELAY_CONNECTION_WEB_BLOCKED_REASON = 'relay_connection_web_blocked';
 
 /**
- * Web verdict for a relay (not a local engine): a connection-level fragment for the first-send protocol means
- * custom_only (always sent); otherwise unknown. A probe record of rejected under the current fragment counts as
- * "no valid fragment" (chat does not attach it either).
- * Official recipes are not read: a relay's web truth is only the fragment the user saved.
+ * Web verdict for a relay (not a local engine; fixture web-probe.v1.json presentationCases row): toggle -> unknown (configurable, outbound follows the switch),
+ * toggleDisabled -> unavailable. Official recipes are not read: a relay's web search comes only from fragments (capability spec: RELAY x web).
  */
 function relayConnectionWebControl(
   provider: Provider | undefined,
@@ -230,10 +230,10 @@ function relayConnectionWebControl(
 ): CapabilityControlPresentation | undefined {
   if (capability !== 'web' || !provider || !model || providerFormOf(provider) !== 'relay') return undefined;
   if (provider.relayRequested?.engineProfile) return undefined;
-  const { hasFragment, probe } = relayWebModelOptionFacts(provider, model);
-  return hasFragment && probe !== 'rejected'
-    ? { state: 'custom_only', availableIntents: [], reasonCode: RELAY_CONNECTION_WEB_FRAGMENT_REASON, viaLegacyProfile: false }
-    : { state: 'unknown', availableIntents: [], reasonCode: 'relay_connection_web_not_configured', viaLegacyProfile: false };
+  const { row } = resolveRelayWebPresentation(relayWebModelOptionFacts(provider, model), 'automatic');
+  return row === 'toggle'
+    ? { state: 'unknown', availableIntents: [], reasonCode: RELAY_CONNECTION_WEB_TOGGLE_REASON, viaLegacyProfile: false }
+    : { state: 'unavailable', availableIntents: [], reasonCode: RELAY_CONNECTION_WEB_BLOCKED_REASON, viaLegacyProfile: false };
 }
 
 /** Relay reasoning tiers come from model-facts. */
@@ -327,8 +327,9 @@ export function webPreferenceReachesTheWire(input: {
   transportIdentity?: string;
 }): boolean {
   const control = presentCapabilityControl(input.provider, input.model, 'web');
-  // A relay web fragment is always sent regardless of preference: whether it reaches the wire depends only on the fragment being present.
-  if (control.reasonCode === RELAY_CONNECTION_WEB_FRAGMENT_REASON) return true;
+  // Relay web switch: tappable means it can reach the wire (when on, the effective fragment is sent); greyed out means it cannot.
+  if (control.reasonCode === RELAY_CONNECTION_WEB_TOGGLE_REASON) return true;
+  if (control.reasonCode === RELAY_CONNECTION_WEB_BLOCKED_REASON) return false;
   const status = resolveModelControlStatus(control);
   if (status === 'automaticAvailable') return true;
   if (!input.provider || !input.model || !input.transportIdentity) return false;
@@ -388,9 +389,11 @@ export function capabilityAvailableForDisplay(
   capability: CapabilityKey,
   resolvedModel?: ReturnType<typeof currentCapabilityEvidenceModel>,
 ): boolean {
+  // Relay web badge = web truth: user override > current record searched; unknown gets no badge.
+  if (capability === 'web' && provider && model && providerFormOf(provider) === 'relay' && !provider.relayRequested?.engineProfile) {
+    return resolveRelayWebPresentation(relayWebModelOptionFacts(provider, model), null).truth === 'supported';
+  }
   const control = presentCapabilityControl(provider, model, capability, resolvedModel);
-  // A relay web fragment, when present, is always sent: the badge, outbound and the panel share one verdict.
-  if (control.reasonCode === RELAY_CONNECTION_WEB_FRAGMENT_REASON) return true;
   return control.state === 'auto_available' || control.state === 'managed_only';
 }
 

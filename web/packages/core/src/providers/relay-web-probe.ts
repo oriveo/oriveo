@@ -54,6 +54,18 @@ export async function relayWebProbeEvidence(
   transport: RelayWebTransport,
   response: { status: number; contentType: string | null; body: string },
 ): Promise<{ searched: boolean; evidenceUrls: string[]; errored: boolean }> {
+  return relayWebProbeEvidenceFromBody(transport, response);
+}
+
+/**
+ * The same parsing, but the body may be a stream that is still arriving: with `stopAtEvidence`, as soon as the parser yields evidence (a search was executed or the first citation URL) it stops reading and returns searched without waiting for the stream to end;
+ * and returns searched without waiting for the stream to end; otherwise it reads until the stream ends.
+ */
+export async function relayWebProbeEvidenceFromBody(
+  transport: RelayWebTransport,
+  response: { status: number; contentType: string | null; body: string | ReadableStream<Uint8Array> | null },
+  options: { stopAtEvidence?: boolean } = {},
+): Promise<{ searched: boolean; evidenceUrls: string[]; errored: boolean }> {
   const upstream: UpstreamTransport = {
     fetch: async () => new Response(response.body, {
       status: response.status,
@@ -83,6 +95,10 @@ export async function relayWebProbeEvidence(
       if (value.type === 'citations') {
         citations = value.citations;
         if (value.searchRan) searchRan = true;
+        if (options.stopAtEvidence && (searchRan || citations.some((citation) => (citation.url ?? '').trim() !== ''))) {
+          void reader.cancel().catch(() => undefined);
+          break;
+        }
       } else if (value.type === 'error') {
         errored = true;
       }

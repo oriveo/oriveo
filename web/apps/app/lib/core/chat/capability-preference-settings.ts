@@ -8,6 +8,7 @@ import { normalizeUUID } from '../../utils/id-utils';
 import { hasLegacyBareStore, readPartitionedStore, writePartitionedStore } from '../../infra/storage/partitioned-local-store';
 import { compareWireId } from './sync-wire-order';
 import { relayParameterFallbackModelId } from '../providers/relay-model-identity';
+import { relayUndecidedFirstSendTransport } from '../providers/relay-first-send-transport';
 
 /**
  * Local keys are partitioned per UID (`oriveo.{uid}.*`, see `partitioned-local-store`): this table
@@ -149,6 +150,42 @@ export function capabilityRuntimeIdentity(
     finalTransport: transport,
     runtimeRevision,
     transportIdentity: encodeCapabilityTransportIdentity(transport, runtimeRevision),
+    ...(legacyCanonicalModelId ? { legacyCanonicalModelId } : {}),
+  };
+}
+
+/** Fallback revision for a relay without a metadata identity (same meaning as iOS RelayWebSwitch). */
+export const RELAY_PREFERENCE_FALLBACK_REVISION = 'relay-web';
+
+/**
+ * Store/read identity of chat capability preferences: the official runtime identity; for a relay (not a local engine) whose capability runtime is not loaded,
+ * "protocol decided + fallback revision" supplies one, so the web switch can still be stored, read and sent.
+ * No fallback while the protocol is undecided (the panel must show "choose a protocol first"). Once metadata arrives the revision becomes the real value, and records of the same protocol are carried over by lazy forward porting.
+ */
+export function capabilityPreferenceIdentity(
+  provider: Pick<Provider, 'id' | 'kind' | 'authMode' | 'baseURLText' | 'relayRequested'>,
+  model: Pick<AIModel, 'id' | 'canonicalModelId' | 'transport' | 'upstreamApiBackend' | 'relayTransport'>,
+): CapabilityRuntimeIdentity | null {
+  const runtime = capabilityRuntimeIdentity(provider, model);
+  if (runtime || provider.kind !== 'relay' || provider.relayRequested?.engineProfile) return runtime;
+  // Protocol undecided but the first-send protocol decided (an unverified Claude-family model on an auto connection first sends Messages): take the identity from the first-send protocol,
+  // so the panel switch is tappable before the first send and thinking levels can be stored too (the web switch itself uses the fixed identity).
+  const firstSend = decidedTransport(provider, model) ? undefined : relayUndecidedFirstSendTransport(provider, model);
+  if (firstSend) {
+    const firstSendRuntime = capabilityRuntimeIdentity(provider, { ...model, relayTransport: firstSend });
+    if (firstSendRuntime) return firstSendRuntime;
+  }
+  const transport = canonicalFinalTransport(clean(decidedTransport(provider, model) ?? firstSend));
+  const providerId = norm(provider.id);
+  const canonicalModelId = clean(model.id);
+  if (!transport || !providerId || !canonicalModelId) return null;
+  const legacyCanonicalModelId = relayParameterFallbackModelId(model);
+  return {
+    providerId,
+    canonicalModelId,
+    finalTransport: transport,
+    runtimeRevision: RELAY_PREFERENCE_FALLBACK_REVISION,
+    transportIdentity: encodeCapabilityTransportIdentity(transport, RELAY_PREFERENCE_FALLBACK_REVISION),
     ...(legacyCanonicalModelId ? { legacyCanonicalModelId } : {}),
   };
 }
@@ -591,13 +628,16 @@ export function resolveCapabilityPreferences(input: CapabilityPreferenceScopeQue
  * -> the record carries no reasoningIntent, also undefined (they are the same thing); explicitly
  * chose off -> `'off'` read back as-is.
  */
-export function displayCapabilityPreferences(input: CapabilityPreferenceScopeQuery): CapabilityPreferences {
+export function displayCapabilityPreferences(input: CapabilityPreferenceScopeQuery & {
+  /** Web value of the default layer (when nothing was ever stored); for a relay = the first-send protocol has a stored fragment -> on. Defaults to off. */
+  defaultWeb?: CapabilityWebPreference;
+}): CapabilityPreferences {
   const scopes = capabilityScopeValues(input);
   const ordered = [scopes.conversation, scopes.skill, scopes.connectionModel, scopes.connection]
     .filter((values): values is CapabilityPreferences => values !== undefined);
   const reasoningIntent = ordered.find((values) => values.reasoningIntent != null)?.reasoningIntent;
   return {
-    web: ordered.find((values) => values.web !== undefined)?.web ?? 'off',
+    web: ordered.find((values) => values.web !== undefined)?.web ?? input.defaultWeb ?? 'off',
     ...(reasoningIntent ? { reasoningIntent } : {}),
   };
 }
@@ -700,6 +740,104 @@ function forwardPortCapabilityScope(
   // outbound compile gate each cover it. Forward-porting only carries the user's choice across the
   // revision boundary.
   saveCapabilityPreferences(scoped, toValue(candidate));
+}
+
+/* -- Fixed addressing of the relay web switch preference (fixture web-probe.v1.json preferenceIdentity) -- */
+
+/** finalTransport of the fixed identity; runtimeRevision has the same value `relay-web` as the no-metadata fallback. */
+export const RELAY_WEB_PREFERENCE_TRANSPORT = 'relay';
+
+/**
+ * Preference identity of the relay (not a local engine) web switch: fixed `relay` x `relay-web`, canonicalModelId = the literal id stored on the model;
+ * it does not change with the model protocol (decided or not, switched or not) or the metadata version, so it also lines up across devices after sync. Thinking levels etc. still use the protocol-bearing identity.
+ * Non-relay / local engine -> null.
+ */
+export function relayWebPreferenceIdentity(
+  provider: Pick<Provider, 'id' | 'kind' | 'relayRequested'>,
+  model: Pick<AIModel, 'id'>,
+): CapabilityRuntimeIdentity | null {
+  if (provider.kind !== 'relay' || provider.relayRequested?.engineProfile) return null;
+  const providerId = norm(provider.id);
+  const canonicalModelId = clean(model.id);
+  if (!providerId || !canonicalModelId) return null;
+  return {
+    providerId,
+    canonicalModelId,
+    finalTransport: RELAY_WEB_PREFERENCE_TRANSPORT,
+    runtimeRevision: RELAY_PREFERENCE_FALLBACK_REVISION,
+    transportIdentity: encodeCapabilityTransportIdentity(RELAY_WEB_PREFERENCE_TRANSPORT, RELAY_PREFERENCE_FALLBACK_REVISION),
+  };
+}
+
+/**
+ * Read compatibility: when the fixed identity has no record (and no tombstone) in a scope, take the newest web value among the old identities (protocol / metadata version bearing)
+ * of the same scope and the same connection x model, and write it once under the fixed identity. Only web is carried forward; records outside that scope are not migrated in bulk.
+ */
+function forwardPortRelayWebPreference(query: CapabilityPreferenceScopeQuery): void {
+  if (typeof window === 'undefined') return;
+  const scopes: CapabilityPreferenceScope[] = [
+    ...(norm(query.conversationId) ? ['conversation_connection_model' as const] : []),
+    ...(norm(query.skillId) ? ['skill_agent' as const] : []),
+    'connection_model',
+    'connection',
+  ];
+  for (const scope of scopes) {
+    const scoped: CapabilityPreferenceInput = {
+      providerId: query.providerId,
+      canonicalModelId: query.canonicalModelId,
+      finalTransport: query.finalTransport,
+      runtimeRevision: query.runtimeRevision,
+      transportIdentity: query.transportIdentity,
+      scope,
+      ...(scope === 'conversation_connection_model' ? { conversationId: query.conversationId } : {}),
+      ...(scope === 'skill_agent' ? { skillId: query.skillId } : {}),
+    };
+    let recordId: string;
+    try { recordId = capabilityPreferenceRecordId(scoped); } catch { continue; }
+    const current = read();
+    if (current.records.some((record) => record.recordId === recordId)) continue;
+    if (current.tombstones.some((tombstone) => tombstone.recordId === recordId)) continue;
+    const legacy = current.records
+      .filter((record) => record.scope === scope
+        && norm(record.providerId) === norm(query.providerId)
+        && record.canonicalModelId === query.canonicalModelId
+        && record.transportIdentity !== query.transportIdentity
+        && (scope !== 'conversation_connection_model' || record.conversationId === norm(query.conversationId))
+        && (scope !== 'skill_agent' || record.skillId === norm(query.skillId)))
+      .sort((left, right) => (newer(left, right) ? -1 : 1))[0];
+    if (legacy) saveCapabilityPreferences(scoped, { web: legacy.web });
+  }
+}
+
+/** UI read of the relay web preference: which layer on the fixed identity first really stored a value; if none, the default layer. */
+export function displayRelayWebPreference(
+  query: CapabilityPreferenceScopeQuery & { defaultWeb?: CapabilityWebPreference },
+): CapabilityWebPreference {
+  forwardPortRelayWebPreference(query);
+  return displayCapabilityPreferences(query).web;
+}
+
+/**
+ * Send-side read of the relay web preference (the same ladder as `resolveCapabilityPreferences`, on the fixed identity); undefined for non-relay / local engines.
+ */
+export function resolveRelayWebPreference(
+  provider: Pick<Provider, 'id' | 'kind' | 'relayRequested'>,
+  model: Pick<AIModel, 'id'>,
+  query: { conversationId?: string; skillId?: string; singleSend?: CapabilityPreferences; providerDefault?: CapabilityPreferences },
+): CapabilityWebPreference | undefined {
+  const identity = relayWebPreferenceIdentity(provider, model);
+  if (!identity) return undefined;
+  const scopedQuery = {
+    ...identity,
+    ...(query.conversationId ? { conversationId: query.conversationId } : {}),
+    ...(query.skillId ? { skillId: query.skillId } : {}),
+  };
+  forwardPortRelayWebPreference(scopedQuery);
+  return resolveCapabilityPreferences({
+    ...scopedQuery,
+    ...(query.singleSend ? { singleSend: query.singleSend } : {}),
+    ...(query.providerDefault ? { providerDefault: query.providerDefault } : {}),
+  }).web;
 }
 
 /** Old stores remain physically present and dormant; no field is guessed into the v2 identity. */

@@ -52,8 +52,6 @@ export interface SendCompletionParams {
   relayWebObservation?: {
     sentFragment: Record<string, unknown> | undefined;
     transport: string | undefined;
-    /** The first-send transport at the start of this turn; nothing is written when the transport actually sent differs from it (the transport changed). */
-    firstSendTransport: string | undefined;
     citations: readonly Citation[] | undefined;
   };
 }

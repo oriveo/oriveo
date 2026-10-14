@@ -242,7 +242,9 @@ export function reasoningTierAfterTap(options: readonly string[], current: strin
 }
 
 function statusMark(facts: ModelOptionsPanelFacts): ModelOptionsStatusMark | undefined {
-  if (!UNCATALOGUED.has(facts.web.status) || !UNCATALOGUED.has(facts.reasoning.status)) return 'official';
+  // The relay web row only looks at the fragment and the local record; its control state (greyed out = unavailable) is not an official catalog entry, so it does not count as an official configuration.
+  const webCatalogued = !facts.web.relayWeb && !UNCATALOGUED.has(facts.web.status);
+  if (webCatalogued || !UNCATALOGUED.has(facts.reasoning.status)) return 'official';
   return facts.connection === 'custom' ? 'unverified' : undefined;
 }
 

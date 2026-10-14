@@ -51,6 +51,8 @@ import {
   recordRelayNegativeCache,
   type RelayNegativeCacheModelKey,
 } from './relay-negative-cache';
+import { relayWebFragmentHash } from '@oriveo/core/providers/relay-web-probe';
+import { writeRelayWebProbeRecord } from './relay-web-probe-records';
 import {
   recordToolCallSupportFalse,
   toolCallSupportIsRememberedFalse,
@@ -221,6 +223,19 @@ export function decideRelayProtocolFallback(input: {
   return input.candidates.find((candidate) => candidate !== input.current) ?? null;
 }
 
+/**
+ * Whether this attempt is a "web parameters rejected" case: a web fragment was carried, 400 / 422 before any output, and not a route-level rejection;
+ * local / network sources and in-stream error frames do not count. The no-access case is already blocked before the call.
+ */
+function webFragmentRejected(event: ErrorEvent, options: StreamOptions | undefined): boolean {
+  if (!options?.relayWebFragment) return false;
+  if (event.streamErrorFrame || event.source === 'oriveo' || event.source === 'network') return false;
+  if (event.status !== 400 && event.status !== 422) return false;
+  return !isRelayRouteRejection({
+    status: event.status, body: errorEventBody(event), contentType: event.relayHTMLPage ? 'text/html' : undefined,
+  });
+}
+
 /** The upstream verbatim text left by an error event (allowlisted fragment + message body), for the phrase decision of a route-level rejection. */
 function errorEventBody(event: ErrorEvent): string {
   return [event.errorDetail, event.error].filter((part): part is string => typeof part === 'string').join('\n');
@@ -282,7 +297,10 @@ function streamOptionsForTransport(
     capabilityRecoveryIdentity: _capabilityRecoveryIdentity,
     ...rest
   } = streamOptions ?? {};
-  return buildProviderStreamOptions(provider, rest, model);
+  // Relay web switch: supportsWebSearch has already been intersected with the original protocol's envelope, so passing it on as is would squash an enabled switch to off;
+  // the switch intent is taken from relayWebOn (the switch stays on even when the original protocol was rejected without a fragment), and the effective fragment is re-taken for the new protocol.
+  const webOn = rest.relayWebOn === true || Boolean(rest.supportsWebSearch) || rest.relayWebFragment !== undefined;
+  return buildProviderStreamOptions(provider, { ...rest, supportsWebSearch: webOn }, model);
 }
 
 /**
@@ -444,6 +462,35 @@ export function sendWithRelayRejectionLoop<H extends StreamHandle>(
         if (!started) begin();
       };
 
+      /**
+       * Resend once without the web fragment: as soon as output starts, write a rejected record for that protocol x this fragment hash (source tested, equivalent to one probe verdict);
+       * if the resend still fails, show the original error and write no record.
+       */
+      const resendWithoutWebFragment = async (
+        outbound: OutboundHistoryMessage[],
+        options: StreamOptions,
+        originalError: ErrorEvent,
+        onOutput?: () => void,
+      ): Promise<void> => {
+        const { relayWebFragment: rejectedFragment, ...withoutFragment } = options;
+        const transport = options.relayTransport ?? key.transport;
+        const retry = send(outbound, withoutFragment);
+        active = retry;
+        await pipe(retry.stream, async (retryError) => {
+          applyRelayKeyAccessRejection(store, provider, model, retryError);
+          ctrl.enqueue(originalError);
+          return true;
+        }, () => {
+          if (rejectedFragment) {
+            writeRelayWebProbeRecord(
+              { connectionId: provider.id, modelId: model.id, transport },
+              { result: 'rejected', source: 'tested', at: new Date().toISOString(), fragmentHash: relayWebFragmentHash(rejectedFragment) },
+            );
+          }
+          onOutput?.();
+        });
+      };
+
       try {
         await pipe(primary.stream, async (firstError) => {
           if (cancelled) return false;
@@ -471,16 +518,26 @@ export function sendWithRelayRejectionLoop<H extends StreamHandle>(
           const retryHistory = next ? historyForTransport(history, next) : null;
           if (next && retryHistory && !cancelled) {
             const switchedModel: AIModel = { ...model, relayTransport: next };
-            const retry = send(retryHistory, streamOptionsForTransport(provider, switchedModel, input.streamOptions));
+            // Protocol-level fallback: recompute the web fragment for the target protocol (the stored one, otherwise the template; not carried if the target protocol's current record is rejected).
+            const switchedOptions = streamOptionsForTransport(provider, switchedModel, input.streamOptions);
+            const retry = send(retryHistory, switchedOptions);
             active = retry;
-            // Still failing after switching: report the second error (forward as usual), no further switch, no value written, no negative cache recorded.
+            const onSwitchedOutput = () => { recordRelayTransportObservedAfterFallback(store, provider, model, next); };
+            // Still failing after switching: report the second error (forward as usual), no further switch, no value written, no negative cache recorded; a web-parameter rejection still resends once without the fragment.
             await pipe(retry.stream, async (retryError) => {
-              applyRelayKeyAccessRejection(store, provider, model, retryError);
+              if (applyRelayKeyAccessRejection(store, provider, model, retryError) === 'model_access_denied') return false;
+              if (!cancelled && webFragmentRejected(retryError, switchedOptions)) {
+                await resendWithoutWebFragment(retryHistory, switchedOptions!, retryError, onSwitchedOutput);
+                return true;
+              }
               fileRejected = fileRejectionSignal;
               return false;
-            }, () => {
-              recordRelayTransportObservedAfterFallback(store, provider, model, next);
-            });
+            }, onSwitchedOutput);
+            return true;
+          }
+          // Web parameters rejected: a fragment was carried, 400 / 422 before any output, not a route-level rejection -> resend once on the same protocol without the fragment.
+          if (!cancelled && webFragmentRejected(firstError, streamOptions)) {
+            await resendWithoutWebFragment(primaryHistory, streamOptions!, firstError, onFirstSendOutput);
             return true;
           }
           // Reaching here means no output yet and this message has not switched protocol (if it had, it would already have been taken over above).

@@ -207,7 +207,7 @@ export function RelayDetectionChecklist({ detection }: { detection: RelayStepOne
           return (
             <li key={id} data-check={id} data-state={check.state}>
               <div className={styles.checkRow}>
-                <span className={styles.checkLead} data-row-lead>
+                <span className={styles.checkLead} data-row-lead="top">
                   <CheckIcon state={check.state} />
                   <span className={styles.checkText}>
                     <strong>{t(CHECK_LABEL_KEYS[id])}</strong>
