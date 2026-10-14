@@ -158,14 +158,14 @@ object RelayFormValidation {
         FieldDefinition(
             field = Field.Headers,
             group = Group.AdvancedHttp,
-            labelRes = R.string.relay_advanced_headers,
+            labelRes = R.string.relay_edit_headers,
             placeholder = "X-Internal-Token",
             revalidation = RevalidationTrigger.Always,
         ),
         FieldDefinition(
             field = Field.QueryParams,
             group = Group.AdvancedHttp,
-            labelRes = R.string.relay_advanced_query_params,
+            labelRes = R.string.relay_edit_query_params,
             placeholder = "tenant",
             revalidation = RevalidationTrigger.Always,
         ),

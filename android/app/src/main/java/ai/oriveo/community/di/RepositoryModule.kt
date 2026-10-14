@@ -57,6 +57,11 @@ val repositoryModule = module {
             localCapabilityCustomFragmentStore = ai.oriveo.community.core.model.LocalCapabilityCustomFragmentStore.from(androidContext()),
             toolCallMemoryStore = get(),
             preferenceDao = get(),
+            localEngineConnector = get(),
+            lastUsedModelRef = {
+                val preferences = get<AppPreferencesRepository>()
+                preferences.lastUsedModelRefSnapshot ?: preferences.getLastUsedModelRef()
+            },
         )
     }
 

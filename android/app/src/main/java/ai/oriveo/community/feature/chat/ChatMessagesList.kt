@@ -47,6 +47,7 @@ import ai.oriveo.community.core.provider.ModelDisplayLookup
 import ai.oriveo.community.feature.chat.components.ChatOutlineRail
 import ai.oriveo.community.feature.chat.components.ScrollToBottomButton
 import ai.oriveo.community.feature.chat.recovery.MessageItemWithActions
+import ai.oriveo.community.feature.chat.recovery.RelaySwitchKey
 import ai.oriveo.community.ui.theme.OriveoTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
@@ -79,6 +80,8 @@ internal fun BoxScope.ChatMessagesList(
     onPointerDownChange: (Boolean) -> Unit,
     isGenerating: Boolean,
     isRateLimitError: (ChatMessage) -> Boolean,
+    /** Relay failure message "switch to another key". */
+    onSwitchKey: (ChatMessage) -> Unit = {},
     onCopy: (ChatMessage) -> Unit,
     onEdit: (ChatMessage) -> Unit,
     onRegenerate: (String) -> Unit,
@@ -239,7 +242,6 @@ internal fun BoxScope.ChatMessagesList(
                     isLastMessage = index == messages.lastIndex,
                     providerNameOverride = messageMetadata.providerName,
                     modelNameOverride = messageMetadata.modelName,
-                    relayKind = providersById[message.providerID]?.relayKind,
                     isUserDragging = isDragging,
                     onCopy = { onCopy(message) },
                     onEdit = { onEdit(message) },
@@ -248,6 +250,9 @@ internal fun BoxScope.ChatMessagesList(
                     onRetry = { onRetry(message.id) },
                     onRetryWithoutLocalCustomFields = { onRetryWithoutLocalCustomFields(message.id) },
                     onSwitchModel = onSwitchModel,
+                    offersSwitchKey = message.state == ChatMessageState.Failed &&
+                        RelaySwitchKey.options(providersById[message.providerID], message).isNotEmpty(),
+                    onSwitchKey = { onSwitchKey(message) },
                     onShare = { onShare(message) },
                     onSaveAsNote = { onSaveAsNote(message) },
                     onSaveCodeAsNote = { code -> onSaveCodeAsNote(message, code) },

@@ -78,6 +78,7 @@ internal fun CustomRequestFieldsPage(
     finalTransport: String?,
     activeProfile: GenerationProfileRef?,
     onBack: () -> Unit,
+    legacyModelId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -94,6 +95,7 @@ internal fun CustomRequestFieldsPage(
             transportIdentity = transportIdentity,
             finalTransport = finalTransport,
             activeProfile = activeProfile,
+            legacyModelId = legacyModelId,
         )
     }
     var drafts by remember(snapshot) { mutableStateOf(snapshot.drafts) }
@@ -291,6 +293,7 @@ internal fun loadCustomRequestFieldSections(
     transportIdentity: String,
     finalTransport: String?,
     activeProfile: GenerationProfileRef?,
+    legacyModelId: String? = null,
 ): CustomRequestFieldsSnapshot {
     val sections = mutableListOf<String>()
     val schemaOwners = linkedSetOf<String>()
@@ -311,6 +314,7 @@ internal fun loadCustomRequestFieldSections(
                 schemaModelID = model.id,
                 activeProfile = activeProfile,
             ),
+            legacyModelID = legacyModelId,
         )
         drafts[owner] = configuration.rawJSON
         val hasContent = configuration.rawJSON.isNotBlank()

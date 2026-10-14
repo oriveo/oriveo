@@ -196,6 +196,12 @@ data class RelayRequestedConfig(
     val transportKind: String? = null,
 
     val resolvedAPIBaseURL: String? = null,
+    /**
+     * Exact API root recorded per transport, keyed by [RelayTransport.value]. Different models on one connection may use
+     * different transports, and their roots do not necessarily share one version segment. Keys stay strings: unknown transports written by other platforms / newer versions
+     * must not make the whole config fail to decode. Reads go only through `RelayEndpointResolver.effectiveAPIRoot`.
+     */
+    val resolvedAPIBaseURLs: Map<String, String>? = null,
     /** Explicit local engine profile; null preserves all existing/cloud Relay behavior. */
     val engineProfile: String? = null,
     /** SHA-256 leaf certificate pin for explicit TOFU HTTPS mode. */
@@ -233,7 +239,7 @@ val PORTABLE_RELAY_REQUESTED_FIELDS: Set<String> = setOf(
     "stream", "disableResponseStorage", "codexCompatIdentity",
     "imageSize", "imageQuality", "imageStyle", "imageCount", "imageResponseFormat",
     "webSearchToolName", "hasWebSearch", "webSearchProfile", "transportKind",
-    "resolvedAPIBaseURL", "engineProfile",
+    "resolvedAPIBaseURL", "resolvedAPIBaseURLs", "engineProfile",
 )
 
 fun RelayRequestedConfig.credentialFreePortableCopy(): RelayRequestedConfig = RelayRequestedConfig(
@@ -255,9 +261,33 @@ fun RelayRequestedConfig.credentialFreePortableCopy(): RelayRequestedConfig = Re
     hasWebSearch = hasWebSearch,
     webSearchProfile = webSearchProfile,
     transportKind = transportKind,
-    resolvedAPIBaseURL = credentialFreeRelayEndpoint(resolvedAPIBaseURL),
+    resolvedAPIBaseURL = credentialFreeRelayAPIRoot(resolvedAPIBaseURL),
+    resolvedAPIBaseURLs = resolvedAPIBaseURLs?.credentialFreePortableRoots(),
     engineProfile = engineProfile,
 )
+
+/** Outbound keeps only entries whose key is a known transport (`auto` is not an addressable transport) and whose value parses; if none remain the whole key is omitted. */
+private fun Map<String, String>.credentialFreePortableRoots(): Map<String, String>? {
+    val addressable = RelayTransport.entries.filter { it != RelayTransport.Auto }.map { it.value }.toSet()
+    return buildMap {
+        for ((transport, root) in this@credentialFreePortableRoots) {
+            if (transport !in addressable) continue
+            credentialFreeRelayAPIRoot(root)?.let { put(transport, it) }
+        }
+    }.takeIf { it.isNotEmpty() }
+}
+
+/**
+ * An outbound API root must be an absolute address with scheme and host. `java.net.URI` treats a string without a scheme such as `relay.example.com/v1`
+ * as a plain path and lets it through, so syncing it out as is would upload a value that cannot be resolved.
+ * The connection address the user typed by hand (`baseUrlText`) is not tightened and still goes through [credentialFreeRelayEndpoint].
+ */
+fun credentialFreeRelayAPIRoot(raw: String?): String? {
+    val value = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    val uri = runCatching { java.net.URI(value) }.getOrNull() ?: return null
+    if (uri.scheme.isNullOrEmpty() || uri.host.isNullOrEmpty()) return null
+    return credentialFreeRelayEndpoint(value)
+}
 
 fun credentialFreeRelayEndpoint(raw: String?): String? {
     val value = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
@@ -297,10 +327,88 @@ data class RelayImageConfig(
     val outputFormat: RelayImageOutputFormat? = null,
 )
 
+// ── The only decode point for legacy connection-level web fields (lint exemption) ──
+// Legacy fields are read and written only here: mapped to web fragments on read (not written back), carried over as is when editing a connection, and cleared when the web settings page saves.
+
+/** Transport a legacy profile belongs to (fixture `profileTransport`); profiles not in the table are not mapped. */
+private val LEGACY_WEB_PROFILE_TRANSPORTS: Map<String, RelayTransport> = mapOf(
+    "oai_responses_web" to RelayTransport.OpenAIResponses,
+    "grok_responses_web" to RelayTransport.OpenAIResponses,
+    "ant_web_tool" to RelayTransport.AnthropicMessages,
+    "gem_web" to RelayTransport.GeminiGenerateContent,
+    "gem_web_retrieval" to RelayTransport.GeminiGenerateContent,
+    "or_web" to RelayTransport.OpenAIChatCompletions,
+    "qwen_web" to RelayTransport.OpenAIChatCompletions,
+    "zhipu_web" to RelayTransport.OpenAIChatCompletions,
+    "oai_web_tool" to RelayTransport.OpenAIChatCompletions,
+    "kimi_web_search" to RelayTransport.OpenAIChatCompletions,
+)
+
+/** Needs a tool loop; a fragment alone cannot send web search. */
+private const val LEGACY_TOOL_LOOP_PROFILE = "kimi_web_search"
+
+/**
+ * Read-time mapping of legacy `hasWebSearch == true` (fixture `legacyCases`). [profileMergeParams]: if the profile is in metadata
+ * -> its mergeParams (empty object when absent), if not -> null. The result is used in memory only and never written back to the connection.
+ */
+fun RelayRequestedConfig?.legacyWebFragments(
+    profileMergeParams: (String) -> kotlinx.serialization.json.JsonObject?,
+): Map<String, kotlinx.serialization.json.JsonObject> {
+    val requested = this ?: return emptyMap()
+    if (!requested.hasWebSearch) return emptyMap()
+    val profile = requested.webSearchProfile?.takeIf(String::isNotBlank)
+    val declared = profile?.let(profileMergeParams)
+    if (profile != null && declared != null) {
+        val transport = LEGACY_WEB_PROFILE_TRANSPORTS[profile] ?: return emptyMap()
+        if (profile == LEGACY_TOOL_LOOP_PROFILE) return emptyMap()
+        val forbidden = ai.oriveo.community.core.provider.relay.RelayWebFragments.FORBIDDEN_TOP_LEVEL_KEYS.toSet()
+        val params = kotlinx.serialization.json.JsonObject(declared.filterKeys { it !in forbidden })
+        return if (params.isEmpty()) emptyMap() else mapOf(transport.value to params)
+    }
+    // No profile (or the profile is not in metadata): the only existing builders that can send web search are Responses and Gemini.
+    return buildMap {
+        val toolName = requested.webSearchToolName ?: RelayWebSearchToolName.WebSearch
+        if (toolName != RelayWebSearchToolName.Disabled) {
+            put(
+                RelayTransport.OpenAIResponses.value,
+                kotlinx.serialization.json.Json.parseToJsonElement("""{"tools":[{"type":"${toolName.wireValue}"}]}""")
+                    as kotlinx.serialization.json.JsonObject,
+            )
+        }
+        ai.oriveo.community.core.provider.relay.RelayWebFragments.template(RelayTransport.GeminiGenerateContent)
+            ?.let { put(RelayTransport.GeminiGenerateContent.value, it) }
+    }
+}
+
+/** When editing a connection, carry the legacy fields over to the new config unchanged (they must not be cleared even though the UI was removed). */
+fun RelayRequestedConfig.carryingLegacyWebSearch(from: RelayRequestedConfig?): RelayRequestedConfig =
+    if (from == null) this else copy(hasWebSearch = from.hasWebSearch, webSearchProfile = from.webSearchProfile)
+
+/** Saving once on the web settings page clears both legacy fields. */
+fun RelayRequestedConfig.clearingLegacyWebSearch(): RelayRequestedConfig =
+    copy(hasWebSearch = false, webSearchProfile = null)
+
 object RelayKindDefaults {
+    /**
+     * When a local-engine connection (with an engineProfile) changes type, the three engine fields (engineProfile / securityMode /
+     * certificateFingerprint) are kept as is; behavior for connections without an engineProfile is unchanged.
+     */
     fun makeRequested(
         kind: RelayKind,
         preserving: RelayRequestedConfig? = null,
+    ): RelayRequestedConfig {
+        val defaults = kindDefaults(kind, preserving)
+        if (preserving == null || preserving.engineProfile.isNullOrBlank()) return defaults
+        return defaults.copy(
+            engineProfile = preserving.engineProfile,
+            securityMode = preserving.securityMode,
+            certificateFingerprint = preserving.certificateFingerprint,
+        )
+    }
+
+    private fun kindDefaults(
+        kind: RelayKind,
+        preserving: RelayRequestedConfig?,
     ): RelayRequestedConfig = when (kind) {
         RelayKind.OpenAICompatible -> RelayRequestedConfig(
             transport = RelayTransport.OpenAIChatCompletions,
@@ -409,11 +517,18 @@ object RelayKindDefaults {
         )
     }
 
+    /**
+     * Connection type for display / editing: an `auto` connection is always treated as fully custom, even if the legacy relayKind is something else.
+     * Mapped on read only, never written back: preset types pin the connection transport to a concrete value, and only Custom can express `auto` as is.
+     */
+    fun effectiveKind(stored: RelayKind?, requested: RelayRequestedConfig?): RelayKind =
+        if (requested?.transport == RelayTransport.Auto) RelayKind.Custom else stored ?: inferKind(requested)
+
     fun inferKind(requested: RelayRequestedConfig?): RelayKind = when (requested?.transport) {
         RelayTransport.OpenAIChatCompletions,
-        RelayTransport.Auto,
         RelayTransport.LlamaCppNative,
         -> RelayKind.OpenAICompatible
+        RelayTransport.Auto -> RelayKind.Custom
 
         RelayTransport.OpenAIResponses -> RelayKind.CodexStyle
         RelayTransport.AnthropicMessages -> RelayKind.AnthropicCompatible

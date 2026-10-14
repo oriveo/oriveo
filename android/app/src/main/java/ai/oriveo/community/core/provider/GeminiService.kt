@@ -6,6 +6,7 @@ import ai.oriveo.community.core.attachments.AttachmentTransportProfile
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ChatMessage
+import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.Citation
 import ai.oriveo.community.core.model.ProviderChatResult
@@ -17,6 +18,7 @@ import ai.oriveo.community.core.model.StreamEvent
 import ai.oriveo.community.core.provider.transport.TransportKind
 import ai.oriveo.community.core.provider.transport.TransportRegistry
 import ai.oriveo.community.core.provider.transport.applyProfileMergeParams
+import ai.oriveo.community.core.provider.transport.deepMergeJsonObject
 import ai.oriveo.community.core.provider.transport.parseJsonObjectOrNull
 import io.ktor.client.HttpClient
 import io.ktor.client.request.header
@@ -66,27 +68,52 @@ class GeminiService(
     companion object {
         private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
+        /** Allowlist of the Interactions route.path (the path comes from the recipe). */
+        private val INTERACTIONS_PATHS = setOf("/v1/interactions", "/v1beta/interactions")
+
         /**
          * Whether this request switches to Interactions: only when the server recipe selects an endpoint_route for
-         * web search. Outbound dispatch and the pre-send route resolution share this one place, and the recipe itself
+         * web search and the request history (including the current turn) has no video attachment (the first Interactions
+         * version does not accept video, so video stays on generateContent and is delivered as inlineData).
+         * Outbound dispatch and the pre-send route resolution share this one place, and the recipe itself
          * is returned for the outbound path to use.
          */
         internal fun interactionsRoute(
             modelID: String,
             webSearchEnabled: Boolean,
             reasoningMode: ReasoningMode,
+            historyHasVideo: Boolean,
         ): Pair<MetadataClient.CapabilityRuntimeRequest, MetadataClient.CapabilityRecipeSelection>? {
+            if (historyHasVideo) return null
+            // Only selectable when the Server judges the model's transport to be gemini_interactions (the same rule as the Server verdict and Web).
+            val modelTransport = MetadataClient.resolveCatalogModel(modelID, ProviderKind.Gemini)?.transport
+            if (TransportKind.fromWireValue(modelTransport) != TransportKind.GeminiInteractions) return null
             val runtime = MetadataClient.capabilityRuntimeRequest(
                 providerKind = ProviderKind.Gemini,
                 modelID = modelID,
                 finalTransport = "gemini_interactions",
                 webRequested = webSearchEnabled,
                 reasoningMode = reasoningMode,
+                includeAutomaticReasoning = true,
             ) ?: return null
             val recipe = runtime.selections.firstOrNull {
                 it.capability == "web" && it.executionKind == "endpoint_route"
             } ?: return null
             return runtime to recipe
+        }
+
+        /** The video condition [interactionsRoute] uses in outbound dispatch: any message in the whole request history carries a video attachment. */
+        internal fun hasVideoAttachment(messages: List<ChatMessage>): Boolean =
+            messages.any { message -> message.attachments.orEmpty().any { it.kind == AttachmentKind.Video } }
+
+        /**
+         * The reasoning recipe selected for this request on the Interactions route (the transport was already matched exactly by capabilityRuntimeRequest).
+         * The automatic tier is selected too (selectedIntent=null), and the builder writes only the base op that has no intent.
+         */
+        private fun interactionsReasoningRecipe(
+            runtime: MetadataClient.CapabilityRuntimeRequest,
+        ): MetadataClient.CapabilityRecipeSelection? = runtime.selections.firstOrNull {
+            it.capability == "reasoning" && it.executionKind == "request_overlay"
         }
 
         // TransportKind is this module's historical internal key for a strategy, while
@@ -124,12 +151,15 @@ class GeminiService(
         webSearchEnabled: Boolean,
         requestOptions: ChatRequestOptions,
     ): StreamEvent.Done {
-        val interactions = interactionsRoute(modelID, webSearchEnabled, reasoningMode)
+        val interactions = interactionsRoute(modelID, webSearchEnabled, reasoningMode, hasVideoAttachment(messages))
         val runtime = interactions?.first
         val recipe = interactions?.second
         if (runtime != null && recipe != null) {
             var done: StreamEvent.Done? = null
-            sendInteractionsStream(apiKey, modelID, messages, baseUrl, false, runtime.runtime, recipe, requestOptions)
+            sendInteractionsStream(
+                apiKey, modelID, messages, baseUrl, false, runtime.runtime, recipe,
+                interactionsReasoningRecipe(runtime), requestOptions,
+            )
                 .collect { if (it is StreamEvent.Done) done = it }
             return done ?: throw ProviderServiceError.EmptyResponse
         }
@@ -171,9 +201,10 @@ class GeminiService(
         if (modelID.isBlank()) throw ProviderServiceError.InvalidConfiguration("Missing model identifier.")
         MetadataClient.ensureInitialized()
 
-        // Interactions is only reachable through an exact endpoint_route recipe. Current server
-        // verdicts intentionally select no such route, so ordinary Gemini remains generateContent.
-        val interactions = interactionsRoute(modelID, webSearchEnabled, reasoningMode)
+        // Interactions is only reachable through an exact endpoint_route recipe. Default server
+        // verdicts select no such route (only an Admin transport override does), so ordinary
+        // Gemini remains generateContent.
+        val interactions = interactionsRoute(modelID, webSearchEnabled, reasoningMode, hasVideoAttachment(messages))
         val interactionsRuntime = interactions?.first
         val interactionsRecipe = interactions?.second
         if (interactionsRuntime != null && interactionsRecipe != null) {
@@ -186,6 +217,7 @@ class GeminiService(
                     stream = true,
                     runtime = interactionsRuntime.runtime,
                     recipe = interactionsRecipe,
+                    reasoningRecipe = interactionsReasoningRecipe(interactionsRuntime),
                     requestOptions = requestOptions,
                 ),
             )
@@ -392,9 +424,14 @@ class GeminiService(
         return if (trimmed.endsWith("/v1beta") || trimmed.endsWith("/v1")) trimmed else "$trimmed/v1beta"
     }
 
+    /** Attachment stage: PreActivation in production; Activated is passed only by tests, and is promoted only after a real provider verifies it. */
+    internal enum class InteractionsAttachmentStage { PreActivation, Activated }
+
     /**
-     * Typed endpoint_route builder used by both the production-gated path and MockEngine tests.
-     * The route fields are intentionally exact; a metadata typo fails before opening a socket.
+     * Interactions request body (shared golden gemini_interactions.request-golden.v1.json).
+     * The path is read only from the route.path the Server delivers, and anything outside the allowlist is a configuration error;
+     * every turn sends the full Step[] and always carries store:false, with no previous_interaction_id continuation.
+     * All thinking values come from the reasoning recipe; the client hard-codes none.
      */
     internal fun buildInteractionsRequest(
         apiKey: String,
@@ -403,66 +440,263 @@ class GeminiService(
         baseUrl: String?,
         stream: Boolean,
         runtime: JsonObject,
-        recipe: MetadataClient.CapabilityRecipeSelection,
-        previousInteractionId: String? = null,
+        route: JsonObject?,
+        webRecipe: MetadataClient.CapabilityRecipeSelection?,
+        reasoningRecipe: MetadataClient.CapabilityRecipeSelection?,
+        reasoningIntent: String?,
+        attachmentStage: InteractionsAttachmentStage = InteractionsAttachmentStage.PreActivation,
         requestOptions: ChatRequestOptions = ChatRequestOptions(),
     ): Pair<String, String> {
-        if (apiKey.isBlank() || modelID.isBlank() || recipe.executionKind != "endpoint_route" ||
-            recipe.providerKind != "gemini" || recipe.route?.string("protocol") != "gemini_interactions" ||
-            recipe.route.string("endpointClass") != "interactions" ||
-            recipe.route.string("requestMapper") != "gemini_interactions_v1" ||
-            recipe.route.string("path") != "/v1/interactions"
+        val path = route?.string("path")
+        if (apiKey.isBlank() || modelID.isBlank() || route?.string("protocol") != "gemini_interactions" ||
+            route.string("endpointClass") != "interactions" ||
+            route.string("requestMapper") != "gemini_interactions_v1" ||
+            path !in INTERACTIONS_PATHS ||
+            (webRecipe != null && (webRecipe.executionKind != "endpoint_route" || webRecipe.providerKind != "gemini"))
         ) throw ProviderServiceError.InvalidConfiguration("Invalid Gemini Interactions recipe.")
-        val outboundMessages = if (previousInteractionId.isNullOrBlank()) messages else {
-            listOfNotNull(messages.lastOrNull { it.role.rawValue == "user" })
+        val currentTurnIndex = AttachmentDelivery.currentTurnIndex(messages)
+        val steps = messages.mapIndexedNotNull { index, message ->
+            // An assistant turn with an empty body (nothing was written after a failure or interruption) is not replayed; the user turns around it each become a step.
+            if (message.role == ChatRole.Assistant && message.text.isBlank()) {
+                null
+            } else if (message.role == ChatRole.Assistant) {
+                // In the first version an assistant turn replays only its body, not thinking or signatures.
+                interactionsStep("model_output", listOf(interactionsText(message.text)))
+            } else {
+                interactionsStep(
+                    "user_input",
+                    interactionsUserContent(message, isCurrentTurn = index == currentTurnIndex, attachmentStage, requestOptions),
+                )
+            }
         }
         val base = buildJsonObject {
             put("model", JsonPrimitive(modelID))
-            put("stream", JsonPrimitive(stream))
-            val currentTurnIndex = AttachmentDelivery.currentTurnIndex(outboundMessages)
-            put("input", JsonArray(outboundMessages.mapIndexed { index, message ->
-                // File attachments are injected as text and a turn that does not fit is not sent; images and videos go as inlineData parts,
-                // the same as generateContent (`input` is Gemini's Content[]).
-                val plan = AttachmentDelivery.plan(
-                    baseText = message.text,
-                    attachments = message.attachments.orEmpty(),
-                    model = requestOptions.activeModel,
-                    transport = AttachmentTransportProfile.GeminiInteractions,
-                )
-                AttachmentDelivery.requireDeliverable(plan, isCurrentTurn = index == currentTurnIndex)
-                buildJsonObject {
-                    put("role", JsonPrimitive(if (message.role.rawValue == "assistant") "model" else "user"))
-                    val mediaParts = MessageBuilder.geminiMediaParts(message.attachments.orEmpty())
-                        .map { json.parseToJsonElement(it) }
-                    // Without images the shape stays as before: there is always one text part.
-                    val textPart = buildJsonObject { put("text", JsonPrimitive(plan.text)) }
-                    put(
-                        "parts",
-                        JsonArray(if (mediaParts.isNotEmpty() && plan.text.isBlank()) mediaParts else listOf(textPart) + mediaParts),
-                    )
-                }
-            }))
+            put("input", JsonArray(steps))
             MessageBuilder.normalizeRequestOptions(requestOptions).systemPrompt.takeIf { it.isNotBlank() }?.let { prompt ->
                 put("system_instruction", JsonPrimitive(prompt))
             }
+            put("stream", JsonPrimitive(stream))
+            put("store", JsonPrimitive(false))
         }
+        var delta = JsonObject(emptyMap())
+        webRecipe?.let { recipe ->
+            delta = deepMergeJsonObject(delta, compileInteractionsRecipe(runtime, recipe, "web", recipe.selectedIntent))
+        }
+        // The automatic tier (intent=null) is also compiled with selectedIntent=null, and only the base op without an intent is written.
+        reasoningRecipe?.let { recipe ->
+            delta = deepMergeJsonObject(delta, compileInteractionsRecipe(runtime, recipe, "reasoning", reasoningIntent))
+        }
+        val body = deepMergeJsonObject(base, delta)
+        val normalizedBase = resolveBaseUrl(baseUrl).removeSuffix("/v1beta").removeSuffix("/v1")
+        return "$normalizedBase$path" to body.toString()
+    }
+
+    private fun compileInteractionsRecipe(
+        runtime: JsonObject,
+        recipe: MetadataClient.CapabilityRecipeSelection,
+        capability: String,
+        intent: String?,
+    ): JsonObject {
         val compilation = ProviderRecipeRequestCompiler.compile(
             runtime,
             ProviderRecipeRequestCompiler.Input(
                 providerKind = recipe.providerKind,
                 transport = "gemini_interactions",
                 recipeRef = recipe.id,
-                capability = "web",
-                selectedIntent = recipe.selectedIntent,
+                capability = capability,
+                selectedIntent = intent,
                 availableIntents = recipe.availableIntents,
                 baseOwnedArrays = mapOf("tools" to emptyList()),
             ),
         )
         if (!compilation.accepted) throw ProviderServiceError.InvalidConfiguration("Gemini Interactions recipe rejected: ${compilation.reason}")
-        val body = JsonObject(base + (compilation.delta ?: JsonObject(emptyMap())) +
-            listOfNotNull(previousInteractionId?.takeIf { it.isNotBlank() }?.let { "previous_interaction_id" to JsonPrimitive(it) }).toMap())
-        val normalizedBase = resolveBaseUrl(baseUrl).removeSuffix("/v1beta").removeSuffix("/v1")
-        return "$normalizedBase/v1/interactions" to body.toString()
+        return compilation.delta ?: JsonObject(emptyMap())
+    }
+
+    /**
+     * The text of one turn comes first and the media after it. PreActivation: images get a placeholder and files are injected as text
+     * through xml-v1, so no media enters the body; Activated: typed image / document (passed only by tests).
+     */
+    private fun interactionsUserContent(
+        message: ChatMessage,
+        isCurrentTurn: Boolean,
+        stage: InteractionsAttachmentStage,
+        requestOptions: ChatRequestOptions,
+    ): List<JsonObject> {
+        val attachments = message.attachments.orEmpty()
+        return when (stage) {
+            InteractionsAttachmentStage.PreActivation -> {
+                val plan = AttachmentDelivery.plan(
+                    baseText = MessageBuilder.withImagePlaceholders(
+                        message.text,
+                        attachments,
+                        AttachmentTransportProfile.GeminiInteractions.imagePlaceholderText,
+                    ),
+                    attachments = attachments,
+                    model = requestOptions.activeModel,
+                    transport = AttachmentTransportProfile.GeminiInteractions,
+                )
+                AttachmentDelivery.requireDeliverable(plan, isCurrentTurn)
+                listOf(interactionsText(plan.text))
+            }
+            InteractionsAttachmentStage.Activated -> {
+                val media = attachments.mapNotNull { attachment ->
+                    when (attachment.kind) {
+                        AttachmentKind.Image -> (attachment.base64Data ?: attachment.thumbnailBase64)
+                            ?.let { interactionsMedia("image", it, attachment.mimeType) }
+                        AttachmentKind.File -> (attachment.originalBase64Data ?: attachment.base64Data)
+                            ?.let { interactionsMedia("document", it, attachment.mimeType) }
+                        AttachmentKind.Video -> null
+                    }
+                }
+                listOfNotNull(interactionsText(message.text).takeIf { message.text.isNotBlank() || media.isEmpty() }) + media
+            }
+        }
+    }
+
+    private fun interactionsStep(type: String, content: List<JsonObject>) = buildJsonObject {
+        put("type", JsonPrimitive(type))
+        put("content", JsonArray(content))
+    }
+
+    private fun interactionsText(text: String) = buildJsonObject {
+        put("type", JsonPrimitive("text"))
+        put("text", JsonPrimitive(text))
+    }
+
+    private fun interactionsMedia(type: String, data: String, mimeType: String) = buildJsonObject {
+        put("type", JsonPrimitive(type))
+        put("data", JsonPrimitive(data))
+        put("mime_type", JsonPrimitive(mimeType))
+    }
+
+    /**
+     * Frame-by-frame parsing and terminal-state decision of the Interactions stream (shared fixture recorded/gemini_interactions.expected.json);
+     * the production streaming path and the fixture replay share this one. data.event_type decides, and for step.delta the delta sits at the top level of the frame.
+     */
+    internal class InteractionsStreamParser {
+        enum class Terminal(val wire: String) {
+            Completed("completed"), Incomplete("incomplete"), Error("error"), Interrupted("interrupted"),
+        }
+        data class ErrorInfo(val code: String?, val message: String?, val phase: String)
+        /** A null [cachedTokens] means upstream reported no cache (which is not the same as 0). */
+        data class Usage(val inputTokens: Int, val outputTokens: Int, val thoughtTokens: Int, val cachedTokens: Int? = null)
+
+        var text = ""
+            private set
+        var error: ErrorInfo? = null
+            private set
+        var usage: Usage? = null
+            private set
+        var terminal: Terminal? = null
+            private set
+        private var thinking = ""
+        private var searchEvidenceIndex = 0
+
+        fun consume(root: JsonObject): List<StreamEvent> = when (root.str("event_type")) {
+            "step.delta" -> (root["delta"] as? JsonObject)?.let(::delta).orEmpty()
+            "interaction.completed" -> {
+                completed(root["interaction"] as? JsonObject)
+                emptyList()
+            }
+            "error" -> {
+                val payload = root["error"] as? JsonObject
+                fail(payload?.str("code"), payload?.str("message"), streamErrorFrame = true)
+            }
+            // interaction.created / status_update / step.start / step.stop / unknown types: they do not affect the body or the terminal state.
+            else -> emptyList()
+        }
+
+        /** Non-streaming Interaction resource: the body of the model_output steps. The terminal state and usage are then decided by [complete]. */
+        fun outputOf(interaction: JsonObject): List<StreamEvent> =
+            (interaction["steps"] as? JsonArray).orEmpty().flatMap { step ->
+                val objectStep = step as? JsonObject
+                if (objectStep?.str("type") != "model_output") return@flatMap emptyList()
+                (objectStep["content"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
+                    .filter { it.str("type") == null || it.str("type") == "text" }
+                    .flatMap { content ->
+                        delta(JsonObject(mapOf("type" to JsonPrimitive("text"), "text" to (content["text"] ?: JsonPrimitive("")))))
+                    }
+            }
+
+        /** Non-streaming and streaming interaction.completed share the same terminal-state / usage decision. */
+        fun complete(interaction: JsonObject) = completed(interaction)
+
+        /** Called when the stream ends: with neither completed nor error it was interrupted, and is handled as an error. */
+        fun finish(): Terminal = terminal
+            ?: fail("interaction_stream_closed", null, streamErrorFrame = false, outcome = Terminal.Interrupted)
+
+        private fun delta(delta: JsonObject): List<StreamEvent> = when (delta.str("type")) {
+            "text" -> delta.str("text").orEmpty().takeIf { it.isNotEmpty() }?.let { chunk ->
+                text += chunk
+                listOf(StreamEvent.Delta(chunk))
+            }.orEmpty()
+            "thought_summary" -> (delta["content"] as? JsonObject)?.str("text").orEmpty().takeIf { it.isNotEmpty() }?.let { chunk ->
+                thinking += chunk
+                listOf(StreamEvent.Reasoning(chunk))
+            }.orEmpty()
+            "text_annotation_delta" -> {
+                val citations = (delta["annotations"] as? JsonArray).orEmpty().mapNotNull { element ->
+                    val annotation = element as? JsonObject ?: return@mapNotNull null
+                    if (annotation.str("type") != "url_citation") return@mapNotNull null
+                    val url = annotation.str("url")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                    Citation(
+                        url = url,
+                        title = annotation.str("title")?.takeIf { it.isNotBlank() },
+                        startIndex = annotation.int("start_index"),
+                        endIndex = annotation.int("end_index"),
+                    )
+                }
+                if (citations.isEmpty()) emptyList() else listOf(StreamEvent.Citations(citations))
+            }
+            // The official stream sample carries no result; a search counts as executed whenever is_error is not true.
+            "google_search_result" -> if ((delta["is_error"] as? JsonPrimitive)?.booleanOrNull == true) emptyList() else {
+                val count = (delta["result"] as? JsonArray)?.size ?: 0
+                listOf(StreamEvent.ToolResult("google_search", "results=$count", searchEvidenceIndex++))
+            }
+            // thought_signature / google_search_call / unknown types: they enter neither the body, the thinking, nor the evidence.
+            else -> emptyList()
+        }
+
+        private fun completed(interaction: JsonObject?) {
+            when (interaction?.str("status")) {
+                "completed" -> { terminal = Terminal.Completed; usage = usageOf(interaction) }
+                "incomplete" -> { terminal = Terminal.Incomplete; usage = usageOf(interaction) }
+                "failed" -> fail("interaction_failed", null, streamErrorFrame = false)
+                // This route sends no client tools, so requires_action counts as a failure.
+                "requires_action" -> fail("interaction_requires_action", null, streamErrorFrame = false)
+                "cancelled" -> fail("interaction_cancelled", null, streamErrorFrame = false, outcome = Terminal.Interrupted)
+            }
+        }
+
+        private fun fail(
+            code: String?,
+            message: String?,
+            streamErrorFrame: Boolean,
+            outcome: Terminal = Terminal.Error,
+        ): Nothing {
+            val phase = if (text.isEmpty() && thinking.isEmpty()) "before_content" else "after_content"
+            error = ErrorInfo(code, message, phase)
+            terminal = outcome
+            throw ProviderServiceError.Upstream(
+                statusCode = 200,
+                detail = "Gemini Interactions stream reported an error (code=${code ?: "unknown"})" +
+                    (message?.let { ": $it" } ?: "."),
+                streamErrorFrame = streamErrorFrame,
+            )
+        }
+
+        private fun usageOf(interaction: JsonObject): Usage? = (interaction["usage"] as? JsonObject)?.let {
+            Usage(
+                it.int("total_input_tokens") ?: 0,
+                it.int("total_output_tokens") ?: 0,
+                it.int("total_thought_tokens") ?: 0,
+                it.int("total_cached_tokens"),
+            )
+        }
+
+        private fun JsonObject.str(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
+        private fun JsonObject.int(key: String): Int? = (this[key] as? JsonPrimitive)?.contentOrNull?.toIntOrNull()
     }
 
     private fun sendInteractionsStream(
@@ -473,20 +707,19 @@ class GeminiService(
         stream: Boolean,
         runtime: JsonObject,
         recipe: MetadataClient.CapabilityRecipeSelection,
+        reasoningRecipe: MetadataClient.CapabilityRecipeSelection?,
         requestOptions: ChatRequestOptions,
     ): Flow<StreamEvent> = flow {
-        val previousId = if (requestOptions.localContinuationExplicit) {
-            requestOptions.localContinuationState?.get("previousResponseId")?.let { (it as? JsonPrimitive)?.contentOrNull }
-        } else null
-        val (url, body) = buildInteractionsRequest(apiKey, modelID, messages, baseUrl, stream, runtime, recipe, previousId, requestOptions)
+        val (url, body) = buildInteractionsRequest(
+            apiKey, modelID, messages, baseUrl, stream, runtime,
+            route = recipe.route, webRecipe = recipe, reasoningRecipe = reasoningRecipe,
+            reasoningIntent = reasoningRecipe?.selectedIntent, requestOptions = requestOptions,
+        )
         val statement = client.preparePost(url) {
             header("x-goog-api-key", apiKey)
             contentType(ContentType.Application.Json)
             setBody(body)
         }
-        // This channel bypasses applyCapabilityRuntimeRecipes, so the web recipe's execution fact is
-        // recorded here and confirmed before the request goes out; otherwise the message would carry
-        // neither "confirmed" nor "unconfirmed" and parsed search evidence would have nowhere to land.
         requestOptions.capabilityExecutionCollector?.let { collector ->
             collector.recordCompiled(
                 owner = recipe.capability,
@@ -494,114 +727,71 @@ class GeminiService(
                 revision = recipe.runtimeRevision,
                 recipeRef = recipe.id,
             )
+            reasoningRecipe?.let { reasoning ->
+                collector.recordCompiled(
+                    owner = reasoning.capability,
+                    evidenceSignals = reasoning.responseEvidenceSignals,
+                    revision = reasoning.runtimeRevision,
+                    recipeRef = reasoning.id,
+                    // Even when the automatic tier compiled the base op, it does not count as requested.
+                    includeExecutionFact = reasoning.selectedIntent != null,
+                )
+            }
             collector.confirmDispatched()
         }
         statement.execute { response ->
             if (!response.status.isSuccess()) throw SseParser.mapHttpError(response)
-            var text = ""
-            var promptTokens = 0
-            var completionTokens = 0
-            var searchEvidenceIndex = 0
-            fun consume(root: JsonObject): List<StreamEvent> {
-                val interaction = root["interaction"] as? JsonObject ?: root
-                val usage = interaction["usage"] as? JsonObject
-                promptTokens = usage?.number("total_input_tokens") ?: promptTokens
-                completionTokens = usage?.number("total_output_tokens") ?: completionTokens
-                if (root.string("event_type") != "step.delta") return emptyList()
-                val step = root["step"] as? JsonObject
-                // Search evidence is keyed on delta.type, not step.type; a delta under the step or at
-                // the top level of the event is read either way.
-                val evidence = listOfNotNull(step?.get("delta") as? JsonObject, root["delta"] as? JsonObject)
-                    .flatMap { interactionsWebEvidence(it, searchEvidenceIndex++) }
-                if (step?.string("type") != "model_output") return evidence
-                val delta = step["delta"] ?: return evidence
-                val chunks = delta.textValues("text")
-                return evidence + chunks.filter { it.isNotEmpty() }.map { chunk ->
-                    text += chunk
-                    StreamEvent.Delta(chunk)
-                }
-            }
+            val parser = InteractionsStreamParser()
             if (!stream) {
                 val root = runCatching { json.parseToJsonElement(response.bodyAsText()).jsonObject }.getOrNull()
                     ?: throw ProviderServiceError.Upstream(200, "Gemini Interactions response invalid.")
-                val completed = (root["steps"] as? JsonArray).orEmpty().flatMap { step ->
-                    val objectStep = step as? JsonObject
-                    if (objectStep?.string("type") == "model_output") objectStep.textValues("content") else emptyList()
-                }
-                completed.forEach { chunk -> text += chunk; emit(StreamEvent.Delta(chunk)) }
-                val usage = root["usage"] as? JsonObject
-                promptTokens = usage?.number("total_input_tokens") ?: 0
-                completionTokens = usage?.number("total_output_tokens") ?: 0
-                if (root.string("status") == "completed") {
-                    root.string("id")?.takeIf { it.isNotBlank() }?.let { id ->
-                        emit(StreamEvent.RecipeContinuation("previous_id", state = JsonObject(mapOf("previousResponseId" to JsonPrimitive(id)))))
-                    }
-                }
-                emit(StreamEvent.Done(ProviderChatResult(text = text.trim(), promptTokens = promptTokens, completionTokens = completionTokens)))
+                parser.outputOf(root).forEach { emit(it) }
+                parser.complete(root)
+                parser.finish()
+                emit(interactionsDone(parser, modelID))
                 return@execute
             }
             SseParser.parseOpenAICompatibleMulti(
                 response = response,
                 json = json,
                 onChunk = { payload ->
-                    runCatching { json.parseToJsonElement(payload).jsonObject }.getOrNull()?.let { root ->
-                        val interaction = root["interaction"] as? JsonObject ?: root
-                        val continuation = if (root.string("event_type") == "interaction.completed" ||
-                            interaction.string("status") == "completed"
-                        ) {
-                            interaction.string("id")?.takeIf { it.isNotBlank() }?.let { id ->
-                                StreamEvent.RecipeContinuation("previous_id", state = JsonObject(mapOf("previousResponseId" to JsonPrimitive(id))))
-                            }
-                        } else null
-                        listOfNotNull(continuation) + consume(root)
-                    }.orEmpty()
+                    runCatching { json.parseToJsonElement(payload).jsonObject }.getOrNull()?.let(parser::consume).orEmpty()
                 },
-                onDone = { StreamEvent.Done(ProviderChatResult(text = text.trim(), promptTokens = promptTokens, completionTokens = completionTokens)) },
+                onDone = {
+                    // completed / incomplete are delivered as a normal finish (like MAX_TOKENS on generateContent);
+                    // a stream cut off without a terminal state throws in finish(), and the content already received is kept by the caller's failure path.
+                    parser.finish()
+                    interactionsDone(parser, modelID)
+                },
             ).collect { emit(it) }
         }
     }
 
-    /**
-     * The two kinds of evidence in an Interactions stream that Google Search actually ran:
-     *  - `google_search_result`: `result` is non-empty and `is_error` is not true -> tool_result;
-     *  - `text_annotation_delta`: a `url_citation` in the annotations -> a source.
-     * A search call (`google_search_call`) or plain text is not evidence.
-     */
-    private fun interactionsWebEvidence(delta: JsonObject, index: Int): List<StreamEvent> = when (delta.string("type")) {
-        "google_search_result" -> {
-            val results = (delta["result"] as? JsonArray).orEmpty()
-            val failed = (delta["is_error"] as? JsonPrimitive)?.booleanOrNull == true
-            if (results.isEmpty() || failed) emptyList()
-            else listOf(StreamEvent.ToolResult("google_search", "results=${results.size}", index))
-        }
-        "text_annotation_delta" -> {
-            val citations = (delta["annotations"] as? JsonArray).orEmpty().mapNotNull { element ->
-                val annotation = element as? JsonObject ?: return@mapNotNull null
-                if (annotation.string("type") != "url_citation") return@mapNotNull null
-                val url = annotation.string("url")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-                Citation(
-                    url = url,
-                    title = annotation.string("title")?.takeIf { it.isNotBlank() },
-                    startIndex = annotation.number("start_index"),
-                    endIndex = annotation.number("end_index"),
-                )
-            }
-            if (citations.isEmpty()) emptyList() else listOf(StreamEvent.Citations(citations))
-        }
-        else -> emptyList()
+    private fun interactionsDone(parser: InteractionsStreamParser, modelID: String): StreamEvent.Done {
+        val usage = parser.usage
+        // Same rule as generateContent: input includes the cache, billing splits non-cached from cached; thinking counts into output and is also recorded as reasoning.
+        val cached = usage?.cachedTokens ?: 0
+        val breakdown = UsageBreakdown(
+            promptTokens = ((usage?.inputTokens ?: 0) - cached).coerceAtLeast(0),
+            cachedInputTokens = cached,
+            completionTokens = (usage?.outputTokens ?: 0) + (usage?.thoughtTokens ?: 0),
+            reasoningTokens = usage?.thoughtTokens ?: 0,
+            cacheReadObserved = usage?.cachedTokens != null,
+        )
+        val (cost, source) = CostCalculator.calcCost(
+            breakdown, MetadataClient.resolveCatalogModel(modelID, ProviderKind.Gemini),
+        )
+        return StreamEvent.Done(ProviderChatResult(
+            text = parser.text.trim(),
+            promptTokens = usage?.inputTokens ?: 0,
+            completionTokens = breakdown.completionTokens,
+            estimatedCost = cost,
+            cachedInputTokens = breakdown.reportedCachedInputTokens,
+            costSource = source.name,
+        ))
     }
 
     private fun JsonObject?.string(key: String): String? = this?.get(key)?.let { (it as? JsonPrimitive)?.contentOrNull }
-    private fun JsonObject.number(key: String): Int? = (this[key] as? JsonPrimitive)?.contentOrNull?.toIntOrNull()
-    private fun JsonElement?.textValues(key: String): List<String> = when (this) {
-        is JsonObject -> when (val value = this[key]) {
-            is JsonPrimitive -> value.contentOrNull?.let(::listOf).orEmpty()
-            is JsonArray -> value.mapNotNull { (it as? JsonObject)?.get("text")?.let { text -> (text as? JsonPrimitive)?.contentOrNull } }
-            else -> emptyList()
-        }
-        else -> emptyList()
-    }
-
     private fun buildGenerateBody(
         messages: List<ChatMessage>,
         modelID: String,

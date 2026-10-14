@@ -14,3 +14,10 @@ internal data class RelayTransportRequest(
     val webSearchEnabled: Boolean,
     val requestOptions: ChatRequestOptions,
 )
+
+/** The effective protocol, final URL and request body of this chat streaming send (without headers; headers are added by applyRelayHeaders at send time). */
+internal data class RelayChatWireRequest(
+    val transport: ai.oriveo.community.core.model.RelayTransport,
+    val url: String,
+    val body: String,
+)

@@ -8,15 +8,20 @@ import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.data.repository.ConversationRepository
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.model.Attachment
+import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ChatMessage
+import ai.oriveo.community.core.model.ChatMessageState
+import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.provider.AttachmentSendPreflight
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.QuoteContext
+import ai.oriveo.community.core.provider.GeminiService
 import ai.oriveo.community.core.provider.ModelSelectionUtils
 import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
+import ai.oriveo.community.core.provider.RelayModelFallback
 import ai.oriveo.community.core.provider.ModelControlRuntimeIdentityResolver
 import ai.oriveo.community.core.model.GenerationParameterProfileFingerprint
 import ai.oriveo.community.core.model.GenerationParameterSettingsStore
@@ -69,6 +74,11 @@ internal class ChatSendCommandCoordinator(
      */
     private val onSendSettled: () -> Unit,
     private val launchSend: ChatSendLauncher,
+    /**
+     * Outbound history: messages produced by the same trimming chain as ChatRepository sending ([ai.oriveo.community.core.data.repository.OutboundHistory]).
+     * Preflight uses it to detect video; the default returns it unchanged, and in production the ViewModel injects the real trimming.
+     */
+    private val outboundHistory: suspend (List<ChatMessage>) -> List<ChatMessage> = { it },
 ) {
     fun sendMessage(
         text: String,
@@ -96,6 +106,8 @@ internal class ChatSendCommandCoordinator(
                     onMissing = onProviderSelectionError,
                     onFailure = onProviderResolutionError,
                 ) ?: return@launch
+                // The relay session's model has been removed: no request is sent, and the notice bar guides the user to pick again.
+                if (RelayModelFallback.removedConnectionName(provider, modelId) != null) return@launch
 
                 if (requiresDisclosure(provider.kind)) {
                     onDisclosureRequired(
@@ -188,6 +200,26 @@ internal class ChatSendCommandCoordinator(
         // will actually use; when those are unknown, block only if every possible route fails.
         val sendOptions = if (attachments.isNullOrEmpty()) null else {
             resolveAttachmentSendOptions(provider, selectedModel.id)
+                ?.let { options ->
+                    // Preflight only deals with files; only when there are files does it detect video from the outbound history (same trimming chain as sending, including this turn).
+                    if (attachments.none { it.kind == AttachmentKind.File }) options
+                    else {
+                        val history = currentConversationId()?.let { fetchFullConversationHistory(it) }.orEmpty()
+                        val pending = ChatMessage(
+                            id = "preflight-pending",
+                            role = ChatRole.User,
+                            text = text,
+                            providerID = provider.id,
+                            providerKind = provider.kind,
+                            providerName = provider.displayName,
+                            modelID = selectedModel.id,
+                            modelName = selectedModel.name,
+                            state = ChatMessageState.Delivered,
+                            attachments = attachments,
+                        )
+                        options.copy(historyHasVideo = GeminiService.hasVideoAttachment(outboundHistory(history + pending)))
+                    }
+                }
         }
         AttachmentSendPreflight.undeliverable(provider, selectedModel, text, attachments, sendOptions)?.let { error ->
             onAttachmentsUndeliverable(error)
@@ -195,7 +227,7 @@ internal class ChatSendCommandCoordinator(
         }
 
         val runtimeModelId = selectedModel.id
-        val storedModelId = ModelSelectionUtils.preferredStoredModelIdentifier(selectedModel)
+        val storedModelId = ModelSelectionUtils.preferredStoredModelIdentifier(selectedModel, provider.kind)
 
         val isNewConversation = currentConversationId() == null
         val conv = if (!isNewConversation) {
@@ -237,7 +269,7 @@ internal class ChatSendCommandCoordinator(
         }
 
         onConversationActivated(conv.id)
-        appPreferencesRepository.setLastUsedModel(providerId, selectedModel)
+        appPreferencesRepository.setLastUsedModel(providerId, selectedModel, provider.kind)
         if (conv.providerID != providerId || conv.modelID != storedModelId) {
             conversationRepository.updateProviderAndModel(
                 id = conv.id,
@@ -247,6 +279,7 @@ internal class ChatSendCommandCoordinator(
                 relayKind = provider.relayKind,
             )
         }
+        if (RelayModelFallback.removedConnectionName(provider, modelId) != null) return
 
         val requestConversation = conv.copy(
             providerID = providerId,

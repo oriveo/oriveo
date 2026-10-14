@@ -26,7 +26,6 @@ import ai.oriveo.community.core.provider.allowsTemperature
 import ai.oriveo.community.core.provider.capabilityRuntimeContinuationSelection
 import ai.oriveo.community.core.provider.reasoningMergeParams
 import ai.oriveo.community.core.provider.sseLineReader
-import ai.oriveo.community.core.provider.relay.effectiveRelayReasoningMode
 import ai.oriveo.community.core.provider.transport.EndpointResolver
 import ai.oriveo.community.core.provider.transport.ProviderTransportDefinition
 import ai.oriveo.community.core.provider.transport.TransportEndpoints
@@ -186,7 +185,7 @@ class ProviderToolLegRunner(
         }
         val endpoint = resolveEndpoint(provider, authMode, relayRuntimeConfig, protocol, modelId)
         val effectiveReasoning = if (provider.kind == ProviderKind.Relay) {
-            effectiveRelayReasoningMode(options, reasoningMode)
+            reasoningMode
         } else {
             MetadataClient.clampReasoningMode(reasoningMode, resolvedMetadata?.profiles?.reasoning)
         }

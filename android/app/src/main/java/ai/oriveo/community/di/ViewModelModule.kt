@@ -60,6 +60,7 @@ val viewModelModule = module {
             applicationScope = get(named("applicationScope")),
             mcpChatToolRunner = get(),
             mcpConfirmationCoordinator = get(),
+            attachmentStore = get(),
         )
     }
     viewModel {
@@ -148,6 +149,15 @@ val viewModelModule = module {
     viewModelOf(::MemoryViewModel)
     viewModel { BackupViewModel(get(), get(), androidContext().cacheDir, Dispatchers.IO) }
     viewModelOf(::ManualModelEntryViewModel)
-    viewModelOf(::RelaySetupViewModel)
+    // The family lookup parameter uses the default in-process shared instance; viewModelOf would try to resolve a function-typed parameter from the container.
+    viewModel {
+        val preferences = get<ai.oriveo.community.core.app.AppPreferencesRepository>()
+        RelaySetupViewModel(
+            context = get(),
+            providerRepository = get(),
+            discoveryService = get(),
+            rememberLastUsedModel = { providerId, modelId -> preferences.setLastUsedModel(providerId, modelId) },
+        )
+    }
     viewModelOf(::LocalComputeSetupViewModel)
 }

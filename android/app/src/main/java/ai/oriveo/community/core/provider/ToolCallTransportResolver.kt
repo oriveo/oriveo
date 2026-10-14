@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayTransport
@@ -18,8 +19,8 @@ internal object ToolCallTransportResolver {
         TransportKind.GeminiGenerate.wireValue,
     )
 
-    fun declaredTransport(provider: Provider): String? = if (provider.kind == ProviderKind.Relay) {
-        when (provider.relayRequested?.transport) {
+    fun declaredTransport(provider: Provider, model: AIModel? = null): String? = if (provider.kind == ProviderKind.Relay) {
+        when (RelayEndpointResolver.declaredTransport(provider, model)) {
             RelayTransport.OpenAIChatCompletions -> TransportKind.OpenAIChat.wireValue
             RelayTransport.OpenAIResponses -> TransportKind.OpenAIResponses.wireValue
             RelayTransport.AnthropicMessages -> TransportKind.AnthropicMessages.wireValue
@@ -30,7 +31,7 @@ internal object ToolCallTransportResolver {
         catalogExternalTransport(provider)
     }
 
-    fun hasNativeAdapter(provider: Provider): Boolean = declaredTransport(provider) in adapters
+    fun hasNativeAdapter(provider: Provider, model: AIModel? = null): Boolean = declaredTransport(provider, model) in adapters
 
     fun catalogExternalTransport(provider: Provider): String? {
         CapabilityControlResolution.subscriptionFinalTransport(provider)?.let { return it }

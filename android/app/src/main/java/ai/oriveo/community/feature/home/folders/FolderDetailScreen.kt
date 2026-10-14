@@ -231,7 +231,7 @@ private fun FolderDetailConversationRow(
             providerKind = providerKind,
             providerName = providerName,
             modelName = modelName,
-            relayKind = provider?.relayKind,
+            provider = provider,
             isStreaming = isStreaming,
         )
     }

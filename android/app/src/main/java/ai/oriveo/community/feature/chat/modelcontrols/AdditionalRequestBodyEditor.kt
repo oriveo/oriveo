@@ -16,7 +16,10 @@ internal object AdditionalBodyEditor {
         ModelControlRuntimeIdentityResolver.resolve(provider, model)?.canonicalModelId ?: model.id
 
     fun load(store: LocalCapabilityCustomFragmentStore, provider: Provider, model: AIModel, conversationId: String?) =
-        store.additionalBody(provider.id, modelKey(provider, model), conversationId)
+        ModelControlRuntimeIdentityResolver.resolve(provider, model).let { identity ->
+            // When the relay literal key misses, fall back to the old canonical key (same as the send path).
+            store.additionalBody(provider.id, identity?.canonicalModelId ?: model.id, conversationId, identity?.legacyModelId)
+        }
 
     fun save(
         store: LocalCapabilityCustomFragmentStore,

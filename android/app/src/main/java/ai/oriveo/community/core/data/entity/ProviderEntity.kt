@@ -48,4 +48,16 @@ data class ProviderEntity(
      * loudly on the next request rather than silently sending nothing.
      */
     val authMode: String = "apiKey",
+    /**
+     * Official provider address source (`default` / `region:<id>` / `custom`, empty = unclassified). A nullable column added in v3 -> v4.
+     * Stored on this device only: not in the sync payload nor in exports; [baseUrlText] still stores the literal address for older clients and sync to read.
+     */
+    val endpointSource: String? = null,
+    /** Values of the extra setup page fields (`{"workspaceId": "..."}`). Stored on this device only, like [endpointSource]. */
+    val setupValuesJson: String? = null,
+    /**
+     * Relay key list: `[{id, name?, status?}]`, **containing no key values** (the primary key value goes with apiKey,
+     * the rest are stored as `#<keyID>` suffixed entries in SecureKeyStore). A nullable column added in v3 -> v4; null = one implicit key. Stored on this device only.
+     */
+    val relayKeysJson: String? = null,
 )

@@ -34,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.NoteAdd
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Refresh
@@ -56,28 +57,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
+import ai.oriveo.community.core.model.ConnectionAvatar
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
-import ai.oriveo.community.core.model.RelayKind
 import ai.oriveo.community.core.model.resolveProviderLogoKind
 import ai.oriveo.community.feature.modelpicker.ModelPickerContext
 import ai.oriveo.community.feature.modelpicker.ModelPickerSheet
-import ai.oriveo.community.ui.component.ProviderBadgeIcon
 import ai.oriveo.community.ui.component.markdown.MarkdownMessageView
 import ai.oriveo.community.ui.theme.OriveoNotesBackground
 import ai.oriveo.community.ui.theme.OriveoTheme
@@ -97,7 +98,7 @@ fun CrosscheckSheet(
     sourceProviderKind: ProviderKind? = null,
     sourceProviderName: String? = null,
     sourceModelName: String? = null,
-    sourceRelayKind: RelayKind? = null,
+    sourceProvider: Provider? = null,
 ) {
     val colors = OriveoTheme.colors
     val pickerSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -169,7 +170,7 @@ fun CrosscheckSheet(
                         sourceProviderKind = sourceProviderKind,
                         sourceProviderName = sourceProviderName,
                         sourceModelName = sourceModelName,
-                        sourceRelayKind = sourceRelayKind,
+                        sourceProvider = sourceProvider,
                         onOpenPicker = { if (!state.isStreaming && visibleOptions.isNotEmpty()) showModelPicker = true },
                     )
                 }
@@ -195,7 +196,7 @@ fun CrosscheckSheet(
                         expanded = showOriginalAnswer,
                         onToggle = { showOriginalAnswer = !showOriginalAnswer },
                         sourceProviderKind = sourceProviderKind,
-                        sourceRelayKind = sourceRelayKind,
+                        sourceProvider = sourceProvider,
                     )
                 }
             }
@@ -266,7 +267,7 @@ private fun CrosscheckHeader(
     sourceProviderKind: ProviderKind?,
     sourceProviderName: String?,
     sourceModelName: String?,
-    sourceRelayKind: RelayKind?,
+    sourceProvider: Provider?,
     onOpenPicker: () -> Unit,
 ) {
     val colors = OriveoTheme.colors
@@ -307,7 +308,7 @@ private fun CrosscheckHeader(
             sourceProviderKind = sourceProviderKind,
             sourceProviderName = sourceProviderName,
             sourceModelName = sourceModelName,
-            sourceRelayKind = sourceRelayKind,
+            sourceProvider = sourceProvider,
             onOpenPicker = onOpenPicker,
         )
     }
@@ -338,7 +339,7 @@ private fun ModelComparisonRail(
     sourceProviderKind: ProviderKind?,
     sourceProviderName: String?,
     sourceModelName: String?,
-    sourceRelayKind: RelayKind?,
+    sourceProvider: Provider?,
     onOpenPicker: () -> Unit,
 ) {
     val colors = OriveoTheme.colors
@@ -360,7 +361,7 @@ private fun ModelComparisonRail(
                     ?: stringResource(R.string.notes_crosscheck_original),
                 providerName = sourceProviderName,
                 providerKind = sourceProviderKind,
-                relayKind = sourceRelayKind,
+                provider = sourceProvider,
                 enabled = false,
                 modifier = Modifier.weight(1f),
             )
@@ -375,8 +376,8 @@ private fun ModelComparisonRail(
                 label = stringResource(R.string.notes_crosscheck_model),
                 modelName = selected?.model?.name ?: "—",
                 providerName = selected?.provider?.displayName,
-                providerKind = selected?.provider?.let(::resolveProviderLogoKind),
-                relayKind = selected?.provider?.resolvedRelayKind(),
+                providerKind = selected?.provider?.kind,
+                provider = selected?.provider,
                 enabled = selected != null,
 
                 modelNameSize = 15.sp,
@@ -406,7 +407,7 @@ private fun ModelRailBlock(
     modelName: String,
     providerName: String?,
     providerKind: ProviderKind?,
-    relayKind: RelayKind?,
+    provider: Provider?,
     enabled: Boolean,
     modifier: Modifier = Modifier,
     modelNameSize: TextUnit = 14.sp,
@@ -426,7 +427,7 @@ private fun ModelRailBlock(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (providerKind != null) {
-            ProviderBadgeIcon(kind = providerKind, relayKind = relayKind, size = 28.dp)
+            ConnectionAvatar(provider = provider, fallbackKind = providerKind, size = 28.dp)
         } else {
             Box(
                 modifier = Modifier
@@ -621,11 +622,7 @@ private fun EmptyResultContent(selected: CrosscheckOption?) {
                 modifier = Modifier.size(70.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                ProviderBadgeIcon(
-                    kind = resolveProviderLogoKind(selected.provider),
-                    relayKind = selected.provider.resolvedRelayKind(),
-                    size = 49.dp,
-                )
+                ConnectionAvatar(provider = selected.provider, fallbackKind = selected.provider.kind, size = 49.dp)
             }
         } else {
             Box(
@@ -717,11 +714,7 @@ private fun ModelMicroChip(option: CrosscheckOption) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ProviderBadgeIcon(
-            kind = resolveProviderLogoKind(option.provider),
-            relayKind = option.provider.resolvedRelayKind(),
-            size = 16.dp,
-        )
+        ConnectionAvatar(provider = option.provider, fallbackKind = option.provider.kind, size = 16.dp)
         Text(
             text = option.model.name,
             style = OriveoTheme.typography.footnote.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
@@ -739,14 +732,10 @@ private fun OriginalSourceStrip(
     expanded: Boolean,
     onToggle: () -> Unit,
     sourceProviderKind: ProviderKind? = null,
-    sourceRelayKind: RelayKind? = null,
+    sourceProvider: Provider? = null,
 ) {
     val colors = OriveoTheme.colors
     val isDark = OriveoTheme.isDark
-    val chevronRotation by animateFloatAsState(
-        targetValue = if (expanded) 180f else 0f,
-        label = "chevronRotation",
-    )
 
     val preview = remember(originalAnswer) {
         originalAnswer
@@ -779,7 +768,7 @@ private fun OriginalSourceStrip(
         ) {
             if (sourceProviderKind != null) {
                 Box(modifier = Modifier.size(34.dp), contentAlignment = Alignment.Center) {
-                    ProviderBadgeIcon(kind = sourceProviderKind, relayKind = sourceRelayKind, size = 28.dp)
+                    ConnectionAvatar(provider = sourceProvider, fallbackKind = sourceProviderKind, size = 28.dp)
                 }
             } else {
                 Box(
@@ -818,13 +807,14 @@ private fun OriginalSourceStrip(
                 )
             }
 
+            // Collapsed points along the reading direction, expanded points down (no 180-degree rotation of a down arrow); ChevronRight is not auto-mirrored, so flip it by hand in RTL.
             Icon(
-                imageVector = Icons.Filled.ExpandMore,
+                imageVector = if (expanded) Icons.Filled.ExpandMore else Icons.Filled.ChevronRight,
                 contentDescription = null,
                 tint = colors.textTertiary,
                 modifier = Modifier
                     .size(14.dp)
-                    .rotate(chevronRotation),
+                    .then(if (LocalLayoutDirection.current == LayoutDirection.Rtl && !expanded) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier),
             )
         }
 
@@ -1005,10 +995,4 @@ private fun CrosscheckDockHeroButton(
             )
         }
     }
-}
-
-@Composable
-private fun Provider.resolvedRelayKind(): RelayKind? {
-    val resolvedKind = resolveProviderLogoKind(this)
-    return if (kind == ProviderKind.Relay && resolvedKind == ProviderKind.Relay) relayKind else null
 }

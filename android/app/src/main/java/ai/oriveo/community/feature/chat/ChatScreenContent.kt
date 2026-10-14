@@ -108,6 +108,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -232,6 +233,7 @@ internal fun ChatScreenContent(
     onNavigateToProviderSetup: () -> Unit = {},
 
     onNavigateToProviderDetail: (providerId: String) -> Unit = {},
+    onNavigateToConnectionWebSearch: (providerId: String) -> Unit = {},
     onNavigateToSkillEdit: () -> Unit = {},
     onNavigateToNoteDetail: (String) -> Unit = {},
     /**
@@ -340,6 +342,9 @@ internal fun ChatScreenContent(
     val onRetryMessage = remember(viewModel) { viewModel::retryMessage }
     val onRetryWithoutLocalCustomFields = remember(viewModel) { viewModel::retryWithoutLocalCustomFields }
     val onSwitchModel = remember(viewModel) { { viewModel.showModelSwitcher = true } }
+    // The "switch key" sheet: wired like switchModel; the selection rebinds the key and does not resend automatically.
+    var switchKeyMessage by remember { mutableStateOf<ChatMessage?>(null) }
+    val onSwitchKey = remember { { message: ChatMessage -> switchKeyMessage = message } }
     val mcpToolStepsHost = ai.oriveo.community.feature.chat.mcp.rememberMcpToolStepsHost(viewModel.mcpCoordinator)
     val onShareMessage = remember(viewModel, context) { { message: ChatMessage -> viewModel.shareMessage(message, context) } }
     val onSaveMessageAsNote = remember(viewModel) { { message: ChatMessage -> viewModel.noteCoordinator.saveMessageAsNote(message.id) } }
@@ -569,7 +574,7 @@ internal fun ChatScreenContent(
             ChatToolbar(
                 skillIcon = currentSkill?.icon,
                 providerKind = activeProvider?.kind,
-                relayKind = activeProvider?.relayKind,
+                provider = activeProvider,
                 providerName = activeProvider?.displayName.orEmpty(),
                 modelName = activeModelName.ifEmpty { stringResource(R.string.select_model) },
                 isSendingMessage = viewModel.isGenerating,
@@ -627,7 +632,7 @@ internal fun ChatScreenContent(
                 }
             }
 
-            viewModel.conversationState.issue?.let { issue ->
+            viewModel.conversationState.issue?.takeUnless { it.rendersAboveComposer }?.let { issue ->
                 ConversationIssueBanner(
                     issue = issue,
                     providerName = activeProvider?.displayName,
@@ -672,10 +677,12 @@ internal fun ChatScreenContent(
                             .padding(bottom = composerOverlayHeightDp),
                     )
                 } else {
-                    // The step block's callbacks reach the message cells through a CompositionLocal, which
-                    // keeps them out of the list and bubble signatures.
+                    // The step block's callbacks and the connection table the message-header avatar needs
+                    // reach the message cells through a CompositionLocal, which keeps them out of the list
+                    // and bubble signatures.
                     androidx.compose.runtime.CompositionLocalProvider(
                         ai.oriveo.community.feature.chat.mcp.LocalMcpToolStepsHost provides mcpToolStepsHost,
+                        ai.oriveo.community.feature.chat.components.LocalRelayAvatarProviders provides providersById,
                     ) {
                     ChatMessagesList(
                         messages = messages,
@@ -704,6 +711,7 @@ internal fun ChatScreenContent(
                         onRetry = onRetryMessage,
                         onRetryWithoutLocalCustomFields = onRetryWithoutLocalCustomFields,
                         onSwitchModel = onSwitchModel,
+                        onSwitchKey = onSwitchKey,
                         onShare = onShareMessage,
                         onSaveAsNote = onSaveMessageAsNote,
                         // Saving a code block and saving a selection are the same production path
@@ -744,9 +752,37 @@ internal fun ChatScreenContent(
             onOverlayHeightChange = { composerOverlayHeightPx = it },
             onNavigateToProviderSetup = onNavigateToProviderSetup,
             onNavigateToProviderDetail = onNavigateToProviderDetail,
+            onNavigateToConnectionWebSearch = onNavigateToConnectionWebSearch,
             onNavigateToSkillEdit = onNavigateToSkillEdit,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
+        }
+    }
+
+    switchKeyMessage?.let { message ->
+        val relayProvider = providersById[message.providerID]
+        val options = ai.oriveo.community.feature.chat.recovery.RelaySwitchKey.options(relayProvider, message)
+        if (relayProvider == null || options.isEmpty()) {
+            switchKeyMessage = null
+        } else {
+            val providerRepository: ai.oriveo.community.core.data.repository.ProviderRepository = org.koin.compose.koinInject()
+            val modelID = message.modelID.orEmpty()
+            ai.oriveo.community.feature.chat.recovery.RelaySwitchKeySheet(
+                modelName = relayProvider.models.firstOrNull { it.id == modelID }?.name ?: message.modelName,
+                options = options,
+                onSelect = { option ->
+                    coroutineScope.launch {
+                        try {
+                            providerRepository.rebindRelayModelKey(relayProvider.id, modelID, option.keyId)
+                        } catch (error: kotlinx.coroutines.CancellationException) {
+                            throw error
+                        } catch (_: Exception) {
+                            // A failed rebind leaves the message alone: the button stays, and the user can try again or tap retry.
+                        }
+                    }
+                },
+                onDismiss = { switchKeyMessage = null },
+            )
         }
     }
 
@@ -765,9 +801,6 @@ internal fun ChatScreenContent(
         val crosscheckState by viewModel.noteCoordinator.crosscheckState.collectAsStateWithLifecycle()
         val sourceProvider = origin.message.providerID?.let { providersById[it] }
         val sourceLogoKind = sourceProvider?.let(::resolveProviderLogoKind) ?: origin.message.providerKind
-        val sourceRelayKind = sourceProvider
-            ?.takeIf { it.kind == ProviderKind.Relay && resolveProviderLogoKind(it) == ProviderKind.Relay }
-            ?.relayKind
         CrosscheckSheet(
             originalAnswer = origin.message.text,
             providers = providers,
@@ -780,7 +813,7 @@ internal fun ChatScreenContent(
             sourceProviderKind = sourceLogoKind,
             sourceProviderName = origin.message.providerName,
             sourceModelName = origin.message.modelName,
-            sourceRelayKind = sourceRelayKind,
+            sourceProvider = sourceProvider,
         )
     }
 

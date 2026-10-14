@@ -29,22 +29,50 @@ object RelayOfficialCatalogResolver {
     ): AIModel {
         // `model.isManual` is the single source of truth, but data written by older clients may
         // still encode the manual marker as a `relay-manual-` id prefix, so both are accepted.
-        // A manual model takes the `enrichManualOfficialPricing` path, which merges pricing only
-        // and leaves the user-entered fields alone, so the catalog cannot overwrite what the user
-        // typed in by hand.
+        // A manual model takes the `enrichManualOfficialPricing` path, which keeps the user's name and
+        // display fields, while capabilities (union), profiles and pricing are inherited the same way as
+        // for a catalog model.
         val isRelayManualModel = localModel.isManual ||
             localModel.id.trim().startsWith("relay-manual-")
-        val priority = RelayRuntimeSupport.transportProviderKind(provider)
+        val priority = RelayRuntimeSupport.transportProviderKind(provider, localModel)
         val match = metadata.resolveCatalogModelAcrossProvidersWithProvider(
             modelID = resolvedRelayModelId(localModel.id),
             transportPriority = priority,
         ) ?: return localModel
 
+        val inherited = inheritCapabilities(localModel, provider, runtimeConfig, match)
         if (isRelayManualModel) {
-            return enrichManualOfficialPricing(localModel, match)
+            return enrichManualOfficialPricing(inherited, match)
         }
+        val safeCaps = inherited.capabilities
 
-        val envelope = RelayRuntimeSupport.envelopeKey(provider)?.let { key ->
+        val pricing = CatalogModelBuilder.pricePresentation(match.metadata)
+
+        val uiHints = match.metadata.uiHints
+        return inherited.copy(
+            name = match.metadata.displayName ?: localModel.name,
+            canonicalModelId = match.canonicalModelId,
+            isRecommended = uiHints?.recommended == true || localModel.isRecommended,
+            sortRank = uiHints?.rank ?: localModel.sortRank,
+            groupKey = uiHints?.groupKey ?: localModel.groupKey,
+            groupName = uiHints?.groupName ?: localModel.groupName,
+            badgeOrder = uiHints?.badgeOrder?.filter { it in safeCaps && it != ModelCapability.Text }
+                ?: localModel.badgeOrder,
+            priceTier = pricing.priceTier.ifEmpty { localModel.priceTier },
+            promptPrice = pricing.promptPrice ?: localModel.promptPrice,
+            completionPrice = pricing.completionPrice ?: localModel.completionPrice,
+            contextLength = match.metadata.contextLength ?: localModel.contextLength,
+        )
+    }
+
+    /** Capabilities (official ∩ protocol envelope, then unioned with the local ones) and profiles; same rule for catalog models and exact-match manual ones. */
+    private fun inheritCapabilities(
+        localModel: AIModel,
+        provider: Provider,
+        runtimeConfig: MetadataClient.RelayRuntimeConfig,
+        match: MetadataClient.RelayCatalogMatchResult,
+    ): AIModel {
+        val envelope = RelayRuntimeSupport.envelopeKey(provider, localModel)?.let { key ->
             runtimeConfig.transportEnvelopes[key]
         }
         val officialCaps = match.metadata.capabilities.ifEmpty { listOf(ModelCapability.Text) }
@@ -61,25 +89,9 @@ object RelayOfficialCatalogResolver {
         val imageGenProfile = if (ModelCapability.ImageGen in safeCaps) {
             match.metadata.profiles.imageGen
         } else null
-
-        val pricing = CatalogModelBuilder.pricePresentation(match.metadata)
-
-        val uiHints = match.metadata.uiHints
         return localModel.copy(
-            name = match.metadata.displayName ?: localModel.name,
             capabilities = safeCaps,
             reasoningModeAvailable = ModelCapability.Reasoning in safeCaps && reasoningProfile != null,
-            canonicalModelId = match.canonicalModelId,
-            isRecommended = uiHints?.recommended == true || localModel.isRecommended,
-            sortRank = uiHints?.rank ?: localModel.sortRank,
-            groupKey = uiHints?.groupKey ?: localModel.groupKey,
-            groupName = uiHints?.groupName ?: localModel.groupName,
-            badgeOrder = uiHints?.badgeOrder?.filter { it in safeCaps && it != ModelCapability.Text }
-                ?: localModel.badgeOrder,
-            priceTier = pricing.priceTier.ifEmpty { localModel.priceTier },
-            promptPrice = pricing.promptPrice ?: localModel.promptPrice,
-            completionPrice = pricing.completionPrice ?: localModel.completionPrice,
-            contextLength = match.metadata.contextLength ?: localModel.contextLength,
             reasoningProfile = reasoningProfile,
             webSearchProfile = webSearchProfile,
             imageGenProfile = imageGenProfile,

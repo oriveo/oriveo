@@ -58,7 +58,7 @@ fun ProviderDetailSettingsCard(
     if (!showsAny) return
 
     val hasEndpointGroup = onEditEndpoint != null
-    val endpointOption = ProviderSetupCopy.resolveRegionOption(provider.kind, provider.baseUrlText)
+    val endpointOption = ProviderSetupCopy.resolveRegionOption(provider.kind, provider.baseUrlText, provider.endpointSource)
     val isRelay = provider.kind == ProviderKind.Relay
 
     Column(
@@ -94,7 +94,7 @@ fun ProviderDetailSettingsCard(
             if (hasEndpointGroup || onAdvancedSettings != null) SettingsRowDivider()
             SettingsRow(
                 icon = Icons.Filled.Tune,
-                title = stringResource(R.string.generation_model_behavior),
+                title = stringResource(R.string.generation_parameters_section),
                 value = null,
                 tint = colors.textPrimary,
                 onClick = onGenerationParameters,
@@ -205,3 +205,12 @@ private fun relayTransportPreviewText(requested: RelayRequestedConfig?): String?
         RelayTransport.GeminiGenerateContent -> stringResource(R.string.relay_transport_gemini_generate_content)
     }
 }
+
+/**
+ * Entry points for the connection detail board to read the connection-level default transport and the
+ * legacy single-value root. Like the entry subtitle above, these are display-only and take no part in
+ * outbound dispatch (outbound always goes through RelayEndpointResolver).
+ */
+internal fun relayConnectionDefaultTransport(requested: RelayRequestedConfig?): RelayTransport? = requested?.transport
+
+internal fun relayConnectionLegacyRoot(requested: RelayRequestedConfig?): String? = requested?.resolvedAPIBaseURL

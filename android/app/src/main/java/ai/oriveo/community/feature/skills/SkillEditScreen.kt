@@ -79,6 +79,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -864,8 +867,10 @@ fun SkillEditScreen(
                                 Icon(
                                     Icons.Filled.ChevronRight,
                                     contentDescription = null,
+                                    // The RTL mirror sits outside: collapsed points left, and after the 90 degree rotation it still points down.
                                     modifier = Modifier
                                         .size(16.dp)
+                                        .then(if (LocalLayoutDirection.current == LayoutDirection.Rtl) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier)
                                         .rotate(chevronRotation),
                                     tint = colors.textTertiary,
                                 )

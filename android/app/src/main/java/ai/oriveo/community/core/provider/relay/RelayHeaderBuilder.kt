@@ -11,7 +11,6 @@ import java.util.UUID
 
 internal object RelayHeaderBuilder {
     private const val DEFAULT_ANTHROPIC_VERSION = "2023-06-01"
-    private const val CODEX_CLI_VERSION = "0.50.0"
     private const val CODEX_ORIGINATOR = "codex_cli_rs"
     private const val CODEX_OPENAI_BETA = "responses=experimental"
 
@@ -69,13 +68,22 @@ internal object RelayHeaderBuilder {
         if (codexCompatIdentity == false) return emptyMap()
         if (RelayRuntimeSupport.codexIdentityDefault(transport)) {
             return mapOf(
-                HttpHeaders.UserAgent to "codex_cli_rs/$CODEX_CLI_VERSION (Oriveo Android)",
+                HttpHeaders.UserAgent to "codex_cli_rs/${RelayRuntimeSupport.codexClientVersion(transport)} (Oriveo Android)",
                 "Originator" to CODEX_ORIGINATOR,
                 "session_id" to UUID.randomUUID().toString(),
                 "OpenAI-Beta" to CODEX_OPENAI_BETA,
             )
         }
         return emptyMap()
+    }
+
+    /**
+     * Whether this request carries the Codex identity headers. The body's `prompt_cache_key` goes in and out together with the identity headers,
+     * and the criterion is written in this one place, on the same path as [applyRelayHeaders].
+     */
+    fun injectsCodexIdentity(requestOptions: ChatRequestOptions, transport: RelayTransport): Boolean {
+        if (resolveAuthMode(requestOptions, transport) == RelayAuthMode.None) return false
+        return codexIdentityHeaders(transport, requestOptions.relayRequested?.codexCompatIdentity).isNotEmpty()
     }
 
     fun resolveAuthMode(requestOptions: ChatRequestOptions, transport: RelayTransport): RelayAuthMode {

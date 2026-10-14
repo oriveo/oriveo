@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -51,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -67,7 +69,6 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.provider.ModelPricingFormatter
-import ai.oriveo.community.core.provider.ModelSelectionUtils
 import ai.oriveo.community.ui.component.HeroModelCapabilityStrip
 import ai.oriveo.community.ui.component.MODEL_ROW_MAX_CAPABILITIES
 import ai.oriveo.community.ui.component.localizedPriceTier
@@ -87,7 +88,8 @@ fun LazyListScope.providerDetailEnabledModels(
     sortedModels: List<AIModel>,
     highlightedModelID: String?,
     onToggleModel: (AIModel) -> Unit,
-    onSetDefault: (AIModel) -> Unit,
+    /** null = the model row menu on this page offers no "Set as default" (relay / local: the default model is changed only in the model card on the detail page). */
+    onSetDefault: ((AIModel) -> Unit)?,
     onStartChat: (AIModel) -> Unit,
     /**
      * Membership index of the confirmed relay catalog; null means the catalog is unconfirmed or
@@ -101,16 +103,29 @@ fun LazyListScope.providerDetailEnabledModels(
      * index once; the verdict is exactly the one matchingModel gave.
      */
     confirmedRelayCatalogIndex: Set<String>? = null,
+    /** Tapping an enabled relay / local row opens the "Model > Advanced" page; capability testing and restoring automatic both live on that page. */
+    onOpenAdvanced: (AIModel) -> Unit = {},
+    /** The enabled section of the relay / local model library; null = an official provider, behavior and appearance unchanged. */
+    relayBoard: RelayCatalogEnabledSection? = null,
 ) {
+    // When the model library is filtered by protocol both sections are filtered: rows come from the board model, while the removal threshold still counts all enabled models.
+    val rowModels = relayBoard?.rows?.map { it.model } ?: sortedModels
+    val boardRows = relayBoard?.rows?.associateBy { it.model.id }
+
     item(key = "enabled_models_header") {
         ProviderDetailSectionHeader(
             modifier = Modifier.padding(bottom = OriveoTheme.spacing.md),
-            title = stringResource(titleRes),
-            trailing = stringResource(R.string.provider_detail_n_models, provider.enabledModelCount),
+            title = relayBoard?.let { stringResource(it.titleRes, it.count) } ?: stringResource(titleRes),
+            trailing = if (relayBoard == null) {
+                pluralStringResource(R.plurals.provider_detail_n_models, provider.enabledModelCount, provider.enabledModelCount)
+            } else {
+                null
+            },
             helpMessage = stringResource(R.string.enabled_models_help),
         )
     }
 
+    // After filtering, an empty section simply shows no rows; the "no models yet" empty state is only for when truly none are enabled.
     if (sortedModels.isEmpty()) {
         item(key = "enabled_models_empty") {
             EmptyModelsPanel(provider = provider)
@@ -119,14 +134,15 @@ fun LazyListScope.providerDetailEnabledModels(
         val canRemove = (provider.kind.isAggregatedProvider || provider.kind == ProviderKind.Relay) &&
             sortedModels.size > 1
         itemsIndexed(
-            items = sortedModels,
+            items = rowModels,
             key = { _, model -> "enabled_model_${model.id}" },
 
             contentType = { _, _ -> EnabledModelRowContentType },
         ) { index, model ->
             val colors = OriveoTheme.colors
-            val position = enabledModelRowPosition(index = index, lastIndex = sortedModels.lastIndex)
-            val isDefault = provider.defaultModel?.id == model.id
+            val position = enabledModelRowPosition(index = index, lastIndex = rowModels.lastIndex)
+            // A relay has no default model, so no default badge is shown.
+            val isDefault = provider.kind != ProviderKind.Relay && provider.defaultModel?.id == model.id
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -141,16 +157,20 @@ fun LazyListScope.providerDetailEnabledModels(
                     provider = provider,
                     model = model,
                     capabilityObservationRevision = capabilityObservationRevision,
-                    isMissingFromConfirmedCatalog = provider.kind == ProviderKind.Relay && !model.isManual &&
-                        confirmedRelayCatalogIndex != null &&
-                        !ModelSelectionUtils.catalogIndexContains(confirmedRelayCatalogIndex, model.id),
+                    isMissingFromConfirmedCatalog = RelayCatalogBoardModel.isMissingFromConfirmedCatalog(
+                        provider,
+                        model,
+                        confirmedRelayCatalogIndex,
+                    ),
+                    boardRow = boardRows?.get(model.id),
                     isDefault = isDefault,
                     isHighlighted = highlightedModelID == model.id,
-                    canSetDefault = !isDefault,
+                    canSetDefault = onSetDefault != null && !isDefault,
                     canRemove = canRemove,
                     onStartChat = { onStartChat(model) },
-                    onSetDefault = { onSetDefault(model) },
+                    onSetDefault = { onSetDefault?.invoke(model) },
                     onToggle = { onToggleModel(model) },
+                    onOpenAdvanced = { onOpenAdvanced(model) },
                 )
                 if (position == CatalogRowPosition.First || position == CatalogRowPosition.Middle) {
                     Box(
@@ -302,9 +322,15 @@ private fun EnabledModelRow(
     onStartChat: () -> Unit,
     onSetDefault: () -> Unit,
     onToggle: () -> Unit,
+    onOpenAdvanced: () -> Unit = {},
+    /** Row structure of the relay / local model library; when non-null the row tap, the trailing area and the menu are rendered from it alone. */
+    boardRow: RelayCatalogRow? = null,
 ) {
     val colors = OriveoTheme.colors
     val isDark = OriveoTheme.isDark
+    // Official row overflow menu: set as default / remove; a board row menu comes from boardRow.menu (remove only).
+    val menuItems = RelayModelAdvancedBoard.enabledRowActions(canSetDefault, canRemove).menu
+    val hasMenu = if (boardRow != null) RelayCatalogTrailing.More in boardRow.trailing else menuItems.isNotEmpty()
     var showMenu by remember { mutableStateOf(false) }
 
     val highlightTint by animateColorAsState(
@@ -323,6 +349,7 @@ private fun EnabledModelRow(
             .background(highlightTint),
     ) {
 
+        // Enabled row: left column | status text (board rows) | chat / overflow, all vertically centered. (whole-row vertical centering)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -335,7 +362,24 @@ private fun EnabledModelRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-
+            if (boardRow != null) {
+                // Board row: name / chips + five capabilities; the status text sits in the trailing column (next to the chat button); a row tap is dispatched by tapTarget only (an unavailable model can still open Advanced).
+                RelayCatalogRowBody(
+                    row = boardRow,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            when (RelayCatalogBoardModel.rowTap(model.id, boardRow.tapTarget, enabledRow = true)) {
+                                is RelayCatalogRowTap.OpenAdvanced -> onOpenAdvanced()
+                                RelayCatalogRowTap.StartChat -> if (model.isAvailable) onStartChat()
+                                RelayCatalogRowTap.Enable -> Unit
+                            }
+                        }
+                        .alpha(if (model.isAvailable) 1f else 0.72f),
+                )
+            } else {
+            // Title area: takes the full width, weight(1f) keeps a short title aligned left; tap = new chat
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -374,37 +418,26 @@ private fun EnabledModelRow(
             if (!hasDetailedSpecifications(model)) {
                 EnabledModelPriceLabel(model = model)
             }
+            }
+
+            if (boardRow != null) RelayCatalogRowStatusText(boardRow)
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(
-                            color = if (model.isAvailable) colors.primarySoft else colors.surfaceInset.copy(alpha = 0.6f),
-                            shape = CircleShape,
-                        )
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            enabled = model.isAvailable,
-                            onClick = onStartChat,
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Forum,
-                        contentDescription = null,
-                        modifier = Modifier.size(13.dp),
-                        tint = if (model.isAvailable) colors.primary else colors.textTertiary,
+                if (boardRow == null) {
+                    EnabledRowChatButton(available = model.isAvailable, onClick = onStartChat)
+                } else if (RelayCatalogTrailing.NewChat in boardRow.trailing) {
+                    // "New chat" uses the same icon in the same position as an official enabled row.
+                    EnabledRowChatButton(
+                        available = model.isAvailable,
+                        onClick = onStartChat,
+                        contentDescription = stringResource(R.string.new_chat),
                     )
                 }
 
-                if (canSetDefault || canRemove) {
+                if (hasMenu) {
                     Box {
 
                         Box(
@@ -424,7 +457,7 @@ private fun EnabledModelRow(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.MoreVert,
-                                contentDescription = null,
+                                contentDescription = if (boardRow != null) stringResource(R.string.advanced_more) else null,
                                 modifier = Modifier.size(14.dp),
                                 tint = colors.textSecondary,
                             )
@@ -435,7 +468,41 @@ private fun EnabledModelRow(
                                 expanded = true,
                                 onDismissRequest = { showMenu = false },
                             ) {
-                                if (canSetDefault) {
+                                if (boardRow != null) {
+                                    // A board row menu has only "Remove"; with one model left it is greyed out and shows a reason line.
+                                    boardRow.menu.forEach { item ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    stringResource(R.string.remove),
+                                                    color = if (item.enabled) colors.danger else colors.textTertiary,
+                                                )
+                                            },
+                                            onClick = {
+                                                showMenu = false
+                                                onToggle()
+                                            },
+                                            enabled = item.enabled,
+                                            leadingIcon = {
+                                                Icon(
+                                                    Icons.Outlined.Delete,
+                                                    contentDescription = null,
+                                                    tint = if (item.enabled) colors.danger else colors.textTertiary,
+                                                )
+                                            },
+                                        )
+                                        item.disabledReasonRes?.let { reason ->
+                                            Text(
+                                                text = stringResource(reason),
+                                                style = OriveoTheme.typography.footnote,
+                                                color = colors.textSecondary,
+                                                modifier = Modifier
+                                                    .widthIn(max = 260.dp)
+                                                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                                            )
+                                        }
+                                    }
+                                } else if (RelayEnabledRowMenuItem.SetDefault in menuItems) {
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.set_as_default)) },
                                         onClick = {
@@ -447,7 +514,7 @@ private fun EnabledModelRow(
                                         },
                                     )
                                 }
-                                if (canRemove) {
+                                if (boardRow == null && RelayEnabledRowMenuItem.Remove in menuItems) {
                                     DropdownMenuItem(
                                         text = {
                                             Text(
@@ -474,6 +541,43 @@ private fun EnabledModelRow(
                 }
             }
         }
+    }
+}
+
+/** The round chat button at the end of an enabled row: official rows and relay board rows share the same "new chat" icon and drawing. */
+@Composable
+private fun EnabledRowChatButton(
+    available: Boolean,
+    onClick: () -> Unit,
+    contentDescription: String? = null,
+    modifier: Modifier = Modifier,
+) {
+    val colors = OriveoTheme.colors
+    // Explicit indication = null, so the default ripple is not drawn against the rectangular layout bounds after
+    // .clip(CircleShape) (in dark mode that looks like an extra strip next to the round background). The background is
+    // bound to CircleShape directly; the shape is guaranteed by the background itself and does not rely on the outline of a preceding clip.
+    Box(
+        modifier = modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(
+                color = if (available) colors.primarySoft else colors.surfaceInset.copy(alpha = 0.6f),
+                shape = CircleShape,
+            )
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                enabled = available,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Forum,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(13.dp),
+            tint = if (available) colors.primary else colors.textTertiary,
+        )
     }
 }
 

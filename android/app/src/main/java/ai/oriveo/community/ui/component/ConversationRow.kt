@@ -44,10 +44,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.model.AttachmentKind
+import ai.oriveo.community.core.model.ConnectionAvatar
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.CostFormatter
+import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
-import ai.oriveo.community.core.model.RelayKind
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.ProviderBadgeColors
 import ai.oriveo.community.ui.util.formatRelativeTime
@@ -73,7 +74,8 @@ fun ConversationRow(
     folderName: String? = null,
     skillIcon: String? = null,
     isEditing: Boolean = false,
-    relayKind: RelayKind? = null,
+    /** The connection the conversation belongs to: a relay draws the unified avatar; null when the connection was deleted, falling back to [providerKind]. */
+    provider: Provider? = null,
     isStreaming: Boolean = false,
     isPinned: Boolean = false,
     modifier: Modifier = Modifier,
@@ -130,8 +132,7 @@ fun ConversationRow(
     ) {
         ProviderLogoAvatar(
             providerKind = providerKind,
-            relayKind = relayKind,
-            isDark = isDark,
+            provider = provider,
         )
 
         Column(
@@ -296,20 +297,18 @@ private val CONVERSATION_ROW_ACCENT_DARK = Color(0xFFA78BFA)
 /**
  * Provider logo avatar (matches iOS conversationAvatar)
  *
- * Official providers: the brand logo.
- * Relay: the logo of the upstream selected by relayKind (OpenAI / Anthropic / Gemini); Custom / null shows the purple-orange Relay logo
+ * Official providers and local engines: the brand logo. Relay: the unified avatar (brand image / initial / generic), never a protocol logo.
  */
 @Composable
 private fun ProviderLogoAvatar(
     providerKind: ProviderKind?,
-    relayKind: RelayKind?,
-    isDark: Boolean,
+    provider: Provider?,
 ) {
     if (providerKind != null) {
-        ProviderBadgeIcon(
-            kind = providerKind,
+        ConnectionAvatar(
+            provider = provider,
+            fallbackKind = providerKind,
             size = CONVERSATION_ROW_AVATAR_SIZE,
-            relayKind = relayKind,
         )
     }
 }

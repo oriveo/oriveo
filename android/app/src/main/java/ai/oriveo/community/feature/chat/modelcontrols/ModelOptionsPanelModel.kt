@@ -2,13 +2,21 @@ package ai.oriveo.community.feature.chat.modelcontrols
 
 import androidx.annotation.StringRes
 import ai.oriveo.community.R
+import ai.oriveo.community.core.capability.truth.ProviderForm
+import ai.oriveo.community.core.data.repository.relayImageSupportUnknown
+import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.CapabilityWebPreference
 import ai.oriveo.community.core.model.LocalCapabilityCustomFragmentStore.AdditionalBody
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.core.provider.AdditionalRequestBody
+import ai.oriveo.community.core.provider.AttachmentTransportResolver
 import ai.oriveo.community.core.provider.CapabilityControlPresentation
+import ai.oriveo.community.core.provider.LocalEngineChannels
+import ai.oriveo.community.core.provider.RelayEndpointResolver
+import ai.oriveo.community.core.provider.relay.RelayNegativeCache
 import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionCapabilityShape.ConnectionCategory
 import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionCapabilityShape.CustomProtocol
 import kotlinx.serialization.json.Json
@@ -195,7 +203,8 @@ internal enum class ModelOptionsStatusMark(@StringRes val labelRes: Int?) {
             when {
                 connection == ConnectionCategory.CustomLLM -> Unverified
                 presentations.any {
-                    it == CapabilityControlPresentation.AutomaticAvailable || it == CapabilityControlPresentation.ForceUnsupported
+                    it == CapabilityControlPresentation.AutomaticAvailable || it == CapabilityControlPresentation.ForceUnsupported ||
+                        it == CapabilityControlPresentation.AlwaysOn
                 } -> Official
                 else -> None
             }
@@ -209,10 +218,10 @@ internal object ModelOptionsPanelInput {
         else -> ConnectionCategory.Other
     }
 
-    /** The same criterion as `ModelControlsIdentityGap`: no protocol chosen or still "automatic". */
-    fun protocolUndecided(provider: Provider): Boolean =
+    /** The same criterion as `ModelControlsIdentityGap`: neither the model nor the connection has chosen a protocol (or it is still "automatic"). */
+    fun protocolUndecided(provider: Provider, model: AIModel? = null): Boolean =
         provider.kind == ProviderKind.Relay &&
-            provider.relayRequested?.transport?.takeIf { it != RelayTransport.Auto } == null
+            RelayEndpointResolver.declaredTransport(provider, model) == null
 
     /** The stored web-search preference to the intent the shape function understands; a tier taken over by custom fields is drawn as on. */
     fun webIntent(preference: CapabilityWebPreference): String = when (preference) {
@@ -227,9 +236,86 @@ internal object ModelOptionsPanelInput {
         else -> CapabilityWebPreference.Automatic
     }
 
-    fun customProtocol(provider: Provider): CustomProtocol? {
+    /** Thinking-row facts of a local-engine connection: looks up the write-path table by engineProfile x channel; returns null when it is not a local engine or not in the table. */
+    fun localEngineThinking(provider: Provider, model: AIModel? = null): ModelOptionCapabilityShape.LocalEngineThinking? {
         if (provider.kind != ProviderKind.Relay) return null
-        return if (provider.relayRequested?.transport == RelayTransport.OpenAIChatCompletions) {
+        val engineProfile = provider.relayRequested?.engineProfile?.takeIf(String::isNotBlank) ?: return null
+        val channel = RelayEndpointResolver.declaredTransport(provider, model) ?: return null
+        val writable = LocalEngineChannels.thinkingWritable(engineProfile, channel) ?: return null
+        return ModelOptionCapabilityShape.LocalEngineThinking(
+            writable = writable,
+            nonChatChannel = channel == RelayTransport.LlamaCppNative,
+            declaredThinking = model?.engineDeclaration?.thinking,
+        )
+    }
+
+    /**
+     * Relay web row facts (fixture `presentationCases`): local engine -> the connection cannot do it; the effective protocol has a fragment (legacy fields mapped included) ->
+     * split into 4 states by the local probe record of this model x protocol under the current fragment; otherwise -> needs manual setup. Returns null for a non-relay.
+     * The protocol is the same resolution that the first chat send and the probe's record writing use ([ai.oriveo.community.core.provider.relay.RelayFirstSendTransport.resolve]).
+     */
+    fun relayWeb(
+        provider: Provider,
+        model: AIModel?,
+        store: ai.oriveo.community.core.provider.relay.RelayWebFragmentStore =
+            ai.oriveo.community.core.provider.relay.RelayWebFragmentStore.shared,
+        records: ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore =
+            ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore.shared,
+    ): ModelOptionCapabilityShape.RelayWeb? {
+        if (provider.kind != ProviderKind.Relay) return null
+        val transport = ai.oriveo.community.core.provider.relay.RelayFirstSendTransport.resolve(provider, model).value
+        val fragments = store.effective(provider)
+        return relayWeb(
+            localEngine = !provider.relayRequested?.engineProfile.isNullOrBlank(),
+            effectiveTransport = transport,
+            fragments = fragments,
+            probe = model?.let { m -> fragments[transport]?.let { records.currentResult(provider.id, m.id, transport, it) } },
+        )
+    }
+
+    /** [probe] is the probe result under the current fragment; null means not tested or the hash is stale. */
+    fun relayWeb(
+        localEngine: Boolean,
+        effectiveTransport: String,
+        fragments: Map<String, kotlinx.serialization.json.JsonObject>,
+        probe: ai.oriveo.community.core.provider.relay.RelayWebProbeResult? = null,
+    ): ModelOptionCapabilityShape.RelayWeb = when {
+        localEngine -> ModelOptionCapabilityShape.RelayWeb.LocalEngine
+        !fragments.containsKey(effectiveTransport) -> ModelOptionCapabilityShape.RelayWeb.NeedsSetup
+        probe == ai.oriveo.community.core.provider.relay.RelayWebProbeResult.Searched -> ModelOptionCapabilityShape.RelayWeb.Searched
+        probe == ai.oriveo.community.core.provider.relay.RelayWebProbeResult.Silent -> ModelOptionCapabilityShape.RelayWeb.Silent
+        probe == ai.oriveo.community.core.provider.relay.RelayWebProbeResult.Rejected -> ModelOptionCapabilityShape.RelayWeb.Rejected
+        else -> ModelOptionCapabilityShape.RelayWeb.Unverified
+    }
+
+    /** Vision card "unknown": a Relay form and the model has no positive vision evidence at all (the same predicate as the record check). */
+    fun visionUnknown(provider: Provider, model: AIModel): Boolean =
+        ProviderForm.of(provider) == ProviderForm.Relay && relayImageSupportUnknown(provider, model)
+
+    /**
+     * File card: computed with the same route resolution as before sending (web takes the panel's current switch, the tool loop uses false),
+     * then the Relay `file` negative cache is layered on; the key is the same [RelayNegativeCache.keyFor] as the send side's fallback memory.
+     */
+    fun fileDelivery(
+        provider: Provider,
+        model: AIModel,
+        webSearchEnabled: Boolean,
+        reasoningMode: ReasoningMode,
+        negativeCache: RelayNegativeCache = RelayNegativeCache.shared,
+        // The outbound history (session history plus this turn's placeholder) has video: Gemini does not take Interactions, same as send / preflight.
+        historyHasVideo: Boolean = false,
+    ): ModelOptionsTiles.FileDelivery {
+        val route = AttachmentTransportResolver.resolve(provider, model, webSearchEnabled, reasoningMode, historyHasVideo)
+        // A file override set to On beats the file negative cache, the same as the send side's fallback memory.
+        val fileRejected = model.relayCapabilityOverrides?.file != true &&
+            RelayNegativeCache.keyFor(provider, model)
+                ?.let { negativeCache.isRejected(it, RelayNegativeCache.Kind.File) } == true
+        return ModelOptionsTiles.fileDelivery(route, fileRejected)
+    }
+
+    fun customProtocol(provider: Provider, model: AIModel? = null): CustomProtocol? {
+        if (provider.kind != ProviderKind.Relay) return null
+        return if (RelayEndpointResolver.declaredTransport(provider, model) == RelayTransport.OpenAIChatCompletions) {
             CustomProtocol.ChatCompletions
         } else {
             CustomProtocol.Other
@@ -247,12 +333,18 @@ internal object ModelOptionsRender {
     }
 
     @StringRes fun tierLabelRes(tier: String): Int = when (tier) {
-        ModelOptionCapabilityShape.AUTOMATIC -> R.string.reasoning_auto
+        // The automatic tier uses iOS's "Automatic" wording on all three platforms.
+        ModelOptionCapabilityShape.AUTOMATIC -> R.string.model_control_supplier_default
         ModelOptionCapabilityShape.OFF -> R.string.model_control_off
         "low" -> R.string.reasoning_fast
         "balanced" -> R.string.reasoning_balanced
         "deep" -> R.string.reasoning_deep
         else -> R.string.reasoning_max
+    }
+
+    /** The note at the top right of the tier card (the [ModelOptionCapabilityShape.TrailingNote] the shape supplies). */
+    @StringRes fun trailingNoteRes(note: ModelOptionCapabilityShape.TrailingNote): Int = when (note) {
+        ModelOptionCapabilityShape.TrailingNote.AlwaysThinks -> R.string.model_options_always_thinks
     }
 
     /** The sentence under the segments that follows the highlighted tier. */
@@ -285,6 +377,8 @@ internal object ModelOptionsRender {
         ModelOptionCapabilityShape.NoticeStatus.FollowsModelDefault -> R.string.model_options_uses_model_default
         ModelOptionCapabilityShape.NoticeStatus.NeedsOwnConfiguration -> R.string.model_options_needs_manual_setup
         ModelOptionCapabilityShape.NoticeStatus.NotAvailableYet -> R.string.model_options_not_available_yet
+        ModelOptionCapabilityShape.NoticeStatus.AlwaysOn -> R.string.model_options_always_on
+        ModelOptionCapabilityShape.NoticeStatus.RelayWebRejected -> R.string.model_options_relay_web_rejected
     }
 
     @StringRes fun noticeBodyRes(body: ModelOptionCapabilityShape.NoticeBody): Int = when (body) {
@@ -294,11 +388,16 @@ internal object ModelOptionsRender {
         ModelOptionCapabilityShape.NoticeBody.CustomThinkingUseAdditionalBody,
         -> R.string.model_options_reasoning_no_generic_switch
         ModelOptionCapabilityShape.NoticeBody.WebNoGenericSwitch -> R.string.model_options_web_no_generic_switch
+        ModelOptionCapabilityShape.NoticeBody.SubscriptionAlwaysSearches -> R.string.model_options_subscription_always_searches
+        ModelOptionCapabilityShape.NoticeBody.RelayWebManual -> R.string.model_options_relay_web_manual_body
+        ModelOptionCapabilityShape.NoticeBody.RelayWebRetest -> R.string.model_options_relay_web_retest
     }
 
     @StringRes fun escapeRes(escape: ModelOptionCapabilityShape.Escape): Int = when (escape) {
         ModelOptionCapabilityShape.Escape.SupportedModels -> R.string.model_options_see_adjustable_models
         ModelOptionCapabilityShape.Escape.AdditionalBody -> R.string.model_options_open_additional_body
+        ModelOptionCapabilityShape.Escape.ConnectionWebSearch -> R.string.model_options_relay_web_open_settings
+        ModelOptionCapabilityShape.Escape.RelayWebRetest -> R.string.model_options_relay_web_retest
     }
 
     /** [ModelOptionCapabilityShape.DisclosureStatus.ReadOnlyValue] shows the tier itself and does not go through here. */
@@ -306,6 +405,9 @@ internal object ModelOptionsRender {
         ModelOptionCapabilityShape.DisclosureStatus.ModelDoesNotThink -> R.string.model_options_no_thinking_mode
         ModelOptionCapabilityShape.DisclosureStatus.ModelCannotSearch -> R.string.model_options_cannot_search
         ModelOptionCapabilityShape.DisclosureStatus.ConnectionCannotSearch -> R.string.model_options_connection_cannot
+        ModelOptionCapabilityShape.DisclosureStatus.RelayWebSearchConfirmed -> R.string.model_options_relay_web_search_confirmed
+        ModelOptionCapabilityShape.DisclosureStatus.RelayWebNoSearchInTest -> R.string.model_options_relay_web_no_search_in_test
+        ModelOptionCapabilityShape.DisclosureStatus.RelayWebUnverified -> R.string.model_options_relay_web_set_unverified
         ModelOptionCapabilityShape.DisclosureStatus.FixedLevel,
         ModelOptionCapabilityShape.DisclosureStatus.ReadOnlyValue,
         -> R.string.model_options_cant_switch_here
@@ -315,4 +417,213 @@ internal object ModelOptionsRender {
     fun disclosureOffersSupportedModels(status: ModelOptionCapabilityShape.DisclosureStatus): Boolean =
         status == ModelOptionCapabilityShape.DisclosureStatus.ModelDoesNotThink ||
             status == ModelOptionCapabilityShape.DisclosureStatus.ModelCannotSearch
+    /** The whole row is tappable: the two rows that lead to switching models, plus the relay states with a fragment that lead to the connection's web search settings page. */
+    fun disclosureTappable(status: ModelOptionCapabilityShape.DisclosureStatus): Boolean =
+        disclosureOffersSupportedModels(status) || opensConnectionWebSearch(status)
+
+    /** The three relay web states with a fragment that are not rejected: tapping opens this connection's web search settings page. */
+    fun opensConnectionWebSearch(status: ModelOptionCapabilityShape.DisclosureStatus): Boolean =
+        status == ModelOptionCapabilityShape.DisclosureStatus.RelayWebSearchConfirmed ||
+            status == ModelOptionCapabilityShape.DisclosureStatus.RelayWebNoSearchInTest ||
+            status == ModelOptionCapabilityShape.DisclosureStatus.RelayWebUnverified
+}
+
+/**
+ * The 2x2 capability cards of the model options panel, the "this turn actually sends" summary strip and the temperature row of the parameters card.
+ * Pure functions: the web / thinking cards only turn a [ModelOptionCapabilityShape] into a card look and the shape function is untouched;
+ * the vision / file cards are info cards whose inputs come from the same production decisions as the composer and the send path.
+ */
+internal object ModelOptionsTiles {
+    enum class Kind { Web, Reasoning, Vision, File }
+
+    /** The card's top-right corner: a switch / "N levels" / a tappable arrow / nothing / the three marks of an info card. */
+    enum class Corner { Switch, Levels, Chevron, None, Check, Question, Cross }
+
+    data class Tile(
+        val kind: Kind,
+        val corner: Corner,
+        /** The status line. */
+        @StringRes val statusRes: Int,
+        /** Small text inside the card (the body of an explanation card); null means none. */
+        @StringRes val bodyRes: Int? = null,
+        /** The level count of [Corner.Levels]. */
+        val levelCount: Int = 0,
+        /** The whole card is tappable (explanation cards, status cards the model itself cannot do, protocol undecided). */
+        val tappable: Boolean = false,
+    )
+
+    enum class Vision(@StringRes val statusRes: Int, val corner: Corner) {
+        Available(R.string.model_options_vision_available, Corner.Check),
+        Unknown(R.string.model_options_vision_unknown, Corner.Question),
+        Hidden(R.string.model_options_vision_hidden, Corner.Cross),
+    }
+
+    /** A file can always be delivered, so all three states show a check at the top right. */
+    enum class FileDelivery(@StringRes val statusRes: Int) {
+        PdfNative(R.string.model_options_file_pdf_native),
+        NativeWhenSupported(R.string.model_options_file_native_when_supported),
+        Text(R.string.model_options_file_text),
+    }
+
+    sealed interface SummaryItem {
+        data object WebOn : SummaryItem
+        data class ThinkingLevel(val tier: String) : SummaryItem {
+            @get:StringRes val tierRes: Int get() = ModelOptionsRender.tierLabelRes(tier)
+        }
+        data object ThinkingOn : SummaryItem
+    }
+
+    data class ParameterRows(
+        /** The row with id `temperature` in advancedRows; null when the model has none. */
+        val temperature: GenerationParameterRowModel?,
+        /** The capsule of the entry row (temperature already excluded). */
+        val entry: GenerationParameterRowModel.Summary,
+    )
+
+    private const val TEMPERATURE = "temperature"
+
+    /** Entry not visible -> unavailable; visible and a Relay without positive evidence -> unknown; any other visible -> available. */
+    fun vision(entryVisible: Boolean, relayWithoutPositiveEvidence: Boolean): Vision = when {
+        !entryVisible -> Vision.Hidden
+        relayWithoutPositiveEvidence -> Vision.Unknown
+        else -> Vision.Available
+    }
+
+    /**
+     * The route cannot be decided (catalog not arrived / image-generation model / subscription protocol pending, [route] is null), the route does not carry native files, the model has no allow-list,
+     * or the Relay `file` negative cache has not expired -> convert to text; otherwise pdfNativeDefault true -> native PDF; otherwise -> native for supported formats.
+     */
+    fun fileDelivery(route: AttachmentTransportResolver.Route?, relayFileRejected: Boolean): FileDelivery {
+        val model = route?.model
+        return when {
+            route == null || !route.transport.allowsNativeFiles || model == null -> FileDelivery.Text
+            model.nativeFileMimes.isEmpty() || relayFileRejected -> FileDelivery.Text
+            model.pdfNativeDefault -> FileDelivery.PdfNative
+            else -> FileDelivery.NativeWhenSupported
+        }
+    }
+
+    /** Both rows have an undecided protocol: only the full-width callout (when there is one) shows, no four cards. */
+    fun showsCalloutOnly(web: ModelOptionCapabilityShape, reasoning: ModelOptionCapabilityShape): Boolean =
+        web == ModelOptionCapabilityShape.ProtocolUndecided && reasoning == ModelOptionCapabilityShape.ProtocolUndecided
+
+    /**
+     * The capability cards: the web / thinking order keeps the existing chat-template exception - when thinking is the chat-template switch (blocked included) thinking comes first,
+     * otherwise web comes first; after that vision, then file, fixed. Empty when only the callout shows.
+     */
+    fun board(
+        web: ModelOptionCapabilityShape,
+        reasoning: ModelOptionCapabilityShape,
+        vision: Vision,
+        file: FileDelivery,
+        @StringRes reasoningToggleBlockedNoteRes: Int? = null,
+    ): List<Tile> {
+        if (showsCalloutOnly(web, reasoning)) return emptyList()
+        val webTile = capabilityTile(ModelOptionCapabilityShape.Capability.Web, web)
+        val reasoningTile = capabilityTile(ModelOptionCapabilityShape.Capability.Reasoning, reasoning, reasoningToggleBlockedNoteRes)
+        val templateFirst = (reasoning as? ModelOptionCapabilityShape.Toggle)?.kind ==
+            ModelOptionCapabilityShape.ToggleKind.ChatTemplateThinking
+        return (if (templateFirst) listOf(reasoningTile, webTile) else listOf(webTile, reasoningTile)) +
+            listOf(Tile(Kind.Vision, vision.corner, vision.statusRes), fileTile(file))
+    }
+
+    fun fileTile(file: FileDelivery): Tile = Tile(Kind.File, Corner.Check, file.statusRes)
+
+    /** Web / thinking card: shape -> top-right control and status line (the copy slots reuse [ModelOptionsRender]). */
+    fun capabilityTile(
+        capability: ModelOptionCapabilityShape.Capability,
+        shape: ModelOptionCapabilityShape,
+        @StringRes toggleBlockedNoteRes: Int? = null,
+    ): Tile {
+        val kind = if (capability == ModelOptionCapabilityShape.Capability.Web) Kind.Web else Kind.Reasoning
+        return when (shape) {
+            is ModelOptionCapabilityShape.Toggle ->
+                Tile(kind, Corner.Switch, toggleBlockedNoteRes ?: ModelOptionsRender.toggleNoteRes(capability, shape.kind))
+            is ModelOptionCapabilityShape.ToggleWithTiming ->
+                Tile(kind, Corner.Switch, ModelOptionsRender.toggleNoteRes(capability, ModelOptionCapabilityShape.ToggleKind.Capability))
+            // With no selected tier the status line uses the shape's top-right status sentence; the rejected-tier warning stays below the grid.
+            is ModelOptionCapabilityShape.Tiers -> Tile(
+                kind = kind,
+                corner = Corner.Levels,
+                statusRes = shape.selected?.let(ModelOptionsRender::tierLabelRes)
+                    ?: shape.trailingNote?.let(ModelOptionsRender::trailingNoteRes)
+                    ?: R.string.model_options_uses_model_default,
+                levelCount = shape.tiers.size,
+            )
+            // A notice with no way out is a read-only note: no chevron, the whole card is not tappable.
+            is ModelOptionCapabilityShape.Notice -> Tile(
+                kind = kind,
+                corner = if (shape.escape != null) Corner.Chevron else Corner.None,
+                statusRes = ModelOptionsRender.noticeStatusRes(shape.status),
+                bodyRes = ModelOptionsRender.noticeBodyRes(shape.body),
+                tappable = shape.escape != null,
+            )
+            is ModelOptionCapabilityShape.Disclosure -> {
+                val tappable = ModelOptionsRender.disclosureTappable(shape.status)
+                Tile(kind, if (tappable) Corner.Chevron else Corner.None, disclosureStatusRes(capability, shape), tappable = tappable)
+            }
+            ModelOptionCapabilityShape.ProtocolUndecided -> Tile(
+                kind = kind,
+                corner = Corner.Chevron,
+                statusRes = R.string.model_options_choose_protocol_first,
+                bodyRes = R.string.model_options_protocol_auto_note,
+                tappable = true,
+            )
+        }
+    }
+
+    @StringRes
+    private fun disclosureStatusRes(
+        capability: ModelOptionCapabilityShape.Capability,
+        shape: ModelOptionCapabilityShape.Disclosure,
+    ): Int {
+        if (shape.status != ModelOptionCapabilityShape.DisclosureStatus.ReadOnlyValue) return ModelOptionsRender.disclosureRes(shape.status)
+        val value = shape.value ?: return R.string.model_options_cant_switch_here
+        return when {
+            capability == ModelOptionCapabilityShape.Capability.Reasoning -> ModelOptionsRender.tierLabelRes(value)
+            value == ModelOptionCapabilityShape.OFF -> R.string.model_control_off
+            else -> ModelOptionsRender.timingLabelRes(value)
+        }
+    }
+
+    /** The web switch is on right now (including the "every message" timing row). */
+    fun webIsOn(web: ModelOptionCapabilityShape): Boolean =
+        web is ModelOptionCapabilityShape.ToggleWithTiming || (web as? ModelOptionCapabilityShape.Toggle)?.isOn == true
+
+    /**
+     * "This turn actually sends" lists only the choices that rewrite the request right now, in the fixed order web -> thinking: web on; a non-automatic thinking tier that is selected ("off" included);
+     * the thinking switch (chat template included) on. No item at all -> empty, no strip.
+     */
+    fun summary(web: ModelOptionCapabilityShape, reasoning: ModelOptionCapabilityShape): List<SummaryItem> = buildList {
+        if (webIsOn(web)) add(SummaryItem.WebOn)
+        when (reasoning) {
+            is ModelOptionCapabilityShape.Tiers -> reasoning.selected
+                ?.takeIf { it != ModelOptionCapabilityShape.AUTOMATIC }
+                ?.let { add(SummaryItem.ThinkingLevel(it)) }
+            is ModelOptionCapabilityShape.Toggle -> if (reasoning.isOn == true) add(SummaryItem.ThinkingOn)
+            else -> Unit
+        }
+    }
+
+    /** The two rows of the parameters card: the temperature row (omitted when the model has none) plus the original entry row (capsule without temperature). */
+    fun parameterRows(rows: List<GenerationParameterRowModel>): ParameterRows = ParameterRows(
+        temperature = rows.firstOrNull { it.id == TEMPERATURE },
+        entry = GenerationParameterRowModel.summary(rows.filterNot { it.id == TEMPERATURE }),
+    )
+
+    /** Thinking card segments draw icons only (all three platforms follow iOS): automatic -> sparkle, off -> dash, the rest -> bars (number of filled bars = effort level). */
+    sealed interface TierGlyph {
+        data object Automatic : TierGlyph
+        data object Off : TierGlyph
+        data class Bars(val filled: Int) : TierGlyph
+    }
+
+    fun tierGlyph(tier: String): TierGlyph = when (tier) {
+        ModelOptionCapabilityShape.AUTOMATIC -> TierGlyph.Automatic
+        ModelOptionCapabilityShape.OFF -> TierGlyph.Off
+        else -> TierGlyph.Bars(ModelOptionCapabilityShape.TIER_ORDER.indexOf(tier) + 1)
+    }
+
+    /** Accessibility large font (fontScale >= 1.5) -> single column. */
+    fun singleColumn(fontScale: Float): Boolean = fontScale >= 1.5f
 }

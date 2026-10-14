@@ -152,11 +152,13 @@ fun CapabilityPreferenceStore.resolvedForRequest(
     skillID: String?,
     transportIdentity: String?,
     isExistingConversation: Boolean = true,
+    legacyModelID: String? = null,
 ): CapabilityPreferenceValues {
     if (!capabilityPreferenceReadIsPermitted(providerKind, transportIdentity)) return CapabilityPreferenceValues()
     return resolved(
         providerID, modelID, conversationID, skillID, requireNotNull(transportIdentity),
         isDraftConversation = !isExistingConversation,
+        legacyModelID = legacyModelID,
     )
 }
 
@@ -178,11 +180,13 @@ fun CapabilityPreferenceStore.displayedForUi(
     skillID: String?,
     transportIdentity: String?,
     isExistingConversation: Boolean = true,
+    legacyModelID: String? = null,
 ): CapabilityPreferenceValues {
     if (!capabilityPreferenceReadIsPermitted(providerKind, transportIdentity)) return CapabilityPreferenceValues()
     return displaySelection(
         providerID, modelID, conversationID, skillID, requireNotNull(transportIdentity),
         isDraftConversation = !isExistingConversation,
+        legacyModelID = legacyModelID,
     )
 }
 
@@ -209,8 +213,30 @@ class CapabilityPreferenceStore internal constructor(
         skillID: String?,
         transportIdentity: String,
         isDraftConversation: Boolean = false,
+        legacyModelID: String? = null,
     ): CapabilityScopeValues {
         require(transportIdentity.isNotBlank()) { "final transport identity is required" }
+        val literal = scopeValuesFor(providerID, modelID, conversationID, skillID, transportIdentity, isDraftConversation)
+        val legacy = legacyModelID?.takeIf { it.isNotBlank() && it != modelID } ?: return literal
+        // For layers the relay's literal key misses, fall back to the old canonical key:
+        // preferences saved before literalization were written under the canonical key.
+        val fallback = scopeValuesFor(providerID, legacy, conversationID, skillID, transportIdentity, isDraftConversation)
+        return CapabilityScopeValues(
+            literal.conversation ?: fallback.conversation,
+            literal.skill ?: fallback.skill,
+            literal.connectionModel ?: fallback.connectionModel,
+            literal.connection ?: fallback.connection,
+        )
+    }
+
+    private fun scopeValuesFor(
+        providerID: String,
+        modelID: String,
+        conversationID: String?,
+        skillID: String?,
+        transportIdentity: String,
+        isDraftConversation: Boolean,
+    ): CapabilityScopeValues {
         forwardPortIfNeeded(
             providerID, modelID, conversationID, skillID, transportIdentity, isDraftConversation,
         )
@@ -251,8 +277,9 @@ class CapabilityPreferenceStore internal constructor(
         skillID: String?,
         transportIdentity: String,
         isDraftConversation: Boolean = false,
+        legacyModelID: String? = null,
     ): CapabilityPreferenceValues = scopeValues(
-        providerID, modelID, conversationID, skillID, transportIdentity, isDraftConversation,
+        providerID, modelID, conversationID, skillID, transportIdentity, isDraftConversation, legacyModelID,
     ).displaySelection()
 
     fun resolved(
@@ -263,9 +290,10 @@ class CapabilityPreferenceStore internal constructor(
         transportIdentity: String,
         singleSend: CapabilityPreferenceValues? = null,
         isDraftConversation: Boolean = false,
+        legacyModelID: String? = null,
     ): CapabilityPreferenceValues {
         val scopes = scopeValues(
-            providerID, modelID, conversationID, skillID, transportIdentity, isDraftConversation,
+            providerID, modelID, conversationID, skillID, transportIdentity, isDraftConversation, legacyModelID,
         )
         val conversation = scopes.conversation
         val skill = scopes.skill

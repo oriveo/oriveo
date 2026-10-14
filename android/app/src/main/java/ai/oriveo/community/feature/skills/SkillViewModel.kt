@@ -30,6 +30,8 @@ import ai.oriveo.community.core.model.SkillKnowledgeFile
 import ai.oriveo.community.core.model.resolveActiveModel
 
 import ai.oriveo.community.core.provider.ModelSelectionUtils
+import ai.oriveo.community.core.provider.ProviderCredentialResolver
+import ai.oriveo.community.core.provider.RelayModelFallback
 import ai.oriveo.community.core.provider.ModelControlRuntimeIdentityResolver
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
 import kotlinx.coroutines.flow.SharingStarted
@@ -47,7 +49,7 @@ class SkillViewModel(
     private val capabilityPreferenceStore: CapabilityPreferenceStore? = null,
 ) : ViewModel() {
     private fun hasProviderKey(provider: Provider): Boolean =
-        provider.apiKey.trim().isNotEmpty() || provider.apiKeyPreview.trim().isNotEmpty()
+        ProviderCredentialResolver.apiKey(provider, null).trim().isNotEmpty() || provider.apiKeyPreview.trim().isNotEmpty()
 
     val catalogSkills: StateFlow<List<Skill>> = skillRepository.observeCatalogSkills()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -140,7 +142,7 @@ class SkillViewModel(
         val suggestedModelID = skill.suggestedModelId?.trim().orEmpty()
         if (suggestedProviderID.isEmpty() || suggestedModelID.isEmpty()) return null
         val provider = providers.value.firstOrNull { it.id.equals(suggestedProviderID, ignoreCase = true) } ?: return null
-        val model = ModelSelectionUtils.matchingModel(provider.models, suggestedModelID) ?: return null
+        val model = ModelSelectionUtils.matchingModel(provider.models, suggestedModelID, provider.kind) ?: return null
         val identity = ModelControlRuntimeIdentityResolver.resolve(provider, model) ?: return null
         return SkillCapabilityConfirmationTarget(
             providerID = provider.id,
@@ -388,7 +390,7 @@ class SkillViewModel(
                 it.id == skill.suggestedProviderId || it.kind.rawValue == skill.suggestedProviderId
             }
             val suggestedModel = suggestedProvider?.models?.let { models ->
-                ModelSelectionUtils.matchingModel(models, skill.suggestedModelId)
+                ModelSelectionUtils.matchingModel(models, skill.suggestedModelId, suggestedProvider.kind)
             }
             if (suggestedProvider != null && suggestedModel != null) {
                 return ActiveModel(suggestedProvider, suggestedModel)
@@ -414,7 +416,12 @@ class SkillViewModel(
         }
 
         val fallbackProvider = providerList.firstOrNull() ?: return null
-        val fallbackModel = fallbackProvider.defaultModel ?: fallbackProvider.models.firstOrNull() ?: return null
+        // A relay falls back only to its enabled models, never to a catalog model that is not enabled.
+        val fallbackModel = if (RelayModelFallback.appliesTo(fallbackProvider)) {
+            RelayModelFallback.fallbackModel(fallbackProvider, lastUsedModelRef.value)
+        } else {
+            fallbackProvider.defaultModel ?: fallbackProvider.models.firstOrNull()
+        } ?: return null
         return ActiveModel(fallbackProvider, fallbackModel)
     }
 
@@ -435,11 +442,11 @@ class SkillViewModel(
         }
 
         viewModelScope.launch {
-            appPreferencesRepository.setLastUsedModel(active.provider.id, active.model)
+            appPreferencesRepository.setLastUsedModel(active.provider.id, active.model, active.provider.kind)
             val conversation = conversationRepository.createDraft(
                 providerID = active.provider.id,
                 providerKind = active.provider.kind,
-                modelID = ModelSelectionUtils.preferredStoredModelIdentifier(active.model),
+                modelID = ModelSelectionUtils.preferredStoredModelIdentifier(active.model, active.provider.kind),
                 title = skill.name,
                 skillId = skill.id,
                 useMemory = skill.useMemory,

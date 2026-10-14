@@ -3,6 +3,8 @@ package ai.oriveo.community.core.model
 /** What a model-catalog refresh returned. */
 data class ProviderSyncResult(
     val models: List<AIModel>,
+    /** Relay only: the `supported_endpoint_types` of each model in the raw catalog (kept in the in-memory cache only, not persisted). */
+    val relayEndpointTypes: Map<String, List<String>> = emptyMap(),
 )
 
 /** What one completed chat request returned. */
@@ -28,6 +30,30 @@ data class ProviderChatResult(
 
 /** Everything that can go wrong between this app and a provider the user configured. */
 sealed class ProviderServiceError : Exception() {
+    /**
+     * Key-access verdict for a relay non-2xx before any output: computed and attached in RelayErrorMapper, where the raw response body is available;
+     * sending and catalog refresh use it to first decide "can this key use this model" before entering the capability-rejection loop. Not part of equals; null = not a relay HTTP error.
+     */
+    var relayKeyAccess: RelayKeyAccessSignal? = null
+
+    /**
+     * The relay HTTP error body (lower-cased) names a thinking parameter (rejectionTokens): the raw response body is available only in RelayErrorMapper,
+     * so it is computed and attached, and the send side uses it to detect tier rejection. Not part of equals.
+     */
+    var relayBodyNamesThinking: Boolean = false
+
+    /**
+     * The relay HTTP error body carries a registered phrase meaning "this protocol path does not accept this request": the raw response body is available only in RelayErrorMapper,
+     * so it is computed and attached, and protocol fallback and per-model probing use it to decide whether a 403 is a route-level rejection. Not part of equals.
+     */
+    var relayBodyNamesRouteRejection: Boolean = false
+
+    /**
+     * The relay returned 2xx but with a web page (the gateway's SPA fallback page) instead of a generation response: this path is not an API route,
+     * and protocol fallback and per-model probing treat it as a route-level rejection. The outbound layer decides and attaches it when the response arrives. Not part of equals.
+     */
+    var relayHtmlSuccessPage: Boolean = false
+
     data class InvalidAPIKey(val detail: String) : ProviderServiceError()
     data class QuotaExceeded(val detail: String) : ProviderServiceError()
     data class ModelUnavailable(val detail: String) : ProviderServiceError()
@@ -301,7 +327,10 @@ enum class RelayGuidanceCode(val stableKey: String) {
     MaxTokensRequired("max_tokens_required"),
     AnthropicAuthHeader("anthropic_auth_header"),
     ImageSchemaMismatch("image_schema_mismatch"),
-    RateLimited("rate_limited");
+    ImagesEndpointUnavailable("images_endpoint_unavailable"),
+    ImageResponseFormatRejected("image_response_format_rejected"),
+    ClientGated("client_gated"),
+    WebPageReturned("web_page_returned");
 
     val persistenceKey: String get() = "relay_guidance:$stableKey"
 
@@ -320,3 +349,14 @@ enum class RelayGuidanceCode(val stableKey: String) {
         }
     }
 }
+
+/** Vocabulary of `outcomes` in `key-access.v1.json`. */
+enum class RelayKeyAccessOutcome(val value: String) {
+    ModelAccessDenied("model_access_denied"),
+    KeyInvalid("key_invalid"),
+    KeyLimited("key_limited"),
+    None("none"),
+}
+
+/** The status code and verdict of one relay non-2xx response. */
+data class RelayKeyAccessSignal(val status: Int, val outcome: RelayKeyAccessOutcome)

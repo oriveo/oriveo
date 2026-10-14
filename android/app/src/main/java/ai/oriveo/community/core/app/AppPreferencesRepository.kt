@@ -293,10 +293,11 @@ class AppPreferencesRepository(
         )
     }
 
-    suspend fun setLastUsedModel(providerId: String, model: AIModel) {
+    /** [providerKind] decides how the value is stored: a relay stores the literal ID, an official provider stores the canonical one. */
+    suspend fun setLastUsedModel(providerId: String, model: AIModel, providerKind: ProviderKind?) {
         setLastUsedModel(
             providerId = providerId,
-            modelId = ModelSelectionUtils.preferredStoredModelIdentifier(model),
+            modelId = ModelSelectionUtils.preferredStoredModelIdentifier(model, providerKind),
         )
     }
 
@@ -314,6 +315,13 @@ class AppPreferencesRepository(
 
     suspend fun getMemoryAntiForgetText(): String =
         accountScopedValue(AppPreferenceKeys.MEMORY_ANTI_FORGET_TEXT).orEmpty()
+
+    suspend fun getLastUsedModelRef(): LastUsedModelRef? {
+        val providerId = accountScopedValue(AppPreferenceKeys.LAST_USED_PROVIDER_ID)
+        val modelId = accountScopedValue(AppPreferenceKeys.LAST_USED_MODEL_ID)
+        if (providerId.isNullOrBlank() || modelId.isNullOrBlank()) return null
+        return LastUsedModelRef(providerID = providerId, modelID = modelId)
+    }
 
     suspend fun setMemoryText(text: String) {
         preferenceDao.set(

@@ -55,6 +55,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -94,10 +95,10 @@ import ai.oriveo.community.core.provider.GenerationParameterResolver
 import ai.oriveo.community.core.provider.GenerationParameterSupportPresentation
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
 import ai.oriveo.community.core.provider.CapabilityEvidenceObservationBridge
+import ai.oriveo.community.core.model.ConnectionAvatar
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.provider.UnsupportedParamCache
-import ai.oriveo.community.ui.component.ProviderBadgeIcon
 import ai.oriveo.community.ui.component.isReduceMotionEnabled
 import ai.oriveo.community.ui.theme.OriveoMotion
 import ai.oriveo.community.ui.theme.OriveoTheme
@@ -136,7 +137,7 @@ fun GenerationParameterDefaultsSheet(
     val providerRepository = koinInject<ProviderRepository>()
     val coroutineScope = rememberCoroutineScope()
     val prettyJson = remember { Json { prettyPrint = true } }
-    var modelId by remember { mutableStateOf(initialModelId ?: provider.models.firstOrNull { it.isDefault }?.id ?: provider.models.firstOrNull()?.id.orEmpty()) }
+    var modelId by remember { mutableStateOf(initialModelId ?: provider.models.firstOrNull { it.isDefault && provider.kind != ProviderKind.Relay }?.id ?: provider.models.firstOrNull()?.id.orEmpty()) }
     val model = provider.models.firstOrNull { it.id == modelId }
     val capabilityPartition = providerRepository.currentCapabilityPartitionId()
     val capabilityObservationRevision by CapabilityEvidenceObservationBridge.revision.collectAsState()
@@ -303,6 +304,8 @@ fun GenerationParameterDefaultsSheet(
     var showsCustomFieldsUnsupportedAlert by remember(modelId) { mutableStateOf(false) }
 
     var pendingDestruction by remember(modelId) { mutableStateOf<GenerationDestructiveAction?>(null) }
+    // The footer "More" fold: collapses again when the page is left and is never persisted.
+    var maintenanceExpanded by remember { mutableStateOf(false) }
     // Applying a preset replaces every value set for this model, so it is confirmed first (with nothing set there is nothing to replace and it applies directly).
     var pendingPreset by remember(modelId) { mutableStateOf<ai.oriveo.community.core.model.GenerationParameterPreset?>(null) }
 
@@ -351,6 +354,61 @@ fun GenerationParameterDefaultsSheet(
     val compatibilityConflicts = parameters.mapNotNull { parameter ->
         parameter.id?.takeIf { it in activeParameterIds && parameter.conflictsWith.any(activeParameterIds::contains) }
     }.toSet()
+    val maintenanceFold = GenerationParameterMaintenanceFold.Input(
+        isReadOnly = isReadOnly,
+        isConnectionScope = conversationId == null,
+        hasProfileFingerprint = profileFingerprint != null,
+        canViewDiagnostics = true,
+        hasCompatibilityConflicts = compatibilityConflicts.isNotEmpty(),
+        isRelay = provider.kind == ProviderKind.Relay,
+    )
+    // The compatibility block is rendered in two places: in the connection scope it goes into the footer More fold; in the conversation scope it stays in place and is not folded.
+    @Composable
+    fun CompatibilityConflictsBlock() {
+        val localizedConflictTitles = mutableListOf<String>()
+        for (id in compatibilityConflicts.sorted()) {
+            localizedConflictTitles += generationParameterTitle(id)
+        }
+        val conflictSummary = localizedConflictTitles.joinToString(" · ")
+        val removeLabel = stringResource(R.string.generation_parameter_remove_conflicts)
+
+        Text(
+            stringResource(R.string.generation_parameter_compatibility),
+            style = OriveoTheme.typography.title3,
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
+                contentDescription = conflictSummary
+            },
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Warning,
+                contentDescription = null,
+
+                tint = OriveoTheme.colors.warning,
+                modifier = Modifier.padding(end = 6.dp).size(14.dp),
+            )
+            Text(
+                conflictSummary,
+                style = OriveoTheme.typography.caption,
+                color = OriveoTheme.colors.warningText,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        if (!isReadOnly) {
+            TextButton(
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = OriveoTheme.colors.danger,
+                ),
+                onClick = { pendingDestruction = GenerationDestructiveAction.RemoveConflicts },
+                modifier = Modifier.semantics {
+                    contentDescription = "$removeLabel · $conflictSummary"
+                },
+            ) { Text(removeLabel) }
+        }
+    }
     val portableSemanticMapping = parameters.mapNotNull { parameter ->
         parameter.id?.takeIf { parameter.portability == "portable" }?.let { it to it }
     }.toMap()
@@ -535,6 +593,7 @@ fun GenerationParameterDefaultsSheet(
                 provider = provider,
                 model = model,
                 canonicalModelId = customFieldsIdentity.canonicalModelId,
+                legacyModelId = customFieldsIdentity.legacyModelId,
                 conversationId = conversationId,
                 transportIdentity = customFieldsIdentity.storageIdentity,
                 finalTransport = customFieldsIdentity.finalTransport,
@@ -552,7 +611,7 @@ fun GenerationParameterDefaultsSheet(
 
                 if (!containerProvidesTitle) {
                     Text(
-                        stringResource(R.string.generation_model_behavior),
+                        stringResource(R.string.generation_parameters_section),
                         style = OriveoTheme.typography.title2,
                     )
                 }
@@ -587,189 +646,8 @@ fun GenerationParameterDefaultsSheet(
                     )
                 }
 
-                if (!isReadOnly && conversationId == null && profileFingerprint != null) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = presetName,
-                            onValueChange = { presetName = it },
-                            modifier = Modifier.weight(1f),
-                            label = { Text(stringResource(R.string.relay_field_name)) },
-                            singleLine = true,
-                        )
-                        TextButton(
-                            colors = modelControlTextButtonColors(),
-                            enabled = presetName.isNotBlank(),
-                            onClick = {
-
-                                presetStore.save(presetName, provider.id, modelId, profileFingerprint, values)
-                                presetName = ""
-                                presetRevision += 1
-                            },
-                        ) { Text(stringResource(R.string.save)) }
-                    }
-                    presetStore.list(provider.id, modelId, profileFingerprint, portableSemanticMapping.keys).forEach { preset ->
-                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(colors = modelControlTextButtonColors(), onClick = {
-                                if (values.values.isEmpty()) {
-                                    presetStore.apply(preset, provider.id, modelId, profileFingerprint, portableSemanticMapping)?.let { applied ->
-                                        values = applied
-                                        persist(applied)
-                                    }
-                                } else {
-                                    pendingPreset = preset
-                                }
-                            }) { Text(preset.name) }
-                            androidx.compose.foundation.layout.Spacer(modifier = Modifier.weight(1f))
-                            TextButton(colors = modelControlTextButtonColors(), onClick = {
-                                presetStore.apply(preset, provider.id, modelId, profileFingerprint, portableSemanticMapping)?.let { copied ->
-                                    presetStore.save(preset.name, provider.id, modelId, profileFingerprint, copied)
-                                    presetRevision += 1
-                                }
-                            }) { Text(stringResource(R.string.copy)) }
-                            TextButton(colors = modelControlTextButtonColors(), onClick = {
-                                presetStore.remove(preset.id)
-                                presetRevision += 1
-                            }) { Text(stringResource(R.string.delete)) }
-                        }
-                    }
-                    presetRevision.hashCode()
-                }
-                if (!isReadOnly && conversationId == null) {
-                    Text(stringResource(R.string.relay_section_connection), style = OriveoTheme.typography.title3)
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(colors = modelControlTextButtonColors(), onClick = {
-                            val portableIds = parameters.filter { it.portability == "portable" }.mapNotNull { it.id }.toSet()
-                            store.setConnectionDefaults(
-                                GenerationParameterOverrides(values.values.filterKeys(portableIds::contains)),
-                                provider.id,
-                            )
-                        }) { Text(stringResource(R.string.save)) }
-                        TextButton(colors = modelControlTextButtonColors(), onClick = {
-                            launchExternalActivityOrNotify(snackbarManager) {
-                                exportSettings.launch("oriveo-generation-parameters.v1.json")
-                            }
-                        }) {
-                            Text(stringResource(R.string.export_backup_title))
-                        }
-                        TextButton(colors = modelControlTextButtonColors(), onClick = {
-                            launchExternalActivityOrNotify(snackbarManager) {
-                                importSettings.launch(arrayOf("application/json", "text/json"))
-                            }
-                        }) {
-                            Text(stringResource(R.string.import_action))
-                        }
-                    }
-                }
-
-                if (conversationId == null && true) {
-                    val diagnostics = GenerationParameterDiagnosticStore.list(modelId)
-                    Text(stringResource(R.string.generation_diagnostics_section), style = OriveoTheme.typography.title3)
-                    if (diagnostics.isEmpty()) {
-                        Text(stringResource(R.string.generation_diagnostics_empty), style = OriveoTheme.typography.caption)
-                    }
-                    diagnostics.take(20).forEach { entry ->
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(generationParameterTitle(entry.parameter), style = OriveoTheme.typography.body)
-                            Text(
-                                "${stringResource(if (entry.status == "recovered") R.string.status_connected else R.string.status_issue)} · " +
-                                    stringResource(generationTransportTitleRes(entry.transport)),
-                                style = OriveoTheme.typography.caption,
-                            )
-                        }
-                    }
-                    if (diagnostics.isNotEmpty()) {
-                        // "Export diagnostics" varies a lot in length across languages: when it does not fit, the
-                        // whole button wraps to the next line instead of squeezing the Delete button next to it
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(colors = modelControlTextButtonColors(), onClick = {
-                                launchExternalActivityOrNotify(snackbarManager) {
-                                    exportDiagnostics.launch("oriveo-generation-diagnostics.redacted.json")
-                                }
-                            }) {
-                                Text(stringResource(R.string.generation_diagnostics_export))
-                            }
-                            TextButton(colors = modelControlTextButtonColors(), onClick = {
-                                confirmDiagnosticsDelete = true
-                            }) { Text(stringResource(R.string.delete)) }
-                        }
-                    }
-                    diagnosticRevision.hashCode()
-                }
-                if (compatibilityConflicts.isNotEmpty()) {
-
-                    val localizedConflictTitles = mutableListOf<String>()
-                    for (id in compatibilityConflicts.sorted()) {
-                        localizedConflictTitles += generationParameterTitle(id)
-                    }
-                    val conflictSummary = localizedConflictTitles.joinToString(" · ")
-                    val removeLabel = stringResource(R.string.generation_parameter_remove_conflicts)
-
-                    Text(
-                        stringResource(R.string.generation_parameter_compatibility),
-                        style = OriveoTheme.typography.title3,
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
-                            contentDescription = conflictSummary
-                        },
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Warning,
-                            contentDescription = null,
-
-                            tint = OriveoTheme.colors.warning,
-                            modifier = Modifier.padding(end = 6.dp).size(14.dp),
-                        )
-                        Text(
-                            conflictSummary,
-                            style = OriveoTheme.typography.caption,
-                            color = OriveoTheme.colors.warningText,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-
-                    if (!isReadOnly) {
-                        TextButton(
-                            colors = ButtonDefaults.textButtonColors(
-                                contentColor = OriveoTheme.colors.danger,
-                            ),
-                            onClick = { pendingDestruction = GenerationDestructiveAction.RemoveConflicts },
-                            modifier = Modifier.semantics {
-                                contentDescription = "$removeLabel · $conflictSummary"
-                            },
-                        ) { Text(removeLabel) }
-                    }
-                }
-
-                if (!isReadOnly && conversationId == null && provider.kind == ProviderKind.Relay) {
-                    TextButton(colors = modelControlTextButtonColors(), onClick = {
-                        coroutineScope.launch {
-                            val capturedPartition = capabilityPartition
-                            val capturedScopeKey = capabilityScopeKey
-                            providerRepository.capabilityEvidenceIdentity(
-                                provider = provider,
-                                modelId = modelId,
-                                partitionId = capturedPartition,
-                            )?.takeIf {
-                                latestCapabilityPartition == capturedPartition &&
-                                    latestCapabilityScopeKey == capturedScopeKey
-                            }?.let { identity ->
-                                UnsupportedParamCache.clearConnection(
-                                    partitionId = identity.partitionId,
-                                    connectionInstanceId = identity.connectionInstanceId,
-                                    connectionGeneration = identity.connectionGeneration,
-                                    credentialEpoch = identity.credentialEpoch,
-                                    providerKind = identity.providerKind,
-                                    effectiveModelId = modelId,
-                                )
-                            }
-                        }
-                    }) {
-                        Text(stringResource(R.string.generation_parameter_clear_learned_capabilities))
-                    }
-                }
-
+                // The conversation scope has no footer More fold, so the compatibility hint stays in its original place before the parameter groups.
+                if (conversationId != null && compatibilityConflicts.isNotEmpty()) CompatibilityConflictsBlock()
                 if (parameters.isEmpty()) {
                     Text(stringResource(R.string.generation_parameters_section), style = OriveoTheme.typography.title3)
                     Text(stringResource(emptyState.titleRes), style = OriveoTheme.typography.body)
@@ -1085,8 +963,237 @@ fun GenerationParameterDefaultsSheet(
                         }
                     },
                 )
+                // The five maintenance blocks (presets / connection / diagnostics / compatibility / clear learned capabilities) are folded into the footer "More".
+                // It is collapsed by default and never persisted; each block's own visibility condition lives in [GenerationParameterMaintenanceFold],
+                // and the fold row and the five blocks are all rendered from its result, so no block showing means no row.
+                if (GenerationParameterMaintenanceFold.showsMoreRow(maintenanceFold)) {
+                    GenerationParameterMoreRow(
+                        expanded = maintenanceExpanded,
+                        onClick = { maintenanceExpanded = !maintenanceExpanded },
+                    )
+                }
+                // Driven by the fold result (single source of conditions); empty in the conversation scope and when collapsed.
+                GenerationParameterMaintenanceFold.renderedBlocks(maintenanceFold, maintenanceExpanded).forEach { block ->
+                    when (block) {
+                        // Read-only mode renders none of presets / connection tools / clear learned results / remove conflicts / clear dormant /
+                        // restore defaults: they are all writes, and a row of dead or error-raising buttons is a fake control.
+                        //
+                        // Presets are a connection-level tool (they store a set of values for this model on this connection, independent of any conversation),
+                        // so they are not rendered in the conversation scope: otherwise users would think they are saving a preset for this one conversation
+                        // when it actually changes the default of every new conversation.
+                        GenerationParameterMaintenanceBlock.Presets -> {
+                            val fingerprint = profileFingerprint ?: return@forEach
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = presetName,
+                                    onValueChange = { presetName = it },
+                                    modifier = Modifier.weight(1f),
+                                    label = { Text(stringResource(R.string.relay_field_name)) },
+                                    singleLine = true,
+                                )
+                                TextButton(
+                                    colors = modelControlTextButtonColors(),
+                                    enabled = presetName.isNotBlank(),
+                                    onClick = {
+
+                                        presetStore.save(presetName, provider.id, modelId, fingerprint, values)
+                                        presetName = ""
+                                        presetRevision += 1
+                                    },
+                                ) { Text(stringResource(R.string.save)) }
+                            }
+                            presetStore.list(provider.id, modelId, fingerprint, portableSemanticMapping.keys).forEach { preset ->
+                                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    TextButton(colors = modelControlTextButtonColors(), onClick = {
+                                        if (values.values.isEmpty()) {
+                                            presetStore.apply(preset, provider.id, modelId, fingerprint, portableSemanticMapping)?.let { applied ->
+                                                values = applied
+                                                persist(applied)
+                                            }
+                                        } else {
+                                            pendingPreset = preset
+                                        }
+                                    }) { Text(preset.name) }
+                                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.weight(1f))
+                                    TextButton(colors = modelControlTextButtonColors(), onClick = {
+                                        presetStore.apply(preset, provider.id, modelId, fingerprint, portableSemanticMapping)?.let { copied ->
+                                            presetStore.save(preset.name, provider.id, modelId, fingerprint, copied)
+                                            presetRevision += 1
+                                        }
+                                    }) { Text(stringResource(R.string.copy)) }
+                                    TextButton(colors = modelControlTextButtonColors(), onClick = {
+                                        presetStore.remove(preset.id)
+                                        presetRevision += 1
+                                    }) { Text(stringResource(R.string.delete)) }
+                                }
+                            }
+                            presetRevision.hashCode()
+                        }
+                        GenerationParameterMaintenanceBlock.Connection -> {
+                            Text(stringResource(R.string.relay_section_connection), style = OriveoTheme.typography.title3)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(colors = modelControlTextButtonColors(), onClick = {
+                                    val portableIds = parameters.filter { it.portability == "portable" }.mapNotNull { it.id }.toSet()
+                                    store.setConnectionDefaults(
+                                        GenerationParameterOverrides(values.values.filterKeys(portableIds::contains)),
+                                        provider.id,
+                                    )
+                                }) { Text(stringResource(R.string.save)) }
+                                TextButton(colors = modelControlTextButtonColors(), onClick = {
+                                    launchExternalActivityOrNotify(snackbarManager) {
+                                        exportSettings.launch("oriveo-generation-parameters.v1.json")
+                                    }
+                                }) {
+                                    Text(stringResource(R.string.export_backup_title))
+                                }
+                                TextButton(colors = modelControlTextButtonColors(), onClick = {
+                                    launchExternalActivityOrNotify(snackbarManager) {
+                                        importSettings.launch(arrayOf("application/json", "text/json"))
+                                    }
+                                }) {
+                                    Text(stringResource(R.string.import_action))
+                                }
+                            }
+                        }
+                        // The diagnostics history is a long-term observation record of this model on this connection, also a connection-level tool.
+                        GenerationParameterMaintenanceBlock.Diagnostics -> {
+                            val diagnostics = GenerationParameterDiagnosticStore.list(modelId)
+                            Text(stringResource(R.string.generation_diagnostics_section), style = OriveoTheme.typography.title3)
+                            if (diagnostics.isEmpty()) {
+                                Text(stringResource(R.string.generation_diagnostics_empty), style = OriveoTheme.typography.caption)
+                            }
+                            diagnostics.take(20).forEach { entry ->
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(generationParameterTitle(entry.parameter), style = OriveoTheme.typography.body)
+                                    Text(
+                                        "${stringResource(if (entry.status == "recovered") R.string.status_connected else R.string.status_issue)} · " +
+                                            stringResource(generationTransportTitleRes(entry.transport)),
+                                        style = OriveoTheme.typography.caption,
+                                    )
+                                }
+                            }
+                            if (diagnostics.isNotEmpty()) {
+                                // "Export diagnostics" varies a lot in length across languages: when it does not fit, the
+                                // whole button wraps to the next line instead of squeezing the Delete button next to it
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    TextButton(colors = modelControlTextButtonColors(), onClick = {
+                                        launchExternalActivityOrNotify(snackbarManager) {
+                                            exportDiagnostics.launch("oriveo-generation-diagnostics.redacted.json")
+                                        }
+                                    }) {
+                                        Text(stringResource(R.string.generation_diagnostics_export))
+                                    }
+                                    TextButton(colors = modelControlTextButtonColors(), onClick = {
+                                        confirmDiagnosticsDelete = true
+                                    }) { Text(stringResource(R.string.delete)) }
+                                }
+                            }
+                            diagnosticRevision.hashCode()
+                        }
+                        GenerationParameterMaintenanceBlock.Compatibility -> CompatibilityConflictsBlock()
+                        // Clearing the capability conclusions learned on this device applies to the whole connection, not to this one conversation.
+                        GenerationParameterMaintenanceBlock.ClearLearnedCapabilities -> {
+                            TextButton(colors = modelControlTextButtonColors(), onClick = {
+                                coroutineScope.launch {
+                                    val capturedPartition = capabilityPartition
+                                    val capturedScopeKey = capabilityScopeKey
+                                    providerRepository.capabilityEvidenceIdentity(
+                                        provider = provider,
+                                        modelId = modelId,
+                                        partitionId = capturedPartition,
+                                    )?.takeIf {
+                                        latestCapabilityPartition == capturedPartition &&
+                                            latestCapabilityScopeKey == capturedScopeKey
+                                    }?.let { identity ->
+                                        UnsupportedParamCache.clearConnection(
+                                            partitionId = identity.partitionId,
+                                            connectionInstanceId = identity.connectionInstanceId,
+                                            connectionGeneration = identity.connectionGeneration,
+                                            credentialEpoch = identity.credentialEpoch,
+                                            providerKind = identity.providerKind,
+                                            effectiveModelId = modelId,
+                                        )
+                                    }
+                                }
+                            }) {
+                                Text(stringResource(R.string.generation_parameter_clear_learned_capabilities))
+                            }
+                        }
+                    }
+                }
             }
         }
+    }
+}
+
+/** The five maintenance blocks inside the footer "More" fold of the parameters page; the enum order is the render order. */
+internal enum class GenerationParameterMaintenanceBlock {
+    Presets,
+    Connection,
+    Diagnostics,
+    Compatibility,
+    ClearLearnedCapabilities,
+}
+
+/**
+ * The layout criteria of the "More" fold row. Each block's visibility condition mirrors the in-page guards one by one (presets / connection / clear learned capabilities are
+ * connection-level writes and do not appear when read-only or in the conversation scope; diagnostics depends on the entitlement; compatibility depends only on whether there are conflicts).
+ */
+internal object GenerationParameterMaintenanceFold {
+    data class Input(
+        val isReadOnly: Boolean,
+        val isConnectionScope: Boolean,
+        val hasProfileFingerprint: Boolean,
+        val canViewDiagnostics: Boolean,
+        val hasCompatibilityConflicts: Boolean,
+        val isRelay: Boolean,
+    )
+
+    fun visibleBlocks(input: Input): List<GenerationParameterMaintenanceBlock> = if (!input.isConnectionScope) emptyList() else buildList {
+        if (!input.isReadOnly && input.isConnectionScope && input.hasProfileFingerprint) add(GenerationParameterMaintenanceBlock.Presets)
+        if (!input.isReadOnly && input.isConnectionScope) add(GenerationParameterMaintenanceBlock.Connection)
+        if (input.isConnectionScope && input.canViewDiagnostics) add(GenerationParameterMaintenanceBlock.Diagnostics)
+        if (input.hasCompatibilityConflicts) add(GenerationParameterMaintenanceBlock.Compatibility)
+        if (!input.isReadOnly && input.isConnectionScope && input.isRelay) add(GenerationParameterMaintenanceBlock.ClearLearnedCapabilities)
+    }
+
+    fun showsMoreRow(input: Input): Boolean = visibleBlocks(input).isNotEmpty()
+
+    fun renderedBlocks(input: Input, expanded: Boolean): List<GenerationParameterMaintenanceBlock> =
+        if (expanded) visibleBlocks(input) else emptyList()
+}
+
+/** The fold row: a different shape from the "More" parameter group header (a row plus a rotating chevron), so two headers of the same name do not collide. */
+@Composable
+private fun GenerationParameterMoreRow(
+    expanded: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = OriveoTheme.colors
+    val title = stringResource(R.string.advanced_more)
+    val expansionState = stringResource(if (expanded) R.string.mcp_steps_expanded else R.string.mcp_steps_collapsed)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 44.dp)
+            .clickable(onClick = onClick)
+            .semantics(mergeDescendants = true) {
+                role = Role.Button
+                contentDescription = title
+                stateDescription = expansionState
+            },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, style = OriveoTheme.typography.body, modifier = Modifier.weight(1f))
+        Icon(
+            imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+            contentDescription = null,
+            tint = colors.textSecondary,
+            modifier = Modifier
+                .padding(start = 4.dp)
+                .size(14.dp)
+                .rotate(if (expanded) 90f else 0f),
+        )
     }
 }
 
@@ -1170,6 +1277,7 @@ internal fun resolveCustomFieldsEntry(
                 schemaModelID = model.id,
                 activeProfile = activeProfile,
             ),
+            legacyModelID = identity.legacyModelId,
         )
         if (configuration.enabled) {
             inUse = true
@@ -1277,7 +1385,7 @@ internal fun CustomFieldsSupportedModelsPage(
                         },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    ProviderBadgeIcon(kind = provider.kind, size = 26.dp, relayKind = provider.relayKind)
+                    ConnectionAvatar(provider = provider, fallbackKind = provider.kind, size = 26.dp)
                     Spacer(Modifier.width(12.dp))
                     Text(
                         candidate.name,

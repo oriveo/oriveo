@@ -2,16 +2,17 @@ package ai.oriveo.community.core.provider.relay
 
 import ai.oriveo.community.core.provider.AdditionalRequestBody
 import ai.oriveo.community.core.data.remote.MetadataClient
+import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.ChatMessage
+import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.attachments.AttachmentDelivery
 import ai.oriveo.community.core.attachments.AttachmentTransportProfile
 import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayImageMode
-import ai.oriveo.community.core.model.RelayReasoningEffort
 import ai.oriveo.community.core.model.RelayTransport
-import ai.oriveo.community.core.model.RelayWebSearchToolName
+import ai.oriveo.community.core.model.RelayTransportSource
 import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.provider.GenerationParameterResolver
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
@@ -19,18 +20,30 @@ import ai.oriveo.community.core.provider.MessageBuilder
 import ai.oriveo.community.core.provider.RelayRuntimeSupport
 import ai.oriveo.community.core.provider.allowsTemperature
 import ai.oriveo.community.core.provider.escapeJsonString
+import ai.oriveo.community.core.tools.ToolLoopToolDefinition
+import ai.oriveo.community.core.tools.ToolWireProtocol
+import ai.oriveo.community.core.tools.ToolWireProtocolAdapter
 
-/** The connection effort is an explicit request intent when set; otherwise use chat intent. */
-internal fun effectiveRelayReasoningMode(
-    requestOptions: ChatRequestOptions,
-    chatMode: ReasoningMode,
-): ReasoningMode = when (requestOptions.relayRequested?.reasoningEffort) {
-    RelayReasoningEffort.Low -> ReasoningMode.Fast
-    RelayReasoningEffort.Medium -> ReasoningMode.Balanced
-    RelayReasoningEffort.High -> ReasoningMode.Deep
-    RelayReasoningEffort.XHigh -> ReasoningMode.Max
-    null, RelayReasoningEffort.Automatic -> chatMode
+/**
+ * Optional inputs of the chat builders, passed only by "test capability". With every field at its default the builder
+ * produces output byte-identical to before.
+ * [maxOutputTokens]: goes through the builder's own output-limit channel, unaffected by option normalization and the outbound gate;
+ * [functionTool]: `tools` holds only this one function tool (shaped for this platform's chat tool leg), and built-in tools are not merged in;
+ * [keepImageAttachments]: keep image attachments even when the capability-evidence gate does not let image input through.
+ */
+internal data class RelayChatBuildExtras(
+    val maxOutputTokens: Int? = null,
+    val functionTool: ToolLoopToolDefinition? = null,
+    val keepImageAttachments: Boolean = false,
+) {
+    companion object {
+        val None = RelayChatBuildExtras()
+    }
 }
+
+/** The protocol shape of a function tool is taken from the chat tool leg ([ToolWireProtocolAdapter]); this is the JSON of the whole `tools` array. */
+private fun functionToolsJson(protocol: ToolWireProtocol, tool: ToolLoopToolDefinition): String =
+    ToolWireProtocolAdapter.toolsJson(protocol, listOf(tool)).toString()
 
 internal fun buildResponsesBody(
     modelID: String,
@@ -40,35 +53,34 @@ internal fun buildResponsesBody(
     // image tool (see the note below), so the flag never changes what is sent.
     @Suppress("UNUSED_PARAMETER") supportsImageGen: Boolean,
     reasoningMode: ReasoningMode,
-    webSearchEnabled: Boolean,
+    @Suppress("UNUSED_PARAMETER") webSearchEnabled: Boolean,
     requestOptions: ChatRequestOptions,
     reasoningEffortOverride: String? = null,
     removeTools: Boolean = false,
     capabilityProjection: CapabilityEvidenceProductionAdapter.Projection? = null,
+    extras: RelayChatBuildExtras = RelayChatBuildExtras.None,
 ): String {
     val options = MessageBuilder.normalizeRequestOptions(requestOptions)
-    val effectiveReasoning = effectiveRelayReasoningMode(requestOptions, reasoningMode)
+    val effectiveReasoning = reasoningMode
     val resolved = MetadataClient.resolveCatalogModelAcrossProviders(modelID)
     // Relay upstreams normally speak the OpenAI protocol, so the router model is resolved against
     // the OpenAI side of the catalog.
-    val activeModel = MetadataClient.resolveAIModelForRouter(modelID, ProviderKind.OpenAI)
+    val activeModel = relayRouterModel(modelID, ProviderKind.OpenAI, requestOptions.activeModel)
     val sections = mutableListOf<String>()
     sections += """"model":"$modelID""""
-    sections += """"input":[${MessageBuilder.buildOpenAIResponsesInput(messagesForProjection(messages, capabilityProjection), activeModel, relayAttachmentTransport(AttachmentTransportProfile.RelayOpenAIResponses, requestOptions))}]"""
+    sections += """"input":[${MessageBuilder.buildOpenAIResponsesInput(messagesForProjection(messages, capabilityProjection, extras), activeModel, relayAttachmentTransport(AttachmentTransportProfile.RelayOpenAIResponses, requestOptions))}]"""
     if (stream) sections += """"stream":true"""
     // The Responses transport always advertises the image_generation tool and lets the model decide
     // whether to call it; it is deliberately not gated on a capability toggle or on relayImage being
-    // enabled. web_search and image_generation must be able to coexist in the same tools array.
-    // Which web-search tool name to emit:
-    //  - null (the default) means "web_search", the name OpenAI documents and the one most relays
-    //    in the wild actually accept
-    //  - WebSearchPreview means "web_search_preview", kept for older relays that only know that name
-    //  - Disabled means emit no web-search tool at all, even when webSearchEnabled is true
+    // enabled.
+    // Web search no longer adds a tool from the chat preference: the connection-level web fragment is merged after the builder produces its output.
+    //
     // removeTools=true is the retry-without-tools fallback, and it clears the whole tools array
     // rather than just image_generation: a relay that cannot even accept image_generation is
-    // unlikely to implement the Responses tool protocol properly, so leaving web_search in place
-    // would most likely fail a second time and muddy the attribution of the error.
-    if (!removeTools) {
+    // unlikely to implement the Responses tool protocol properly.
+    if (extras.functionTool != null) {
+        sections += """"tools":${functionToolsJson(ToolWireProtocol.OpenAIResponses, extras.functionTool)}"""
+    } else if (!removeTools) {
         val tools = mutableListOf<String>()
         val toolModel = requestOptions.relayImage
             ?.takeIf { it.mode == RelayImageMode.ToolModel }
@@ -81,21 +93,6 @@ internal fun buildResponsesBody(
         } else {
             """{"type":"image_generation"}"""
         }
-        if (webSearchEnabled && permits(capabilityProjection, "web_search")) {
-            val webSearchToolName = requestOptions.relayRequested?.webSearchToolName
-                ?: relayWebSearchToolNameFromRuntime(
-                    RelayRuntimeSupport.webSearchToolName(RelayTransport.OpenAIResponses),
-                )
-                ?: RelayWebSearchToolName.WebSearch
-            if (webSearchToolName != RelayWebSearchToolName.Disabled) {
-                val typeName = when (webSearchToolName) {
-                    RelayWebSearchToolName.WebSearch -> "web_search"
-                    RelayWebSearchToolName.WebSearchPreview -> "web_search_preview"
-                    RelayWebSearchToolName.Disabled -> ""
-                }
-                tools += """{"type":"$typeName"}"""
-            }
-        }
         if (tools.isNotEmpty()) {
             sections += """"tools":[${tools.joinToString(",")}]"""
         }
@@ -104,7 +101,7 @@ internal fun buildResponsesBody(
     // mandatory and has to be sent even in automatic mode. Omit it and the upstream never emits
     // response.reasoning_summary_text.delta, so the thinking trace never reaches the UI.
     val responsesEffort = if (permitsReasoning(capabilityProjection, effectiveReasoning)) {
-        reasoningEffortOverride ?: resolveResponsesReasoningEffort(requestOptions, reasoningMode)
+        reasoningEffortOverride ?: reasoningMode.relayOpenAIEffort()
     } else {
         null
     }
@@ -123,7 +120,9 @@ internal fun buildResponsesBody(
     if (resolved.allowsTemperature() && permitsGeneration(capabilityProjection, "temperature")) {
         MessageBuilder.temperatureJson(options.temperature)?.let { sections += it }
     }
-    if (permitsGeneration(capabilityProjection, "max_output_tokens", "max_tokens")) {
+    if (extras.maxOutputTokens != null) {
+        sections += MessageBuilder.maxTokensJson(extras.maxOutputTokens, key = "max_output_tokens")!!
+    } else if (permitsGeneration(capabilityProjection, "max_output_tokens", "max_tokens")) {
         MessageBuilder.maxTokensJson(options.maxTokens, key = "max_output_tokens")?.let { sections += it }
     }
     if (options.systemPrompt.isNotBlank()) {
@@ -134,7 +133,23 @@ internal fun buildResponsesBody(
         requestOptions,
         resolved,
         capabilityProjection,
-    ).let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
+    ).let { RelayWebFragments.applyTo(it, RelayTransport.OpenAIResponses, requestOptions) }
+        .let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
+        .let { body ->
+            // Last step: a same-named key already written by the user's custom parameters is not overwritten.
+            if (!RelayHeaderBuilder.injectsCodexIdentity(requestOptions, RelayTransport.OpenAIResponses)) {
+                body
+            } else {
+                RelayRuntimeSupport.withPromptCacheKey(
+                    body,
+                    RelayRuntimeSupport.promptCacheKey(
+                        model = modelID,
+                        instructions = options.systemPrompt.takeIf { it.isNotBlank() }.orEmpty(),
+                        firstUserText = messages.firstOrNull { it.role == ChatRole.User }?.text.orEmpty(),
+                    ),
+                )
+            }
+        }
 }
 
 internal fun buildOpenAIChatBody(
@@ -145,16 +160,17 @@ internal fun buildOpenAIChatBody(
     requestOptions: ChatRequestOptions,
     reasoningEffortOverride: String? = null,
     capabilityProjection: CapabilityEvidenceProductionAdapter.Projection? = null,
+    extras: RelayChatBuildExtras = RelayChatBuildExtras.None,
 ): String {
     val options = MessageBuilder.normalizeRequestOptions(requestOptions)
-    val effectiveReasoning = effectiveRelayReasoningMode(requestOptions, reasoningMode)
+    val effectiveReasoning = reasoningMode
     val resolved = MetadataClient.resolveCatalogModelAcrossProviders(modelID)
     val sections = mutableListOf<String>()
     sections += """"model":"$modelID""""
     sections += """"stream":$stream"""
-    sections += """"messages":[${MessageBuilder.buildOpenAIMessages(messagesForProjection(messages, capabilityProjection), ProviderKind.Relay, options.systemPrompt, requestOptions.activeModel)}]"""
+    sections += """"messages":[${MessageBuilder.buildOpenAIMessages(messagesForProjection(messages, capabilityProjection, extras), ProviderKind.Relay, options.systemPrompt, requestOptions.activeModel)}]"""
     (if (permitsReasoning(capabilityProjection, effectiveReasoning)) {
-        reasoningEffortOverride ?: resolveChatReasoningEffort(requestOptions, reasoningMode)
+        reasoningEffortOverride ?: reasoningMode.relayOpenAIEffort()
     } else null)?.let { effort ->
         sections += """"reasoning_effort":"$effort""""
     }
@@ -165,18 +181,24 @@ internal fun buildOpenAIChatBody(
     if (resolved.allowsTemperature() && permitsGeneration(capabilityProjection, "temperature")) {
         MessageBuilder.temperatureJson(options.temperature)?.let { sections += it }
     }
-    if (permitsGeneration(capabilityProjection, "max_tokens", "max_output_tokens")) {
+    if (extras.maxOutputTokens != null) {
+        sections += MessageBuilder.maxTokensJson(extras.maxOutputTokens)!!
+    } else if (permitsGeneration(capabilityProjection, "max_tokens", "max_output_tokens")) {
         MessageBuilder.maxTokensJson(options.maxTokens)?.let { sections += it }
     }
     if (stream) {
         sections += """"stream_options":{"include_usage":true}"""
+    }
+    extras.functionTool?.let { tool ->
+        sections += """"tools":${functionToolsJson(ToolWireProtocol.OpenAIChat, tool)}"""
     }
     return GenerationParameterResolver.apply(
         "{${sections.joinToString(",")}}",
         requestOptions,
         resolved,
         capabilityProjection,
-    ).let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
+    ).let { RelayWebFragments.applyTo(it, RelayTransport.OpenAIChatCompletions, requestOptions) }
+        .let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
 }
 
 /** llama.cpp native `/completion` uses a plain prompt and `n_predict`, not OpenAI messages/model. */
@@ -243,7 +265,7 @@ internal fun relayAnthropicThinkingFields(
     requestOptions: ChatRequestOptions,
     capabilityProjection: CapabilityEvidenceProductionAdapter.Projection?,
 ): String? {
-    val effectiveReasoning = effectiveRelayReasoningMode(requestOptions, reasoningMode)
+    val effectiveReasoning = reasoningMode
     if (!permitsReasoning(capabilityProjection, effectiveReasoning)) return null
     return relayAnthropicThinkingJson(effectiveReasoning, modelID)
 }
@@ -255,6 +277,7 @@ internal fun buildAnthropicBody(
     reasoningMode: ReasoningMode,
     requestOptions: ChatRequestOptions,
     capabilityProjection: CapabilityEvidenceProductionAdapter.Projection? = null,
+    buildExtras: RelayChatBuildExtras = RelayChatBuildExtras.None,
 ): String {
     val options = MessageBuilder.normalizeRequestOptions(requestOptions)
     val resolved = MetadataClient.resolveCatalogModelAcrossProviders(modelID)
@@ -264,22 +287,28 @@ internal fun buildAnthropicBody(
         MessageBuilder.temperatureJson(options.temperature)?.let { extras += it }
     }
     MessageBuilder.anthropicSystemJson(options.systemPrompt)?.let { extras += it }
+    buildExtras.functionTool?.let { tool ->
+        extras += """"tools":${functionToolsJson(ToolWireProtocol.AnthropicMessages, tool)}"""
+    }
     val extrasJson = if (extras.isNotEmpty()) "," + extras.joinToString(",") else ""
-    val maxTokens = if (permitsGeneration(capabilityProjection, "max_tokens", "max_output_tokens")) {
+    val maxTokens = if (buildExtras.maxOutputTokens != null) {
+        MessageBuilder.maxTokensJson(buildExtras.maxOutputTokens, key = "max_tokens")!!
+    } else if (permitsGeneration(capabilityProjection, "max_tokens", "max_output_tokens")) {
         MessageBuilder.maxTokensJson(options.maxTokens, key = "max_tokens") ?: """"max_tokens":8192"""
     } else {
         """"max_tokens":8192"""
     }
     // Resolving the router model on the Anthropic side is what turns on cache_control and native
     // PDF handling for this request.
-    val activeModel = MetadataClient.resolveAIModelForRouter(modelID, ProviderKind.Anthropic)
+    val activeModel = relayRouterModel(modelID, ProviderKind.Anthropic, requestOptions.activeModel)
     return GenerationParameterResolver.apply(
-        """{"model":"$modelID",$maxTokens,"stream":$stream,"messages":[${MessageBuilder.buildAnthropicMessages(messagesForProjection(messages, capabilityProjection), activeModel, relayAttachmentTransport(AttachmentTransportProfile.RelayAnthropicMessages, requestOptions))}]$extrasJson}""",
+        """{"model":"$modelID",$maxTokens,"stream":$stream,"messages":[${MessageBuilder.buildAnthropicMessages(messagesForProjection(messages, capabilityProjection, buildExtras), activeModel, relayAttachmentTransport(AttachmentTransportProfile.RelayAnthropicMessages, requestOptions))}]$extrasJson}""",
         requestOptions,
         resolved,
         capabilityProjection,
         outboundTemplate = "anthropic_messages",
-    ).let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
+    ).let { RelayWebFragments.applyTo(it, RelayTransport.AnthropicMessages, requestOptions) }
+        .let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
 }
 
 internal fun buildGeminiBody(
@@ -287,18 +316,19 @@ internal fun buildGeminiBody(
     modelID: String,
     supportsImageGen: Boolean,
     reasoningMode: ReasoningMode,
-    webSearchEnabled: Boolean,
+    @Suppress("UNUSED_PARAMETER") webSearchEnabled: Boolean,
     requestOptions: ChatRequestOptions,
     capabilityProjection: CapabilityEvidenceProductionAdapter.Projection? = null,
+    extras: RelayChatBuildExtras = RelayChatBuildExtras.None,
 ): String {
     val options = MessageBuilder.normalizeRequestOptions(requestOptions)
-    val effectiveReasoning = effectiveRelayReasoningMode(requestOptions, reasoningMode)
+    val effectiveReasoning = reasoningMode
     val resolved = MetadataClient.resolveCatalogModelAcrossProviders(modelID)
     // Resolving the router model on the Gemini side is what makes every PDF take the native path
     // when the catalog entry sets pdfNativeDefault.
-    val activeModel = MetadataClient.resolveAIModelForRouter(modelID, ProviderKind.Gemini)
+    val activeModel = relayRouterModel(modelID, ProviderKind.Gemini, requestOptions.activeModel)
     val sections = mutableListOf<String>()
-    sections += """"contents":[${MessageBuilder.buildGeminiContents(messagesForProjection(messages, capabilityProjection), activeModel, relayAttachmentTransport(AttachmentTransportProfile.RelayGeminiGenerateContent, requestOptions))}]"""
+    sections += """"contents":[${MessageBuilder.buildGeminiContents(messagesForProjection(messages, capabilityProjection, extras), activeModel, relayAttachmentTransport(AttachmentTransportProfile.RelayGeminiGenerateContent, requestOptions))}]"""
     MessageBuilder.geminiSystemInstructionJson(options.systemPrompt)?.let { sections += it }
 
     val generationConfig = mutableListOf<String>()
@@ -309,21 +339,24 @@ internal fun buildGeminiBody(
     if (resolved.allowsTemperature() && permitsGeneration(capabilityProjection, "temperature")) {
         MessageBuilder.temperatureJson(options.temperature)?.let { generationConfig += it }
     }
-    if (permitsGeneration(capabilityProjection, "max_output_tokens", "max_tokens")) {
+    if (extras.maxOutputTokens != null) {
+        generationConfig += MessageBuilder.maxTokensJson(extras.maxOutputTokens, key = "maxOutputTokens")!!
+    } else if (permitsGeneration(capabilityProjection, "max_output_tokens", "max_tokens")) {
         MessageBuilder.maxTokensJson(options.maxTokens, key = "maxOutputTokens")?.let { generationConfig += it }
     }
     if (generationConfig.isNotEmpty()) {
         sections += """"generationConfig":{${generationConfig.joinToString(",")}}"""
     }
-    if (webSearchEnabled && permits(capabilityProjection, "web_search")) {
-        sections += """"tools":[{"googleSearch":{}}]"""
+    if (extras.functionTool != null) {
+        sections += """"tools":${functionToolsJson(ToolWireProtocol.GeminiGenerate, extras.functionTool)}"""
     }
     return GenerationParameterResolver.apply(
         "{${sections.joinToString(",")}}",
         requestOptions,
         resolved,
         capabilityProjection,
-    ).let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
+    ).let { RelayWebFragments.applyTo(it, RelayTransport.GeminiGenerateContent, requestOptions) }
+        .let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
 }
 
 /** A projection must exist in production Relay dispatch; an absent final scope is fail-closed. */
@@ -348,7 +381,8 @@ private fun permitsGeneration(
 private fun messagesForProjection(
     messages: List<ChatMessage>,
     projection: CapabilityEvidenceProductionAdapter.Projection?,
-): List<ChatMessage> = if (permits(projection, "vision_input")) {
+    extras: RelayChatBuildExtras = RelayChatBuildExtras.None,
+): List<ChatMessage> = if (extras.keepImageAttachments || permits(projection, "vision_input")) {
     messages
 } else {
     messages.map { message ->
@@ -356,37 +390,65 @@ private fun messagesForProjection(
     }
 }
 
-internal fun relayWebSearchToolNameFromRuntime(raw: String?): RelayWebSearchToolName? {
-    return when (raw) {
-        "web_search" -> RelayWebSearchToolName.WebSearch
-        "web_search_preview" -> RelayWebSearchToolName.WebSearchPreview
-        "disabled" -> RelayWebSearchToolName.Disabled
-        else -> null
-    }
-}
-
-internal fun resolveResponsesReasoningEffort(
-    requestOptions: ChatRequestOptions,
-    reasoningMode: ReasoningMode,
-): String? {
-    requestOptions.relayRequested?.reasoningEffort
-        ?.takeIf { it != RelayReasoningEffort.Automatic }
-        ?.let { return it.value }
-    return reasoningMode.relayOpenAIEffort()
-}
-
-internal fun resolveChatReasoningEffort(
-    requestOptions: ChatRequestOptions,
-    reasoningMode: ReasoningMode,
-): String? {
-    requestOptions.relayRequested?.reasoningEffort
-        ?.takeIf { it != RelayReasoningEffort.Automatic }
-        ?.let { return it.value }
-    return reasoningMode.relayOpenAIEffort()
-}
-
 /** The attachment transport this relay request uses: on a fallback resend, or when the connection is known not to accept file blocks, the same transport without file blocks. */
 internal fun relayAttachmentTransport(
     transport: AttachmentTransportProfile,
     requestOptions: ChatRequestOptions,
 ): AttachmentTransportProfile = if (requestOptions.nativeFilesDisabled) transport.withoutNativeFiles() else transport
+
+/**
+ * The attachment-routing model that a relay send looks up from the official catalog. When the model's protocol is only a 1-token
+ * reachability check (reachable), it does not inherit the official catalog's native-file allowlist: nativeFileMimes is emptied and
+ * pdfNativeDefault = false, while everything else (attachmentExtraction, capabilities, etc.) is carried as is; observed / user /
+ * follow-connection stay as they were. When that protocol's envelope does not accept native files, all three (including
+ * attachmentExtraction) are emptied (see the chat attachment delivery contract). Only this one catalog family [catalogKind] is queried,
+ * so a cross-family hit naturally carries no allowlist. The model-level file override is the only place that strips or merges the
+ * allowlist, and it does not take effect when the envelope does not accept native files.
+ */
+internal fun relayRouterModel(modelID: String, catalogKind: ProviderKind, relayModel: AIModel?): AIModel? {
+    val fileOverride = relayModel?.relayCapabilityOverrides?.file
+    // The override acts on the model itself: when the catalog has no model of that name, file On uses the local model as the base.
+    val official = MetadataClient.resolveAIModelForRouter(modelID, catalogKind)
+        ?: relayModel?.takeIf { fileOverride == true }
+        ?: return null
+    if (relayEnvelopeRejectsNativeFile(catalogKind)) {
+        return official.copy(nativeFileMimes = emptyList(), pdfNativeDefault = false, attachmentExtraction = null)
+    }
+    // File override: On = the allowlist merges in PDF and PDF defaults to native; Off = always text. It outranks the reachable narrowing.
+    when (fileOverride) {
+        true -> return official.copy(
+            nativeFileMimes = (official.nativeFileMimes + PDF_MIME).distinct(),
+            pdfNativeDefault = true,
+        )
+        false -> return official.copy(nativeFileMimes = emptyList(), pdfNativeDefault = false)
+        null -> Unit
+    }
+    val reachableOnly = relayModel?.relayTransport != null &&
+        relayModel.relayTransportSource == RelayTransportSource.Reachable
+    return if (reachableOnly) official.copy(nativeFileMimes = emptyList(), pdfNativeDefault = false) else official
+}
+
+private const val PDF_MIME = "application/pdf"
+
+/**
+ * Whether a relay dispatches image generation: the model-level imageGeneration override wins, otherwise it depends on whether the model's
+ * capabilities include image generation. Non-relay providers look at capabilities only. The send entry and the image-generation precheck of attachment
+ * route resolution share this one place.
+ */
+internal fun relayDispatchesImageGeneration(provider: ai.oriveo.community.core.model.Provider, model: AIModel): Boolean {
+    if (provider.kind == ProviderKind.Relay) {
+        model.relayCapabilityOverrides?.imageGeneration?.let { return it }
+    }
+    return ai.oriveo.community.core.model.ModelCapability.ImageGen in model.capabilities
+}
+
+/** The three relay lanes that carry native file blocks map one to one onto the catalog families (see RelayTransportCoordinator.nativeFileLane). */
+private fun relayEnvelopeRejectsNativeFile(catalogKind: ProviderKind): Boolean {
+    val key = when (catalogKind) {
+        ProviderKind.OpenAI -> RelayRuntimeSupport.TransportKey.OPENAI_RESPONSES
+        ProviderKind.Anthropic -> RelayRuntimeSupport.TransportKey.ANTHROPIC_MESSAGES
+        ProviderKind.Gemini -> RelayRuntimeSupport.TransportKey.GEMINI_GENERATE_CONTENT
+        else -> return false
+    }
+    return MetadataClient.relayRuntimeConfig().transportEnvelopes[key]?.nativeFile == false
+}

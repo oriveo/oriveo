@@ -32,6 +32,9 @@ val databaseModule = module {
                 OriveoDatabase.MIGRATION_1_2,
                 // v2 to v3: the tables behind remote MCP servers, plus messages.toolStepsJson.
                 OriveoDatabase.MIGRATION_2_3,
+                // v3 to v4: providers.endpointSource / setupValuesJson / relayKeysJson (address source,
+                // setup field values and the relay key list, stored on this device only).
+                OriveoDatabase.MIGRATION_3_4,
             )
             .addCallback(
                 object : RoomDatabase.Callback() {

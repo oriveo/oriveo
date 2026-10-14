@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
+import ai.oriveo.community.core.model.ConnectionAvatar
 import ai.oriveo.community.core.model.CostFormatter
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderConnectionState
@@ -80,13 +81,6 @@ fun ProviderHeroCard(
 ) {
     val isDark = OriveoTheme.isDark
     val resolvedLogoKind = remember(provider) { resolveProviderLogoKind(provider) }
-    val resolvedRelayKind = remember(provider, resolvedLogoKind) {
-        if (provider.kind == ProviderKind.Relay && resolvedLogoKind == ProviderKind.Relay) {
-            provider.relayKind
-        } else {
-            null
-        }
-    }
 
     val brandColor = if (resolvedLogoKind == ProviderKind.Relay) {
         OriveoTheme.colors.primary
@@ -146,7 +140,8 @@ fun ProviderHeroCard(
     }
 
     val primaryModelName = remember(provider) {
-        val candidate = provider.models.firstOrNull { it.isDefault && it.isAvailable }
+        // Relays have no default model: the representative model is taken directly in enable order.
+        val candidate = provider.models.firstOrNull { it.isDefault && it.isAvailable && provider.kind != ProviderKind.Relay }
             ?: provider.models.firstOrNull { it.isAvailable }
             ?: provider.models.firstOrNull()
         candidate?.let {
@@ -187,8 +182,7 @@ fun ProviderHeroCard(
             verticalAlignment = Alignment.Top,
         ) {
             HeroIdentityColumn(
-                resolvedLogoKind = resolvedLogoKind,
-                resolvedRelayKind = resolvedRelayKind,
+                provider = provider,
                 name = provider.displayName,
                 primaryModelName = primaryModelName,
                 subInfoText = subInfoText,
@@ -318,8 +312,7 @@ private fun HeroWatermark(resolvedLogoKind: ProviderKind, modifier: Modifier = M
 
 @Composable
 private fun HeroIdentityColumn(
-    resolvedLogoKind: ProviderKind,
-    resolvedRelayKind: ai.oriveo.community.core.model.RelayKind?,
+    provider: Provider,
     name: String,
     primaryModelName: String?,
     subInfoText: String,
@@ -328,10 +321,11 @@ private fun HeroIdentityColumn(
 
     val logoTile = 38.dp
     Column(modifier = modifier) {
-        ProviderBadgeIcon(
-            kind = resolvedLogoKind,
+        // Relay connections draw the unified avatar, while local engines and official providers keep their brand logo.
+        ConnectionAvatar(
+            provider = provider,
+            fallbackKind = provider.kind,
             size = logoTile,
-            relayKind = resolvedRelayKind,
             forceDarkAppearance = true,
             contentScaleOverride = 1f,
         )

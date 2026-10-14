@@ -20,29 +20,69 @@ object ModelSelectionUtils {
         return if (trimmed.startsWith("manual-")) trimmed.removePrefix("manual-") else trimmed
     }
 
-    fun preferredStoredModelIdentifier(model: AIModel): String {
+    /**
+     * Relay (including the local engine) decides identity by literal ID: date snapshots, canonical ids and
+     * display names take no part, otherwise gpt-4o and gpt-4o-2024-08-06 would be folded into one and
+     * enable / disable / select would each hit half of it. Official providers do not take this path.
+     */
+    fun usesLiteralIdentity(kind: ProviderKind?): Boolean = kind == ProviderKind.Relay
+
+    /** Literal key: strip the legacy `manual-` prefix, then trim, then lowercase. */
+    fun literalKey(modelId: String): String = resolvedId(modelId).trim().lowercase()
+
+    /**
+     * The value written for the conversation / message / last-used model. Relay stores the literal ID
+     * (prefix stripped, trimmed); official providers store the canonical id (or the resolved id when there is none).
+     */
+    fun preferredStoredModelIdentifier(model: AIModel, kind: ProviderKind?): String {
+        if (usesLiteralIdentity(kind)) return resolvedId(model.id).trim()
         val canonical = model.canonicalModelId?.trim().orEmpty()
         if (canonical.isNotEmpty()) return canonical
         return resolvedId(model.id)
     }
 
-    fun preferredStoredModelIdentifier(models: List<AIModel>, targetId: String): String {
-        return matchingModel(models, targetId)
-            ?.let(::preferredStoredModelIdentifier)
+    fun preferredStoredModelIdentifier(models: List<AIModel>, targetId: String, kind: ProviderKind?): String {
+        return matchingModel(models, targetId, kind)
+            ?.let { preferredStoredModelIdentifier(it, kind) }
             ?: resolvedId(targetId)
     }
 
-    fun runtimeModelIdentifier(models: List<AIModel>, targetId: String): String {
-        return matchingModel(models, targetId)?.id ?: targetId.trim()
+    fun runtimeModelIdentifier(models: List<AIModel>, targetId: String, kind: ProviderKind?): String {
+        return matchingModel(models, targetId, kind)?.id ?: targetId.trim()
     }
+
+    /**
+     * Resolves a stored value (current selection, conversation model, last used, the "removed" check, the conversation row's display name).
+     * Relay: a literal hit wins; otherwise, if exactly one enabled model has a canonical equal to the key, use it
+     * (compatibility with old canonical stored values); several or none give null. Official providers = [matchingModel].
+     */
+    fun resolveStoredModel(models: List<AIModel>, storedId: String, kind: ProviderKind?): AIModel? {
+        if (!usesLiteralIdentity(kind)) return matchingModel(models, storedId, kind)
+        val key = literalKey(storedId)
+        if (key.isEmpty()) return null
+        models.firstOrNull { literalKey(it.id) == key }?.let { return it }
+        return models.filter { canonicalLiteralKey(it) == key }.singleOrNull()
+    }
+
+    /** Deduplication for loading and the model library projection: relay keeps order by literal key and the first one wins; official providers use canonical. */
+    fun deduplicate(models: List<AIModel>, kind: ProviderKind?): List<AIModel> =
+        if (usesLiteralIdentity(kind)) models.distinctBy { literalKey(it.id) } else deduplicateByCanonical(models)
+
+    private fun canonicalLiteralKey(model: AIModel): String? =
+        model.canonicalModelId?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
 
     /**
      * Fuzzy model lookup: try an exact id match first, then the resolved id, then the
      * other identifiers a model carries.
      */
-    fun matchingModel(models: List<AIModel>, targetId: String): AIModel? {
+    fun matchingModel(models: List<AIModel>, targetId: String, kind: ProviderKind?): AIModel? {
         val trimmedTarget = targetId.trim()
         if (trimmedTarget.isEmpty()) return null
+        if (usesLiteralIdentity(kind)) {
+            val key = literalKey(trimmedTarget)
+            if (key.isEmpty()) return null
+            return models.firstOrNull { literalKey(it.id) == key }
+        }
 
         val lookupCandidates = lookupCandidates(trimmedTarget)
 
@@ -73,7 +113,8 @@ object ModelSelectionUtils {
      * assumed to be ASCII, so the set is ordered by `String.CASE_INSENSITIVE_ORDER`, the
      * same folding `equals(ignoreCase = true)` uses.
      */
-    fun catalogMembershipIndex(models: List<AIModel>): Set<String> {
+    fun catalogMembershipIndex(models: List<AIModel>, kind: ProviderKind?): Set<String> {
+        if (usesLiteralIdentity(kind)) return models.mapTo(HashSet(models.size)) { literalKey(it.id) }
         val index = TreeSet(String.CASE_INSENSITIVE_ORDER)
         models.forEach { model ->
             // model.id goes in on its own: the first pass of matchingModel compares the
@@ -85,10 +126,11 @@ object ModelSelectionUtils {
         return index
     }
 
-    /** Equivalent to `matchingModel(models, targetId) != null` for an index built by [catalogMembershipIndex]. */
-    fun catalogIndexContains(index: Set<String>, targetId: String): Boolean {
+    /** Equivalent to `matchingModel(models, targetId, kind) != null` for an index built by [catalogMembershipIndex]. */
+    fun catalogIndexContains(index: Set<String>, targetId: String, kind: ProviderKind?): Boolean {
         val trimmed = targetId.trim()
         if (trimmed.isEmpty()) return false
+        if (usesLiteralIdentity(kind)) return literalKey(trimmed).let { it.isNotEmpty() && it in index }
         return lookupCandidates(trimmed).any { candidate -> candidate in index }
     }
 
@@ -114,7 +156,22 @@ object ModelSelectionUtils {
      * the exact pass answers (the usual case when Home resolves a row's display name) pays
      * only for the first pass.
      */
-    class CatalogMatchIndex internal constructor(private val models: List<AIModel>) {
+    class CatalogMatchIndex internal constructor(
+        private val models: List<AIModel>,
+        private val kind: ProviderKind?,
+    ) {
+        // Relay literal identity: key to the first model in the catalog (the same decision as the one-by-one matchingModel(..., kind)).
+        private val firstByLiteralKey: Map<String, AIModel> by lazy {
+            HashMap<String, AIModel>(models.size).also { index ->
+                models.forEach { model -> index.putIfAbsent(literalKey(model.id), model) }
+            }
+        }
+
+        // Compatibility with old canonical stored values: canonical key to the models carrying it (only "exactly one" is asked).
+        private val byCanonicalKey: Map<String, List<AIModel>> by lazy {
+            models.groupBy { canonicalLiteralKey(it).orEmpty() }
+        }
+
         // First pass of matchingModel: the untrimmed model.id against each candidate, first in catalog order.
         private val firstByExactId = TreeMap<String, AIModel>(String.CASE_INSENSITIVE_ORDER).also { index ->
             models.forEach { model -> index.putIfAbsent(model.id, model) }
@@ -134,14 +191,23 @@ object ModelSelectionUtils {
 
         /** Builds the on-demand second-pass index and the name set now (call it off the main thread). */
         internal fun prewarm() {
+            if (usesLiteralIdentity(kind)) {
+                firstByLiteralKey.size
+                byCanonicalKey.size
+                return
+            }
             firstIndexByIdentifier.size
             names.size
         }
 
-        /** Returns exactly what `matchingModel(models, targetId)` returns. */
+        /** Returns exactly what `matchingModel(models, targetId, kind)` returns. */
         fun match(targetId: String): AIModel? {
             val trimmedTarget = targetId.trim()
             if (trimmedTarget.isEmpty()) return null
+            if (usesLiteralIdentity(kind)) {
+                val key = literalKey(trimmedTarget)
+                return if (key.isEmpty()) null else firstByLiteralKey[key]
+            }
             val candidates = lookupCandidates(trimmedTarget)
             candidates.forEach { candidate ->
                 firstByExactId[candidate]?.let { return it }
@@ -150,8 +216,18 @@ object ModelSelectionUtils {
             return models[firstIndex]
         }
 
+        /** Returns exactly what `resolveStoredModel(models, storedId, kind)` returns. */
+        fun resolveStored(storedId: String): AIModel? {
+            if (!usesLiteralIdentity(kind)) return match(storedId)
+            match(storedId)?.let { return it }
+            val key = literalKey(storedId)
+            if (key.isEmpty()) return null
+            return byCanonicalKey[key]?.singleOrNull()
+        }
+
         /** Returns exactly what `models.any { modelsShareSameRemoteModel(model, it, providerKind) }` returns. */
         fun sharesRemoteModelWithAny(model: AIModel, providerKind: ProviderKind): Boolean {
+            if (usesLiteralIdentity(providerKind)) return literalKey(model.id) in firstByLiteralKey
             if (modelIdentifiers(model).any { it in firstIndexByIdentifier }) return true
             if (providerKind == ProviderKind.OpenRouter || providerKind == ProviderKind.SiliconFlow) {
                 return false
@@ -160,7 +236,8 @@ object ModelSelectionUtils {
         }
     }
 
-    fun catalogMatchIndex(models: List<AIModel>): CatalogMatchIndex = CatalogMatchIndex(models)
+    fun catalogMatchIndex(models: List<AIModel>, kind: ProviderKind?): CatalogMatchIndex =
+        CatalogMatchIndex(models, kind)
 
     /** Decides whether two model records stand for the same remote model. */
     fun modelsShareSameRemoteModel(
@@ -168,6 +245,7 @@ object ModelSelectionUtils {
         b: AIModel,
         providerKind: ProviderKind,
     ): Boolean {
+        if (usesLiteralIdentity(providerKind)) return literalKey(a.id) == literalKey(b.id)
         if (
             modelIdentifiers(a).any { left ->
                 modelIdentifiers(b).any { right ->
@@ -209,8 +287,37 @@ object ModelSelectionUtils {
         }
 
         // Manual models go in front.
-        return uniqueManuals + syncedModels
+        val existingByID = existingModels.associateBy { it.id }
+        return uniqueManuals + syncedModels.map { synced ->
+            existingByID[synced.id]?.let { synced.carryingRelayModelFields(it) } ?: synced
+        }
     }
+
+    /**
+     * For landing remote data: models in the cloud document do not carry device-specific fields, so they are
+     * brought back by id from the same model on this device (same-catalog refresh).
+     */
+    fun carryLocalRelayModelFields(models: List<AIModel>, localModels: List<AIModel>): List<AIModel> {
+        val localByID = localModels.associateBy { it.id }
+        return models.map { model -> localByID[model.id]?.let { model.carryingRelayModelFields(it) } ?: model }
+    }
+
+    /**
+     * The three relay model-level fields (protocol / source / capability overrides) are this device's probe or manual-tuning
+     * result for the model and are not in the catalog text; when a catalog refresh swaps the model object they must be
+     * carried over unchanged, or the refresh would clear them. The engine declaration is the exception: when the local
+     * engine connector gives a new declaration this time it wins, and only a plain /models refresh that gives none keeps the old one.
+     * The multi-key fields likewise come back by id; the lister follows the engine declaration, so a new result wins.
+     */
+    private fun AIModel.carryingRelayModelFields(existing: AIModel): AIModel = copy(
+        relayTransport = existing.relayTransport,
+        relayTransportSource = existing.relayTransportSource,
+        relayCapabilityOverrides = existing.relayCapabilityOverrides,
+        engineDeclaration = engineDeclaration ?: existing.engineDeclaration,
+        relayKeyID = existing.relayKeyID,
+        relayListedByKeyIDs = relayListedByKeyIDs ?: existing.relayListedByKeyIDs,
+        relayDeniedKeyID = existing.relayDeniedKeyID,
+    )
 
     /**
      * True replace semantics for a relay catalog refresh.
@@ -247,17 +354,17 @@ object ModelSelectionUtils {
         catalogModels: List<AIModel>,
         providerKind: ProviderKind,
     ): List<AIModel> {
-        if (existingEnabledModels.isEmpty()) return initialEnabledModels(catalogModels)
+        if (existingEnabledModels.isEmpty()) return initialEnabledModels(catalogModels, providerKind)
 
         val retained = existingEnabledModels.map { existing ->
-            matchingModel(catalogModels, existing.id) ?: existing
-        }.distinctBy { resolvedId(it.id) }
+            matchingModel(catalogModels, existing.id, providerKind)?.carryingRelayModelFields(existing) ?: existing
+        }.distinctBy { identityKey(it.id, providerKind) }
         val preferredDefaultId = existingEnabledModels.firstOrNull { it.isDefault }?.id
             ?: retained.firstOrNull()?.id
-        return markDefaultModel(retained, preferredDefaultId)
+        return markDefaultModel(retained, preferredDefaultId, providerKind)
     }
 
-    fun initialEnabledModels(catalogModels: List<AIModel>): List<AIModel> {
+    fun initialEnabledModels(catalogModels: List<AIModel>, kind: ProviderKind?): List<AIModel> {
         if (catalogModels.isEmpty()) return emptyList()
 
         val availableModels = catalogModels.filter { it.isAvailable }
@@ -271,6 +378,7 @@ object ModelSelectionUtils {
         return markDefaultModel(
             models = listOf(initialModel),
             preferredModelId = initialModel.id,
+            kind = kind,
         )
     }
 
@@ -283,12 +391,12 @@ object ModelSelectionUtils {
 
         val resolvedExistingModels = existingEnabledModels
             .mapNotNull { existingModel ->
-                matchingModel(catalogModels, existingModel.id)
+                matchingModel(catalogModels, existingModel.id, providerKind)
             }
-            .distinctBy { resolvedId(it.id) }
+            .distinctBy { identityKey(it.id, providerKind) }
 
         val selectedModels = if (resolvedExistingModels.isEmpty()) {
-            initialEnabledModels(catalogModels)
+            initialEnabledModels(catalogModels, providerKind)
         } else {
             resolvedExistingModels
         }
@@ -300,18 +408,21 @@ object ModelSelectionUtils {
         return markDefaultModel(
             models = selectedModels,
             preferredModelId = preferredDefaultId,
+            kind = providerKind,
         )
     }
 
     fun allEnabledModels(
         catalogModels: List<AIModel>,
         preferredDefaultId: String?,
+        kind: ProviderKind?,
     ): List<AIModel> {
         if (catalogModels.isEmpty()) return emptyList()
 
         return markDefaultModel(
             models = catalogModels,
             preferredModelId = preferredDefaultId ?: catalogModels.firstOrNull { it.isDefault }?.id,
+            kind = kind,
         )
     }
 
@@ -335,7 +446,9 @@ object ModelSelectionUtils {
             return provider
         }
 
-        val updatedModels = provider.models + model.copy(isDefault = provider.models.isEmpty())
+        val updatedModels = provider.models + model.copy(
+            isDefault = provider.kind != ProviderKind.Relay && provider.models.isEmpty(),
+        )
 
         return synchronizeDefaultSelection(
             provider = provider.copy(models = updatedModels),
@@ -347,24 +460,27 @@ object ModelSelectionUtils {
         provider: Provider,
         preferredModelId: String?,
     ): Provider {
+        // Relay has no default model: mark none, only clear old marks.
+        if (provider.kind == ProviderKind.Relay) return RelayModelFallback.clearingDefaults(provider)
         val resolvedDefaultId = preferredModelId
             ?: provider.models.firstOrNull { it.isDefault }?.id
             ?: provider.catalogModels.firstOrNull { it.isDefault }?.id
 
         return provider.copy(
-            models = markDefaultModel(provider.models, resolvedDefaultId),
-            catalogModels = markDefaultFlag(provider.catalogModels, resolvedDefaultId),
+            models = markDefaultModel(provider.models, resolvedDefaultId, provider.kind),
+            catalogModels = markDefaultFlag(provider.catalogModels, resolvedDefaultId, provider.kind),
         )
     }
 
     fun markDefaultModel(
         models: List<AIModel>,
         preferredModelId: String?,
+        kind: ProviderKind?,
     ): List<AIModel> {
         if (models.isEmpty()) return emptyList()
 
         val resolvedDefaultId = preferredModelId?.let { preferredId ->
-            matchingModel(models, preferredId)?.id
+            matchingModel(models, preferredId, kind)?.id
         } ?: models.firstOrNull { it.isDefault }?.id
             ?: models.first().id
 
@@ -378,9 +494,10 @@ object ModelSelectionUtils {
     fun markDefaultFlag(
         models: List<AIModel>,
         preferredModelId: String?,
+        kind: ProviderKind?,
     ): List<AIModel> {
         val resolvedDefaultId = preferredModelId?.let { preferredId ->
-            matchingModel(models, preferredId)?.id
+            matchingModel(models, preferredId, kind)?.id
         }
         return models.map { model ->
             model.copy(
@@ -388,6 +505,9 @@ object ModelSelectionUtils {
             )
         }
     }
+
+    private fun identityKey(modelId: String, kind: ProviderKind?): String =
+        if (usesLiteralIdentity(kind)) literalKey(modelId) else resolvedId(modelId)
 
     // ---- canonical deduplication ----
 
@@ -428,7 +548,7 @@ object ModelSelectionUtils {
             stripSnapshotDateSuffix(model.id),
             model.canonicalModelId?.trim().orEmpty(),
             model.canonicalModelId?.let(::stripSnapshotDateSuffix).orEmpty(),
-            preferredStoredModelIdentifier(model),
+            preferredStoredModelIdentifier(model, null),
         )
 
         return candidates

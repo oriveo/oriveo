@@ -218,7 +218,9 @@ object ProviderKeyValidator {
      * change here.
      */
     private fun resolveBaseUrl(provider: Provider): String {
-        provider.baseUrlText?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+        // Official providers compute the address from the source; non-official providers return the literal address as is
+        ai.oriveo.community.core.provider.transport.OfficialEndpointSource.effectiveBaseUrlText(provider)
+            ?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
         MetadataClient.providerTransport(provider.kind)?.baseUrl?.trim()
             ?.takeIf { it.isNotEmpty() }
             ?.let { return it }

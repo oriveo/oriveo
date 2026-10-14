@@ -48,6 +48,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import ai.oriveo.community.core.provider.ProviderCredentialResolver
 import ai.oriveo.community.ui.component.rememberBrandPainter
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.PlatformTextStyle
@@ -86,7 +87,7 @@ internal fun shouldShowHeroApiKeyEditor(provider: Provider): Boolean =
 internal fun shouldShowResidualCredentialRemoval(provider: Provider): Boolean =
     provider.kind == ProviderKind.Relay &&
         !provider.relayRequested.requiresCredential &&
-        hasStoredCredential(provider.apiKey)
+        hasStoredCredential(ProviderCredentialResolver.apiKey(provider, null))
 
 @Composable
 fun ProviderDetailBrandHeroCard(
@@ -109,13 +110,6 @@ fun ProviderDetailBrandHeroCard(
         provider.displayName,
         provider.models,
     ) { resolveProviderLogoKind(provider) }
-    val resolvedRelayKind = remember(provider.kind, provider.relayKind, resolvedLogoKind) {
-        if (provider.kind == ProviderKind.Relay && resolvedLogoKind == ProviderKind.Relay) {
-            provider.relayKind
-        } else {
-            null
-        }
-    }
     val brandColor = if (resolvedLogoKind == ProviderKind.Relay) {
         OriveoTheme.colors.primary
     } else {
@@ -159,7 +153,6 @@ fun ProviderDetailBrandHeroCard(
         ) {
             HeroTopRow(
                 logoKind = resolvedLogoKind,
-                relayKind = resolvedRelayKind,
                 effective = effective,
                 statusTitle = heroStatusTitle(effective, provider.status),
                 statusPulsing = isSyncing,
@@ -295,7 +288,6 @@ private fun HeroWatermark(logoKind: ProviderKind) {
 @Composable
 private fun HeroTopRow(
     logoKind: ProviderKind,
-    relayKind: ai.oriveo.community.core.model.RelayKind?,
     effective: ProviderEffectiveStatusKind,
     statusTitle: String,
     statusPulsing: Boolean,
@@ -309,7 +301,6 @@ private fun HeroTopRow(
         ProviderBadgeIcon(
             kind = logoKind,
             size = 35.dp,
-            relayKind = relayKind,
             forceDarkAppearance = true,
             contentScaleOverride = 1f,
         )

@@ -284,10 +284,14 @@ object MessageBuilder {
         if (attachments.isNullOrEmpty()) return null
 
         val parts = mutableListOf<String>()
+        val transport = AttachmentTransportResolver.chatCompletions(providerKind)
+        // Text-only wire (MiniMax Chat): one placeholder line per image, no image blocks.
+        val imagePlaceholder = transport.imagePlaceholderText
 
         for (att in attachments) {
             when (att.kind) {
                 AttachmentKind.Image -> {
+                    if (imagePlaceholder != null) continue
                     val base64 = att.base64Data ?: att.thumbnailBase64 ?: continue
                     val dataUri = if (base64.startsWith("data:")) base64 else "data:${att.mimeType};base64,$base64"
                     // detail=auto is sent explicitly; OpenAI-compatible upstreams consume the field
@@ -306,10 +310,10 @@ object MessageBuilder {
         // The transport decides whether an original file may enter the content parts. Only OpenRouter can; every
         // other Chat Completions upstream receives files as text.
         val plan = AttachmentDelivery.plan(
-            baseText = msg.text,
+            baseText = withImagePlaceholders(msg.text, attachments, imagePlaceholder),
             attachments = attachments,
             model = activeModel,
-            transport = AttachmentTransportResolver.chatCompletions(providerKind),
+            transport = transport,
         )
         AttachmentDelivery.requireDeliverable(plan, isCurrentTurn)
         // A file judged native is emitted as a file block whatever the role: it is no longer in the text, so
@@ -435,8 +439,10 @@ object MessageBuilder {
         // document block or is injected as text.
         val videoPlaceholders = attachments.filter { it.kind == AttachmentKind.Video }
             .map { "[Video omitted: ${it.fileName}]" }
+        // Text-only wire (MiniMax's Anthropic-compatible web search endpoint): one placeholder line per image, no image blocks.
+        val imagePlaceholder = transport.imagePlaceholderText
         val baseText = listOfNotNull(
-            msg.text.takeIf { it.isNotBlank() },
+            withImagePlaceholders(msg.text, attachments, imagePlaceholder).takeIf { it.isNotBlank() },
             *videoPlaceholders.toTypedArray(),
         ).joinToString("\n\n")
         val plan = AttachmentDelivery.plan(
@@ -453,6 +459,7 @@ object MessageBuilder {
         for (att in attachments) {
             when (att.kind) {
                 AttachmentKind.Image -> {
+                    if (imagePlaceholder != null) continue
                     val base64 = att.base64Data ?: att.thumbnailBase64 ?: continue
                     parts.add("""{"type":"image","source":{"type":"base64","media_type":"${att.mimeType}","data":"$base64"}$cacheControl}""")
                 }
@@ -471,6 +478,14 @@ object MessageBuilder {
             parts.add(0, """{"type":"text","text":${escapeJsonString(plan.text)}}""")
         }
         return if (parts.isNotEmpty()) parts.joinToString(",") else null
+    }
+
+    /** Text-only wires replace each image with one placeholder line appended after the body (same shape as DeepSeek / llama.cpp); wires that can carry images return the content unchanged. */
+    fun withImagePlaceholders(text: String, attachments: List<Attachment>, placeholder: String?): String {
+        if (placeholder == null) return text
+        val lines = attachments.filter { it.kind == AttachmentKind.Image }.map { placeholder }
+        if (lines.isEmpty()) return text
+        return listOfNotNull(text.takeIf { it.isNotBlank() }, *lines.toTypedArray()).joinToString("\n\n")
     }
 
     // ── Gemini Format ──

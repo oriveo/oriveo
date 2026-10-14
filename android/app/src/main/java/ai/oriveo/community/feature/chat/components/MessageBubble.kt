@@ -64,6 +64,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -121,9 +122,14 @@ import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.QuoteSelectionContent
-import ai.oriveo.community.core.model.RelayKind
+import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.model.RelayAvatar
+import ai.oriveo.community.core.model.RelayAvatarResolver
+import ai.oriveo.community.core.model.RelayAvatarResult
 import ai.oriveo.community.core.model.StreamActivity
 import ai.oriveo.community.core.model.UnhandledToolCall
+import ai.oriveo.community.core.model.resolveProviderLogoKind
 import ai.oriveo.community.feature.chat.AssistantMessageFooterMetrics
 import ai.oriveo.community.ui.component.ImageViewerSheet
 import ai.oriveo.community.ui.component.OriveoSheetDragHandle
@@ -163,6 +169,12 @@ internal fun shouldShowAssistantFooterActions(
     hasText: Boolean,
     isBodyRenderSettled: Boolean,
 ): Boolean = messageState == ChatMessageState.Delivered && hasText && isBodyRenderSettled
+
+/**
+ * The connection in the session (by id): the message header uses it to get the unified avatar for relay messages. Provided by the chat page,
+ * so that a connection object need not be threaded through two layers of list / menu parameters for one avatar; when not provided, relay messages draw the relay icon.
+ */
+val LocalRelayAvatarProviders = compositionLocalOf<Map<String, Provider>> { emptyMap() }
 
 /**
  * Citations wait until the body has finished appearing on screen: after the message is persisted as
@@ -234,7 +246,6 @@ fun MessageBubble(
     showMetadata: Boolean = true,
     providerNameOverride: String? = null,
     modelNameOverride: String? = null,
-    relayKind: RelayKind? = null,
     avatarURL: String? = null,
     avatarLocalID: String? = null,
     avatarFallbackName: String = "",
@@ -287,7 +298,6 @@ fun MessageBubble(
             showMetadata = showMetadata,
             providerNameOverride = providerNameOverride,
             modelNameOverride = modelNameOverride,
-            relayKind = relayKind,
             isUserDragging = isUserDragging,
             onRetry = onRetry,
             onSaveMessageAsNote = onSaveMessageAsNote,
@@ -654,7 +664,6 @@ private fun AssistantMessage(
     showMetadata: Boolean,
     providerNameOverride: String?,
     modelNameOverride: String?,
-    relayKind: RelayKind?,
     isUserDragging: Boolean,
     onRetry: (() -> Unit)?,
     onSaveMessageAsNote: (() -> Unit)?,
@@ -759,11 +768,16 @@ private fun AssistantMessage(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
             ) {
-                ProviderBadgeIcon(
-                    kind = message.providerKind,
-                    size = 28.dp,
-                    relayKind = relayKind,
-                )
+                // Relay messages take the unified avatar from the connection in the session; when the connection cannot be found the relay icon is drawn; official and local are unchanged.
+                val relayProvider = message.providerID
+                    ?.takeIf { message.providerKind == ProviderKind.Relay }
+                    ?.let { LocalRelayAvatarProviders.current[it] }
+                when {
+                    message.providerKind != ProviderKind.Relay -> ProviderBadgeIcon(kind = message.providerKind, size = 28.dp)
+                    relayProvider == null -> RelayAvatar(result = RelayAvatarResult.Generic, size = 28.dp)
+                    RelayAvatarResolver.appliesTo(relayProvider) -> RelayAvatar(provider = relayProvider, size = 28.dp)
+                    else -> ProviderBadgeIcon(kind = resolveProviderLogoKind(relayProvider), size = 28.dp)
+                }
                 Text(
                     text = resolvedModelName,
                     style = OriveoTheme.typography.footnote,
@@ -1059,7 +1073,7 @@ private fun CapabilityExecutionStatusText(results: List<CapabilityExecutionResul
                 "web" -> stringResource(R.string.capability_web)
                 "reasoning" -> stringResource(R.string.capability_reasoning)
                 "generation" -> stringResource(R.string.generation_parameters_section)
-                else -> stringResource(R.string.generation_model_behavior)
+                else -> stringResource(R.string.generation_parameters_section)
             }
             val status = when (result.state) {
                 "requested" -> stringResource(R.string.capability_execution_requested)

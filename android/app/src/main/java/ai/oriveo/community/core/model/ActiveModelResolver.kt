@@ -2,6 +2,7 @@ package ai.oriveo.community.core.model
 
 import androidx.compose.runtime.Immutable
 import ai.oriveo.community.core.provider.ModelSelectionUtils
+import ai.oriveo.community.core.provider.RelayModelFallback
 
 @Immutable
 data class ActiveModelSelection(
@@ -18,9 +19,9 @@ fun resolveActiveModel(
     if (lastUsedModelRef != null) {
         val provider = providers.firstOrNull { it.id == lastUsedModelRef.providerID }
         val model = provider?.models?.let { models ->
-            ModelSelectionUtils.matchingModel(models, lastUsedModelRef.modelID)
+            ModelSelectionUtils.resolveStoredModel(models, lastUsedModelRef.modelID, provider.kind)
         }
-            ?: provider?.defaultModel
+            ?: provider?.let(::fallbackModelOf)
             ?: provider?.models?.firstOrNull()
         if (provider != null && model != null) {
             return ActiveModelSelection(provider, model)
@@ -30,9 +31,17 @@ fun resolveActiveModel(
     val fallbackProvider = providers.firstOrNull { it.status is ProviderConnectionState.Connected }
         ?: providers.firstOrNull()
         ?: return null
-    val fallbackModel = fallbackProvider.defaultModel ?: fallbackProvider.models.firstOrNull() ?: return null
+    val fallbackModel = fallbackModelOf(fallbackProvider) ?: fallbackProvider.models.firstOrNull() ?: return null
     return ActiveModelSelection(fallbackProvider, fallbackModel)
 }
+
+/** Relays fall back only to enabled models, never to un-enabled catalog models; official providers still use the default model. */
+private fun fallbackModelOf(provider: Provider): AIModel? =
+    if (RelayModelFallback.appliesTo(provider)) {
+        RelayModelFallback.fallbackModel(provider, lastUsedModelRef = null)
+    } else {
+        provider.defaultModel
+    }
 
 fun resolveLastUsedModelRef(
     providers: List<Provider>,
@@ -41,18 +50,18 @@ fun resolveLastUsedModelRef(
     if (lastUsedModelRef != null) {
         val provider = providers.firstOrNull { it.id == lastUsedModelRef.providerID }
             ?: return lastUsedModelRef
-        val model = ModelSelectionUtils.matchingModel(provider.models, lastUsedModelRef.modelID)
+        val model = ModelSelectionUtils.resolveStoredModel(provider.models, lastUsedModelRef.modelID, provider.kind)
             ?: return lastUsedModelRef
         return LastUsedModelRef(
             providerID = provider.id,
-            modelID = ModelSelectionUtils.preferredStoredModelIdentifier(model),
+            modelID = ModelSelectionUtils.preferredStoredModelIdentifier(model, provider.kind),
         )
     }
 
     val activeModel = resolveActiveModel(providers, lastUsedModelRef = null) ?: return null
     return LastUsedModelRef(
         providerID = activeModel.provider.id,
-        modelID = ModelSelectionUtils.preferredStoredModelIdentifier(activeModel.model),
+        modelID = ModelSelectionUtils.preferredStoredModelIdentifier(activeModel.model, activeModel.provider.kind),
     )
 }
 

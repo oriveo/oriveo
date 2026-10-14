@@ -1,6 +1,8 @@
 package ai.oriveo.community.core.model
 
 import androidx.compose.runtime.Immutable
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
@@ -49,9 +51,16 @@ data class GenerationParameterRange(
     val step: Double? = null,
 )
 
-/** One model offered by a provider. */
+/**
+ * One model offered by a provider.
+ *
+ * Serialization goes through [AIModelSerializer]: reading and writing the fields is still the plugin-generated code, with one extra step wrapped around it that
+ * normalizes the relay model-level fields across fields (a protocol and its source must come as a pair), so a model decoded by any Json instance is already normalized.
+ */
 @Immutable
-@Serializable
+@OptIn(ExperimentalSerializationApi::class)
+@Serializable(with = AIModelSerializer::class)
+@KeepGeneratedSerializer
 data class AIModel(
     val id: String,
     val name: String,
@@ -141,6 +150,31 @@ data class AIModel(
     val upstreamDefaultReasoningLevel: String? = null,
     /** Subscription `/models` protocol declaration (`responses` / `chat`). Local-only. */
     val upstreamApiBackend: String? = null,
+    /**
+     * Model-level outbound protocol of a relay; null = follow the connection default (`relayRequested.transport`).
+     * `auto` is not a model-level value: when decoding it falls back to null, the same as an unknown protocol.
+     * Carried by local storage and backup files, never uploaded to the cloud; see [LOCAL_ONLY_RELAY_MODEL_FIELDS].
+     */
+    @Serializable(with = RelayModelTransportSerializer::class)
+    val relayTransport: RelayTransport? = null,
+    /** Who decided [relayTransport]; it comes as a pair with the protocol, and if either is missing both are dropped. Local-only, never synced. */
+    val relayTransportSource: RelayTransportSource? = null,
+    /** The user's manual overrides of a single model's capabilities; null when none is left. Local-only, never synced. */
+    val relayCapabilityOverrides: RelayCapabilityOverrides? = null,
+    /** Per-model capability declaration resolved by the local engine connector; null when none is left. Local-only, never synced. */
+    val engineDeclaration: EngineDeclaration? = null,
+    /**
+     * The id of the key this model is bound to on a multi-key relay; null, or pointing at a key that no longer exists, means the primary key.
+     * Not written when the connection has only one key. Local-only, never synced.
+     */
+    @Serializable(with = RelayKeyIDLenientSerializer::class)
+    val relayKeyID: String? = null,
+    /** Catalog entry: the ids of the keys that listed this model when the catalog was fetched (in key order); null = listed by the primary key. Local-only, never synced. */
+    @Serializable(with = RelayKeyIDListLenientSerializer::class)
+    val relayListedByKeyIDs: List<String>? = null,
+    /** The id of the key most recently judged "this key cannot use this model"; shown only when it equals the effective key. Local-only, never synced. */
+    @Serializable(with = RelayKeyIDLenientSerializer::class)
+    val relayDeniedKeyID: String? = null,
     val localLoadState: LocalModelLoadState? = null,
     val executionLocality: ModelExecutionLocality? = null,
 )

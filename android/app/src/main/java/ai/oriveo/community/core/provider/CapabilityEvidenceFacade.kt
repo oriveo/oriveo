@@ -13,11 +13,21 @@ internal object CapabilityEvidenceFacade {
         "operator_override",
         "server_typed",
         "server_profile",
+        "free_catalog",
+        "upstream_declaration",
         "model_facts",
         "relay_verification",
         "relay_declaration",
         "legacy_metadata",
     )
+
+    /**
+     * Source marker for the catalog having been fetched but not containing this model; it is also its reasonCode.
+     *
+     * Deliberately not in [sourcePriority]: it is not a piece of capability evidence and cannot be ranked against other sources in the evidence priority;
+     * it takes effect only when there is no valid prioritized candidate, and is resolved to an unknown that is not sent out.
+     */
+    const val CATALOG_ABSENT = "catalog_absent"
 
     /** A query must carry the full local isolation identity, so a call site cannot construct a "current connection with no generation". */
     data class QueryIdentity(
@@ -26,6 +36,8 @@ internal object CapabilityEvidenceFacade {
         val connectionGeneration: String,
         val credentialEpoch: String,
         val providerKind: String,
+        /** `ProviderAuthMode.rawValue`. The form is derived from kind + authMode together; kind alone cannot recognize a subscription. */
+        val authMode: String,
         val modelId: String,
         val canonicalModelId: String? = null,
         val effectiveTransport: String,
@@ -208,7 +220,21 @@ internal object CapabilityEvidenceFacade {
         val ranked = valid.mapNotNull { candidate ->
             sourcePriority.indexOf(candidate.source).takeIf { it >= 0 }?.let { candidate to it }
         }
-        if (ranked.isEmpty()) return noUsableEvidence(key, "missing_evidence", query)
+        if (ranked.isEmpty()) {
+            // A model outside the catalog is not a case of us having no evidence but of the other side not accepting it, so it does not enter the explicit escape hatch:
+            // even if the user expressed explicit intent it is still not sent out.
+            if (valid.any { it.source == CATALOG_ABSENT }) {
+                return Resolution(
+                    key = key,
+                    support = "unknown",
+                    source = CATALOG_ABSENT,
+                    grade = "none",
+                    requestPolicy = "omit_unknown",
+                    reasonCode = CATALOG_ABSENT,
+                )
+            }
+            return noUsableEvidence(key, "missing_evidence", query)
+        }
         val highest = ranked.minOf { it.second }
         val selected = ranked.filter { it.second == highest }.map { it.first }
         // A conflict is not "we do not know": it is "the evidence we hold disagrees with

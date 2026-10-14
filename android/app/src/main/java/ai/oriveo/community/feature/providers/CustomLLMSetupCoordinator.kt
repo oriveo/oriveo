@@ -9,6 +9,15 @@ enum class CustomLLMConnectionMethod { Relay, Local }
 
 enum class CustomLLMSetupPhase { Ready, Detecting, Saving, Testing, Failed }
 
+/**
+ * Input slots of the add-page board (Setup / LocalSetup), in display order. There is no default model slot;
+ * [AddKey] appears only on relay step 1 ("add another key" + a footnote that keys are stored on this device only).
+ */
+enum class SetupBoardSlot { Address, ApiKey, AddKey }
+
+/** Add-page detection card: Hidden = not detected yet; the other three values are the card's three states. */
+enum class SetupDetectionCard { Hidden, Detecting, Succeeded, Failed }
+
 enum class CustomLLMVerificationEvidence {
     GenerationVerified,
     ManualModelRequired,
@@ -99,6 +108,14 @@ class CustomLLMSetupCoordinator(
 
     fun canPersist(attempt: CustomLLMSetupAttempt): Boolean =
         isCurrent(attempt) && phase == CustomLLMSetupPhase.Saving && evidence?.canCommit == true
+
+    /** Verification before saving failed (nothing is persisted): return to Ready and keep the evidence so the user can edit in place and retry. */
+    fun abortCommit(attempt: CustomLLMSetupAttempt): Boolean {
+        if (!canPersist(attempt)) return false
+        phase = CustomLLMSetupPhase.Ready
+        activeJob = null
+        return true
+    }
 
     fun finishCommit(attempt: CustomLLMSetupAttempt): Boolean {
         if (!canPersist(attempt)) return false

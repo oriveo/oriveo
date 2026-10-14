@@ -8,15 +8,20 @@ import io.ktor.client.HttpClient
 import kotlinx.serialization.json.Json
 
 /**
- * Together AI Service - OpenAI-compatible, api.together.xyz
+ * Together AI Service - OpenAI-compatible.
  *
  * This class only handles key validation and transport; the model list itself is built
  * by `ProviderRepository.buildOfficialEnabled` from the published model catalog.
+ *
+ * The base URL is always the one the caller resolved from the endpoint source
+ * (`OfficialEndpointSource.effectiveBaseUrlText`), so stored records follow when the server moves the
+ * default host to api.together.ai. No host is hard-coded here; when the caller passes an empty value
+ * the fallback is the same built-in table, [ProviderKind.defaultBaseUrl].
  */
 class TogetherService(client: HttpClient, json: Json) : OpenAICompatibleService(
     client = client,
     json = json,
-    defaultBaseUrl = "https://api.together.xyz/v1",
+    defaultBaseUrl = ProviderKind.Together.defaultBaseUrl.orEmpty(),
     providerName = "Together AI",
     providerKind = ProviderKind.Together,
 ) {

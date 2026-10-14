@@ -1,5 +1,7 @@
 package ai.oriveo.community.feature.providers.detail
 
+import androidx.compose.ui.platform.testTag
+
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -84,6 +86,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -129,7 +134,6 @@ import ai.oriveo.community.core.provider.ModelSelectionUtils
 import ai.oriveo.community.feature.providers.ProviderEndpointSelector
 import ai.oriveo.community.feature.providers.localizedProviderEndpointLabel
 import ai.oriveo.community.feature.providers.relay.RelayConnectionTestResult
-import ai.oriveo.community.feature.providers.relay.relayKindMeta
 import ai.oriveo.community.ui.component.HeroModelCapabilityStrip
 import ai.oriveo.community.ui.component.ModelVendorIcon
 import ai.oriveo.community.ui.component.OriveoCard
@@ -146,6 +150,11 @@ import ai.oriveo.community.ui.util.formatRelativeTime
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import ai.oriveo.community.core.data.repository.ProviderRepository
+import ai.oriveo.community.core.provider.ToolCallMemoryStore
 import ai.oriveo.community.core.app.GlobalSnackbarManager
 import ai.oriveo.community.core.app.GlobalSnackbarMessage
 import ai.oriveo.community.core.app.GlobalToastAction
@@ -178,10 +187,14 @@ private fun CapabilityObservationRevisionScope(
 @Composable
 fun ProviderDetailScreen(
     onBack: () -> Unit,
+    /** Arriving from the chat model options "Open web search settings": push the web search settings page first. */
+    initialWebSearchLayer: Boolean = false,
     onStartChat: (providerID: String, modelID: String) -> Unit = { _, _ -> },
     manualEntryContext: ManualModelEntryContext = ManualModelEntryContext.ProviderDetail,
     onNavigateToManualEntry: (providerID: String) -> Unit = {},
     onNavigateToAdvancedSettings: (providerID: String) -> Unit = {},
+    /** Filter for the first frame of the model library; null = follow the library layer in the stack (a layer with a key filter opens with it). */
+    initialRelayCatalogFilter: RelayCatalogFilter? = null,
     viewModel: ProviderDetailViewModel = koinViewModel(),
     authorizationViewModel: SubscriptionAuthorizationViewModel = koinViewModel(),
 ) {
@@ -196,11 +209,37 @@ fun ProviderDetailScreen(
     var showConnectionSettingsSheet by remember { mutableStateOf(false) }
     var showGenerationParameters by remember { mutableStateOf(false) }
     var renameProvider: Provider? by remember { mutableStateOf(null) }
+    // Sub-page layers of the relay / local board: detail -> model library -> advanced, and detail -> keys page.
+    // A saveable stack: restored as is after rotation or process recreation; one BackHandler pops one layer at a time.
+    var relayNavStack by rememberSaveable(stateSaver = RelayDetailNavStack.Saver) {
+        mutableStateOf(RelayDetailNavStack(listOfNotNull(RelayDetailLayer.WebSearch.takeIf { initialWebSearchLayer })))
+    }
+    val showModelLibrary = relayNavStack.showsLibrary
+    fun popRelayLayer() {
+        val leavingAdvanced = relayNavStack.advanced != null
+        relayNavStack = relayNavStack.pop()
+        if (leavingAdvanced) viewModel.clearRelayAdvancedProbe()
+    }
+    androidx.activity.compose.BackHandler(enabled = !relayNavStack.isEmpty) { popRelayLayer() }
 
     // "Removed X · Undo" goes through the global top capsule toast (matching iOS ToastStyle.removed) instead of a separate bottom banner
     val globalSnackbarManager: GlobalSnackbarManager = koinInject()
 
     var dismissedHealthBanner by remember { mutableStateOf(false) }
+    // The × on the relay / local recovery card: dismisses only for this visit to the page and is not persisted.
+    var dismissedRelayRecovery by remember { mutableStateOf(false) }
+
+    // One-shot notice after the two-step add-and-save (written only from the providers entry): cleared once taken, kept for the rest of this page visit.
+    var addedModelsNotice by rememberSaveable { mutableStateOf<Int?>(null) }
+    // One-shot notice after manual setup's "Save anyway (unverified)": the value is the already localized reason line from the failure card.
+    var unverifiedNotice by rememberSaveable { mutableStateOf<String?>(null) }
+    val noticeProviderId = provider?.id
+    LaunchedEffect(noticeProviderId) {
+        noticeProviderId?.let { id ->
+            ProviderDetailNotice.take(id)?.let { addedModelsNotice = it }
+            ProviderDetailNotice.takeUnverified(id)?.let { unverifiedNotice = it }
+        }
+    }
 
     val vibrator = remember {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -240,6 +279,28 @@ fun ProviderDetailScreen(
                     CircularProgressIndicator()
                 }
             } else {
+                val usesBoard = RelayDetailBoardModel.appliesTo(currentProvider)
+                // The board and the relay recovery card share one action dispatch: the same action goes to the same destination in both places.
+                fun handleRelayDetailAction(action: RelayDetailAction) {
+                    when (action) {
+                        RelayDetailAction.Rename -> renameProvider = currentProvider
+                        RelayDetailAction.EditConnection -> {
+                            onNavigateToAdvancedSettings(currentProvider.id)
+                            showConnectionSettingsSheet = true
+                        }
+                        RelayDetailAction.EditKey -> viewModel.startEditApiKey()
+                        RelayDetailAction.OpenKeys -> relayNavStack = relayNavStack.push(RelayDetailLayer.Keys)
+                        RelayDetailAction.RemoveStoredKey -> viewModel.removeApiKey()
+                        RelayDetailAction.OpenModelLibrary -> relayNavStack = relayNavStack.push(RelayDetailLayer.Library())
+                        RelayDetailAction.OpenWebSearch -> relayNavStack = relayNavStack.push(RelayDetailLayer.WebSearch)
+                        RelayDetailAction.OpenParameters -> showGenerationParameters = true
+                        RelayDetailAction.Redetect -> viewModel.redetectRelayModels()
+                        RelayDetailAction.Reverify -> viewModel.resync()
+                        RelayDetailAction.Delete -> viewModel.showDeleteConfirm = true
+                    }
+                }
+                // In board mode the main page draws only the board; the model list and catalog appear only on the "Model library" sub-page.
+                val showsModelSections = !usesBoard || showModelLibrary
                 val relayCatalogState = if (currentProvider.kind == ProviderKind.Relay) {
                     viewModel.relayCatalogUiState(currentProvider)
                 } else {
@@ -256,13 +317,128 @@ fun ProviderDetailScreen(
                 val confirmedRelayCatalogIndex = remember(relayCatalogState, currentProvider.catalogModels) {
                     when (relayCatalogState) {
                         ProviderDetailViewModel.RelayCatalogUiState.Available ->
-                            ModelSelectionUtils.catalogMembershipIndex(currentProvider.catalogModels)
+                            ModelSelectionUtils.catalogMembershipIndex(currentProvider.catalogModels, currentProvider.kind)
                         ProviderDetailViewModel.RelayCatalogUiState.Empty -> emptySet()
                         else -> null
                     }
                 }
+                // Relay / local model library: the filter lives only on this page and resets when the connection changes.
+                // A library entered through key(id) shows that filter on its first frame: switching to a library layer with a different filter resets to the new layer.
+                val libraryLayer = relayNavStack.layers.lastOrNull { it is RelayDetailLayer.Library }
+                var catalogFilter by remember(currentProvider.id, libraryLayer) {
+                    mutableStateOf(initialRelayCatalogFilter ?: RelayCatalogBoardModel.initialFilter(relayNavStack))
+                }
+                val providerRepository: ProviderRepository = koinInject()
+                val toolCallMemoryStore: ToolCallMemoryStore = koinInject()
+                val toolCallMemoryRevision by toolCallMemoryStore.revision.collectAsStateWithLifecycle()
+                // Lazy-verification state of this session (verifying / unreachable): in memory only, read per connection.
+                val relayProbeStatesAll by providerRepository.relayModelProbeStateFlow.collectAsStateWithLifecycle()
+                val relayProbeStates = remember(relayProbeStatesAll, currentProvider.id) {
+                    ProviderRepository.relayModelProbeStatesOf(relayProbeStatesAll, currentProvider.id)
+                }
                 CapabilityObservationRevisionScope { capabilityObservationRevision ->
-                    LazyColumn(
+                    // The five capabilities and the connection identity are computed once per provider + revision and remembered; rebuilding the board on search / protocol filtering only hits the cache.
+                    val capabilityMemo = remember(currentProvider, capabilityObservationRevision, toolCallMemoryRevision) {
+                        val identities = java.util.concurrent.ConcurrentHashMap<String, ai.oriveo.community.core.model.CapabilityEvidenceIdentity>()
+                        identities to RelayCatalogCapabilityMemo(
+                            RelayCatalogCapabilityFacts(
+                                identityFor = { identities[it.id] },
+                                toolMemoryFor = { providerRepository.toolCallMemoryVerdict(currentProvider, it) },
+                            ),
+                        )
+                    }
+                    // The first pass over the whole catalog suspends per model to fetch identities, so it runs in the background; the two sections are not drawn until it finishes, to avoid drawing a wrong state first and then jumping.
+                    val catalogBoard by produceState<RelayCatalogBoard?>(
+                        initialValue = null,
+                        usesBoard && showModelLibrary,
+                        capabilityMemo,
+                        enabledSortedModels,
+                        catalogGroups,
+                        catalogFilter,
+                        confirmedRelayCatalogIndex,
+                        relayCatalogState,
+                        relayProbeStates,
+                    ) {
+                        if (!(usesBoard && showModelLibrary)) {
+                            value = null
+                            return@produceState
+                        }
+                        val groups = catalogGroups.orEmpty()
+                        val (identities, memo) = capabilityMemo
+                        value = withContext(Dispatchers.Default) {
+                            val partition = providerRepository.currentCapabilityPartitionId()
+                            (enabledSortedModels + groups.flatMap { it.models })
+                                .filterNot(memo::isKnown)
+                                .map { it.id }
+                                .distinct()
+                                .filterNot(identities::containsKey)
+                                .forEach { id ->
+                                    providerRepository.capabilityEvidenceIdentity(currentProvider, id, partition)
+                                        ?.let { identities[id] = it }
+                                }
+                            RelayCatalogBoardModel.build(
+                                provider = currentProvider,
+                                enabledModels = enabledSortedModels,
+                                catalogGroups = groups,
+                                filter = catalogFilter,
+                                nowSeconds = System.currentTimeMillis() / 1000L,
+                                confirmedCatalogIndex = confirmedRelayCatalogIndex,
+                                facts = memo,
+                                catalogState = relayCatalogState ?: ProviderDetailViewModel.RelayCatalogUiState.Available,
+                                probeStates = relayProbeStates,
+                                canAddManual = viewModel.canAddManualModel(currentProvider),
+                            )
+                        }
+                    }
+                    val boardReady = !usesBoard || catalogBoard != null
+                    val advancedLayer = relayNavStack.advanced?.takeIf { usesBoard && showModelLibrary }
+                    // Models for read-only Advanced come from the catalog (not enabled yet); editable Advanced accepts enabled models only.
+                    val advancedModel = advancedLayer?.let { layer ->
+                        currentProvider.models.firstOrNull { it.id == layer.modelId }
+                            ?: currentProvider.catalogModels.firstOrNull { it.id == layer.modelId }?.takeIf { layer.readOnly }
+                    }
+                    if (usesBoard && relayNavStack.showsWebSearch) {
+                        RelayWebSearchPage(
+                            provider = currentProvider,
+                            contentPadding = padding,
+                            onBack = ::popRelayLayer,
+                            onSave = { texts ->
+                                if (viewModel.saveRelayWebSearch(currentProvider, texts)) popRelayLayer()
+                            },
+                            rejectedModels = androidx.compose.runtime.remember(
+                                currentProvider,
+                                viewModel.relayWebProbeRevision,
+                                viewModel.relayWebFragmentsRevision,
+                            ) { RelayWebSearchBoardModel.rejectedModels(currentProvider) },
+                            retestingModelID = viewModel.relayWebRetestingModelID,
+                            onRetest = { viewModel.retestRelayWebModel(it) },
+                        )
+                    } else if (usesBoard && relayNavStack.showsKeys) {
+                        RelayKeysPage(
+                            provider = currentProvider,
+                            pageState = viewModel.relayKeysPageState,
+                            contentPadding = padding,
+                            onBack = ::popRelayLayer,
+                            onReplaceSingleKey = { viewModel.startEditApiKey() },
+                            onAdd = viewModel::addRelayKey,
+                            onRename = viewModel::renameRelayKey,
+                            onReplace = viewModel::replaceRelayKeySecret,
+                            onMove = viewModel::moveRelayKey,
+                            onDelete = viewModel::deleteRelayKey,
+                            onOpenLibrary = { keyId -> relayNavStack = relayNavStack.push(RelayKeysBoardModel.libraryLayer(keyId)) },
+                        )
+                    } else if (advancedModel != null) {
+                        RelayModelAdvancedHost(
+                            provider = currentProvider,
+                            model = advancedModel,
+                            viewModel = viewModel,
+                            providerRepository = providerRepository,
+                            revisionKey = capabilityObservationRevision to toolCallMemoryRevision,
+                            contentPadding = padding,
+                            onBack = ::popRelayLayer,
+                            readOnly = advancedLayer?.readOnly == true,
+                        )
+                    } else LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(padding),
@@ -284,7 +460,9 @@ fun ProviderDetailScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 OriveoBackButton(
-                                    onClick = onBack,
+                                    onClick = {
+                                        if (usesBoard && !relayNavStack.isEmpty) popRelayLayer() else onBack()
+                                    },
                                     // Line the icon box up with the page margin
                                     modifier = Modifier.offset(x = -OriveoBackButtonDefaults.EdgeInset),
                                 )
@@ -292,6 +470,34 @@ fun ProviderDetailScreen(
                             }
                         }
 
+                        val libraryBoard = catalogBoard?.takeIf { usesBoard && showModelLibrary }
+                        if (libraryBoard != null) {
+                            detailSection(key = "relay_library_header") {
+                                RelayCatalogLibraryHeader(
+                                    provider = currentProvider,
+                                    header = libraryBoard.header,
+                                    isRefreshing = viewModel.isResyncing,
+                                    onRefresh = viewModel::retryRelayCatalog,
+                                )
+                            }
+                        }
+
+                        addedModelsNotice?.takeIf { !(usesBoard && showModelLibrary) }?.let { count ->
+                            detailSection(key = "relay_setup_added_notice") {
+                                ProviderDetailAddedNotice(count)
+                            }
+                        }
+
+                        unverifiedNotice?.takeIf { !(usesBoard && showModelLibrary) }?.let { reason ->
+                            detailSection(key = "relay_setup_unverified_notice") {
+                                ProviderDetailUnverifiedNotice(reason)
+                            }
+                        }
+
+                        // Subscription kill switch: the instance is not deleted; it becomes read-only and the delivered message is shown as is.
+                        // Silent invalidation is the worst kind, since the user would assume something is wrong with their own account.
+                        // Ask the provider matching the kind: authMode only says "uses a subscription", not which one. Judging a Codex
+                        // instance by Grok's availability would let one provider's kill switch hit the other (both can be connected at once).
                         if (viewModel.isSubscriptionProvider(currentProvider)) {
                             if (currentProvider.kind == ProviderKind.OpenAI) {
                                 (viewModel.openAISubscriptionAvailability as? OpenAISubscriptionAvailability.Disabled)
@@ -316,7 +522,22 @@ fun ProviderDetailScreen(
                             }
                         }
 
-                        if (currentProvider.effectiveStatusKind.isWarning && !dismissedHealthBanner) {
+                        // Relay / local get their own recovery card: edit connection / API key / re-verify, and the top-right × dismisses it for this visit.
+                        val relayRecoveryCard = if (usesBoard && !showModelLibrary && !dismissedRelayRecovery) {
+                            RelayDetailBoardModel.recoveryCard(
+                                provider = currentProvider,
+                                isReverifying = viewModel.isResyncing,
+                                omitsDetail = unverifiedNotice != null,
+                            )
+                        } else {
+                            null
+                        }
+                        // A missing key or a real issue both trigger the Recovery Card (judged by effectiveStatusKind.isWarning)
+                        if (relayRecoveryCard != null) {
+                            detailSection(key = "relay_connection_recovery") {
+                                RelayRecoveryCardView(card = relayRecoveryCard, onAction = ::handleRelayDetailAction, onDismiss = { dismissedRelayRecovery = true })
+                            }
+                        } else if (!usesBoard && currentProvider.effectiveStatusKind.isWarning && !dismissedHealthBanner) {
                             detailSection(key = "provider_connection_issue_recovery") {
                                 val canEditEndpoint = viewModel.canEditEndpoint(currentProvider)
                                 ProviderConnectionIssueRecoveryCard(
@@ -335,13 +556,27 @@ fun ProviderDetailScreen(
                             }
                         }
 
-                        detailSection(key = "brand_hero_card") {
-                            val enabledModelCount = providerSummaryAvailableModelCount(currentProvider)
+                        if (usesBoard && !showModelLibrary) {
+                            detailSection(key = "relay_detail_board") {
+                                // Read the revision once: after web search settings are saved the row state must re-read local storage.
+                                viewModel.relayWebFragmentsRevision
+                                val board = RelayDetailBoardModel.build(currentProvider, viewModel.isRedetecting, viewModel.lastUsedModelRefSnapshot)
+                                RelayDetailBoardView(
+                                    provider = currentProvider,
+                                    board = board,
+                                    onAction = ::handleRelayDetailAction,
+                                )
+                            }
+                        } else if (!usesBoard) detailSection(key = "brand_hero_card") {
+                            val enabledModelCount = providerSummaryAvailableModelCount(
+                                provider = currentProvider,
+                                resolvedCatalog = resolvedCatalog,
+                            )
                             ProviderDetailBrandHeroCard(
                                 provider = currentProvider,
                                 enabledModelCount = enabledModelCount,
                                 onStartChat = {
-                                    currentProvider.defaultModel?.id?.let { modelId ->
+                                    viewModel.startChatModelID(currentProvider)?.let { modelId ->
                                         onStartChat(currentProvider.id, modelId)
                                     }
                                 },
@@ -374,7 +609,20 @@ fun ProviderDetailScreen(
                             }
                         }
 
-                        providerDetailEnabledModels(
+                        // "Added models" are likewise laid out row by row: "Add all" on the web writes the whole catalog into
+                        // provider.models, so this section can reach 400-700 rows just like the catalog section (the other half of an ANR).
+                        val board = catalogBoard?.takeIf { usesBoard && showModelLibrary }
+                        if (board != null && board.filters.isNotEmpty()) {
+                            detailSection(key = "relay_catalog_filters") {
+                                RelayCatalogFilterChips(
+                                    filters = board.filters,
+                                    selected = board.selected,
+                                    onSelect = { catalogFilter = it },
+                                    keyTitle = board.keyFilterTitle,
+                                )
+                            }
+                        }
+                        if (showsModelSections && boardReady) providerDetailEnabledModels(
                             provider = currentProvider,
                             titleRes = viewModel.enabledModelsTitle(currentProvider),
                             capabilityObservationRevision = capabilityObservationRevision,
@@ -403,15 +651,66 @@ fun ProviderDetailScreen(
                                     )
                                 }
                             },
-                            onSetDefault = { model -> viewModel.setDefaultModel(model) },
+                            onSetDefault = if (RelayDetailBoardModel.offersSetDefaultInModelMenu(currentProvider)) {
+                                { model -> viewModel.setDefaultModel(model) }
+                            } else {
+                                null
+                            },
                             onStartChat = { model ->
                                 onStartChat(currentProvider.id, model.id)
                             },
                             confirmedRelayCatalogIndex = confirmedRelayCatalogIndex,
+                            onOpenAdvanced = { model -> relayNavStack = relayNavStack.push(RelayDetailLayer.Advanced(model.id, readOnly = false)) },
+                            relayBoard = board?.enabled,
                         )
 
-                        val groups = catalogGroups
-                        if (currentProvider.kind == ProviderKind.Relay &&
+                        // Catalog section: split into separate LazyColumn items to avoid composing 300+ models at once.
+                        // In board mode the groups are replaced by the groups filtered by the board model (same id / title, collapsed by default as before).
+                        val groups = if (usesBoard) {
+                            board?.takeIf { catalogGroups != null && RelayCatalogPageSection.Library in it.sections }?.library?.groups
+                                ?.map {
+                                    ProviderCatalogGroup(
+                                        id = it.id,
+                                        title = it.title,
+                                        models = it.rows.map(RelayCatalogRow::model),
+                                        titleRes = it.titleRes,
+                                    )
+                                }
+                        } else {
+                            catalogGroups.takeIf { showsModelSections }
+                        }
+                        // Model library: above the catalog groups come the key status strip / loading / a single-key failure card; the failure card has no manual add, and the old catalog stays below as usual.
+                        if (board != null && RelayCatalogPageSection.KeyStrip in board.sections) {
+                            detailSection(key = "relay_catalog_key_strip") {
+                                RelayCatalogKeyStrip(board.keyStrip, onRetry = viewModel::retryRelayKeyCatalog)
+                            }
+                        }
+                        if (board != null && RelayCatalogPageSection.Loading in board.sections) {
+                            detailSection(key = "relay_catalog_loading") {
+                                OriveoCard {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
+                                    ) {
+                                        CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                                        Text(
+                                            text = stringResource(R.string.relay_catalog_loading),
+                                            style = OriveoTheme.typography.body,
+                                            color = colors.textSecondary,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        if (board != null && RelayCatalogPageSection.FailureCard in board.sections) {
+                            detailSection(key = "relay_catalog_failure_card") {
+                                RelayCatalogFailureCard(
+                                    detail = viewModel.relayCatalogFailureDetail,
+                                    onRetry = viewModel::retryRelayCatalog,
+                                )
+                            }
+                        }
+                        if (!usesBoard && showsModelSections && currentProvider.kind == ProviderKind.Relay &&
                             (relayCatalogState == ProviderDetailViewModel.RelayCatalogUiState.Loading ||
                                 relayCatalogState == ProviderDetailViewModel.RelayCatalogUiState.Failed)
                         ) {
@@ -463,7 +762,10 @@ fun ProviderDetailScreen(
                                 Column(
                                     verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
                                 ) {
-                                    ProviderDetailSectionHeader(title = stringResource(R.string.model_library))
+                                    ProviderDetailSectionHeader(
+                                        title = board?.library?.let { stringResource(it.titleRes, it.count) }
+                                            ?: stringResource(R.string.model_library),
+                                    )
                                     SearchField(
                                         value = viewModel.modelSearchQuery,
                                         onValueChange = viewModel::updateModelSearchQuery,
@@ -561,6 +863,17 @@ fun ProviderDetailScreen(
                                         triggerHaptic()
                                     },
                                     capabilityObservationRevision = capabilityObservationRevision,
+                                    relayBoardRows = board?.library?.groups
+                                        ?.flatMap { it.rows }
+                                        ?.associateBy { it.model.id },
+                                    onOpenRelayModel = { model ->
+                                        relayNavStack = relayNavStack.push(RelayDetailLayer.Advanced(model.id, readOnly = true))
+                                    },
+                                    relayAddAll = board?.library?.groups
+                                        ?.associate { it.id to it.enableAllModelIDs },
+                                    onAddAll = { modelIDs ->
+                                        if (viewModel.enableRelayCatalogModels(modelIDs) > 0) triggerHaptic()
+                                    },
                                 )
                                 item(key = "catalog_groups_bottom_spacer") {
                                     Spacer(modifier = Modifier.height(OriveoTheme.spacing.lg))
@@ -568,7 +881,13 @@ fun ProviderDetailScreen(
                             }
                         }
 
-                        if (viewModel.canAddManualModel(currentProvider)) {
+                        board?.enableHintRes?.takeIf { RelayCatalogPageSection.EnableHint in board.sections && !groups.isNullOrEmpty() }?.let { hint ->
+                            detailSection(key = "relay_catalog_enable_hint") {
+                                RelayCatalogEnableHint(hint)
+                            }
+                        }
+
+                        if (showsModelSections && viewModel.canAddManualModel(currentProvider)) {
                             detailSection(key = "add_manual_model") {
                                 val dashedBorderColor = colors.borderStrong
                                 val dashedRadius = OriveoTheme.radius.md
@@ -605,7 +924,13 @@ fun ProviderDetailScreen(
                             }
                         }
 
-                        detailSection(key = "settings_card") {
+                        if (board != null) {
+                            detailSection(key = "relay_catalog_legend") {
+                                RelayCatalogLegend(board)
+                            }
+                        }
+
+                        if (RelayDetailBoardModel.showsLegacySettingsRows(currentProvider)) detailSection(key = "settings_card") {
                             val canEditEndpoint = viewModel.canEditEndpoint(currentProvider)
                             val canAccessAdvancedSettings = viewModel.canAccessAdvancedSettings(currentProvider)
                             val canDeleteProvider = viewModel.canDeleteProvider(currentProvider)
@@ -704,6 +1029,16 @@ fun ProviderDetailScreen(
         )
     }
 
+    viewModel.relayCapabilityTest?.let { state ->
+        RelayCapabilityTestPanel(
+            state = state,
+            clockMillis = viewModel::relayCapabilityTestClockMillis,
+            onCancel = viewModel::cancelRelayCapabilityTest,
+            onDismiss = viewModel::dismissRelayCapabilityTest,
+        )
+    }
+
+    // Subscription re-authorization: goes through the device code flow and does not show a key input dialog.
     if (viewModel.showGrokReauthorization) {
         val availability = viewModel.grokSubscriptionAvailability
         val config = (availability as? GrokSubscriptionAvailability.Available)?.config
@@ -858,7 +1193,7 @@ fun ProviderDetailScreen(
     if (viewModel.showEndpointEditor && provider?.let(viewModel::canEditEndpoint) == true) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         val currentEndpoint = ai.oriveo.community.feature.providers.setup.ProviderSetupCopy
-            .resolveRegionOption(provider!!.kind, provider!!.baseUrlText)
+            .resolveRegionOption(provider!!.kind, provider!!.baseUrlText, provider!!.endpointSource)
         OriveoModalBottomSheet(
             onDismissRequest = { viewModel.showEndpointEditor = false },
             sheetState = sheetState,
@@ -903,7 +1238,21 @@ fun ProviderDetailScreen(
                     selectedOptionId = viewModel.selectedEndpointId,
                     onSelect = { viewModel.selectEndpoint(it.id) },
                     enabled = !viewModel.isUpdatingEndpoint,
+                    currentOption = currentEndpoint,
                 )
+                // Shown when the selected address template contains {workspaceId}; same component and copy as the setup page; save is disabled while the value is invalid.
+                viewModel.endpointSetupFieldIds.forEach { fieldId ->
+                    if (fieldId == ai.oriveo.community.core.provider.transport.OfficialEndpointSource.WORKSPACE_ID) {
+                        Spacer(modifier = Modifier.height(OriveoTheme.spacing.md))
+                        ai.oriveo.community.ui.component.OriveoLabeledField(
+                            label = stringResource(R.string.provider_setup_workspace_id),
+                            value = viewModel.endpointSetupValues[fieldId].orEmpty(),
+                            onValueChange = { viewModel.updateEndpointSetupField(fieldId, it) },
+                            footnote = stringResource(R.string.provider_setup_workspace_id_hint),
+                            enabled = !viewModel.isUpdatingEndpoint,
+                        )
+                    }
+                }
                 val endpointError = viewModel.endpointEditErrorRes?.let { stringResource(it) }
                     ?: viewModel.endpointEditError
                 if (!endpointError.isNullOrBlank()) {
@@ -918,7 +1267,7 @@ fun ProviderDetailScreen(
                 OriveoPrimaryButton(
                     text = stringResource(R.string.save),
                     onClick = { viewModel.saveEndpoint() },
-                    enabled = viewModel.selectedEndpointId.isNotBlank(),
+                    enabled = viewModel.canSaveEndpoint,
                     loading = viewModel.isUpdatingEndpoint,
                 )
                 Spacer(modifier = Modifier.height(OriveoTheme.spacing.xxl))
@@ -1054,7 +1403,7 @@ private fun ProviderDetailConnectionSettingsSheet(
     }
 
     val endpointOption = ai.oriveo.community.feature.providers.setup.ProviderSetupCopy
-        .resolveRegionOption(provider.kind, provider.baseUrlText)
+        .resolveRegionOption(provider.kind, provider.baseUrlText, provider.endpointSource)
     val autoFillNoteRes = ai.oriveo.community.feature.providers.setup.ProviderSetupCopy
         .autoFillNote(provider.kind)
 
@@ -1150,7 +1499,15 @@ private fun ConnectionInfoRow(title: String, value: String) {
  * on every recomposition of the detail screen, and resolving there would repeat work the catalog
  * sections have already done.
  */
-internal fun providerSummaryAvailableModelCount(provider: Provider): Int = provider.enabledModelCount
+/** Hero count is the enabled model count; resolvedCatalog is kept only as a reactive dependency so the hero and the list never mismatch across frames. */
+internal fun providerSummaryAvailableModelCount(
+    provider: Provider,
+    resolvedCatalog: ai.oriveo.community.core.provider.ResolvedProviderCatalog?,
+): Int {
+    @Suppress("UNUSED_VARIABLE")
+    val ignoredResolvedCatalog = resolvedCatalog
+    return provider.enabledModelCount
+}
 
 @Composable
 private fun SubscriptionDisabledNotice(notice: String?, fallbackRes: Int) {
@@ -1176,6 +1533,55 @@ private fun SubscriptionDisabledNotice(notice: String?, fallbackRes: Int) {
         Text(
             text = notice?.takeIf { it.isNotBlank() } ?: stringResource(fallbackRes),
             style = OriveoTheme.typography.footnote,
+            color = colors.textPrimary,
+        )
+    }
+}
+
+/** One-shot notice after saving manual setup unverified (same as iOS): light warning-colored fill + 30% warning-colored border, titled "Connection not verified yet", with the reason from the failure card on the next line. */
+@Composable
+private fun ProviderDetailUnverifiedNotice(reason: String) {
+    val colors = OriveoTheme.colors
+    val shape = RoundedCornerShape(OriveoTheme.radius.md)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(colors.warningSoft)
+            .border(1.dp, colors.warning.copy(alpha = 0.3f), shape)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Icon(painterResource(R.drawable.ph_warning_circle), contentDescription = null, tint = colors.warning, modifier = Modifier.size(18.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = stringResource(R.string.relay_connection_not_verified),
+                style = OriveoTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold),
+                color = colors.textPrimary,
+            )
+            Text(text = reason, style = OriveoTheme.typography.caption, color = colors.textSecondary)
+        }
+    }
+}
+
+/** One-shot notice after the two-step add-and-save: "n models added; you can keep adding in the model library". */
+@Composable
+private fun ProviderDetailAddedNotice(count: Int) {
+    val colors = OriveoTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(OriveoTheme.radius.md))
+            .background(colors.successSoft)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(R.drawable.ph_check_circle), contentDescription = null, tint = colors.success, modifier = Modifier.size(18.dp))
+        Text(
+            text = pluralStringResource(R.plurals.relay_setup_added_banner, count, count),
+            style = OriveoTheme.typography.caption,
             color = colors.textPrimary,
         )
     }

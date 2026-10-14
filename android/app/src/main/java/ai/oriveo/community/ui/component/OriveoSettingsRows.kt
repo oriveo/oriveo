@@ -20,6 +20,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -144,6 +147,8 @@ fun OriveoSettingsRow(
                 imageVector = Icons.Filled.ChevronRight,
                 contentDescription = null,
                 tint = colors.textTertiary,
+                // The resource is not mirrored automatically, so under RTL it points in the reading direction.
+                modifier = Modifier.then(if (LocalLayoutDirection.current == LayoutDirection.Rtl) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier),
             )
         }
     }

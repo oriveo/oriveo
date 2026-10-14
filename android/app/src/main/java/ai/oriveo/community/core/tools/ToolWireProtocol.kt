@@ -40,6 +40,16 @@ internal object ToolWireProtocolAdapter {
 
     fun supports(transport: String?): Boolean = transport in supportedTransports
 
+    /** The `tools` array of a request body for this protocol (same shape as [buildBody]); lets ordinary chat builders carry function tools. */
+    fun toolsJson(protocol: ToolWireProtocol, tools: List<ToolLoopToolDefinition>): JsonArray = when (protocol) {
+        ToolWireProtocol.OpenAIChat -> JsonArray(tools.map(::openAIChatTool))
+        ToolWireProtocol.OpenAIResponses -> JsonArray(tools.map(::responsesTool))
+        ToolWireProtocol.AnthropicMessages -> JsonArray(tools.map(::anthropicTool))
+        ToolWireProtocol.GeminiGenerate -> buildJsonArray {
+            add(buildJsonObject { put("functionDeclarations", JsonArray(tools.map(::geminiDeclaration))) })
+        }
+    }
+
     fun buildBody(
         protocol: ToolWireProtocol,
         modelId: String,

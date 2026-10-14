@@ -243,7 +243,7 @@ internal class ChatSendCoordinator(
      * Split out of [launchSend] so the composer's pre-send check gets exactly the values the outbound request will
      * use (see [outboundRouteOptions]) instead of deriving them a second time.
      */
-    private fun resolveCapabilityDispatch(
+    internal fun resolveCapabilityDispatch(
         provider: Provider,
         modelId: String,
         conversationId: String,
@@ -297,6 +297,7 @@ internal class ChatSendCoordinator(
             conversationID = conversationId,
             skillID = skillId,
             transportIdentity = modelControlIdentity?.storageIdentity,
+            legacyModelID = modelControlIdentity?.legacyModelId,
         ) ?: CapabilityPreferenceValues()
         // A custom fragment goes out on exactly one condition: this owner's custom entry is
         // enabled right now. Schema availability filtering already happens inside
@@ -317,11 +318,12 @@ internal class ChatSendCoordinator(
                     schemaModelID = modelId,
                     activeProfile = selectedModel.generationProfile,
                 ),
+                legacyModelID = modelControlIdentity.legacyModelId,
             ).orEmpty()
         } else emptyMap()
         val storedReasoningMode = ReasoningMode.fromIntent(storedTypedPreferences.reasoningIntent)
         val storedWebRequested = storedTypedPreferences.web != CapabilityWebPreference.Off
-        val currentRecipeRefs = MetadataClient.capabilityRuntimeRequest(
+        val currentRecipeSelections = MetadataClient.capabilityRuntimeRequest(
             providerKind = provider.kind,
             modelID = modelId,
             finalTransport = modelControlIdentity?.finalTransport.orEmpty(),
@@ -329,11 +331,34 @@ internal class ChatSendCoordinator(
             reasoningMode = storedReasoningMode,
             typedWebIntent = "force".takeIf { storedTypedPreferences.web == CapabilityWebPreference.Force },
             typedReasoningIntent = storedTypedPreferences.reasoningIntent,
-        )?.selections.orEmpty().associate { it.capability to it.id }
+        )?.selections.orEmpty()
+        val currentRecipeRefs = currentRecipeSelections.associate { it.capability to it.id }
+        val explicitRecipeOwner = resendSettingOwner?.takeIf {
+            resendSettingSource == "provider_recipe" && resendRecipeRef != null && resendSettingPointers.isNotEmpty()
+        }
+        // When the selected reasoning tier is rejected, settle on the nearest tier (downwards first, then
+        // upwards); an explicit resend keeps its original tier and does not settle. An untiered rejection
+        // (legacy entry / automatic tier) and a rejection of every tier still make the whole group dormant.
+        val storedReasoningTier = storedTypedPreferences.reasoningIntent
+            ?.takeIf { it.isNotBlank() && it != "automatic" && it != "off" }
+        val reasoningFallbackTier = currentRecipeSelections.firstOrNull { it.capability == "reasoning" }
+            ?.takeIf {
+                storedReasoningTier != null && modelControlIdentity != null && explicitRecipeOwner != "reasoning" &&
+                    "reasoning" !in storedCustomFragments
+            }
+            ?.let { selection ->
+                val rejections = ModelControlRejectionCache.tierRejections(
+                    modelControlIdentity!!, "reasoning", "provider_recipe", selection.id,
+                )
+                if (rejections.untiered) null else ModelControlRejectionCache.fallbackTier(
+                    storedReasoningTier!!, selection.availableIntents.orEmpty(), rejections.tiers,
+                )
+            }
         // A tiered rejection makes the group dormant only when exactly that tier is selected; an untiered rejection still makes the whole group dormant.
         val normalRejectedRecipeOwners = currentRecipeRefs.mapNotNull { (owner, recipeRef) ->
             owner.takeIf {
                 owner !in storedCustomFragments && modelControlIdentity != null &&
+                    (owner != "reasoning" || reasoningFallbackTier == null) &&
                     ModelControlRejectionCache.blocksSelection(
                         modelControlIdentity,
                         owner,
@@ -346,12 +371,10 @@ internal class ChatSendCoordinator(
         val normalRejectedCustomOwners = storedCustomFragments.keys.filterTo(linkedSetOf()) { owner ->
             cachedRejectedSettings(owner, "custom").isNotEmpty()
         }
-        val explicitRecipeOwner = resendSettingOwner?.takeIf {
-            resendSettingSource == "provider_recipe" && resendRecipeRef != null && resendSettingPointers.isNotEmpty()
-        }
         val dormantOwners = (normalRejectedRecipeOwners + normalRejectedCustomOwners) - setOfNotNull(explicitRecipeOwner)
         val typedPreferences = storedTypedPreferences.copy(
             web = if ("web" in dormantOwners) CapabilityWebPreference.Off else storedTypedPreferences.web,
+            reasoningIntent = reasoningFallbackTier ?: storedTypedPreferences.reasoningIntent,
         )
         val effectiveReasoningMode = ReasoningMode.fromIntent(typedPreferences.reasoningIntent)
         val requestedWebSearchEnabled = when (typedPreferences.web) {
@@ -382,6 +405,7 @@ internal class ChatSendCoordinator(
                 provider.id,
                 modelControlIdentity?.canonicalModelId ?: modelId,
                 conversationId,
+                legacyModelID = modelControlIdentity?.legacyModelId,
             )
         } else null
         val customTypedPreferences = dispatchedTypedPreferences.copy(

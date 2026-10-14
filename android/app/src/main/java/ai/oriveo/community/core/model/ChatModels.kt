@@ -314,6 +314,29 @@ data class ChatRequestOptions(
     val generationParameters: GenerationParameterOverrides? = null,
     val relayRequested: RelayRequestedConfig? = null,
     val relayImage: RelayImageConfig? = null,
+    /**
+     * The transport and API root resolved per model for this outbound request (`RelayEndpointResolver.effectiveTransport` /
+     * `effectiveAPIRoot`). The Relay outbound layer dispatches only by them and no longer reads the connection-level single value of [relayRequested].
+     */
+    @kotlinx.serialization.Transient val relayRouteTransport: RelayTransport? = null,
+    @kotlinx.serialization.Transient val relayRouteAPIRoot: String? = null,
+    /**
+     * Called back with the new transport after a Relay transport-level fallback switched transport and this send succeeded; ChatRepository writes it back as the model's observed value.
+     * Set only inside the outbound chain, not serialized.
+     */
+    @kotlinx.serialization.Transient val relayProtocolSwitched: (suspend (RelayTransport) -> Unit)? = null,
+    /** Called back when a transport-level fallback starts switching transport (before the resend); the failure path uses it to skip recording the image negative cache. */
+    @kotlinx.serialization.Transient val relayProtocolSwitchStarted: ((RelayTransport) -> Unit)? = null,
+    /**
+     * Called back when a Relay request carrying native file blocks is rejected for the first time (rejection signal) and the fallback chain did not recover it;
+     * ChatRepository uses it to mark the failed message as file-rejected. Set only inside the outbound chain, not serialized.
+     */
+    @kotlinx.serialization.Transient val relayFileRejected: (() -> Unit)? = null,
+    /**
+     * Effective web fragments of a relay connection (key = transport value): injected only by the chat send chain; the builder takes one segment by the effective transport
+     * and merges it before the extra request body. Auxiliary requests such as capability tests and titles do not inject it.
+     */
+    @kotlinx.serialization.Transient val relayWebFragments: Map<String, JsonObject> = emptyMap(),
     /** Which capability evidence this request was compiled against, for retry decisions. */
     @kotlinx.serialization.Transient val capabilityEvidenceIdentity: CapabilityEvidenceIdentity? = null,
     /** R3 preference/rejection identity; local-only and never confused with LWW mutation revision. */

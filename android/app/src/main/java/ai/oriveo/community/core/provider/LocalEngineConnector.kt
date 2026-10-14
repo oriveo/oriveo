@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.model.EngineDeclaration
 import ai.oriveo.community.core.model.RelayAuthMode
 import ai.oriveo.community.core.model.RelayConnectionSecurityMode
 import ai.oriveo.community.core.model.RelayRequestedConfig
@@ -34,6 +35,10 @@ data class LocalEngineConnection(
     val runtimeMetadata: Map<String, LocalModelRuntimeMetadata>,
     val selectedModelId: String,
     val requested: RelayRequestedConfig,
+    /** The engine's capability declaration for each chat model; models without a declaration are not in the table. */
+    val engineDeclarations: Map<String, EngineDeclaration> = emptyMap(),
+    /** Context length of the default model, taken only from responses already received at connect time (llama.cpp `/props`, LM Studio `/api/v0/models`); null if unavailable. */
+    val contextLength: Int? = null,
 )
 
 enum class LocalEngineConnectionFailure { InvalidEndpoint, CleartextCredentials, AuthenticationRejected, WrongEngine, Loading, NoModels, EngineStopped, OutOfMemory, ContextExceeded, Timeout, Network }
@@ -68,6 +73,44 @@ class LocalEngineConnector(
         install(relayLocalSecurityPlugin())
     }
 
+    /**
+     * Local engine fingerprint: send the five read-only GETs of [LocalEngineFingerprintRules.requests] to [rawEndpoint],
+     * and return engine / generic / manual by the criteria. An address that violates the connection policy, or all requests failing, yields manual without throwing.
+     */
+    suspend fun fingerprint(
+        rawEndpoint: String,
+        securityMode: RelayConnectionSecurityMode,
+        certificateFingerprint: String? = null,
+    ): LocalEngineFingerprint {
+        if (!supportsSecurityMode(securityMode)) return LocalEngineFingerprint.manual
+        val endpoint = runCatching {
+            RelayEndpointPolicy.requireConfigured(
+                rawEndpoint,
+                securityMode,
+                RelayEndpointPolicy.Credentials(authMode = RelayAuthMode.None, hasKey = false),
+            )
+        }.getOrElse { return LocalEngineFingerprint.manual }
+        val requested = RelayRequestedConfig(
+            transport = RelayTransport.OpenAIChatCompletions,
+            authMode = RelayAuthMode.None,
+            securityMode = securityMode,
+            certificateFingerprint = certificateFingerprint,
+        )
+        val responses = LocalEngineFingerprintRules.requests.mapNotNull { path ->
+            // Any path failing (including 401/403 and network errors) only means this criterion does not match.
+            val snapshot = try {
+                get(endpoint, path, requested, apiKey = "")
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                null
+            }
+            val body = snapshot?.json?.takeIf { snapshot.status in 200..299 }
+            body?.let { path to it }
+        }.toMap()
+        return LocalEngineFingerprintRules.decide(responses)
+    }
+
     suspend fun connect(
         engine: LocalEngineKind,
         rawEndpoint: String,
@@ -75,6 +118,43 @@ class LocalEngineConnector(
         modelHint: String? = null,
         apiKey: String = "",
         certificateFingerprint: String? = null,
+        channel: RelayTransport = RelayTransport.OpenAIChatCompletions,
+    ): LocalEngineConnection {
+        val inspected = inspect(engine, rawEndpoint, securityMode, modelHint, apiKey, certificateFingerprint, channel)
+        val requested = inspected.requested
+        val selected = inspected.selectedModelId
+        runCatching {
+            relayService.pingRelay(apiKey, requested.resolvedAPIBaseURL, selected, requested)
+        }.getOrElse { error ->
+            if (error is LocalEngineConnectionException) throw error
+            throw LocalEngineConnectionException(classifyNetworkFailure(error), error)
+        }
+        return inspected
+    }
+
+    /**
+     * For re-detect: only re-read the engine's read-only metadata and parse per-model declarations, sending no generation request and probing no protocol.
+     * Failure throws [LocalEngineConnectionException] the same way as [connect].
+     */
+    suspend fun declarations(
+        engine: LocalEngineKind,
+        rawEndpoint: String,
+        securityMode: RelayConnectionSecurityMode,
+        modelHint: String? = null,
+        apiKey: String = "",
+        certificateFingerprint: String? = null,
+    ): Map<String, EngineDeclaration> =
+        inspect(engine, rawEndpoint, securityMode, modelHint, apiKey, certificateFingerprint).engineDeclarations
+
+    /** Fingerprint, catalog, introspection, declarations; [connect] then does one 1-token verification after it. */
+    private suspend fun inspect(
+        engine: LocalEngineKind,
+        rawEndpoint: String,
+        securityMode: RelayConnectionSecurityMode,
+        modelHint: String?,
+        apiKey: String,
+        certificateFingerprint: String?,
+        channel: RelayTransport = RelayTransport.OpenAIChatCompletions,
     ): LocalEngineConnection {
         if (!supportsSecurityMode(securityMode)) {
             throw LocalEngineConnectionException(LocalEngineConnectionFailure.InvalidEndpoint)
@@ -89,12 +169,20 @@ class LocalEngineConnector(
             )
         }.getOrElse { throw LocalEngineConnectionException(configurationFailure(it), it) }
         val template = LocalEngineContract.templates.getValue(engine)
+        // The channel is taken only from the candidates in channels.byEngine; anything not among the candidates falls back to chat.
+        val effectiveChannel = channel.takeIf { LocalEngineChannels.candidates(engine.wireName)?.contains(it) == true }
+            ?: RelayTransport.OpenAIChatCompletions
         val requested = RelayRequestedConfig(
-            transport = RelayTransport.OpenAIChatCompletions,
+            transport = effectiveChannel,
             authMode = if (requiresBearer) RelayAuthMode.Bearer else RelayAuthMode.None,
             securityMode = securityMode,
             stream = true,
-            resolvedAPIBaseURL = apiBaseUrl(endpoint, engine),
+            // The llama.cpp native endpoint sits at the root with no version segment (same rule as RelayEndpointResolver).
+            resolvedAPIBaseURL = if (effectiveChannel == RelayTransport.LlamaCppNative) {
+                endpoint.trimEnd('/')
+            } else {
+                apiBaseUrl(endpoint, engine)
+            },
             engineProfile = engine.wireName,
             certificateFingerprint = certificateFingerprint,
         )
@@ -123,24 +211,42 @@ class LocalEngineConnector(
         if (!introspectionMatches(engine, introspection)) {
             throw LocalEngineConnectionException(LocalEngineConnectionFailure.WrongEngine)
         }
-
-        runCatching {
-            relayService.pingRelay(apiKey, requested.resolvedAPIBaseURL, selected, requested)
-        }.getOrElse { error ->
-            if (error is LocalEngineConnectionException) throw error
-            throw LocalEngineConnectionException(classifyNetworkFailure(error), error)
-        }
+        val catalogModelIds = catalogModelIds(discovered, selected)
+        // The llama.cpp declaration comes from the GET /props just fetched (introspection), so no extra request is sent.
+        val engineDeclarations = LocalEngineDeclarations.parse(
+            engine = engine,
+            catalog = catalog.json,
+            props = introspection.json.takeIf { engine == LocalEngineKind.LlamaCpp },
+            modelIds = catalogModelIds,
+        )
         return LocalEngineConnection(
             engine = engine,
             endpoint = endpoint,
             apiBaseUrl = requested.resolvedAPIBaseURL ?: endpoint,
-            modelIds = catalogModelIds(discovered, selected),
+            modelIds = catalogModelIds,
             runtimeMetadata = runtimeMetadata.ifEmpty {
                 mapOf(selected to LocalModelRuntimeMetadata(LocalModelLoadState.Unknown, executionLocality(engine, selected)))
             },
             selectedModelId = selected,
             requested = requested,
+            engineDeclarations = engineDeclarations,
+            contextLength = contextLength(engine, catalog.json, introspection.json, selected),
         )
+    }
+
+    /** Reads only responses already received and sends no extra request: n_ctx from llama.cpp `/props`, max_context_length from the LM Studio catalog row. */
+    private fun contextLength(engine: LocalEngineKind, catalog: JsonObject?, props: JsonObject?, selected: String): Int? {
+        fun JsonObject?.positiveInt(key: String): Int? =
+            (this?.get(key) as? JsonPrimitive)?.takeIf { !it.isString }?.contentOrNull?.toIntOrNull()?.takeIf { it > 0 }
+        return when (engine) {
+            LocalEngineKind.LlamaCpp -> props.positiveInt("n_ctx")
+                ?: (props?.get("default_generation_settings") as? JsonObject).positiveInt("n_ctx")
+            LocalEngineKind.LmStudio -> catalog?.get("data")?.jsonArray.orEmpty()
+                .mapNotNull { it as? JsonObject }
+                .firstOrNull { (it["id"] as? JsonPrimitive)?.contentOrNull == selected }
+                .positiveInt("max_context_length")
+            else -> null
+        }
     }
 
     private suspend fun get(endpoint: String, path: String, requested: RelayRequestedConfig, apiKey: String): Snapshot {
@@ -203,7 +309,9 @@ class LocalEngineConnector(
                 it.jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: it.jsonObject["name"]?.jsonPrimitive?.contentOrNull
             }
         } else {
-            body?.get("data")?.jsonArray.orEmpty().mapNotNull { it.jsonObject["id"]?.jsonPrimitive?.contentOrNull }
+            body?.get("data")?.jsonArray.orEmpty()
+                .filter { LocalEngineDeclarations.isChatModel(engine, it.jsonObject) }
+                .mapNotNull { it.jsonObject["id"]?.jsonPrimitive?.contentOrNull }
         }
         return values.map(String::trim).filter(String::isNotEmpty).distinct()
     }
@@ -253,15 +361,6 @@ class LocalEngineConnector(
             else -> LocalEngineConnectionFailure.Network
         }
     }
-
-    private val LocalEngineKind.wireName: String
-        get() = when (this) {
-            LocalEngineKind.LlamaCpp -> "llamacpp"
-            LocalEngineKind.Ollama -> "ollama"
-            LocalEngineKind.LmStudio -> "lmstudio"
-            LocalEngineKind.Vllm -> "vllm"
-            LocalEngineKind.OpenWebUI -> "openwebui"
-        }
 
     internal fun catalogModelIds(discovered: List<String>, selected: String): List<String> =
         if (selected in discovered) discovered else listOf(selected) + discovered

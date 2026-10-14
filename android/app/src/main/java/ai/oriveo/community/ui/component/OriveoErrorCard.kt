@@ -42,6 +42,12 @@ fun OriveoErrorCard(
     error: OriveoError,
     modifier: Modifier = Modifier,
     onAction: (() -> Unit)? = null,
+    /** Modifier for the primary button itself; none by default. */
+    actionModifier: Modifier = Modifier,
+    /** Modifier for the "Technical details" expand button; none by default. */
+    detailsModifier: Modifier = Modifier,
+    /** true = technical details go below the primary button (relay edit / manual setup failure cards); by default they sit between the body and the primary button. */
+    detailsBelowAction: Boolean = false,
 ) {
     val colors = OriveoTheme.colors
     var showDetail by remember { mutableStateOf(false) }
@@ -91,7 +97,7 @@ fun OriveoErrorCard(
         }
 
         // Expandable detail
-        if (error.detail.isNotEmpty()) {
+        val details: @Composable () -> Unit = {
             Spacer(modifier = Modifier.height(OriveoTheme.spacing.sm))
             OriveoTextButton(
                 text = if (showDetail) {
@@ -101,6 +107,7 @@ fun OriveoErrorCard(
                 },
                 onClick = { showDetail = !showDetail },
                 color = colors.textTertiary,
+                modifier = detailsModifier,
             )
 
             AnimatedVisibility(
@@ -121,6 +128,10 @@ fun OriveoErrorCard(
                 )
             }
         }
+        val hasDetail = error.detail.isNotEmpty()
+        if (hasDetail) {
+            if (!detailsBelowAction) details()
+        }
 
         // Action button
         if (error.actionTitle.isNotEmpty() && onAction != null) {
@@ -128,7 +139,11 @@ fun OriveoErrorCard(
             OriveoPrimaryButton(
                 text = error.actionTitle,
                 onClick = onAction,
+                modifier = actionModifier,
             )
+        }
+        if (hasDetail) {
+            if (detailsBelowAction) details()
         }
     }
 }

@@ -8,11 +8,16 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import ai.oriveo.community.core.data.repository.ProviderRepository
+import org.koin.compose.koinInject
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.feature.chat.components.ConversationIssueBanner
 import ai.oriveo.community.feature.chat.ChatViewModel
 import ai.oriveo.community.feature.chat.components.ExpensiveModelHintBanner
 import dev.chrisbanes.haze.HazeState
@@ -57,6 +62,7 @@ internal fun ChatComposerHost(
     onOverlayHeightChange: (Int) -> Unit,
     onNavigateToProviderSetup: () -> Unit,
     onNavigateToProviderDetail: (providerId: String) -> Unit,
+    onNavigateToConnectionWebSearch: (providerId: String) -> Unit = {},
     onNavigateToSkillEdit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -86,6 +92,13 @@ internal fun ChatComposerHost(
     // before the stream is marked active. Without its own subscription the stop button never
     // appears. The value flips once when a stream starts or ends, never per token.
     val streamingMessageId by viewModel.streamingMessageId.collectAsStateWithLifecycle()
+    // Only the official Gemini route depends on whether the outbound history contains video; other
+    // providers do not subscribe (subscribing reads the whole history from the database).
+    val outboundHistoryHasVideo = if (activeProvider?.kind == ProviderKind.Gemini) {
+        viewModel.outboundHistoryHasVideo.collectAsStateWithLifecycle().value
+    } else {
+        false
+    }
     // The number on the "Tools" chip and its dimmed state come from local storage: they are read again
     // whenever the conversation, the connection or the model changes, and once more after an answer
     // ends (the loop may just have found that a server needs re-authorization).
@@ -93,6 +106,22 @@ internal fun ChatComposerHost(
     val mcpModelId = viewModel.conversationState.model?.id
     LaunchedEffect(conversationId, activeProvider?.id, mcpModelId, streamingMessageId == null) {
         viewModel.mcpCoordinator.refresh()
+    }
+
+    // The relay verdict for the image entry needs the connection identity (obtained the same way as the
+    // generation parameters in EnhancedComposer); it stays null when unavailable and the check fails closed.
+    val providerRepository = koinInject<ProviderRepository>()
+    val capabilityPartition = providerRepository.currentCapabilityPartitionId()
+    var imageCapabilityIdentity by remember(activeProvider, mcpModelId, capabilityPartition) {
+        mutableStateOf<ai.oriveo.community.core.model.CapabilityEvidenceIdentity?>(null)
+    }
+    LaunchedEffect(activeProvider, mcpModelId, capabilityPartition) {
+        val provider = activeProvider
+        imageCapabilityIdentity = if (provider?.kind == ProviderKind.Relay && mcpModelId != null) {
+            providerRepository.capabilityEvidenceIdentity(provider, mcpModelId, capabilityPartition)
+        } else {
+            null
+        }
     }
 
     Column(
@@ -104,6 +133,16 @@ internal fun ChatComposerHost(
             ExpensiveModelHintBanner(
                 hint = hint,
                 onDismiss = { viewModel.dismissExpensiveModelHint() },
+            )
+        }
+
+        // The relay conversation's model was removed: the banner sits right above the composer and its
+        // button opens the model picker.
+        viewModel.conversationState.issue?.takeIf { it.rendersAboveComposer }?.let { issue ->
+            ConversationIssueBanner(
+                issue = issue,
+                providerName = activeProvider?.displayName,
+                onPrimaryAction = { viewModel.showModelSwitcher = true },
             )
         }
 
@@ -124,9 +163,10 @@ internal fun ChatComposerHost(
             isExistingConversation = conversationId != null,
             conversationSkillId = conversationSkillId,
             modelControlsFinalTransport = viewModel.modelControlsFinalTransport(),
-            supportsImageAttachment = viewModel.supportsImage(),
+            supportsImageAttachment = viewModel.supportsImage(imageCapabilityIdentity),
             supportsVideoAttachment = viewModel.supportsVideo(),
             supportsFileAttachment = viewModel.supportsFile(),
+            outboundHistoryHasVideo = outboundHistoryHasVideo,
             onSelectReasoningMode = viewModel::selectReasoningMode,
             onSelectModel = viewModel::selectModel,
             onOpenModelSwitcher = { viewModel.showModelSwitcher = true },
@@ -143,12 +183,15 @@ internal fun ChatComposerHost(
             providerKind = activeProvider?.kind,
             onNavigateToProviderSetup = onNavigateToProviderSetup,
             onNavigateToProviderDetail = onNavigateToProviderDetail,
+            onNavigateToConnectionWebSearch = onNavigateToConnectionWebSearch,
             onNavigateToSkillEdit = onNavigateToSkillEdit,
             isGenerating = streamingMessageId != null,
             // Loading states (skeleton, backfilling) and stalled all block writing: allowing a send
             // while stalled means the user starts talking in a conversation that has history, and
             // the context is silently dropped. It becomes writable again once the backfill lands.
-            isReadOnly = !viewModel.canSendMessages || sendingBlockedByLoadState,
+            isReadOnly = viewModel.conversationState.isReadOnly || sendingBlockedByLoadState,
+            // When the conversation's model was removed the composer stays editable and only sending is blocked.
+            isSendBlocked = !viewModel.canSendMessages,
             transparentChrome = transparentChrome,
             hazeState = hazeState,
             trueTransparentBlurEnabled = trueTransparentBlurEnabled,

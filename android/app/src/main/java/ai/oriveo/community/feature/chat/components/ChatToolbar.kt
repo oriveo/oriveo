@@ -42,8 +42,11 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
+import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
-import ai.oriveo.community.core.model.RelayKind
+import ai.oriveo.community.core.model.RelayAvatar
+import ai.oriveo.community.core.model.RelayAvatarResolver
+import ai.oriveo.community.core.model.resolveProviderLogoKind
 import ai.oriveo.community.ui.component.CostPill
 import ai.oriveo.community.ui.component.OriveoBackButton
 import ai.oriveo.community.ui.component.ProviderBadgeIcon
@@ -54,7 +57,8 @@ import dev.chrisbanes.haze.HazeState
 internal fun ChatToolbar(
     skillIcon: String? = null,
     providerKind: ProviderKind?,
-    relayKind: RelayKind?,
+    /** The connection of the current conversation; relay connections draw the unified avatar. */
+    provider: Provider? = null,
     providerName: String,
     modelName: String,
     isSendingMessage: Boolean,
@@ -132,8 +136,12 @@ internal fun ChatToolbar(
                     Text(skillIcon, fontSize = 20.sp)
                 }
 
-                providerKind?.let {
-                    ProviderBadgeIcon(kind = it, size = 26.dp, relayKind = relayKind)
+                if (provider != null && RelayAvatarResolver.appliesTo(provider)) {
+                    RelayAvatar(provider = provider, size = 26.dp)
+                } else {
+                    providerKind?.let {
+                        ProviderBadgeIcon(kind = provider?.let(::resolveProviderLogoKind) ?: it, size = 26.dp)
+                    }
                 }
 
                 Column(

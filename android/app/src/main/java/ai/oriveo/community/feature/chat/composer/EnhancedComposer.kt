@@ -190,6 +190,8 @@ internal fun EnhancedComposer(
     supportsVideoAttachment: Boolean,
     supportsFileAttachment: Boolean,
     onSelectReasoningMode: (ReasoningMode) -> Unit,
+    /** The next send's outbound history contains video (ChatViewModel.outboundHistoryHasVideo); the file card of the model panel uses it to predict the route. */
+    outboundHistoryHasVideo: Boolean = false,
 
     onSelectModel: (providerId: String, modelId: String) -> Unit,
     onOpenModelSwitcher: () -> Unit,
@@ -210,9 +212,13 @@ internal fun EnhancedComposer(
     onNavigateToProviderSetup: () -> Unit,
 
     onNavigateToProviderDetail: (providerId: String) -> Unit = {},
+    /** Relay web search settings page (Detail > Web search). */
+    onNavigateToConnectionWebSearch: (providerId: String) -> Unit = {},
     onNavigateToSkillEdit: () -> Unit = {},
     isGenerating: Boolean,
     isReadOnly: Boolean,
+    /** Blocks sending only; the input stays editable (the relay conversation's model was removed). */
+    isSendBlocked: Boolean = false,
 
     transparentChrome: Boolean,
     hazeState: HazeState,
@@ -329,6 +335,7 @@ internal fun EnhancedComposer(
             skillID = conversationSkillId,
             transportIdentity = identity.storageIdentity,
             isExistingConversation = isExistingConversation,
+            legacyModelID = identity.legacyModelId,
         )
     }
 
@@ -347,6 +354,7 @@ internal fun EnhancedComposer(
                 schemaModelID = model.id,
                 activeProfile = GenerationParameterAvailability.profile(provider, model),
             ),
+            legacyModelID = identity.legacyModelId,
         ).keys
     }
 
@@ -539,6 +547,8 @@ internal fun EnhancedComposer(
             reasoningIntent = selectedControlReasoning,
             customOwners = developerCustomOwners,
             generationOverrideCount = modelBehaviorOverrideCount,
+            imageEntryVisible = supportsImageAttachment,
+            outboundHistoryHasVideo = outboundHistoryHasVideo,
             // The panel also publishes whether the web preference reaches the wire; the composer
             // recomputes that itself where it matters (the outbound decision below), so the
             // published copy is ignored here.
@@ -554,6 +564,9 @@ internal fun EnhancedComposer(
 
             onOpenConnectionSettings = {
                 generationParameterProvider?.id?.let(onNavigateToProviderDetail)
+            },
+            onOpenConnectionWebSearch = {
+                generationParameterProvider?.id?.let(onNavigateToConnectionWebSearch)
             },
             onNavigateToProviderSetup = onNavigateToProviderSetup,
             onSelectModel = onSelectModel,
@@ -1068,8 +1081,8 @@ internal fun EnhancedComposer(
 
                 ComposerActionCluster(
                     isGenerating = isGenerating,
-                    isPrimed = hasComposerContent && !isGenerating,
-                    enabled = isGenerating || (!isReadOnly && hasComposerContent),
+                    isPrimed = hasComposerContent && !isGenerating && !isSendBlocked,
+                    enabled = isGenerating || (!isReadOnly && !isSendBlocked && hasComposerContent),
 
                     modifier = Modifier.padding(bottom = 7.dp),
                 ) {
@@ -1079,7 +1092,7 @@ internal fun EnhancedComposer(
                     if (isGenerating) {
                         vibrator?.vibrate(android.os.VibrationEffect.createOneShot(40, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
                         onStopGeneration()
-                    } else if (!isReadOnly && hasComposerContent) {
+                    } else if (!isReadOnly && !isSendBlocked && hasComposerContent) {
                         keyboardController?.hide()
                         composerFocused = false
                         vibrator?.vibrate(android.os.VibrationEffect.createOneShot(20, android.os.VibrationEffect.DEFAULT_AMPLITUDE))

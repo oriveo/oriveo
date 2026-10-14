@@ -50,10 +50,18 @@ class OpenAIResponsesStrategy(private val json: Json) : TransportStrategy {
 
         // Otherwise scan the chunk for annotations. The Responses event layout is not
         // fixed, so walk the whole tree and pick up every type=url_citation node wherever
-        // it happens to sit.
+        // it appears.
         val results = mutableListOf<Citation>()
         collectAnnotations(root, urlField, titleField, snippetField, results)
         return results
+    }
+
+    /** A web_search_call item with status=completed in events such as `response.output_item.done` = the search ran. */
+    override fun parseSearchRan(rawChunk: String): Boolean {
+        val root = runCatching { json.parseToJsonElement(rawChunk).jsonObject }.getOrNull() ?: return false
+        val item = root["item"]?.let { runCatching { it.jsonObject }.getOrNull() } ?: return false
+        fun text(key: String) = item[key]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+        return text("type") == "web_search_call" && text("status") == "completed"
     }
 
     /** Walks the JSON tree collecting every node whose type is "url_citation". */

@@ -1,5 +1,33 @@
 package ai.oriveo.community.feature.providers.relay
 
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import ai.oriveo.community.ui.component.OriveoBackButton
+import ai.oriveo.community.ui.component.OriveoBackButtonDefaults
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.unit.LayoutDirection
+import ai.oriveo.community.core.provider.RelayFormValidation
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.heading
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,11 +37,12 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,29 +52,15 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.NetworkCheck
-import androidx.compose.material.icons.filled.RemoveCircle
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material.icons.outlined.VisibilityOff
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,7 +70,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.draw.clip
@@ -64,47 +78,51 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.draw.alpha
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.foundation.layout.heightIn
 import ai.oriveo.community.R
+import androidx.annotation.StringRes
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.feature.providers.SetupBoardSlot
+import ai.oriveo.community.feature.providers.local.LocalPrimaryAction
+import ai.oriveo.community.ui.theme.ProviderBadgeColors
 import ai.oriveo.community.core.model.RelayAuthMode
 import ai.oriveo.community.core.model.RelayKeyValue
-import ai.oriveo.community.core.model.RelayKind
-import ai.oriveo.community.core.model.RelayReasoningEffort
 import ai.oriveo.community.core.model.RelayTransport
-import ai.oriveo.community.core.model.RelayWebSearchToolName
-import ai.oriveo.community.core.provider.RelayDetectionEvidence
 import ai.oriveo.community.core.provider.RelayDiscoveryAttempt
 import ai.oriveo.community.core.provider.RelayDiscoveryAttemptKind
 import ai.oriveo.community.core.navigation.ProviderSetupEntryPoint
 import ai.oriveo.community.feature.providers.CustomLLMConnectionMethod
 import ai.oriveo.community.feature.providers.local.LocalComputeSetupFields
 import ai.oriveo.community.feature.providers.local.LocalComputeSetupViewModel
-import ai.oriveo.community.ui.component.OriveoBackButton
-import ai.oriveo.community.ui.component.OriveoBackButtonDefaults
-import ai.oriveo.community.ui.component.OriveoCard
-import ai.oriveo.community.ui.component.OriveoErrorCard
 import ai.oriveo.community.ui.component.OriveoLabeledField
-import ai.oriveo.community.ui.component.OriveoPrimaryButton
-import ai.oriveo.community.ui.component.OriveoSectionHeader
-import ai.oriveo.community.ui.component.OriveoSecondaryButton
-import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoColors
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.OriveoScreenBackground
 import ai.oriveo.community.ui.theme.opacity
 import org.koin.androidx.compose.koinViewModel
 
+/**
+ * Relay setup page: Quick Setup is a two-step add: step 1 is address + key + detection, step 2 selects models by group;
+ * the display name is offered only after the user deliberately enters manual setup.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RelaySetupScreen(
@@ -136,15 +154,21 @@ fun RelaySetupScreen(
     // The route already selected the scenario. Render from it immediately so Local never flashes
     // the Relay title or fields while the coordinator is attaching on the first frame.
     val routeMethod = initialMethod
+    val showsModelsStep = routeMethod == CustomLLMConnectionMethod.Relay &&
+        viewModel.mode == RelaySetupMode.Quick &&
+        viewModel.step == RelaySetupStep.Models
+    val showsManual = routeMethod == CustomLLMConnectionMethod.Relay && viewModel.mode == RelaySetupMode.Manual
+    // System back on step 2 returns to step 1 (the detection card is kept).
+    BackHandler(enabled = showsModelsStep) { viewModel.backToAddress() }
+    // System back on the manual page = the top-left "Use quick setup instead": return to step 1, keep the input, discard anything in flight, and do not leave the add page.
+    BackHandler(enabled = showsManual) { viewModel.showQuickSetup() }
     var actionBarHeightPx by remember { mutableStateOf(0) }
-    val showsActionBar = routeMethod == CustomLLMConnectionMethod.Local ||
-        (routeMethod == CustomLLMConnectionMethod.Relay &&
-            (viewModel.mode == RelaySetupMode.Quick || !viewModel.isChoosingRelayKind))
-    val scrollBottomPadding = if (showsActionBar && actionBarHeightPx > 0) {
+    val scrollBottomPadding = if (actionBarHeightPx > 0) {
         with(density) { actionBarHeightPx.toDp() } + spacing.md
     } else {
         spacing.lg
     }
+    val scrollState = rememberScrollState()
 
     Box(modifier = Modifier.fillMaxSize()) {
         OriveoScreenBackground()
@@ -156,28 +180,18 @@ fun RelaySetupScreen(
                 .imePadding(),
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                RelaySetupTopBar(
-                    title = stringResource(
-                        if (routeMethod == CustomLLMConnectionMethod.Local) {
-                            R.string.local_compute_title
-                        } else {
-                            R.string.provider_setup_relay_title
-                        },
-                    ),
-                    onBack = {
-                        when {
-                            routeMethod == CustomLLMConnectionMethod.Local -> onBack()
-                            viewModel.mode == RelaySetupMode.Quick -> onBack()
-                            !viewModel.isChoosingRelayKind -> viewModel.returnToRelayKindPicker()
-                            else -> viewModel.showQuickSetup()
-                        }
-                    },
-                )
+                // The page title of the add-page board is only the hero; the topBar keeps just the back button, and on the manual page it becomes the top-left "Use quick setup instead".
+                // Step 2 (SetupModels) brings its own back button + title row, so no topBar is stacked on it.
+                if (!showsModelsStep) RelaySetupTopBar(
+                    quickSetupAction = if (showsManual) stringResource(viewModel.manualBoard.leadingActionRes) else null,
+                    onBack = onBack,
+                    onQuickSetup = viewModel::showQuickSetup,
+                ) else Spacer(Modifier.statusBarsPadding()) // The back button + title row of step 2 must not run under the status bar.
 
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(scrollState)
                         .padding(horizontal = layout.screenH)
                         .padding(top = spacing.lg, bottom = scrollBottomPadding),
                 ) {
@@ -189,73 +203,51 @@ fun RelaySetupScreen(
                             coordinator = viewModel.customLLMCoordinator,
                             viewModel = localViewModel,
                         )
-                    } else if (viewModel.mode == RelaySetupMode.Quick) {
-                        RelayQuickSetupContent(viewModel)
-                    } else if (viewModel.isChoosingRelayKind) {
-                        RelayStepHeader(
-                            stepLabel = stringResource(R.string.relay_setup_step_1_of_2),
-                            title = stringResource(R.string.relay_kind_picker_title),
-                            subtitle = stringResource(R.string.relay_kind_picker_subtitle),
-                        )
-
-                        Spacer(modifier = Modifier.height(layout.sectionGap))
-
-                        RelayKindPicker(
-                            selectedKind = viewModel.selectedRelayKind,
-                            onSelect = viewModel::selectRelayKind,
-                        )
+                    } else if (showsModelsStep) {
+                        RelaySetupModelsContent(viewModel)
+                    } else if (showsManual) {
+                        RelayManualSetupContent(viewModel)
                     } else {
-                        viewModel.selectedRelayKind?.let { relayKind ->
-                            RelayStep2Header(kind = relayKind)
-
-                            Spacer(modifier = Modifier.height(spacing.md))
-
-                            RelaySimpleSection(viewModel = viewModel)
-
-                            if (relayKind == RelayKind.Custom) {
-                                Spacer(modifier = Modifier.height(layout.sectionGap))
-                                RelayCustomAdvancedSection(viewModel = viewModel)
-                            }
-
-                            viewModel.error?.let { error ->
-                                Spacer(modifier = Modifier.height(layout.sectionGap))
-                                OriveoErrorCard(error = error)
-                            }
-                        }
+                        RelayQuickSetupContent(viewModel)
                     }
                 }
             }
 
             if (routeMethod == CustomLLMConnectionMethod.Local) {
+                val localBoard = localViewModel.board
                 LocalComputeActionBar(
-                    isWorking = localViewModel.isConnecting,
-                    isVerified = localViewModel.isConnectionVerified,
-                    enabled = !localViewModel.isConnecting && localViewModel.endpoint.isNotBlank() &&
-                        (localViewModel.engine != ai.oriveo.community.core.provider.LocalEngineKind.OpenWebUI || localViewModel.apiKey.isNotBlank()),
-                    onClick = localViewModel::connect,
+                    action = localBoard.primaryButton,
+                    isWorking = localBoard.isPrimaryLoading,
+                    enabled = localBoard.isPrimaryEnabled,
+                    secondaryRow = localBoard.secondaryRow,
+                    onClick = localViewModel::runPrimaryAction,
+                    onSecondary = localViewModel::toggleManualPicker,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .onSizeChanged { actionBarHeightPx = it.height },
                 )
-            } else if (viewModel.mode == RelaySetupMode.Quick) {
-                RelayQuickActionBar(
-                    action = viewModel.quickAction,
-                    isWorking = viewModel.isDiscovering || viewModel.isSubmitting,
-                    enabled = viewModel.canRunQuickAction,
-                    onClick = viewModel::runQuickAction,
+            } else if (showsModelsStep) {
+                RelayModelsActionBar(
+                    board = viewModel.modelsBoard,
+                    onSave = viewModel::save,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .onSizeChanged { actionBarHeightPx = it.height },
                 )
-            } else if (routeMethod == CustomLLMConnectionMethod.Relay && !viewModel.isChoosingRelayKind) {
-                RelayActionBar(
-                    isTesting = viewModel.isTestingConnection,
-                    canTest = viewModel.canTestConnection,
-                    testResult = viewModel.testConnectionResult,
-                    isSaving = viewModel.isSubmitting,
-                    canSave = viewModel.canSubmit,
-                    onTest = viewModel::testConnection,
-                    onSave = viewModel::submit,
+            } else if (showsManual) {
+                RelayManualActionBar(
+                    board = viewModel.manualBoard,
+                    onValidate = viewModel::validateManual,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .onSizeChanged { actionBarHeightPx = it.height },
+                )
+            } else {
+                RelayStepOneActionBar(
+                    board = viewModel.board,
+                    onNext = viewModel::next,
+                    onCancelDetection = viewModel::cancelDetection,
+                    onSecondary = viewModel::showManualSetup,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .onSizeChanged { actionBarHeightPx = it.height },
@@ -265,13 +257,16 @@ fun RelaySetupScreen(
     }
 }
 
+/**
+ * Top bar: quick setup has only a back button; manual setup has a text button "Use quick setup instead" at the top left (no arrow, no separate back button,
+ * footnote SemiBold in three tiers: 100% on one line -> 85% on one line -> 85% wrapping as needed with no line limit, never truncated, and no symmetric blank space on the right).
+ */
 @Composable
 private fun RelaySetupTopBar(
-    title: String,
+    quickSetupAction: String?,
     onBack: () -> Unit,
+    onQuickSetup: () -> Unit,
 ) {
-    val colors = OriveoTheme.colors
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -279,23 +274,38 @@ private fun RelaySetupTopBar(
             .padding(horizontal = 24.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (quickSetupAction != null) {
+            val baseStyle = OriveoTheme.typography.footnote.copy(fontWeight = FontWeight.SemiBold)
+            val measurer = rememberTextMeasurer()
+            BoxWithConstraints(modifier = Modifier.weight(1f, fill = false)) {
+                // Measure the one-line width at 100% font size to pick the tier; no continuous auto-shrinking.
+                val fullSizeLineWidth = remember(quickSetupAction, baseStyle) {
+                    measurer.measure(quickSetupAction, baseStyle, maxLines = 1, softWrap = false).size.width.toFloat()
+                }
+                val tier = relayQuickSetupButtonTier(constraints.maxWidth.toFloat(), fullSizeLineWidth)
+                Text(
+                    text = quickSetupAction,
+                    style = baseStyle.copy(
+                        fontSize = baseStyle.fontSize * tier.scale,
+                        lineHeight = baseStyle.lineHeight * tier.scale,
+                    ),
+                    color = OriveoTheme.colors.primaryTextSafe,
+                    maxLines = tier.maxLines,
+                    softWrap = tier.maxLines > 1,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(OriveoTheme.radius.inset))
+                        .clickable(onClick = onQuickSetup)
+                        .semantics { role = Role.Button }
+                        .padding(vertical = 6.dp),
+                )
+            }
+            return@Row
+        }
         OriveoBackButton(
             onClick = onBack,
             // Line the icon box up with the page margin
             modifier = Modifier.offset(x = -OriveoBackButtonDefaults.EdgeInset),
         )
-
-        Text(
-            text = title,
-            style = OriveoTheme.typography.title3,
-            color = colors.textPrimary,
-            modifier = Modifier.weight(1f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-        )
-
-        Spacer(modifier = Modifier.size(OriveoBackButtonDefaults.HitSize))
     }
 }
 
@@ -335,108 +345,165 @@ private fun RelayConstellationAtmosphere() {
 private fun RelayQuickSetupContent(viewModel: RelaySetupViewModel) {
     val colors = OriveoTheme.colors
     val spacing = OriveoTheme.spacing
+    val board = viewModel.board
 
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
-            Text(
-                text = stringResource(R.string.relay_quick_title),
-                style = OriveoTheme.typography.hero,
-                color = colors.textPrimary,
-            )
-            Text(
-                text = stringResource(R.string.relay_quick_subtitle),
-                style = OriveoTheme.typography.body,
-                color = colors.textSecondary,
-            )
+        SetupBoardHero(
+            icon = painterResource(R.drawable.ph_hard_drives),
+            label = stringResource(board.heroLabel),
+            title = stringResource(board.heroTitle),
+            subtitle = stringResource(board.heroSubtitle),
+            tint = colors.primary,
+        )
+
+        board.slots.forEach { slot ->
+            when (slot) {
+                SetupBoardSlot.Address -> Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+                    RelayQuickField(
+                        label = stringResource(R.string.relay_field_endpoint),
+                        value = viewModel.endpoint,
+                        onValueChange = viewModel::updateEndpoint,
+                        placeholder = RELAY_ENDPOINT_PLACEHOLDER,
+                        icon = painterResource(R.drawable.ph_link),
+                        keyboardType = KeyboardType.Uri,
+                        selectionRange = viewModel.endpointHighlightRange,
+                        schemeChip = setupSchemeChip(viewModel.endpoint, cleartext = false),
+                    )
+                    board.willRequest?.let { RelayWillRequestLine(it) }
+                }
+                SetupBoardSlot.ApiKey -> Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+                    RelaySetupKeyList(viewModel, board.keys)
+                    viewModel.keyInputIssue?.let { Text(it, style = OriveoTheme.typography.footnote, color = colors.warning) }
+                }
+                SetupBoardSlot.AddKey -> RelayKeysFootnoteRow(stringResource(board.keysFootnote), onAdd = viewModel::addKey)
+            }
         }
 
-        RelayQuickField(
-            label = stringResource(R.string.relay_field_endpoint),
-            value = viewModel.endpoint,
-            onValueChange = viewModel::updateEndpoint,
-            placeholder = stringResource(R.string.relay_endpoint_placeholder),
-            footnote = stringResource(R.string.relay_request_url_footnote),
-            icon = Icons.Filled.Link,
-            keyboardType = KeyboardType.Uri,
-            selectionRange = viewModel.endpointHighlightRange,
-        )
-        RelayQuickField(
-            label = stringResource(R.string.api_key),
-            value = viewModel.apiKey,
-            onValueChange = viewModel::updateApiKey,
-            placeholder = stringResource(R.string.relay_api_key_placeholder),
-            icon = Icons.Filled.Key,
-            secure = true,
-        )
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-            verticalAlignment = Alignment.Top,
-        ) {
-            Icon(Icons.Filled.Lock, contentDescription = null, tint = colors.primary, modifier = Modifier.size(14.dp))
-            Text(
-                text = stringResource(R.string.relay_api_key_privacy),
-                style = OriveoTheme.typography.footnote,
-                color = colors.textSecondary,
-            )
-        }
-
-        if (viewModel.detectedModelIDs.isEmpty()) {
-            RelayQuickField(
-                label = stringResource(R.string.relay_default_model_label),
-                value = viewModel.defaultModel,
-                onValueChange = viewModel::updateDefaultModel,
-                placeholder = viewModel.defaultModelPlaceholder,
-                footnote = stringResource(R.string.relay_default_model_recommended_footnote),
-                icon = Icons.Filled.AutoAwesome,
-            )
-        } else {
-            RelayDetectedModelPicker(viewModel)
-        }
+        board.detection?.let { RelayDetectionCardView(it) }
 
         RelayFormIssueNotes(issues = viewModel.formIssues)
+    }
+}
 
-        RelayQuickResult(viewModel)
-        RelayManualSetupEntry(onClick = viewModel::showManualSetup)
+/** The key slots shared by step 1 and manual setup: each key has an "API Key" title row, and with two or more keys each also has a name slot. */
+@Composable
+private fun RelaySetupKeyList(viewModel: RelaySetupViewModel, keys: List<RelaySetupKeyRow>) {
+    keys.forEach { key ->
+        RelaySetupKeyFields(
+            key = key,
+            label = stringResource(R.string.api_key),
+            onSecretChange = { value ->
+                if (key.isPrimary) viewModel.updateApiKey(value) else viewModel.updateKeySecret(key.id, value)
+            },
+            onNameChange = { value ->
+                if (key.isPrimary) viewModel.updatePrimaryKeyName(value) else viewModel.updateKeyName(key.id, value)
+            },
+            onRemove = { viewModel.removeKey(key.id) },
+        )
+    }
+}
+
+/** Footnote row of the key block: "Keys are stored on this device only" (footnote tertiary) + Spacer + "+ Add another key", vertically centered on the whole row. */
+@Composable
+private fun RelayKeysFootnoteRow(footnote: String, onAdd: () -> Unit) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = footnote,
+            style = OriveoTheme.typography.footnote,
+            color = OriveoTheme.colors.textTertiary,
+            modifier = Modifier.weight(1f),
+        )
+        RelayAddKeyRow(onAdd = onAdd)
+    }
+}
+
+/** "+ Add another key" (minimum height 44). */
+@Composable
+private fun RelayAddKeyRow(onAdd: () -> Unit) {
+    val colors = OriveoTheme.colors
+    Row(
+        modifier = Modifier
+            .heightIn(min = 44.dp)
+            .clip(RoundedCornerShape(OriveoTheme.radius.inset))
+            .clickable(onClick = onAdd)
+            .padding(horizontal = OriveoTheme.spacing.xs),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(R.drawable.ph_plus), contentDescription = null, tint = colors.primary, modifier = Modifier.size(14.dp))
+        Text(
+            text = stringResource(R.string.relay_setup_add_key),
+            style = OriveoTheme.typography.footnote.copy(fontWeight = FontWeight.SemiBold),
+            color = colors.primary,
+        )
     }
 }
 
 @Composable
-private fun RelayQuickField(
-    label: String,
+internal fun RelayQuickField(
+    /** null = no title row (a second input in the same group, such as the key name or the search box). */
+    label: String?,
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    /** Title row icon; null = the title row draws no icon. */
+    icon: Painter?,
     footnote: String? = null,
     secure: Boolean = false,
     keyboardType: KeyboardType = KeyboardType.Text,
     selectionRange: IntRange? = null,
+    /** The scheme prefix chip of the address slot ("https" / "http" on the board). */
+    schemeChip: String? = null,
+    enabled: Boolean = true,
+    trailing: (@Composable () -> Unit)? = null,
+    /** Label at the start of the slot row (such as "Name (optional)" for the connection name), in the secondary color. */
+    slotLabel: String? = null,
+    /** Icon at the start of the slot row (such as the magnifier of the step 2 search box), in the tertiary color. */
+    leadingIcon: Painter? = null,
+    /** Trailing part of the title row ("Remove" for an extra key); null = not drawn. */
+    labelTrailing: (@Composable () -> Unit)? = null,
 ) {
     val colors = OriveoTheme.colors
     val surfaceFill = relayQuickSurfaceFillColor(colors, OriveoTheme.isDark)
     var focused by remember { mutableStateOf(false) }
     var revealsSecureText by remember { mutableStateOf(false) }
-    var fieldValue by remember { mutableStateOf(TextFieldValue(value, selection = TextRange(value.length))) }
-    LaunchedEffect(value, selectionRange) {
-        if (fieldValue.text != value || selectionRange != null) {
+    // Address slot with a scheme chip: the slot shows only what follows the scheme, and when writing back a scheme the user already typed is kept.
+    val slotText = if (schemeChip != null) relaySchemeSlotText(value) else value
+    val slotRange = if (schemeChip != null) relaySchemeSlotRange(value, selectionRange) else selectionRange
+    val slotPlaceholder = if (schemeChip != null) relaySchemeSlotText(placeholder) else placeholder
+    var fieldValue by remember { mutableStateOf(TextFieldValue(slotText, selection = TextRange(slotText.length))) }
+    LaunchedEffect(slotText, slotRange) {
+        if (fieldValue.text != slotText || slotRange != null) {
             fieldValue = TextFieldValue(
-                text = value,
-                selection = selectionRange?.let { TextRange(it.first, it.last + 1) }
-                    ?: TextRange(value.length),
+                text = slotText,
+                selection = slotRange?.let { TextRange(it.first, it.last + 1) }
+                    ?: TextRange(slotText.length),
             )
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = colors.primary, modifier = Modifier.size(16.dp))
-            Text(label, style = OriveoTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold), color = colors.textSecondary)
+        label?.let {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                icon?.let { painter -> Icon(painter, contentDescription = null, tint = colors.primary, modifier = Modifier.size(16.dp)) }
+                Text(
+                    it,
+                    style = OriveoTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold),
+                    color = colors.textSecondary,
+                    modifier = if (labelTrailing != null) Modifier.weight(1f) else Modifier,
+                )
+                labelTrailing?.invoke()
+            }
         }
         BasicTextField(
             value = fieldValue,
             onValueChange = {
                 fieldValue = it
-                onValueChange(it.text)
+                onValueChange(if (schemeChip != null) relaySchemeSlotInput(value, it.text) else it.text)
             },
+            enabled = enabled,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(54.dp)
@@ -448,18 +515,40 @@ private fun RelayQuickField(
                     color = if (focused) colors.primary.copy(alpha = 0.72f) else Color.Transparent,
                     shape = RoundedCornerShape(OriveoTheme.radius.inset),
                 )
-                // Matches iOS RelaySetupField: a secret field gives its trailing space to the 44dp reveal button
-                .padding(start = 16.dp, end = if (secure) OriveoTheme.spacing.xs else 16.dp),
-            textStyle = OriveoTheme.typography.body.copy(color = colors.textPrimary),
+                // Aligned with iOS RelaySetupField: the right side of a secret field is left to the 44dp eye button, so only an xs margin remains
+                .padding(
+                    start = if (schemeChip != null) 10.dp else 16.dp,
+                    end = if (secure || trailing != null) OriveoTheme.spacing.xs else 16.dp,
+                ),
+            // With a label inside the slot the input is right-aligned (iOS RelaySetupField: label on the left, value on the right).
+            textStyle = OriveoTheme.typography.body.copy(
+                color = colors.textPrimary,
+                textAlign = if (slotLabel != null) TextAlign.End else TextAlign.Start,
+            ),
             cursorBrush = SolidColor(colors.primary),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             visualTransformation = if (secure && !revealsSecureText) PasswordVisualTransformation() else VisualTransformation.None,
             decorationBox = { inner ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    schemeChip?.let {
+                        SetupSchemeChip(it)
+                        Spacer(Modifier.size(10.dp))
+                    }
+                    leadingIcon?.let {
+                        Icon(it, contentDescription = null, tint = colors.textTertiary, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.size(10.dp))
+                    }
+                    slotLabel?.let {
+                        Text(it, style = OriveoTheme.typography.body, color = colors.textTertiary, maxLines = 1, softWrap = false)
+                        Spacer(Modifier.size(10.dp))
+                    }
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = if (slotLabel != null) Alignment.CenterEnd else Alignment.CenterStart,
+                    ) {
                         if (fieldValue.text.isEmpty()) {
-                            Text(placeholder, style = OriveoTheme.typography.body, color = colors.textTertiary)
+                            Text(slotPlaceholder, style = OriveoTheme.typography.body, color = colors.textTertiary, maxLines = 1)
                         }
                         inner()
                     }
@@ -470,15 +559,16 @@ private fun RelayQuickField(
                             modifier = Modifier.size(44.dp),
                         ) {
                             Icon(
-                                imageVector = if (revealsSecureText) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                painter = painterResource(R.drawable.ph_eye),
                                 contentDescription = stringResource(
                                     if (revealsSecureText) R.string.secure_field_hide else R.string.secure_field_show,
                                 ),
-                                tint = colors.textTertiary,
+                                tint = if (revealsSecureText) colors.primary else colors.textTertiary,
                                 modifier = Modifier.size(20.dp),
                             )
                         }
                     }
+                    trailing?.invoke()
                 }
             },
         )
@@ -488,49 +578,58 @@ private fun RelayQuickField(
     }
 }
 
+/** One key: an "API Key" title row (an extra key gets "Remove" at the end of the row) + the key slot (with a show/hide eye) + with two or more keys, a name slot with an in-slot label. */
 @Composable
-private fun RelayDetectedModelPicker(viewModel: RelaySetupViewModel) {
+private fun RelaySetupKeyFields(
+    key: RelaySetupKeyRow,
+    label: String,
+    onSecretChange: (String) -> Unit,
+    onNameChange: (String) -> Unit,
+    onRemove: () -> Unit,
+) {
     val colors = OriveoTheme.colors
-    val surfaceFill = relayQuickSurfaceFillColor(colors, OriveoTheme.isDark)
-    var expanded by remember { mutableStateOf(false) }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = colors.primary, modifier = Modifier.size(16.dp))
-            Text(
-                stringResource(R.string.relay_default_model_label),
-                style = OriveoTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold),
-                color = colors.textSecondary,
+    val removeLabel = stringResource(R.string.relay_setup_remove_key)
+    Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.xs)) {
+        RelayQuickField(
+            label = label,
+            value = key.secret,
+            onValueChange = onSecretChange,
+            placeholder = stringResource(R.string.relay_api_key_placeholder),
+            icon = painterResource(R.drawable.ph_key),
+            secure = true,
+            labelTrailing = if (key.removable) {
+                {
+                    Row(
+                        modifier = Modifier
+                            .heightIn(min = 44.dp)
+                            .clickable(onClick = onRemove)
+                            .semantics(mergeDescendants = true) { contentDescription = removeLabel }
+                            .padding(horizontal = OriveoTheme.spacing.xs),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(painterResource(R.drawable.ph_trash), contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(14.dp))
+                        Text(
+                            text = stringResource(R.string.remove),
+                            style = OriveoTheme.typography.footnote.copy(fontWeight = FontWeight.SemiBold),
+                            color = colors.textSecondary,
+                        )
+                    }
+                }
+            } else {
+                null
+            },
+        )
+        if (key.showsName) {
+            RelayQuickField(
+                label = null,
+                value = key.name,
+                onValueChange = onNameChange,
+                placeholder = "",
+                icon = null,
+                slotLabel = stringResource(R.string.relay_setup_key_name),
             )
         }
-        Box {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp)
-                    .clip(RoundedCornerShape(OriveoTheme.radius.inset))
-                    .background(surfaceFill)
-                    .clickable { expanded = true }
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(viewModel.defaultModel, style = OriveoTheme.typography.body, color = colors.textPrimary, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Icon(Icons.Filled.ExpandMore, contentDescription = null, tint = colors.textTertiary)
-            }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                // The detected list is the whole catalog; putting each entry into DropdownMenu composes thousands of rows at once.
-                RelayMenuOptions(
-                    options = viewModel.detectedModelIDs,
-                    label = { it },
-                    onSelect = { modelID -> viewModel.updateDefaultModel(modelID); expanded = false },
-                    maxLines = 1,
-                )
-            }
-        }
-        Text(
-            stringResource(R.string.relay_models_found, viewModel.detectedModelIDs.size),
-            style = OriveoTheme.typography.footnote,
-            color = colors.textSecondary,
-        )
     }
 }
 
@@ -539,63 +638,13 @@ internal fun relayQuickSurfaceFillColor(colors: OriveoColors, isDark: Boolean): 
         .opacity(if (isDark) 0.68f else 0.62f)
         .compositeOver(colors.surfaceInset)
 
+/** Protocol colors reuse the existing brand color tokens: Chat = OpenAI, Responses = the same color at 60%, Messages = Anthropic, Gemini = Gemini. */
 @Composable
-private fun RelayQuickResult(viewModel: RelaySetupViewModel) {
-    val colors = OriveoTheme.colors
-    val detection = viewModel.selectedDetection ?: viewModel.discoveryResult?.detections?.firstOrNull()
-    val failure = viewModel.discoveryFailureDetail
-    if (detection == null && failure == null) return
-    val success = detection != null && failure == null
-    val tone = if (success) colors.success else colors.warning
-    val fill = if (success) colors.successSoft else colors.warningSoft
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(OriveoTheme.radius.md))
-            .background(fill)
-            .border(1.dp, tone.copy(alpha = 0.3f), RoundedCornerShape(OriveoTheme.radius.md))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(if (success) Icons.Filled.CheckCircle else Icons.Filled.Warning, contentDescription = null, tint = tone, modifier = Modifier.size(18.dp))
-            Text(
-                if (success) stringResource(R.string.relay_quick_detected) else stringResource(R.string.relay_quick_failed),
-                style = OriveoTheme.typography.body.copy(fontWeight = FontWeight.SemiBold),
-                color = tone,
-            )
-        }
-        Text(
-            text = when {
-                failure != null -> failure
-                detection?.generationVerified == true -> stringResource(R.string.relay_quick_verified_protocol, detection.transport.localizedLabel())
-                detection?.detectionEvidence == RelayDetectionEvidence.GenerationProbe -> stringResource(R.string.relay_quick_probe_protocol, detection.transport.localizedLabel())
-                else -> stringResource(R.string.relay_quick_empty_catalog)
-            },
-            style = OriveoTheme.typography.caption,
-            color = colors.textPrimary,
-        )
-        if (!success) {
-            val attempts = viewModel.discoveryResult?.attempts.orEmpty()
-            relayAttemptDiagnosticLines(attempts).forEach { diagnostic ->
-                Text(
-                    text = diagnostic,
-                    style = OriveoTheme.typography.footnote,
-                    color = colors.textSecondary,
-                )
-            }
-            val retryCount = relayRetryCount(attempts)
-            if (retryCount > 0) {
-                Text(
-                    text = stringResource(R.string.relay_quick_automatic_retries, retryCount),
-                    style = OriveoTheme.typography.footnote,
-                    color = colors.textSecondary,
-                )
-            }
-            relayPreferredUpstreamMessage(attempts)
-                ?.let { Text(it, style = OriveoTheme.typography.footnote, color = colors.textPrimary) }
-        }
-    }
+internal fun relayProtocolColor(protocol: RelayBoardProtocol): Color = when (protocol) {
+    RelayBoardProtocol.Chat -> ProviderBadgeColors.usageBreakdown(ProviderKind.OpenAI)
+    RelayBoardProtocol.Responses -> ProviderBadgeColors.usageBreakdown(ProviderKind.OpenAI).copy(alpha = 0.6f)
+    RelayBoardProtocol.Messages -> ProviderBadgeColors.usageBreakdown(ProviderKind.Anthropic)
+    RelayBoardProtocol.Gemini -> ProviderBadgeColors.usageBreakdown(ProviderKind.Gemini)
 }
 
 internal fun relayAttemptDiagnosticLines(attempts: List<RelayDiscoveryAttempt>): List<String> =
@@ -615,101 +664,628 @@ internal fun relayPreferredUpstreamMessage(attempts: List<RelayDiscoveryAttempt>
 
 internal fun relayRetryCount(attempts: List<RelayDiscoveryAttempt>): Int = attempts.sumOf { it.retryCount }
 
+/** Detection card: a title row "Detection" (the UI is not locked) + n / 3 + a progress bar; each of the three items shows its state and its own elapsed time (refreshed every 0.1 s while running). */
 @Composable
-private fun RelayManualSetupEntry(onClick: () -> Unit) {
+private fun RelayDetectionCardView(detection: RelayDetectionBoard) {
     val colors = OriveoTheme.colors
-    Column {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(Brush.horizontalGradient(listOf(Color.Transparent, colors.border, Color.Transparent))),
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(detection.isRunning) {
+        now = System.currentTimeMillis()
+        while (detection.isRunning) {
+            delay(100)
+            now = System.currentTimeMillis()
+        }
+    }
+    // Card fill and border follow the state: primary color while running, success color when all pass, warning color when any fails (iOS RelaySetupDetectionCard).
+    val (tone, fill) = when {
+        detection.isRunning -> colors.primary to colors.primarySoft
+        detection.rows.any { it.state == RelayCheckState.Failed } -> colors.warning to colors.warningSoft
+        else -> colors.success to colors.successSoft
+    }
+    val shape = RoundedCornerShape(OriveoTheme.radius.md)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(fill)
+            .border(1.dp, tone.opacity(0.28f), shape)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                stringResource(R.string.relay_setup_detection_title),
+                style = OriveoTheme.typography.body.copy(fontWeight = FontWeight.SemiBold),
+                color = colors.textPrimary,
+                modifier = Modifier.alignByBaseline(),
+            )
+            Text(
+                stringResource(R.string.relay_setup_detection_subtitle),
+                color = colors.textSecondary,
+                modifier = Modifier
+                    .weight(1f)
+                    .alignByBaseline(),
+                maxLines = 1,
+                style = OriveoTheme.typography.footnote,
+                autoSize = TextAutoSize.StepBased(
+                    minFontSize = OriveoTheme.typography.footnote.fontSize * 0.85f,
+                    maxFontSize = OriveoTheme.typography.footnote.fontSize,
+                    stepSize = 0.25.sp,
+                ),
+            )
+            Text(
+                "${detection.completed} / ${detection.total}",
+                style = OriveoTheme.typography.body.copy(fontWeight = FontWeight.SemiBold),
+                color = colors.primary,
+                modifier = Modifier.alignByBaseline(),
+            )
+        }
+        LinearProgressIndicator(
+            progress = { detection.completed.toFloat() / detection.total },
+            modifier = Modifier.fillMaxWidth(),
+            color = colors.primary,
+            trackColor = colors.surfaceInset,
         )
+        detection.rows.forEach { row ->
+            RelayDetectionRowView(row, detection, now)
+        }
+        RelayInfoNote(stringResource(R.string.relay_setup_detection_note), colors.textTertiary)
+    }
+}
+
+/** Detection row: icon (top-aligned) + left column [title / key catalog row / details / failure], with the elapsed time in a column of its own (iOS checkRow). */
+@Composable
+private fun RelayDetectionRowView(row: RelayCheckRow, detection: RelayDetectionBoard, now: Long) {
+    val colors = OriveoTheme.colors
+    val locale = LocalConfiguration.current.locales[0]
+    val detail = when {
+        row.state == RelayCheckState.Skipped -> stringResource(R.string.relay_setup_check_skipped)
+        row.kind == RelayCheckKind.Connection && row.state == RelayCheckState.Done ->
+            row.reachablePath?.let { stringResource(R.string.relay_setup_reachable_path, it) }
+        row.kind == RelayCheckKind.Protocols && row.state == RelayCheckState.Running ->
+            stringResource(R.string.relay_setup_protocols_running)
+        row.kind == RelayCheckKind.Protocols && row.state == RelayCheckState.Done ->
+            stringResource(R.string.relay_setup_protocols_done)
+        else -> null
+    }
+    // The elapsed-time column is vertically centered on the whole row and is not pinned to the title line when the left column has several lines. (whole-row vertical centering)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(stringResource(R.string.relay_manual_setup), style = OriveoTheme.typography.body, color = colors.textPrimary)
-                Text(stringResource(R.string.relay_manual_setup_subtitle), style = OriveoTheme.typography.footnote, color = colors.textSecondary)
+            Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) { RelayCheckStateIcon(row.state) }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    stringResource(
+                        when (row.kind) {
+                            RelayCheckKind.Connection -> R.string.relay_setup_check_connection
+                            RelayCheckKind.Catalog -> R.string.relay_setup_check_catalog
+                            RelayCheckKind.Protocols -> R.string.relay_setup_check_protocols
+                        },
+                    ),
+                    style = OriveoTheme.typography.body.copy(fontWeight = FontWeight.SemiBold),
+                    color = colors.textPrimary,
+                )
+                if (row.kind == RelayCheckKind.Catalog && row.state != RelayCheckState.Skipped && row.state != RelayCheckState.Pending) {
+                    detection.keyLines.forEach { line -> RelayKeyCatalogLineView(line) }
+                }
+                detail?.let { Text(it, style = OriveoTheme.typography.footnote, color = colors.textSecondary) }
+                if (row.state == RelayCheckState.Failed) {
+                    if (row.kind == RelayCheckKind.Connection) RelayAttemptDiagnostics(detection.attempts)
+                    RelayFailureSentence(row.failure, row.failureText)
+                }
             }
-            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = colors.textTertiary, modifier = Modifier.size(18.dp))
+        }
+        row.elapsedMs(now)?.let { elapsed ->
+            Text(
+                stringResource(R.string.mcp_detail_seconds, relaySetupSeconds(elapsed, locale)),
+                style = OriveoTheme.typography.footnote.copy(fontFeatureSettings = "tnum"),
+                color = colors.textTertiary,
+            )
         }
     }
 }
 
 @Composable
-private fun RelayQuickActionBar(
-    action: RelayQuickAction,
-    isWorking: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+private fun RelayCheckStateIcon(state: RelayCheckState) {
     val colors = OriveoTheme.colors
-    val text = when (action) {
-        RelayQuickAction.Detect -> stringResource(R.string.relay_quick_detect_action)
-        RelayQuickAction.ConnectAndSave -> stringResource(R.string.relay_quick_connect_save)
-        RelayQuickAction.SaveAndContinue -> stringResource(R.string.relay_quick_save_continue)
+    when (state) {
+        RelayCheckState.Running -> CircularProgressIndicator(color = colors.primary, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+        RelayCheckState.Done -> Icon(painterResource(R.drawable.ph_check_circle), null, tint = colors.success, modifier = Modifier.size(22.dp))
+        RelayCheckState.Failed -> Icon(painterResource(R.drawable.ph_warning_circle), null, tint = colors.warning, modifier = Modifier.size(22.dp))
+        RelayCheckState.Skipped -> Icon(painterResource(R.drawable.ph_minus_circle), null, tint = colors.textTertiary, modifier = Modifier.size(22.dp))
+        RelayCheckState.Pending -> Icon(painterResource(R.drawable.ph_circle), null, tint = colors.textTertiary, modifier = Modifier.size(22.dp))
     }
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color.Transparent, colors.background.copy(alpha = 0.96f), colors.background)))
-            .navigationBarsPadding()
-            .padding(horizontal = OriveoTheme.layout.screenH, vertical = 18.dp),
+}
+
+/** Key catalog row: inside the title column, under the title; a chip with key 13 + footnote (8 / 3); skipped ones are not shown. */
+@Composable
+private fun RelayKeyCatalogLineView(line: RelayKeyCatalogLine) {
+    val colors = OriveoTheme.colors
+    if (line.state == RelayCheckState.Skipped) return
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        OriveoPrimaryButton(
-            text = text,
-            onClick = onClick,
-            enabled = enabled,
-            loading = isWorking,
-            modifier = Modifier.fillMaxWidth(),
+        line.label?.let { label ->
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(colors.surfaceInset)
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Icon(painterResource(R.drawable.ph_key), null, tint = colors.primary, modifier = Modifier.size(13.dp))
+                Text(label, style = OriveoTheme.typography.footnote, color = colors.textSecondary, maxLines = 1)
+            }
+        }
+        when (line.state) {
+            RelayCheckState.Done -> line.modelCount?.let { count ->
+                Text(
+                    pluralStringResource(R.plurals.relay_setup_catalog_count, count, count),
+                    style = OriveoTheme.typography.footnote,
+                    color = colors.textSecondary,
+                )
+            }
+            RelayCheckState.Failed -> RelayFailureSentence(line.failure, line.failureText)
+            RelayCheckState.Skipped, RelayCheckState.Running, RelayCheckState.Pending -> Unit
+        }
+    }
+}
+
+@Composable
+private fun RelayFailureSentence(kind: RelaySetupFailureKind?, fallback: String?) {
+    val text = kind?.messageRes?.let { stringResource(it) } ?: fallback ?: return
+    Text(text, style = OriveoTheme.typography.footnote, color = OriveoTheme.colors.warning)
+}
+
+/** Failure item: the upstream raw text -> a collapsible "What Oriveo tried" (collapsed by default; one line per attempt, shrunk to 0.7 if it does not fit, + the number of automatic retries); the failure sentence follows. */
+@Composable
+private fun RelayAttemptDiagnostics(attempts: List<RelayDiscoveryAttempt>) {
+    val colors = OriveoTheme.colors
+    val footnote = OriveoTheme.typography.footnote
+    var expanded by remember(attempts) { mutableStateOf(false) }
+    relayPreferredUpstreamMessage(attempts)
+        ?.let { Text(it, style = footnote, color = colors.textPrimary) }
+    val lines = relayAttemptDiagnosticLines(attempts)
+    val retryCount = relayRetryCount(attempts)
+    if (lines.isEmpty() && retryCount == 0) return
+    val expandedLabel = stringResource(if (expanded) R.string.mcp_steps_expanded else R.string.mcp_steps_collapsed)
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    Row(
+        modifier = Modifier
+            .clickable { expanded = !expanded }
+            .semantics { stateDescription = expandedLabel }
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(R.string.relay_setup_attempts_title),
+            style = footnote.copy(fontWeight = FontWeight.SemiBold),
+            color = colors.textSecondary,
+        )
+        // Collapsed points in the reading direction, expanded points down; the caret_right resource is not mirrored automatically, so flip it manually in RTL.
+        Icon(
+            painterResource(if (expanded) R.drawable.ph_caret_down else R.drawable.ph_caret_right),
+            contentDescription = null,
+            tint = colors.textSecondary,
+            modifier = Modifier
+                .size(12.dp)
+                .then(if (rtl && !expanded) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier),
+        )
+    }
+    if (!expanded) return
+    lines.forEach { diagnostic ->
+        Text(
+            diagnostic,
+            style = footnote,
+            color = colors.textSecondary,
+            maxLines = 1,
+            autoSize = TextAutoSize.StepBased(minFontSize = footnote.fontSize * 0.7f, maxFontSize = footnote.fontSize, stepSize = 0.25.sp),
+        )
+    }
+    if (retryCount > 0) {
+        Text(
+            text = stringResource(R.string.relay_quick_automatic_retries, retryCount),
+            style = footnote,
+            color = colors.textSecondary,
         )
     }
 }
 
+/** Step 2: back + title + subtitle (host · n keys · Step 2 of 2) -> search -> group selection -> manual add. */
+@Composable
+private fun RelaySetupModelsContent(viewModel: RelaySetupViewModel) {
+    val colors = OriveoTheme.colors
+    val spacing = OriveoTheme.spacing
+    val board = viewModel.modelsBoard
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.lg)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(spacing.md)) {
+            OriveoBackButton(onClick = viewModel::backToAddress)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    stringResource(R.string.relay_setup_models_title),
+                    style = OriveoTheme.typography.title2,
+                    color = colors.textPrimary,
+                    modifier = Modifier.semantics { heading() },
+                )
+                val parts = listOfNotNull(
+                    board.host,
+                    pluralStringResource(R.plurals.relay_setup_key_count, board.keyCount, board.keyCount).takeIf { board.keyCount >= 2 },
+                    stringResource(R.string.relay_setup_step_of, 2, 2),
+                )
+                Text(parts.joinToString(" · "), style = OriveoTheme.typography.footnote, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Box {
+            RelayQuickField(
+                label = null,
+                value = viewModel.modelSearch,
+                onValueChange = viewModel::updateSearch,
+                placeholder = pluralStringResource(R.plurals.relay_setup_search_models, board.totalModels, board.totalModels),
+                icon = null,
+                leadingIcon = painterResource(R.drawable.ph_magnifying_glass),
+            )
+        }
+        if (board.isCatalogEmpty) {
+            Text(stringResource(R.string.relay_setup_models_empty), style = OriveoTheme.typography.body, color = colors.textSecondary)
+        }
+        board.groups.forEach { group ->
+            RelaySetupModelGroupView(
+                group = group,
+                onToggleGroup = { viewModel.toggleGroup(group.id) },
+                onSelectGroup = { viewModel.selectGroup(group.id) },
+                onToggleModel = viewModel::toggleModel,
+            )
+        }
+        RelayManualModelEntry(
+            onBegin = viewModel::beginManualModelEntry,
+            onAdd = { viewModel.addManualModel(it) },
+            showsNotice = board.manualAddNotice,
+        )
+        // Persistence failure: one box = a warning icon + the reason (footnote warning), with a warningSoft fill and a 0.3 warning border (iOS has no title row).
+        board.saveFailure?.let { failure ->
+            val shape = RoundedCornerShape(OriveoTheme.radius.inset)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(shape)
+                    .background(colors.warningSoft)
+                    .border(1.dp, colors.warning.opacity(0.3f), shape)
+                    .padding(spacing.md),
+                horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Icon(painterResource(R.drawable.ph_warning_duotone), contentDescription = null, tint = colors.warning, modifier = Modifier.size(16.dp))
+                Text(failure, style = OriveoTheme.typography.footnote, color = colors.warning)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RelaySetupModelGroupView(
+    group: RelaySetupModelGroup,
+    onToggleGroup: () -> Unit,
+    onSelectGroup: () -> Unit,
+    onToggleModel: (String) -> Unit,
+) {
+    val colors = OriveoTheme.colors
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggleGroup),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // Collapsed points in the reading direction, expanded points down; the caret_right resource is not mirrored automatically, so flip it manually in RTL.
+            Icon(
+                painterResource(if (group.expanded) R.drawable.ph_caret_down else R.drawable.ph_caret_right),
+                contentDescription = null,
+                tint = colors.textSecondary,
+                modifier = Modifier
+                    .size(14.dp)
+                    .then(if (LocalLayoutDirection.current == LayoutDirection.Rtl && !group.expanded) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier),
+            )
+            // Name + count + selected form one cluster that takes all the remaining width; "Select all in group" is pinned to the end of the row and does not drift with the name length.
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    group.titleRes?.let { stringResource(it) } ?: group.title,
+                    style = OriveoTheme.typography.body.copy(fontWeight = FontWeight.SemiBold),
+                    color = colors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Text("· ${group.modelCount}", style = OriveoTheme.typography.footnote, color = colors.textTertiary, maxLines = 1)
+                if (group.selectedCount > 0) {
+                    Text(stringResource(R.string.relay_setup_group_selected, group.selectedCount), style = OriveoTheme.typography.caption, color = colors.primary, maxLines = 1)
+                }
+            }
+            // When not selectable, the whole control is at 0.45 alpha with the color unchanged (iOS disabled).
+            Text(
+                stringResource(R.string.relay_setup_select_group),
+                style = OriveoTheme.typography.footnote.copy(fontWeight = FontWeight.Medium),
+                color = colors.primary,
+                maxLines = 1,
+                modifier = Modifier
+                    .alpha(if (group.canSelectAll) 1f else 0.45f)
+                    .clip(RoundedCornerShape(50))
+                    .background(colors.primarySoft)
+                    .clickable(enabled = group.canSelectAll, onClick = onSelectGroup)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+        }
+        if (group.rows.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(OriveoTheme.radius.md))
+                    .background(colors.surfaceInset)
+                    .padding(vertical = 4.dp),
+            ) {
+                group.rows.forEachIndexed { index, row ->
+                    if (index > 0) {
+                        // The divider is inset to just past the checkbox (iOS 48).
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 48.dp)
+                                .fillMaxWidth()
+                                .height(0.5.dp)
+                                .background(colors.border.opacity(0.72f)),
+                        )
+                    }
+                    // The checkbox uses the Phosphor drawing, while the whole row is still a checkable control (Role.Checkbox), so screen reader and tap semantics are unchanged.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .toggleable(value = row.selected, role = Role.Checkbox, onValueChange = { onToggleModel(row.id) })
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(if (row.selected) R.drawable.ph_check_square_duotone else R.drawable.ph_square),
+                            contentDescription = null,
+                            tint = if (row.selected) colors.primary else colors.textTertiary,
+                            modifier = Modifier.size(24.dp),
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
+                            // The model id and the protocol chip are technical strings, so the whole row is forced to LTR.
+                            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(
+                                        row.id,
+                                        style = OriveoTheme.typography.body,
+                                        color = colors.textPrimary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.MiddleEllipsis,
+                                        modifier = Modifier.weight(1f, fill = false),
+                                    )
+                                    RelayProtocolChip(row.protocol)
+                                }
+                            }
+                            row.keyChip?.let { RelayKeyChip(it) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Protocol chip: a capsule with a dot of 7 + caption. */
+@Composable
+private fun RelayProtocolChip(protocol: RelayBoardProtocol) {
+    val colors = OriveoTheme.colors
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(colors.surfaceElevated)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(7.dp)
+                .clip(CircleShape)
+                .background(relayProtocolColor(protocol)),
+        )
+        Text(protocol.legend, style = OriveoTheme.typography.caption, color = colors.textSecondary, maxLines = 1)
+    }
+}
+
+/** Key chip: key 12 + a label caption, in a capsule. */
+@Composable
+private fun RelayKeyChip(label: String) {
+    val colors = OriveoTheme.colors
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(colors.surfaceElevated)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(painterResource(R.drawable.ph_key), contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(12.dp))
+        Text(label, style = OriveoTheme.typography.caption, color = colors.textSecondary, maxLines = 1)
+    }
+}
+
+@Composable
+private fun RelayManualModelEntry(onBegin: () -> Unit, onAdd: (String) -> Unit, showsNotice: Boolean) {
+    val colors = OriveoTheme.colors
+    var editing by remember { mutableStateOf(false) }
+    var draft by remember { mutableStateOf("") }
+    val fieldFocus = remember { FocusRequester() }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier
+                .clickable {
+                    onBegin()
+                    draft = ""
+                    editing = true
+                }
+                .heightIn(min = 44.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(painterResource(R.drawable.ph_plus), null, tint = colors.primary, modifier = Modifier.size(16.dp))
+            Text(stringResource(R.string.relay_setup_add_model_manually), style = OriveoTheme.typography.body.copy(fontWeight = FontWeight.SemiBold), color = colors.primary)
+        }
+        if (showsNotice) {
+            Text(
+                stringResource(R.string.relay_setup_models_already_listed),
+                style = OriveoTheme.typography.footnote,
+                color = colors.textSecondary,
+            )
+        }
+    }
+    if (editing) {
+        // A system dialog isomorphic to the iOS `.alert`.
+        AlertDialog(
+            onDismissRequest = { editing = false },
+            title = { Text(stringResource(R.string.relay_setup_add_model_manually)) },
+            text = {
+                // Focus the input field as soon as the dialog opens.
+                LaunchedEffect(Unit) { fieldFocus.requestFocus() }
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    modifier = Modifier.focusRequester(fieldFocus),
+                    placeholder = { Text(RelayFlagshipModel.current()) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.None,
+                        autoCorrectEnabled = false,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onAdd(draft)
+                        draft = ""
+                        editing = false
+                    },
+                    enabled = relayManualModelAddable(draft),
+                ) {
+                    Text(stringResource(R.string.add))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { editing = false },
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+}
+
+/** Step 1 bottom bar: "Step 1 of 2" above the button + "Cancel detection" while running; the primary button is always "Next"; a "manual" row under a hairline. */
+@Composable
+private fun RelayStepOneActionBar(
+    board: RelaySetupBoard,
+    onNext: () -> Unit,
+    onCancelDetection: () -> Unit,
+    onSecondary: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = OriveoTheme.colors
+    SetupActionBar(
+        primaryText = stringResource(board.primaryLabel),
+        primaryEnabled = board.isPrimaryEnabled,
+        primaryLoading = false,
+        secondaryText = stringResource(board.secondaryRow),
+        secondaryCompact = true,
+        onPrimary = onNext,
+        onSecondary = onSecondary,
+        modifier = modifier,
+        header = {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.relay_setup_step_of, 1, 2),
+                    style = OriveoTheme.typography.footnote,
+                    color = colors.textSecondary,
+                    modifier = Modifier.weight(1f),
+                )
+                if (board.showsCancelDetection) {
+                    Text(
+                        stringResource(R.string.relay_setup_cancel_detection),
+                        style = OriveoTheme.typography.footnote.copy(fontWeight = FontWeight.SemiBold),
+                        color = colors.textSecondary,
+                        modifier = Modifier
+                            .clickable(onClick = onCancelDetection)
+                            .padding(vertical = 4.dp),
+                    )
+                }
+            }
+        },
+    )
+}
+
+/** Step 2 bottom bar: a footnote (after saving, one very small request is sent for the first selected model) + "Save (n selected)", not tappable with 0 selected. */
+@Composable
+private fun RelayModelsActionBar(
+    board: RelaySetupModelsBoard,
+    onSave: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = OriveoTheme.colors
+    SetupActionBar(
+        primaryText = stringResource(R.string.relay_setup_save_selected, board.selectedCount),
+        primaryEnabled = board.isSaveEnabled,
+        primaryLoading = board.isSaving,
+        secondaryText = null,
+        onPrimary = onSave,
+        onSecondary = {},
+        modifier = modifier,
+        header = { RelayInfoNote(stringResource(R.string.relay_setup_save_note), colors.textSecondary) },
+    )
+}
+
+/** Three states of the local primary button: Detect connection settings / detecting (loading) / Connect and save. */
 @Composable
 private fun LocalComputeActionBar(
+    action: LocalPrimaryAction,
     isWorking: Boolean,
-    isVerified: Boolean,
     enabled: Boolean,
+    @StringRes secondaryRow: Int,
     onClick: () -> Unit,
+    onSecondary: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = OriveoTheme.colors
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color.Transparent, colors.background.copy(alpha = 0.96f), colors.background),
-                ),
-            )
-            .navigationBarsPadding()
-            .padding(horizontal = OriveoTheme.layout.screenH, vertical = 18.dp),
-    ) {
-        OriveoPrimaryButton(
-            text = if (isWorking) {
-                stringResource(R.string.local_compute_connecting)
-            } else if (isVerified) {
-                stringResource(R.string.relay_quick_connect_save)
-            } else {
-                stringResource(R.string.relay_test_connection)
-            },
-            onClick = onClick,
-            enabled = enabled,
-            loading = isWorking,
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
+    SetupActionBar(
+        primaryText = when (action) {
+            LocalPrimaryAction.Detect -> stringResource(R.string.relay_quick_detect_action)
+            LocalPrimaryAction.ConnectAndSave -> stringResource(R.string.relay_quick_connect_save)
+        },
+        primaryEnabled = enabled,
+        primaryLoading = isWorking,
+        secondaryText = stringResource(secondaryRow),
+        onPrimary = onClick,
+        onSecondary = onSecondary,
+        modifier = modifier,
+    )
 }
 
 @Composable
-private fun RelayTransport.localizedLabel(): String = stringResource(
+internal fun RelayTransport.localizedLabel(): String = stringResource(
     when (this) {
         RelayTransport.OpenAIChatCompletions, RelayTransport.Auto -> R.string.relay_transport_openai_chat_completions
         RelayTransport.LlamaCppNative -> R.string.relay_transport_llamacpp_native
@@ -719,689 +1295,233 @@ private fun RelayTransport.localizedLabel(): String = stringResource(
     },
 )
 
+/**
+ * Manual setup (the ManualSetup board): the same page shell as step 1; address -> key -> model -> connection name -> "Protocol" card ->
+ * the collapsible group "Authentication, headers and query parameters" -> (after a failure) the failure card. Rendered strictly from [RelaySetupViewModel.manualBoard].
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun RelayActionBar(
-    isTesting: Boolean,
-    canTest: Boolean,
-    testResult: RelayConnectionTestResult?,
-    isSaving: Boolean,
-    canSave: Boolean,
-    onTest: () -> Unit,
-    onSave: () -> Unit,
+private fun RelayManualSetupContent(viewModel: RelaySetupViewModel) {
+    val colors = OriveoTheme.colors
+    val spacing = OriveoTheme.spacing
+    val board = viewModel.manualBoard
+
+    // Only when a new failure card appears do we dismiss the keyboard and scroll to it; the same card does not scroll again, and a dismissed one does not scroll (same reveal function as edit connection).
+    val failureRequester = remember { BringIntoViewRequester() }
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val lastStatus = remember { arrayOfNulls<RelayEditStatus>(1) }
+    LaunchedEffect(board.status) {
+        val reveal = RelayEditBoardModel.revealsStatus(lastStatus[0], board.status)
+        lastStatus[0] = board.status
+        if (reveal) {
+            focusManager.clearFocus()
+            keyboard?.hide()
+            failureRequester.bringIntoView()
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        SetupBoardHero(
+            icon = painterResource(R.drawable.ph_hard_drives),
+            label = stringResource(board.heroLabelRes),
+            title = stringResource(board.heroTitleRes),
+            subtitle = stringResource(board.heroSubtitleRes),
+            tint = colors.primary,
+            tag = stringResource(board.heroTagRes),
+        )
+
+        board.blocks.forEach { block ->
+            when (block) {
+                RelayManualBlock.RequestUrl -> Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+                    RelayQuickField(
+                        label = stringResource(board.requestUrlTitleRes),
+                        value = viewModel.endpoint,
+                        onValueChange = viewModel::updateEndpoint,
+                        placeholder = RELAY_ENDPOINT_PLACEHOLDER,
+                        icon = painterResource(board.requestUrlIcon),
+                        keyboardType = KeyboardType.Uri,
+                        selectionRange = viewModel.endpointHighlightRange,
+                        schemeChip = setupSchemeChip(viewModel.endpoint, cleartext = false),
+                    )
+                    board.willRequest?.let { RelayWillRequestLine(it) }
+                }
+                RelayManualBlock.ApiKeys -> Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+                    RelaySetupKeyList(viewModel, board.keys)
+                    // Same row as step 1: the "Keys are stored on this device only" footnote + "Add another key".
+                    RelayKeysFootnoteRow(stringResource(R.string.relay_setup_keys_local), onAdd = viewModel::addKey)
+                    RelayFormIssueNotes(issues = board.keyIssues)
+                }
+                RelayManualBlock.Model -> RelayQuickField(
+                    label = stringResource(board.modelTitleRes),
+                    value = viewModel.defaultModel,
+                    onValueChange = viewModel::updateDefaultModel,
+                    placeholder = board.modelPlaceholder,
+                    icon = painterResource(board.modelIcon),
+                    footnote = stringResource(board.modelFootnoteRes),
+                )
+                RelayManualBlock.ConnectionName -> Column(verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
+                    RelayQuickField(
+                        label = stringResource(board.connectionNameTitleRes),
+                        value = viewModel.name,
+                        onValueChange = viewModel::updateConnectionName,
+                        // The right side shows only the domain derived from the address; if it cannot be derived it stays empty and does not repeat the in-slot label.
+                        placeholder = board.connectionNamePlaceholder.orEmpty(),
+                        icon = painterResource(board.connectionNameIcon),
+                        slotLabel = stringResource(board.connectionNameSlotLabelRes),
+                        footnote = stringResource(board.connectionNameFootnoteRes),
+                    )
+                }
+                RelayManualBlock.ProtocolCard -> EditGroup(
+                    group = board.protocolGroup,
+                    onToggle = {},
+                ) { row ->
+                    MenuRow(
+                        row = row,
+                        options = RelayManualSetupBoardModel.protocolOptions,
+                        label = { relayAdvancedTransportLabel(it) },
+                        onSelect = viewModel::selectManualTransport,
+                    )
+                }
+                RelayManualBlock.Advanced -> {
+                    val summary = board.advancedSummary
+                    val count = if (summary.filledCount == 0) {
+                        stringResource(R.string.relay_manual_not_set)
+                    } else {
+                        pluralStringResource(R.plurals.relay_edit_headers_set_count, summary.filledCount, summary.filledCount)
+                    }
+                    EditGroup(
+                        group = board.advancedGroup,
+                        onToggle = viewModel::toggleManualAdvanced,
+                        trailing = "${stringResource(summary.authRes)} · $count",
+                    ) { row -> RelayManualAdvancedRow(viewModel, row) }
+                }
+                RelayManualBlock.Failure -> Box(modifier = Modifier.bringIntoViewRequester(failureRequester)) {
+                    StatusBlock(
+                        status = board.status,
+                        onSaveUnverified = viewModel::saveManualUnverified,
+                        failureNote = stringResource(board.failureNoteRes),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Rows of the collapsible group: auth menu / UA / headers (masked) / query parameters (not masked) / add, the same row set as edit connection. */
+@Composable
+private fun RelayManualAdvancedRow(viewModel: RelaySetupViewModel, row: RelayEditRow) {
+    fun List<RelayKeyValue>.replaced(index: Int, value: RelayKeyValue) = toMutableList().also { it[index] = value }
+    when (row.id) {
+        RelayEditRowId.Authentication -> MenuRow(
+            row = row,
+            options = RelayAuthMode.entries,
+            label = { relayAdvancedAuthModeLabel(it) },
+            onSelect = viewModel::selectManualAuthMode,
+        )
+        RelayEditRowId.UserAgent -> KeyValueRow(
+            label = stringResource(row.titleRes),
+            name = null,
+            value = viewModel.manualUserAgent,
+            valuePlaceholder = stringResource(R.string.relay_advanced_user_agent_placeholder),
+            masked = false,
+            onName = {},
+            onValue = viewModel::updateManualUserAgent,
+            onRemove = null,
+        )
+        RelayEditRowId.Header -> {
+            val headers = viewModel.manualHeaders
+            val pair = headers[row.index]
+            KeyValueRow(
+                label = stringResource(row.titleRes),
+                name = pair.key,
+                namePlaceholder = RelayFormValidation.definition(RelayFormValidation.Field.Headers)?.placeholder.orEmpty(),
+                value = pair.value,
+                valuePlaceholder = stringResource(R.string.relay_value_label),
+                masked = row.masked,
+                onName = { viewModel.updateManualHeaders(headers.replaced(row.index, pair.copy(key = it))) },
+                onValue = { viewModel.updateManualHeaders(headers.replaced(row.index, pair.copy(value = it))) },
+                onRemove = { viewModel.updateManualHeaders(headers.filterIndexed { i, _ -> i != row.index }) },
+            )
+            RowIssues(row.issues)
+        }
+        RelayEditRowId.QueryParam -> {
+            val params = viewModel.manualQueryParams
+            val pair = params[row.index]
+            KeyValueRow(
+                label = stringResource(row.titleRes),
+                name = pair.key,
+                namePlaceholder = RelayFormValidation.definition(RelayFormValidation.Field.QueryParams)?.placeholder.orEmpty(),
+                value = pair.value,
+                valuePlaceholder = stringResource(R.string.relay_value_label),
+                masked = false,
+                onName = { viewModel.updateManualQueryParams(params.replaced(row.index, pair.copy(key = it))) },
+                onValue = { viewModel.updateManualQueryParams(params.replaced(row.index, pair.copy(value = it))) },
+                onRemove = { viewModel.updateManualQueryParams(params.filterIndexed { i, _ -> i != row.index }) },
+            )
+            RowIssues(row.issues)
+        }
+        RelayEditRowId.AddEntry -> AddEntryRow(
+            onAddHeader = { viewModel.updateManualHeaders(viewModel.manualHeaders + RelayKeyValue("", "")) },
+            onAddQueryParam = { viewModel.updateManualQueryParams(viewModel.manualQueryParams + RelayKeyValue("", "")) },
+        )
+        else -> Unit
+    }
+}
+
+/** Manual setup bottom bar: a single primary button (verify and save / spinner while running / re-verify) and no "Test connection". */
+@Composable
+private fun RelayManualActionBar(
+    board: RelayManualSetupBoard,
+    onValidate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = OriveoTheme.colors
-    val spacing = OriveoTheme.spacing
-    val layout = OriveoTheme.layout
-
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color.Transparent, colors.background, colors.background)))
-            .navigationBarsPadding(),
-        verticalArrangement = Arrangement.spacedBy(spacing.sm),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = layout.screenH)
-                .padding(top = spacing.md, bottom = spacing.lg),
-            verticalArrangement = Arrangement.spacedBy(spacing.sm),
-        ) {
-            RelayConnectionResultRow(testResult = testResult)
-
-            Text(
-                text = stringResource(R.string.relay_test_connection_subtitle),
-                style = OriveoTheme.typography.caption,
-                color = colors.textSecondary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(spacing.md),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OriveoSecondaryButton(
-                    text = stringResource(R.string.relay_test_connection),
-                    onClick = onTest,
-                    enabled = canTest,
-                    loading = isTesting,
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Filled.NetworkCheck,
-                            contentDescription = null,
-                            tint = colors.primary,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                OriveoPrimaryButton(
-                    text = if (isSaving) stringResource(R.string.saving) else stringResource(R.string.save),
-                    onClick = onSave,
-                    enabled = canSave,
-                    loading = isSaving,
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Filled.Save,
-                            contentDescription = null,
-                            tint = androidx.compose.ui.graphics.Color.White,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-    }
+    SetupActionBar(
+        primaryText = stringResource(board.primary.titleRes),
+        primaryEnabled = board.primary.enabled,
+        primaryLoading = board.primary.loading,
+        secondaryText = null,
+        onPrimary = onValidate,
+        onSecondary = {},
+        modifier = modifier,
+    )
 }
 
+/** "Will request ..." under the address slot: a leading arrow-elbow-down-right (13, flipped in RTL, tertiary color, hidden from screen readers) aligned to the first line, at most 2 lines. */
 @Composable
-private fun RelayConnectionResultRow(testResult: RelayConnectionTestResult?) {
-    if (testResult == null) return
-
+private fun RelayWillRequestLine(url: String) {
     val colors = OriveoTheme.colors
-    val isSuccess = testResult.isSuccess
-    val tone = if (isSuccess) colors.success else colors.warning
-    val fill = if (isSuccess) colors.successSoft else colors.warningSoft
-    val message = testResult.message.ifBlank {
-        stringResource(
-            if (isSuccess) R.string.relay_test_connection_success
-            else R.string.relay_test_connection_missing_fields,
-        )
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(OriveoTheme.radius.md))
-            .background(fill)
-            .border(OriveoBorderWidth.standard, tone.opacity(0.22f), RoundedCornerShape(OriveoTheme.radius.md))
-            .padding(horizontal = OriveoTheme.spacing.md, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
-    ) {
-        Icon(
-            imageVector = if (isSuccess) Icons.Filled.CheckCircle else Icons.Filled.Warning,
-            contentDescription = null,
-            tint = tone,
-            modifier = Modifier.size(18.dp),
-        )
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val style = OriveoTheme.typography.footnote
+    val firstLine = with(LocalDensity.current) { style.lineHeight.toDp() }
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Top) {
+        // The icon is centered within the first line height, equivalent to the iOS first-baseline alignment.
+        Box(modifier = Modifier.height(firstLine), contentAlignment = Alignment.Center) {
+            Icon(
+                painter = painterResource(R.drawable.ph_arrow_elbow_down_right),
+                contentDescription = null,
+                tint = colors.textTertiary,
+                modifier = Modifier
+                    .size(13.dp)
+                    .then(if (rtl) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier),
+            )
+        }
+        // Middle ellipsis on Android supports a single line only; with two lines fall back to tail ellipsis.
         Text(
-            text = message,
-            style = OriveoTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold),
-            color = tone,
+            text = stringResource(R.string.relay_setup_will_request, url),
+            style = style,
+            color = colors.textSecondary,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
         )
     }
 }
 
+/** Footnote row: a leading info icon (16). Shared by the detection card explanation row and the step 2 save bar footnote. */
 @Composable
-private fun RelaySimpleSection(
-    viewModel: RelaySetupViewModel,
-) {
-    val spacing = OriveoTheme.spacing
-
-    Column {
-            OriveoSectionHeader(title = stringResource(R.string.relay_mode_simple))
-
-            Spacer(modifier = Modifier.height(spacing.lg))
-
-            OriveoLabeledField(
-                label = stringResource(R.string.relay_field_name),
-                value = viewModel.name,
-                onValueChange = { viewModel.name = it },
-                placeholder = stringResource(R.string.relay_name_placeholder),
-                footnote = stringResource(R.string.relay_name_footnote),
-                enabled = !viewModel.isSubmitting,
-            )
-
-            Spacer(modifier = Modifier.height(spacing.lg))
-
-            OriveoLabeledField(
-                label = stringResource(R.string.relay_field_endpoint),
-                value = viewModel.endpoint,
-                onValueChange = viewModel::updateEndpoint,
-                placeholder = stringResource(R.string.relay_endpoint_placeholder),
-                footnote = stringResource(R.string.relay_endpoint_footnote),
-                enabled = !viewModel.isSubmitting,
-                selectionRange = viewModel.endpointHighlightRange,
-            )
-
-            Spacer(modifier = Modifier.height(spacing.lg))
-
-            OriveoLabeledField(
-                label = stringResource(R.string.api_key),
-                value = viewModel.apiKey,
-                onValueChange = viewModel::updateApiKey,
-                placeholder = stringResource(R.string.relay_api_key_placeholder),
-                isSecure = true,
-                enabled = !viewModel.isSubmitting,
-            )
-
-            Spacer(modifier = Modifier.height(spacing.lg))
-
-            OriveoLabeledField(
-                label = stringResource(R.string.relay_default_model_label),
-                value = viewModel.defaultModel,
-                onValueChange = viewModel::updateDefaultModel,
-                placeholder = stringResource(R.string.relay_default_model_placeholder),
-                footnote = stringResource(R.string.relay_default_model_footnote),
-                enabled = !viewModel.isSubmitting,
-            )
-
-            Spacer(modifier = Modifier.height(spacing.lg))
-
-            RelayFormIssueNotes(issues = viewModel.formIssues)
-    }
-}
-
-@Composable
-private fun RelayStepHeader(stepLabel: String, title: String, subtitle: String) {
-    val colors = OriveoTheme.colors
-    val spacing = OriveoTheme.spacing
-    Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
-        Text(
-            text = stepLabel,
-            style = OriveoTheme.typography.caption,
-            color = colors.primary,
-        )
-        Text(
-            text = title,
-            style = OriveoTheme.typography.title1,
-            color = colors.textPrimary,
-        )
-        Text(
-            text = subtitle,
-            style = OriveoTheme.typography.body,
-            color = colors.textSecondary,
-        )
-    }
-}
-
-@Composable
-private fun RelayStep2Header(kind: RelayKind) {
-    val meta = relayKindMeta(kind)
-    val colors = OriveoTheme.colors
-    val spacing = OriveoTheme.spacing
-    val tint = meta.tint
-    Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
-        Text(
-            text = stringResource(R.string.relay_setup_step_2_of_2),
-            style = OriveoTheme.typography.caption,
-            color = colors.primary,
-        )
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(tint.copy(alpha = 0.12f))
-                .padding(horizontal = 10.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(
-                imageVector = meta.systemIcon,
-                contentDescription = null,
-                tint = tint,
-                modifier = Modifier.size(14.dp),
-            )
-            Text(
-                text = stringResource(meta.titleRes),
-                style = OriveoTheme.typography.caption,
-                color = tint,
-            )
-        }
-        Text(
-            text = stringResource(R.string.relay_setup_page_title),
-            style = OriveoTheme.typography.title1,
-            color = colors.textPrimary,
-        )
-        Text(
-            text = stringResource(meta.subtitleRes),
-            style = OriveoTheme.typography.body,
-            color = colors.textSecondary,
-        )
-    }
-}
-
-@Composable
-private fun RelayCustomAdvancedSection(viewModel: RelaySetupViewModel) {
-    val spacing = OriveoTheme.spacing
-
-    OriveoCard {
-        Column {
-            OriveoSectionHeader(title = stringResource(R.string.relay_advanced_title))
-            Spacer(modifier = Modifier.height(spacing.lg))
-            RelayEnumDropdown(
-                title = stringResource(R.string.relay_advanced_transport),
-                value = viewModel.customTransport,
-                values = RelayTransport.entries,
-                label = { relayTransportLabel(it) },
-                onSelect = { newTransport ->
-                    viewModel.customTransport = newTransport
-
-                    if (newTransport != RelayTransport.OpenAIResponses) {
-                        viewModel.customWebSearchToolName = null
-                    }
-                },
-            )
-            Spacer(modifier = Modifier.height(spacing.md))
-            RelayEnumDropdown(
-                title = stringResource(R.string.relay_advanced_auth_mode),
-                value = viewModel.customAuthMode,
-                values = RelayAuthMode.entries,
-                label = { relayAuthModeLabel(it) },
-                onSelect = { viewModel.customAuthMode = it },
-            )
-            Spacer(modifier = Modifier.height(spacing.md))
-            RelayEnumDropdown(
-                title = stringResource(R.string.relay_advanced_reasoning_effort),
-                value = viewModel.customReasoningEffort,
-                values = RelayReasoningEffort.entries,
-                label = { relayReasoningLabel(it) },
-                onSelect = { viewModel.customReasoningEffort = it },
-            )
-            Spacer(modifier = Modifier.height(spacing.md))
-            OutlinedTextField(
-                value = viewModel.customServiceTier,
-                onValueChange = { viewModel.customServiceTier = it },
-                label = { Text(stringResource(R.string.relay_advanced_service_tier)) },
-                placeholder = { Text(stringResource(R.string.relay_advanced_service_tier_placeholder)) },
-                singleLine = true,
-                enabled = !viewModel.isSubmitting,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(modifier = Modifier.height(spacing.md))
-            RelaySwitchRow(
-                title = stringResource(R.string.relay_advanced_stream),
-                checked = viewModel.customStream,
-                enabled = !viewModel.isSubmitting,
-                onCheckedChange = { viewModel.customStream = it },
-            )
-            RelaySwitchRow(
-                title = stringResource(R.string.relay_advanced_disable_response_storage),
-                checked = viewModel.customDisableResponseStorage,
-                enabled = !viewModel.isSubmitting,
-                onCheckedChange = { viewModel.customDisableResponseStorage = it },
-            )
-
-            if (viewModel.customTransport == RelayTransport.OpenAIResponses) {
-                Spacer(modifier = Modifier.height(spacing.md))
-                val current = viewModel.customWebSearchToolName ?: RelayWebSearchToolName.WebSearch
-                RelayEnumDropdown(
-                    title = stringResource(R.string.relay_advanced_web_search_tool_name),
-                    value = current,
-                    values = RelayWebSearchToolName.entries,
-                    label = { relayWebSearchToolNameLabel(it) },
-                    onSelect = { viewModel.customWebSearchToolName = it },
-                )
-
-                Spacer(modifier = Modifier.height(OriveoTheme.spacing.xs))
-                val hintRes = when (current) {
-                    RelayWebSearchToolName.WebSearch -> R.string.relay_web_search_tool_hint_default
-                    RelayWebSearchToolName.WebSearchPreview -> R.string.relay_web_search_tool_hint_legacy
-                    RelayWebSearchToolName.Disabled -> R.string.relay_web_search_tool_hint_disabled
-                }
-                Text(
-                    text = stringResource(hintRes),
-                    style = OriveoTheme.typography.caption,
-                    color = if (current == RelayWebSearchToolName.Disabled)
-                        OriveoTheme.colors.warning
-                    else
-                        OriveoTheme.colors.textTertiary,
-                )
-            }
-
-            Spacer(modifier = Modifier.height(spacing.md))
-            RelaySwitchRow(
-                title = stringResource(R.string.relay_advanced_has_web_search),
-                checked = viewModel.customHasWebSearch,
-                enabled = !viewModel.isSubmitting,
-                onCheckedChange = { enabled ->
-                    viewModel.customHasWebSearch = enabled
-                    if (!enabled) viewModel.customWebSearchProfile = null
-                },
-            )
-            if (viewModel.customHasWebSearch) {
-                Spacer(modifier = Modifier.height(spacing.sm))
-                RelayProfileDropdown(
-                    title = stringResource(R.string.relay_advanced_web_search_profile),
-                    value = viewModel.customWebSearchProfile,
-                    options = RELAY_WEB_SEARCH_PROFILES,
-                    onSelect = { viewModel.customWebSearchProfile = it },
-                )
-            }
-            Spacer(modifier = Modifier.height(spacing.md))
-            RelayProfileDropdown(
-                title = stringResource(R.string.relay_advanced_transport_kind),
-                value = viewModel.customTransportKindOverride,
-                options = RELAY_TRANSPORT_KINDS,
-                onSelect = { viewModel.customTransportKindOverride = it },
-                allowNull = true,
-            )
-        }
-    }
-
-    Spacer(modifier = Modifier.height(spacing.lg))
-
-    OriveoCard {
-        Column {
-            OriveoSectionHeader(title = stringResource(R.string.relay_advanced_headers))
-            Spacer(modifier = Modifier.height(spacing.lg))
-            OutlinedTextField(
-                value = viewModel.customUserAgent,
-                onValueChange = { viewModel.customUserAgent = it },
-                label = { Text(stringResource(R.string.relay_advanced_user_agent)) },
-                singleLine = true,
-                enabled = !viewModel.isSubmitting,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(modifier = Modifier.height(spacing.lg))
-            RelayKeyValueEditor(
-                rows = viewModel.customHeaders,
-                onRowsChange = { viewModel.customHeaders = it },
-                enabled = !viewModel.isSubmitting,
-            )
-        }
-    }
-
-    Spacer(modifier = Modifier.height(spacing.lg))
-
-    OriveoCard {
-        Column {
-            OriveoSectionHeader(title = stringResource(R.string.relay_advanced_query_params))
-            Spacer(modifier = Modifier.height(spacing.lg))
-            RelayKeyValueEditor(
-                rows = viewModel.customQueryParams,
-                onRowsChange = { viewModel.customQueryParams = it },
-                enabled = !viewModel.isSubmitting,
-            )
-        }
-    }
-}
-
-@Composable
-private fun <T> RelayEnumDropdown(
-    title: String,
-    value: T,
-    values: List<T>,
-    label: @Composable (T) -> String,
-    onSelect: (T) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val colors = OriveoTheme.colors
-
-    Column {
-        Text(
-            text = title,
-            style = OriveoTheme.typography.caption,
-            color = colors.textSecondary,
-        )
-        Spacer(modifier = Modifier.height(OriveoTheme.spacing.xs))
-        Box {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(OriveoTheme.radius.md))
-                    .border(OriveoBorderWidth.standard, colors.border, RoundedCornerShape(OriveoTheme.radius.md))
-                    .clickable { expanded = true }
-                    .padding(horizontal = OriveoTheme.spacing.md, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
-            ) {
-                Text(
-                    text = label(value),
-                    style = OriveoTheme.typography.body,
-                    color = colors.textPrimary,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Icon(
-                    imageVector = Icons.Filled.ExpandMore,
-                    contentDescription = null,
-                    tint = colors.textTertiary,
-                )
-            }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-            ) {
-                values.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(label(option)) },
-                        onClick = {
-                            onSelect(option)
-                            expanded = false
-                        },
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RelaySwitchRow(
-    title: String,
-    checked: Boolean,
-    enabled: Boolean = true,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.md),
-    ) {
-        Text(
-            text = title,
-            style = OriveoTheme.typography.body,
-            color = OriveoTheme.colors.textPrimary,
-            modifier = Modifier.weight(1f),
-        )
-        Switch(
-            checked = checked,
-            enabled = enabled,
-            onCheckedChange = onCheckedChange,
-            // // The switch has no label of its own; without a contentDescription it is announced only as "switch".
-            modifier = Modifier.semantics { contentDescription = title },
-        )
-    }
-}
-
-@Composable
-private fun RelayKeyValueEditor(
-    rows: List<RelayKeyValue>,
-    onRowsChange: (List<RelayKeyValue>) -> Unit,
-    enabled: Boolean,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm)) {
-        rows.forEachIndexed { index, row ->
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OutlinedTextField(
-                    value = row.key,
-                    onValueChange = { value ->
-                        onRowsChange(rows.toMutableList().also { it[index] = row.copy(key = value) })
-                    },
-                    label = { Text(stringResource(R.string.relay_key_label)) },
-                    singleLine = true,
-                    enabled = enabled,
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = row.value,
-                    onValueChange = { value ->
-                        onRowsChange(rows.toMutableList().also { it[index] = row.copy(value = value) })
-                    },
-                    label = { Text(stringResource(R.string.relay_value_label)) },
-                    singleLine = true,
-                    enabled = enabled,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(
-                    onClick = { onRowsChange(rows.toMutableList().also { it.removeAt(index) }) },
-                    enabled = enabled,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.RemoveCircle,
-                        contentDescription = stringResource(R.string.remove),
-                        tint = OriveoTheme.colors.warning,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            }
-        }
-        OriveoSecondaryButton(
-            text = stringResource(R.string.add),
-            onClick = { onRowsChange(rows + RelayKeyValue("", "")) },
-            enabled = enabled,
-        )
-    }
-}
-
-@Composable
-private fun relayTransportLabel(value: RelayTransport): String = stringResource(
-    when (value) {
-        RelayTransport.Auto -> R.string.relay_transport_auto
-        RelayTransport.OpenAIResponses -> R.string.relay_transport_openai_responses
-        RelayTransport.OpenAIChatCompletions -> R.string.relay_transport_openai_chat_completions
-        RelayTransport.LlamaCppNative -> R.string.relay_transport_llamacpp_native
-        RelayTransport.AnthropicMessages -> R.string.relay_transport_anthropic_messages
-        RelayTransport.GeminiGenerateContent -> R.string.relay_transport_gemini_generate_content
-    },
-)
-
-@Composable
-private fun relayAuthModeLabel(value: RelayAuthMode): String = stringResource(
-    when (value) {
-        RelayAuthMode.Auto -> R.string.relay_auth_auto
-        RelayAuthMode.None -> R.string.relay_auth_none
-        RelayAuthMode.Bearer -> R.string.relay_auth_bearer
-        RelayAuthMode.XApiKey -> R.string.relay_auth_x_api_key
-        RelayAuthMode.XGoogApiKey -> R.string.relay_auth_x_goog_api_key
-        RelayAuthMode.QueryKey -> R.string.relay_auth_query_key
-    },
-)
-
-@Composable
-private fun relayReasoningLabel(value: RelayReasoningEffort): String = stringResource(
-    when (value) {
-        RelayReasoningEffort.Automatic -> R.string.relay_reasoning_automatic
-        RelayReasoningEffort.Low -> R.string.relay_reasoning_low
-        RelayReasoningEffort.Medium -> R.string.relay_reasoning_medium
-        RelayReasoningEffort.High -> R.string.relay_reasoning_high
-        RelayReasoningEffort.XHigh -> R.string.relay_reasoning_xhigh
-    },
-)
-
-@Composable
-private fun relayWebSearchToolNameLabel(value: RelayWebSearchToolName): String = when (value) {
-    RelayWebSearchToolName.WebSearch -> "web_search"
-    RelayWebSearchToolName.WebSearchPreview -> "web_search_preview"
-    RelayWebSearchToolName.Disabled -> stringResource(R.string.relay_web_search_tool_disabled)
-}
-
-private val RELAY_WEB_SEARCH_PROFILES = listOf(
-    "oai_responses_web",
-    "oai_web_tool",
-    "ant_web_tool",
-    "gem_web",
-    "gem_web_retrieval",
-    "grok_responses_web",
-    "qwen_web",
-    "zhipu_web",
-    "or_web",
-    "kimi_web_search",
-)
-
-private val RELAY_TRANSPORT_KINDS = listOf(
-    "openai_chat",
-    "openai_responses",
-    "anthropic_messages",
-    "gemini_generate",
-    "dashscope_native",
-    "openai_images",
-    "gemini_image",
-    "qwen_image",
-    "grok_image",
-    "zhipu_image",
-)
-
-@Composable
-private fun RelayProfileDropdown(
-    title: String,
-    value: String?,
-    options: List<String>,
-    onSelect: (String?) -> Unit,
-    allowNull: Boolean = false,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val colors = OriveoTheme.colors
-    val displayValue = value
-        ?: if (allowNull) stringResource(R.string.relay_profile_auto) else stringResource(R.string.relay_profile_unset)
-
-    Column {
-        Text(
-            text = title,
-            style = OriveoTheme.typography.caption,
-            color = colors.textSecondary,
-        )
-        Spacer(modifier = Modifier.height(OriveoTheme.spacing.xs))
-        Box {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(OriveoTheme.radius.md))
-                    .border(OriveoBorderWidth.standard, colors.border, RoundedCornerShape(OriveoTheme.radius.md))
-                    .clickable { expanded = true }
-                    .padding(horizontal = OriveoTheme.spacing.md, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
-            ) {
-                Text(
-                    text = displayValue,
-                    style = OriveoTheme.typography.body,
-                    color = colors.textPrimary,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Icon(
-                    imageVector = Icons.Filled.ExpandMore,
-                    contentDescription = null,
-                    tint = colors.textTertiary,
-                )
-            }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-            ) {
-                if (allowNull) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.relay_profile_auto)) },
-                        onClick = {
-                            onSelect(null)
-                            expanded = false
-                        },
-                    )
-                }
-                options.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option) },
-                        onClick = {
-                            onSelect(option)
-                            expanded = false
-                        },
-                    )
-                }
-            }
-        }
+private fun RelayInfoNote(text: String, color: Color) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Top) {
+        Icon(painterResource(R.drawable.ph_info), contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+        Text(text, style = OriveoTheme.typography.footnote, color = color)
     }
 }

@@ -34,6 +34,7 @@ import ai.oriveo.community.core.model.resolveActiveModel
 import ai.oriveo.community.core.model.selectHomeSkills
 import ai.oriveo.community.core.provider.ModelDisplayLookup
 import ai.oriveo.community.core.provider.ModelSelectionUtils
+import ai.oriveo.community.core.provider.RelayModelFallback
 import ai.oriveo.community.core.provider.modelDisplayLookups
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
 import ai.oriveo.community.core.provider.CapabilityEvidenceObservationBridge
@@ -645,7 +646,7 @@ class HomeViewModel(
             val conversation = conversationRepository.createDraft(
                 providerID = active.provider.id,
                 providerKind = active.provider.kind,
-                modelID = ModelSelectionUtils.preferredStoredModelIdentifier(active.model),
+                modelID = ModelSelectionUtils.preferredStoredModelIdentifier(active.model, active.provider.kind),
                 folderID = folderID,
             )
             expandedFolderIds = expandedFolderIds + folderID
@@ -706,7 +707,7 @@ class HomeViewModel(
             val provider = providerRepository.getById(providerId)
             val selection = ProviderSelectionSnapshot.persistedSelection(provider, modelId)
             if (selection?.model != null) {
-                appPreferencesRepository.setLastUsedModel(providerId, selection.model)
+                appPreferencesRepository.setLastUsedModel(providerId, selection.model, provider?.kind)
             } else {
                 appPreferencesRepository.setLastUsedModel(
                     providerId = providerId,
@@ -733,7 +734,7 @@ class HomeViewModel(
         if (firstUsable != null) {
             val defaultModel = ProviderSelectionSnapshot.defaultModel(firstUsable)
             if (defaultModel != null) {
-                appPreferencesRepository.setLastUsedModel(firstUsable.id, defaultModel)
+                appPreferencesRepository.setLastUsedModel(firstUsable.id, defaultModel, firstUsable.kind)
                 return ActiveModel(provider = firstUsable, model = defaultModel)
             }
         }
@@ -760,7 +761,7 @@ class HomeViewModel(
                     val conversation = conversationRepository.createDraft(
                         providerID = active.provider.id,
                         providerKind = active.provider.kind,
-                        modelID = ModelSelectionUtils.preferredStoredModelIdentifier(active.model),
+                        modelID = ModelSelectionUtils.preferredStoredModelIdentifier(active.model, active.provider.kind),
                     )
                     onConversationCreated(conversation.id)
                     return@launch
@@ -769,7 +770,7 @@ class HomeViewModel(
                 val conversation = conversationRepository.create(
                     providerID = active.provider.id,
                     providerKind = active.provider.kind,
-                    modelID = ModelSelectionUtils.preferredStoredModelIdentifier(active.model),
+                    modelID = ModelSelectionUtils.preferredStoredModelIdentifier(active.model, active.provider.kind),
                 )
                 conversationRepository.updateDraft(conversation.id, trimmed)
                 heroText = ""
@@ -797,7 +798,7 @@ class HomeViewModel(
                 it.id == skill.suggestedProviderId || it.kind.rawValue == skill.suggestedProviderId
             }
             val suggestedModel = suggestedProvider?.models?.let { models ->
-                ModelSelectionUtils.matchingModel(models, skill.suggestedModelId)
+                ModelSelectionUtils.matchingModel(models, skill.suggestedModelId, suggestedProvider.kind)
             }
             if (suggestedProvider != null && suggestedModel != null) {
                 return ActiveModel(suggestedProvider, suggestedModel)
@@ -823,7 +824,12 @@ class HomeViewModel(
         }
 
         val fallbackProvider = providerList.firstOrNull() ?: return null
-        val fallbackModel = fallbackProvider.defaultModel ?: fallbackProvider.models.firstOrNull() ?: return null
+        // A relay falls back only among its enabled models, never to a catalog model that is not enabled.
+        val fallbackModel = if (RelayModelFallback.appliesTo(fallbackProvider)) {
+            RelayModelFallback.fallbackModel(fallbackProvider, lastUsedModelRef.value)
+        } else {
+            fallbackProvider.defaultModel ?: fallbackProvider.models.firstOrNull()
+        } ?: return null
         return ActiveModel(fallbackProvider, fallbackModel)
     }
 
@@ -856,11 +862,11 @@ class HomeViewModel(
         }
 
         viewModelScope.launch {
-            appPreferencesRepository.setLastUsedModel(active.provider.id, active.model)
+            appPreferencesRepository.setLastUsedModel(active.provider.id, active.model, active.provider.kind)
             val conversation = conversationRepository.createDraft(
                 providerID = active.provider.id,
                 providerKind = active.provider.kind,
-                modelID = ModelSelectionUtils.preferredStoredModelIdentifier(active.model),
+                modelID = ModelSelectionUtils.preferredStoredModelIdentifier(active.model, active.provider.kind),
                 title = skill.name,
                 skillId = skill.id,
                 useMemory = skill.useMemory,

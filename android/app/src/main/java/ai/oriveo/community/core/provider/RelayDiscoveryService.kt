@@ -6,6 +6,7 @@ import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.core.model.hasStoredCredential
+import ai.oriveo.community.core.provider.relay.RelayCatalogEndpointTypes
 import ai.oriveo.community.core.provider.relay.RelayHeaderBuilder.applyRelayHeaders
 import ai.oriveo.community.core.provider.relay.RelayHeaderBuilder.resolveAuthMode
 import ai.oriveo.community.core.provider.relay.buildRelayQueryPairs
@@ -79,6 +80,11 @@ data class RelayDetectedConfiguration(
     val endpointEvidence: RelayEndpointCandidateEvidence,
     val generationVerified: Boolean,
     val detectionEvidence: RelayDetectionEvidence = RelayDetectionEvidence.Catalog,
+    /**
+     * The `supported_endpoint_types` of each model given by the catalog (new-api style gateways), kept as is and in order; models without the field are not in the table.
+     * Used only to order the per-model probe candidates; never persisted.
+     */
+    val supportedEndpointTypes: Map<String, List<String>> = emptyMap(),
 ) {
     val id: String get() = "${transport.value}|$apiBaseUrl"
 }
@@ -119,6 +125,10 @@ class RelayDiscoveryService(
         expectSuccess = false
         install(relayLocalSecurityPlugin())
     }
+
+    /** The `supported_endpoint_types` of [modelID] in the catalog most recently fetched from [apiBaseUrl]; null when unavailable. */
+    fun cachedSupportedEndpointTypes(apiBaseUrl: String, modelID: String): List<String>? =
+        RelayCatalogEndpointTypes.lookup(apiBaseUrl, modelID)
 
     suspend fun discover(
         endpoint: String,
@@ -188,11 +198,13 @@ class RelayDiscoveryService(
                 when (snapshot.statusCode) {
                     in 200..299 -> {
                         // Parsing the full JSON tree of a large catalog must not stay on the caller's main thread.
-                        val modelIDs = withContext(parseDispatcher) { parseModelIDs(snapshot.body, transport) }
-                        if (modelIDs == null) {
+                        val catalog = withContext(parseDispatcher) { parseCatalog(snapshot.body, transport) }
+                        if (catalog == null) {
                             attempts += attempt(candidate, requestUrl, snapshot, RelayDiscoveryFailureKind.InvalidResponse)
                             continue
                         }
+                        val modelIDs = catalog.modelIDs
+                        RelayCatalogEndpointTypes.record(candidate.apiBaseUrl, catalog.supportedEndpointTypes)
                         attempts += attempt(candidate, requestUrl, snapshot, null)
                         val detectedTransports = if (
                             descriptor.explicitTransport == null &&
@@ -215,6 +227,7 @@ class RelayDiscoveryService(
                                     modelIDs = modelIDs,
                                     endpointEvidence = candidate.evidence,
                                     generationVerified = false,
+                                    supportedEndpointTypes = catalog.supportedEndpointTypes,
                                 )
                             },
                             attempts = attempts,
@@ -269,7 +282,7 @@ class RelayDiscoveryService(
         val usesUserModel = userModel.isNotEmpty()
         val modelID = userModel.ifEmpty { SENTINEL_PROBE_MODEL_ID }
         for (transport in probeTransportOrder(descriptor, modelHint, apiKey)) {
-            val spec = probeSpec(transport, modelID) ?: continue
+            val spec = probeSpec(transport, modelID, apiKey) ?: continue
             for (candidate in RelayEndpointResolver.candidates(descriptor, transport)) {
                 val requestUrl = RelayEndpointResolver.endpointUrl(
                     candidate.apiBaseUrl,
@@ -437,7 +450,9 @@ class RelayDiscoveryService(
         return "$url${if ('?' in url) "&" else "?"}$encoded"
     }
 
-    private fun parseModelIDs(body: String, transport: RelayTransport): List<String>? {
+    private class ParsedCatalog(val modelIDs: List<String>, val supportedEndpointTypes: Map<String, List<String>>)
+
+    private fun parseCatalog(body: String, transport: RelayTransport): ParsedCatalog? {
         val root = runCatching { json.parseToJsonElement(body) }.getOrNull() ?: return null
         val items = when (root) {
             is JsonArray -> root
@@ -448,6 +463,7 @@ class RelayDiscoveryService(
             else -> null
         } ?: return null
         val seen = linkedSetOf<String>()
+        val endpointTypes = linkedMapOf<String, List<String>>()
         items.forEach { item ->
             val raw = when (item) {
                 is JsonPrimitive -> item.contentOrNull
@@ -459,10 +475,15 @@ class RelayDiscoveryService(
                 val normalized = if (
                     transport == RelayTransport.GeminiGenerateContent && raw.startsWith("models/")
                 ) raw.removePrefix("models/") else raw
-                seen += normalized
+                // For duplicate ids the first occurrence wins, and endpoint types follow the same rule.
+                if (seen.add(normalized)) {
+                    ((item as? JsonObject)?.get("supported_endpoint_types") as? JsonArray)
+                        ?.mapNotNull { (it as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content }
+                        ?.let { endpointTypes[normalized] = it }
+                }
             }
         }
-        return seen.toList()
+        return ParsedCatalog(seen.toList(), endpointTypes)
     }
 
     private fun transportOrder(
@@ -494,7 +515,7 @@ class RelayDiscoveryService(
         return ordered
     }
 
-    private fun probeSpec(transport: RelayTransport, modelID: String): Pair<String, String>? {
+    private fun probeSpec(transport: RelayTransport, modelID: String, apiKey: String): Pair<String, String>? {
         val body = when (transport) {
             RelayTransport.LlamaCppNative -> buildJsonObject {
                 put("prompt", "ping")
@@ -507,6 +528,10 @@ class RelayDiscoveryService(
             }
             RelayTransport.OpenAIResponses -> buildJsonObject {
                 put("model", modelID); put("input", "ping"); put("max_output_tokens", 1); put("store", false)
+                // Probing happens before the connection config is settled: send the key if there is one, since a missing key gets a 403 from relays that only accept the Codex client and would be misjudged as an unsupported protocol.
+                if (apiKey.isNotBlank()) {
+                    put(RelayRuntimeSupport.PROMPT_CACHE_KEY_FIELD, RelayRuntimeSupport.promptCacheKey(modelID, "", "ping"))
+                }
             }
             RelayTransport.AnthropicMessages -> buildJsonObject {
                 put("model", modelID); put("max_tokens", 1)

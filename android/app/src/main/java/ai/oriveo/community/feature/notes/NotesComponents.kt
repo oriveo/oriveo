@@ -59,6 +59,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -80,6 +83,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
+import ai.oriveo.community.core.model.ConnectionAvatar
 import ai.oriveo.community.core.model.FolderColor
 import ai.oriveo.community.core.model.Note
 import ai.oriveo.community.core.model.NoteCaptureKind
@@ -88,7 +92,6 @@ import ai.oriveo.community.core.notes.NoteTime
 import ai.oriveo.community.ui.theme.providerTintFor
 import ai.oriveo.community.ui.component.OriveoCard
 import ai.oriveo.community.ui.component.OriveoSheetDragHandle
-import ai.oriveo.community.ui.component.ProviderBadgeIcon
 import ai.oriveo.community.ui.component.markdown.MarkdownRenderer
 import ai.oriveo.community.ui.component.markdown.MarkdownTheme
 import ai.oriveo.community.ui.theme.OriveoRadius
@@ -193,7 +196,8 @@ internal fun NoteSourceBadge(note: Note, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        note.sourceProviderKind?.let { ProviderBadgeIcon(kind = it, size = 16.dp) }
+        // Notes do not record the connection: a relay source draws the generic avatar.
+        note.sourceProviderKind?.let { ConnectionAvatar(provider = null, fallbackKind = it, size = 16.dp) }
         if (!label.isNullOrBlank()) {
             Text(
                 text = label,
@@ -465,7 +469,9 @@ private fun NoteCardByline(
                 imageVector = Icons.Filled.ChevronRight,
                 contentDescription = null,
                 tint = colors.textTertiary.copy(alpha = 0.62f),
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier
+                    .size(18.dp)
+                    .then(if (LocalLayoutDirection.current == LayoutDirection.Rtl) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier),
             )
         }
     }

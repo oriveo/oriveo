@@ -195,6 +195,40 @@ class SecureKeyStore private constructor(
     private var mcpPrefsRef: SharedPreferences? = null
 
     /**
+     * Values of a relay's non-primary keys, stored in the same store as the primary key with equal protection; key = primary key's key + `#<keyID>`.
+     * The primary key's value (first in the list) lives only in the [saveApiKey] slot and is never stored here.
+     */
+    @Synchronized
+    fun getRelayKeySecret(accountId: String, providerID: String, keyID: String): String? =
+        prefs().getString(relayKeyFor(accountId, providerID, keyID), null)
+
+    /**
+     * Write back non-primary key values from the key list: only non-empty values are written (objects without key values loaded do not overwrite stored values),
+     * and old entries no longer in the list (or that became the primary key) are deleted. [keys] null = no list, clear all suffix entries.
+     */
+    @Synchronized
+    fun saveRelayKeySecrets(accountId: String, providerID: String, keys: List<ai.oriveo.community.core.model.RelayKey>?) {
+        val prefix = relayKeyFor(accountId, providerID, "")
+        val stored = keys.orEmpty().drop(1)
+        val keep = stored.mapTo(mutableSetOf()) { it.id }
+        val prefs = prefs()
+        val editor = prefs.edit()
+        prefs.all.keys
+            .filter { it.startsWith(prefix) && it.removePrefix(prefix) !in keep }
+            .forEach { editor.remove(it) }
+        for (key in stored) {
+            val secret = key.apiKey // key-choke: stored-field
+            if (secret.isNotEmpty() && prefs.getString(prefix + key.id, null) != secret) {
+                editor.putString(prefix + key.id, secret)
+            }
+        }
+        editor.apply()
+    }
+
+    /** When a provider is deleted, clear all of its non-primary key values. */
+    fun deleteRelayKeySecrets(accountId: String, providerID: String) = saveRelayKeySecrets(accountId, providerID, null)
+
+    /**
      * Opens one AES-256-GCM preferences file, keyed by a master key held in the Android Keystore.
      *
      * `androidx.security:security-crypto` marks this whole API deprecated and points at plain
@@ -357,6 +391,8 @@ class SecureKeyStore private constructor(
 
         private fun keyFor(accountId: String, providerID: String) =
             "api_key_v2_${accountId.length}:$accountId:$providerID"
+        private fun relayKeyFor(accountId: String, providerID: String, keyID: String) =
+            "${keyFor(accountId, providerID)}#$keyID"
         private fun legacyKeyFor(providerID: String) = "api_key_$providerID"
         private fun archiveKeyForUid(uid: String) = "merge_archive_master_key_$uid"
         private fun subscriptionKeyFor(accountId: String, providerID: String) =
@@ -368,7 +404,7 @@ class SecureKeyStore private constructor(
             if (trimmed.length <= 12) return "••••••••"
             val prefix = trimmed.take(4)
             val suffix = trimmed.takeLast(4)
-            return "$prefix••••$suffix"
+            return "$prefix…$suffix"
         }
 
         private fun Throwable.isRecoverableSecurePrefsFailure(): Boolean =

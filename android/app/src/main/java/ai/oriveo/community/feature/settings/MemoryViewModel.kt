@@ -17,9 +17,14 @@ import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.ChatRole
+import ai.oriveo.community.core.model.LastUsedModelRef
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.ReasoningMode
+import ai.oriveo.community.core.provider.ModelSelectionUtils
+import ai.oriveo.community.core.provider.ProviderCredentialResolver
+import ai.oriveo.community.core.provider.RelayModelFallback
 import ai.oriveo.community.core.util.generateUuidString
 import ai.oriveo.community.core.util.graphemeCount
 import ai.oriveo.community.core.util.takeGraphemes
@@ -170,12 +175,17 @@ class MemoryViewModel(
             try {
 
                 val allProviders = providerRepository.observeAll().first()
+                val lastUsed = appPreferencesRepository.lastUsedModelRefSnapshot
+                    ?: appPreferencesRepository.getLastUsedModelRef()
+                // Relays are no longer excluded for lacking a stored key (local / intranet connections with auth=none can still send);
+                // the last used connection goes first and the rest keep their order.
                 val candidates = allProviders
-                    .filter { it.apiKey.isNotBlank() }
-                    .mapNotNull { provider -> provider.toDraftCandidate() }
+                    .filter { it.kind == ProviderKind.Relay || ProviderCredentialResolver.apiKey(it, null).isNotBlank() }
+                    .sortedByDescending { lastUsed != null && it.id == lastUsed.providerID }
+                    .mapNotNull { provider -> provider.toDraftCandidate(lastUsed) }
 
                 if (candidates.isEmpty()) {
-                    val hasAnyKey = allProviders.any { it.apiKey.isNotBlank() }
+                    val hasAnyKey = allProviders.any { ProviderCredentialResolver.apiKey(it, null).isNotBlank() }
                     presentDraftError(
                         if (hasAnyKey) {
                             DraftError(
@@ -231,9 +241,9 @@ class MemoryViewModel(
                     if (activeDraftRequestId != requestId) return@launch
                     attempts += 1
                     try {
-                        val service = providerRepository.serviceFor(candidate.provider.kind)
+                        val service = providerRepository.serviceFor(candidate.provider, candidate.model)
                         val response = service.sendMessage(
-                            apiKey = candidate.provider.apiKey,
+                            apiKey = ProviderCredentialResolver.apiKey(candidate.provider, candidate.model.id),
                             modelID = candidate.model.id,
                             messages = listOf(
                                 ChatMessage(
@@ -248,7 +258,7 @@ class MemoryViewModel(
                                     state = ChatMessageState.Delivered,
                                 ),
                             ),
-                            baseUrl = candidate.provider.baseUrlText,
+                            baseUrl = ai.oriveo.community.core.provider.transport.OfficialEndpointSource.effectiveBaseUrlText(candidate.provider),
                             supportsImageGen = false,
                             reasoningMode = ReasoningMode.Automatic,
                             webSearchEnabled = false,
@@ -372,7 +382,16 @@ class MemoryViewModel(
         draftError = error
     }
 
-    private fun Provider.toDraftCandidate(): DraftCandidate? {
+    private fun Provider.toDraftCandidate(lastUsed: LastUsedModelRef?): DraftCandidate? {
+        // Use the last used model if it is still valid.
+        if (lastUsed != null && lastUsed.providerID == id) {
+            ModelSelectionUtils.resolveStoredModel(models, lastUsed.modelID, kind)?.let { return DraftCandidate(provider = this, model = it) }
+        }
+        // Relay: last used (pointing at this connection and still enabled) -> first enabled model; never an un-enabled catalog model.
+        if (kind == ProviderKind.Relay) {
+            val model = RelayModelFallback.fallbackModel(this, lastUsed) ?: return null
+            return DraftCandidate(provider = this, model = model)
+        }
         val resolvedModel: AIModel = defaultModel
             ?: models.firstOrNull()
             ?: allModels.firstOrNull()

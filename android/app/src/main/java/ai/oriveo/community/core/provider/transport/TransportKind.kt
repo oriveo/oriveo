@@ -35,6 +35,10 @@ enum class TransportKind(val wireValue: String) {
     @SerialName("gemini_generate")
     GeminiGenerate("gemini_generate"),
 
+    /** Gemini Interactions API; delivered only via the Server Admin TransportOverride, sending still goes through GeminiService, and the route is decided by interactionsRoute. */
+    @SerialName("gemini_interactions")
+    GeminiInteractions("gemini_interactions"),
+
     @SerialName("dashscope_native")
     DashScopeNative("dashscope_native"),
 

@@ -47,7 +47,9 @@ fun prepareProviderForUpsert(
     provider: Provider,
     metadata: MetadataClient = MetadataClient.instance,
 ): Provider {
-    val enriched = RelayOfficialCatalogResolver.applyRelayEnrichmentIfNeeded(provider, metadata)
+    // All dao.upsert write points go through here: unclassified official records are classified against the current table before being persisted.
+    val classified = ai.oriveo.community.core.provider.transport.OfficialEndpointSource.withClassifiedSource(provider, metadata)
+    val enriched = RelayOfficialCatalogResolver.applyRelayEnrichmentIfNeeded(classified, metadata)
     val resolved = ProviderCatalogResolver.resolve(enriched)
     return enriched.copy(cachedAvailableModelCount = resolved.availableModelCount)
 }
@@ -96,7 +98,7 @@ object ProviderCatalogResolver {
         // models: scanning the whole catalog per enabled model is O(enabled x catalog) with a
         // regex per pair, and a relay catalog of thousands after "add all" made a single
         // resolve take hundreds of milliseconds.
-        val catalogIndex = ModelSelectionUtils.catalogMatchIndex(catalogModels)
+        val catalogIndex = ModelSelectionUtils.catalogMatchIndex(catalogModels, provider.kind)
         val enabledIds = buildEnabledIdSet(provider, catalogModels, catalogIndex, metadata)
         val manualModels = buildManualModels(provider, catalogIndex, provider.kind)
 

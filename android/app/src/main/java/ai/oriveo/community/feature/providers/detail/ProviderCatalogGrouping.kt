@@ -1,12 +1,17 @@
 package ai.oriveo.community.feature.providers.detail
 
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Immutable
+import ai.oriveo.community.R
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.provider.ModelSelectionUtils
 import ai.oriveo.community.core.provider.ProviderCatalogResolver
 import ai.oriveo.community.core.provider.ResolvedProviderCatalog
+import ai.oriveo.community.core.provider.relay.RelayCatalogGrouping
+import ai.oriveo.community.core.provider.relay.RelayKeyBinding
 
 /**
  * `models` is written once at construction and only read afterwards, and `AIModel` is itself
@@ -20,6 +25,8 @@ data class ProviderCatalogGroup(
     val id: String,
     val title: String,
     val models: List<AIModel>,
+    /** When non-null the UI shows this localized text instead of [title] (the relay "Other" group). */
+    @StringRes val titleRes: Int? = null,
 )
 
 @Immutable
@@ -34,16 +41,21 @@ fun buildProviderCatalogGroups(
     provider: Provider,
     resolvedCatalog: ResolvedProviderCatalog? = null,
     searchQuery: String,
+    /** Relay only (local connections included): the family function, in production the cached Server family and then the heuristic. */
+    relayFamily: (String) -> String? = RelayKeyBinding::cachedFamily,
 ): List<ProviderCatalogGroup> {
     val enabledIds = provider.models.map { it.id }.toSet()
     // "Enabled" must mean the same thing as in enableModel (modelsShareSameRemoteModel: aliases,
     // snapshot date suffixes, canonical ids, same display name). Filtering by exact id alone leaves
     // rows in the catalog that enableModel then treats as already present, so tapping "+" does
     // nothing and the row never goes away.
-    val enabledIndex = ModelSelectionUtils.catalogMatchIndex(provider.models)
+    val enabledIndex = ModelSelectionUtils.catalogMatchIndex(provider.models, provider.kind)
     val normalizedQuery = searchQuery.trim().lowercase()
     val catalog = resolvedCatalog ?: ProviderCatalogResolver.resolve(provider)
-    val dedupedCatalog = ModelSelectionUtils.deduplicateByCanonical(catalog.catalog.map { it.model })
+    val dedupedCatalog = ModelSelectionUtils.deduplicate(catalog.catalog.map { it.model }, provider.kind)
+    if (provider.kind == ProviderKind.Relay) {
+        return relayCatalogGroups(provider, dedupedCatalog, enabledIds, enabledIndex, normalizedQuery, relayFamily)
+    }
     // Resolve each model's group identity once up front. Doing it inside groupBy computed the same
     // model's identity twice and allocated a throwaway ProviderCatalogGroup per call, so the whole
     // pass re-ran on every keystroke of the search field.
@@ -85,6 +97,39 @@ fun buildProviderCatalogGroups(
         .sortedWith { lhs, rhs -> compareCatalogGroups(lhs, rhs, groupScoresById) }
 }
 
+/**
+ * Relay (local connections included) catalog grouping: one grouping by family, groups ordered by first appearance in the catalog with "Other" last, catalog order within a group;
+ * the groupKey stamped onto catalog rows at fetch time no longer takes part. Step 2 of adding goes through the same path via [ai.oriveo.community.feature.providers.relay.relaySetupCatalogGroups].
+ */
+private fun relayCatalogGroups(
+    provider: Provider,
+    dedupedCatalog: List<AIModel>,
+    enabledIds: Set<String>,
+    enabledIndex: ModelSelectionUtils.CatalogMatchIndex,
+    normalizedQuery: String,
+    family: (String) -> String?,
+): List<ProviderCatalogGroup> {
+    val remaining = dedupedCatalog.filterNot { model ->
+        model.id in enabledIds || enabledIndex.sharesRemoteModelWithAny(model, provider.kind)
+    }
+    return RelayCatalogGrouping.groups(remaining, AIModel::id, family).mapNotNull { group ->
+        val title = group.label.orEmpty()
+        val models = if (normalizedQuery.isEmpty()) {
+            group.items
+        } else {
+            filterModelsWithinGroup(group.items, normalizedQuery, title, group.id)
+        }
+        models.takeIf { it.isNotEmpty() }?.let {
+            ProviderCatalogGroup(
+                id = group.id,
+                title = title,
+                models = it,
+                titleRes = if (group.label == null) R.string.relay_catalog_group_other else null,
+            )
+        }
+    }
+}
+
 fun sortedProvidersForModelPicker(providers: List<Provider>): List<Provider> {
     // Scored from the models the user has already enabled, so this never has to call
     // ProviderCatalogResolver.resolve().
@@ -97,6 +142,9 @@ fun sortedProvidersForModelPicker(providers: List<Provider>): List<Provider> {
 }
 
 fun sortedEnabledModels(provider: Provider): List<AIModel> {
+    // A relay's enabled rows keep their stored (enabled) order and are not re-ranked by model-name scoring.
+    if (provider.kind == ProviderKind.Relay) return provider.models
+
     // Score every model once before sorting (decorate-sort-undecorate). Two reasons, and speed
     // is only one of them:
     //   1. enabledModelPriorityScore does an id.lowercase() plus ten contains() calls. Inside the
@@ -174,9 +222,10 @@ fun groupModelsByVendor(
     return groups
 }
 
-fun comparePickerModels(lhs: AIModel, rhs: AIModel): Int {
+/** [ignoreDefault]: pass true for relay models, where the legacy isDefault no longer moves a model to the front. */
+fun comparePickerModels(lhs: AIModel, rhs: AIModel, ignoreDefault: Boolean = false): Int {
     return when {
-        lhs.isDefault != rhs.isDefault -> if (lhs.isDefault) -1 else 1
+        !ignoreDefault && lhs.isDefault != rhs.isDefault -> if (lhs.isDefault) -1 else 1
         lhs.isAvailable != rhs.isAvailable -> if (lhs.isAvailable) -1 else 1
         lhs.groupName.orEmpty() != rhs.groupName.orEmpty() ->
             lhs.groupName.orEmpty().compareTo(rhs.groupName.orEmpty(), ignoreCase = true)
@@ -265,7 +314,11 @@ private fun pickerProviderScore(provider: Provider): Int {
 }
 
 private fun preferredEnabledModel(provider: Provider): AIModel? =
-    provider.models.firstOrNull { it.isDefault } ?: provider.models.firstOrNull()
+    if (provider.kind == ProviderKind.Relay) {
+        provider.models.firstOrNull()
+    } else {
+        provider.models.firstOrNull { it.isDefault } ?: provider.models.firstOrNull()
+    }
 
 private fun catalogPriorityScore(model: AIModel): Int {
     model.sortRank?.let { rank ->

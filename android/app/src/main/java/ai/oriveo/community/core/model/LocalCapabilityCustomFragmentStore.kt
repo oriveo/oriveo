@@ -51,16 +51,27 @@ class LocalCapabilityCustomFragmentStore internal constructor(
         val updatedAt: Long,
     )
 
-    /** Falls back to the model-default layer when the conversation layer has no record; a conversation record, even a disabled one, wins. */
-    fun additionalBody(providerID: String, modelID: String, conversationID: String?): AdditionalBody {
+    /**
+     * Falls back to the model-default layer when the conversation layer has no record; a conversation record, even a disabled one, wins.
+     * [legacyModelID]: for layers the relay's literal key misses, the old canonical key is read as well.
+     */
+    fun additionalBody(
+        providerID: String,
+        modelID: String,
+        conversationID: String?,
+        legacyModelID: String? = null,
+    ): AdditionalBody {
         migrateLegacyGenerationFragments()
         return synchronized(this) {
             val scope = conversationID ?: MODEL_DEFAULT_CONVERSATION
             val records = additionalBodyRecords()
-            fun find(conversation: String) = records.firstOrNull {
-                it.providerID.equals(providerID, ignoreCase = true) && it.modelID == modelID &&
+            val legacy = legacyModelID?.takeIf { it.isNotBlank() && it != modelID }
+            fun findKey(key: String, conversation: String) = records.firstOrNull {
+                it.providerID.equals(providerID, ignoreCase = true) && it.modelID == key &&
                     it.conversationID == conversation
             }
+            fun find(conversation: String) = findKey(modelID, conversation)
+                ?: legacy?.let { findKey(it, conversation) }
             (find(scope) ?: find(MODEL_DEFAULT_CONVERSATION).takeIf { scope != MODEL_DEFAULT_CONVERSATION })
                 ?.let { AdditionalBody(it.rawJSON, it.sendWithRequest) }
                 ?: AdditionalBody.Empty
@@ -68,8 +79,13 @@ class LocalCapabilityCustomFragmentStore internal constructor(
     }
 
     /** The text that is really sent with this request; null when it is switched off or blank. */
-    fun outboundAdditionalBody(providerID: String, modelID: String, conversationID: String?): String? =
-        additionalBody(providerID, modelID, conversationID)
+    fun outboundAdditionalBody(
+        providerID: String,
+        modelID: String,
+        conversationID: String?,
+        legacyModelID: String? = null,
+    ): String? =
+        additionalBody(providerID, modelID, conversationID, legacyModelID)
             .takeIf { it.sendWithRequest && it.rawJSON.isNotBlank() }?.rawJSON
 
     fun setAdditionalBody(body: AdditionalBody, providerID: String, modelID: String, conversationID: String?) =
@@ -243,9 +259,14 @@ class LocalCapabilityCustomFragmentStore internal constructor(
         transportIdentity: String,
         namespace: String = GENERATION_NAMESPACE,
         forwardPort: ForwardPortContext? = null,
+        legacyModelID: String? = null,
     ): Configuration {
         if (!isSupported(namespace) || transportIdentity.isBlank()) return Configuration.Empty
         val scope = conversationID ?: MODEL_DEFAULT_CONVERSATION
+        val legacy = legacyModelID?.takeIf { it.isNotBlank() && it != modelID }
+        // For layers the relay's literal key misses, fall back to the old canonical key.
+        fun latest(conversation: String) = latestRecord(providerID, modelID, conversation, transportIdentity, namespace)
+            ?: legacy?.let { latestRecord(providerID, it, conversation, transportIdentity, namespace) }
         if (forwardPort != null) {
             forwardPortIfNeeded(providerID, modelID, scope, transportIdentity, namespace, forwardPort)
             if (scope != MODEL_DEFAULT_CONVERSATION) {
@@ -255,10 +276,10 @@ class LocalCapabilityCustomFragmentStore internal constructor(
             }
         }
         return synchronized(this) {
-            latestRecord(providerID, modelID, scope, transportIdentity, namespace)
+            latest(scope)
                 ?.let { return@synchronized Configuration(it.enabled, it.rawJSON) }
             if (scope == MODEL_DEFAULT_CONVERSATION) return@synchronized Configuration.Empty
-            latestRecord(providerID, modelID, MODEL_DEFAULT_CONVERSATION, transportIdentity, namespace)
+            latest(MODEL_DEFAULT_CONVERSATION)
                 ?.let { Configuration(it.enabled, it.rawJSON) }
                 ?: Configuration.Empty
         }
@@ -347,6 +368,7 @@ class LocalCapabilityCustomFragmentStore internal constructor(
         conversationID: String?,
         transportIdentity: String,
         forwardPort: ForwardPortContext? = null,
+        legacyModelID: String? = null,
     ): Map<String, String> {
         val finalTransport = forwardPort?.let {
             ai.oriveo.community.core.provider.ModelControlRuntimeIdentity
@@ -363,7 +385,7 @@ class LocalCapabilityCustomFragmentStore internal constructor(
             ) {
                 return@mapNotNull null
             }
-            effectiveConfiguration(providerID, modelID, conversationID, transportIdentity, namespace, forwardPort)
+            effectiveConfiguration(providerID, modelID, conversationID, transportIdentity, namespace, forwardPort, legacyModelID)
                 .takeIf { it.enabled }
                 ?.let { owner to it.rawJSON }
         }.toMap()

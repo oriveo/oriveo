@@ -28,8 +28,9 @@ internal object GenerationParameterThinkingPreview {
         relayProjection: CapabilityEvidenceProductionAdapter.Projection? = null,
     ): List<GenerationParameterResolver.DroppedParameter> = when {
         provider.kind == ProviderKind.Anthropic -> officialAnthropic(modelID, reasoningMode, requestOptions)
-        // The criterion reads only the connection's protocol field, never the model name: the same model on the Chat Completions protocol gets no preview.
-        provider.kind == ProviderKind.Relay && provider.relayRequested?.transport == RelayTransport.AnthropicMessages ->
+        // The criterion reads only the protocol this model actually goes out on, never the model name: the same model on the Chat Completions protocol gets no preview.
+        provider.kind == ProviderKind.Relay &&
+            RelayEndpointResolver.effectiveTransport(provider, requestOptions.activeModel) == RelayTransport.AnthropicMessages ->
             relayAnthropic(modelID, reasoningMode, requestOptions, relayProfile, relayProjection)
         // Other protocols have no such interplay.
         else -> emptyList()

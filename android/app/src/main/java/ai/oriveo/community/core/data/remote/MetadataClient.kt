@@ -17,6 +17,8 @@ import ai.oriveo.community.core.provider.GenerationParameterResolver
 import ai.oriveo.community.core.provider.ModelPricingFormatter
 import ai.oriveo.community.core.provider.grok.GrokSubscriptionAvailability
 import ai.oriveo.community.core.provider.grok.GrokSubscriptionAuthResolver
+import ai.oriveo.community.core.provider.transport.EndpointResolver
+import ai.oriveo.community.core.provider.transport.OfficialEndpointSource
 import ai.oriveo.community.core.provider.grok.RawProtocolFeatures
 import ai.oriveo.community.core.provider.openai.OpenAISubscriptionAuthResolver
 import ai.oriveo.community.core.provider.openai.OpenAISubscriptionAvailability
@@ -212,6 +214,60 @@ private object HttpUrlConnectionModelFactsTransport : ModelFactsTransport {
         httpGetMetadata("/api/metadata/model-facts", ifNoneMatch)
 }
 
+private object HttpUrlConnectionModelFactsByModelTransport : ModelFactsTransport {
+    override suspend fun fetch(ifNoneMatch: String?): MetadataTransportResponse =
+        withContext(Dispatchers.IO) { httpGetMetadata("/api/metadata/model-facts?view=by-model", ifNoneMatch) }
+}
+
+/**
+ * Family lookup table for per-model relay probing: `GET /api/metadata/model-facts?view=by-model`.
+ *
+ * Fetched lazily once, only when a candidate needs the family; a successful result is cached in-process; failure / non-200 / unparsable all count as family unknown and are not cached,
+ * and it is fetched again the next time it is needed. Keys use [MetadataClient.normalizeModelFactsID]; on a miss the segment after the last `/` is tried
+ * (same rule as the Server's normalizeModelsDevJoinID + modelsDevJoinLastSegment). The family is never guessed from the id text.
+ */
+class RelayModelFamilyLookup internal constructor(
+    private val transport: ModelFactsTransport,
+    private val json: Json = Json { ignoreUnknownKeys = true },
+) {
+    private val mutex = Mutex()
+    @Volatile private var families: Map<String, String>? = null
+
+    suspend fun family(modelID: String): String? = lookup(loadedFamilies() ?: return null, modelID)
+
+    /** Reads only the cached family table and never sends a request; if it has never been fetched the family is unknown. The add page's ratio bar uses it (no new request is sent just for the ratio bar). */
+    fun cachedFamily(modelID: String): String? = lookup(families ?: return null, modelID)
+
+    private fun lookup(table: Map<String, String>, modelID: String): String? {
+        val normalized = MetadataClient.normalizeModelFactsID(modelID)
+        return table[normalized] ?: table[normalized.substringAfterLast('/')]
+    }
+
+    private suspend fun loadedFamilies(): Map<String, String>? = mutex.withLock {
+        families?.let { return@withLock it }
+        val response = try {
+            transport.fetch(null)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            return@withLock null
+        }
+        val body = response.body?.takeIf { response.statusCode == HttpURLConnection.HTTP_OK } ?: return@withLock null
+        val byModel = runCatching {
+            ((json.parseToJsonElement(body) as? JsonObject)?.get("data") as? JsonObject)?.get("byModel") as? JsonObject
+        }.getOrNull() ?: return@withLock null
+        byModel.mapNotNull { (id, entry) ->
+            val family = ((entry as? JsonObject)?.get("family") as? JsonPrimitive)
+                ?.takeIf { it.isString }?.content?.trim()?.takeIf(String::isNotEmpty)
+            family?.let { MetadataClient.normalizeModelFactsID(id) to it }
+        }.toMap().also { families = it }
+    }
+
+    companion object {
+        val shared: RelayModelFamilyLookup by lazy { RelayModelFamilyLookup(HttpUrlConnectionModelFactsByModelTransport) }
+    }
+}
+
 private class MetadataHttpStatusException(statusCode: Int) :
     Exception("metadata request returned HTTP $statusCode")
 
@@ -297,6 +353,8 @@ class MetadataClient internal constructor(
         val capabilityEvidenceOwnedKeys: Set<String>? = null,
 
         val capabilityEvidenceViewMalformed: Boolean? = null,
+        /** The model entry's v2 `capabilityControls` is carried through unchanged and belongs to the same publication as the evidence candidates. */
+        val capabilityControls: JsonObject? = null,
     )
 
     data class CapabilityRecipeSelection(
@@ -389,6 +447,13 @@ class MetadataClient internal constructor(
         val apiKeyHelpURL: String? = null,
     )
 
+    /** Extra values the official setup page asks the user to fill; the client only recognizes a closed set of ids (`workspaceId`) and ignores the rest at the point of use. */
+    @Serializable
+    data class ProviderSetupField(
+        val id: String = "",
+        val required: Boolean = false,
+    )
+
     @Serializable
     data class PublicProviderConfig(
         val kind: String,
@@ -406,6 +471,10 @@ class MetadataClient internal constructor(
         val attachmentSupport: ProviderAttachmentSupport? = null,
         val regionOptions: List<ProviderRegionOption>? = null,
         val sortOrder: Int? = null,
+        /** Trusted host suffixes of this provider. Missing is the same as empty: only the registrable domain of the built-in fallback address is trusted. */
+        val trustedHosts: List<String>? = null,
+        /** Extra fields of the setup page. Missing is the same as null: none. */
+        val setupFields: List<ProviderSetupField>? = null,
     )
 
     @Serializable
@@ -438,6 +507,8 @@ class MetadataClient internal constructor(
         val webSearchToolName: String,
         val imageRoute: String,
         val forceStreamForImageGeneration: Boolean,
+        /** Codex CLI version issued by the Server (only openai_responses carries it); unvalidated, consumers go through [ai.oriveo.community.core.provider.RelayRuntimeSupport.codexClientVersion]. */
+        val codexClientVersion: String? = null,
     )
 
     @Serializable
@@ -451,6 +522,7 @@ class MetadataClient internal constructor(
         val webSearchToolName: String? = null,
         val imageRoute: String? = null,
         val forceStreamForImageGeneration: Boolean? = null,
+        val codexClientVersion: String? = null,
     )
 
     @Serializable
@@ -1579,6 +1651,9 @@ class MetadataClient internal constructor(
         reasoningMode: ReasoningMode,
         typedWebIntent: String? = null,
         typedReasoningIntent: String? = null,
+        // Used only by the Gemini Interactions builder: the auto tier also selects a thinking recipe and compiles the base op with intent=null;
+        // the generic auto tier still does not select reasoning.
+        includeAutomaticReasoning: Boolean = false,
     ): CapabilityRuntimeRequest? {
         val snapshot = table ?: return null
         val runtime = snapshot.capabilityRuntime ?: return null
@@ -1633,6 +1708,8 @@ class MetadataClient internal constructor(
             val requestedReasoning = typedReasoningIntent ?: reasoningMode.intentValue
             if (requestedReasoning != null) {
                 add("reasoning" to requestedReasoning)
+            } else if (includeAutomaticReasoning) {
+                add("reasoning" to null)
             }
         }
         val selections = requested.mapNotNull { (capability, intent) ->
@@ -1908,6 +1985,7 @@ class MetadataClient internal constructor(
             capabilityEvidenceCandidates = model.capabilityEvidenceCandidates,
             capabilityEvidenceOwnedKeys = model.capabilityEvidenceOwnedKeys?.toSet(),
             capabilityEvidenceViewMalformed = model.capabilityEvidenceViewMalformed,
+            capabilityControls = model.capabilityControls,
         )
     }
 
@@ -2009,6 +2087,7 @@ class MetadataClient internal constructor(
                 webSearchToolName = override.webSearchToolName ?: base.webSearchToolName,
                 imageRoute = override.imageRoute ?: base.imageRoute,
                 forceStreamForImageGeneration = override.forceStreamForImageGeneration ?: base.forceStreamForImageGeneration,
+                codexClientVersion = override.codexClientVersion ?: base.codexClientVersion,
             )
         }
         return RelayRuntimeConfig(
@@ -2160,6 +2239,15 @@ class MetadataClient internal constructor(
         return table?.profiles?.webSearch?.get(profileName)?.mergeParams
     }
 
+    /**
+     * Used for read-time mapping of legacy relay fields: if the profile is in the issued metadata, its mergeParams (empty object if none);
+     * if the profile is not in metadata, null, and the caller falls back to the no-profile case.
+     */
+    fun webSearchDeclaredMergeParams(profileName: String): kotlinx.serialization.json.JsonObject? {
+        val profile = table?.profiles?.webSearch?.get(profileName) ?: return null
+        return profile.mergeParams ?: kotlinx.serialization.json.JsonObject(emptyMap())
+    }
+
     fun webSearchMaxToolLoops(profileName: String?): Int? {
         if (profileName.isNullOrBlank()) return null
         return table?.profiles?.webSearch?.get(profileName)?.maxToolLoops
@@ -2235,12 +2323,53 @@ class MetadataClient internal constructor(
 
     fun listPublicProviderConfigs(): List<PublicProviderConfig> {
         return table?.providerConfigs
+            ?.map(::withTrustedRegionOptions)
             ?.sortedWith(
                 compareBy<PublicProviderConfig> { it.sortOrder ?: Int.MAX_VALUE }
                     .thenBy { providerConfigFallbackOrder(it.kind) }
                     .thenBy { it.kind },
             )
             ?: emptyList()
+    }
+
+    /** Public config issued for a provider (unfiltered); Relay connections have no such row. */
+    fun publicProviderConfig(kind: ProviderKind): PublicProviderConfig? {
+        if (kind == ProviderKind.Relay) return null
+        val backendKind = kindMap[kind.rawValue] ?: kind.rawValue
+        return table?.providerConfigs?.firstOrNull { it.kind == backendKind }
+    }
+
+    /** Public config issued for a provider, with region options already passed through the trusted table and template placeholder rules (same filtering as [listPublicProviderConfigs]). */
+    fun trustedPublicProviderConfig(kind: ProviderKind): PublicProviderConfig? =
+        publicProviderConfig(kind)?.let(::withTrustedRegionOptions)
+
+    /** Raw trusted host suffixes issued for a provider; shape validation and default fallback live in [EndpointResolver.trustedHostSuffixes]. */
+    fun trustedHosts(kind: ProviderKind): List<String>? = publicProviderConfig(kind)?.trustedHosts
+
+    /** Raw outbound protocol issued for a provider (`providerConfigs[].apiProtocol`); null when not issued. */
+    fun apiProtocol(kind: ProviderKind): String? = publicProviderConfig(kind)?.apiProtocol
+
+    /**
+     * Region options and base addresses pass the same trusted table: filtered item by item at the layer that decodes into provider configs,
+     * so the new-provider page, detail page and region picker all receive the filtered table.
+     */
+    private fun withTrustedRegionOptions(config: PublicProviderConfig): PublicProviderConfig {
+        val kind = ProviderKind.entries.firstOrNull { (kindMap[it.rawValue] ?: it.rawValue) == config.kind }
+            ?: return config
+        val trusted = EndpointResolver.trustedHostSuffixes(kind, config.trustedHosts)
+        // Address template: placeholders must be in the closed set and declared in setupFields; substitute `a` and then pass the trusted table; templates without placeholders are unchanged.
+        val declared = OfficialEndpointSource.declaredSetupFieldIds(config.setupFields)
+        // A default address that is a template goes through the same filter; if unusable it is cleared, which is treated as not issued, and each consumer falls back to the built-in default.
+        val defaultBase = config.defaultBaseURL
+        val keepDefault = !(defaultBase.contains('{') || defaultBase.contains('}')) ||
+            OfficialEndpointSource.isAcceptableTemplate(defaultBase.trim().trimEnd('/'), declared, trusted)
+        val options = config.regionOptions
+        val filtered = options?.filter { OfficialEndpointSource.isAcceptableTemplate(it.baseURL, declared, trusted) }
+        if (keepDefault && filtered?.size == options?.size) return config
+        return config.copy(
+            defaultBaseURL = if (keepDefault) defaultBase else "",
+            regionOptions = filtered,
+        )
     }
 
     fun supportedReasoningModes(profileName: String?): List<ReasoningMode> {
@@ -2578,6 +2707,7 @@ class MetadataClient internal constructor(
 
         val observedAt = raw.positiveLong("observedAt")
         val expiresAt = raw.positiveLong("expiresAt")
+
         if ((raw.containsKey("observedAt") && observedAt == null) ||
             (raw.containsKey("expiresAt") && expiresAt == null) ||
             (observedAt != null && expiresAt != null && expiresAt <= observedAt)
@@ -3738,6 +3868,7 @@ class MetadataClient internal constructor(
             reasoningMode: ReasoningMode,
             typedWebIntent: String? = null,
             typedReasoningIntent: String? = null,
+            includeAutomaticReasoning: Boolean = false,
         ): CapabilityRuntimeRequest? = instance.capabilityRuntimeRequest(
             providerKind = providerKind,
             modelID = modelID,
@@ -3746,6 +3877,7 @@ class MetadataClient internal constructor(
             reasoningMode = reasoningMode,
             typedWebIntent = typedWebIntent,
             typedReasoningIntent = typedReasoningIntent,
+            includeAutomaticReasoning = includeAutomaticReasoning,
         )
 
         fun hasP5CapabilityResultRuntime(): Boolean = instance.hasP5CapabilityResultRuntime()
@@ -3833,6 +3965,9 @@ class MetadataClient internal constructor(
         fun webSearchMergeParams(profileName: String?): kotlinx.serialization.json.JsonObject? =
             instance.webSearchMergeParams(profileName)
 
+        fun webSearchDeclaredMergeParams(profileName: String): kotlinx.serialization.json.JsonObject? =
+            instance.webSearchDeclaredMergeParams(profileName)
+
         fun webSearchMaxToolLoops(profileName: String?): Int? =
             instance.webSearchMaxToolLoops(profileName)
 
@@ -3859,6 +3994,18 @@ class MetadataClient internal constructor(
 
         fun listPublicProviderConfigs(): List<PublicProviderConfig> =
             instance.listPublicProviderConfigs()
+
+        fun publicProviderConfig(kind: ProviderKind): PublicProviderConfig? =
+            instance.publicProviderConfig(kind)
+
+        fun trustedPublicProviderConfig(kind: ProviderKind): PublicProviderConfig? =
+            instance.trustedPublicProviderConfig(kind)
+
+        fun trustedHosts(kind: ProviderKind): List<String>? =
+            instance.trustedHosts(kind)
+
+        fun apiProtocol(kind: ProviderKind): String? =
+            instance.apiProtocol(kind)
 
         fun supportedReasoningModes(profileName: String?): List<ReasoningMode> =
             instance.supportedReasoningModes(profileName)

@@ -148,6 +148,8 @@ fun OriveoSecondaryButton(
     enabled: Boolean = true,
     loading: Boolean = false,
     leadingIcon: (@Composable () -> Unit)? = null,
+    /** Background color; null = surfaceChrome (default look). The relay detail "Detect" button passes surface, as on iOS. */
+    fill: Color? = null,
 ) {
     val colors = OriveoTheme.colors
     val isDark = colors.backgroundBase == ai.oriveo.community.ui.theme.DarkOriveoColors.backgroundBase
@@ -165,7 +167,7 @@ fun OriveoSecondaryButton(
             .oriveoSurface(
                 colors = colors,
                 isDark = isDark,
-                fill = colors.surfaceChrome,
+                fill = fill ?: colors.surfaceChrome,
                 borderColor = colors.borderStrong,
                 shadowStyle = OriveoSurfaceStyle.Soft,
             )

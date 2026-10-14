@@ -2,7 +2,6 @@ package ai.oriveo.community.core.data.repository
 
 import ai.oriveo.community.feature.chat.OMIT_LOCAL_FIELDS_ONCE_PREFIX
 import ai.oriveo.community.core.attachments.AttachmentHydrator
-import ai.oriveo.community.core.attachments.OutboundAttachmentBudget
 import ai.oriveo.community.core.data.attachment.AttachmentStore
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.data.repository.streaming.StreamingImageProcessor
@@ -10,7 +9,9 @@ import ai.oriveo.community.core.data.repository.streaming.StreamingTokenBuffer
 import ai.oriveo.community.core.data.repository.streaming.failedMessageDetail
 import ai.oriveo.community.core.data.repository.streaming.isSubscriptionClientVersionRejection
 import ai.oriveo.community.core.error.isTransientNetworkFailure
+import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Attachment
+import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.CapabilityExecutionCollector
 import ai.oriveo.community.core.model.CapabilityExecutionResult
 import ai.oriveo.community.core.model.ChatMessage
@@ -30,7 +31,6 @@ import ai.oriveo.community.core.provider.openai.OpenAISubscriptionRuntime
 import ai.oriveo.community.core.provider.openai.toProviderServiceError
 import ai.oriveo.community.core.provider.grok.toProviderServiceError
 import ai.oriveo.community.core.model.QuoteContext
-import ai.oriveo.community.core.model.QuotePromptBuilder
 import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.RequestPreferenceResolver
 import ai.oriveo.community.core.provider.transport.CitationParser
@@ -40,12 +40,13 @@ import ai.oriveo.community.core.model.StreamEvent
 import ai.oriveo.community.core.model.ToolCallDelta
 import ai.oriveo.community.core.provider.DeliveredCostResolver
 import ai.oriveo.community.core.provider.CostSource
-import ai.oriveo.community.core.provider.MessageBuilder
 import ai.oriveo.community.core.provider.ModelSelectionUtils
 import ai.oriveo.community.core.model.UnhandledToolCall
 import ai.oriveo.community.core.provider.NativeToolCallAccumulator
 import ai.oriveo.community.core.provider.ToolCallMemoryStore
 import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
+import ai.oriveo.community.core.provider.ProviderCredentialResolver
+import ai.oriveo.community.core.provider.RelayEndpointResolver
 import ai.oriveo.community.core.provider.RelayRuntimeSupport
 import ai.oriveo.community.core.provider.RelayService
 import ai.oriveo.community.core.provider.ModelControlRejectionCache
@@ -147,6 +148,15 @@ class ChatRepository(
     private val toolCallMemoryStore: ToolCallMemoryStore? = null,
     /** Entry point that brings remote MCP into the send path; when null (focused tests) a request carries no MCP tools. */
     private val mcpChatToolRunner: ai.oriveo.community.core.mcp.McpChatToolRunner? = null,
+    /** Negative cache for upstream rejections on a relay: rejected image input / tools are recorded here, and the read side uses the same one. */
+    private val relayNegativeCache: ai.oriveo.community.core.provider.relay.RelayNegativeCache =
+        ai.oriveo.community.core.provider.relay.RelayNegativeCache.shared,
+    /** Connection-level web search fragments of a relay: every chat request sends the fragment for the effective protocol. */
+    private val relayWebFragmentStore: ai.oriveo.community.core.provider.relay.RelayWebFragmentStore =
+        ai.oriveo.community.core.provider.relay.RelayWebFragmentStore.shared,
+    /** Relay web search probe records: a chat on a protocol recorded as rejected does not attach the fragment; a delivered reply with citations writes an observed record. */
+    private val relayWebProbeRecords: ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore =
+        ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore.shared,
 ) {
     /**
      * Sends [text] to [provider] and streams the answer back into [outputs].
@@ -256,6 +266,8 @@ class ChatRepository(
 
         var accumulatedCitations: List<Citation> = appendToAssistant?.citations.orEmpty()
             .takeIf { preservesGeneratedContent }.orEmpty()
+        // Whether the upstream parser produced non-empty citations this round (used to record relay web search passively; local citations such as library retrieval are excluded).
+        var relayWebCitationSeen = false
         // Structured provider tool calls must survive even when this connection has no executor.
         // Accumulate the native stream fields and surface them as a local-only message card.
         val nativeToolCallDeltas = mutableMapOf<Int, ToolCallDelta>()
@@ -294,18 +306,13 @@ class ChatRepository(
         } else {
             existingMessages + outboundUserMessage
         }
-        // Failed and interrupted messages are dropped from the outbound history: sending a half
-        // finished answer back as context teaches the model to continue producing broken output.
-        val sanitizedMessages = MessageBuilder.sanitizeOutboundMessages(
-            rawMessages,
-            keepAssistantId = appendToAssistant?.id,
-        )
-        val quotedMessages = QuotePromptBuilder.applyToMessages(sanitizedMessages)
         val allMessages = withContext(Dispatchers.IO) {
+            // Sanitizing, quoting, the attachment budget and the pre-send check share [OutboundHistory].
             // Attachment bytes are loaded on IO and capped before hydration, so a conversation
             // with several large files cannot build a request too big to send.
-            val budgeted = OutboundAttachmentBudget.apply(
-                messages = quotedMessages,
+            val budgeted = OutboundHistory.prepare(
+                rawMessages = rawMessages,
+                keepAssistantId = appendToAssistant?.id,
                 imageSizeOf = { localImageId -> attachmentStore.imageSizeBytes(localImageId) },
                 blobSizeOf = { ref -> attachmentStore.blobSizeBytes(ref) },
             )
@@ -315,7 +322,7 @@ class ChatRepository(
                 loadBlobBase64 = { ref -> attachmentStore.loadBlobBase64(ref) },
             )
         }
-        val service by lazy { providerRepository.serviceFor(provider) }
+        val service by lazy { providerRepository.serviceFor(provider, model ?: requestOptions.activeModel) }
         val capabilityExecutionCollector = CapabilityExecutionCollector(
             onDispatched = { requested ->
                 // This is called only after the final service has prepared the real request and is
@@ -333,12 +340,47 @@ class ChatRepository(
             },
             onWebSearchDispatched = {},
         )
-        var effectiveApiKey = provider.apiKey
+        var effectiveApiKey = ProviderCredentialResolver.apiKey(provider, runtimeModelId)
+        // This message has already switched protocol: later failures report the second error, record no negative cache and show no image hint card.
+        val relayProtocolSwitchStarted = java.util.concurrent.atomic.AtomicBoolean(false)
+        // This message carried native file blocks, was rejected, and the fallback did not save it: on failure the file-rejected marker is set; a successful fallback or protocol switch never reaches failure.
+        val relayFileRejected = java.util.concurrent.atomic.AtomicBoolean(false)
+        // First-send protocol: an unverified Claude family on an auto connection sends Messages first, everything else = the effective protocol; the negative-cache key and the advanced page read the same one.
+        val relayFirstSend = (model ?: requestOptions.activeModel)?.takeIf { provider.kind == ProviderKind.Relay }?.let { routeModel ->
+            ai.oriveo.community.core.provider.relay.RelayFirstSendTransport.forSend(provider, routeModel, allMessages)
+        }
+        // The web search fragment actually attached this round under the first-send protocol: when delivered with citations, the observed record is written from it.
+        var relayWebSentFragment: kotlinx.serialization.json.JsonObject? = null
+        var relayWebSentTransport: RelayTransport? = null
         var effectiveRequestOptions = if (provider.kind == ProviderKind.Relay) {
+            // Protocol and root are resolved for this model (a model-level protocol wins); RelayService runs the safe-mode check again before sending.
+            val routeModel = model ?: requestOptions.activeModel
+            val transport = relayFirstSend ?: RelayEndpointResolver.effectiveTransport(provider, routeModel)
+            // A protocol recorded as rejected under the current fragment gets no fragment (silent / untested / stale-hash records are treated as usual).
+            val effectiveFragments = relayWebFragmentStore.effective(provider)
+            val sendableFragments = routeModel?.let { relayWebProbeRecords.sendable(provider.id, it.id, effectiveFragments) }
+                ?: effectiveFragments
+            relayWebSentFragment = sendableFragments[transport.value]
+            relayWebSentTransport = transport
+            // When the first send changed the protocol, the root is taken for the first-send protocol (the same way as a protocol-fallback switch).
+            val rootModel = routeModel?.takeIf { transport != RelayEndpointResolver.effectiveTransport(provider, it) }
+                ?.copy(relayTransport = transport) ?: routeModel
             requestOptions.copy(
                 relayRequested = provider.relayRequested,
                 relayImage = provider.relayImage,
+                relayWebFragments = sendableFragments,
+                relayRouteTransport = transport,
+                relayRouteAPIRoot = RelayEndpointResolver.effectiveAPIRoot(provider, rootModel),
                 capabilityExecutionCollector = capabilityExecutionCollector,
+                relayProtocolSwitched = model?.let { sent ->
+                    val sentTransport = RelayEndpointResolver.effectiveTransport(provider, sent)
+                    val switched: suspend (RelayTransport) -> Unit = { next ->
+                        recordRelayProtocolFallback(provider, sent, sentTransport, next)
+                    }
+                    switched
+                },
+                relayProtocolSwitchStarted = { relayProtocolSwitchStarted.set(true) },
+                relayFileRejected = { relayFileRejected.set(true) },
             )
         } else {
             requestOptions.copy(capabilityExecutionCollector = capabilityExecutionCollector)
@@ -356,6 +398,7 @@ class ChatRepository(
         val effectiveWebSearchEnabled = shouldEnableWebSearchForSend(
             provider = provider,
             requested = webSearchEnabled,
+            model = model ?: requestOptions.activeModel,
         )
         var providerMessages = if (appendToAssistant != null) {
             // The target UI partial is presentation state, not protocol continuation state.
@@ -367,7 +410,7 @@ class ChatRepository(
 
         var relayUpstreamModelId = runtimeModelId
         var relayUseImagesEndpoint = false
-        val relayTransport = provider.relayRequested?.transport ?: RelayTransport.Auto
+        val relayTransport = RelayEndpointResolver.effectiveTransport(provider, model ?: requestOptions.activeModel)
         if (provider.kind == ProviderKind.Relay && supportsImageGen) {
             when (RelayRuntimeSupport.imageRoute(relayTransport)) {
                 RelayRuntimeSupport.ImageRoute.Unsupported ->
@@ -411,10 +454,7 @@ class ChatRepository(
             provider.kind == ProviderKind.Relay &&
                 effectiveRequestOptions.relayRequested?.stream == false &&
 
-                !RelayRuntimeSupport.shouldForceStream(
-                    relayTransport,
-                    model?.capabilities ?: emptyList(),
-                )
+                !relayForcesStream(provider, model, relayTransport)
 
         try {
             withContext(Dispatchers.IO) {
@@ -499,6 +539,8 @@ class ChatRepository(
                     ) ?: ai.oriveo.community.core.mcp.McpToolPlan.Empty
                 }
                 var toolLoopAnswered = false
+                // null = the MCP loop did not run, or its first leg had tools rejected and the ordinary send below resends without tools.
+                var mcpResult: ai.oriveo.community.core.tools.ToolCallLoop.Result? = null
                 if (!mcpPlan.isEmpty) {
                     // The tool loop produces the final answer itself, leg by leg, over whichever of
                     // the four wire protocols this connection speaks.
@@ -506,7 +548,7 @@ class ChatRepository(
                     runner.clearStepLimitReached(assistantMessageId)
                     val activeModel = checkNotNull(model)
                     var legText = ""
-                    val mcpResult = try {
+                    mcpResult = try {
                         runner.run(
                             conversationId = conversation.id,
                             provider = provider,
@@ -569,21 +611,18 @@ class ChatRepository(
                             }
                         }
                     } catch (error: ai.oriveo.community.core.tools.ToolsUnsupportedError) {
-                        // Only a deterministic 4xx on the first leg, before any structured tool call
-                        // was seen, is remembered as "this connection does not support tools"; the
-                        // next send then leaves the MCP tools out. This send fails with the usual
-                        // error card.
-                        if (error.legIndex == 0 && !error.receivedStructuredToolCalls) {
-                            toolCallMemoryStore?.record(
-                                partitionId = providerRepository.currentCapabilityPartitionId(),
-                                provider = provider,
-                                model = activeModel,
-                                toolCall = false,
-                                reason = "tools_rejected_4xx",
-                            )
-                        }
-                        throw error.upstream
+                        // A 4xx on a later leg, or after a structured tool call was seen, is not "tools unsupported": it fails with the usual error card.
+                        if (error.legIndex != 0 || error.receivedStructuredToolCalls) throw error.upstream
+                        // A deterministic 4xx on the first leg: resend once this time without tools; the connection
+                        // memory records false only when it is eligible (recordToolsRejected / ToolCallMemoryStore.isEligible).
+                        recordToolsRejected(provider, activeModel, error, sentTransport = relayFirstSend)
+                        outputs.streamingText.value = initialText
+                        null
                     }
+                }
+                if (mcpResult != null) {
+                    val runner = checkNotNull(mcpChatToolRunner)
+                    val activeModel = checkNotNull(model)
                     // At the step limit the steps block ends with a line saying that the answer below
                     // is based on the results gathered so far.
                     if (mcpResult.stepLimitReached) runner.markStepLimitReached(assistantMessageId)
@@ -620,7 +659,7 @@ class ChatRepository(
                         apiKey = effectiveApiKey,
                         modelID = relayUpstreamModelId,
                         messages = providerMessages,
-                        baseUrl = provider.baseUrlText,
+                        baseUrl = ai.oriveo.community.core.provider.transport.OfficialEndpointSource.effectiveBaseUrlText(provider),
                         requestOptions = effectiveRequestOptions,
                     )
                     finalResult = done.result
@@ -631,7 +670,7 @@ class ChatRepository(
                         apiKey = effectiveApiKey,
                         modelID = relayUpstreamModelId,
                         messages = providerMessages,
-                        baseUrl = provider.baseUrlText,
+                        baseUrl = ai.oriveo.community.core.provider.transport.OfficialEndpointSource.effectiveBaseUrlText(provider),
                         supportsImageGen = true,
                         reasoningMode = effectiveReasoning,
                         webSearchEnabled = effectiveWebSearchEnabled,
@@ -646,7 +685,7 @@ class ChatRepository(
                         apiKey = effectiveApiKey,
                         modelID = relayUpstreamModelId,
                         messages = providerMessages,
-                        baseUrl = provider.baseUrlText,
+                        baseUrl = ai.oriveo.community.core.provider.transport.OfficialEndpointSource.effectiveBaseUrlText(provider),
                         supportsImageGen = supportsImageGen,
                         reasoningMode = effectiveReasoning,
                         webSearchEnabled = effectiveWebSearchEnabled,
@@ -678,7 +717,7 @@ class ChatRepository(
                         apiKey = effectiveApiKey,
                         modelID = relayUpstreamModelId,
                         messages = providerMessages,
-                        baseUrl = provider.baseUrlText,
+                        baseUrl = ai.oriveo.community.core.provider.transport.OfficialEndpointSource.effectiveBaseUrlText(provider),
                         supportsImageGen = supportsImageGen,
                         reasoningMode = effectiveReasoning,
                         webSearchEnabled = effectiveWebSearchEnabled,
@@ -753,6 +792,7 @@ class ChatRepository(
                             }
                             is StreamEvent.Citations -> {
                                 accumulatedCitations = mergeIncomingCitations(event.citations)
+                                if (event.citations.any { it.url.isNotBlank() }) relayWebCitationSeen = true
                             }
                             is StreamEvent.RecipeContinuation -> {
                                 val accountId = continuationAccountId()
@@ -855,6 +895,7 @@ class ChatRepository(
                 }
 
                 val finalCitations = mergeIncomingCitations(result?.citations.orEmpty())
+                if (result?.citations.orEmpty().any { it.url.isNotBlank() }) relayWebCitationSeen = true
 
                 val reasoningStartedAt = outputs.reasoningStartedAtMs.value
                 val reasoningEndedAt = outputs.reasoningEndedAtMs.get()
@@ -917,6 +958,20 @@ class ChatRepository(
                     costSource = result?.costSource,
                 )
                 conversationRepository.updateMessage(conversation.id, deliveredMessage)
+                if (deliveredMessage.state == ChatMessageState.Delivered) {
+                    relayObservedPromotionTransport(provider, model, delivered = true)?.let { sentTransport ->
+                        promoteRelayModelAfterDelivery(provider, requireNotNull(model), sentTransport)
+                    }
+                    // The first send went out on a different protocol and did not switch again: write the first-send protocol to this model as observed, through the same write-back path as a protocol fallback.
+                    relayFirstSendObservedTransport(provider, model, relayFirstSend, relayProtocolSwitchStarted.get())?.let { (sent, observed) ->
+                        recordRelayProtocolFallback(provider, requireNotNull(model), sent, observed)
+                    }
+                    recordRelayKeyAccessSuccess(provider, runtimeModelId)
+                    // A relay chat was delivered, this round attached a fragment without switching protocol, and the parser produced citations: searched / observed (the message-level execution fact is not upgraded).
+                    if (relayWebCitationSeen && !relayProtocolSwitchStarted.get()) {
+                        recordRelayWebObserved(provider, model ?: requestOptions.activeModel, relayWebSentTransport, relayWebSentFragment)
+                    }
+                }
                 conversationRepository.refreshCost(conversation.id)
             }
         } catch (e: CancellationException) {
@@ -1035,11 +1090,28 @@ class ChatRepository(
                 val recipe = located.recipeRef?.let(::encode) ?: "-"
                 "capability_setting_pre_token_400:${located.source}:${located.owner}:$recipe:$pointers"
             }
+            val relayImageRejected = recordRelayImageRejection(
+                provider = provider,
+                model = model,
+                messages = providerMessages,
+                error = e,
+                outputStarted = receivedUpstreamEvent,
+                protocolSwitched = relayProtocolSwitchStarted.get(),
+                sentTransport = relayFirstSend,
+            )
+            if (!receivedUpstreamEvent) recordRelayKeyAccessFailure(provider, runtimeModelId, e)
             val failedMessage = assistantPlaceholder.copy(
                 text = outputs.streamingText.value.trim(),
                 state = ChatMessageState.Failed,
                 errorTitle = localFieldsFailureTitle(title, localFieldsRetryOwner),
-                errorDetail = detail,
+                // Body of the hint card: a string-table key is stored and the display layer localizes it by key, with a Switch Model button on the card;
+                // when both an image rejection and a file rejection hold, the image card wins.
+                errorDetail = when {
+                    relayImageRejected -> RELAY_IMAGE_UNSUPPORTED_DETAIL
+                    // A failure after the fallback / switched hop already started producing output is a different matter and does not get the file-rejected marker.
+                    relayFileRejected.get() && !receivedUpstreamEvent -> RELAY_FILE_UNSUPPORTED_DETAIL
+                    else -> detail
+                },
                 // A rejected response is not observed success. Preserve only the production
                 // dispatch facts; the exact recipe/custom locator is carried separately by CTA.
                 capabilityExecutionResults = capabilityExecutionCollector.requestedResults(),
@@ -1059,6 +1131,147 @@ class ChatRepository(
             outputs.streamingText.value = ""
             outputs.streamingActivity.value = null
             tokenBuffer.clear()
+        }
+    }
+
+    /**
+     * Tools rejected (matcher and the resend without tools unchanged): a relay records the `toolCall` negative cache only on a rejected signal
+     * and no longer writes false into the old tool memory; other kinds write the tool memory as before.
+     * The key follows the protocol actually sent: when the first send went out on Messages but fell back to Chat because of attachments, the rejection is recorded under the Chat key,
+     * so it does not pollute the Messages key the next ordinary send reads.
+     */
+    private fun recordToolsRejected(
+        provider: Provider,
+        model: AIModel,
+        error: ai.oriveo.community.core.tools.ToolsUnsupportedError,
+        sentTransport: RelayTransport?,
+    ) {
+        val key = sentTransport?.let { ai.oriveo.community.core.provider.relay.RelayNegativeCache.keyFor(provider, model, it) }
+            ?: ai.oriveo.community.core.provider.relay.RelayNegativeCache.keyFor(provider, model)
+        if (key != null) {
+            relayNegativeCache.recordIfRejected(
+                key,
+                ai.oriveo.community.core.provider.relay.RelayNegativeCache.Kind.ToolCall,
+                error.upstream,
+            )
+            return
+        }
+        toolCallMemoryStore?.record(
+            partitionId = providerRepository.currentCapabilityPartitionId(),
+            provider = provider,
+            model = model,
+            toolCall = false,
+            reason = "tools_rejected_4xx",
+        )
+    }
+
+    /**
+     * Image input rejected: record `image` only when the request carried an image and the model has no positive evidence of image support at any level
+     * (see [relayImageRejectionRecords]). Returns whether it was recorded, which decides whether the failed message shows the hint card.
+     */
+    private fun recordRelayImageRejection(
+        provider: Provider,
+        model: AIModel?,
+        messages: List<ChatMessage>,
+        error: Throwable,
+        outputStarted: Boolean,
+        protocolSwitched: Boolean,
+        /** The protocol this first send actually used (including the attachment rule); a switched send is not recorded, so this is the protocol it went out on. */
+        sentTransport: RelayTransport? = null,
+    ): Boolean {
+        val sent = model ?: return false
+        val key = sentTransport?.let { ai.oriveo.community.core.provider.relay.RelayNegativeCache.keyFor(provider, sent, it) }
+            ?: ai.oriveo.community.core.provider.relay.RelayNegativeCache.keyFor(provider, sent)
+            ?: return false
+        if (messages.none { message -> message.attachments.orEmpty().any { it.kind == AttachmentKind.Image } }) return false
+        val rejected = ai.oriveo.community.core.provider.relay.RelayNegativeCache.isRejectionSignal(error)
+        if (!relayImageRejectionRecords(provider, sent, rejected, outputStarted, protocolSwitched)) return false
+        relayNegativeCache.record(key, ai.oriveo.community.core.provider.relay.RelayNegativeCache.Kind.Image)
+        return true
+    }
+
+    /**
+     * Writes back the key-access verdict of a relay's non-2xx response before any output: "no access" is recorded on the model, an invalid / limited key is recorded on that key's status
+     * (also for a single key); a failed write does not stop this message from failing as usual.
+     */
+    private suspend fun recordRelayKeyAccessFailure(provider: Provider, modelID: String, error: Throwable) {
+        if (provider.kind != ProviderKind.Relay) return
+        val signal = ai.oriveo.community.core.provider.relay.RelayKeyAccess.signalOf(error) ?: return
+        if (signal.outcome == ai.oriveo.community.core.model.RelayKeyAccessOutcome.None) return
+        val keyID = ai.oriveo.community.core.provider.relay.RelayKeyBinding.effectiveKeyID(provider, modelID)
+        try {
+            providerRepository.recordRelayKeyAccess(provider.id, modelID, keyID, signal, provider)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // The next rejection of the same kind records it again.
+        }
+    }
+
+    /**
+     * A send succeeded on the same key: clear the model's no-access marker for it and write that key back as ok; nothing is touched in storage when there is nothing to change.
+     * The model's "not connected" state is cleared first, regardless of whether the key status changed.
+     */
+    private suspend fun recordRelayKeyAccessSuccess(provider: Provider, modelID: String) {
+        if (provider.kind != ProviderKind.Relay) return
+        try {
+            providerRepository.clearRelayModelProbeFailure(provider.id, modelID)
+        } catch (_: Exception) {
+            // It is only in-memory state; failing to clear it does not affect the delivered message.
+        }
+        val keyID = ai.oriveo.community.core.provider.relay.RelayKeyBinding.effectiveKeyID(provider, modelID)
+        if (!ai.oriveo.community.core.provider.relay.RelayKeyAccess.successChanges(provider, modelID, keyID)) return
+        try {
+            providerRepository.recordRelayKeyAccessSuccess(provider.id, modelID, keyID, provider)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // A failed write-back does not affect the delivered message.
+        }
+    }
+
+    /** A protocol-level fallback switched protocol successfully: a failed write-back does not affect the delivered message. */
+    private suspend fun recordRelayProtocolFallback(
+        provider: Provider,
+        model: AIModel,
+        sentTransport: RelayTransport,
+        transport: RelayTransport,
+    ) {
+        try {
+            providerRepository.recordRelayProtocolFallback(provider.id, model.id, sentTransport, transport)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // The next identical 404 / 415 switches again.
+        }
+    }
+
+    /** A failed write-back does not affect the delivered message. */
+    private fun recordRelayWebObserved(
+        provider: Provider,
+        model: AIModel?,
+        transport: RelayTransport?,
+        fragment: kotlinx.serialization.json.JsonObject?,
+    ) {
+        if (provider.kind != ProviderKind.Relay || model == null || transport == null || fragment == null) return
+        relayWebProbeRecords.record(
+            ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore.Key(provider.id, model.id, transport.value),
+            ai.oriveo.community.core.provider.relay.RelayWebProbeRecord(
+                result = ai.oriveo.community.core.provider.relay.RelayWebProbeResult.Searched,
+                source = ai.oriveo.community.core.provider.relay.RelayWebProbeSource.Observed,
+                at = relayWebProbeRecords.now(),
+                fragmentHash = ai.oriveo.community.core.provider.relay.RelayWebProbe.fragmentHash(fragment),
+            ),
+        )
+    }
+
+    private suspend fun promoteRelayModelAfterDelivery(provider: Provider, model: AIModel, sentTransport: RelayTransport) {
+        try {
+            providerRepository.promoteRelayModelToObserved(provider.id, model.id, sentTransport)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // The next delivered message tries again; the finished send is not disturbed by this step.
         }
     }
 
@@ -1095,6 +1308,14 @@ class ChatRepository(
     }
 
     companion object {
+        /** Key of the hint card body on the failed message after a relay's image input was rejected upstream (string table relay_image_unsupported_hint). */
+        const val RELAY_IMAGE_UNSUPPORTED_DETAIL =
+            "This model doesn't support images. Switch to another model to send them."
+
+        /** Key of the hint card body on the failed message after a relay request with native file blocks was rejected and the fallback did not save it (string table relay_file_unsupported_hint). */
+        const val RELAY_FILE_UNSUPPORTED_DETAIL =
+            "This model doesn't support these files. Switch to another model to send them."
+
         /** Checkpoint after this many buffered characters, or this long, whichever comes first. */
         internal const val PARTIAL_FLUSH_CHAR_THRESHOLD = 4000
         internal const val PARTIAL_FLUSH_TIME_THRESHOLD_MS = 60_000L
@@ -1104,13 +1325,76 @@ class ChatRepository(
 internal fun shouldEnableWebSearchForSend(
     provider: Provider,
     requested: Boolean,
+    model: AIModel? = null,
 ): Boolean {
     if (!requested) return false
     if (provider.kind != ProviderKind.Relay) return true
     return RelayRuntimeSupport.supportsWebSearch(
         provider = provider,
         runtimeConfig = MetadataClient.relayRuntimeConfig(),
+        model = model,
     )
+}
+
+/** Whether a relay must stream: the image generation verdict (including the image generation override) x the inline-tool rule of Responses. */
+internal fun relayForcesStream(
+    provider: Provider,
+    model: AIModel?,
+    transport: RelayTransport,
+): Boolean = model != null && RelayRuntimeSupport.shouldForceStream(
+    transport,
+    ai.oriveo.community.core.provider.relay.relayDispatchesImageGeneration(provider, model),
+)
+
+/**
+ * Whether a request with images that was rejected should record `image`: it is a rejected signal, no output has started, this message has not switched protocol,
+ * and the model has no positive evidence of image support at any level.
+ */
+internal fun relayImageRejectionRecords(
+    provider: Provider,
+    model: AIModel,
+    rejected: Boolean,
+    outputStarted: Boolean,
+    protocolSwitched: Boolean,
+): Boolean {
+    if (!rejected || outputStarted || protocolSwitched) return false
+    return relayImageSupportUnknown(provider, model)
+}
+
+/**
+ * The model has no positive evidence of image support at any level (the record decision and the "unknown" image state in the model options use this same predicate):
+ * an override of true, an engine declaration of true, or a capability (inherited from the catalog or declared) containing Image all count as positive evidence.
+ */
+internal fun relayImageSupportUnknown(provider: Provider, model: AIModel): Boolean {
+    if (model.relayCapabilityOverrides?.image == true) return false
+    if (!provider.relayRequested?.engineProfile.isNullOrBlank() && model.engineDeclaration?.image == true) return false
+    return ModelCapability.Image !in model.capabilities
+}
+
+/**
+ * When the first-send protocol differs from the effective protocol and this message did not switch protocol, what to write back as observed after delivery:
+ * (the effective protocol when the send started, the first-send protocol); otherwise null.
+ */
+internal fun relayFirstSendObservedTransport(
+    provider: Provider,
+    model: AIModel?,
+    firstSend: RelayTransport?,
+    protocolSwitched: Boolean,
+): Pair<RelayTransport, RelayTransport>? {
+    if (provider.kind != ProviderKind.Relay || model == null || firstSend == null || protocolSwitched) return null
+    val effective = RelayEndpointResolver.effectiveTransport(provider, model)
+    return (effective to firstSend).takeIf { firstSend != effective }
+}
+
+/**
+ * Whether this send should go compare "reachable to observed" in the store; if so, returns the effective protocol when the send started.
+ * [model] is the snapshot at send start, and the effective protocol computed from it is the one this send used. Whether anything is actually written is decided by the model in the store at completion
+ * (source reachable and protocol equal to it, see [ProviderRepository.promoteRelayModelToObserved]): a model that followed the connection at the start and was lazily verified to the same protocol as reachable midway is promoted too.
+ * A failure or a partial reply does not touch the store.
+ */
+internal fun relayObservedPromotionTransport(provider: Provider, model: AIModel?, delivered: Boolean): RelayTransport? {
+    if (!delivered || provider.kind != ProviderKind.Relay || model == null) return null
+    return RelayEndpointResolver.effectiveTransport(provider, model)
 }
 
 internal data class SendModelSelection(
@@ -1127,11 +1411,16 @@ internal fun resolveSendModelSelection(
     val model = ProviderSelectionSnapshot.selectedModel(provider, modelID)
     return SendModelSelection(
         runtimeModelId = model?.id ?: modelID,
-        storedModelId = model?.let(ModelSelectionUtils::preferredStoredModelIdentifier)
+        storedModelId = model?.let { ModelSelectionUtils.preferredStoredModelIdentifier(it, provider.kind) }
             ?: ModelSelectionUtils.resolvedId(modelID),
         modelName = model?.name ?: modelID,
 
-        supportsImageGen = model?.capabilities?.contains(ModelCapability.ImageGen) == true &&
-            (provider.kind == ProviderKind.Relay || !model.imageGenProfile.isNullOrBlank()),
+        // A model-level image generation override of a relay wins.
+        supportsImageGen = when {
+            model == null -> false
+            provider.kind == ProviderKind.Relay ->
+                ai.oriveo.community.core.provider.relay.relayDispatchesImageGeneration(provider, model)
+            else -> model.capabilities.contains(ModelCapability.ImageGen) && !model.imageGenProfile.isNullOrBlank()
+        },
     )
 }

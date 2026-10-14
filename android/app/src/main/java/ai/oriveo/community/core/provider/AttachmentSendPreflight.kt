@@ -24,11 +24,13 @@ object AttachmentSendPreflight {
      *
      * @property toolLoopPossible The tool loop (MCP) may take over this send: leg requests always build messages as Chat Completions,
      *   and whether it takes over is only decided after sending, so when true the leg route counts as a possibility too.
+     * @property historyHasVideo The session history (excluding this turn) has video attachments; together with this turn's attachments it decides whether Gemini goes through Interactions.
      */
     data class SendOptions(
         val reasoningMode: ReasoningMode,
         val webSearchEnabled: Boolean,
         val toolLoopPossible: Boolean,
+        val historyHasVideo: Boolean = false,
     )
 
     fun undeliverable(
@@ -45,8 +47,10 @@ object AttachmentSendPreflight {
         val routes = if (options == null) {
             AttachmentTransportResolver.possibleRoutes(provider, model)
         } else {
+            // Same rule as outbound: when this turn or the session history carries video, Interactions is not used.
             AttachmentTransportResolver.routesFor(
                 provider, model, options.webSearchEnabled, options.reasoningMode, options.toolLoopPossible,
+                historyHasVideo = options.historyHasVideo || all.any { it.kind == AttachmentKind.Video },
             )
         } ?: return null
         val errors = routes.map { route ->

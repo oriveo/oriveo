@@ -52,8 +52,19 @@ object ProviderSetupCopy {
 
     fun regionOptions(kind: ProviderKind) = ProviderSetupCatalogResolver.current().regionOptions(kind)
 
+    /**
+     * Regions selectable on the detail page: the same table as the setup page, including address templates with placeholders.
+     * Choosing a template shows a Workspace ID slot on the detail page; a valid value fills in the literal address before saving,
+     * so a template is never written to the address as-is.
+     */
+    fun detailRegionOptions(kind: ProviderKind) = regionOptions(kind)
+
     fun resolveRegionOption(kind: ProviderKind, baseUrl: String?) =
         ProviderSetupCatalogResolver.current().resolveRegionOption(kind, baseUrl)
+
+    /** Echoes the region of a saved connection on the detail / settings page; a region source takes priority. */
+    fun resolveRegionOption(kind: ProviderKind, baseUrl: String?, endpointSource: String?) =
+        ProviderSetupCatalogResolver.current().resolveRegionOption(kind, baseUrl, endpointSource)
 
     fun defaultBaseUrl(kind: ProviderKind) = ProviderSetupCatalogResolver.current().defaultBaseUrl(kind)
 }

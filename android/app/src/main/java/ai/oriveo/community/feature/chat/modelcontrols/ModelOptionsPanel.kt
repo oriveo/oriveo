@@ -1,13 +1,18 @@
 package ai.oriveo.community.feature.chat.modelcontrols
 
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -27,7 +32,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -40,9 +53,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 import ai.oriveo.community.feature.chat.composer.ModelControlHairline
+import ai.oriveo.community.feature.chat.composer.modelControlSurface
 import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionCapabilityShape.Capability
 import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionCapabilityShape.Escape
 import ai.oriveo.community.feature.providers.detail.generationParameterTitleRes
+import ai.oriveo.community.ui.theme.CapabilityPalette
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.modelControlTextButtonColors
 
@@ -129,13 +144,13 @@ private fun StatusMark(mark: ModelOptionsStatusMark, label: String) {
     }
 }
 
-/** The actions of one row in a capability card; every criterion lives in the caller and this only wires them up. */
+/** The actions of one card in the capability grid; every criterion lives in the caller and this only wires them up. */
 internal class CapabilityRowActions(
     val onToggle: (Boolean) -> Unit,
     val onSelectTier: (String) -> Unit,
     val onSelectTiming: (String) -> Unit,
     val onEscape: (Escape) -> Unit,
-    /** When the model itself cannot do it the whole row leads to switching models; null means the row is not tappable. */
+    /** When the model itself cannot do it the whole card leads to switching models; null means the card is not tappable. */
     val onDisclosure: (() -> Unit)?,
     /** The chat-template switch cannot be toggled while the additional request body is unavailable or not sent with the request. */
     val toggleEnabled: Boolean = true,
@@ -143,135 +158,164 @@ internal class CapabilityRowActions(
     val toggleEscape: Escape? = null,
     /** The sentence that replaces the explanation when the switch cannot be toggled; null uses the shape's default explanation. */
     @StringRes val toggleBlockedNoteRes: Int? = null,
+    /** Only when the protocol of this row is undecided does the whole card lead to choosing a protocol. */
+    val onChooseProtocol: () -> Unit = {},
 )
 
-/** One row of a capability card: draws a switch, segments, timing, a notice or a status row according to the shape. */
+/**
+ * The 2x2 grid of the capability area: two equal-height columns; with an accessibility large font (fontScale >= 1.5) it falls back to a single column.
+ * The kinds and order of the cards all come from [ModelOptionsTiles.board]; this only lays them out.
+ */
+@Composable
+internal fun ModelOptionsBoard(
+    tiles: List<ModelOptionsTiles.Tile>,
+    tile: @Composable (ModelOptionsTiles.Tile) -> Unit,
+) {
+    val columns = if (ModelOptionsTiles.singleColumn(LocalDensity.current.fontScale)) 1 else 2
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        tiles.chunked(columns).forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                row.forEach { item -> Box(Modifier.weight(1f).fillMaxHeight()) { tile(item) } }
+                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+/** Web / thinking card: the look comes from [ModelOptionsTiles.capabilityTile], the actions are wired by shape. */
 @Composable
 internal fun ModelOptionCapabilityRow(
     capability: Capability,
     shape: ModelOptionCapabilityShape,
     actions: CapabilityRowActions,
 ) {
+    val tile = ModelOptionsTiles.capabilityTile(capability, shape, actions.toggleBlockedNoteRes)
     val title = stringResource(if (capability == Capability.Web) R.string.model_control_web_search else R.string.model_control_thinking)
-    val toggleTag = if (capability == Capability.Web) "model_options_web_toggle" else "model_options_thinking_toggle"
-    when (shape) {
-        is ModelOptionCapabilityShape.Toggle -> Column {
-            ToggleRow(
-                title = title,
-                note = stringResource(actions.toggleBlockedNoteRes ?: ModelOptionsRender.toggleNoteRes(capability, shape.kind)),
-                isOn = shape.isOn == true,
-                enabled = actions.toggleEnabled,
-                onToggle = actions.onToggle,
+    val onClick: (() -> Unit)? = when (shape) {
+        is ModelOptionCapabilityShape.Notice -> shape.escape?.let { escape -> { actions.onEscape(escape) } }
+        is ModelOptionCapabilityShape.Disclosure -> actions.onDisclosure?.takeIf { tile.tappable }
+        ModelOptionCapabilityShape.ProtocolUndecided -> actions.onChooseProtocol
+        else -> null
+    }
+    OptionTileFrame(
+        tile = tile,
+        title = title,
+        onClick = onClick,
+        corner = {
+            when (tile.corner) {
+                ModelOptionsTiles.Corner.Switch -> Switch(
+                    checked = shape is ModelOptionCapabilityShape.ToggleWithTiming ||
+                        (shape as? ModelOptionCapabilityShape.Toggle)?.isOn == true,
+                    onCheckedChange = actions.onToggle,
+                    enabled = actions.toggleEnabled,
+                    modifier = Modifier.semantics { contentDescription = title },
+                )
+                ModelOptionsTiles.Corner.Levels -> Text(
+                    pluralStringResource(R.plurals.model_options_reasoning_level_count, tile.levelCount, tile.levelCount),
+                    fontSize = 13.sp,
+                    color = OriveoTheme.colors.textSecondary,
+                    maxLines = 1,
+                )
+                else -> CornerMark(tile.corner)
+            }
+        },
+    ) {
+        when (shape) {
+            is ModelOptionCapabilityShape.Tiers -> Segments(
+                options = shape.tiers,
+                selected = shape.selected,
+                label = { ModelOptionsRender.tierLabelRes(it) },
+                // The card has no room for tier words: it draws icons only (automatic sparkle / off dash / bars), and the accessibility name stays the tier word.
+                level = { null },
+                iconOnly = true,
+                onSelect = actions.onSelectTier,
             )
-            actions.toggleEscape?.let { escape ->
+            is ModelOptionCapabilityShape.ToggleWithTiming -> Segments(
+                options = shape.timings,
+                selected = shape.selectedTiming,
+                label = { ModelOptionsRender.timingLabelRes(it) },
+                level = { null },
+                onSelect = actions.onSelectTiming,
+            )
+            is ModelOptionCapabilityShape.Toggle -> actions.toggleEscape?.let { escape ->
                 TextButton(
                     colors = modelControlTextButtonColors(),
                     onClick = { actions.onEscape(escape) },
-                    modifier = Modifier.padding(start = 4.dp).heightIn(min = 44.dp),
+                    modifier = Modifier.heightIn(min = 44.dp),
                 ) { Text(stringResource(ModelOptionsRender.escapeRes(escape))) }
             }
+            else -> Unit
         }
-        is ModelOptionCapabilityShape.ToggleWithTiming -> Column {
-            ToggleRow(
-                title = title,
-                note = stringResource(ModelOptionsRender.toggleNoteRes(capability, ModelOptionCapabilityShape.ToggleKind.Capability)),
-                isOn = true,
-                enabled = actions.toggleEnabled,
-                onToggle = actions.onToggle,
-            )
-            Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp)) {
-                Segments(
-                    options = shape.timings,
-                    selected = shape.selectedTiming,
-                    label = { ModelOptionsRender.timingLabelRes(it) },
-                    level = { null },
-                    onSelect = actions.onSelectTiming,
-                )
-            }
-        }
-        is ModelOptionCapabilityShape.Tiers -> TiersBlock(title, shape, actions.onSelectTier)
-        is ModelOptionCapabilityShape.Notice -> Column(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 15.dp, bottom = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            TitleWithTrailing(title, stringResource(ModelOptionsRender.noticeStatusRes(shape.status)))
-            Text(stringResource(ModelOptionsRender.noticeBodyRes(shape.body)), fontSize = 12.5.sp, color = OriveoTheme.colors.textSecondary)
-            TextButton(
-                colors = modelControlTextButtonColors(),
-                onClick = { actions.onEscape(shape.escape) },
-                modifier = Modifier.heightIn(min = 44.dp),
-            ) { Text(stringResource(ModelOptionsRender.escapeRes(shape.escape))) }
-        }
-        is ModelOptionCapabilityShape.Disclosure -> StatusRow(
-            title = title,
-            trailing = if (shape.status == ModelOptionCapabilityShape.DisclosureStatus.ReadOnlyValue) {
-                shape.value?.let { readOnlyValueLabel(capability, it) } ?: stringResource(R.string.model_options_cant_switch_here)
-            } else {
-                stringResource(ModelOptionsRender.disclosureRes(shape.status))
-            },
-            onClick = actions.onDisclosure,
-        )
-        // While the protocol is undecided the whole card is replaced by [ModelOptionsProtocolCard], so a row never gets here.
-        ModelOptionCapabilityShape.ProtocolUndecided -> Unit
     }
 }
 
+/** Vision / file info card: read-only, with a check / question / x at the top right. */
 @Composable
-private fun readOnlyValueLabel(capability: Capability, value: String): String = when {
-    capability == Capability.Reasoning -> stringResource(ModelOptionsRender.tierLabelRes(value))
-    value == ModelOptionCapabilityShape.OFF -> stringResource(R.string.model_control_off)
-    else -> stringResource(ModelOptionsRender.timingLabelRes(value))
+internal fun ModelOptionInfoTile(tile: ModelOptionsTiles.Tile) {
+    val title = stringResource(if (tile.kind == ModelOptionsTiles.Kind.Vision) R.string.capability_image else R.string.capability_file)
+    OptionTileFrame(tile = tile, title = title, onClick = null, corner = { CornerMark(tile.corner) }) {}
 }
 
 @Composable
-private fun ToggleRow(title: String, note: String, isOn: Boolean, enabled: Boolean, onToggle: (Boolean) -> Unit) {
+private fun OptionTileFrame(
+    tile: ModelOptionsTiles.Tile,
+    title: String,
+    onClick: (() -> Unit)?,
+    corner: @Composable () -> Unit,
+    extra: @Composable () -> Unit,
+) {
     val colors = OriveoTheme.colors
-    Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp).padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
-            Text(note, fontSize = 12.5.sp, color = colors.textSecondary)
-        }
-        Spacer(Modifier.width(10.dp))
-        Switch(
-            checked = isOn,
-            onCheckedChange = onToggle,
-            enabled = enabled,
-            modifier = Modifier.semantics { contentDescription = title },
-        )
+    val (iconRes, tint) = when (tile.kind) {
+        ModelOptionsTiles.Kind.Web -> R.drawable.ph_globe_duotone to CapabilityPalette.webSearch
+        ModelOptionsTiles.Kind.Reasoning -> R.drawable.ph_brain_duotone to CapabilityPalette.reasoning
+        ModelOptionsTiles.Kind.Vision -> R.drawable.ph_eye_duotone to CapabilityPalette.vision
+        ModelOptionsTiles.Kind.File -> R.drawable.ph_paperclip_duotone to CapabilityPalette.attachment
     }
-}
-
-@Composable
-private fun TitleWithTrailing(title: String, trailing: String?) {
-    val colors = OriveoTheme.colors
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary, modifier = Modifier.weight(1f))
-        trailing?.let { Text(it, fontSize = 12.5.sp, color = colors.textSecondary) }
-    }
-}
-
-@Composable
-private fun TiersBlock(title: String, shape: ModelOptionCapabilityShape.Tiers, onSelect: (String) -> Unit) {
-    val colors = OriveoTheme.colors
+    val base = Modifier.fillMaxSize().modelControlSurface().clip(RoundedCornerShape(20.dp))
     Column(
-        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 15.dp, bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = (if (onClick != null) base.clickable(onClick = onClick).semantics { role = Role.Button } else base)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        val rejected = shape.rejected
-        TitleWithTrailing(
-            title,
-            shape.trailingNote?.let { stringResource(R.string.model_options_always_thinks) },
-        )
-        Segments(
-            options = shape.tiers,
-            selected = shape.selected,
-            label = { ModelOptionsRender.tierLabelRes(it) },
-            level = { tier -> ModelOptionCapabilityShape.TIER_ORDER.indexOf(tier).takeIf { it >= 0 }?.plus(1) },
-            onSelect = onSelect,
-        )
+        Row(modifier = Modifier.fillMaxWidth().heightIn(min = 32.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(painterResource(iconRes), contentDescription = null, tint = tint, modifier = Modifier.size(28.dp))
+            Spacer(Modifier.weight(1f))
+            corner()
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
+        Text(stringResource(tile.statusRes), fontSize = 12.5.sp, color = colors.textSecondary)
+        tile.bodyRes?.let { Text(stringResource(it), fontSize = 12.sp, color = colors.textTertiary) }
+        extra()
+    }
+}
+
+@Composable
+private fun CornerMark(corner: ModelOptionsTiles.Corner) {
+    val colors = OriveoTheme.colors
+    val (iconRes, tint) = when (corner) {
+        ModelOptionsTiles.Corner.Check -> R.drawable.ph_check to colors.success
+        ModelOptionsTiles.Corner.Question -> R.drawable.ph_question to colors.textSecondary
+        ModelOptionsTiles.Corner.Cross -> R.drawable.ph_x to colors.textTertiary
+        ModelOptionsTiles.Corner.Chevron -> {
+            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null, tint = colors.textTertiary, modifier = Modifier.size(16.dp))
+            return
+        }
+        else -> return
+    }
+    Icon(painterResource(iconRes), contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+}
+
+/** The footnote and the rejected-tier warning of the thinking tiers stay below the grid, not inside the card. */
+@Composable
+internal fun ModelOptionTierNotes(shape: ModelOptionCapabilityShape) {
+    val tiers = shape as? ModelOptionCapabilityShape.Tiers ?: return
+    val colors = OriveoTheme.colors
+    Column(modifier = Modifier.padding(horizontal = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        val rejected = tiers.rejected
         if (rejected != null) {
             val tierLabel = stringResource(ModelOptionsRender.tierLabelRes(rejected.tier))
             Text(stringResource(R.string.model_options_tier_rejected_title, tierLabel), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = colors.warningText)
@@ -280,7 +324,7 @@ private fun TiersBlock(title: String, shape: ModelOptionCapabilityShape.Tiers, o
                 Text(stringResource(R.string.model_options_tier_rejected_body, tierLabel, fallback), fontSize = 12.5.sp, color = colors.textSecondary)
             }
         } else {
-            shape.footnote?.let { footnote ->
+            tiers.footnote?.let { footnote ->
                 val note = ModelOptionsRender.tierNoteRes(footnote.tierCaption)?.let { stringResource(it) }
                 val more = stringResource(R.string.model_options_higher_levels_note)
                     .takeIf { ModelOptionsRender.appendsHigherLevelsNote(footnote.tierCaption) }
@@ -292,7 +336,31 @@ private fun TiersBlock(title: String, shape: ModelOptionCapabilityShape.Tiers, o
     }
 }
 
-/** Segments: equal-width cells, the selected one drawn with a white background and purple text. When [level] is set an effort bar is drawn. */
+/** The "this turn actually sends" summary strip: nothing is shown when there is no item at all. */
+@Composable
+internal fun ModelOptionsTurnSummary(items: List<ModelOptionsTiles.SummaryItem>) {
+    if (items.isEmpty()) return
+    val colors = OriveoTheme.colors
+    val text = items.map { item ->
+        when (item) {
+            ModelOptionsTiles.SummaryItem.WebOn -> stringResource(R.string.model_options_summary_web_on)
+            ModelOptionsTiles.SummaryItem.ThinkingOn -> stringResource(R.string.model_options_summary_thinking_on)
+            is ModelOptionsTiles.SummaryItem.ThinkingLevel ->
+                stringResource(R.string.model_options_summary_thinking_level, stringResource(item.tierRes))
+        }
+    }.joinToString(" · ")
+    Text(
+        stringResource(R.string.model_options_turn_summary, text),
+        fontSize = 13.sp,
+        color = colors.primaryTextSafe,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.primarySoft, RoundedCornerShape(16.dp))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    )
+}
+
+/** Segments: equal-width cells, the selected one drawn with a white background and purple text. When [level] is set an effort bar is drawn; with [iconOnly] only the icon is drawn and the tier word goes into the accessibility name only. */
 @Composable
 private fun Segments(
     options: List<String>,
@@ -300,11 +368,13 @@ private fun Segments(
     label: (String) -> Int,
     level: (String) -> Int?,
     onSelect: (String) -> Unit,
+    iconOnly: Boolean = false,
 ) {
     val colors = OriveoTheme.colors
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(top = 6.dp)
             .background(colors.surfaceInset, RoundedCornerShape(14.dp))
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -312,31 +382,62 @@ private fun Segments(
         options.forEach { option ->
             val isSelected = option == selected
             val tint = if (isSelected) colors.primaryTextSafe else colors.textSecondary
+            val name = stringResource(label(option))
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 56.dp)
+                    .heightIn(min = 44.dp)
                     .clip(RoundedCornerShape(11.dp))
                     .background(if (isSelected) colors.surfaceElevated else Color.Transparent)
                     .clickable { onSelect(option) }
                     .semantics {
                         role = Role.RadioButton
                         this.selected = isSelected
+                        if (iconOnly) contentDescription = name
                     },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(7.dp, Alignment.CenterVertically),
             ) {
+                if (iconOnly) TierGlyphIcon(ModelOptionsTiles.tierGlyph(option), tint)
                 level(option)?.let { LevelBars(it, tint) }
-                Text(
-                    stringResource(label(option)),
-                    fontSize = 13.sp,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    color = tint,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                if (!iconOnly) {
+                    Text(
+                        name,
+                        fontSize = 13.sp,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                        color = tint,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
+    }
+}
+
+/** Eight short strokes on the same 15x13 viewBox as the web (the counterpart of the iOS SF Symbol rays), stroke 1.6, round caps. */
+private const val AUTOMATIC_RAYS_PATH =
+    "M7.5 1v2.2M7.5 9.8V12M2 6.5h2.2M10.8 6.5H13M3.6 2.6l1.5 1.5M9.9 8.9l1.5 1.5M11.4 2.6L9.9 4.1M5.1 8.9l-1.5 1.5"
+private val automaticRays = PathParser().parsePathString(AUTOMATIC_RAYS_PATH).toPath()
+
+@Composable
+private fun TierGlyphIcon(glyph: ModelOptionsTiles.TierGlyph, tint: Color) {
+    when (glyph) {
+        ModelOptionsTiles.TierGlyph.Automatic -> Canvas(Modifier.width(15.dp).height(13.dp)) {
+            scale(scaleX = size.width / 15f, scaleY = size.height / 13f, pivot = Offset.Zero) {
+                drawPath(automaticRays, tint, style = Stroke(width = 1.6f, cap = StrokeCap.Round))
+            }
+        }
+        ModelOptionsTiles.TierGlyph.Off -> OffDash(tint)
+        is ModelOptionsTiles.TierGlyph.Bars -> LevelBars(glyph.filled, tint)
+    }
+}
+
+/** "Off": a rounded horizontal dash, the current tint dimmed to 0.55. */
+@Composable
+private fun OffDash(tint: Color) {
+    Box(Modifier.height(13.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.width(13.dp).height(2.5.dp).background(tint.copy(alpha = 0.55f), RoundedCornerShape(1.25.dp)))
     }
 }
 
@@ -349,28 +450,6 @@ private fun LevelBars(filled: Int, tint: Color) {
                     .width(3.dp)
                     .height(height.dp)
                     .background(if (index < filled) tint else OriveoTheme.colors.border, RoundedCornerShape(1.5.dp)),
-            )
-        }
-    }
-}
-
-@Composable
-private fun StatusRow(title: String, trailing: String, onClick: (() -> Unit)?) {
-    val colors = OriveoTheme.colors
-    val base = Modifier.fillMaxWidth().heightIn(min = 58.dp)
-    Row(
-        modifier = (if (onClick != null) base.clickable(onClick = onClick) else base)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary, modifier = Modifier.weight(1f))
-        Text(trailing, fontSize = 14.sp, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (onClick != null) {
-            Icon(
-                Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                contentDescription = null,
-                tint = colors.textTertiary,
-                modifier = Modifier.padding(start = 4.dp).size(16.dp),
             )
         }
     }
@@ -395,22 +474,53 @@ internal fun ModelOptionsProtocolCard(onChooseProtocol: () -> Unit) {
     }
 }
 
-/** The capability card: web search on top, thinking below, with an indented divider between them. */
+/**
+ * The parameter card: a temperature row (shown only when advancedRows has one) plus the original advanced settings entry row (its chips no longer include temperature);
+ * both rows lead to the advanced settings page.
+ */
 @Composable
-internal fun ModelOptionCapabilityCard(rows: List<@Composable () -> Unit>) {
-    AdvancedCard {
-        rows.forEachIndexed { index, row ->
-            if (index > 0) ModelControlHairline()
-            row()
-        }
-    }
-}
-
-/** The parameter card: one row leading to the advanced settings, with at most two chips for set items plus "N more" and an arrow. */
-@Composable
-internal fun ModelOptionParameterCard(summary: GenerationParameterRowModel.Summary, onClick: () -> Unit) {
+internal fun ModelOptionParameterCard(
+    temperature: GenerationParameterRowModel?,
+    summary: GenerationParameterRowModel.Summary,
+    onClick: () -> Unit,
+) {
     val colors = OriveoTheme.colors
     AdvancedCard {
+        temperature?.let { row ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 58.dp)
+                    .clickable(onClick = onClick)
+                    .semantics { role = Role.Button }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ModelOptionParameterCardIcon(ModelOptionParameterCardIcons.temperature)
+                Text(
+                    stringResource(generationParameterTitleRes(row.id)),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.textPrimary,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    generationParameterDisplayText(row.display),
+                    fontSize = 14.sp,
+                    color = colors.textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+                Icon(
+                    Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = colors.textTertiary,
+                    modifier = Modifier.padding(start = 4.dp).size(16.dp),
+                )
+            }
+            ModelControlHairline()
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -420,8 +530,9 @@ internal fun ModelOptionParameterCard(summary: GenerationParameterRowModel.Summa
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            ModelOptionParameterCardIcon(ModelOptionParameterCardIcons.entry)
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.generation_model_behavior), fontSize = 16.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
+                Text(stringResource(R.string.generation_parameters_section), fontSize = 16.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
                 if (summary.chips.isEmpty()) {
                     Text(stringResource(R.string.advanced_not_adjusted), fontSize = 14.sp, color = colors.textSecondary)
                 } else {
@@ -450,6 +561,23 @@ internal fun ModelOptionParameterCard(summary: GenerationParameterRowModel.Summa
             )
         }
     }
+}
+
+/** The leading icons of the two parameter card rows: neutral secondary color, not a capability color. */
+internal object ModelOptionParameterCardIcons {
+    @DrawableRes val temperature: Int = R.drawable.ph_thermometer_simple_duotone
+    @DrawableRes val entry: Int = R.drawable.ph_sliders_horizontal_duotone
+    val size = 22.dp
+}
+
+@Composable
+private fun ModelOptionParameterCardIcon(@DrawableRes iconRes: Int) {
+    Icon(
+        painterResource(iconRes),
+        contentDescription = null,
+        tint = OriveoTheme.colors.textSecondary,
+        modifier = Modifier.padding(end = 12.dp).size(ModelOptionParameterCardIcons.size),
+    )
 }
 
 @Composable

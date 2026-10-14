@@ -52,11 +52,11 @@ internal class ChatModelSelectionCoordinator(
                 onFailure = onProviderResolutionError,
             ) ?: return@launch
             val selectedModel = ProviderSelectionSnapshot.selectedModel(provider, modelId)
-            val storedModelId = selectedModel?.let(ModelSelectionUtils::preferredStoredModelIdentifier)
+            val storedModelId = selectedModel?.let { ModelSelectionUtils.preferredStoredModelIdentifier(it, provider.kind) }
                 ?: ModelSelectionUtils.resolvedId(modelId)
 
             if (selectedModel != null) {
-                appPreferencesRepository.setLastUsedModel(providerId, selectedModel)
+                appPreferencesRepository.setLastUsedModel(providerId, selectedModel, provider.kind)
             } else {
                 appPreferencesRepository.setLastUsedModel(providerId, storedModelId)
             }

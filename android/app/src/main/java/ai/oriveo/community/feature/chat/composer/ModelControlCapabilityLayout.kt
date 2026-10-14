@@ -24,7 +24,7 @@ data class ModelControlIntentOption(
 internal fun modelControlCapabilityTitleRes(capability: String): Int = when (capability) {
     "web" -> R.string.model_control_web_search
     "reasoning" -> R.string.model_control_thinking
-    else -> R.string.generation_model_behavior
+    else -> R.string.generation_parameters_section
 }
 
 @StringRes
@@ -50,6 +50,7 @@ internal fun modelControlStatusTextRes(status: CapabilityControlPresentation): I
     CapabilityControlPresentation.AutomaticAvailable -> R.string.model_control_status_automatic_available
 
     CapabilityControlPresentation.ForceUnsupported -> R.string.model_control_force_unavailable
+    CapabilityControlPresentation.AlwaysOn -> R.string.model_options_subscription_always_searches
     CapabilityControlPresentation.CustomOnly -> R.string.model_control_custom_only_reason
     CapabilityControlPresentation.Pending -> R.string.model_control_status_pending
     CapabilityControlPresentation.ExternalConnectorOnly -> R.string.model_control_reason_external_connector_only
@@ -67,6 +68,7 @@ internal fun modelControlShowsSupportedModelsAction(status: CapabilityControlPre
         -> true
         CapabilityControlPresentation.AutomaticAvailable,
         CapabilityControlPresentation.ForceUnsupported,
+        CapabilityControlPresentation.AlwaysOn,
         -> false
     }
 
@@ -80,6 +82,7 @@ enum class ModelControlBadgeClassification {
         fun resolve(status: CapabilityControlPresentation): ModelControlBadgeClassification = when (status) {
             CapabilityControlPresentation.AutomaticAvailable,
             CapabilityControlPresentation.ForceUnsupported,
+            CapabilityControlPresentation.AlwaysOn,
             -> None
             CapabilityControlPresentation.CustomOnly -> Manual
             CapabilityControlPresentation.Pending, CapabilityControlPresentation.Unknown -> NotReady
@@ -214,7 +217,9 @@ object ModelControlReasoningLayout {
     ): Layout {
         val selection = selectedIntent ?: AUTOMATIC_INTENT
         return when (status) {
-
+            // Produced only by the web verdict; if it lands here, show the current value read-only.
+            CapabilityControlPresentation.AlwaysOn ->
+                statusRow(intentLabelRes(selection), null, ModelControlCapabilityEscape.None, selection)
             CapabilityControlPresentation.Unsupported, CapabilityControlPresentation.ExternalConnectorOnly ->
                 statusRow(
                     R.string.model_control_not_supported_by_model,
@@ -339,6 +344,8 @@ object ModelControlWebLayout {
             CapabilityControlPresentation.AutomaticAvailable, CapabilityControlPresentation.ForceUnsupported ->
                 if ("force" in availableIntents) CapabilityWebPreference.Force
                 else CapabilityWebPreference.Automatic
+            // Always-on is not the user's choice: the stored value stays as is.
+            CapabilityControlPresentation.AlwaysOn,
             CapabilityControlPresentation.CustomOnly,
             CapabilityControlPresentation.Pending,
             CapabilityControlPresentation.ExternalConnectorOnly,
@@ -357,6 +364,9 @@ object ModelControlWebLayout {
     ): Layout {
         val selection = clamp(rawSelection, status, availableIntents)
         return when (status) {
+            // Subscription upstream always searches: read-only and not tappable; the stored value is untouched.
+            CapabilityControlPresentation.AlwaysOn ->
+                statusRow(R.string.model_options_always_on, null, ModelControlCapabilityEscape.None, selection)
             CapabilityControlPresentation.Unsupported, CapabilityControlPresentation.ExternalConnectorOnly ->
                 statusRow(
                     R.string.model_control_not_supported_by_model,

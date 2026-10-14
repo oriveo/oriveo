@@ -77,12 +77,17 @@ internal class ChatRetryCoordinator(
     private val currentConversation: () -> Conversation?,
     private val activeProviderId: () -> String?,
     private val activeModelId: () -> String?,
+    private val providers: () -> List<Provider>,
     private val requestPin: () -> Unit,
     private val launchSend: ChatSendLauncher,
     private val onProviderResolutionError: (Throwable) -> Unit = {},
     private val modelControlRuntimeIdentity: (Provider, ai.oriveo.community.core.model.AIModel) -> ModelControlRuntimeIdentity? =
         { provider, model -> ModelControlRuntimeIdentityResolver.resolve(provider, model) },
 ) {
+    /** The relay session model has been removed: retry / continue / regenerate never send a request or touch messages. */
+    private fun selectionRemoved(): Boolean =
+        ai.oriveo.community.core.provider.RelayModelFallback.isSelectionRemoved(providers(), activeProviderId(), activeModelId())
+
     /**
      * Retry means "run it again", not "carry on": the previous round's body and every value
      * derived from it are cleared.
@@ -125,6 +130,7 @@ internal class ChatRetryCoordinator(
     )
 
     fun regenerateMessage(messageId: String) {
+        if (selectionRemoved()) return
         val conv = currentConversation() ?: return
         val assistantMsg = conv.messages.find { it.id == messageId } ?: return
         val assistantIndex = conv.messages.indexOf(assistantMsg)
@@ -170,6 +176,7 @@ internal class ChatRetryCoordinator(
     }
 
     fun retryMessage(messageId: String) {
+        if (selectionRemoved()) return
         val conv = currentConversation() ?: return
         val assistantMsg = conv.messages.find {
             it.id == messageId && it.role == ChatRole.Assistant && it.state == ChatMessageState.Failed
@@ -219,6 +226,7 @@ internal class ChatRetryCoordinator(
     }
 
     fun continueMessage(messageId: String) {
+        if (selectionRemoved()) return
         val conv = currentConversation() ?: return
         val assistantMsg = conv.messages.find { it.id == messageId && it.role == ChatRole.Assistant }
             ?: return
@@ -279,6 +287,7 @@ internal class ChatRetryCoordinator(
      * namespaces. It does not modify the stored fragments and never retries on its own.
      */
     fun retryWithoutLocalCustomFields(messageId: String) {
+        if (selectionRemoved()) return
         val conv = currentConversation() ?: return
         val assistantMsg = conv.messages.find {
             it.id == messageId && it.role == ChatRole.Assistant &&

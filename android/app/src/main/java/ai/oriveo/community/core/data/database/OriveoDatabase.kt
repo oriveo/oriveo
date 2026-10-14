@@ -88,7 +88,7 @@ const val LOCAL_PARTITION_ID = "local"
         McpConversationSwitchEntity::class,
         McpStepPayloadEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class OriveoDatabase : RoomDatabase() {
@@ -238,6 +238,16 @@ abstract class OriveoDatabase : RoomDatabase() {
                 )
 
                 db.execSQL("ALTER TABLE `messages` ADD COLUMN `toolStepsJson` TEXT")
+            }
+        }
+
+        // v3 to v4: relay columns on providers. All nullable, stored on this device only:
+        // the address source, the setup field values and the relay key list (no key values).
+        val MIGRATION_3_4: Migration = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `providers` ADD COLUMN `endpointSource` TEXT")
+                db.execSQL("ALTER TABLE `providers` ADD COLUMN `setupValuesJson` TEXT")
+                db.execSQL("ALTER TABLE `providers` ADD COLUMN `relayKeysJson` TEXT")
             }
         }
     }

@@ -115,15 +115,16 @@ class ProviderBalanceRepository(
         require(provider.kind in BALANCE_CAPABLE_KINDS) {
             "Balance is not supported for ${provider.kind}"
         }
-        val apiKey = provider.apiKey.trim()
+        val apiKey = ProviderCredentialResolver.apiKey(provider, null).trim()
         require(apiKey.isNotEmpty()) { "API key is empty" }
-        val baseURL = provider.baseUrlText?.trim().orEmpty()
+        // Official providers are computed from the source; non-official providers return the literal address unchanged
+        val baseURL = ai.oriveo.community.core.provider.transport.OfficialEndpointSource.effectiveBaseUrlText(provider)?.trim().orEmpty()
 
         if (!forceRefresh) {
             val cached = cache[provider.id]
             if (
                 cached != null &&
-                cached.apiKey == apiKey &&
+                cached.apiKey == apiKey && // key-choke: not-provider
                 cached.baseURL == baseURL &&
                 Duration.between(cached.balance.fetchedAt, now()) < cacheTtl
             ) {
@@ -151,8 +152,8 @@ class ProviderBalanceRepository(
      */
     fun cachedBalance(provider: Provider): ProviderBalance? {
         val cached = cache[provider.id] ?: return null
-        if (cached.apiKey != provider.apiKey.trim()) return null
-        if (cached.baseURL != provider.baseUrlText?.trim().orEmpty()) return null
+        if (cached.apiKey != ProviderCredentialResolver.apiKey(provider, null).trim()) return null // key-choke: not-provider
+        if (cached.baseURL != ai.oriveo.community.core.provider.transport.OfficialEndpointSource.effectiveBaseUrlText(provider)?.trim().orEmpty()) return null
         return cached.balance
     }
 

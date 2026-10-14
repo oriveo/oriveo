@@ -40,7 +40,6 @@ internal object ProviderRecipeExecution {
                     ?: return ContinuationWire.Rejected("invalid_continuation")
                 when (protocol) {
                     "openai_responses" -> ContinuationWire.Body(JsonObject(mapOf("previous_response_id" to JsonPrimitive(id))))
-                    "gemini_interactions" -> ContinuationWire.Body(JsonObject(mapOf("previous_interaction_id" to JsonPrimitive(id))))
                     else -> ContinuationWire.Rejected("unsupported_wire_mapping")
                 }
             }

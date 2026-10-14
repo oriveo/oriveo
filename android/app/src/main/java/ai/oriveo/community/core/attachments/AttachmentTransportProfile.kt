@@ -52,13 +52,18 @@ sealed class AttachmentTransportProfile private constructor(
         override val imagePlaceholderText: String? get() = base.imagePlaceholderText
     }
 
-    /** OpenAI Chat Completions family (content parts): the wrapper format follows the owning provider. OpenRouter and DeepSeek each have a separate entry. */
+    /**
+     * OpenAI Chat Completions family (content parts): the wrapper format follows the owning provider. OpenRouter and DeepSeek each have a separate entry.
+     * The MiniMax Chat route sends text only, so images are written as a placeholder.
+     */
     data class ChatCompletions(val provider: ProviderKind) : AttachmentTransportProfile(
         hasNativeFileBlocks = false,
         nativeFiles = NativeFileMode.Off,
         wrapper = AttachmentWrapperVersion.resolve(provider),
         routingProvider = provider,
-    )
+    ) {
+        override val imagePlaceholderText: String? get() = TEXT_ONLY_IMAGE_PLACEHOLDER.takeIf { provider == ProviderKind.MiniMax }
+    }
 
     /** OpenRouter Chat Completions: a `file` part (file_data is a data URI), which OpenRouter forwards upstream or parses on its behalf. */
     data object OpenRouterChat : AttachmentTransportProfile(
@@ -104,14 +109,16 @@ sealed class AttachmentTransportProfile private constructor(
 
     /**
      * The Anthropic-compatible endpoint the MiniMax web search recipe uses: the request format is Messages, the wrapper format still follows MiniMax (markdown),
-     * and files are always delivered as text.
+     * and files are always delivered as text, with images written as a placeholder.
      */
     data object MiniMaxAnthropicMessages : AttachmentTransportProfile(
         hasNativeFileBlocks = false,
         nativeFiles = NativeFileMode.Off,
         wrapper = AttachmentWrapperVersion.resolve(ProviderKind.MiniMax),
         routingProvider = ProviderKind.MiniMax,
-    )
+    ) {
+        override val imagePlaceholderText: String? get() = TEXT_ONLY_IMAGE_PLACEHOLDER
+    }
 
     /** Anthropic Messages (direct API key): document block. */
     data object AnthropicMessages : AttachmentTransportProfile(
@@ -145,13 +152,15 @@ sealed class AttachmentTransportProfile private constructor(
         routingProvider = ProviderKind.Gemini,
     )
 
-    /** Gemini Interactions (the endpoint_route of the web search recipe): files are delivered as text; images go as inlineData parts, the same as generateContent. */
+    /** Gemini Interactions (the endpoint_route of the web search recipe): files are delivered as text and images are written as a placeholder. */
     data object GeminiInteractions : AttachmentTransportProfile(
         hasNativeFileBlocks = false,
         nativeFiles = NativeFileMode.Off,
         wrapper = AttachmentWrapperVersion.resolve(ProviderKind.Gemini),
         routingProvider = ProviderKind.Gemini,
-    )
+    ) {
+        override val imagePlaceholderText: String? get() = TEXT_ONLY_IMAGE_PLACEHOLDER
+    }
 
     /** A relay's llama.cpp native `/completion`: the whole conversation is folded into one prompt string, so images can only leave a placeholder. */
     data object LlamaCppNative : AttachmentTransportProfile(
@@ -160,6 +169,11 @@ sealed class AttachmentTransportProfile private constructor(
         wrapper = AttachmentWrapperVersion.resolve(ProviderKind.Relay),
         routingProvider = ProviderKind.Relay,
     ) {
-        override val imagePlaceholderText: String? get() = "[Image omitted: this route sends text only]"
+        override val imagePlaceholderText: String? get() = TEXT_ONLY_IMAGE_PLACEHOLDER
+    }
+
+    private companion object {
+        /** Byte-identical across all three platforms (shared fixture image-placeholder.v1.json): every text-only route uses this one sentence. */
+        const val TEXT_ONLY_IMAGE_PLACEHOLDER = "[Image omitted: this route sends text only]"
     }
 }

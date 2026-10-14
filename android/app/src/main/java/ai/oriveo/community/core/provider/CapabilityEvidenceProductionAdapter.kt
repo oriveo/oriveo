@@ -1,5 +1,8 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.capability.truth.CapabilityTruthAdapter
+import ai.oriveo.community.core.capability.truth.CapabilityTruthRegistry
+import ai.oriveo.community.core.capability.truth.ProviderForm
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.CapabilityEvidenceIdentity
@@ -8,6 +11,7 @@ import ai.oriveo.community.core.model.GenerationParameterOverrides
 import ai.oriveo.community.core.model.GenerationParameterRef
 import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.model.RelayTransport
@@ -20,7 +24,7 @@ internal object CapabilityEvidenceProductionAdapter {
         model: AIModel,
         requested: ReasoningMode,
         metadataClient: MetadataClient = MetadataClient.instance,
-    ): ReasoningMode = if (provider.kind == ProviderKind.Relay) {
+    ): ReasoningMode = if (ProviderForm.of(provider) == ProviderForm.Relay) {
         requested
     } else {
         val current = metadataClient.currentCapabilityEvidenceModel(model.id, provider.kind)
@@ -63,51 +67,76 @@ internal object CapabilityEvidenceProductionAdapter {
         metadataClient: MetadataClient = MetadataClient.instance,
         now: Long = System.currentTimeMillis(),
     ): Projection {
-        val current = if (provider.kind == ProviderKind.Relay) {
-            null
-        } else {
-            metadataClient.currentCapabilityEvidenceModel(model.id, provider.kind)
+        val form = ProviderForm.of(provider)
+        val current = when (form) {
+            // Only the official form has its truth in the official metadata: a subscription has its own catalog
+            // snapshot, and a relay's catalog comes from the user's own machine.
+            ProviderForm.Official -> metadataClient.currentCapabilityEvidenceModel(model.id, provider.kind)
+            else -> null
         }
         val evidenceModel = current?.metadata
-        val effectiveTransport = if (provider.kind == ProviderKind.Relay) {
-            identity?.effectiveTransport
-        } else {
+        val effectiveTransport = when (form) {
+            ProviderForm.Relay -> identity?.effectiveTransport
+            // A subscription link has only one road and does not depend on the catalog (it is not in the catalog at all).
+            ProviderForm.Subscription ->
+                finalTransport ?: CapabilityControlResolution.subscriptionFinalTransport(provider, model)
             // Final writers are authorised for their actual dispatch transport. The evidence
             // declaration remains the candidate identity, so a declared transport that differs
             // from this final branch fails closed as an identity mismatch.
-            finalTransport ?: CapabilityControlResolution.subscriptionFinalTransport(provider, model)
-                ?: evidenceModel?.transport
+            else -> finalTransport ?: evidenceModel?.transport
         }
-        val queryIdentity = when {
-            !CapabilityEvidenceFacade.isConcreteTransport(effectiveTransport) -> null
-            provider.kind == ProviderKind.Relay -> identity?.takeIf(::isCompleteRelayIdentity)
-            evidenceModel == null -> CapabilityEvidenceFacade.QueryIdentity(
-                partitionId = identity?.partitionId.orEmpty(),
-                connectionInstanceId = identity?.connectionInstanceId.orEmpty(),
-                connectionGeneration = identity?.connectionGeneration.orEmpty(),
-                credentialEpoch = identity?.credentialEpoch.orEmpty(),
-                providerKind = provider.kind.rawValue,
-                modelId = model.id,
-                canonicalModelId = MetadataClient.normalizeModelFactsID(model.id),
-                effectiveTransport = effectiveTransport.orEmpty(),
-                endpointFingerprint = identity?.endpointFingerprint,
-                metadataRevision = metadataClient.currentMetadataRevision(),
-            )
-            else -> CapabilityEvidenceFacade.QueryIdentity(
-                partitionId = identity?.partitionId.orEmpty(),
-                connectionInstanceId = identity?.connectionInstanceId.orEmpty(),
-                connectionGeneration = identity?.connectionGeneration.orEmpty(),
-                credentialEpoch = identity?.credentialEpoch.orEmpty(),
-                providerKind = provider.kind.rawValue,
-                modelId = model.id,
-                canonicalModelId = evidenceModel.canonicalModelId,
-                effectiveTransport = effectiveTransport.orEmpty(),
-                endpointFingerprint = identity?.endpointFingerprint,
-                metadataRevision = current.metadataRevision,
-                generationRevision = current.generationRevision,
-            )
+        // Identity when the official metadata has no entry for this model: a subscription always takes this path
+        // (its truth is not in metadata; the revision follows the official metadata ETag), and for the official
+        // form it is the fallback for an absent catalog.
+        fun identityWithoutEvidenceModel() = CapabilityEvidenceFacade.QueryIdentity(
+            partitionId = identity?.partitionId.orEmpty(),
+            connectionInstanceId = identity?.connectionInstanceId.orEmpty(),
+            connectionGeneration = identity?.connectionGeneration.orEmpty(),
+            credentialEpoch = identity?.credentialEpoch.orEmpty(),
+            providerKind = provider.kind.rawValue,
+            authMode = provider.authMode.rawValue,
+            modelId = model.id,
+            canonicalModelId = MetadataClient.normalizeModelFactsID(model.id),
+            effectiveTransport = effectiveTransport.orEmpty(),
+            endpointFingerprint = identity?.endpointFingerprint,
+            metadataRevision = metadataClient.currentMetadataRevision(),
+        )
+        // State 1 of the capability-truth contract: when this form's catalog snapshot has never been fetched (or the
+        // fetch failed and it was cleared), the identity of the keys the catalog owns is incomplete. That is not
+        // "we have no evidence", so the explicit-intent escape hatch must not let it through.
+        val snapshotFetched = when (form) {
+            ProviderForm.Subscription -> provider.catalogModels.isNotEmpty()
+            else -> true
+        }
+        val queryIdentity = if (!CapabilityEvidenceFacade.isConcreteTransport(effectiveTransport)) {
+            null
+        } else when (form) {
+            ProviderForm.Relay -> identity?.takeIf(::isCompleteRelayIdentity)
+            ProviderForm.Subscription -> identityWithoutEvidenceModel()
+            else ->
+                if (evidenceModel == null) identityWithoutEvidenceModel()
+                else CapabilityEvidenceFacade.QueryIdentity(
+                        partitionId = identity?.partitionId.orEmpty(),
+                        connectionInstanceId = identity?.connectionInstanceId.orEmpty(),
+                        connectionGeneration = identity?.connectionGeneration.orEmpty(),
+                        credentialEpoch = identity?.credentialEpoch.orEmpty(),
+                        providerKind = provider.kind.rawValue,
+                        authMode = provider.authMode.rawValue,
+                        modelId = model.id,
+                        canonicalModelId = evidenceModel.canonicalModelId,
+                        effectiveTransport = effectiveTransport.orEmpty(),
+                        endpointFingerprint = identity?.endpointFingerprint,
+                        metadataRevision = current.metadataRevision,
+                        generationRevision = current.generationRevision,
+                )
         }
 
+        // Explicit intent of a closed-world form is dropped right here, so the facade need not know the form.
+        val honoredExplicitKeys = if (CapabilityTruthRegistry.adapterFor(form).acceptsUnverifiedExplicitIntent) {
+            explicitKeys
+        } else {
+            emptySet()
+        }
         val decisions = keys.associateWith { key ->
             val candidates = candidatesForKey(
                 provider = provider,
@@ -118,13 +147,22 @@ internal object CapabilityEvidenceProductionAdapter {
                 finalTransport = finalTransport,
                 metadataClient = metadataClient,
             )
-            val resolution = if (queryIdentity == null) {
+            // Decide per key whether the identity holds: a catalog-owned key has an incomplete identity in state 1;
+            // the keys a subscription catalog does not own (a subscription's tool_call goes through first-party
+            // declarations and model facts) are not affected by the catalog state.
+            val keyIdentity = queryIdentity?.takeIf {
+                when (form) {
+                    ProviderForm.Subscription -> snapshotFetched || !catalogOwnedKey(key)
+                    else -> true
+                }
+            }
+            val resolution = if (keyIdentity == null) {
                 CapabilityEvidenceFacade.resolve(
                     key = key,
                     query = CapabilityEvidenceFacade.Query(
                         identity = incompleteIdentity(provider, model),
                         now = now,
-                        hasExplicitValue = key in explicitKeys,
+                        hasExplicitValue = key in honoredExplicitKeys,
                     ),
                     candidates = candidates,
                 )
@@ -132,9 +170,9 @@ internal object CapabilityEvidenceProductionAdapter {
                 CapabilityEvidenceFacade.resolve(
                     key = key,
                     query = CapabilityEvidenceFacade.Query(
-                        identity = queryIdentity,
+                        identity = keyIdentity,
                         now = now,
-                        hasExplicitValue = key in explicitKeys,
+                        hasExplicitValue = key in honoredExplicitKeys,
                     ),
                     candidates = candidates,
                 )
@@ -185,23 +223,12 @@ internal object CapabilityEvidenceProductionAdapter {
         model: AIModel,
         localIdentity: CapabilityEvidenceIdentity?,
     ): CapabilityEvidenceFacade.QueryIdentity? {
-        if (provider.kind != ProviderKind.Relay) return null
+        if (ProviderForm.of(provider) != ProviderForm.Relay) return null
         val requested = provider.relayRequested ?: return null
-        val transport = requested.transport.takeIf { it != RelayTransport.Auto } ?: return null
-        val rawBase = provider.baseUrlText?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        val apiBase = runCatching {
-            when (transport) {
-                // Android dispatch adds a version only for these two transports; OpenAI chat /
-                // responses and llama use the configured base verbatim.
-                RelayTransport.AnthropicMessages -> RelayEndpointResolver.runtimeApiBaseUrl(
-                    rawBase, requested, "v1", setOf("v1"),
-                )
-                RelayTransport.GeminiGenerateContent -> RelayEndpointResolver.runtimeApiBaseUrl(
-                    rawBase, requested, "v1beta", setOf("v1", "v1beta"),
-                )
-                else -> requested.resolvedAPIBaseURL?.trim()?.takeIf { it.isNotEmpty() } ?: rawBase
-            }
-        }.getOrNull() ?: return null
+        // A protocol that is not settled (the model and the connection both follow automatic) still counts as uncertain: no UI identity is pushed.
+        val transport = RelayEndpointResolver.declaredTransport(provider, model) ?: return null
+        // The root comes from the same resolver as the outbound path; the security mode is checked by endpointUrl below.
+        val apiBase = RelayEndpointResolver.effectiveAPIRoot(provider, model) ?: return null
         val endpoint = when (transport) {
             RelayTransport.OpenAIChatCompletions -> "/chat/completions"
             RelayTransport.OpenAIResponses -> "/responses"
@@ -233,7 +260,7 @@ internal object CapabilityEvidenceProductionAdapter {
         finalUrl: String,
     ): CapabilityEvidenceFacade.QueryIdentity? {
         val local = localIdentity ?: return null
-        if (local.providerKind != ProviderKind.Relay.rawValue ||
+        if (formOf(local.providerKind, local.authMode) != ProviderForm.Relay ||
             effectiveTransport == RelayTransport.Auto || model.id.isBlank()
         ) return null
         val endpointFingerprint = relayEndpointFingerprint(finalUrl) ?: return null
@@ -242,7 +269,8 @@ internal object CapabilityEvidenceProductionAdapter {
             connectionInstanceId = local.connectionInstanceId,
             connectionGeneration = local.connectionGeneration,
             credentialEpoch = local.credentialEpoch,
-            providerKind = ProviderKind.Relay.rawValue,
+            providerKind = local.providerKind,
+            authMode = local.authMode,
             modelId = model.id,
             canonicalModelId = local.canonicalModelId,
             effectiveTransport = effectiveTransport.value,
@@ -267,8 +295,9 @@ internal object CapabilityEvidenceProductionAdapter {
         finalUrl: String,
     ): CapabilityEvidenceFacade.QueryIdentity? {
         val local = localIdentity ?: return null
-        if (providerKind == ProviderKind.Relay || modelId.isBlank()) return null
-        if (local.providerKind != providerKind.rawValue) return null
+        if (modelId.isBlank() || local.providerKind != providerKind.rawValue) return null
+        // The form is derived from kind + authMode, not kind alone: a relay goes through [dispatchIdentity], not here.
+        if (formOf(local.providerKind, local.authMode) == ProviderForm.Relay) return null
         if (!CapabilityEvidenceFacade.isConcreteTransport(effectiveTransport)) return null
         val endpointFingerprint = relayEndpointFingerprint(finalUrl) ?: return null
         return CapabilityEvidenceFacade.QueryIdentity(
@@ -277,6 +306,7 @@ internal object CapabilityEvidenceProductionAdapter {
             connectionGeneration = local.connectionGeneration,
             credentialEpoch = local.credentialEpoch,
             providerKind = providerKind.rawValue,
+            authMode = local.authMode,
             modelId = modelId,
             canonicalModelId = local.canonicalModelId,
             effectiveTransport = effectiveTransport,
@@ -323,7 +353,7 @@ internal object CapabilityEvidenceProductionAdapter {
         // Relay engine profiles are deliberately synthesized at the production availability
         // boundary. Candidate extraction must use that same effective profile, rather than the
         // sparse persisted catalog model that was used to obtain the parameter list.
-        val projectionModel = if (provider.kind == ProviderKind.Relay && model.generationProfile == null) {
+        val projectionModel = if (ProviderForm.of(provider) == ProviderForm.Relay && model.generationProfile == null) {
             model.copy(generationProfile = GenerationParameterAvailability.profile(provider, model))
         } else {
             model
@@ -372,6 +402,8 @@ internal object CapabilityEvidenceProductionAdapter {
         model: AIModel,
         identity: CapabilityEvidenceFacade.QueryIdentity? = null,
         memoryVerdict: Boolean? = null,
+        negativeCache: ai.oriveo.community.core.provider.relay.RelayNegativeCache =
+            ai.oriveo.community.core.provider.relay.RelayNegativeCache.shared,
     ): Projection {
         val base = capabilityProjection(
             provider = provider,
@@ -393,11 +425,14 @@ internal object CapabilityEvidenceProductionAdapter {
         // Relay declaration and connection memory are scoped to the repository-owned identity.
         // Without it (or while an account/model switch is still resolving it), keep the base
         // projection pending instead of turning an unscoped local boolean into outbound authority.
-        if (provider.kind == ProviderKind.Relay && base.identity == null) return base
-        if (current.resolution.support != "unknown") return base
-        val firstParty = toolCallVerdict(provider, model, memoryVerdict = null)
-        val effectiveVerdict = firstParty ?: memoryVerdict
-        val adapterReady = ToolCallTransportResolver.hasNativeAdapter(provider)
+        val relay = ProviderForm.of(provider) == ProviderForm.Relay
+        if (relay && base.identity == null) return base
+        // The negative cache and toolCallVerdict make the same decision: a branch that already declared toolCall is vetoed by it too.
+        val rejected = relay && relayToolCallRejected(provider, model, negativeCache)
+        if (current.resolution.support != "unknown" && !rejected) return base
+        val firstParty = if (rejected) false else toolCallVerdict(provider, model, memoryVerdict = null, negativeCache = negativeCache)
+        val effectiveVerdict = firstParty ?: memoryVerdict?.takeUnless { relay && !it }
+        val adapterReady = ToolCallTransportResolver.hasNativeAdapter(provider, model)
         if (effectiveVerdict == null) {
             // D2: unknown is allowed only for an explicit feature intent and a concrete local adapter.
             if (!adapterReady) return base
@@ -410,7 +445,7 @@ internal object CapabilityEvidenceProductionAdapter {
                 ),
             )
         }
-        val source = if (firstParty != null) "relay_declaration" else "connection_memory"
+        val source = if (firstParty != null && !rejected) "relay_declaration" else "connection_memory"
         val memoryResolution = CapabilityEvidenceFacade.Resolution(
             key = "tool_call",
             support = if (effectiveVerdict) "supported" else "unsupported",
@@ -443,13 +478,36 @@ internal object CapabilityEvidenceProductionAdapter {
         model: AIModel,
         memoryVerdict: Boolean? = null,
         metadataClient: MetadataClient = MetadataClient.instance,
+        negativeCache: ai.oriveo.community.core.provider.relay.RelayNegativeCache =
+            ai.oriveo.community.core.provider.relay.RelayNegativeCache.shared,
     ): Boolean? {
-        if (provider.kind == ProviderKind.Relay) return model.toolCall ?: memoryVerdict
+        if (ProviderForm.of(provider) == ProviderForm.Relay) {
+            // Same order on all three platforms: override value > toolCall negative cache > engine declaration > model.toolCall > tool memory (only true counts).
+            model.relayCapabilityOverrides?.toolCall?.let { return it }
+            if (relayToolCallRejected(provider, model, negativeCache)) return false
+            // A local engine declaration replaces the other sources of this key, and only takes effect when the connection carries an engineProfile.
+            val engineDeclared = model.engineDeclaration?.toolCall
+                ?.takeUnless { provider.relayRequested?.engineProfile.isNullOrBlank() }
+            if (engineDeclared != null) return engineDeclared
+            // A relay's "tools unsupported" is recorded only in the negative cache; a false in the old tool memory no longer counts.
+            return model.toolCall ?: memoryVerdict?.takeIf { it }
+        }
         val current = metadataClient.currentCapabilityEvidenceModel(model.id, provider.kind)
         if (current != null) return current.metadata.toolCall
         model.toolCall?.let { return it }
         metadataClient.modelFacts(provider.kind, model.id)?.toolCall?.let { return it }
         return memoryVerdict
+    }
+
+    /** The upstream rejected tools before producing any output and the rejection has not expired; an override value of true overrides it. */
+    private fun relayToolCallRejected(
+        provider: Provider,
+        model: AIModel,
+        negativeCache: ai.oriveo.community.core.provider.relay.RelayNegativeCache,
+    ): Boolean {
+        if (model.relayCapabilityOverrides?.toolCall == true) return false
+        val key = ai.oriveo.community.core.provider.relay.RelayNegativeCache.keyFor(provider, model) ?: return false
+        return negativeCache.isRejected(key, ai.oriveo.community.core.provider.relay.RelayNegativeCache.Kind.ToolCall)
     }
 
     /** Feature callers consume modes, never re-create the reasoning-level key namespace. */
@@ -520,6 +578,10 @@ internal object CapabilityEvidenceProductionAdapter {
         return result
     }
 
+    /** The keys the subscription catalog snapshot owns: image input, web search, reasoning tiers; tool_call and generation parameters are not the catalog's. */
+    private fun catalogOwnedKey(key: String): Boolean =
+        key == "vision_input" || key == "web_search" || key.startsWith("reasoning_level/")
+
     private fun reasoningKeys(): Set<String> = ReasoningMode.entries
         .filter { it != ReasoningMode.Automatic }
         .mapTo(linkedSetOf(), ::reasoningKey)
@@ -535,231 +597,41 @@ internal object CapabilityEvidenceProductionAdapter {
         finalTransport: String?,
         metadataClient: MetadataClient,
     ): List<CapabilityEvidenceFacade.Candidate> {
-        if (provider.kind == ProviderKind.Relay) {
-            val declared = relayCandidates(provider, persistedModel, queryIdentity, key)
-            val runtime = queryIdentity
+        val form = ProviderForm.of(provider)
+        val truth = CapabilityTruthRegistry.adapterFor(form).candidates(
+            CapabilityTruthAdapter.Input(
+                provider = provider,
+                model = persistedModel,
+                key = key,
+                queryIdentity = queryIdentity,
+                current = current,
+                finalTransport = finalTransport,
+                metadataClient = metadataClient,
+            ),
+        )
+        return when (form) {
+            // A runtime rejection is an overlay on the outbound policy, not capability truth; it has to read the cache, so it stays outside the adapter.
+            ProviderForm.Relay -> truth + queryIdentity
                 ?.let { identity -> UnsupportedParamCache.runtimeRejectedEvidence(identity) }
                 ?.filter { it.key == key }
                 .orEmpty()
-            return declared + runtime
+            else -> truth
         }
-        if (current == null) {
-            if (key != "tool_call" || queryIdentity == null) return emptyList()
-            val firstParty = persistedModel.toolCall
-            val modelFact = if (firstParty == null) {
-                metadataClient.modelFacts(provider.kind, persistedModel.id)?.toolCall
-            } else {
-                null
-            }
-            val support = firstParty ?: modelFact ?: return emptyList()
-            return listOf(
-                CapabilityEvidenceFacade.Candidate(
-                    key = key,
-                    support = if (support) "supported" else "unsupported",
-                    source = if (firstParty != null) "server_profile" else "model_facts",
-                    grade = if (firstParty != null) "declared" else "external_declared",
-                    scope = "provider_model_transport",
-                    identity = CapabilityEvidenceFacade.CandidateIdentity(
-                        providerKind = provider.kind.rawValue,
-                        modelId = MetadataClient.normalizeModelFactsID(persistedModel.id),
-                        effectiveTransport = queryIdentity.effectiveTransport,
-                        metadataRevision = queryIdentity.metadataRevision,
-                    ),
-                ),
-            )
-        }
-        val safe = current.metadata.capabilityEvidenceCandidates.orEmpty()
-            .filter { it.key == key }
-            .map(::facadeCandidate)
-        if (current.metadata.capabilityEvidenceViewMalformed == true && isGovernedCapabilityKey(key)) {
-            return emptyList()
-        }
-        if (safe.isNotEmpty() || current.metadata.capabilityEvidenceOwnedKeys?.contains(key) == true) return safe
-        return officialLegacyCandidates(provider, current, persistedModel, key, finalTransport)
     }
-
-    private fun officialLegacyCandidates(
-        provider: Provider,
-        current: MetadataClient.CurrentCapabilityEvidenceModel,
-        persistedModel: AIModel,
-        key: String,
-        finalTransport: String?,
-    ): List<CapabilityEvidenceFacade.Candidate> {
-        val model = current.metadata
-        val transport = model.transport ?: finalTransport ?: return emptyList()
-        val identity = CapabilityEvidenceFacade.CandidateIdentity(
-            providerKind = provider.kind.rawValue,
-            modelId = model.canonicalModelId,
-            effectiveTransport = transport,
-            metadataRevision = current.metadataRevision,
-            generationRevision = current.generationRevision,
-        )
-        if (key.startsWith("generation_parameter/")) {
-            val id = key.substringAfter('/')
-            // A `supportsTemperature: false` in the catalog is an explicit negative
-            // conclusion and has to enter the facade as an `unsupported` candidate. The
-            // explicit-intent escape hatch relaxes "we have no evidence", not "the catalog
-            // says unsupported"; without materialising the candidate, a temperature the user
-            // set explicitly would go out anyway.
-            if (id == "temperature" && model.supportsTemperature == false) {
-                return listOf(
-                    CapabilityEvidenceFacade.Candidate(
-                        key = key,
-                        support = "unsupported",
-                        source = "server_profile",
-                        grade = "declared",
-                        scope = "provider_model_transport",
-                        identity = identity,
-                    ),
-                )
-            }
-            val parameter = model.profiles.generation?.parameters?.firstOrNull { it.id == id } ?: return emptyList()
-            return listOfNotNull(
-                CapabilityEvidenceFacade.normalizeGenerationParameter(
-                    raw = parameter,
-                    identity = identity,
-                    scope = "provider_model_transport",
-                ),
-            )
-        }
-        val support = when {
-            key == "tool_call" -> when (model.toolCall) {
-                true -> "supported"
-                false -> "unsupported"
-                null -> "unknown"
-            }
-            key == "web_search" -> if (
-                ModelCapability.Web in model.capabilities && !model.profiles.webSearch.isNullOrBlank()
-            ) "supported" else "unknown"
-            key == "vision_input" -> if (ModelCapability.Image in model.capabilities) "supported" else "unknown"
-            key.startsWith("reasoning_level/") -> if (
-                key.substringAfter('/') in current.declaredReasoningLevels
-            ) "supported" else "unknown"
-            else -> return emptyList()
-        }
-        return listOf(
-            CapabilityEvidenceFacade.Candidate(
-                key = key,
-                support = support,
-                source = "legacy_metadata",
-                grade = "legacy_unverified",
-                scope = "provider_model_transport",
-                identity = identity,
-            ),
-        )
-    }
-
-    private fun relayCandidates(
-        provider: Provider,
-        model: AIModel,
-        queryIdentity: CapabilityEvidenceFacade.QueryIdentity?,
-        key: String,
-    ): List<CapabilityEvidenceFacade.Candidate> {
-        val query = queryIdentity ?: return relayUnscopedDeclaration(provider, model, key)
-        val identity = CapabilityEvidenceFacade.CandidateIdentity(
-            partitionId = query.partitionId,
-            connectionInstanceId = query.connectionInstanceId,
-            connectionGeneration = query.connectionGeneration,
-            credentialEpoch = query.credentialEpoch,
-            providerKind = query.providerKind,
-            modelId = query.canonicalModelId ?: query.modelId,
-            effectiveTransport = query.effectiveTransport,
-            endpointFingerprint = query.endpointFingerprint,
-            metadataRevision = query.metadataRevision,
-            generationRevision = query.generationRevision,
-        )
-        if (key.startsWith("generation_parameter/")) {
-            val id = key.substringAfter('/')
-            val parameter = model.generationProfile?.parameters?.firstOrNull { it.id == id } ?: return emptyList()
-            return listOfNotNull(
-                CapabilityEvidenceFacade.normalizeGenerationParameter(
-                    raw = parameter,
-                    identity = identity,
-                    source = "relay_declaration",
-                ),
-            )
-        }
-        return relayDeclaration(provider, model, key)?.let { support ->
-            listOf(
-                CapabilityEvidenceFacade.Candidate(
-                    key = key,
-                    support = if (support == "unsupported") "unsupported" else "unknown",
-                    source = "relay_declaration",
-                    grade = if (support == "unsupported") "declared" else "accepted_unverified",
-                    scope = "connection_model_transport",
-                    identity = identity,
-                ),
-            )
-        }.orEmpty()
-    }
-
-    /** With no scope only the UI declaration survives; the facade will not authorise anything on an incomplete identity. */
-    private fun relayUnscopedDeclaration(
-        provider: Provider,
-        model: AIModel,
-        key: String,
-    ): List<CapabilityEvidenceFacade.Candidate> {
-        val support = relayDeclaration(provider, model, key) ?: return emptyList()
-        return listOf(
-            CapabilityEvidenceFacade.Candidate(
-                key = key,
-                support = if (support == "unsupported") "unsupported" else "unknown",
-                source = "relay_declaration",
-                grade = if (support == "unsupported") "declared" else "accepted_unverified",
-                scope = "connection_model_transport",
-                identity = CapabilityEvidenceFacade.CandidateIdentity(
-                    providerKind = ProviderKind.Relay.rawValue,
-                    modelId = model.canonicalModelId ?: model.id,
-                    effectiveTransport = provider.relayRequested?.transport?.value ?: "unknown",
-                ),
-            ),
-        )
-    }
-
-    private fun relayDeclaration(provider: Provider, model: AIModel, key: String): String? = when {
-        key == "tool_call" -> when (model.toolCall) {
-            false -> "unsupported"
-            true -> "accepted"
-            null -> null
-        }
-        key == "web_search" && provider.relayRequested?.hasWebSearch == true &&
-            !model.webSearchProfile.isNullOrBlank() -> "accepted"
-        key == "vision_input" && ModelCapability.Image in model.capabilities -> "accepted"
-        key.startsWith("reasoning_level/") && model.reasoningModeAvailable &&
-            !model.reasoningProfile.isNullOrBlank() -> "accepted"
-        else -> null
-    }
-
-    /** When the public capability namespace is malformed as a whole, no capability key may be resurrected from the older metadata shape. */
-    private fun isGovernedCapabilityKey(key: String): Boolean =
-        key in setOf("tool_call", "web_search", "vision_input") ||
-            key.startsWith("generation_parameter/") ||
-            key.startsWith("reasoning_level/")
-
-    private fun facadeCandidate(raw: MetadataClient.CapabilityEvidenceCandidateView) =
-        CapabilityEvidenceFacade.Candidate(
-            key = raw.key,
-            support = raw.support,
-            source = raw.source,
-            grade = raw.grade,
-            scope = raw.scope,
-            identity = CapabilityEvidenceFacade.CandidateIdentity(
-                providerKind = raw.providerKind,
-                modelId = raw.modelId,
-                effectiveTransport = raw.transport,
-                metadataRevision = raw.metadataRevision,
-                generationRevision = raw.generationRevision,
-            ),
-            observedAt = raw.observedAt,
-            expiresAt = raw.expiresAt,
-        )
 
     private fun isCompleteRelayIdentity(identity: CapabilityEvidenceFacade.QueryIdentity): Boolean =
         identity.partitionId.isNotBlank() && identity.connectionInstanceId.isNotBlank() &&
             identity.connectionGeneration.isNotBlank() && identity.credentialEpoch.isNotBlank() &&
-            identity.providerKind == ProviderKind.Relay.rawValue && identity.modelId.isNotBlank() &&
+            formOf(identity.providerKind, identity.authMode) == ProviderForm.Relay && identity.modelId.isNotBlank() &&
             CapabilityEvidenceFacade.isConcreteTransport(identity.effectiveTransport) &&
             !identity.endpointFingerprint.isNullOrBlank()
+
+    /** The identity holds only raw strings; if kind or authMode is not recognized there is no form, and callers fail closed. */
+    private fun formOf(providerKind: String, authMode: String): ProviderForm? {
+        val kind = ProviderKind.fromRawValue(providerKind) ?: return null
+        val mode = ProviderAuthMode.entries.firstOrNull { it.rawValue == authMode } ?: return null
+        return ProviderForm.of(kind, mode)
+    }
 
     private fun incompleteIdentity(provider: Provider, model: AIModel) = CapabilityEvidenceFacade.QueryIdentity(
         partitionId = "",
@@ -767,6 +639,7 @@ internal object CapabilityEvidenceProductionAdapter {
         connectionGeneration = "",
         credentialEpoch = "",
         providerKind = provider.kind.rawValue,
+        authMode = provider.authMode.rawValue,
         modelId = model.id,
         canonicalModelId = model.canonicalModelId,
         effectiveTransport = "unknown",

@@ -3,6 +3,8 @@ package ai.oriveo.community.feature.providers.setup
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RegionOption
+import ai.oriveo.community.core.provider.transport.EndpointResolver
+import ai.oriveo.community.core.provider.transport.OfficialEndpointSource
 
 data class ProviderSetupDefaults(
     val displayName: String,
@@ -17,6 +19,8 @@ data class ProviderSetupCatalog(
     val aggregatorProviders: List<ProviderKind>,
     private val defaultsByKind: Map<ProviderKind, ProviderSetupDefaults>,
     private val regionsByKind: Map<ProviderKind, List<RegionOption>>,
+    /** Ids among the delivered setupFields that the client recognizes; production does not deliver them yet, empty by default. */
+    private val setupFieldIdsByKind: Map<ProviderKind, Set<String>> = emptyMap(),
 ) {
     fun displayName(kind: ProviderKind): String = defaultsByKind[kind]?.displayName ?: kind.displayName
 
@@ -32,13 +36,56 @@ data class ProviderSetupCatalog(
         defaultsByKind[kind]?.autoFillNote ?: kind.autoFillNote
 
     fun regionOptions(kind: ProviderKind): List<RegionOption> =
-        regionsByKind[kind] ?: kind.regionOptions
+        regionsByKind[kind] ?: trustedBuiltInRegions(kind)
 
+    /**
+     * Fields that appear in the selected address template (the region address if a region is selected, otherwise the default address) and were declared by the delivered metadata.
+     * An address without placeholders is always empty, so the setup page UI does not change at all.
+     */
+    fun setupFieldIds(kind: ProviderKind, region: RegionOption?): List<String> {
+        val template = region?.baseURL ?: defaultBaseUrl(kind) ?: return emptyList()
+        val declared = setupFieldIdsByKind[kind].orEmpty()
+        return OfficialEndpointSource.placeholders(template).filter { it in declared }
+    }
+
+    /**
+     * The region matching the saved address (the "current value" on the detail / settings page). The trust table constrains only the selectable options, not the value the user already saved:
+     * look among the options first, and if not found look in the unfiltered table; when nothing matches, fall back to the first item as before.
+     */
     fun resolveRegionOption(kind: ProviderKind, baseUrl: String?): RegionOption? {
         val options = regionOptions(kind)
-        if (options.isEmpty()) return null
-        val normalized = normalizeBaseUrl(baseUrl) ?: return options.firstOrNull()
-        return options.firstOrNull { normalizeBaseUrl(it.baseURL) == normalized } ?: options.firstOrNull()
+        if (normalizeBaseUrl(baseUrl) == null) return options.firstOrNull()
+        return exactRegionOption(kind, baseUrl) ?: options.firstOrNull()
+    }
+
+    /** The region exactly equal to the saved address (options first, then the unfiltered delivered table and the built-in table); null if none. */
+    fun exactRegionOption(kind: ProviderKind, baseUrl: String?): RegionOption? {
+        val normalized = normalizeBaseUrl(baseUrl) ?: return null
+        return (regionOptions(kind) + unfilteredRegionOptions(kind))
+            .firstOrNull { normalizeBaseUrl(it.baseURL) == normalized }
+    }
+
+    /**
+     * Detail-page echo: a `region:<id>` source whose item is in the displayed (trusted) catalog takes priority -- even if metadata moved
+     * the address so the literal address matches no option, it is still recognized; otherwise it keeps the literal rule of [resolveRegionOption].
+     */
+    fun resolveRegionOption(kind: ProviderKind, baseUrl: String?, endpointSource: String?): RegionOption? =
+        sourceRegionOption(kind, endpointSource) ?: resolveRegionOption(kind, baseUrl)
+
+    /** The region matching the saved value, source first (as above), otherwise the literal rule of [exactRegionOption]; null if none. */
+    fun exactRegionOption(kind: ProviderKind, baseUrl: String?, endpointSource: String?): RegionOption? =
+        sourceRegionOption(kind, endpointSource) ?: exactRegionOption(kind, baseUrl)
+
+    /**
+     * The same predicate for the region picker display and region saving: the displayed catalog has at least one region option (after trust filtering,
+     * the built-in one when there is no metadata). A Relay address is exactly what the user typed and is kept separate.
+     */
+    fun usesConfigurableBaseUrl(kind: ProviderKind): Boolean =
+        kind == ProviderKind.Relay || regionOptions(kind).isNotEmpty()
+
+    private fun sourceRegionOption(kind: ProviderKind, endpointSource: String?): RegionOption? {
+        val id = OfficialEndpointSource.regionId(endpointSource) ?: return null
+        return regionOptions(kind).firstOrNull { it.id == id }
     }
 
     companion object {
@@ -66,6 +113,7 @@ data class ProviderSetupCatalog(
 
             val defaults = fallbackDefaults().toMutableMap()
             val regions = fallbackRegions().toMutableMap()
+            val setupFields = mutableMapOf<ProviderKind, Set<String>>()
             val direct = mutableListOf<ProviderKind>()
             val aggregators = mutableListOf<ProviderKind>()
 
@@ -81,6 +129,9 @@ data class ProviderSetupCatalog(
                 if (config.regionOptions.isNotEmpty()) {
                     regions[config.kind] = config.regionOptions
                 }
+                if (config.setupFieldIds.isNotEmpty()) {
+                    setupFields[config.kind] = config.setupFieldIds
+                }
                 when (config.category) {
                     "aggregator" -> aggregators.add(config.kind)
                     else -> direct.add(config.kind)
@@ -92,6 +143,7 @@ data class ProviderSetupCatalog(
                 aggregatorProviders = aggregators,
                 defaultsByKind = defaults,
                 regionsByKind = regions,
+                setupFieldIdsByKind = setupFields,
             )
         }
 
@@ -132,7 +184,7 @@ data class ProviderSetupCatalog(
             }
 
         private fun fallbackRegions(): Map<ProviderKind, List<RegionOption>> =
-            fallbackOrder.associateWith { kind -> kind.regionOptions }
+            fallbackOrder.associateWith(::trustedBuiltInRegions)
     }
 }
 
@@ -157,6 +209,7 @@ private data class KnownProviderConfig(
     val category: String?,
     val regionOptions: List<RegionOption>,
     val sortOrder: Int?,
+    val setupFieldIds: Set<String>,
 )
 
 private fun MetadataClient.PublicProviderConfig.toKnownProviderConfig(): KnownProviderConfig? {
@@ -178,7 +231,10 @@ private fun MetadataClient.PublicProviderConfig.toKnownProviderConfig(): KnownPr
         "siliconFlow" -> ProviderKind.SiliconFlow
         else -> return null
     }
+    val declaredSetupFields = OfficialEndpointSource.declaredSetupFieldIds(setupFields)
+    // The default address may also be a template: when a placeholder is outside the closed set or undeclared it is treated as not delivered, falling back to the built-in default address.
     val normalizedDefault = defaultBaseURL.trim().takeIf { it.isNotEmpty() }
+        ?.takeIf { template -> OfficialEndpointSource.placeholders(template).all { it in declaredSetupFields } }
     return KnownProviderConfig(
         kind = kind,
         displayName = displayName.trim().takeIf { it.isNotEmpty() } ?: kind.displayName,
@@ -201,6 +257,7 @@ private fun MetadataClient.PublicProviderConfig.toKnownProviderConfig(): KnownPr
             }
             ?: emptyList(),
         sortOrder = sortOrder,
+        setupFieldIds = declaredSetupFields,
     )
 }
 
@@ -212,4 +269,24 @@ private fun normalizeBaseUrl(baseUrl: String?): String? {
         normalized = normalized.dropLast(1)
     }
     return normalized
+}
+
+/** The region table without trust filtering: delivered raw values + the client built-in table, used only to reverse-look-up saved values and never enters the selectable options. */
+private fun unfilteredRegionOptions(kind: ProviderKind): List<RegionOption> {
+    val downloaded = MetadataClient.publicProviderConfig(kind)?.regionOptions.orEmpty().mapNotNull { option ->
+        val id = option.id.trim()
+        val label = option.label.trim()
+        val baseURL = option.baseURL.trim().trimEnd('/')
+        if (id.isEmpty() || label.isEmpty() || baseURL.isEmpty()) null else RegionOption(id, label, baseURL)
+    }
+    return downloaded + kind.regionOptions
+}
+
+/**
+ * When falling back to the client built-in region table, the built-in options pass the same trust matching as delivered options: with a missing field only the last two labels of the fallback host are trusted,
+ * so no host outside the trust table can appear after the fallback (for example the MiniMax domestic site when `minimaxi.com` was not delivered).
+ */
+private fun trustedBuiltInRegions(kind: ProviderKind): List<RegionOption> {
+    val trusted = EndpointResolver.trustedHostSuffixes(kind)
+    return kind.regionOptions.filter { EndpointResolver.isTrustedHttpsUrl(it.baseURL, trusted) }
 }

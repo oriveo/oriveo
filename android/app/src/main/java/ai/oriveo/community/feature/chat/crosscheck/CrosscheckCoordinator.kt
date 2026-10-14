@@ -12,7 +12,9 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.model.StreamEvent
 import ai.oriveo.community.core.provider.MessageBuilder
+import ai.oriveo.community.core.provider.ProviderCredentialResolver
 import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
+import ai.oriveo.community.core.provider.RelayEndpointResolver
 import ai.oriveo.community.core.util.generateUuidString
 import ai.oriveo.community.feature.modelpicker.isModelTransportSupportedForModelPicker
 import ai.oriveo.community.feature.providers.detail.comparePickerModels
@@ -87,7 +89,9 @@ object CrosscheckModelPickerSectionBuilder {
                             (option.model.summary?.contains(normalizedQuery, ignoreCase = true) == true)
                     }
                     .filter { option -> isModelTransportSupportedForModelPicker(option.provider, option.model) }
-                    .sortedWith { lhs, rhs -> comparePickerModels(lhs.model, rhs.model) }
+                    .sortedWith { lhs, rhs ->
+                        comparePickerModels(lhs.model, rhs.model, ignoreDefault = lhs.provider.kind == ProviderKind.Relay)
+                    }
 
                 if (providerOptions.isEmpty()) {
                     null
@@ -134,15 +138,17 @@ class CrosscheckCoordinator(
                     requestOptions = requestOptions.copy(
                         relayRequested = provider.relayRequested,
                         relayImage = provider.relayImage,
+                        relayRouteTransport = RelayEndpointResolver.effectiveTransport(provider, model),
+                        relayRouteAPIRoot = RelayEndpointResolver.effectiveAPIRoot(provider, model),
                     )
                 }
-                val service = providerRepository.serviceFor(provider)
+                val service = providerRepository.serviceFor(provider, model)
                 val sb = StringBuilder()
                 service.sendMessageStream(
-                    apiKey = provider.apiKey,
+                    apiKey = ProviderCredentialResolver.apiKey(provider, runtimeModelId),
                     modelID = runtimeModelId,
                     messages = outbound,
-                    baseUrl = provider.baseUrlText,
+                    baseUrl = ai.oriveo.community.core.provider.transport.OfficialEndpointSource.effectiveBaseUrlText(provider),
                     supportsImageGen = false,
                     reasoningMode = ReasoningMode.Automatic,
                     webSearchEnabled = false,
@@ -287,7 +293,7 @@ class CrosscheckCoordinator(
             excluding: CrosscheckModelIdentity? = null,
         ): List<CrosscheckOption> =
             providers.flatMap { provider ->
-                if (provider.apiKey.isBlank()) {
+                if (ProviderCredentialResolver.apiKey(provider, null).isBlank()) {
                     emptyList()
                 } else {
                     provider.models

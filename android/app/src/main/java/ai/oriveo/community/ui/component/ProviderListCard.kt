@@ -43,6 +43,8 @@ import ai.oriveo.community.core.model.ProviderEffectiveStatusKind
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.effectiveStatusKind
 import ai.oriveo.community.core.model.resolveProviderLogoKind
+import ai.oriveo.community.core.model.RelayAvatar
+import ai.oriveo.community.core.model.RelayAvatarResolver
 import ai.oriveo.community.core.provider.BALANCE_CAPABLE_KINDS
 import ai.oriveo.community.core.provider.ProviderBalance
 import ai.oriveo.community.ui.theme.OriveoColors
@@ -144,13 +146,12 @@ fun ProviderListCard(
         Spacer(Modifier.requiredWidth(16.dp))
 
         // 2) 38dp logo followed by a 13dp gap.
-        ProviderBadgeIcon(
-            kind = resolvedLogoKind,
-            size = 38.dp,
-            relayKind = provider.relayKind.takeIf {
-                provider.kind == ProviderKind.Relay && resolvedLogoKind == ProviderKind.Relay
-            },
-        )
+        // Relay connections draw a unified avatar; official and local keep their original logo.
+        if (RelayAvatarResolver.appliesTo(provider)) {
+            RelayAvatar(provider = provider, size = 38.dp)
+        } else {
+            ProviderBadgeIcon(kind = resolvedLogoKind, size = 38.dp)
+        }
         Spacer(Modifier.requiredWidth(13.dp))
 
         // 3) Centre column: name row over sub row.

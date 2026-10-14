@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 import ai.oriveo.community.ui.theme.OriveoTheme
 
@@ -101,5 +102,39 @@ fun ProviderDetailSectionHeader(
             title = { Text(title) },
             text = { Text(helpMessage) },
         )
+    }
+}
+
+/**
+ * Section title of the relay family pages (detail / edit / manual setup / web / local), aligned with the iOS small secondary-color label:
+ * footnote semibold + letter spacing, textSecondary, no vertical bar and no icon.
+ * Only the model library "Enabled · N" and "Model library · N" still use [ProviderDetailSectionHeader].
+ */
+@Composable
+fun ProviderDetailSectionLabel(
+    title: String,
+    modifier: Modifier = Modifier,
+    trailing: String? = null,
+) {
+    val colors = OriveoTheme.colors
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = title,
+            style = OriveoTheme.typography.footnote.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 0.3.sp),
+            color = colors.textSecondary,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        if (!trailing.isNullOrBlank()) {
+            Text(
+                text = trailing,
+                style = OriveoTheme.typography.footnote,
+                color = colors.textSecondary,
+            )
+        }
     }
 }

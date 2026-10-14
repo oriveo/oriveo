@@ -12,7 +12,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 /**
- * Zhipu Service - OpenAI-compatible, open.bigmodel.cn
+ * Zhipu Service - OpenAI-compatible
  * Model metadata and the key validation strategy come from the published model catalog.
  * Image generation is dispatched by the route handling in the base class
  * [OpenAICompatibleService] (imageGen profile route=images_api -> /images/generations,
@@ -33,7 +33,9 @@ class ZhipuService(
 ) : OpenAICompatibleService(
     client = client,
     json = json,
-    defaultBaseUrl = "https://open.bigmodel.cn/api/paas/v4",
+    // The base URL is always the one the caller resolved from the endpoint source; the built-in table is
+    // only the fallback for an empty value, so no host is hard-coded.
+    defaultBaseUrl = ProviderKind.Zhipu.defaultBaseUrl.orEmpty(),
     providerName = "Zhipu",
     providerKind = ProviderKind.Zhipu,
     transportRegistry = transportRegistry,

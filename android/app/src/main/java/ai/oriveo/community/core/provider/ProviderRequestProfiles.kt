@@ -11,6 +11,7 @@ import ai.oriveo.community.core.model.CapabilityRejectionRule
 import ai.oriveo.community.core.model.GenerationOverrideState
 import ai.oriveo.community.core.model.GenerationProfileRef
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.model.ProviderChatResult
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderServiceError
@@ -516,8 +517,18 @@ internal fun officialRequestCapabilityProjection(
         }
         if (toolCallRequested) add("tool_call")
     }
+    // The request boundary has no real Provider (the service takes only apiKey / modelID / options), so the form cannot be guessed from kind:
+    // a non-empty subscription context means the subscription chain, and the snapshot is the current catalog object the caller brought (the ChatRepository subscription path
+    // explicitly passes the freshly fetched catalog model); if absent or the id does not match, fail closed under state 1. This way the outbound projection and the UI projection
+    // share the same form and the same source of truth (upstream_declaration), and official / Relay are unaffected.
+    val subscription = options.openAISubscription != null || options.grokSubscription != null
     val legacyProjection = CapabilityEvidenceProductionAdapter.capabilityProjection(
-        provider = Provider(id = "runtime-${providerKind.rawValue}", kind = providerKind),
+        provider = Provider(
+            id = "runtime-${providerKind.rawValue}",
+            kind = providerKind,
+            authMode = if (subscription) ProviderAuthMode.Subscription else ProviderAuthMode.ApiKey,
+            catalogModels = if (subscription) listOfNotNull(options.activeModel?.takeIf { it.id == modelID }) else emptyList(),
+        ),
         model = model,
         keys = keys,
         explicitKeys = explicitKeys,

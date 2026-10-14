@@ -5,7 +5,6 @@ import ai.oriveo.community.core.data.remote.canonicalCapabilityTransport
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
-import ai.oriveo.community.core.model.RelayTransport
 import java.util.Base64
 
 /**
@@ -20,6 +19,15 @@ data class ModelControlRuntimeIdentity(
     val finalTransport: String,
     val runtimeRevision: String,
 ) {
+    /**
+     * Relay: the [canonicalModelId] slot holds the literal model ID (preferences are keyed by it); this is the old
+     * canonical key read back when the literal key misses (preferences written by canonical before literalization).
+     * It is null when identical to the literal or for official providers. It sits outside the primary constructor:
+     * it takes no part in equals / [storageIdentity] (the negative cache compares the four-field identity).
+     */
+    var legacyModelId: String? = null
+        internal set
+
     init {
         require(connectionId.isNotBlank()) { "connectionId is required" }
         require(canonicalModelId.isNotBlank()) { "canonicalModelId is required" }
@@ -96,14 +104,15 @@ object ModelControlRuntimeIdentityResolver {
         val runtimeRevision = metadata.currentCapabilityRuntimeRevision() ?: return null
         val canonicalModelId: String
         val finalTransport: String
+        var legacyModelId: String? = null
         if (provider.kind == ProviderKind.Relay) {
-            val requestedTransport = provider.relayRequested?.transport
-                ?.takeIf { it != RelayTransport.Auto }
-                ?.value
+            val requestedTransport = RelayEndpointResolver.declaredTransport(provider, model)?.value
                 ?: return null
-            canonicalModelId = model.canonicalModelId?.trim()?.takeIf { it.isNotEmpty() }
-                ?: model.id.trim().takeIf { it.isNotEmpty() }
+            // Relay keys by literal ID: gpt-4o and gpt-4o-2024-08-06 each have their own preferences.
+            canonicalModelId = ModelSelectionUtils.preferredStoredModelIdentifier(model, provider.kind)
+                .takeIf { it.isNotEmpty() }
                 ?: return null
+            legacyModelId = model.canonicalModelId?.trim()?.takeIf { it.isNotEmpty() && it != canonicalModelId }
             finalTransport = canonicalCapabilityTransport(requestedTransport)
         } else {
             val resolved = metadata.resolveCatalogModel(model.id, provider.kind) ?: return null
@@ -116,6 +125,6 @@ object ModelControlRuntimeIdentityResolver {
             canonicalModelId = canonicalModelId,
             finalTransport = finalTransport,
             runtimeRevision = runtimeRevision,
-        )
+        ).also { it.legacyModelId = legacyModelId }
     }
 }

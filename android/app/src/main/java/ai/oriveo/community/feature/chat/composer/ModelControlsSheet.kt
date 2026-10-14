@@ -95,6 +95,7 @@ import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.CapabilityPreferenceValues
 import ai.oriveo.community.core.model.CapabilityWebPreference
+import ai.oriveo.community.core.model.ConnectionAvatar
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.core.provider.CapabilityControlPresentation
@@ -108,25 +109,26 @@ import ai.oriveo.community.core.provider.ModelControlRuntimeIdentityResolver
 import ai.oriveo.community.core.provider.capabilityCustomFragmentAvailable
 import ai.oriveo.community.feature.chat.ChatModelCapabilityResolver
 import ai.oriveo.community.core.model.LocalCapabilityCustomFragmentStore
-import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.feature.chat.modelcontrols.AdvancedSettingsPage
 import ai.oriveo.community.feature.chat.modelcontrols.AdditionalBodyEditor
 import ai.oriveo.community.feature.chat.modelcontrols.AdvancedSectionLabel
 import ai.oriveo.community.feature.chat.modelcontrols.AdvancedSubPage
 import ai.oriveo.community.feature.chat.modelcontrols.CapabilityRowActions
 import ai.oriveo.community.feature.chat.modelcontrols.ChatTemplateThinking
-import ai.oriveo.community.feature.chat.modelcontrols.GenerationParameterRowModel
-import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionCapabilityCard
 import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionCapabilityRow
 import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionCapabilityShape
 import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionParameterCard
+import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionInfoTile
+import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionTierNotes
+import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsBoard
 import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsHeader
 import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsPanelInput
 import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsProtocolCard
 import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsRender
 import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsStatusMark
+import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsTiles
+import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsTurnSummary
 import ai.oriveo.community.feature.chat.modelcontrols.rememberAdvancedSettingsLoaded
-import ai.oriveo.community.ui.component.ProviderBadgeIcon
 import ai.oriveo.community.ui.component.isReduceMotionEnabled
 import ai.oriveo.community.ui.theme.OriveoMotion
 import ai.oriveo.community.ui.theme.OriveoTheme
@@ -135,7 +137,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 internal sealed interface ModelControlsRoute {
-    data object ModelBehavior : ModelControlsRoute
+    data object Parameters : ModelControlsRoute
 
     data class SupportedModels(val capability: String) : ModelControlsRoute
 }
@@ -161,12 +163,18 @@ internal fun ModelControlsEntrySheet(
     reasoningIntent: String?,
     customOwners: Set<String>,
     generationOverrideCount: Int,
+    /** Whether the composer's photo-library entry is visible right now (same value as the composer; the vision card derives its three states from it). */
+    imageEntryVisible: Boolean,
+    /** The outbound history contains video: the file card's route prediction matches the send / preflight path. */
+    outboundHistoryHasVideo: Boolean = false,
     onSelectionChange: (CapabilityWebPreference, String?, Boolean) -> Unit,
     onPersist: (CapabilityPreferenceValues) -> Unit,
     onPromoteToModelDefault: (CapabilityPreferenceValues) -> Unit,
     onAdvancedSettingsClosed: () -> Unit,
     onChooseAnotherModel: () -> Unit,
     onOpenConnectionSettings: () -> Unit,
+    /** Relay web row "Open web search settings" / "Set by you": go to this connection's web search settings page. */
+    onOpenConnectionWebSearch: () -> Unit,
     onNavigateToProviderSetup: () -> Unit,
     onSelectModel: (providerId: String, modelId: String) -> Unit,
     onDismiss: () -> Unit,
@@ -199,12 +207,15 @@ internal fun ModelControlsEntrySheet(
                 reasoningIntent = reasoningIntent,
                 customOwners = customOwners,
                 generationOverrideCount = generationOverrideCount,
+                imageEntryVisible = imageEntryVisible,
+                outboundHistoryHasVideo = outboundHistoryHasVideo,
                 onSelectionChange = onSelectionChange,
                 onPersist = onPersist,
                 onPromoteToModelDefault = onPromoteToModelDefault,
                 onAdvancedSettingsClosed = onAdvancedSettingsClosed,
                 onChooseAnotherModel = onChooseAnotherModel,
                 onOpenConnectionSettings = onOpenConnectionSettings,
+                onOpenConnectionWebSearch = onOpenConnectionWebSearch,
                 onSelectModel = onSelectModel,
                 onDismiss = onDismiss,
             )
@@ -222,7 +233,7 @@ private fun ModelControlsMissingModelPanel(
     val rows = listOf(
         R.string.model_control_web_search,
         R.string.model_control_thinking,
-        R.string.generation_model_behavior,
+        R.string.generation_parameters_section,
     )
     ModelControlsScaffold(onClose = onClose, bottomExtra = null) {
         Column(
@@ -290,12 +301,18 @@ private fun ModelControlsPanel(
     reasoningIntent: String?,
     customOwners: Set<String>,
     generationOverrideCount: Int,
+    /** Whether the composer's photo-library entry is visible right now (same value as the composer; the vision card derives its three states from it). */
+    imageEntryVisible: Boolean,
+    /** The outbound history contains video: the file card's route prediction matches the send / preflight path. */
+    outboundHistoryHasVideo: Boolean,
     onSelectionChange: (CapabilityWebPreference, String?, Boolean) -> Unit,
     onPersist: (CapabilityPreferenceValues) -> Unit,
     onPromoteToModelDefault: (CapabilityPreferenceValues) -> Unit,
     onAdvancedSettingsClosed: () -> Unit,
     onChooseAnotherModel: () -> Unit,
     onOpenConnectionSettings: () -> Unit,
+    /** Relay web row "Open web search settings" / "Set by you": go to this connection's web search settings page. */
+    onOpenConnectionWebSearch: () -> Unit,
     onSelectModel: (providerId: String, modelId: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -338,11 +355,11 @@ private fun ModelControlsPanel(
         transportIdentity = identity?.storageIdentity,
         runtimeIsReadOnly = runtimeIsReadOnly,
     )
-    val identityGap = remember(provider, metadataRevision, refreshedIdentity) {
+    val identityGap = remember(provider, model, metadataRevision, refreshedIdentity) {
         ModelControlsIdentityGap.resolve(
             providerKind = provider.kind,
-            relayTransportIsDecided = provider.relayRequested?.transport
-                ?.takeIf { it != RelayTransport.Auto } != null,
+            relayTransportIsDecided = ai.oriveo.community.core.provider.RelayEndpointResolver
+                .declaredTransport(provider, model) != null,
             runtimeIsReady = metadata.currentCapabilityRuntimeRevision() != null,
         )
     }
@@ -464,9 +481,9 @@ private fun ModelControlsPanel(
                         colors = modelControlTextButtonColors(),
                         onClick = {
                             explanation = null
-                            openRoute(ModelControlsRoute.ModelBehavior)
+                            openRoute(ModelControlsRoute.Parameters)
                         },
-                    ) { Text(stringResource(R.string.model_control_go_to_advanced_settings)) }
+                    ) { Text(stringResource(R.string.model_control_go_to_parameters)) }
                     ModelControlCapabilityEscape.None -> TextButton(
                         colors = modelControlTextButtonColors(),
                         onClick = { explanation = null },
@@ -487,8 +504,8 @@ private fun ModelControlsPanel(
     }
 
     val optionsConnection = ModelOptionsPanelInput.connectionCategory(provider.kind)
-    val protocolUndecided = ModelOptionsPanelInput.protocolUndecided(provider)
-    val customProtocol = ModelOptionsPanelInput.customProtocol(provider)
+    val protocolUndecided = ModelOptionsPanelInput.protocolUndecided(provider, model)
+    val customProtocol = ModelOptionsPanelInput.customProtocol(provider, model)
     val statusMark = ModelOptionsStatusMark.resolve(optionsConnection, listOf(presentation("web"), presentation("reasoning")))
     val additionalBodyStore = remember(context) { LocalCapabilityCustomFragmentStore.from(context) }
     var additionalBodyRevision by remember { mutableIntStateOf(0) }
@@ -505,7 +522,8 @@ private fun ModelControlsPanel(
         reasoningMode = ai.oriveo.community.core.model.ReasoningMode.fromIntent(reasoningIntent),
         revision = summaryRevision + generationOverrideCount,
     )
-    val parameterSummary = GenerationParameterRowModel.summary(behaviorData?.page?.rows.orEmpty())
+    // Parameters card: temperature gets its own row, and the entry row's capsule drops it.
+    val parameterRows = ModelOptionsTiles.parameterRows(behaviorData?.page?.rows.orEmpty())
     val webShape = ModelOptionCapabilityShape.resolve(
         ModelOptionCapabilityShape.Input(
             capability = ModelOptionCapabilityShape.Capability.Web,
@@ -516,6 +534,7 @@ private fun ModelControlsPanel(
             isWritable = editability.canPersist && !isCustomActive("web"),
             protocolUndecided = protocolUndecided,
             customProtocol = customProtocol,
+            relayWeb = ModelOptionsPanelInput.relayWeb(provider, model),
         ),
     )
     val reasoningShape = ModelOptionCapabilityShape.resolve(
@@ -530,6 +549,7 @@ private fun ModelControlsPanel(
             protocolUndecided = protocolUndecided,
             customProtocol = customProtocol,
             chatTemplateThinking = templateThinking == ChatTemplateThinking.State.On,
+            localEngineThinking = ModelOptionsPanelInput.localEngineThinking(provider, model),
             rejectedIntents = reasoningVerdict.rejectedIntents,
         ),
     )
@@ -551,15 +571,22 @@ private fun ModelControlsPanel(
             )
             ModelOptionCapabilityShape.Escape.AdditionalBody -> {
                 behaviorInitialSubPage = AdvancedSubPage.AdditionalBody
-                openRoute(ModelControlsRoute.ModelBehavior)
+                openRoute(ModelControlsRoute.Parameters)
             }
+            ModelOptionCapabilityShape.Escape.ConnectionWebSearch,
+            ModelOptionCapabilityShape.Escape.RelayWebRetest,
+            -> { onDismiss(); onOpenConnectionWebSearch() }
         }
     }
 
-    fun disclosureAction(capability: String, shape: ModelOptionCapabilityShape): (() -> Unit)? =
-        (shape as? ModelOptionCapabilityShape.Disclosure)
-            ?.takeIf { ModelOptionsRender.disclosureOffersSupportedModels(it.status) }
-            ?.let { disclosure -> { openSupportedModels(capability, ModelOptionsRender.disclosureRes(disclosure.status)) } }
+    fun disclosureAction(capability: String, shape: ModelOptionCapabilityShape): (() -> Unit)? {
+        val disclosure = (shape as? ModelOptionCapabilityShape.Disclosure)?: return null
+        if (ModelOptionsRender.opensConnectionWebSearch(disclosure.status)) {
+            return { onDismiss(); onOpenConnectionWebSearch() }
+        }
+        if (!ModelOptionsRender.disclosureOffersSupportedModels(disclosure.status)) return null
+        return { openSupportedModels(capability, ModelOptionsRender.disclosureRes(disclosure.status)) }
+    }
 
     val webActions = CapabilityRowActions(
         onToggle = { enabled -> persist(if (enabled) CapabilityWebPreference.Automatic else CapabilityWebPreference.Off, reasoningIntent) },
@@ -593,7 +620,24 @@ private fun ModelControlsPanel(
         toggleEnabled = !isTemplateToggle || (templateThinkingWritable && editability.canPersist),
         toggleEscape = ModelOptionCapabilityShape.Escape.AdditionalBody.takeIf { isTemplateToggle && !templateThinkingWritable },
         toggleBlockedNoteRes = ModelOptionsRender.templateThinkingBlockedNoteRes(templateThinking).takeIf { isTemplateToggle },
+        onChooseProtocol = { onDismiss(); onOpenConnectionSettings() },
     )
+    // Vision / file info cards and the "this turn actually sends" summary: the file route reads the panel's current web switch, the tool loop uses false.
+    val fileDelivery = ModelOptionsPanelInput.fileDelivery(
+        provider = provider,
+        model = model,
+        webSearchEnabled = ModelOptionsTiles.webIsOn(webShape),
+        reasoningMode = ai.oriveo.community.core.model.ReasoningMode.fromIntent(reasoningIntent),
+        historyHasVideo = outboundHistoryHasVideo,
+    )
+    val boardTiles = ModelOptionsTiles.board(
+        web = webShape,
+        reasoning = reasoningShape,
+        vision = ModelOptionsTiles.vision(imageEntryVisible, ModelOptionsPanelInput.visionUnknown(provider, model)),
+        file = fileDelivery,
+        reasoningToggleBlockedNoteRes = reasoningActions.toggleBlockedNoteRes,
+    )
+    val turnSummary = ModelOptionsTiles.summary(webShape, reasoningShape)
 
     val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
     val pageMillis = OriveoMotion.modelControlPageMillis(reduceMotion)
@@ -710,15 +754,21 @@ private fun ModelControlsPanel(
                             }
 
                             AdvancedSectionLabel(stringResource(R.string.model_options_capabilities))
-                            if (protocolUndecided) {
+                            if (boardTiles.isEmpty()) {
+                                // Both rows have an undecided protocol: only the full-width callout, no four cards.
                                 ModelOptionsProtocolCard(onChooseProtocol = { onDismiss(); onOpenConnectionSettings() })
                             } else {
-                                ModelOptionCapabilityCard(
-                                    listOf(
-                                        { ModelOptionCapabilityRow(ModelOptionCapabilityShape.Capability.Web, webShape, webActions) },
-                                        { ModelOptionCapabilityRow(ModelOptionCapabilityShape.Capability.Reasoning, reasoningShape, reasoningActions) },
-                                    ),
-                                )
+                                // 2x2 in a fixed order: web, thinking, vision, file; web / thinking shapes all come from ModelOptionCapabilityShape.resolve.
+                                ModelOptionsBoard(boardTiles) { tile ->
+                                    when (tile.kind) {
+                                        ModelOptionsTiles.Kind.Web ->
+                                            ModelOptionCapabilityRow(ModelOptionCapabilityShape.Capability.Web, webShape, webActions)
+                                        ModelOptionsTiles.Kind.Reasoning ->
+                                            ModelOptionCapabilityRow(ModelOptionCapabilityShape.Capability.Reasoning, reasoningShape, reasoningActions)
+                                        ModelOptionsTiles.Kind.Vision, ModelOptionsTiles.Kind.File -> ModelOptionInfoTile(tile)
+                                    }
+                                }
+                                ModelOptionTierNotes(reasoningShape)
                             }
                             listOf("web", "reasoning").forEach { capability ->
                                 val entries = ModelControlCapabilityFooter.entries(
@@ -736,12 +786,14 @@ private fun ModelControlsPanel(
                             }
                             AdvancedSectionLabel(stringResource(R.string.generation_parameters_section))
                             ModelOptionParameterCard(
-                                summary = parameterSummary,
+                                temperature = parameterRows.temperature,
+                                summary = parameterRows.entry,
                                 onClick = {
                                     behaviorInitialSubPage = null
-                                    openRoute(ModelControlsRoute.ModelBehavior)
+                                    openRoute(ModelControlsRoute.Parameters)
                                 },
                             )
+                            ModelOptionsTurnSummary(turnSummary)
                         }
                     }
                     is ModelControlsRoute.SupportedModels -> CapabilitySupportedModelsPage(
@@ -754,7 +806,7 @@ private fun ModelControlsPanel(
                             onDismiss()
                         },
                     )
-                    ModelControlsRoute.ModelBehavior -> Column(modifier = Modifier.fillMaxSize()) {
+                    ModelControlsRoute.Parameters -> Column(modifier = Modifier.fillMaxSize()) {
                         val notifyAdvancedSettingsClosed by rememberUpdatedState(onAdvancedSettingsClosed)
                         DisposableEffect(Unit) {
                             onDispose {
@@ -889,7 +941,7 @@ private fun CapabilitySupportedModelsPage(
                             .padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        ProviderBadgeIcon(kind = provider.kind, size = 26.dp, relayKind = provider.relayKind)
+                        ConnectionAvatar(provider = provider, fallbackKind = provider.kind, size = 26.dp)
                         Spacer(Modifier.width(12.dp))
                         Text(
                             text = candidate.name,
@@ -1005,10 +1057,10 @@ private fun ModelControlCapabilityFooterView(
                     onClick = { onRoute(ModelControlsRoute.SupportedModels(capability)) },
                 )
                 ModelControlCapabilityFooter.Entry.AdvancedSettingsLink -> ModelControlInlineAction(
-                    title = stringResource(R.string.model_control_go_to_advanced_settings),
+                    title = stringResource(R.string.model_control_go_to_parameters),
                     icon = Icons.Outlined.DataObject,
                     tint = colors.textSecondary,
-                    onClick = { onRoute(ModelControlsRoute.ModelBehavior) },
+                    onClick = { onRoute(ModelControlsRoute.Parameters) },
                 )
             }
         }

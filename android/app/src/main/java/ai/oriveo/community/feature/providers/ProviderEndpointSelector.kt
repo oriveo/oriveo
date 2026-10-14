@@ -46,10 +46,18 @@ fun ProviderEndpointSelector(
     onSelect: (RegionOption) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    /** The region the user has saved; when it is not among the options (filtered out by the trusted table) it is still listed so the current value stays visible and can be kept as is. */
+    currentOption: RegionOption? = null,
 ) {
     val colors = OriveoTheme.colors
     val isDark = colors.backgroundBase == DarkOriveoColors.backgroundBase
-    val options = ai.oriveo.community.feature.providers.setup.ProviderSetupCopy.regionOptions(kind)
+    // The setup page and the detail page share one table and both list address templates with placeholders (when a template is selected the caller shows the setup field slots).
+    val offered = ai.oriveo.community.feature.providers.setup.ProviderSetupCopy.regionOptions(kind)
+    val options = if (currentOption == null || offered.any { it.id == currentOption.id }) {
+        offered
+    } else {
+        offered + currentOption
+    }
 
     Column(
         modifier = modifier,

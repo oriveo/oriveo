@@ -18,11 +18,16 @@ import kotlinx.serialization.json.Json
  * Instances come from Koin; tests can construct one directly with a mock Json.
  */
 class TransportRegistry(json: Json) {
+    private val geminiGenerate = GeminiGenerateStrategy(json)
+
     private val strategies: Map<TransportKind, TransportStrategy> = mapOf(
         TransportKind.OpenAIChat to OpenAIChatStrategy(json),
         TransportKind.OpenAIResponses to OpenAIResponsesStrategy(json),
         TransportKind.AnthropicMessages to AnthropicMessagesStrategy(json),
-        TransportKind.GeminiGenerate to GeminiGenerateStrategy(json),
+        TransportKind.GeminiGenerate to geminiGenerate,
+        // Interactions request building and stream parsing live in GeminiService; when Interactions is not
+        // selected it falls back to generateContent and shares this one instance.
+        TransportKind.GeminiInteractions to geminiGenerate,
         TransportKind.DashScopeNative to DashScopeNativeStrategy(json),
         TransportKind.OpenAIImages to OpenAIImagesStrategy(json),
         TransportKind.GeminiImage to GeminiImageStrategy(json),

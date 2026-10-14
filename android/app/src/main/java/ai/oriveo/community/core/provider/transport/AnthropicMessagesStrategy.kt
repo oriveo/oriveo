@@ -70,6 +70,14 @@ class AnthropicMessagesStrategy(private val json: Json) : TransportStrategy {
         return results
     }
 
+    /** A web_search_tool_result block whose content is an array (an empty array counts) = the search ran; content that is an _error object does not count. */
+    override fun parseSearchRan(rawChunk: String): Boolean {
+        val root = runCatching { json.parseToJsonElement(rawChunk).jsonObject }.getOrNull() ?: return false
+        val block = root["content_block"]?.let { runCatching { it.jsonObject }.getOrNull() } ?: return false
+        val type = block["type"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+        return type == "web_search_tool_result" && block["content"] is JsonArray
+    }
+
     private fun parseContentArray(
         arr: JsonArray,
         urlField: String,

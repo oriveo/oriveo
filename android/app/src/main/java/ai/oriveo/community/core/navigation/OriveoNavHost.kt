@@ -72,6 +72,7 @@ import ai.oriveo.community.feature.providers.ProvidersScreenBackground
 import ai.oriveo.community.feature.providers.detail.ProviderDetailScreen
 import ai.oriveo.community.feature.providers.manual.ManualModelEntryScreen
 import ai.oriveo.community.feature.providers.relay.RelaySetupCompletionTarget
+import ai.oriveo.community.feature.providers.relay.postAddedNotice
 import ai.oriveo.community.feature.providers.relay.RelaySetupScreen
 import ai.oriveo.community.feature.providers.CustomLLMConnectionMethod
 import ai.oriveo.community.feature.providers.setup.ProviderSetupScreen
@@ -409,6 +410,10 @@ fun OriveoNavHost(
                         PageTrace.begin("ProviderDetail")
                         navController.navigate(AppRoute.ProviderDetail(providerID))
                     },
+                    onNavigateToConnectionWebSearch = { providerID ->
+                        PageTrace.begin("ProviderDetail")
+                        navController.navigate(AppRoute.ProviderDetail(providerID, initialLayer = AppRoute.ProviderDetail.LAYER_WEB_SEARCH))
+                    },
                     onNavigateToSkillEdit = {
 
                         navController.navigate(AppRoute.SkillEdit())
@@ -534,6 +539,7 @@ fun OriveoNavHost(
                 LaunchedEffect(Unit) { PageTrace.end("ProviderDetail") }
                 ProviderDetailScreen(
                     onBack = { navController.popBackStack() },
+                    initialWebSearchLayer = route.initialLayer == AppRoute.ProviderDetail.LAYER_WEB_SEARCH,
                     onStartChat = { providerID, modelID ->
                         appViewModel.setActiveModel(providerID, modelID)
                         PageTrace.begin("Chat")
@@ -602,26 +608,11 @@ fun OriveoNavHost(
                     onCompleted = { completion ->
                         when (completion) {
                             is RelaySetupCompletionTarget.ProviderDetail -> {
+                                // providers entry: the detail page top shows "n models added" once; other entries keep the existing completion path.
+                                completion.postAddedNotice(route.entryPoint)
                                 PageTrace.begin("ProviderDetail")
                                 navController.navigate(
                                     AppRoute.ProviderDetail(completion.providerId, route.entryPoint),
-                                ) {
-                                    popUpTo(AppRoute.RelaySetup(route.entryPoint)) { inclusive = true }
-                                    launchSingleTop = true
-                                }
-                            }
-
-                            is RelaySetupCompletionTarget.ManualModelEntry -> {
-                                PageTrace.begin("ManualModelEntry")
-                                navController.navigate(
-                                    AppRoute.ManualModelEntry(
-                                        providerID = completion.providerId,
-                                        context = when (route.entryPoint) {
-                                            ProviderSetupEntryPoint.Onboarding -> ManualModelEntryContext.Onboarding
-                                            ProviderSetupEntryPoint.SkillEdit -> ManualModelEntryContext.SkillEdit
-                                            ProviderSetupEntryPoint.Providers -> ManualModelEntryContext.Providers
-                                        },
-                                    ),
                                 ) {
                                     popUpTo(AppRoute.RelaySetup(route.entryPoint)) { inclusive = true }
                                     launchSingleTop = true
@@ -648,7 +639,6 @@ fun OriveoNavHost(
                                     launchSingleTop = true
                                 }
                             }
-                            is RelaySetupCompletionTarget.ManualModelEntry -> Unit
                         }
                     },
                 )

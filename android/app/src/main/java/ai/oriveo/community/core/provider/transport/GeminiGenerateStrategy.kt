@@ -55,4 +55,15 @@ class GeminiGenerateStrategy(private val json: Json) : TransportStrategy {
             )
         }
     }
+
+    /** Non-empty webSearchQueries or groundingChunks in groundingMetadata = a search ran. */
+    override fun parseSearchRan(rawChunk: String): Boolean {
+        val root = runCatching { json.parseToJsonElement(rawChunk).jsonObject }.getOrNull() ?: return false
+        val candidates = root["candidates"] as? JsonArray ?: return false
+        return candidates.any { candidate ->
+            val metadata = (candidate as? kotlinx.serialization.json.JsonObject)?.get("groundingMetadata")
+                as? kotlinx.serialization.json.JsonObject ?: return@any false
+            listOf("webSearchQueries", "groundingChunks").any { (metadata[it] as? JsonArray)?.isNotEmpty() == true }
+        }
+    }
 }

@@ -26,8 +26,8 @@ object EntityMapper {
 
     // ── Provider ────────────────────────────────────────────────
 
-    fun ProviderEntity.toDomain(apiKey: String = ""): Provider =
-        ProviderMapper.run { this@toDomain.toDomain(apiKey) }
+    fun ProviderEntity.toDomain(apiKey: String = "", relayKeySecret: (String) -> String? = { null }): Provider =
+        ProviderMapper.run { this@toDomain.toDomain(apiKey, relayKeySecret) }
 
     fun Provider.toEntity(accountId: String = "guest"): ProviderEntity =
         ProviderMapper.run { this@toEntity.toEntity(accountId) }

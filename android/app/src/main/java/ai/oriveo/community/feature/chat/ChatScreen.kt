@@ -7,6 +7,7 @@ import org.koin.androidx.compose.koinViewModel
 fun ChatScreen(
     initialConversationId: String? = null,
     searchQuery: String? = null,
+    onNavigateToConnectionWebSearch: (providerId: String) -> Unit = {},
     onBack: () -> Unit,
     onNavigateToMemory: () -> Unit = {},
     onNavigateToProviderSetup: () -> Unit = {},
@@ -28,6 +29,7 @@ fun ChatScreen(
         onNavigateToMemory = onNavigateToMemory,
         onNavigateToProviderSetup = onNavigateToProviderSetup,
         onNavigateToProviderDetail = onNavigateToProviderDetail,
+        onNavigateToConnectionWebSearch = onNavigateToConnectionWebSearch,
         onNavigateToSkillEdit = onNavigateToSkillEdit,
         onNavigateToNoteDetail = onNavigateToNoteDetail,
         onNavigateToMcpServers = onNavigateToMcpServers,

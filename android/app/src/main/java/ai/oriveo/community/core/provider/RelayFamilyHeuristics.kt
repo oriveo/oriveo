@@ -33,6 +33,18 @@ object RelayFamilyHeuristics {
         }
     }
 
+    /** Catalog grouping (groupKey, groupName): catalog refresh and the two add steps share the same table, and the model library groups by it. */
+    fun groupMetadata(family: RelayModelFamily): Pair<String, String> = when (family) {
+        RelayModelFamily.OpenAI -> "openai" to "OpenAI"
+        RelayModelFamily.Anthropic -> "anthropic" to "Anthropic"
+        RelayModelFamily.Google -> "google" to "Google"
+        RelayModelFamily.DeepSeek -> "deepseek" to "DeepSeek"
+        RelayModelFamily.Qwen -> "qwen" to "Qwen"
+        RelayModelFamily.XAI -> "x-ai" to "xAI"
+        RelayModelFamily.Meta -> "meta" to "Meta"
+        RelayModelFamily.Mistral -> "mistralai" to "Mistral"
+    }
+
     fun compatibleRelayKinds(family: RelayModelFamily?): List<RelayKind> = when (family) {
         RelayModelFamily.OpenAI -> listOf(RelayKind.OpenAICompatible, RelayKind.CodexStyle)
         RelayModelFamily.Anthropic -> listOf(RelayKind.AnthropicCompatible)

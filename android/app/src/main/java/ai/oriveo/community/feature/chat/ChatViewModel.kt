@@ -92,9 +92,14 @@ class ChatViewModel(
     /** Chat-side entry point and confirmation gate of remote MCP; when null (unit tests) the Tools entry is hidden. */
     private val mcpChatToolRunner: ai.oriveo.community.core.mcp.McpChatToolRunner? = null,
     private val mcpConfirmationCoordinator: ai.oriveo.community.core.mcp.McpConfirmationCoordinator? = null,
+    /** DI singleton; when null (unit tests, etc.) it is built from context and only reads file sizes. */
+    private val attachmentStore: ai.oriveo.community.core.data.attachment.AttachmentStore? = null,
 ) : ViewModel() {
     val generationParameterDraftSessionId: String = generateUuidString()
     private val generationParameterSettingsStore = GenerationParameterSettingsStore.from(context)
+    private val outboundHistoryProbe = ChatOutboundHistoryProbe(
+        { attachmentStore ?: ai.oriveo.community.core.data.attachment.AttachmentStore(context) }, conversationRepository,
+    )
     private val capabilityPreferenceStore = CapabilityPreferenceStore.from(context)
     private val localCustomFragmentStore = LocalCapabilityCustomFragmentStore.from(context)
 
@@ -172,6 +177,7 @@ class ChatViewModel(
         viewModelScope = viewModelScope,
         conversationRepository = conversationRepository,
         providerRepository = providerRepository,
+        providers = { providers.value },
         chatStreamingManager = chatStreamingManager,
         currentConversation = { currentConversation },
         activeProviderId = { activeProviderId },
@@ -241,6 +247,7 @@ class ChatViewModel(
         adoptMcpDraft = { conversationId -> mcpCoordinator.adoptDraft(conversationId) },
         onQuoteConsumed = quoteCoordinator::consume,
         onAttachmentsUndeliverable = { attachmentsUndeliverableToast(it)?.let(globalSnackbarManager::show) },
+        outboundHistory = outboundHistoryProbe::trim,
         resolveAttachmentSendOptions = { provider, modelId ->
             sendCoordinator.attachmentSendOptions(
                 provider, modelId,
@@ -286,6 +293,9 @@ class ChatViewModel(
             SharingStarted.WhileSubscribed(5000),
             ConversationRenderState(conversation = null),
         )
+
+    /** Whether the outbound history (the OutboundHistory trimming chain: conversation history plus this turn's placeholder) contains video; the file card of the model panel uses it to predict the route. */
+    val outboundHistoryHasVideo: StateFlow<Boolean> = outboundHistoryProbe.hasVideoFlow(conversation, viewModelScope)
 
     val hasMoreAbove: StateFlow<Boolean> = conversation
         .map { it.windowState.hasMoreAbove }
@@ -482,6 +492,7 @@ class ChatViewModel(
             skillID = currentConversation?.skillId,
             transportIdentity = transportIdentity,
             isExistingConversation = isExisting,
+            legacyModelID = modelControlIdentity.legacyModelId,
         )
         if (current.web == CapabilityWebPreference.Off) return
 
@@ -492,6 +503,7 @@ class ChatViewModel(
             skillID = currentConversation?.skillId,
             transportIdentity = transportIdentity,
             isDraftConversation = !isExisting,
+            legacyModelID = modelControlIdentity.legacyModelId,
         ).conversation
         val next = existing?.copy(web = CapabilityWebPreference.Off)
             ?: CapabilityPreferenceValues(web = CapabilityWebPreference.Off, reasoningIntent = null)
@@ -547,7 +559,7 @@ class ChatViewModel(
     private var pendingDisclosurePayload: PendingDisclosurePayload? = null
 
     val canSendMessages: Boolean
-        get() = !conversationState.isReadOnly
+        get() = !conversationState.isSendBlocked
 
     private var lastBoundConversationId: String? = null
     private var lastConversationSelection: Pair<String, String>? = null
@@ -716,8 +728,8 @@ class ChatViewModel(
         return capabilityResolver.activeModelCapabilities(conversationState.model)
     }
 
-    fun supportsImage(): Boolean {
-        return capabilityResolver.supportsImage(activeProvider(), conversationState.model)
+    fun supportsImage(localIdentity: ai.oriveo.community.core.model.CapabilityEvidenceIdentity? = null): Boolean {
+        return capabilityResolver.supportsImage(activeProvider(), conversationState.model, localIdentity)
     }
 
     fun supportsFile(): Boolean {
@@ -955,6 +967,8 @@ class ChatViewModel(
         resolvedState: ChatConversationState,
     ) {
         val resolvedProvider = resolvedState.provider ?: return
+        // The relay conversation's model was removed: keep the conversation's original selection until the user picks again in the picker.
+        if (resolvedState.issue?.removedConnectionName != null) return
         val activeProvider = activeProviderId?.let { selectedId ->
             providerList.firstOrNull { it.id == selectedId }
         }
@@ -966,7 +980,7 @@ class ChatViewModel(
         }
 
         activeProviderId = resolvedProvider.id
-        activeModelId = resolvedState.model?.let(ModelSelectionUtils::preferredStoredModelIdentifier)
+        activeModelId = resolvedState.model?.let { ModelSelectionUtils.preferredStoredModelIdentifier(it, resolvedProvider.kind) }
     }
 
     private fun showProviderSelectionError() {

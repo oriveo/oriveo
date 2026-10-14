@@ -126,7 +126,7 @@ internal fun ConversationItem(
                 folderName = folderName,
                 skillIcon = conversation.skillId?.let { skillsById[it]?.icon },
                 isEditing = isEditing,
-                relayKind = provider?.relayKind,
+                provider = provider,
                 isStreaming = isStreaming,
                 isPinned = isPinned,
             )

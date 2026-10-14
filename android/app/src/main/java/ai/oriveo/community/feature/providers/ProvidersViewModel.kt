@@ -14,6 +14,7 @@ import ai.oriveo.community.core.provider.ProviderBalance
 import ai.oriveo.community.core.provider.ProviderBalanceRepository
 import ai.oriveo.community.core.usage.CostSummaryCalculator
 import ai.oriveo.community.core.usage.MonthlyCostSummary
+import ai.oriveo.community.core.provider.ProviderCredentialResolver
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -95,7 +96,7 @@ class ProvidersViewModel(
         val repository = providerBalanceRepository ?: return
         val currentProviders = providers.value
         val candidates = currentProviders.filter { provider ->
-            provider.kind in BALANCE_CAPABLE_KINDS && provider.apiKey.isNotBlank()
+            provider.kind in BALANCE_CAPABLE_KINDS && ProviderCredentialResolver.apiKey(provider, null).isNotBlank()
         }
         val generation = ++providerBalancesRefreshGeneration
         // Before the first database emission providers is still the empty initial list; pruning

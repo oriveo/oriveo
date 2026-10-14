@@ -6,7 +6,7 @@ import ai.oriveo.community.core.model.ProviderKind
 internal fun relayConnectionSemanticsChanged(current: Provider, candidate: Provider): Boolean {
     if (current.kind != ProviderKind.Relay || candidate.kind != ProviderKind.Relay) return false
     if (current.baseUrlText?.trim() != candidate.baseUrlText?.trim()) return true
-    if (current.relayKind != candidate.relayKind) return true
+    // relayKind is a display value derived from the default protocol at save time and is not read when sending, so it is not part of the connection identity.
     val before = current.relayRequested
     val after = candidate.relayRequested
     return before?.transport != after?.transport ||

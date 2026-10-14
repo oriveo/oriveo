@@ -32,6 +32,11 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 fun resolveProviderLogoKind(provider: Provider): ProviderKind {
     if (provider.kind != ProviderKind.Relay) return provider.kind
+    // Relay connections no longer infer a brand from name / model id / relayKind: only aggregator brands in the avatar table are recognized, everything else falls to Relay.
+    // The hints scan and cache below are now used only by local connections (local behavior unchanged).
+    if (RelayAvatarResolver.appliesTo(provider)) {
+        return (RelayAvatarResolver.resolve(provider) as? RelayAvatarResult.Brand)?.kind ?: ProviderKind.Relay
+    }
 
     val cached = synchronized(relayLogoCache) { relayLogoCache[provider.id] }
     if (cached != null && cached.source.get() === provider) return cached.kind

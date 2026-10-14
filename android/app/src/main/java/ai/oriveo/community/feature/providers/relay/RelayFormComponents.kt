@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -271,12 +272,14 @@ internal fun RelayToggleRow(
     footnote: String? = null,
 ) {
     val colors = OriveoTheme.colors
+    // The iOS toggleRow goes through rowBody: 14h / 10v padding, 56 minimum height, an unlimited secondary footnote; the switch is centered vertically on the whole row. (whole-row vertical centering)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = OriveoTheme.spacing.lg, vertical = 10.dp),
+            .heightIn(min = 56.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.md),
     ) {
         Column(
             modifier = Modifier.weight(1f),
@@ -293,9 +296,7 @@ internal fun RelayToggleRow(
                 Text(
                     text = footnote,
                     style = OriveoTheme.typography.footnote,
-                    color = colors.textTertiary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+                    color = colors.textSecondary,
                 )
             }
         }
@@ -305,64 +306,6 @@ internal fun RelayToggleRow(
             onCheckedChange = onToggle,
             // // The switch has no label of its own; without a contentDescription it is announced only as "switch".
             modifier = Modifier.semantics { contentDescription = title },
-        )
-    }
-}
-
-@Composable
-internal fun RelayInlineTextRow(
-    title: String,
-    text: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    enabled: Boolean = true,
-    keyboardType: KeyboardType = KeyboardType.Text,
-) {
-    val colors = OriveoTheme.colors
-    val textStyle = OriveoTheme.typography.body.copy(
-        color = if (enabled) colors.textPrimary else colors.textTertiary,
-        textAlign = TextAlign.End,
-    )
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = OriveoTheme.spacing.lg, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.md),
-    ) {
-        Text(
-            text = title,
-            style = OriveoTheme.typography.body,
-            color = if (enabled) colors.textPrimary else colors.textTertiary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        BasicTextField(
-            value = text,
-            onValueChange = onValueChange,
-            singleLine = true,
-            enabled = enabled,
-            textStyle = textStyle,
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-            cursorBrush = SolidColor(colors.primary),
-            modifier = Modifier.weight(2f),
-            decorationBox = { innerTextField ->
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.CenterEnd,
-                ) {
-                    if (text.isEmpty()) {
-                        Text(
-                            text = placeholder,
-                            style = textStyle.copy(color = colors.textTertiary),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    innerTextField()
-                }
-            },
         )
     }
 }

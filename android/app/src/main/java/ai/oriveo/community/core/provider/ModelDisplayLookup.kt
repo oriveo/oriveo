@@ -59,7 +59,7 @@ class ModelDisplayLookup private constructor(
         if (targetId.isEmpty()) return fallback
 
         if (provider.kind == ProviderKind.Relay) {
-            localModel(provider, targetId)?.name?.let { return it }
+            relayStoredModel(provider, targetId)?.name?.let { return it }
         } else {
             val metadataResolved = metadata.resolveCatalogModel(targetId, provider.kind)
             metadataResolved?.displayName?.takeIf { it.isNotBlank() }?.let { return it }
@@ -84,8 +84,13 @@ class ModelDisplayLookup private constructor(
         val targetId = modelId?.trim().orEmpty()
         if (targetId.isEmpty()) return null
 
-        localModel(provider, targetId)?.canonicalModelId?.takeIf { it.isNotBlank() }?.let { return it }
-        localModel(provider, targetId)?.id?.let { return it }
+        val local = if (provider.kind == ProviderKind.Relay) {
+            relayStoredModel(provider, targetId)
+        } else {
+            localModel(provider, targetId)
+        }
+        local?.canonicalModelId?.takeIf { it.isNotBlank() }?.let { return it }
+        local?.id?.let { return it }
 
         if (provider.kind != ProviderKind.Relay) {
             metadata.resolveCatalogModel(targetId, provider.kind)?.canonicalModelId?.let { return it }
@@ -109,7 +114,7 @@ class ModelDisplayLookup private constructor(
             return ProviderSelectionSnapshot.selectedModel(provider, modelId, metadata)
         }
         return ProviderSelectionSnapshot.selectedModel(provider, modelId, metadata) { _, targetId ->
-            enabledIndex(provider).match(targetId)
+            enabledIndex(provider).resolveStored(targetId)
         }
     }
 
@@ -121,7 +126,11 @@ class ModelDisplayLookup private constructor(
         }
     }
 
-    /** Returns exactly what `matchingModel(localCandidates, targetId)` returns, with the same candidates in the same order. */
+    /** A relay stored value is resolved only among the enabled models: a literal hit, otherwise the old canonical stored value when it hits exactly one (same rule on all three platforms). */
+    private fun relayStoredModel(provider: Provider, targetId: String): AIModel? =
+        enabledIndex(provider).resolveStored(targetId)
+
+    /** Returns exactly what `matchingModel(localCandidates, targetId, provider.kind)` returns, with the same candidates in the same order. */
     private fun localModel(provider: Provider, targetId: String): AIModel? =
         localIndex(provider).match(targetId)
 
@@ -132,13 +141,13 @@ class ModelDisplayLookup private constructor(
             } else {
                 provider.models
             }
-            ModelSelectionUtils.catalogMatchIndex(localCandidates)
+            ModelSelectionUtils.catalogMatchIndex(localCandidates, provider.kind)
         }
     }
 
     private fun enabledIndex(provider: Provider): ModelSelectionUtils.CatalogMatchIndex = synchronized(enabledIndexes) {
         enabledIndexes.getOrPut(provider.id) {
-            ModelSelectionUtils.catalogMatchIndex(ProviderSelectionSnapshot.enabledModels(provider))
+            ModelSelectionUtils.catalogMatchIndex(ProviderSelectionSnapshot.enabledModels(provider), provider.kind)
         }
     }
 

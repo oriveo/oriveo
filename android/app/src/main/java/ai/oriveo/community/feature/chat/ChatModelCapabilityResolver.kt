@@ -11,6 +11,7 @@ import ai.oriveo.community.core.provider.CapabilityControlResolution
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
 import ai.oriveo.community.core.provider.MessageBuilder
 import ai.oriveo.community.core.provider.RelayRuntimeSupport
+import ai.oriveo.community.core.provider.relay.RelayNegativeCache
 
 /**
  * Given a set of models and a capability, picks out the ones for which that capability is
@@ -47,6 +48,7 @@ object CapabilityControlActionCandidates {
 class ChatModelCapabilityResolver(
     private val metadata: MetadataClient = MetadataClient.instance,
     private val runtimeConfigProvider: () -> MetadataClient.RelayRuntimeConfig = metadata::relayRuntimeConfig,
+    private val negativeCache: RelayNegativeCache = RelayNegativeCache.shared,
 ) {
     data class ModelControls(
         val webAvailable: Boolean = false,
@@ -74,9 +76,33 @@ class ChatModelCapabilityResolver(
     fun activeModelCapabilities(model: AIModel?): List<ModelCapability> =
         model?.capabilities ?: emptyList()
 
-    fun supportsImage(provider: Provider?, model: AIModel?): Boolean {
-        if (!hasGovernedMetadataCapability(provider, model, ModelCapability.Image)) return false
-        relayRuntimeAttachmentSupport(provider)?.let { return it.image }
+    fun supportsImage(
+        provider: Provider?,
+        model: AIModel?,
+        localIdentity: ai.oriveo.community.core.model.CapabilityEvidenceIdentity? = null,
+    ): Boolean {
+        // The relay image verdict needs the connection identity; without one the facade always fails
+        // closed (the entry stays hidden).
+        val identity = if (provider != null && model != null && localIdentity != null) {
+            CapabilityEvidenceProductionAdapter.uiDispatchIdentity(provider, model, localIdentity)
+        } else {
+            null
+        }
+        if (provider != null && model != null && provider.kind == ProviderKind.Relay) {
+            // auto / no configuration does not count as an incomplete identity (agreed across all three
+            // platforms): the image entry takes its identity and negative-cache key from the effective
+            // protocol (auto -> Chat).
+            val relayIdentity = identity ?: localIdentity?.let {
+                CapabilityEvidenceProductionAdapter.uiDispatchIdentity(
+                    provider,
+                    model.copy(relayTransport = ai.oriveo.community.core.provider.RelayEndpointResolver.effectiveTransport(provider, model)),
+                    it,
+                )
+            }
+            return relaySupportsImage(provider, model, relayIdentity)
+        }
+        if (!hasGovernedMetadataCapability(provider, model, ModelCapability.Image, identity)) return false
+        relayRuntimeAttachmentSupport(provider, model)?.let { return it.image }
         // Evidence projection is the authority for the governed Image verdict. MessageBuilder
         // still contributes only the provider attachment envelope, so pass the already-decided
         // sentinel rather than consulting persisted model.capabilities a second time.
@@ -87,7 +113,7 @@ class ChatModelCapabilityResolver(
     }
 
     fun supportsFile(provider: Provider?, model: AIModel?): Boolean {
-        relayRuntimeAttachmentSupport(provider)?.let { return it.nativeFile || it.textFileInline }
+        relayRuntimeAttachmentSupport(provider, model)?.let { return it.nativeFile || it.textFileInline }
         return MessageBuilder.supportsFileAttachments(
             providerKind = provider?.kind,
             capabilities = activeModelCapabilities(model),
@@ -97,7 +123,7 @@ class ChatModelCapabilityResolver(
     fun supportsVideo(provider: Provider?, model: AIModel?): Boolean {
         val caps = activeModelCapabilities(model)
         if (!caps.contains(ModelCapability.Video)) return false
-        relayRuntimeAttachmentSupport(provider)?.let { return it.video }
+        relayRuntimeAttachmentSupport(provider, model)?.let { return it.video }
         return MessageBuilder.supportsVideoAttachments(
             providerKind = provider?.kind,
             capabilities = caps,
@@ -116,6 +142,7 @@ class ChatModelCapabilityResolver(
             RelayRuntimeSupport.supportsWebSearch(
                 provider = it,
                 runtimeConfig = runtimeConfigProvider(),
+                model = model,
             )
         } ?: true
     }
@@ -232,13 +259,41 @@ class ChatModelCapabilityResolver(
             )
         }
 
-    private fun relayRuntimeAttachmentSupport(provider: Provider?) =
+    /**
+     * Relay photo-library entry: an unknown image verdict is still shown, and a hint card appears once
+     * the upstream really rejects it. It is hidden only on negative evidence: an override of false, an
+     * engine declaring false, a protocol envelope that does not take images, or an unexpired image
+     * negative-cache entry for this key (an override of true beats the negative cache). Without a
+     * connection identity the negative-cache key is incomplete, so it still fails closed.
+     */
+    private fun relaySupportsImage(
+        provider: Provider,
+        model: AIModel,
+        identity: ai.oriveo.community.core.provider.CapabilityEvidenceFacade.QueryIdentity?,
+    ): Boolean {
+        if (identity == null) return false
+        val cacheKey = RelayNegativeCache.keyFor(provider, model) ?: return false
+        if (relayRuntimeAttachmentSupport(provider, model)?.image != true) return false
+        val support = CapabilityEvidenceProductionAdapter.capabilityProjection(
+            provider = provider,
+            model = model,
+            identity = identity,
+            keys = setOf("vision_input"),
+            metadataClient = metadata,
+        ).decision("vision_input")?.resolution?.support
+        if (support == "unsupported") return false
+        if (model.relayCapabilityOverrides?.image == true) return true
+        return !negativeCache.isRejected(cacheKey, RelayNegativeCache.Kind.Image)
+    }
+
+    private fun relayRuntimeAttachmentSupport(provider: Provider?, model: AIModel?) =
         provider
             ?.takeIf { it.kind == ProviderKind.Relay }
             ?.let {
                 RelayRuntimeSupport.attachmentSupport(
                     provider = it,
                     runtimeConfig = runtimeConfigProvider(),
+                    model = model,
                 )
             }
 
@@ -247,12 +302,14 @@ class ChatModelCapabilityResolver(
         provider: Provider?,
         model: AIModel?,
         capability: ModelCapability,
+        identity: ai.oriveo.community.core.provider.CapabilityEvidenceFacade.QueryIdentity? = null,
     ): Boolean {
         val actualProvider = provider ?: return false
         val actualModel = model ?: return false
         return capability in CapabilityEvidenceProductionAdapter.governedMetadataCapabilities(
             provider = actualProvider,
             model = actualModel,
+            identity = identity,
             metadataClient = metadata,
         )
     }

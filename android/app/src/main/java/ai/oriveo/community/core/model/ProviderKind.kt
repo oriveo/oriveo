@@ -2,6 +2,7 @@ package ai.oriveo.community.core.model
 
 import ai.oriveo.community.R
 import ai.oriveo.community.core.data.remote.MetadataClient
+import ai.oriveo.community.core.util.DeterministicProviderId
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -86,6 +87,9 @@ enum class ProviderKind {
             Fireworks -> "api.fireworks.ai/inference/v1"
             MiniMax -> "api.minimax.io/v1"
             Zhipu -> "open.bigmodel.cn/api/paas/v4"
+            // The DashScope origin carries no path: EndpointResolver appends chat's /compatible-mode/v1/chat/completions
+            // and image generation's /api/v1/services/aigc/multimodal-generation/generation; key validation appends
+            // the metadata validation probePath (/compatible-mode/v1/models).
             Qwen -> "dashscope-intl.aliyuncs.com"
             Moonshot -> "api.moonshot.ai/v1"
             Mistral -> "api.mistral.ai/v1"
@@ -235,11 +239,14 @@ enum class ProviderKind {
                 RegionOption("global", "Global (api.minimax.io)", "https://api.minimax.io/v1"),
                 RegionOption("cn", "China Mainland (api.minimaxi.com)", "https://api.minimaxi.com/v1"),
             )
+            // DashScope origin (without /compatible-mode/v1): EndpointResolver appends chat's
+            // /compatible-mode/v1/chat/completions and image generation's /api/v1/services/aigc/multimodal-generation/generation.
+            // us is retired and no longer selectable; stored us records are lazily migrated to sg, and the
+            // deterministic id still looks up us in the identity table.
             Qwen -> listOf(
                 RegionOption("sg", "Singapore (International)", "https://dashscope-intl.aliyuncs.com"),
                 RegionOption("bj", "Beijing (China Mainland)", "https://dashscope.aliyuncs.com"),
                 RegionOption("hk", "Hong Kong", "https://cn-hongkong.dashscope.aliyuncs.com"),
-                RegionOption("us", "Virginia (US)", "https://dashscope-us.aliyuncs.com"),
             )
             Moonshot -> listOf(
                 RegionOption("intl", "International (api.moonshot.ai)", "https://api.moonshot.ai/v1"),
@@ -278,11 +285,16 @@ enum class ProviderKind {
         else -> null
     }
 
-    fun resolveRegionOption(baseUrl: String?): RegionOption? {
-        if (regionOptions.isEmpty()) return null
-        val normalizedBaseUrl = normalizeBaseUrl(baseUrl) ?: return regionOptions.firstOrNull()
-        return regionOptions.firstOrNull { normalizeBaseUrl(it.baseURL) == normalizedBaseUrl }
-            ?: regionOptions.firstOrNull()
+    /**
+     * Literal reverse lookup for the deterministic id: it queries the frozen identity table, not the selectable
+     * regions, so Qwen us is not selectable yet still resolves. Empty or unmatched falls to the first entry;
+     * providers outside the table return null. Callers go through [DeterministicProviderId.identityRegionId].
+     */
+    fun resolveRegionOption(baseUrl: String?): DeterministicProviderId.IdentityRegion? {
+        val table = DeterministicProviderId.identityRegions[this].orEmpty()
+        if (table.isEmpty()) return null
+        val normalizedBaseUrl = normalizeBaseUrl(baseUrl) ?: return table.first()
+        return table.firstOrNull { normalizeBaseUrl(it.baseURL) == normalizedBaseUrl } ?: table.first()
     }
 
     val rawValue: String

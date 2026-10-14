@@ -308,7 +308,8 @@ data class SourcedGenerationParameter(
 object GenerationParameterProfileFingerprint {
     fun make(provider: Provider, model: AIModel): String {
         val endpoint = if (provider.kind == ProviderKind.Relay) {
-            provider.relayRequested?.resolvedAPIBaseURL ?: provider.baseUrlText.orEmpty()
+            ai.oriveo.community.core.provider.RelayEndpointResolver.effectiveAPIRoot(provider, model)
+                ?: provider.baseUrlText.orEmpty()
         } else ""
         val endpointHash = sanitizedEndpoint(endpoint)?.let { "ep_${sha256(it).take(16)}" }.orEmpty()
         val transport = GenerationParameterAvailability.profile(provider, model)?.template.orEmpty()

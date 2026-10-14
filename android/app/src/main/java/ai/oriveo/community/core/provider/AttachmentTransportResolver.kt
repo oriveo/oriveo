@@ -3,7 +3,6 @@ package ai.oriveo.community.core.provider
 import ai.oriveo.community.core.attachments.AttachmentTransportProfile
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.AIModel
-import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ReasoningMode
@@ -59,9 +58,9 @@ object AttachmentTransportResolver {
             TransportKind.OpenAIResponses
         }
 
-    /** The protocol a relay connection actually uses: Auto and unconfigured both land on Chat Completions. */
-    fun relayTransport(requested: RelayRequestedConfig?): RelayTransport =
-        requested?.transport?.takeIf { it != RelayTransport.Auto } ?: RelayTransport.OpenAIChatCompletions
+    /** The protocol this relay model actually uses: the model-level protocol wins, otherwise follow the connection default; Auto and unconfigured both land on Chat Completions. */
+    fun relayTransport(connection: RelayRequestedConfig?, model: AIModel?): RelayTransport =
+        RelayEndpointResolver.effectiveTransport(connection, model)
 
     // ── Whole resolution before sending ──
 
@@ -70,17 +69,21 @@ object AttachmentTransportResolver {
      *
      * Returning null means it cannot be decided synchronously right now, and the caller must not block on that: image generation models have their own dispatch,
      * and the route depends on the metadata catalog, which has not arrived yet.
+     *
+     * @param historyHasVideo the request history (including the current turn) has a video attachment; Gemini then does not pick Interactions,
+     *   the same rule as the outbound dispatch [GeminiService.interactionsRoute].
      */
     fun resolve(
         provider: Provider,
         model: AIModel,
         webSearchEnabled: Boolean,
         reasoningMode: ReasoningMode,
+        historyHasVideo: Boolean = false,
     ): Route? {
-        if (ModelCapability.ImageGen in model.capabilities) return null
+        if (ai.oriveo.community.core.provider.relay.relayDispatchesImageGeneration(provider, model)) return null
         return when (provider.kind) {
             ProviderKind.Relay -> relayRoute(provider, model)
-            else -> officialRoute(provider, model, webSearchEnabled, reasoningMode)
+            else -> officialRoute(provider, model, webSearchEnabled, reasoningMode, historyHasVideo)
         }
     }
 
@@ -113,25 +116,27 @@ object AttachmentTransportResolver {
         webSearchEnabled: Boolean,
         reasoningMode: ReasoningMode,
         toolLoopPossible: Boolean,
+        historyHasVideo: Boolean = false,
     ): List<Route>? {
         val routes = LinkedHashSet<Route>()
-        routes += resolve(provider, model, webSearchEnabled, reasoningMode) ?: return null
+        routes += resolve(provider, model, webSearchEnabled, reasoningMode, historyHasVideo) ?: return null
         if (toolLoopPossible) {
             routes += Route(chatCompletions(provider.kind), model)
         }
         return routes.toList()
     }
 
+    /** Decided by the first-send protocol: an unverified Claude family on an auto connection first sends Messages, so the attachment entry and the send read one protocol. */
     private fun relayRoute(provider: Provider, model: AIModel): Route? =
-        when (relayTransport(provider.relayRequested)) {
+        when (ai.oriveo.community.core.provider.relay.RelayFirstSendTransport.resolve(provider, model)) {
             RelayTransport.LlamaCppNative -> Route(AttachmentTransportProfile.LlamaCppNative, model)
             RelayTransport.OpenAIChatCompletions, RelayTransport.Auto -> Route(chatCompletions(ProviderKind.Relay), model)
             RelayTransport.OpenAIResponses ->
-                catalogRoute(AttachmentTransportProfile.RelayOpenAIResponses, model.id, ProviderKind.OpenAI)
+                catalogRoute(AttachmentTransportProfile.RelayOpenAIResponses, model.id, ProviderKind.OpenAI, relayModel = model)
             RelayTransport.AnthropicMessages ->
-                catalogRoute(AttachmentTransportProfile.RelayAnthropicMessages, model.id, ProviderKind.Anthropic)
+                catalogRoute(AttachmentTransportProfile.RelayAnthropicMessages, model.id, ProviderKind.Anthropic, relayModel = model)
             RelayTransport.GeminiGenerateContent ->
-                catalogRoute(AttachmentTransportProfile.RelayGeminiGenerateContent, model.id, ProviderKind.Gemini)
+                catalogRoute(AttachmentTransportProfile.RelayGeminiGenerateContent, model.id, ProviderKind.Gemini, relayModel = model)
         }
 
     private fun officialRoute(
@@ -139,6 +144,7 @@ object AttachmentTransportResolver {
         model: AIModel,
         webSearchEnabled: Boolean,
         reasoningMode: ReasoningMode,
+        historyHasVideo: Boolean,
     ): Route? {
         val kind = provider.kind
         // A subscription has only one path, decided by the connection shape; its request builder uses the selected model.
@@ -153,14 +159,14 @@ object AttachmentTransportResolver {
             ProviderKind.Anthropic -> catalogRoute(AttachmentTransportProfile.AnthropicMessages, model.id, kind)
             ProviderKind.Gemini -> {
                 if (!catalogReady(kind)) return null
-                if (GeminiService.interactionsRoute(model.id, webSearchEnabled, reasoningMode) != null) {
+                if (GeminiService.interactionsRoute(model.id, webSearchEnabled, reasoningMode, historyHasVideo) != null) {
                     Route(AttachmentTransportProfile.GeminiInteractions, model)
                 } else {
                     catalogRoute(AttachmentTransportProfile.GeminiGenerateContent, model.id, kind)
                 }
             }
             ProviderKind.OpenAI -> {
-                val official = OpenAIService.usesOfficialOpenAIApi(provider.baseUrlText)
+                val official = OpenAIService.usesOfficialOpenAIApi(ai.oriveo.community.core.provider.transport.OfficialEndpointSource.effectiveBaseUrlText(provider))
                 if (!official) return Route(chatCompletions(kind), model)
                 if (!catalogReady(kind)) return null
                 when (openAIOfficialTransport(official, MetadataClient.resolveCatalogModel(model.id, kind)?.transport)) {
@@ -198,9 +204,16 @@ object AttachmentTransportResolver {
         transport: AttachmentTransportProfile,
         modelId: String,
         catalogKind: ProviderKind,
+        relayModel: AIModel? = null,
     ): Route? {
         if (!catalogReady(catalogKind)) return null
-        return Route(transport, MetadataClient.resolveAIModelForRouter(modelId, catalogKind))
+        // The relay route uses the same function as the request builder at send time (reachable does not grant the native file allowlist).
+        val routerModel = if (relayModel != null) {
+            ai.oriveo.community.core.provider.relay.relayRouterModel(modelId, catalogKind, relayModel)
+        } else {
+            MetadataClient.resolveAIModelForRouter(modelId, catalogKind)
+        }
+        return Route(transport, routerModel)
     }
 
     /** "Cannot resolve" only means the same at send time once the catalog is really in hand (or the snapshot really has no entry for this provider). */

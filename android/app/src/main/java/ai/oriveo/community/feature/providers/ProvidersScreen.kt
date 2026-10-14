@@ -29,6 +29,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ai.oriveo.community.R
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderConnectionState
+import ai.oriveo.community.core.provider.ProviderCredentialResolver
 import ai.oriveo.community.core.model.ProviderEffectiveStatusKind
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.CostFormatter
@@ -77,7 +78,7 @@ fun ProvidersScreen(
     val providerBalancesRefreshKey = remember(providers) {
         providers
             .filter { it.kind in BALANCE_CAPABLE_KINDS }
-            .map { listOf(it.id, it.kind.name, it.apiKey, it.baseUrlText.orEmpty()) }
+            .map { listOf(it.id, it.kind.name, ProviderCredentialResolver.apiKey(it, null), it.baseUrlText.orEmpty()) }
     }
 
     LaunchedEffect(providerBalancesRefreshKey) {

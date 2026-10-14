@@ -74,6 +74,8 @@ object ErrorMapper {
      * up here means the message is translated when it is read, not when it was written.
      */
     private val MESSAGE_TO_RES: Map<String, Int> = mapOf(
+        ai.oriveo.community.core.data.repository.ChatRepository.RELAY_IMAGE_UNSUPPORTED_DETAIL to R.string.relay_image_unsupported_hint,
+        ai.oriveo.community.core.data.repository.ChatRepository.RELAY_FILE_UNSUPPORTED_DETAIL to R.string.relay_file_unsupported_hint,
         "API Key required" to R.string.error_api_key_required,
         "The API key could not be validated. Check the value or generate a new key." to R.string.error_invalid_api_key_message,
         "The provider reports that the quota or credit for this API key is used up. Check your billing with the provider, or switch models." to R.string.error_provider_quota_exceeded_message,
@@ -90,6 +92,8 @@ object ErrorMapper {
         "relay_connection_unverified" to R.string.provider_connection_unverified,
         "relay_image_route_unsupported" to R.string.relay_image_route_unsupported,
         "relay_image_chat_model_required" to R.string.relay_image_chat_model_required,
+        // The retired relay rate-limit guidance has been stored in the database: render it as the generic "rate limited" message, so the raw key is not shown to the user.
+        "relay_guidance:rate_limited" to R.string.error_rate_limited_message,
         GrokSubscriptionFailureReason.ClientVersionRejected.userMessage to
             R.string.grok_subscription_error_unavailable,
         GrokSubscriptionFailureReason.NotEligible.userMessage to
@@ -124,7 +128,10 @@ object ErrorMapper {
         RelayGuidanceCode.MaxTokensRequired -> R.string.relay_guidance_max_tokens_required
         RelayGuidanceCode.AnthropicAuthHeader -> R.string.relay_guidance_anthropic_auth_header
         RelayGuidanceCode.ImageSchemaMismatch -> R.string.relay_guidance_image_schema_mismatch
-        RelayGuidanceCode.RateLimited -> R.string.relay_guidance_rate_limited
+        RelayGuidanceCode.ImagesEndpointUnavailable -> R.string.relay_guidance_images_endpoint_unavailable
+        RelayGuidanceCode.ImageResponseFormatRejected -> R.string.relay_guidance_image_response_format_rejected
+        RelayGuidanceCode.ClientGated -> R.string.relay_guidance_client_gated
+        RelayGuidanceCode.WebPageReturned -> R.string.relay_guidance_web_page_returned
     }
 
     private fun localizeRelayGuidance(
@@ -202,15 +209,15 @@ object ErrorMapper {
         "ChatGPT subscription" to R.string.openai_subscription_title,
     )
 
-    /** RelayUpstream titles carry the status code, so they are matched rather than looked up. */
+    /**
+     * RelayUpstream titles carry the status code ("Relay Error (502)"), so they are matched rather than looked up;
+     * like iOS, the same sentence is shown as "Provider Request Failed" without the status code.
+     */
     private val RELAY_TITLE_REGEX = Regex("""^Relay Error \((\d+)\)$""")
 
     fun localizeProviderErrorTitle(rawTitle: String, context: Context): String {
         TITLE_TO_RES[rawTitle]?.let { return context.getString(it) }
-        RELAY_TITLE_REGEX.matchEntire(rawTitle)?.let { match ->
-            val code = match.groupValues[1].toIntOrNull() ?: return rawTitle
-            return context.getString(R.string.error_relay_upstream_title, code)
-        }
+        if (RELAY_TITLE_REGEX.matches(rawTitle)) return context.getString(R.string.error_request_failed)
         return rawTitle
     }
 }

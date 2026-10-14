@@ -177,6 +177,20 @@ object ModelControlRejectionCache {
         )
     }
 
+    /**
+     * Which tier outbound falls to after a thinking tier is rejected (thinking runtime rejections are recorded per tier): if the selected tier was not rejected -> the original tier;
+     * if rejected -> search [availableIntents] (the recipe's delivery order is the tier order) first downward, then upward, for the first tier that was not rejected;
+     * if none is found -> null (the whole item is omitted). Auto / off are not tiers and do not take part in the fallback.
+     */
+    fun fallbackTier(selected: String, availableIntents: List<String>, rejectedTiers: Set<String>): String? {
+        if (selected !in rejectedTiers) return selected
+        val tiers = availableIntents.filter { it != "automatic" && it != "off" }
+        val index = tiers.indexOf(selected)
+        if (index < 0) return null
+        return (index - 1 downTo 0).map(tiers::get).firstOrNull { it !in rejectedTiers }
+            ?: (index + 1 until tiers.size).map(tiers::get).firstOrNull { it !in rejectedTiers }
+    }
+
     /** Send side: whether the tier selected for this send (null means automatic or no tier) has been rejected; if so the setting is left out as dormant. */
     fun blocksSelection(
         identity: ModelControlRuntimeIdentity,

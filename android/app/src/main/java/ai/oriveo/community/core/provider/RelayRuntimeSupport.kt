@@ -7,11 +7,16 @@ import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayTransport
+import java.security.MessageDigest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 
 /**
  * Decides what a relay can actually do at runtime.
  *
- * The transport comes from `Provider.relayRequested.transport`. Every attachment, webSearch,
+ * The transport comes from `RelayFirstSendTransport.resolve(provider, model)`: the protocol of the first
+ * send, where a model-level protocol wins, otherwise the connection default (an unverified Claude-family
+ * model on an auto connection uses Messages). Every attachment, webSearch,
  * imageGeneration and reasoning switch is read from `relayRuntimeConfig.transportEnvelopes` in the
  * published catalog, so those answers can be corrected remotely. Only the protocol-level rules,
  * such as which provider a transport maps onto, are constants in this file.
@@ -33,9 +38,11 @@ object RelayRuntimeSupport {
      * transportEnvelopes are indexed by. `.Auto` resolves to openai_chat_completions so that
      * there is always a definite envelope even when the user never picked a transport.
      */
-    fun envelopeKey(provider: Provider): String? {
+    fun envelopeKey(provider: Provider, model: AIModel? = null): String? {
         if (provider.kind != ProviderKind.Relay) return null
-        return when (provider.relayRequested?.transport ?: RelayTransport.Auto) {
+        // First-send protocol: the envelope read by the image, attachment and web search entry points
+        // matches the protocol this send will actually use.
+        return when (ai.oriveo.community.core.provider.relay.RelayFirstSendTransport.resolve(provider, model)) {
             RelayTransport.Auto -> TransportKey.OPENAI_CHAT_COMPLETIONS
             // Native endpoint has no remote metadata envelope; keep only a routing fallback.
             RelayTransport.LlamaCppNative -> TransportKey.OPENAI_CHAT_COMPLETIONS
@@ -50,8 +57,8 @@ object RelayRuntimeSupport {
      * The provider a transport nominally corresponds to. Used as the transportPriority when
      * enriching relay models from the catalog.
      */
-    fun transportProviderKind(provider: Provider): ProviderKind? {
-        val key = envelopeKey(provider) ?: return null
+    fun transportProviderKind(provider: Provider, model: AIModel? = null): ProviderKind? {
+        val key = envelopeKey(provider, model) ?: return null
         return providerKindFromBackendKey(
             MetadataClient.relayRuntimeConfig().transportRules[key]?.providerPriority,
         )
@@ -65,8 +72,9 @@ object RelayRuntimeSupport {
     fun attachmentSupport(
         provider: Provider,
         runtimeConfig: MetadataClient.RelayRuntimeConfig,
+        model: AIModel? = null,
     ): AttachmentSupportInfo? {
-        val key = envelopeKey(provider) ?: return null
+        val key = envelopeKey(provider, model) ?: return null
         val envelope = runtimeConfig.transportEnvelopes[key] ?: return null
         return AttachmentSupportInfo(
             image = envelope.image,
@@ -79,24 +87,27 @@ object RelayRuntimeSupport {
     fun supportsWebSearch(
         provider: Provider,
         runtimeConfig: MetadataClient.RelayRuntimeConfig,
+        model: AIModel? = null,
     ): Boolean {
-        val key = envelopeKey(provider) ?: return false
+        val key = envelopeKey(provider, model) ?: return false
         return runtimeConfig.transportEnvelopes[key]?.webSearch == true
     }
 
     fun supportsImageGeneration(
         provider: Provider,
         runtimeConfig: MetadataClient.RelayRuntimeConfig,
+        model: AIModel? = null,
     ): Boolean {
-        val key = envelopeKey(provider) ?: return false
+        val key = envelopeKey(provider, model) ?: return false
         return runtimeConfig.transportEnvelopes[key]?.imageGeneration == true
     }
 
     fun supportsReasoning(
         provider: Provider,
         runtimeConfig: MetadataClient.RelayRuntimeConfig,
+        model: AIModel? = null,
     ): Boolean {
-        val key = envelopeKey(provider) ?: return false
+        val key = envelopeKey(provider, model) ?: return false
         return runtimeConfig.transportEnvelopes[key]?.reasoning == true
     }
 
@@ -108,6 +119,54 @@ object RelayRuntimeSupport {
         return MetadataClient.relayRuntimeConfig().transportRules[transportKey(transport)]?.codexIdentityDefault
             ?: (transport == RelayTransport.OpenAIResponses)
     }
+
+    /** Built-in fallback, used when the delivered value is missing or invalid or the runtime config is not loaded. */
+    const val CODEX_CLIENT_VERSION_FALLBACK = "0.162.1"
+    private val codexClientVersionPattern = Regex("""^\d{1,6}\.\d{1,6}\.\d{1,6}$""")
+
+    /**
+     * A delivered value is used only when it is a plain three-part numeric version. It is spliced into a
+     * request header, so every other shape (pre-release suffix, newline, ...) falls back.
+     */
+    fun sanitizedCodexClientVersion(raw: String?): String =
+        raw?.takeIf { codexClientVersionPattern.matches(it) } ?: CODEX_CLIENT_VERSION_FALLBACK
+
+    /** Version in the Codex identity UA: the server follows the official release daily; this side only checks the format. */
+    fun codexClientVersion(transport: RelayTransport): String = sanitizedCodexClientVersion(
+        runCatching {
+            MetadataClient.relayRuntimeConfig().transportRules[transportKey(transport)]?.codexClientVersion
+        }.getOrNull(),
+    )
+
+    /**
+     * The `prompt_cache_key` of a Responses request body (a public OpenAI Responses API parameter).
+     * Some relays treat only a body carrying this key as a "standard Codex client" and answer 403
+     * without it; request headers do not take part in that decision. The value depends only on the
+     * model, the system prompt and the first user text, so it is stable across turns of one
+     * conversation, and the algorithm is byte-for-byte identical on all three platforms.
+     */
+    fun promptCacheKey(model: String, instructions: String, firstUserText: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest("$model\n$instructions\n$firstUserText".toByteArray(Charsets.UTF_8))
+        return digest.joinToString("") { "%02x".format(it) }.take(32)
+    }
+
+    /** Adds `prompt_cache_key` at the root of the request body; an existing root key (written by user-defined parameters) keeps its value. */
+    fun withPromptCacheKey(bodyJson: String, key: String): String {
+        val end = bodyJson.lastIndexOf('}')
+        if (end < 0) return bodyJson
+        // The common path does not parse the whole body (it may carry base64 attachments); it is parsed
+        // only when a same-named literal appears, to confirm whether it is a root-level key.
+        if (bodyJson.contains("\"$PROMPT_CACHE_KEY_FIELD\"")) {
+            val root = runCatching { Json.parseToJsonElement(bodyJson) as? JsonObject }.getOrNull() ?: return bodyJson
+            if (PROMPT_CACHE_KEY_FIELD in root) return bodyJson
+        }
+        val head = bodyJson.substring(0, end)
+        val separator = if (head.trimEnd().endsWith("{")) "" else ","
+        return "$head$separator\"$PROMPT_CACHE_KEY_FIELD\":\"$key\"${bodyJson.substring(end)}"
+    }
+
+    const val PROMPT_CACHE_KEY_FIELD = "prompt_cache_key"
 
     fun webSearchToolName(transport: RelayTransport): String? {
         return MetadataClient.relayRuntimeConfig().transportRules[transportKey(transport)]?.webSearchToolName
@@ -181,7 +240,8 @@ object RelayRuntimeSupport {
     fun pickChatDriverModelID(
         currentModelID: String,
         models: List<AIModel>,
-        defaultModelID: String? = null,
+        currentKeyID: String? = null,
+        modelKeyIDs: Map<String, String> = emptyMap(),
     ): PickChatDriverResult {
         if (!isDedicatedImageModel(currentModelID)) {
             return PickChatDriverResult.Success(currentModelID)
@@ -191,25 +251,41 @@ object RelayRuntimeSupport {
                 !isDedicatedImageModel(model.id) &&
                 !model.capabilities.contains(ModelCapability.ImageGen)
         }
-        val preferred = defaultModelID?.let { id -> models.firstOrNull { it.id == id } }
-            ?: models.firstOrNull { it.isDefault }
-        if (preferred != null && acceptable(preferred)) {
-            return PickChatDriverResult.Success(preferred.id)
+        // Multiple keys: prefer a chat model bound to the same key, otherwise fall back to the generic rule below.
+        if (currentKeyID != null) {
+            models.firstOrNull { acceptable(it) && modelKeyIDs[it.id] == currentKeyID }
+                ?.let { return PickChatDriverResult.Success(it.id) }
         }
+        // A relay has no default model: take the first usable chat model in list order; the legacy isDefault is ignored.
         models.firstOrNull(acceptable)?.let { return PickChatDriverResult.Success(it.id) }
         return PickChatDriverResult.MissingChatDriverModel
     }
 
     /**
      * Provider overload. Production code passes the provider; tests use the explicit-argument
-     * version above.
+     * version above. Each model's effective key is passed only when the connection has 2+ keys;
+     * a single key is left out as before.
      */
-    fun pickChatDriverModelID(provider: Provider, currentModelID: String): PickChatDriverResult =
-        pickChatDriverModelID(
+    fun pickChatDriverModelID(provider: Provider, currentModelID: String): PickChatDriverResult {
+        val multiKey = provider.kind == ProviderKind.Relay &&
+            ai.oriveo.community.core.provider.relay.RelayKeyBinding.keys(provider).size >= 2
+        return pickChatDriverModelID(
             currentModelID = currentModelID,
             models = provider.models,
-            defaultModelID = provider.defaultModel?.id,
+            currentKeyID = if (multiKey) {
+                ai.oriveo.community.core.provider.relay.RelayKeyBinding.effectiveKeyID(provider, currentModelID)
+            } else {
+                null
+            },
+            modelKeyIDs = if (multiKey) {
+                provider.models.associate {
+                    it.id to ai.oriveo.community.core.provider.relay.RelayKeyBinding.effectiveKeyID(provider, it.id)
+                }
+            } else {
+                emptyMap()
+            },
         )
+    }
 
     /**
      * Whether `stream = true` has to be forced.
@@ -222,8 +298,15 @@ object RelayRuntimeSupport {
         transport: RelayTransport,
         capabilities: List<ModelCapability>,
         runtimeConfig: MetadataClient.RelayRuntimeConfig? = MetadataClient.relayRuntimeConfig(),
+    ): Boolean = shouldForceStream(transport, capabilities.contains(ModelCapability.ImageGen), runtimeConfig)
+
+    /** [dispatchesImageGeneration] is whether this send takes the image generation dispatch (for a relay this includes a model-level image generation override). */
+    fun shouldForceStream(
+        transport: RelayTransport,
+        dispatchesImageGeneration: Boolean,
+        runtimeConfig: MetadataClient.RelayRuntimeConfig? = MetadataClient.relayRuntimeConfig(),
     ): Boolean {
-        if (!capabilities.contains(ModelCapability.ImageGen)) return false
+        if (!dispatchesImageGeneration) return false
         val rule = runtimeConfig?.transportRules[transportKey(transport)]
         if (rule != null) return rule.forceStreamForImageGeneration
         return imageRoute(transport, runtimeConfig) == ImageRoute.InlineResponsesTool

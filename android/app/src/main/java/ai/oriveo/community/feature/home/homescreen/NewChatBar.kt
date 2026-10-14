@@ -61,12 +61,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
+import ai.oriveo.community.core.model.ConnectionAvatar
 import ai.oriveo.community.feature.home.AuroraGreeting
 import ai.oriveo.community.feature.home.AuroraTheme
 import ai.oriveo.community.feature.home.HomeViewModel
 import ai.oriveo.community.feature.home.auroraGlassCard
 import ai.oriveo.community.feature.home.homeHeroPillModelName
-import ai.oriveo.community.ui.component.ProviderBadgeIcon
 import ai.oriveo.community.ui.component.isReduceMotionEnabled
 import ai.oriveo.community.ui.component.rememberComposerLengthLimitedField
 import kotlinx.coroutines.delay
@@ -189,10 +189,10 @@ private fun ModelSelectorPill(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (active != null) {
-            ProviderBadgeIcon(
-                kind = active.provider.kind,
+            ConnectionAvatar(
+                provider = active.provider,
+                fallbackKind = active.provider.kind,
                 size = 24.dp,
-                relayKind = active.provider.relayKind,
             )
         } else {
             Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {

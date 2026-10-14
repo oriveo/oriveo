@@ -19,6 +19,8 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import java.util.concurrent.TimeUnit
+import io.ktor.client.engine.KTOR_DEFAULT_USER_AGENT
+import io.ktor.http.HttpHeaders
 
 val networkModule = module {
     single {
@@ -56,12 +58,7 @@ val networkModule = module {
                     connectTimeout(20, TimeUnit.SECONDS)
                     readTimeout(180, TimeUnit.SECONDS)
                     writeTimeout(60, TimeUnit.SECONDS)
-                    addInterceptor { chain ->
-                        val request = chain.request().newBuilder()
-                            .header("User-Agent", NativeUserAgent.current())
-                            .build()
-                        chain.proceed(request)
-                    }
+                    addInterceptor(nativeUserAgentInterceptor())
                 }
             }
         }
@@ -78,5 +75,23 @@ val networkModule = module {
 
     single<CoroutineScope>(named("applicationScope")) {
         CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    }
+}
+
+/**
+ * Writes [NativeUserAgent] only for requests that have no UA or carry only the Ktor engine default UA ([KTOR_DEFAULT_USER_AGENT]).
+ * A UA explicitly set by the caller (Relay customUserAgent, Codex identity UA) must go out unchanged and must not be overridden here.
+ */
+// KTOR_DEFAULT_USER_AGENT is marked InternalAPI; use it directly instead of copying the literal, so this follows when Ktor changes the default.
+@OptIn(io.ktor.utils.io.InternalAPI::class)
+internal fun nativeUserAgentInterceptor(
+    nativeUserAgent: () -> String = NativeUserAgent::current,
+): okhttp3.Interceptor = okhttp3.Interceptor { chain ->
+    val request = chain.request()
+    val existing = request.header(HttpHeaders.UserAgent)
+    if (existing.isNullOrBlank() || existing == KTOR_DEFAULT_USER_AGENT) {
+        chain.proceed(request.newBuilder().header(HttpHeaders.UserAgent, nativeUserAgent()).build())
+    } else {
+        chain.proceed(request)
     }
 }

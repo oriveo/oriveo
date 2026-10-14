@@ -1,6 +1,7 @@
 package ai.oriveo.community.core.app
 
 import android.content.Context
+import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,12 +17,19 @@ sealed interface UiText {
     ) : UiText
     /** Several sentences, each on its own line, merged into one notice (several truncation notices from one import batch, or two limits hit at once). */
     data class Lines(val lines: List<UiText>) : UiText
+    /** Plural string (the count decides the word form, such as Added N models after Add all in the catalog). */
+    data class PluralResource(
+        @param:PluralsRes val resId: Int,
+        val count: Int,
+        val args: List<Any> = listOf(count),
+    ) : UiText
 }
 
 fun UiText.resolve(context: Context): String = when (this) {
     is UiText.Dynamic -> value
     is UiText.Resource -> context.getString(resId, *args.toTypedArray())
     is UiText.Lines -> lines.joinToString("\n") { it.resolve(context) }
+    is UiText.PluralResource -> context.resources.getQuantityString(resId, count, *args.toTypedArray())
 }
 
 /**

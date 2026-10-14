@@ -42,8 +42,8 @@ sealed interface ModelOptionCapabilityShape {
         val selectedTiming: String,
     ) : ModelOptionCapabilityShape
 
-    /** No usable switch, but there is something to say and a way forward. */
-    data class Notice(val status: NoticeStatus, val body: NoticeBody, val escape: Escape) : ModelOptionCapabilityShape
+    /** No usable switch, but there is something to say and a way forward. [escape] null means a read-only note that is not tappable (subscription always searches). */
+    data class Notice(val status: NoticeStatus, val body: NoticeBody, val escape: Escape?) : ModelOptionCapabilityShape
 
     /** A one-line status whose whole row is tappable (switch models / see the reason). [value] is set only when the current tier is shown read-only. */
     data class Disclosure(val status: DisclosureStatus, val value: String? = null) : ModelOptionCapabilityShape
@@ -57,19 +57,43 @@ sealed interface ModelOptionCapabilityShape {
     enum class ToggleKind { Capability, ChatTemplateThinking }
     enum class TrailingNote { AlwaysThinks }
     /** Without an official configuration web search says it cannot be turned on for now; thinking says it follows the model default (it thinks by the model's default even when nothing is chosen). */
-    enum class NoticeStatus { FollowsModelDefault, NeedsOwnConfiguration, NotAvailableYet }
+    enum class NoticeStatus {
+        FollowsModelDefault,
+        NeedsOwnConfiguration,
+        NotAvailableYet,
+        AlwaysOn,
+        /** The relay web probe was rejected: chat no longer attaches the fragment. */
+        RelayWebRejected,
+    }
     enum class NoticeBody {
         ReasoningNotCatalogued,
         WebNotCatalogued,
         ReasoningNoGenericSwitch,
         WebNoGenericSwitch,
         CustomThinkingUseAdditionalBody,
+        SubscriptionAlwaysSearches,
+        /** A relay has no generic web switch: configure a fragment in the connection's web search settings. */
+        RelayWebManual,
+        /** After the relay web probe was rejected, the link row: go to the connection's web search settings page and test again. */
+        RelayWebRetest,
     }
-    enum class Escape { SupportedModels, AdditionalBody }
+    /** [RelayWebRetest] is the only way out of a rejected relay web row; it also opens the connection's web search settings page, but its copy says "test again" rather than "open web search settings". */
+    enum class Escape { SupportedModels, AdditionalBody, ConnectionWebSearch, RelayWebRetest }
+    /**
+     * The facts of a relay web row. With a fragment present, the local probe record under the current fragment decides between
+     * [Searched] / [Silent] / [Rejected] / [Unverified] (not tested yet, or the hash is stale).
+     */
+    enum class RelayWeb { LocalEngine, Unverified, Searched, Silent, Rejected, NeedsSetup }
     enum class DisclosureStatus {
         ModelDoesNotThink,
         ModelCannotSearch,
         ConnectionCannotSearch,
+        /** The effective protocol has a connection-level web fragment and the probe confirmed it searched: tapping opens the web search settings page. */
+        RelayWebSearchConfirmed,
+        /** A fragment is set and the probe reply was normal but showed no sign of searching: tapping opens the web search settings page. */
+        RelayWebNoSearchInTest,
+        /** A fragment is set but not tested yet (or the fragment changed): sends as usual, tapping opens the web search settings page. */
+        RelayWebUnverified,
         FixedLevel,
         ReadOnlyValue,
     }
@@ -97,6 +121,21 @@ sealed interface ModelOptionCapabilityShape {
         val defaultIntent: String? = null,
         /** Current reading of a custom connection's chat-template thinking switch (`chat_template_kwargs.enable_thinking` in the additional request body). */
         val chatTemplateThinking: Boolean? = null,
+        /** Thinking-row facts of a local-engine connection; null means this is not a local-engine connection and the relay rules apply. */
+        val localEngineThinking: LocalEngineThinking? = null,
+        /** Relay web row facts; null means this is not a relay and the remaining rules apply. */
+        val relayWeb: RelayWeb? = null,
+    )
+
+    /**
+     * A local-engine connection (one with an engineProfile) decides its thinking row from the write-path table, not from the protocol.
+     * [writable] comes from `LocalEngineChannels.thinkingWritable`; [nonChatChannel] is llama.cpp's native channel;
+     * [declaredThinking] is what the engine declares for this model's thinking (null means unknown).
+     */
+    data class LocalEngineThinking(
+        val writable: Boolean,
+        val nonChatChannel: Boolean,
+        val declaredThinking: Boolean?,
     )
 
     companion object {
@@ -111,12 +150,18 @@ sealed interface ModelOptionCapabilityShape {
             if (input.connection == ConnectionCategory.CustomLLM) {
                 if (input.protocolUndecided) return ProtocolUndecided
                 if (input.capability == Capability.Reasoning) {
+                    input.localEngineThinking?.let { return localEngineReasoning(it, input) }
+                    // Relay tiers come from model-facts: with tiers it is segmented (rejected tiers marked as in BYOK), without tiers it stays as is.
+                    if (input.presentation == CapabilityControlPresentation.AutomaticAvailable &&
+                        input.availableIntents.any(TIER_ORDER::contains)
+                    ) return reasoningTiers(input)
                     return if (input.customProtocol == CustomProtocol.ChatCompletions) {
                         Toggle(input.chatTemplateThinking, ToggleKind.ChatTemplateThinking)
                     } else {
                         Notice(NoticeStatus.NeedsOwnConfiguration, NoticeBody.CustomThinkingUseAdditionalBody, Escape.AdditionalBody)
                     }
                 }
+                input.relayWeb?.let { return relayWeb(it) }
                 if (!input.presentation.hasAutomaticConfig) return Disclosure(DisclosureStatus.ConnectionCannotSearch)
             }
             return when (input.capability) {
@@ -125,9 +170,31 @@ sealed interface ModelOptionCapabilityShape {
             }
         }
 
+        /** A relay has no web switch in chat: a fragment means it is always sent. */
+        private fun relayWeb(fact: RelayWeb): ModelOptionCapabilityShape = when (fact) {
+            RelayWeb.LocalEngine -> Disclosure(DisclosureStatus.ConnectionCannotSearch)
+            RelayWeb.Searched -> Disclosure(DisclosureStatus.RelayWebSearchConfirmed)
+            RelayWeb.Silent -> Disclosure(DisclosureStatus.RelayWebNoSearchInTest)
+            RelayWeb.Unverified -> Disclosure(DisclosureStatus.RelayWebUnverified)
+            RelayWeb.Rejected ->
+                Notice(NoticeStatus.RelayWebRejected, NoticeBody.RelayWebRetest, Escape.RelayWebRetest)
+            RelayWeb.NeedsSetup ->
+                Notice(NoticeStatus.NeedsOwnConfiguration, NoticeBody.RelayWebManual, Escape.ConnectionWebSearch)
+        }
+
+        /** Writable: the existing chat-template switch; native channel: today's non-Chat hint; declared not thinking: unsupported; otherwise: follows the model default. */
+        private fun localEngineReasoning(engine: LocalEngineThinking, input: Input): ModelOptionCapabilityShape = when {
+            engine.writable -> Toggle(input.chatTemplateThinking, ToggleKind.ChatTemplateThinking)
+            engine.nonChatChannel ->
+                Notice(NoticeStatus.NeedsOwnConfiguration, NoticeBody.CustomThinkingUseAdditionalBody, Escape.AdditionalBody)
+            engine.declaredThinking == false -> Disclosure(DisclosureStatus.ModelDoesNotThink)
+            else -> Notice(NoticeStatus.FollowsModelDefault, NoticeBody.ReasoningNotCatalogued, Escape.SupportedModels)
+        }
+
         private val CapabilityControlPresentation.hasAutomaticConfig: Boolean
             get() = this == CapabilityControlPresentation.AutomaticAvailable ||
-                this == CapabilityControlPresentation.ForceUnsupported
+                this == CapabilityControlPresentation.ForceUnsupported ||
+                this == CapabilityControlPresentation.AlwaysOn
 
         private fun reasoning(input: Input): ModelOptionCapabilityShape = when (input.presentation) {
             CapabilityControlPresentation.Unsupported, CapabilityControlPresentation.ExternalConnectorOnly ->
@@ -138,6 +205,8 @@ sealed interface ModelOptionCapabilityShape {
                 Notice(NoticeStatus.FollowsModelDefault, NoticeBody.ReasoningNotCatalogued, Escape.SupportedModels)
             CapabilityControlPresentation.AutomaticAvailable, CapabilityControlPresentation.ForceUnsupported ->
                 reasoningTiers(input)
+            // Produced only by the web verdict; for reasoning, show the current tier read-only.
+            CapabilityControlPresentation.AlwaysOn -> reasoningTiers(input.copy(isWritable = false))
         }
 
         private fun reasoningTiers(input: Input): ModelOptionCapabilityShape {
@@ -176,6 +245,9 @@ sealed interface ModelOptionCapabilityShape {
                 Notice(NoticeStatus.NeedsOwnConfiguration, NoticeBody.WebNoGenericSwitch, Escape.AdditionalBody)
             CapabilityControlPresentation.Pending, CapabilityControlPresentation.Unknown ->
                 Notice(NoticeStatus.NotAvailableYet, NoticeBody.WebNotCatalogued, Escape.SupportedModels)
+            // The subscription upstream always searches: a read-only note, no switch that would have no effect; the stored value is untouched.
+            CapabilityControlPresentation.AlwaysOn ->
+                Notice(NoticeStatus.AlwaysOn, NoticeBody.SubscriptionAlwaysSearches, escape = null)
             CapabilityControlPresentation.AutomaticAvailable, CapabilityControlPresentation.ForceUnsupported -> {
                 val supportsForce = FORCE in input.availableIntents && FORCE !in input.rejectedIntents
                 // The stored "search on every message" no longer exists in the current recipe: show "search when needed" and leave the stored value alone.

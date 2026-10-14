@@ -28,6 +28,12 @@ interface TransportStrategy {
      * most chunks are plain text deltas.
      */
     fun parseCitations(rawChunk: String, shape: StreamShape?): List<Citation>
+
+    /**
+     * Whether this chunk carries a signal that a search really ran but without citations (used by relay web probing);
+     * the citations themselves come from [parseCitations]. Chat does not read it; the default is none.
+     */
+    fun parseSearchRan(rawChunk: String): Boolean = false
 }
 
 /**

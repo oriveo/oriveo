@@ -29,6 +29,7 @@ import ai.oriveo.community.core.provider.openai.OpenAISubscriptionTokens
 import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.RegionOption
 import ai.oriveo.community.core.provider.ProviderKeyInput
+import ai.oriveo.community.core.provider.transport.OfficialEndpointSource
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -62,6 +63,22 @@ class ProviderSetupViewModel(
 
     var selectedRegion: RegionOption? by mutableStateOf(null)
         private set
+
+    /** Input values for the setup fields, keyed by field id; cleared when the provider changes. */
+    var setupFieldValues: Map<String, String> by mutableStateOf(emptyMap())
+        private set
+
+    /** Fields the user must fill for the selected address template; empty when it has no placeholder, so no input slot is shown. */
+    val setupFieldIds: List<String>
+        get() = selectedKind?.let { setupCatalog.setupFieldIds(it, selectedRegion) } ?: emptyList()
+
+    fun updateSetupField(id: String, value: String) {
+        setupFieldValues = setupFieldValues + (id to value)
+    }
+
+    /** True when every field the address template needs holds a valid value (one DNS label); otherwise the primary button stays disabled without an error message. */
+    private val setupFieldsComplete: Boolean
+        get() = setupFieldIds.all { OfficialEndpointSource.normalizeSetupValue(setupFieldValues[it]) != null }
 
     var isAdditionalInstance: Boolean by mutableStateOf(false)
 
@@ -111,6 +128,7 @@ class ProviderSetupViewModel(
         selectedKind = kind
         apiKey = ""
         selectedRegion = setupCatalog.regionOptions(kind).firstOrNull()
+        setupFieldValues = emptyMap()
 
         isAdditionalInstance = false
 
@@ -124,6 +142,7 @@ class ProviderSetupViewModel(
         selectedKind = kind
         if (previousKind != kind) {
             selectedRegion = kind?.let { setupCatalog.regionOptions(it).firstOrNull() }
+            setupFieldValues = emptyMap()
 
             isAdditionalInstance = false
             grokAuthMode = ProviderAuthMode.ApiKey
@@ -142,6 +161,7 @@ class ProviderSetupViewModel(
             val inferredKind = ProviderKind.inferredFromApiKey(value)
             if (selectedKind != inferredKind) {
                 selectedRegion = inferredKind?.let { setupCatalog.regionOptions(it).firstOrNull() }
+                setupFieldValues = emptyMap()
 
                 isAdditionalInstance = false
 
@@ -158,13 +178,14 @@ class ProviderSetupViewModel(
             if (selectedKind == null) return false
 
             if (usesSubscriptionFlow) return false
-            return apiKey.trim().isNotEmpty() && !isLoading
+            return apiKey.trim().isNotEmpty() && setupFieldsComplete && !isLoading
         }
 
     fun submitApiKey() {
         val kind = selectedKind ?: return
         val trimmedKey = apiKey.trim()
         if (trimmedKey.isEmpty()) return
+        if (!setupFieldsComplete) return
 
         if (!ProviderKeyInput.isPrintableAsciiKey(trimmedKey)) {
             error = OriveoError(
@@ -181,7 +202,16 @@ class ProviderSetupViewModel(
             isLoading = true
             clearError()
 
-            val baseUrl = selectedRegion?.baseURL ?: setupCatalog.defaultBaseUrl(kind)
+            val template = selectedRegion?.baseURL ?: setupCatalog.defaultBaseUrl(kind)
+            // Address template: fill it with the valid field values to get the literal address; values and source stay on this device only.
+            // Without a placeholder neither is passed, and the classifier run before persisting stores default / region:<id> from the literal address, same as passing them explicitly.
+            val setupValues = setupFieldIds.takeIf { it.isNotEmpty() }?.associateWith { id ->
+                requireNotNull(OfficialEndpointSource.normalizeSetupValue(setupFieldValues[id]))
+            }
+            val baseUrl = if (setupValues == null) template else template?.let { OfficialEndpointSource.fill(it, setupValues) }
+            val endpointSource = setupValues?.let {
+                selectedRegion?.let { region -> OfficialEndpointSource.region(region.id) } ?: OfficialEndpointSource.DEFAULT
+            }
 
             try {
                 val provider = providerRepository.registerProvider(
@@ -189,6 +219,8 @@ class ProviderSetupViewModel(
                     apiKey = trimmedKey,
                     baseUrl = baseUrl,
                     isAdditionalInstance = isAdditionalInstance,
+                    endpointSource = endpointSource,
+                    setupValues = setupValues,
                 )
                 registeredProvider = provider
 

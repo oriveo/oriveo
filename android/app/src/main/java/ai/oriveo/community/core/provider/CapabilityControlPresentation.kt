@@ -25,6 +25,15 @@ import ai.oriveo.community.core.model.Provider
 enum class CapabilityControlPresentation {
     AutomaticAvailable,
     ForceUnsupported,
+
+    /**
+     * Web search that the subscription upstream keeps always on (produced only by `auto_available` +
+     * `subscription_web_always_on`). "Whether the capability exists / counts as an official configuration"
+     * is the same as [AutomaticAvailable]; "whether it is writable / clamped / shown in the summary" is the
+     * same as read-only -- it is not the user's choice.
+     */
+    AlwaysOn,
+
     CustomOnly,
     Pending,
 
@@ -47,7 +56,7 @@ enum class CapabilityControlPresentation {
     val isConfigurable: Boolean
         get() = when (this) {
             AutomaticAvailable, ForceUnsupported, Unknown -> true
-            CustomOnly, Pending, ExternalConnectorOnly, Unsupported -> false
+            AlwaysOn, CustomOnly, Pending, ExternalConnectorOnly, Unsupported -> false
         }
 
     companion object {
@@ -59,6 +68,7 @@ enum class CapabilityControlPresentation {
         ): CapabilityControlPresentation = when (state) {
             "auto_available" ->
                 if (!exactTransportMatches) Unknown
+                else if (reasonCode == CapabilityControlResolution.REASON_SUBSCRIPTION_WEB_ALWAYS_ON) AlwaysOn
                 else if (forceRequested) ForceUnsupported
                 else AutomaticAvailable
             "custom_only" -> CustomOnly
@@ -103,6 +113,8 @@ object CapabilityControlPresentationResolver {
             // every `auto_available` back to Unknown and the verdict above would be wasted.
             exactTransportMatches = verdict.viaLegacyProfile ||
                 CapabilityControlResolution.isSubscriptionLink(provider) ||
+                // Relay reasoning tiers come from model-facts and likewise have no recipe; the protocol is locked by the connection.
+                (capability == "reasoning" && verdict.reasonCode == CapabilityControlResolution.REASON_RELAY_MODEL_FACTS) ||
                 hasExactTransportRecipe(provider, model, capability, metadata),
         )
     }
@@ -205,6 +217,7 @@ object CapabilityWebPreferenceLiveness {
             } else {
                 null
             },
+            legacyModelID = identity.legacyModelId,
         ).enabled
         return reachesTheWire(status, customIsActive)
     }

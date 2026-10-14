@@ -69,6 +69,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
@@ -91,6 +94,7 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.model.OriveoError
 import ai.oriveo.community.core.model.OriveoErrorSeverity
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.provider.transport.OfficialEndpointSource
 import ai.oriveo.community.core.navigation.ProviderSetupEntryPoint
 import ai.oriveo.community.feature.providers.ProviderEndpointSelector
 import ai.oriveo.community.feature.providers.localizedProviderEndpointLabel
@@ -326,6 +330,19 @@ fun ProviderSetupScreen(
                                             onSelect = { viewModel.selectRegion(it) },
                                             enabled = !viewModel.isLoading,
                                         )
+                                    }
+
+                                    // Shown only when the selected address template contains {workspaceId}, right after the region selection; not delivered in production yet.
+                                    viewModel.setupFieldIds.forEach { fieldId ->
+                                        if (fieldId == OfficialEndpointSource.WORKSPACE_ID) {
+                                            OriveoLabeledField(
+                                                label = stringResource(R.string.provider_setup_workspace_id),
+                                                value = viewModel.setupFieldValues[fieldId].orEmpty(),
+                                                onValueChange = { viewModel.updateSetupField(fieldId, it) },
+                                                footnote = stringResource(R.string.provider_setup_workspace_id_hint),
+                                                enabled = !viewModel.isLoading,
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1183,7 +1200,9 @@ private fun CustomProviderEntry(
         Icon(
             imageVector = Icons.Filled.ChevronRight,
             contentDescription = null,
-            modifier = Modifier.size(14.dp),
+            modifier = Modifier
+                .size(14.dp)
+                .then(if (LocalLayoutDirection.current == LayoutDirection.Rtl) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier),
             tint = colors.textTertiary,
         )
     }

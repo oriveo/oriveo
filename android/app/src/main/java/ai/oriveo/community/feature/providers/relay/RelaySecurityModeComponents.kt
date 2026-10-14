@@ -26,6 +26,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,6 +48,8 @@ internal fun RelaySecurityModeControl(
     hasCredentialMaterial: Boolean,
     enabled: Boolean,
     onModeSelected: (RelayConnectionSecurityMode, RelaySecurityModePolicy.Assessment, Boolean) -> Unit,
+    /** Replaces the default summary row (the edit-connection board uses its own row style); the parameter is the callback invoked when Change is tapped. */
+    summary: (@Composable (onChange: () -> Unit) -> Unit)? = null,
 ) {
     var assessment by remember(endpoint) {
         mutableStateOf(
@@ -59,11 +64,15 @@ internal fun RelaySecurityModeControl(
         assessment = RelaySecurityModePolicy.assessResolving(endpoint)
     }
 
-    RelaySecurityModeSummaryRow(
-        mode = selectedMode,
-        enabled = enabled,
-        onChange = { showPicker = true },
-    )
+    if (summary != null) {
+        summary { if (enabled) showPicker = true }
+    } else {
+        RelaySecurityModeSummaryRow(
+            mode = selectedMode,
+            enabled = enabled,
+            onChange = { showPicker = true },
+        )
+    }
 
     val suggested = assessment.suggestedMode
         ?.takeIf { selectedMode == RelayConnectionSecurityMode.RemoteHttps && !ignoredSuggestionFor }
@@ -95,7 +104,7 @@ internal fun RelaySecurityModeControl(
     pendingDowngrade?.let { pending ->
         AlertDialog(
             onDismissRequest = { pendingDowngrade = null },
-            title = { Text(stringResource(modeTitleRes(pending))) },
+            title = { Text(stringResource(relaySecurityModeTitleRes(pending))) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm)) {
                     Text(stringResource(modeDescriptionRes(pending)))
@@ -163,7 +172,7 @@ private fun RelaySecurityModeSummaryRow(
                 maxLines = 1,
             )
             Text(
-                text = stringResource(modeTitleRes(mode)),
+                text = stringResource(relaySecurityModeTitleRes(mode)),
                 style = OriveoTheme.typography.body.copy(fontWeight = FontWeight.SemiBold),
                 color = colors.textPrimary,
                 maxLines = 1,
@@ -187,7 +196,9 @@ private fun RelaySecurityModeSummaryRow(
             imageVector = Icons.Filled.ChevronRight,
             contentDescription = null,
             tint = colors.textTertiary,
-            modifier = Modifier.size(14.dp),
+            modifier = Modifier
+                .size(14.dp)
+                .then(if (LocalLayoutDirection.current == LayoutDirection.Rtl) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier),
         )
     }
 }
@@ -295,7 +306,7 @@ private fun RelaySecurityModeOptionRow(
         RadioButton(selected = selected, onClick = onClick, enabled = enabled)
         Column(modifier = Modifier.weight(1f).padding(top = 3.dp)) {
             Text(
-                text = stringResource(modeTitleRes(mode)),
+                text = stringResource(relaySecurityModeTitleRes(mode)),
                 style = OriveoTheme.typography.body.copy(fontWeight = FontWeight.SemiBold),
                 color = if (enabled) colors.textPrimary else colors.textTertiary,
             )
@@ -316,7 +327,7 @@ private val visibleModes = listOf(
     RelayConnectionSecurityMode.PrivateVpn,
 )
 
-private fun modeTitleRes(mode: RelayConnectionSecurityMode): Int = when (mode) {
+internal fun relaySecurityModeTitleRes(mode: RelayConnectionSecurityMode): Int = when (mode) {
     RelayConnectionSecurityMode.RemoteHttps -> R.string.relay_security_mode_remote_https
     RelayConnectionSecurityMode.TofuHttps -> R.string.relay_security_mode_paired_https
     RelayConnectionSecurityMode.LocalHttp -> R.string.relay_security_mode_local_http

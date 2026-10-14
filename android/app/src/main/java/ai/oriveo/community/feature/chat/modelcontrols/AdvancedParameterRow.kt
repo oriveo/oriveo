@@ -154,20 +154,24 @@ internal fun AdvancedParameterRow(
     }
 }
 
+/** Display value of a parameter row: the value when set, otherwise the row's default text (the temperature row of the model-options parameter card uses the same one). */
+@Composable
+internal fun generationParameterDisplayText(display: DisplayValue): String = when (display) {
+    is DisplayValue.Value -> display.text
+    DisplayValue.Omitted -> stringResource(R.string.generation_parameter_omitted_value)
+    is DisplayValue.Fallback -> when (display.kind) {
+        FallbackKind.Unlimited -> stringResource(R.string.advanced_no_limit)
+        FallbackKind.ModelDefaultValue -> display.text.orEmpty()
+        FallbackKind.ModelDecides -> stringResource(R.string.generation_parameter_default)
+        FallbackKind.RandomEachTime -> stringResource(R.string.advanced_random_each_time)
+        FallbackKind.PlainText -> stringResource(R.string.advanced_plain_text)
+    }
+}
+
 @Composable
 private fun AdvancedValueLabel(row: GenerationParameterRowModel) {
     val colors = OriveoTheme.colors
-    val text = when (val display = row.display) {
-        is DisplayValue.Value -> display.text
-        DisplayValue.Omitted -> stringResource(R.string.generation_parameter_omitted_value)
-        is DisplayValue.Fallback -> when (display.kind) {
-            FallbackKind.Unlimited -> stringResource(R.string.advanced_no_limit)
-            FallbackKind.ModelDefaultValue -> display.text.orEmpty()
-            FallbackKind.ModelDecides -> stringResource(R.string.generation_parameter_default)
-            FallbackKind.RandomEachTime -> stringResource(R.string.advanced_random_each_time)
-            FallbackKind.PlainText -> stringResource(R.string.advanced_plain_text)
-        }
-    }
+    val text = generationParameterDisplayText(row.display)
     val invalid = row.validationError != null
     when (row.source) {
         Source.Session -> Text(

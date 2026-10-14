@@ -117,7 +117,7 @@ class AppViewModel(
             val provider = providers.value.firstOrNull { it.id == providerId }
             val selection = ProviderSelectionSnapshot.persistedSelection(provider, modelId)
             if (selection?.model != null) {
-                appPreferencesRepository.setLastUsedModel(providerId, selection.model)
+                appPreferencesRepository.setLastUsedModel(providerId, selection.model, provider?.kind)
             } else {
                 appPreferencesRepository.setLastUsedModel(
                     providerId = providerId,

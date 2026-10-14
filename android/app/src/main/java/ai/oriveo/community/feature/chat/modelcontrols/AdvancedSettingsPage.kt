@@ -165,6 +165,7 @@ internal fun AdvancedSettingsPage(
             provider = provider,
             model = model,
             canonicalModelId = customFieldsIdentity.canonicalModelId,
+            legacyModelId = customFieldsIdentity.legacyModelId,
             conversationId = conversationId,
             transportIdentity = customFieldsIdentity.storageIdentity,
             finalTransport = customFieldsIdentity.finalTransport,
@@ -270,7 +271,7 @@ internal fun AdvancedSettingsPage(
     val hasSessionChanges = page?.rows.orEmpty().any { it.source == GenerationParameterRowModel.Source.Session }
     Column(modifier = modifier.fillMaxSize()) {
         AdvancedSettingsHeader(
-            title = stringResource(R.string.generation_model_behavior),
+            title = stringResource(R.string.generation_parameters_section),
             subtitle = "${model.name.ifBlank { model.id }} · ${stringResource(R.string.advanced_this_conversation_only)}",
             unverifiedBaseline = page?.baseline == GenerationParameterRowModel.Verification.Unverified,
             resetEnabled = canEdit && hasSessionChanges,

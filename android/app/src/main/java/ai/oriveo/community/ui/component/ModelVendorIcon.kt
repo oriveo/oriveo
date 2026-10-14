@@ -197,14 +197,27 @@ private fun vendorStyle(groupKey: String, isDark: Boolean, hasLogo: Boolean = fa
     }
 }
 
-private fun vendorMonogram(value: String): String {
+// Split words by Unicode letters / digits (including combining marks) and take characters by grapheme cluster:
+// Going by code points alone would split Devanagari / Thai vowel signs and tone marks from their base characters.
+internal fun vendorMonogram(value: String): String {
     val parts = value
-        .split(Regex("[^A-Za-z0-9]+"))
-        .filter { it.isNotBlank() }
+        .split(Regex("[^\\p{L}\\p{M}\\p{N}]+"))
+        .filter { it.isNotEmpty() }
+
+    fun String.leading(count: Int): String {
+        val clusters = java.text.BreakIterator.getCharacterInstance().also { it.setText(this) }
+        var end = 0
+        repeat(count) {
+            val next = clusters.next()
+            if (next == java.text.BreakIterator.DONE) return substring(0, end)
+            end = next
+        }
+        return substring(0, end)
+    }
 
     return when {
-        parts.size >= 2 -> parts.take(2).joinToString("") { it.take(1) }.uppercase()
-        parts.isNotEmpty() -> parts.first().take(2).uppercase()
+        parts.size >= 2 -> parts.take(2).joinToString("") { it.leading(1) }.uppercase()
+        parts.isNotEmpty() -> parts.first().leading(2).uppercase()
         else -> "AI"
     }
 }

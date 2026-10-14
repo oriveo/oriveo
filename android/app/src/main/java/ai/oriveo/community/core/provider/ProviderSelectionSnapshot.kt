@@ -24,12 +24,14 @@ object ProviderSelectionSnapshot {
         val enabled = enabledModels(provider)
         if (enabled.isEmpty()) return null
 
+        // Any isDefault in old relay data is ignored: take the first one in enabled order.
+        if (provider?.kind == ProviderKind.Relay) return enabled.first()
         enabled.firstOrNull { it.isDefault }?.let { return it }
 
         if (provider != null && provider.kind != ProviderKind.Relay) {
             val metadataDefaultId = metadata.defaultModelId(provider.kind)
             if (!metadataDefaultId.isNullOrBlank()) {
-                ModelSelectionUtils.matchingModel(enabled, metadataDefaultId)?.let { return it }
+                ModelSelectionUtils.matchingModel(enabled, metadataDefaultId, provider.kind)?.let { return it }
             }
         }
 
@@ -41,11 +43,11 @@ object ProviderSelectionSnapshot {
         modelId: String?,
         metadata: MetadataClient = MetadataClient.instance,
     ): AIModel? = selectedModel(provider, modelId, metadata) { enabled, targetId ->
-        ModelSelectionUtils.matchingModel(enabled, targetId)
+        ModelSelectionUtils.resolveStoredModel(enabled, targetId, provider?.kind)
     }
 
     /**
-     * [enabledMatch] must return exactly what `ModelSelectionUtils.matchingModel(enabled, targetId)` returns, for
+     * [enabledMatch] must return exactly what `ModelSelectionUtils.resolveStoredModel(enabled, targetId, provider.kind)` returns, for
      * example a [ModelSelectionUtils.CatalogMatchIndex] built over the same enabled list, which spares per-row
      * callers a full scan.
      */
@@ -100,7 +102,7 @@ object ProviderSelectionSnapshot {
         if (targetId.isEmpty()) return null
 
         val model = selectedModel(provider, targetId, metadata)
-        val storedModelId = model?.let(ModelSelectionUtils::preferredStoredModelIdentifier)
+        val storedModelId = model?.let { ModelSelectionUtils.preferredStoredModelIdentifier(it, provider?.kind) }
             ?: ModelSelectionUtils.resolvedId(targetId)
 
         return PersistedSelection(

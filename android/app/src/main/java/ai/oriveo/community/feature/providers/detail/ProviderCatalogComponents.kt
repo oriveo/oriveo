@@ -2,6 +2,8 @@
 
 package ai.oriveo.community.feature.providers.detail
 
+import androidx.compose.ui.platform.testTag
+
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -35,14 +37,17 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.model.AIModel
@@ -57,6 +62,7 @@ import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.component.LocalModelRuntimeLabel
 import ai.oriveo.community.ui.theme.opacity
+import androidx.compose.ui.platform.LocalLayoutDirection
 
 fun LazyListScope.providerCatalogGroups(
     provider: Provider,
@@ -66,6 +72,13 @@ fun LazyListScope.providerCatalogGroups(
     onToggleGroup: (String) -> Unit,
     onEnableModel: (AIModel) -> Unit,
     capabilityObservationRevision: Long,
+    /** Row structure of the Relay / local model library, keyed by model.id; null = official catalog rows, whose behavior and look are unchanged. */
+    relayBoardRows: Map<String, RelayCatalogRow>? = null,
+    /** Tapping a relay catalog row opens the read-only advanced page. */
+    onOpenRelayModel: (AIModel) -> Unit = {},
+    /** "Add all" of a relay model library group: group id -> model ids to append; null = not wired (official, adding models from Home). */
+    relayAddAll: Map<String, List<String>>? = null,
+    onAddAll: (List<String>) -> Unit = {},
 ) {
     val autoExpand = shouldAutoExpandCatalogGroups(searchQuery)
     groups.forEachIndexed { groupIndex, group ->
@@ -80,6 +93,9 @@ fun LazyListScope.providerCatalogGroups(
                 onToggle = { onToggleGroup(group.id) },
                 position = if (hasRows) CatalogRowPosition.First else CatalogRowPosition.Single,
                 modifier = Modifier.animateItem(),
+                addAllIDs = relayAddAll?.get(group.id).orEmpty(),
+                onAddAll = onAddAll,
+                relayBoard = relayBoardRows != null,
             )
         }
         if (hasRows) {
@@ -93,14 +109,25 @@ fun LazyListScope.providerCatalogGroups(
                 } else {
                     CatalogRowPosition.Middle
                 }
-                CatalogModelRow(
-                    provider = provider,
-                    model = model,
-                    capabilityObservationRevision = capabilityObservationRevision,
-                    onEnable = { onEnableModel(model) },
-                    position = position,
-                    showTopDivider = true,
-                )
+                val boardRow = relayBoardRows?.get(model.id)
+                if (boardRow != null) {
+                    RelayCatalogLibraryRow(
+                        row = boardRow,
+                        onEnable = { onEnableModel(model) },
+                        onOpen = { onOpenRelayModel(model) },
+                        position = position,
+                        showTopDivider = true,
+                    )
+                } else {
+                    CatalogModelRow(
+                        provider = provider,
+                        model = model,
+                        capabilityObservationRevision = capabilityObservationRevision,
+                        onEnable = { onEnableModel(model) },
+                        position = position,
+                        showTopDivider = true,
+                    )
+                }
             }
         }
         if (groupIndex < groups.lastIndex) {
@@ -173,6 +200,10 @@ private fun CatalogGroupHeader(
     onToggle: () -> Unit,
     position: CatalogRowPosition,
     modifier: Modifier = Modifier,
+    addAllIDs: List<String> = emptyList(),
+    onAddAll: (List<String>) -> Unit = {},
+    /** Relay / local model library (iOS ProviderCatalogGroupCard): the group header has no border and the title may wrap; the official catalog is unchanged. */
+    relayBoard: Boolean = false,
 ) {
     val colors = OriveoTheme.colors
     val spacing = OriveoTheme.spacing
@@ -182,7 +213,7 @@ private fun CatalogGroupHeader(
             .fillMaxWidth()
             .catalogRowSurface(
                 surface = colors.surfaceElevated,
-                border = colors.border.opacity(0.66f),
+                border = if (relayBoard) Color.Transparent else colors.border.opacity(0.66f),
                 position = position,
                 radius = OriveoTheme.radius.lg,
                 borderWidth = OriveoBorderWidth.standard,
@@ -194,9 +225,10 @@ private fun CatalogGroupHeader(
             .padding(horizontal = spacing.md, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // The monogram avatar takes the localized group name (same as iOS): the "Other" group has an empty title and only a titleRes.
         ModelVendorIcon(
             groupKey = group.id,
-            groupName = group.title,
+            groupName = group.titleRes?.let { stringResource(it) } ?: group.title,
             size = 36.dp,
         )
         Spacer(modifier = Modifier.width(spacing.md))
@@ -205,17 +237,30 @@ private fun CatalogGroupHeader(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
-                text = group.title,
+                text = group.titleRes?.let { stringResource(it) } ?: group.title,
                 style = OriveoTheme.typography.title3.copy(fontWeight = FontWeight.SemiBold),
                 color = colors.textPrimary,
-                maxLines = 1,
+                maxLines = if (relayBoard) Int.MAX_VALUE else 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = stringResource(R.string.provider_detail_n_models, group.models.size),
+                text = pluralStringResource(R.plurals.provider_detail_n_models, group.models.size, group.models.size),
                 style = OriveoTheme.typography.footnote,
                 color = colors.textSecondary,
             )
+        }
+        // Only shown when there are models that can be enabled; the ViewModel guarantees one write-back without probing.
+        if (addAllIDs.isNotEmpty()) {
+            Text(
+                text = stringResource(R.string.relay_catalog_add_all),
+                style = OriveoTheme.typography.footnote.copy(fontWeight = FontWeight.SemiBold),
+                color = colors.primary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(OriveoTheme.radius.sm))
+                    .clickable { onAddAll(addAllIDs) }
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+            )
+            Spacer(modifier = Modifier.width(spacing.xs))
         }
         Box(
             modifier = Modifier
@@ -224,10 +269,13 @@ private fun CatalogGroupHeader(
                 .background(colors.surfaceInset.copy(alpha = 0.55f)),
             contentAlignment = Alignment.Center,
         ) {
+            // Collapsed points along the reading direction, expanded points down; ChevronRight is not auto-mirrored, so flip it by hand in RTL.
             Icon(
                 imageVector = if (isExpanded) Icons.Filled.ExpandMore else Icons.Filled.ChevronRight,
                 contentDescription = null,
-                modifier = Modifier.size(14.dp),
+                modifier = Modifier
+                    .size(14.dp)
+                    .then(if (LocalLayoutDirection.current == LayoutDirection.Rtl && !isExpanded) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier),
                 tint = colors.textSecondary,
             )
         }

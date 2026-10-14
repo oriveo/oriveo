@@ -6,6 +6,8 @@ import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.StreamEvent
+import ai.oriveo.community.core.provider.relay.RelayKeyAccess
+import ai.oriveo.community.core.provider.relay.RelayNegativeCache
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -21,6 +23,21 @@ import kotlinx.coroutines.flow.flow
  * saving a round trip on every message; if the resend also fails, the first error is thrown, because that is what this request really ran into.
  */
 object NativeFileFallback {
+
+    /**
+     * Persistent memory for the relay shape: when given, it replaces the in-process connection x protocol memory. A hit on the `file` negative cache goes straight to text;
+     * after a successful resend, `file` is recorded only if the first rejection was a rejected signal (the trigger condition and "resend text only once" are unchanged).
+     */
+    class RelayMemory(
+        val cache: RelayNegativeCache,
+        val key: RelayNegativeCache.Key,
+        /** Model-level file override; On beats the `file` negative cache, and a rejection still falls back and is still recorded as usual. */
+        val fileOverride: Boolean? = null,
+    ) {
+        internal fun isTextOnly(): Boolean =
+            fileOverride != true && cache.isRejected(key, RelayNegativeCache.Kind.File)
+        internal fun remember(first: Throwable): Boolean = cache.recordIfRejected(key, RelayNegativeCache.Kind.File, first)
+    }
 
     /** One protocol on one connection. */
     data class Lane(val connectionId: String, val providerKind: ProviderKind, val protocol: String) {
@@ -47,25 +64,56 @@ object NativeFileFallback {
             AttachmentDelivery.plan("", attachments, model, transport).native.any(::hasExtractedText)
     }
 
+    /**
+     * Whether, when these messages are built under [transport], some files go native and none of them has extracted text (all scanned documents and the like).
+     * When a protocol fallback switches to a protocol that does not accept native files, such a request has no text version to send, so it does not switch (agreed across all three platforms).
+     */
+    fun hasOnlyUnrecoverableNativeFiles(
+        messages: List<ChatMessage>,
+        model: AIModel?,
+        transport: AttachmentTransportProfile,
+    ): Boolean {
+        val native = messages.flatMap { message ->
+            val attachments = message.attachments
+            if (attachments.isNullOrEmpty()) emptyList()
+            else AttachmentDelivery.plan("", attachments, model, transport).native
+        }
+        return native.isNotEmpty() && native.none(::hasExtractedText)
+    }
+
     private fun hasExtractedText(attachment: Attachment): Boolean =
         attachment.extractionErrorCode == null && !attachment.base64Data.isNullOrEmpty()
 
-    private fun isRejection(error: Throwable): Boolean = when (error) {
-        is ProviderServiceError.Upstream -> error.statusCode in rejectedStatuses
-        is ProviderServiceError.RelayUpstream -> error.statusCode in rejectedStatuses
+    private fun isRejection(error: Throwable): Boolean = when {
+        // A relay saying "this key cannot use this model" is not a file rejection; resending as text would be rejected just the same.
+        RelayKeyAccess.isModelAccessDenied(error) -> false
+        error is ProviderServiceError.Upstream -> error.statusCode in rejectedStatuses
+        error is ProviderServiceError.RelayUpstream -> error.statusCode in rejectedStatuses
         else -> false
     }
 
     /**
      * @param recoverable See [hasRecoverableNativeFile]; evaluated only after the first rejection.
+     * @param onUnrecovered Called once, before the first error is thrown, when the first attempt carrying file blocks is rejected before any output
+     *   and could not fall back (not recoverable, or the text resend also failed). Whether it is a rejection signal and whether there are native file blocks is the caller's call.
      * @param attempt Sends one request; when the argument is true this attempt must not carry file blocks.
      */
-    suspend fun <T> run(lane: Lane, recoverable: () -> Boolean, attempt: suspend (textOnly: Boolean) -> T): T {
-        if (isTextOnly(lane)) return attempt(true)
+    suspend fun <T> run(
+        lane: Lane,
+        recoverable: () -> Boolean,
+        relayMemory: RelayMemory? = null,
+        onUnrecovered: ((first: ProviderServiceError) -> Unit)? = null,
+        attempt: suspend (textOnly: Boolean) -> T,
+    ): T {
+        if (isTextOnly(lane, relayMemory)) return attempt(true)
         val first = try {
             return attempt(false)
         } catch (error: ProviderServiceError) {
-            if (!isRejection(error) || !recoverable()) throw error
+            if (!isRejection(error)) throw error
+            if (!recoverable()) {
+                onUnrecovered?.invoke(error)
+                throw error
+            }
             error
         }
         val result = try {
@@ -73,9 +121,10 @@ object NativeFileFallback {
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
+            onUnrecovered?.invoke(first)
             throw first
         }
-        remember(lane)
+        remember(lane, relayMemory, first)
         return result
     }
 
@@ -83,9 +132,11 @@ object NativeFileFallback {
     fun stream(
         lane: Lane,
         recoverable: () -> Boolean,
+        relayMemory: RelayMemory? = null,
+        onUnrecovered: ((first: ProviderServiceError) -> Unit)? = null,
         attempt: (textOnly: Boolean) -> Flow<StreamEvent>,
     ): Flow<StreamEvent> = flow {
-        if (isTextOnly(lane)) {
+        if (isTextOnly(lane, relayMemory)) {
             emitAll(attempt(true))
             return@flow
         }
@@ -97,7 +148,11 @@ object NativeFileFallback {
             }
             return@flow
         } catch (error: ProviderServiceError) {
-            if (emitted || !isRejection(error) || !recoverable()) throw error
+            if (emitted || !isRejection(error)) throw error
+            if (!recoverable()) {
+                onUnrecovered?.invoke(error)
+                throw error
+            }
             error
         }
         var resentEmitted = false
@@ -110,12 +165,21 @@ object NativeFileFallback {
             throw cancelled
         } catch (second: Exception) {
             // A failure after the resend has already streamed content to the screen is a different matter and is reported as it is.
-            throw if (resentEmitted) second else first
+            if (resentEmitted) throw second
+            onUnrecovered?.invoke(first)
+            throw first
         }
-        remember(lane)
+        remember(lane, relayMemory, first)
     }
 
-    private fun remember(lane: Lane) {
+    private fun isTextOnly(lane: Lane, relayMemory: RelayMemory?): Boolean =
+        relayMemory?.isTextOnly() ?: isTextOnly(lane)
+
+    private fun remember(lane: Lane, relayMemory: RelayMemory?, first: Throwable) {
+        if (relayMemory != null) {
+            relayMemory.remember(first)
+            return
+        }
         textOnlyLanes.add(lane.key)
     }
 

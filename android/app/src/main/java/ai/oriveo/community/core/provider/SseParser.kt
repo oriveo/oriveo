@@ -57,8 +57,8 @@ enum class ProviderSubscriptionLane { None, Grok, OpenAI }
  */
 object SseParser {
 
-    private val QUOTA_PATTERN = Regex("quota|daily limit|used up|insufficient quota|credit|billing hard limit|allowance")
-    private val UNAVAILABLE_PATTERN = Regex("temporarily unavailable|currently unavailable|not available|model not exist|model_not_found|no such model|disabled|offline|maintenance")
+    internal val QUOTA_PATTERN = Regex("quota|daily limit|used up|insufficient quota|credit|billing hard limit|allowance|免费额度|额度已用完|额度耗尽|配额已用完")
+    internal val UNAVAILABLE_PATTERN = Regex("temporarily unavailable|currently unavailable|not available|model not exist|model_not_found|no such model|disabled|offline|maintenance|暂不可用|不可用|已停用|维护")
     // Matches Web isTransientOverloadError. Does not match internal server error (a real 5xx
     // stays Upstream). Does not match a bare overloaded / rate limit substring, which would
     // false-positive on account copy such as "account overloaded with extra seats".

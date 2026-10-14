@@ -44,6 +44,22 @@ data class Provider(
      * parsing the catalog JSON. Null falls back to computing it.
      */
     val cachedAvailableModelCount: Int? = null,
+    /**
+     * Address source of official providers: `default` / `region:<id>` are computed from the current metadata at request time, while `custom` and null (unclassified) use the literal address.
+     * Stored on this device only, not synced or exported, so it does not take part in serialization. See [ai.oriveo.community.core.provider.transport.OfficialEndpointSource].
+     */
+    @kotlinx.serialization.Transient
+    val endpointSource: String? = null,
+    /** Values of the extra fields of the setup page (currently only `workspaceId`). Stored on this device only, same as [endpointSource]. */
+    @kotlinx.serialization.Transient
+    val setupValues: Map<String, String>? = null,
+    /**
+     * Key list of a relay connection: ordered, the first key is the primary key and its value is always [apiKey] (the entry's own apiKey is stored empty).
+     * null = one implicit key `initial` (existing single-key connections need no migration). Stored on this device only, same as [setupValues]:
+     * Room stores only id / name / status, the values of non-primary keys live in SecureKeyStore; nothing goes to Firestore or backups.
+     */
+    @kotlinx.serialization.Transient
+    val relayKeys: List<RelayKey>? = null,
 ) {
     val displayName: String
         get() {
@@ -83,11 +99,16 @@ data class Provider(
     val availableModelCount: Int
         get() = cachedAvailableModelCount ?: allModels.count { it.isAvailable }
 
+    /** Relays have no default model: the legacy isDefault is ignored, only the first enabled model is taken, with no fallback to the catalog. */
     val defaultModel: AIModel?
-        get() = models.firstOrNull { it.isDefault }
-            ?: models.firstOrNull()
-            ?: catalogModels.firstOrNull { it.isDefault }
-            ?: catalogModels.firstOrNull()
+        get() = if (kind == ProviderKind.Relay) {
+            models.firstOrNull()
+        } else {
+            models.firstOrNull { it.isDefault }
+                ?: models.firstOrNull()
+                ?: catalogModels.firstOrNull { it.isDefault }
+                ?: catalogModels.firstOrNull()
+        }
 
     fun recoveredFromPersistence(): Provider =
         if (status is ProviderConnectionState.Syncing) {
@@ -95,4 +116,31 @@ data class Provider(
         } else {
             this
         }
+}
+
+/**
+ * One key of a relay connection. [apiKey] is only populated in memory: for the primary key (the first in the list) it is always empty and the value lives in
+ * [Provider.apiKey]; the other values are stored in SecureKeyStore. Name and status take no part in any connection identity comparison.
+ */
+@Immutable
+@Serializable
+data class RelayKey(
+    val id: String,
+    val name: String? = null,
+    val apiKey: String = "",
+    val status: RelayKeyStatus? = null,
+)
+
+/** The latest result for a key, coming only from catalog fetches and real requests; null = not checked. [checkedAt] is a local millisecond timestamp. */
+@Immutable
+@Serializable
+data class RelayKeyStatus(
+    val state: String,
+    val httpStatus: Int? = null,
+    val checkedAt: Long? = null,
+) {
+    companion object {
+        /** Identical word for word to `keyStatusStates` in `key-binding.v1.json`. */
+        val STATES: List<String> = listOf("ok", "invalid", "denied", "limited", "failed")
+    }
 }

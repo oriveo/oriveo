@@ -44,7 +44,6 @@ import ai.oriveo.community.core.data.repository.streaming.isAttachmentTextOverLi
 import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.provider.RelayEndpointPolicy
-import ai.oriveo.community.core.model.RelayKind
 import ai.oriveo.community.core.model.StreamActivity
 import ai.oriveo.community.feature.chat.AssistantMessageFooterMetrics
 import ai.oriveo.community.feature.chat.SavedNoteLink
@@ -76,7 +75,6 @@ internal fun MessageItemWithActions(
     isLastMessage: Boolean,
     providerNameOverride: String?,
     modelNameOverride: String?,
-    relayKind: RelayKind?,
     isUserDragging: Boolean,
     onCopy: () -> Unit,
     onEdit: () -> Unit,
@@ -85,6 +83,9 @@ internal fun MessageItemWithActions(
     onRetry: () -> Unit,
     onRetryWithoutLocalCustomFields: () -> Unit = {},
     onSwitchModel: () -> Unit,
+    /** Offers "switch key" when a relay's current key has no access and another key lists this model. */
+    offersSwitchKey: Boolean = false,
+    onSwitchKey: () -> Unit = {},
     onShare: () -> Unit,
     onSaveAsNote: () -> Unit,
     onSaveCodeAsNote: (String) -> Unit,
@@ -111,14 +112,18 @@ internal fun MessageItemWithActions(
         message.customRetryWithoutFieldsAvailable,
         message.customRetryWithoutFieldsCode,
         message.errorDetail,
+        offersSwitchKey,
     ) {
         resolveMessageRecoveryCardActionLayout(
             state = message.state,
-            shouldOfferModelSwitch = isRateLimitError,
+            shouldOfferModelSwitch = relayRecoveryOffersModelSwitch(isRateLimitError, message.errorDetail),
             customRetryWithoutFieldsAvailable = message.customRetryWithoutFieldsAvailable,
             customRetryWithoutFieldsCode = message.customRetryWithoutFieldsCode,
             attachmentTextOverLimit = message.state == ChatMessageState.Failed &&
                 isAttachmentTextOverLimitDetail(message.errorDetail),
+            relayAttachmentUnsupported = message.state == ChatMessageState.Failed &&
+                isRelayAttachmentUnsupportedDetail(message.errorDetail),
+            offersSwitchKey = offersSwitchKey,
         )
     }
     val recoveryActionsEnabled = remember(isSendingMessage) {
@@ -164,7 +169,6 @@ internal fun MessageItemWithActions(
                 showMetadata = showMetadata,
                 providerNameOverride = providerNameOverride,
                 modelNameOverride = modelNameOverride,
-                relayKind = relayKind,
                 isUserDragging = isUserDragging,
                 onEdit = if (message.role == ChatRole.User) onEdit else null,
                 onRetry = if (message.role == ChatRole.Assistant && showDeliveredRegenerateAction) {
@@ -314,6 +318,7 @@ internal fun MessageItemWithActions(
                             onSwitchModel,
                             onContinue,
                             onRetryWithoutLocalCustomFields,
+                            onSwitchKey = onSwitchKey,
                         )
                     },
                     onSecondary = recoveryActionLayout.secondary?.let { action ->
@@ -326,6 +331,7 @@ internal fun MessageItemWithActions(
                                 onSwitchModel,
                                 onContinue,
                                 onRetryWithoutLocalCustomFields,
+                                onSwitchKey = onSwitchKey,
                             )
                         }
                     },
@@ -339,6 +345,7 @@ internal fun MessageItemWithActions(
                                 onSwitchModel,
                                 onContinue,
                                 onRetryWithoutLocalCustomFields,
+                                onSwitchKey = onSwitchKey,
                             )
                         }
                     },

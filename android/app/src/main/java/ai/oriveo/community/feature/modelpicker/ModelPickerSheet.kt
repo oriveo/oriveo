@@ -58,6 +58,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
@@ -93,8 +96,9 @@ import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
-import ai.oriveo.community.core.model.RelayKind
 import ai.oriveo.community.core.model.resolveProviderLogoKind
+import ai.oriveo.community.core.model.RelayAvatar
+import ai.oriveo.community.core.model.RelayAvatarResolver
 import ai.oriveo.community.core.provider.ModelSelectionUtils
 import ai.oriveo.community.core.provider.ModelPricingFormatter
 import ai.oriveo.community.core.provider.transport.TransportKind
@@ -232,8 +236,13 @@ fun ModelPickerSheet(
     }
     val currentModel = remember(currentProvider, activeModelId) {
         activeModelId?.let { modelId ->
-            currentProvider?.allModels?.let { allModels ->
-                ModelSelectionUtils.matchingModel(allModels, modelId)
+            currentProvider?.let { provider ->
+                // A relay's stored value is resolved among enabled models only (same rule on all three platforms); official providers still search the whole catalog.
+                if (provider.kind == ProviderKind.Relay) {
+                    ModelSelectionUtils.resolveStoredModel(provider.models, modelId, provider.kind)
+                } else {
+                    ModelSelectionUtils.matchingModel(provider.allModels, modelId, provider.kind)
+                }
             }
         }
     }
@@ -375,6 +384,7 @@ fun ModelPickerSheet(
                             activeModelId = activeModelId,
                             currentModelId = currentModelId,
                             providerId = providerId,
+                            providerKind = providers.firstOrNull { it.id == providerId }?.kind,
                             model = model,
                         )
                     },
@@ -1080,8 +1090,6 @@ private fun ProviderSectionHeader(
 ) {
     val v2 = rememberV2PickerColors()
     val resolvedKind = remember(provider) { resolveProviderLogoKind(provider) }
-    val resolvedRelay: RelayKind? =
-        if (provider.kind == ProviderKind.Relay && resolvedKind == ProviderKind.Relay) provider.relayKind else null
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -1110,11 +1118,12 @@ private fun ProviderSectionHeader(
             modifier = Modifier.size(30.dp),
             contentAlignment = Alignment.Center,
         ) {
-            ProviderBadgeIcon(
-                kind = resolvedKind,
-                size = 28.dp,
-                relayKind = resolvedRelay,
-            )
+            // Relay connections draw the unified avatar; official and local keep the original logo.
+            if (RelayAvatarResolver.appliesTo(provider)) {
+                RelayAvatar(provider = provider, size = 28.dp)
+            } else {
+                ProviderBadgeIcon(kind = resolvedKind, size = 28.dp)
+            }
         }
         Column(
             modifier = Modifier.weight(1f),
@@ -1152,7 +1161,10 @@ private fun ProviderSectionHeader(
                 Icon(
                     imageVector = if (isExpanded) Icons.Filled.ExpandMore else Icons.Filled.ChevronRight,
                     contentDescription = null,
-                    modifier = Modifier.size(13.dp),
+                    // Collapsed points along the reading direction; expanded points down and is not flipped.
+                    modifier = Modifier
+                        .size(13.dp)
+                        .then(if (LocalLayoutDirection.current == LayoutDirection.Rtl && !isExpanded) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier),
                     tint = v2.textTertiary,
                 )
             }
@@ -1236,7 +1248,9 @@ private fun AddModelsRow(onClick: () -> Unit) {
         Icon(
             imageVector = Icons.Filled.ChevronRight,
             contentDescription = null,
-            modifier = Modifier.size(11.dp),
+            modifier = Modifier
+                .size(11.dp)
+                .then(if (LocalLayoutDirection.current == LayoutDirection.Rtl) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier),
             tint = v2.textTertiary,
         )
     }
@@ -1587,7 +1601,9 @@ fun buildProviderSections(
                 if (isHome || provider.kind.usesServerOrderedModels) {
                     filteredModels
                 } else {
-                    filteredModels.sortedWith { lhs, rhs -> comparePickerModels(lhs, rhs) }
+                    filteredModels.sortedWith { lhs, rhs ->
+                        comparePickerModels(lhs, rhs, ignoreDefault = provider.kind == ProviderKind.Relay)
+                    }
                 }
             }
 
@@ -1684,12 +1700,13 @@ private fun isModelSelected(
     activeModelId: String?,
     currentModelId: String?,
     providerId: String,
+    providerKind: ProviderKind?,
     model: AIModel,
 ): Boolean {
     return when (context) {
         ModelPickerContext.Home -> {
             providerId == activeProviderId &&
-                activeModelId == ModelSelectionUtils.preferredStoredModelIdentifier(model)
+                activeModelId == ModelSelectionUtils.preferredStoredModelIdentifier(model, providerKind)
         }
 
         ModelPickerContext.Chat,

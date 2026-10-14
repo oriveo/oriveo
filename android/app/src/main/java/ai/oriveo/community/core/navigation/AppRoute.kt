@@ -53,7 +53,13 @@ sealed interface AppRoute {
     data class ProviderDetail(
         val providerID: String,
         val entryPoint: ProviderSetupEntryPoint? = null,
-    ) : AppRoute
+        /** Pushes a subpage on entry; currently used only by the chat model options "Open web settings". */
+        val initialLayer: String? = null,
+    ) : AppRoute {
+        companion object {
+            const val LAYER_WEB_SEARCH = "web_search"
+        }
+    }
 
     @Serializable
     data class ManualModelEntry(

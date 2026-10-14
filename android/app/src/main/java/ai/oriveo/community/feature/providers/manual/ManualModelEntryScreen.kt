@@ -1,52 +1,34 @@
 package ai.oriveo.community.feature.providers.manual
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextDirection
+import ai.oriveo.community.feature.providers.relay.RelayFlagshipModel
+import ai.oriveo.community.feature.providers.relay.relayQuickSurfaceFillColor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.NorthWest
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -56,43 +38,29 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
-import ai.oriveo.community.core.data.repository.ProviderRepository
-import ai.oriveo.community.core.model.ModelCapability
-import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
-import ai.oriveo.community.core.model.RelayKind
-import ai.oriveo.community.feature.providers.relay.relayKindMeta
 import ai.oriveo.community.ui.component.OriveoBackButton
 import ai.oriveo.community.ui.component.OriveoErrorCard
 import ai.oriveo.community.ui.component.OriveoPrimaryButton
 import ai.oriveo.community.ui.component.OriveoSecondaryButton
-import ai.oriveo.community.ui.component.ProviderBadgeIcon
-import ai.oriveo.community.ui.component.capabilityIcon
-import ai.oriveo.community.ui.theme.OriveoGradients
 import ai.oriveo.community.ui.theme.OriveoTheme
 import org.koin.androidx.compose.koinViewModel
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+/**
+ * The "Add model manually" page (ManualModel board): relays and official providers share one page and one layout,
+ * with a back button plus a centered title in the header. The content is a single input slot (drawn like the Setup
+ * input slot: light fill, no border, monospace font, a clear button at the end of the row when there is text) and a
+ * caption under the slot. The official provider copy, "Retry sync" and the save logic are unchanged.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManualModelEntryScreen(
     onBack: () -> Unit,
@@ -106,18 +74,23 @@ fun ManualModelEntryScreen(
     }
 
     val isRelayMode = provider?.kind == ProviderKind.Relay
+    val relayPlaceholder = remember { RelayFlagshipModel.current() }
+    val board = ManualModelBoardModel.make(
+        isRelay = isRelayMode,
+        modelID = viewModel.modelID,
+        isSaving = viewModel.isSaving,
+        relayPlaceholder = relayPlaceholder,
+    )
     val layout = OriveoTheme.layout
     val colors = OriveoTheme.colors
 
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = stringResource(
-                            if (isRelayMode) R.string.add_model else R.string.manual_model_entry_title
-                        ),
+                        text = stringResource(board.titleRes),
                         style = OriveoTheme.typography.title3,
                         color = colors.textPrimary,
                     )
@@ -125,15 +98,15 @@ fun ManualModelEntryScreen(
                 navigationIcon = {
                     OriveoBackButton(onClick = onBack)
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = Color.Transparent,
                 ),
             )
         },
         bottomBar = {
             BottomBar(
-                isRelayMode = isRelayMode,
-                canSave = viewModel.canSave,
+                board = board,
+                canSave = board.primaryEnabled && viewModel.canSave,
                 isSaving = viewModel.isSaving,
                 isRetrying = viewModel.isRetrying,
                 onSave = viewModel::saveManualModel,
@@ -145,228 +118,90 @@ fun ManualModelEntryScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = layout.screenH)
+                .padding(top = layout.sectionGap, bottom = layout.sectionGap),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            val currentProvider = provider
-            if (currentProvider != null) {
-                SpotlightHero(
-                    provider = currentProvider,
-                    isRelayMode = isRelayMode,
-                    isCompact = layout.isCompact,
-                )
-            } else {
-                Spacer(modifier = Modifier.height(layout.sectionGap))
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = layout.screenH),
-                verticalArrangement = Arrangement.spacedBy(if (layout.isCompact) 20.dp else 28.dp),
-            ) {
-                UnderlineInputSection(
-                    modelID = viewModel.modelID,
-                    onChange = { viewModel.modelID = it },
-                    placeholder = stringResource(
-                        if (isRelayMode) R.string.model_id_placeholder_relay
-                        else R.string.model_id_placeholder
-                    ),
-                    footnote = stringResource(
-                        if (isRelayMode) R.string.use_exact_model_id
-                        else R.string.model_id_footnote
-                    ),
-                )
-
-                if (isRelayMode) {
-                    ExamplesList(
-                        onPick = { example -> viewModel.modelID = example },
+            board.blocks.forEach { block ->
+                when (block) {
+                    ManualModelBlock.ModelSlot -> ModelSlot(
+                        board = board,
+                        modelID = viewModel.modelID,
+                        onChange = { viewModel.modelID = it },
                     )
-                }
-
-                AnimatedVisibility(
-                    visible = viewModel.modelID.trim().isNotEmpty() && currentProvider != null,
-                    enter = fadeIn() + scaleIn(initialScale = 0.96f),
-                    exit = fadeOut() + scaleOut(targetScale = 0.96f),
-                ) {
-                    if (currentProvider != null) {
-                        PreviewCard(
-                            provider = currentProvider,
-                            modelID = viewModel.modelID.trim(),
-                        )
+                    ManualModelBlock.Notes -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        board.notes.forEach { note ->
+                            Text(
+                                text = stringResource(note),
+                                style = OriveoTheme.typography.footnote,
+                                color = colors.textSecondary,
+                            )
+                        }
                     }
                 }
-
-                viewModel.error?.let { err ->
-                    OriveoErrorCard(error = err)
-                }
             }
 
-            Spacer(modifier = Modifier.height(layout.sectionGap))
+            viewModel.error?.let { err ->
+                OriveoErrorCard(error = err)
+            }
         }
     }
 }
 
-// MARK: - Spotlight Hero
-
+/** Input slot: slot title + light-filled slot (monospace, the model ID is always left to right) + a clear button at the end of the row when there is text. */
 @Composable
-private fun SpotlightHero(
-    provider: Provider,
-    isRelayMode: Boolean,
-    isCompact: Boolean,
-) {
+private fun ModelSlot(board: ManualModelBoard, modelID: String, onChange: (String) -> Unit) {
     val colors = OriveoTheme.colors
-    val layout = OriveoTheme.layout
-
-    val badgeSize: Dp = if (isCompact) 56.dp else 64.dp
-    val glowSize: Dp = if (isCompact) 150.dp else 180.dp
-    val heroSpacerTop: Dp = if (isCompact) 4.dp else 8.dp
-    val titleStyle = if (isCompact) OriveoTheme.typography.title1 else OriveoTheme.typography.hero
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = heroSpacerTop)
-            .padding(horizontal = layout.screenH),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(if (isCompact) 12.dp else 16.dp),
-    ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.size(glowSize),
-        ) {
-            ProviderBadgeIcon(
-                kind = provider.kind,
-                size = badgeSize,
-                relayKind = if (provider.kind == ProviderKind.Relay) provider.relayKind else null,
-            )
-        }
-
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-
-            Text(
-                text = "${provider.displayName} · ${providerKindLabel(provider)}",
-                style = OriveoTheme.typography.caption,
-                color = colors.textTertiary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-
-            // Hero title
-            Text(
-                text = stringResource(
-                    if (isRelayMode) R.string.add_a_model else R.string.manual_model_entry_headline
-                ),
-                style = titleStyle,
+    val slotTitle = stringResource(board.slotTitleRes)
+    val placeholder = board.placeholder ?: board.placeholderRes?.let { stringResource(it) }.orEmpty()
+    val idDirection = if (board.slotIsLtr) TextDirection.Ltr else TextDirection.Content
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = slotTitle,
+            style = OriveoTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold),
+            color = colors.textSecondary,
+        )
+        BasicTextField(
+            value = modelID,
+            onValueChange = onChange,
+            singleLine = true,
+            textStyle = OriveoTheme.typography.body.copy(
                 color = colors.textPrimary,
-            )
-
-            Box(
-                modifier = Modifier
-                    .width(36.dp)
-                    .height(3.dp)
-                    .background(OriveoGradients.primary, CircleShape),
-            )
-
-            Spacer(modifier = Modifier.height(2.dp))
-
-            Text(
-                text = stringResource(
-                    if (isRelayMode) R.string.enter_a_model_id_relay_supports
-                    else R.string.manual_model_entry_description
-                ),
-                style = OriveoTheme.typography.body,
-                color = colors.textSecondary,
-            )
-        }
-    }
-}
-
-@Composable
-private fun providerKindLabel(provider: Provider): String {
-    return if (provider.kind == ProviderKind.Relay) {
-        val kind = provider.relayKind ?: RelayKind.Custom
-        stringResource(relayKindMeta(kind).titleRes)
-    } else {
-        provider.kind.displayName
-    }
-}
-
-@Composable
-private fun SectionCaps(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text.uppercase(),
-        style = OriveoTheme.typography.footnote.copy(
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 1.4.sp,
-        ),
-        color = OriveoTheme.colors.textTertiary,
-        modifier = modifier,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-}
-
-// MARK: - Underline-only Input
-
-@Composable
-private fun UnderlineInputSection(
-    modelID: String,
-    onChange: (String) -> Unit,
-    placeholder: String,
-    footnote: String,
-) {
-    val colors = OriveoTheme.colors
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SectionCaps(text = stringResource(R.string.model_id_label))
-
-        Column {
-            Box(modifier = Modifier.height(56.dp)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    Box(modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    ) {
-                        BasicTextField(
-                            value = modelID,
-                            onValueChange = onChange,
-                            singleLine = true,
-                            interactionSource = interactionSource,
-                            textStyle = LocalTextStyle.current.copy(
-                                color = colors.textPrimary,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Medium,
-                                fontFamily = FontFamily.Monospace,
-                            ),
-                            cursorBrush = SolidColor(colors.primary),
-                            keyboardOptions = KeyboardOptions.Default,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
+                fontFamily = FontFamily.Monospace,
+                textDirection = idDirection,
+            ),
+            cursorBrush = SolidColor(colors.primary),
+            keyboardOptions = KeyboardOptions.Default,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp)
+                .clip(RoundedCornerShape(OriveoTheme.radius.inset))
+                .background(relayQuickSurfaceFillColor(colors, OriveoTheme.isDark))
+                .semantics { contentDescription = slotTitle }
+                .padding(start = 16.dp, end = 4.dp),
+            decorationBox = { inner ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                         if (modelID.isEmpty()) {
                             Text(
                                 text = placeholder,
-                                style = LocalTextStyle.current.copy(
-                                    color = colors.textTertiary,
-                                    fontSize = 16.sp,
+                                style = OriveoTheme.typography.body.copy(
                                     fontFamily = FontFamily.Monospace,
+                                    // The relay placeholder is a model ID (left to right); the official localized hint follows the UI direction.
+                                    textDirection = if (board.placeholder != null) TextDirection.Ltr else TextDirection.Content,
                                 ),
+                                color = colors.textTertiary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
+                        inner()
                     }
-                    if (modelID.isNotEmpty()) {
+                    if (board.showsClear) {
                         IconButton(
                             onClick = { onChange("") },
-                            modifier = Modifier.size(36.dp),
+                            modifier = Modifier.size(44.dp),
                         ) {
                             Icon(
                                 Icons.Filled.Cancel,
@@ -377,265 +212,7 @@ private fun UnderlineInputSection(
                         }
                     }
                 }
-            }
-
-            AnimatedUnderline(isFocused = isFocused)
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = footnote,
-                style = OriveoTheme.typography.footnote,
-                color = colors.textSecondary,
-                maxLines = 3,
-            )
-        }
-    }
-}
-
-@Composable
-private fun AnimatedUnderline(isFocused: Boolean) {
-    val colors = OriveoTheme.colors
-    val widthFraction by animateFloatAsState(
-        targetValue = if (isFocused) 1f else 0f,
-        animationSpec = spring(
-            dampingRatio = 0.78f,
-            stiffness = Spring.StiffnessMediumLow,
-        ),
-        label = "underlineWidth",
-    )
-    Box(modifier = Modifier
-        .fillMaxWidth()
-        .height(2.5.dp),
-    ) {
-
-        Box(modifier = Modifier
-            .fillMaxWidth()
-            .height(1.5.dp)
-            .background(colors.border)
-            .align(Alignment.BottomCenter),
-        )
-
-        Box(modifier = Modifier
-            .fillMaxWidth(widthFraction)
-            .height(2.5.dp)
-            .background(OriveoGradients.primary)
-            .align(Alignment.BottomStart),
-        )
-    }
-}
-
-// MARK: - Examples List
-
-@Composable
-private fun ExamplesList(onPick: (String) -> Unit) {
-    val examples = remember {
-        listOf(
-            ExampleSuggestion("gpt-4o", ProviderKind.OpenAI),
-            ExampleSuggestion("claude-sonnet-4.5", ProviderKind.Anthropic),
-            ExampleSuggestion("gemini-2.5-flash", ProviderKind.Gemini),
-        )
-    }
-    val colors = OriveoTheme.colors
-
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SectionCaps(text = stringResource(R.string.common_examples))
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(colors.surface, RoundedCornerShape(16.dp))
-                .border(0.5.dp, colors.border, RoundedCornerShape(16.dp))
-                .shadow(
-                    elevation = 4.dp,
-                    shape = RoundedCornerShape(16.dp),
-                    ambientColor = colors.shadow.copy(alpha = colors.shadow.alpha * 0.6f),
-                    spotColor = colors.shadow.copy(alpha = colors.shadow.alpha * 0.6f),
-                ),
-        ) {
-            examples.forEachIndexed { idx, example ->
-                ExampleRow(suggestion = example, onTap = { onPick(example.modelID) })
-                if (idx < examples.lastIndex) {
-                    HorizontalDivider(
-                        color = colors.border,
-                        thickness = 0.5.dp,
-                        modifier = Modifier.padding(start = 60.dp),
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ExampleRow(suggestion: ExampleSuggestion, onTap: () -> Unit) {
-    val colors = OriveoTheme.colors
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.97f else 1f,
-        animationSpec = spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow),
-        label = "exampleRowScale",
-    )
-
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onTap,
-            )
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .padding(horizontal = 14.dp, vertical = 14.dp),
-    ) {
-        ProviderBadgeIcon(kind = suggestion.providerKind, size = 32.dp)
-
-        Text(
-            text = suggestion.modelID,
-            style = TextStyle(
-                color = colors.textPrimary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                fontFamily = FontFamily.Monospace,
-            ),
-            maxLines = 1,
-            overflow = TextOverflow.MiddleEllipsis,
-            modifier = Modifier.weight(1f),
-        )
-
-        Icon(
-            Icons.Filled.NorthWest,
-            contentDescription = stringResource(R.string.tap_to_fill),
-            tint = colors.primary.copy(alpha = 0.85f),
-            modifier = Modifier.size(18.dp),
-        )
-    }
-}
-
-private data class ExampleSuggestion(
-    val modelID: String,
-    val providerKind: ProviderKind,
-)
-
-// MARK: - Preview Card
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun PreviewCard(provider: Provider, modelID: String) {
-    val colors = OriveoTheme.colors
-    val isDark = OriveoTheme.isDark
-    val shape = RoundedCornerShape(18.dp)
-
-    val defaultCapabilities = ProviderRepository.DEFAULT_MANUAL_MODEL_CAPABILITIES
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(
-                elevation = 14.dp,
-                shape = shape,
-                ambientColor = colors.primaryGlow,
-                spotColor = colors.primaryGlow,
-            )
-            .clip(shape)
-            .background(colors.primarySoft, shape)
-            .background(
-                brush = Brush.linearGradient(
-                    colors = listOf(
-                        Color.White.copy(alpha = if (isDark) 0.04f else 0.30f),
-                        Color.Transparent,
-                    ),
-                ),
-                shape = shape,
-            )
-            .border(0.5.dp, colors.primary.copy(alpha = 0.22f), shape)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        // Header: ✨ + WILL BE ADDED
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(
-                Icons.Filled.AutoAwesome,
-                contentDescription = null,
-                tint = colors.primary,
-                modifier = Modifier.size(14.dp),
-            )
-            SectionCaps(text = stringResource(R.string.will_be_added))
-        }
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            ProviderBadgeIcon(
-                kind = provider.kind,
-                size = 36.dp,
-                relayKind = if (provider.kind == ProviderKind.Relay) provider.relayKind else null,
-            )
-            Text(
-                text = modelID,
-                style = TextStyle(
-                    color = colors.textPrimary,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = FontFamily.Monospace,
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.MiddleEllipsis,
-                modifier = Modifier.weight(1f),
-            )
-        }
-
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SectionCaps(text = stringResource(R.string.default_capabilities_label))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                defaultCapabilities.forEach { cap ->
-                    CapabilityChip(capability = cap)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CapabilityChip(capability: ModelCapability) {
-    val colors = OriveoTheme.colors
-    val isDark = OriveoTheme.isDark
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(Color.White.copy(alpha = if (isDark) 0.10f else 0.55f), CircleShape)
-            .border(0.5.dp, colors.primary.copy(alpha = 0.20f), CircleShape)
-            .padding(horizontal = 9.dp, vertical = 5.dp),
-    ) {
-        Icon(
-            capabilityIcon(capability),
-            contentDescription = null,
-            tint = colors.primary,
-            modifier = Modifier.size(11.dp),
-        )
-        Text(
-            text = stringResource(capability.titleResId),
-            style = TextStyle(
-                color = colors.primary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-            ),
+            },
         )
     }
 }
@@ -644,7 +221,7 @@ private fun CapabilityChip(capability: ModelCapability) {
 
 @Composable
 private fun BottomBar(
-    isRelayMode: Boolean,
+    board: ManualModelBoard,
     canSave: Boolean,
     isSaving: Boolean,
     isRetrying: Boolean,
@@ -664,14 +241,14 @@ private fun BottomBar(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         OriveoPrimaryButton(
-            text = stringResource(if (isRelayMode) R.string.save else R.string.save_and_continue),
+            text = stringResource(board.primaryRes),
             onClick = onSave,
             enabled = canSave,
             loading = isSaving,
         )
-        if (!isRelayMode) {
+        board.secondaryRes?.let { secondary ->
             OriveoSecondaryButton(
-                text = stringResource(R.string.retry_sync),
+                text = stringResource(secondary),
                 onClick = onRetry,
                 enabled = !isRetrying && !isSaving,
                 loading = isRetrying,

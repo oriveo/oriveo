@@ -9,7 +9,8 @@ import java.net.URI
  *
  * Three levels of priority:
  *   1. the [Provider.baseUrlText] the user typed into the provider settings (a self-hosted
- *      proxy, Azure OpenAI, a regional gateway, and so on)
+ *      proxy, Azure OpenAI, a regional gateway, and so on); when the source of an official provider is
+ *      default / region, it is computed from the current metadata ([OfficialEndpointSource])
  *   2. the [ProviderTransportDefinition.baseUrl] and endpoints from the published catalog
  *   3. the built-in fallback table, as a safety net
  *
@@ -42,7 +43,9 @@ object EndpointResolver {
         kind: EndpointKind,
         metadata: ProviderTransportDefinition? = null,
     ): String {
-        val userBase = provider.baseUrlText?.trim()?.takeIf { it.isNotEmpty() }
+        // For an official provider whose source is default / region the base is computed from the current
+        // metadata; every other source uses the literal address.
+        val userBase = OfficialEndpointSource.effectiveBaseUrlText(provider)?.trim()?.takeIf { it.isNotEmpty() }
         val userPath = endpointPathFor(metadata?.endpoints, kind)
 
         // Priority, merged: user baseUrl + user endpoint > user baseUrl + catalog endpoint
@@ -130,7 +133,9 @@ object EndpointResolver {
         provider: Provider,
         metadata: ProviderTransportDefinition? = null,
     ): String {
-        val userBase = provider.baseUrlText?.trim()?.takeIf { it.isNotEmpty() }
+        // For an official provider whose source is default / region the base is computed from the current
+        // metadata, falling back to the literal address when it cannot be computed.
+        val userBase = OfficialEndpointSource.effectiveBaseUrlText(provider)?.trim()?.takeIf { it.isNotEmpty() }
         val metadataBase = metadata?.baseUrl?.trim()?.takeIf { it.isNotEmpty() }
         val base = userBase
             ?: metadataBase?.takeIf { isAllowedOfficialMetadataBase(provider.kind, it) }
@@ -143,10 +148,10 @@ object EndpointResolver {
         val normalized = ensureScheme(rawBase).trimEnd('/')
         val uri = runCatching { URI(normalized) }.getOrNull()
         val host = uri?.host?.lowercase()
-        val allowedDomains = OFFICIAL_METADATA_BASE_ETLD1[kind].orEmpty()
+        val allowedDomains = trustedHostSuffixes(kind)
         return uri?.scheme == "https" &&
             host != null &&
-            allowedDomains.any { host == it || host.endsWith(".$it") }
+            hostMatches(host, allowedDomains)
     }
 
     private fun endpointPathFor(endpoints: TransportEndpoints?, kind: EndpointKind): String? {
@@ -205,23 +210,62 @@ object EndpointResolver {
         return path.ifEmpty { "/v1" }
     }
 
-    private val OFFICIAL_METADATA_BASE_ETLD1: Map<ProviderKind, Set<String>> = mapOf(
-        ProviderKind.OpenAI to setOf("openai.com"),
-        ProviderKind.Anthropic to setOf("anthropic.com"),
-        ProviderKind.Gemini to setOf("googleapis.com"),
-        ProviderKind.DeepSeek to setOf("deepseek.com"),
-        ProviderKind.Grok to setOf("x.ai"),
-        ProviderKind.OpenRouter to setOf("openrouter.ai"),
-        ProviderKind.Groq to setOf("groq.com"),
-        ProviderKind.Together to setOf("together.xyz"),
-        ProviderKind.Fireworks to setOf("fireworks.ai"),
-        ProviderKind.MiniMax to setOf("minimax.io"),
-        ProviderKind.Zhipu to setOf("bigmodel.cn"),
-        ProviderKind.Qwen to setOf("aliyuncs.com"),
-        ProviderKind.Moonshot to setOf("moonshot.ai", "moonshot.cn"),
-        ProviderKind.Mistral to setOf("mistral.ai"),
-        ProviderKind.SiliconFlow to setOf("siliconflow.cn", "siliconflow.com"),
-    )
+    private val TRUSTED_HOST_LABEL = Regex("[a-z0-9](?:[a-z0-9-]*[a-z0-9])?")
+
+    /**
+     * The trusted host suffixes of this provider: the well-formed entries of the delivered value. When
+     * none is left (including a missing or empty list), only the last two labels of the built-in
+     * fallback host are trusted (every fallback host is outside a second-level public suffix, so the
+     * client carries no public-suffix table).
+     */
+    fun trustedHostSuffixes(
+        kind: ProviderKind,
+        downloaded: List<String>? = ai.oriveo.community.core.data.remote.MetadataClient.trustedHosts(kind),
+    ): Set<String> {
+        if (kind == ProviderKind.Relay) return emptySet()
+        val valid = downloaded.orEmpty().filter(::isWellFormedTrustedHost).toSet()
+        if (valid.isNotEmpty()) return valid
+        return setOfNotNull(fallbackRegistrableDomain(kind))
+    }
+
+    /** Shape of a delivered entry: lowercase, at least two labels, not an IP, no port or wildcard (scheme and path are rejected too). */
+    fun isWellFormedTrustedHost(raw: String): Boolean {
+        if (raw.isEmpty() || raw != raw.lowercase()) return false
+        val labels = raw.split('.')
+        if (labels.size < 2 || labels.any { !TRUSTED_HOST_LABEL.matches(it) }) return false
+        // An IPv4 literal (IPv6 has colons, which the character set above already rejects).
+        if (labels.all { label -> label.all(Char::isDigit) }) return false
+        return true
+    }
+
+    /** The host equals an entry, or ends with "." plus that entry. */
+    fun hostMatches(host: String, suffixes: Set<String>): Boolean {
+        val normalized = host.lowercase()
+        return suffixes.any { normalized == it || normalized.endsWith(".$it") }
+    }
+
+    /** https and the host matches [suffixes]; shared by region option filtering and base URL validation. */
+    fun isTrustedHttpsUrl(rawUrl: String, suffixes: Set<String>): Boolean {
+        val uri = runCatching { URI(ensureScheme(rawUrl).trimEnd('/')) }.getOrNull() ?: return false
+        if (uri.scheme?.lowercase() != "https") return false
+        val host = uri.host?.takeIf { it.isNotBlank() } ?: return false
+        return hostMatches(host, suffixes)
+    }
+
+    /** Returns the normalised value (https, trailing slash removed) when a delivered official base is trusted, otherwise null. */
+    fun trustedOfficialBase(kind: ProviderKind, rawBase: String?): String? {
+        val base = rawBase?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        if (kind == ProviderKind.Relay || !isAllowedOfficialMetadataBase(kind, base)) return null
+        return ensureScheme(base).trimEnd('/')
+    }
+
+    private fun fallbackRegistrableDomain(kind: ProviderKind): String? {
+        val origin = kind.defaultBaseUrl?.let(::originOf) ?: return null
+        val host = runCatching { URI(origin).host }.getOrNull()?.lowercase() ?: return null
+        val labels = host.split('.').filter { it.isNotEmpty() }
+        if (labels.size < 2) return null
+        return labels.takeLast(2).joinToString(".")
+    }
 
     /**
      * The built-in fallback endpoint paths, aligned with the catalog's default transport table.

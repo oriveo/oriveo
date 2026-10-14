@@ -1,15 +1,17 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.capability.truth.ProviderForm
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.data.remote.canonicalCapabilityTransport
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
-import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.provider.openai.codexReasoningEffort
 import ai.oriveo.community.core.provider.grok.GrokSubscriptionAuthResolver
+import ai.oriveo.community.core.provider.relay.RelayNegativeCache
+import ai.oriveo.community.core.provider.relay.RelayReasoningTiers
 import ai.oriveo.community.core.provider.transport.TransportKind
 
 /**
@@ -42,6 +44,17 @@ object CapabilityControlResolution {
         val isAvailable: Boolean get() = state == "auto_available"
     }
 
+    /**
+     * Folds the v2 control state on a model entry into the three states of capability evidence.
+     * Only an explicit "unavailable" from the Server counts as unsupported; custom-only, unknown, or
+     * not-delivered all draw no conclusion.
+     */
+    fun evidenceSupport(state: String?): String = when (state) {
+        STATE_AUTO_AVAILABLE -> "supported"
+        STATE_UNAVAILABLE -> "unsupported"
+        else -> "unknown"
+    }
+
     private const val STATE_UNKNOWN = "unknown"
     private const val STATE_AUTO_AVAILABLE = "auto_available"
     private const val STATE_UNAVAILABLE = "unavailable"
@@ -51,13 +64,57 @@ object CapabilityControlResolution {
     private const val REASON_UPSTREAM_SILENT = "upstream_parameter_not_declared"
     private const val REASON_SUBSCRIPTION_DECLARED = "subscription_upstream_declared"
 
+    /**
+     * Grok subscription Responses always carries web_search and the user cannot turn it off: the verdict is still
+     * auto_available, and only the reasonCode lets the presentation layer tell "always on" apart, so no switch
+     * that changes nothing is drawn.
+     */
+    const val REASON_SUBSCRIPTION_WEB_ALWAYS_ON = "subscription_web_always_on"
+
     fun resolve(
         provider: Provider,
         model: AIModel,
         capability: String,
         metadata: MetadataClient = MetadataClient.instance,
         effectiveTransport: String? = null,
+        negativeCache: RelayNegativeCache = RelayNegativeCache.shared,
+    ): Verdict = narrowedByRelayOverride(
+        provider,
+        model,
+        capability,
+        resolveAutomatic(provider, model, capability, metadata, effectiveTransport, negativeCache),
+    )
+
+    /**
+     * A relay model-level reasoning-tier override only narrows: available tiers = automatic intersected with the override;
+     * "off" and "automatic" are not tiers and take no part in narrowing. Other capabilities, non-relay connections, and
+     * models without an override are returned unchanged.
+     */
+    fun narrowedByRelayOverride(provider: Provider, model: AIModel, capability: String, verdict: Verdict): Verdict {
+        if (capability != "reasoning" || ProviderForm.of(provider) != ProviderForm.Relay) return verdict
+        val levels = model.relayCapabilityOverrides?.reasoningLevels ?: return verdict
+        val kept = verdict.intents.filter { intent ->
+            intent == INTENT_OFF || intent == ReasoningMode.Automatic.rawValue || reasoningModeOf(intent)?.rawValue in levels
+        }
+        return verdict.copy(intents = kept, rejectedIntents = verdict.rejectedIntents.intersect(kept.toSet()))
+    }
+
+    /** Reasoning intent to tier; `automatic` is the "automatic" cell, while `off` and unrecognized intents give null. */
+    fun reasoningModeOf(intent: String): ReasoningMode? =
+        if (intent == ReasoningMode.Automatic.rawValue) ReasoningMode.Automatic else ReasoningMode.fromIntentOrNull(intent)
+
+    private const val INTENT_OFF = "off"
+
+    /** The verdict without the model-level override: the "Model > Advanced" page uses it to compute the automatic set of reasoning tiers (the same function as the model options panel). */
+    fun resolveAutomatic(
+        provider: Provider,
+        model: AIModel,
+        capability: String,
+        metadata: MetadataClient = MetadataClient.instance,
+        effectiveTransport: String? = null,
+        negativeCache: RelayNegativeCache = RelayNegativeCache.shared,
     ): Verdict {
+        val form = ProviderForm.of(provider)
         // Subscription links (Codex / Grok) have to bail out **before** the catalog control is
         // read. Subscription models are not in the catalog, so they will never have a v2
         // `capabilityControls` entry or a recipe; taking the path below always ends in
@@ -67,8 +124,13 @@ object CapabilityControlResolution {
         // it is folded here into the same shape a catalog recipe would produce and everything
         // downstream - layout, persistence, outbound compilation - carries on unchanged
         // instead of growing its own copy.
-        if (isSubscriptionLink(provider)) {
+        if (form == ProviderForm.Subscription) {
             return subscriptionVerdict(provider, model, capability)
+        }
+        // Relay reasoning tiers = model-facts tiers; when they cannot be obtained, keep the current behavior
+        // (Chat template switch / everything else needs manual configuration).
+        if (form == ProviderForm.Relay && capability == "reasoning") {
+            relayModelFactsVerdict(provider, model, metadata, negativeCache)?.let { return it }
         }
         val finalTransport = effectiveTransport ?: finalTransport(provider, model, metadata)
         val runtimeIdentity = ModelControlRuntimeIdentityResolver.resolve(provider, model, metadata)
@@ -100,6 +162,32 @@ object CapabilityControlResolution {
         return Verdict(state = STATE_UNKNOWN, reasonCode = control?.reasonCode ?: control?.reason)
     }
 
+    /** Relay tiers come from the Server's model-facts: the presentation layer uses this to waive the exact-transport check (there is no recipe). */
+    const val REASON_RELAY_MODEL_FACTS = "relay_model_facts_reasoning"
+
+    /** A rejected tier (relay negative cache `reasoningTier:<tier>`, 7 days) is removed from the segments, and only that tier. */
+    private fun relayModelFactsVerdict(
+        provider: Provider,
+        model: AIModel,
+        metadata: MetadataClient,
+        negativeCache: RelayNegativeCache,
+    ): Verdict? {
+        val tiers = RelayReasoningTiers.automaticTiers(provider, model, metadata).mapNotNull { it.intentValue }
+        if (tiers.isEmpty()) return null
+        // "Automatic" goes first: with no tier ever chosen, no reasoning field is sent and the existing request body is unchanged.
+        val intents = listOf(ReasoningMode.Automatic.rawValue) + tiers
+        val rejected = RelayNegativeCache.keyFor(provider, model)
+            ?.let(negativeCache::rejectedReasoningTiers)
+            .orEmpty()
+            .mapNotNullTo(linkedSetOf()) { RelayReasoningTiers.mode(it)?.intentValue }
+        return Verdict(
+            state = STATE_AUTO_AVAILABLE,
+            intents = intents,
+            reasonCode = REASON_RELAY_MODEL_FACTS,
+            rejectedIntents = rejected.intersect(intents.toSet()),
+        )
+    }
+
     /**
      * Whether this connection is a subscription link - the user's own ChatGPT or SuperGrok
      * allowance, reached through the CLI proxy backend.
@@ -109,7 +197,7 @@ object CapabilityControlResolution {
      * the two have completely different capability sources of truth.
      */
     fun isSubscriptionLink(provider: Provider): Boolean =
-        provider.authMode == ProviderAuthMode.Subscription
+        ProviderForm.of(provider) == ProviderForm.Subscription
 
     /**
      * The final outbound protocol for a subscription link.
@@ -156,11 +244,11 @@ object CapabilityControlResolution {
         if (!model.capabilities.contains(ModelCapability.Web)) {
             return Verdict(state = STATE_UNAVAILABLE, reasonCode = "model_capability_absent")
         }
+        val isGrok = provider.kind == ProviderKind.Grok
         return Verdict(
             state = STATE_AUTO_AVAILABLE,
-            intents = if (provider.kind == ProviderKind.Grok) listOf("automatic")
-                else listOf("off", "automatic"),
-            reasonCode = REASON_SUBSCRIPTION_DECLARED,
+            intents = if (isGrok) listOf("automatic") else listOf("off", "automatic"),
+            reasonCode = if (isGrok) REASON_SUBSCRIPTION_WEB_ALWAYS_ON else REASON_SUBSCRIPTION_DECLARED,
         )
     }
 
@@ -208,7 +296,7 @@ object CapabilityControlResolution {
         model: AIModel,
         metadata: MetadataClient,
     ): String? {
-        if (provider.kind == ProviderKind.Relay) return null
+        if (ProviderForm.of(provider) == ProviderForm.Relay) return null
         return metadata.resolveCatalogModel(model.id, provider.kind)?.transport?.takeIf { it.isNotBlank() }
     }
 }
