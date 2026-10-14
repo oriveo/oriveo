@@ -1,0 +1,172 @@
+{
+  "$comment": "Relay avatar resolution. One resolver per end feeds model picker, chat top bar, message header, detail header and providers list. Match lowercased display name and URL host against brand keywords in list order; first hit wins; any excludeKeywords hit skips brand matching. No brand -> initial: first Unicode letter or digit of the trimmed display name (Latin uppercased); empty name -> host without leading 'api.' / 'www.'; nothing usable -> generic relay glyph. Model ids never take part. No plate, no stroke. Case id is used as RD3-AVATAR-<id> in all ends.",
+  "version": 1,
+  "brands": [
+    {
+      "id": "openrouter",
+      "keywords": [
+        "openrouter"
+      ]
+    },
+    {
+      "id": "siliconflow",
+      "keywords": [
+        "siliconflow"
+      ]
+    },
+    {
+      "id": "together",
+      "keywords": [
+        "together.ai",
+        "together.xyz",
+        "togetherai"
+      ]
+    },
+    {
+      "id": "fireworks",
+      "keywords": [
+        "fireworks"
+      ]
+    },
+    {
+      "id": "groq",
+      "keywords": [
+        "groq"
+      ]
+    }
+  ],
+  "excludeKeywords": [
+    "oriveo"
+  ],
+  "cases": [
+    {
+      "id": "openrouter_by_host",
+      "name": "My backup",
+      "url": "https://openrouter.ai/api/v1",
+      "expected": {
+        "kind": "brand",
+        "brand": "openrouter"
+      }
+    },
+    {
+      "id": "openrouter_by_name",
+      "name": "OpenRouter 备用",
+      "url": "https://proxy.example.com/v1",
+      "expected": {
+        "kind": "brand",
+        "brand": "openrouter"
+      }
+    },
+    {
+      "id": "siliconflow_by_host",
+      "name": "硅基",
+      "url": "https://api.siliconflow.cn/v1",
+      "expected": {
+        "kind": "brand",
+        "brand": "siliconflow"
+      }
+    },
+    {
+      "id": "together_by_host",
+      "name": "T",
+      "url": "https://api.together.xyz/v1",
+      "expected": {
+        "kind": "brand",
+        "brand": "together"
+      }
+    },
+    {
+      "id": "groq_by_host",
+      "name": "fast",
+      "url": "https://api.groq.com/openai/v1",
+      "expected": {
+        "kind": "brand",
+        "brand": "groq"
+      }
+    },
+    {
+      "id": "initial_latin",
+      "name": "myrelay.dev",
+      "url": "https://api.myrelay.dev",
+      "expected": {
+        "kind": "initial",
+        "text": "M"
+      }
+    },
+    {
+      "id": "initial_lowercase",
+      "name": "relay one",
+      "url": "https://r1.example.com",
+      "expected": {
+        "kind": "initial",
+        "text": "R"
+      }
+    },
+    {
+      "id": "initial_cjk",
+      "name": "公司内网中转",
+      "url": "http://10.0.0.2:3000/v1",
+      "expected": {
+        "kind": "initial",
+        "text": "公"
+      }
+    },
+    {
+      "id": "initial_skips_symbols",
+      "name": "  #1 relay",
+      "url": "https://x.example.com",
+      "expected": {
+        "kind": "initial",
+        "text": "1"
+      }
+    },
+    {
+      "id": "model_ids_ignored",
+      "name": "Proxy",
+      "url": "https://p.example.com/v1",
+      "models": [
+        "gpt-4o",
+        "claude-sonnet-4-5"
+      ],
+      "expected": {
+        "kind": "initial",
+        "text": "P"
+      }
+    },
+    {
+      "id": "together_word_not_brand",
+      "name": "Work together",
+      "url": "https://w.example.com",
+      "expected": {
+        "kind": "initial",
+        "text": "W"
+      }
+    },
+    {
+      "id": "oriveo_excluded",
+      "name": "Oriveo OpenRouter mirror",
+      "url": "https://x.oriveo.app/v1",
+      "expected": {
+        "kind": "initial",
+        "text": "O"
+      }
+    },
+    {
+      "id": "empty_name_uses_host",
+      "name": "",
+      "url": "https://api.myrelay.dev/v1",
+      "expected": {
+        "kind": "initial",
+        "text": "M"
+      }
+    },
+    {
+      "id": "nothing_usable",
+      "name": "",
+      "url": "",
+      "expected": {
+        "kind": "generic"
+      }
+    }
+  ]
+}

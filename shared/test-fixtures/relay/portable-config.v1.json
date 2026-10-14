@@ -24,6 +24,7 @@
     "webSearchProfile",
     "transportKind",
     "resolvedAPIBaseURL",
+    "resolvedAPIBaseURLs",
     "engineProfile",
     "certificateFingerprint"
   ],
@@ -47,6 +48,7 @@
     "webSearchProfile",
     "transportKind",
     "resolvedAPIBaseURL",
+    "resolvedAPIBaseURLs",
     "engineProfile"
   ],
   "localOnlyFields": [
@@ -103,6 +105,13 @@
         "webSearchProfile": "oai_responses_web",
         "transportKind": "openai_responses",
         "resolvedAPIBaseURL": "https://user:pass@relay.example.com/codex?token=secret#fragment",
+        "resolvedAPIBaseURLs": {
+          "openai_responses": "https://user:pass@relay.example.com/codex/v1?token=secret#fragment",
+          "gemini_generate_content": "https://relay.example.com/codex/v1beta",
+          "anthropic_messages": "not a URL",
+          "auto": "https://relay.example.com/codex/v1",
+          "future_transport": "https://relay.example.com/codex/v9"
+        },
         "engineProfile": "llamacpp",
         "certificateFingerprint": "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
       },
@@ -126,6 +135,10 @@
         "webSearchProfile": "oai_responses_web",
         "transportKind": "openai_responses",
         "resolvedAPIBaseURL": "https://relay.example.com/codex",
+        "resolvedAPIBaseURLs": {
+          "openai_responses": "https://relay.example.com/codex/v1",
+          "gemini_generate_content": "https://relay.example.com/codex/v1beta"
+        },
         "engineProfile": "llamacpp"
       }
     },
@@ -152,13 +165,267 @@
         "transport": "auto",
         "authMode": "auto",
         "securityMode": "remote_https",
-        "resolvedAPIBaseURL": "not a URL"
+        "resolvedAPIBaseURL": "not a URL",
+        "resolvedAPIBaseURLs": { "openai_chat_completions": "not a URL" }
       },
       "expect": {
         "transport": "auto",
         "authMode": "auto",
         "securityMode": "remote_https"
       }
+    },
+    {
+      "caseId": "root_without_scheme_or_host_is_dropped_not_synced_raw",
+      "input": {
+        "transport": "openai_chat_completions",
+        "authMode": "bearer",
+        "securityMode": "remote_https",
+        "resolvedAPIBaseURL": "relay.example.com/v1",
+        "resolvedAPIBaseURLs": {
+          "openai_chat_completions": "relay.example.com/v1",
+          "anthropic_messages": "https://relay.example.com/claude/v1"
+        }
+      },
+      "expect": {
+        "transport": "openai_chat_completions",
+        "authMode": "bearer",
+        "securityMode": "remote_https",
+        "resolvedAPIBaseURLs": {
+          "anthropic_messages": "https://relay.example.com/claude/v1"
+        }
+      }
+    }
+  ],
+  "modelFields": {
+    "$comment": "AIModel fields owned by Relay 2.0. All seven are local-only: they stay in on-device storage and the user's own backup file and never reach Firestore. Each end asserts its own enumeration equals `all` / `portable` / `localOnly`. `engineDeclaration` is written only by the local engine connector; its keys are `engineDeclarationKeys`, each a boolean; an absent key means unknown. `relayKeyID` / `relayListedByKeyIDs` / `relayDeniedKeyID` are the multi-key binding fields (RK-2, key-binding.v1.json); after a backup restore without the connection's extra keys a dangling relayKeyID resolves to the primary key.",
+    "all": ["relayTransport", "relayTransportSource", "relayCapabilityOverrides", "engineDeclaration", "relayKeyID", "relayListedByKeyIDs", "relayDeniedKeyID"],
+    "portable": [],
+    "localOnly": ["relayTransport", "relayTransportSource", "relayCapabilityOverrides", "engineDeclaration", "relayKeyID", "relayListedByKeyIDs", "relayDeniedKeyID"],
+    "transportSources": ["user", "observed", "reachable"],
+    "capabilityOverrideSources": ["user", "tested"],
+    "capabilityOverrideKeys": ["image", "file", "imageGeneration", "toolCall", "reasoningLevels", "web"],
+    "engineDeclarationKeys": ["image", "toolCall", "thinking"]
+  },
+  "connectionFields": {
+    "$comment": "Provider-level fields owned by Relay 2.0 outside RelayRequestedConfig. `relayKeys` (the connection's key list: ids, names, statuses and the non-primary secrets) stays on this device only: never in the Firestore provider document, never in a backup file (same as the API key on the Relay form; the primary secret keeps travelling only where provider.apiKey already does). A remote merge keeps the local value, the way setupValues / endpointSource are kept. Each end asserts its Firestore write and backup export of a provider carrying relayKeys contain no `relayKeys` key and no non-primary secret.",
+    "all": ["relayKeys"],
+    "portable": [],
+    "localOnly": ["relayKeys"]
+  },
+  "modelCases": [
+    {
+      "$comment": "`model` holds only the Relay 2.0 keys. Each end overlays them onto a baseline model JSON produced by its own production encoder, decodes with the production decoder, and compares the Relay 2.0 model fields against `expect` (an absent key in `expect` means nil / undefined). Re-encoding for local storage must then yield exactly the keys in `expect`.",
+      "caseId": "all_three_fields_round_trip",
+      "model": {
+        "relayTransport": "anthropic_messages",
+        "relayTransportSource": "reachable",
+        "relayCapabilityOverrides": {
+          "image": { "value": true, "source": "user" },
+          "file": { "value": false, "source": "tested" },
+          "imageGeneration": { "value": false, "source": "user" },
+          "toolCall": { "value": true, "source": "tested" },
+          "reasoningLevels": { "value": ["low", "high"], "source": "user" }
+        }
+      },
+      "expect": {
+        "relayTransport": "anthropic_messages",
+        "relayTransportSource": "reachable",
+        "relayCapabilityOverrides": {
+          "image": { "value": true, "source": "user" },
+          "file": { "value": false, "source": "tested" },
+          "imageGeneration": { "value": false, "source": "user" },
+          "toolCall": { "value": true, "source": "tested" },
+          "reasoningLevels": { "value": ["low", "high"], "source": "user" }
+        }
+      }
+    },
+    {
+      "caseId": "sources_retired_by_d36_are_dropped",
+      "model": { "relayTransport": "anthropic_messages", "relayTransportSource": "probed" },
+      "expect": {}
+    },
+    {
+      "caseId": "observed_source_round_trips",
+      "model": { "relayTransport": "openai_responses", "relayTransportSource": "observed" },
+      "expect": { "relayTransport": "openai_responses", "relayTransportSource": "observed" }
+    },
+    {
+      "caseId": "legacy_model_without_fields_stays_without_fields",
+      "model": {},
+      "expect": {}
+    },
+    {
+      "caseId": "source_without_transport_is_dropped",
+      "model": { "relayTransportSource": "user" },
+      "expect": {}
+    },
+    {
+      "caseId": "auto_is_not_a_model_level_transport",
+      "model": { "relayTransport": "auto", "relayTransportSource": "user" },
+      "expect": {}
+    },
+    {
+      "caseId": "unknown_transport_or_source_falls_back_to_following_the_connection",
+      "model": { "relayTransport": "future_transport", "relayTransportSource": "reachable" },
+      "expect": {}
+    },
+    {
+      "caseId": "transport_without_a_known_source_is_dropped",
+      "model": { "relayTransport": "openai_responses", "relayTransportSource": "guessed" },
+      "expect": {}
+    },
+    {
+      "caseId": "override_entries_with_unknown_key_source_or_shape_are_dropped_one_by_one",
+      "model": {
+        "relayCapabilityOverrides": {
+          "image": { "value": true, "source": "user" },
+          "toolCall": { "value": true, "source": "gateway" },
+          "file": { "value": "yes", "source": "user" },
+          "futureCapability": { "value": true, "source": "user" },
+          "reasoningLevels": { "value": [], "source": "user" }
+        }
+      },
+      "expect": {
+        "relayCapabilityOverrides": {
+          "image": { "value": true, "source": "user" },
+          "reasoningLevels": { "value": [], "source": "user" }
+        }
+      }
+    },
+    {
+      "caseId": "overrides_with_no_surviving_entry_are_omitted",
+      "model": { "relayCapabilityOverrides": { "futureCapability": { "value": true, "source": "user" } } },
+      "expect": {}
+    },
+    {
+      "caseId": "engine_declaration_round_trips",
+      "model": { "engineDeclaration": { "image": true, "toolCall": false, "thinking": true } },
+      "expect": { "engineDeclaration": { "image": true, "toolCall": false, "thinking": true } }
+    },
+    {
+      "caseId": "engine_declaration_drops_malformed_and_unknown_keys",
+      "model": { "engineDeclaration": { "image": "yes", "toolCall": true, "futureCapability": true } },
+      "expect": { "engineDeclaration": { "toolCall": true } }
+    },
+    {
+      "caseId": "engine_declaration_with_no_surviving_key_is_omitted",
+      "model": { "engineDeclaration": { "image": null, "futureCapability": true } },
+      "expect": {}
+    }
+  ],
+  "resolveCases": [
+    {
+      "$comment": "effectiveTransport(provider, model) = model.relayTransport ?? provider.relayRequested.transport, with `auto` / missing config concretised to openai_chat_completions. effectiveAPIRoot(provider, model) = resolvedAPIBaseURLs[effectiveTransport] ?? (legacy resolvedAPIBaseURL, only when effectiveTransport is the connection default) ?? baseURL completed with the protocol's standard version (gemini_generate_content: v1beta, llamacpp_native: none, others: v1; a base that already carries a version segment is kept as is). Pure: no I/O, no write-back.",
+      "caseId": "model_without_transport_follows_the_connection_default",
+      "provider": { "baseURL": "https://relay.example.com", "relayRequested": { "transport": "openai_chat_completions" } },
+      "model": {},
+      "expect": { "effectiveTransport": "openai_chat_completions", "effectiveAPIRoot": "https://relay.example.com/v1" }
+    },
+    {
+      "caseId": "model_transport_wins_over_the_connection_default",
+      "provider": { "baseURL": "https://relay.example.com", "relayRequested": { "transport": "openai_chat_completions" } },
+      "model": { "relayTransport": "anthropic_messages" },
+      "expect": { "effectiveTransport": "anthropic_messages", "effectiveAPIRoot": "https://relay.example.com/v1" }
+    },
+    {
+      "caseId": "gemini_model_completes_with_v1beta",
+      "provider": { "baseURL": "https://relay.example.com/", "relayRequested": { "transport": "openai_chat_completions" } },
+      "model": { "relayTransport": "gemini_generate_content" },
+      "expect": { "effectiveTransport": "gemini_generate_content", "effectiveAPIRoot": "https://relay.example.com/v1beta" }
+    },
+    {
+      "caseId": "per_transport_table_wins_over_completion",
+      "provider": {
+        "baseURL": "https://relay.example.com",
+        "relayRequested": {
+          "transport": "openai_chat_completions",
+          "resolvedAPIBaseURLs": {
+            "openai_chat_completions": "https://relay.example.com/openai/v1",
+            "anthropic_messages": "https://relay.example.com/claude/v1"
+          }
+        }
+      },
+      "model": { "relayTransport": "anthropic_messages" },
+      "expect": { "effectiveTransport": "anthropic_messages", "effectiveAPIRoot": "https://relay.example.com/claude/v1" }
+    },
+    {
+      "caseId": "per_transport_table_wins_over_the_legacy_single_root",
+      "provider": {
+        "baseURL": "https://relay.example.com",
+        "relayRequested": {
+          "transport": "openai_responses",
+          "resolvedAPIBaseURL": "https://relay.example.com/old/v1",
+          "resolvedAPIBaseURLs": { "openai_responses": "https://relay.example.com/new/v1" }
+        }
+      },
+      "model": {},
+      "expect": { "effectiveTransport": "openai_responses", "effectiveAPIRoot": "https://relay.example.com/new/v1" }
+    },
+    {
+      "caseId": "legacy_single_root_is_the_root_of_the_default_transport",
+      "provider": {
+        "baseURL": "https://relay.example.com/codex",
+        "relayRequested": { "transport": "openai_responses", "resolvedAPIBaseURL": "https://relay.example.com/codex/backend-api" }
+      },
+      "model": {},
+      "expect": { "effectiveTransport": "openai_responses", "effectiveAPIRoot": "https://relay.example.com/codex/backend-api" }
+    },
+    {
+      "caseId": "legacy_single_root_is_not_reused_for_another_transport",
+      "provider": {
+        "baseURL": "https://relay.example.com/codex",
+        "relayRequested": { "transport": "openai_responses", "resolvedAPIBaseURL": "https://relay.example.com/codex/backend-api" }
+      },
+      "model": { "relayTransport": "gemini_generate_content" },
+      "expect": { "effectiveTransport": "gemini_generate_content", "effectiveAPIRoot": "https://relay.example.com/codex/v1beta" }
+    },
+    {
+      "caseId": "model_transport_equal_to_the_default_still_uses_the_legacy_single_root",
+      "provider": {
+        "baseURL": "https://relay.example.com",
+        "relayRequested": { "transport": "anthropic_messages", "resolvedAPIBaseURL": "https://relay.example.com/claude/v1" }
+      },
+      "model": { "relayTransport": "anthropic_messages" },
+      "expect": { "effectiveTransport": "anthropic_messages", "effectiveAPIRoot": "https://relay.example.com/claude/v1" }
+    },
+    {
+      "caseId": "base_that_already_carries_a_version_is_kept",
+      "provider": { "baseURL": "https://relay.example.com/api/v1", "relayRequested": { "transport": "openai_chat_completions" } },
+      "model": { "relayTransport": "gemini_generate_content" },
+      "expect": { "effectiveTransport": "gemini_generate_content", "effectiveAPIRoot": "https://relay.example.com/api/v1" }
+    },
+    {
+      "caseId": "auto_default_is_concretised_to_chat_completions",
+      "provider": { "baseURL": "https://relay.example.com", "relayRequested": { "transport": "auto" } },
+      "model": {},
+      "expect": { "effectiveTransport": "openai_chat_completions", "effectiveAPIRoot": "https://relay.example.com/v1" }
+    },
+    {
+      "caseId": "auto_default_with_legacy_root_keeps_the_legacy_root",
+      "provider": {
+        "baseURL": "https://relay.example.com",
+        "relayRequested": { "transport": "auto", "resolvedAPIBaseURL": "https://relay.example.com/gateway/v1" }
+      },
+      "model": {},
+      "expect": { "effectiveTransport": "openai_chat_completions", "effectiveAPIRoot": "https://relay.example.com/gateway/v1" }
+    },
+    {
+      "caseId": "llamacpp_native_takes_no_version_segment",
+      "provider": {
+        "baseURL": "http://192.168.1.20:8080",
+        "relayRequested": { "transport": "llamacpp_native", "securityMode": "local_http" }
+      },
+      "model": {},
+      "expect": { "effectiveTransport": "llamacpp_native", "effectiveAPIRoot": "http://192.168.1.20:8080" }
+    },
+    {
+      "caseId": "blank_table_entry_falls_through_to_completion",
+      "provider": {
+        "baseURL": "https://relay.example.com",
+        "relayRequested": { "transport": "openai_chat_completions", "resolvedAPIBaseURLs": { "anthropic_messages": "  " } }
+      },
+      "model": { "relayTransport": "anthropic_messages" },
+      "expect": { "effectiveTransport": "anthropic_messages", "effectiveAPIRoot": "https://relay.example.com/v1" }
     }
   ]
 }

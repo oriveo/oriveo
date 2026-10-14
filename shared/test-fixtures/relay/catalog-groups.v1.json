@@ -1,0 +1,184 @@
+{
+  "$comment": "Relay model library grouping. Family = cached Server by-model family (serverFamilies, keyed by exact model id here) else RelayFamilyHeuristics (family-fixtures.json); nil -> retry with the segment after the last '/' (relays often prefix vendor, e.g. anthropic/claude-x); still nil -> group 'other'. The key-binding family is unchanged. Groups ordered by first appearance in catalog order, 'other' always last; rows keep catalog order. Label: labels table (proper nouns, not localized); family id missing from the table -> the id itself; 'other' (label null) -> localized 'Other'. Groups start collapsed. One function feeds setup step 2 and the library. Case id is used as RD3-GROUP-<id> in all ends.",
+  "version": 1,
+  "labels": {
+    "openai": "OpenAI",
+    "anthropic": "Anthropic",
+    "google": "Google",
+    "deepseek": "DeepSeek",
+    "xai": "xAI",
+    "qwen": "Qwen",
+    "mistral": "Mistral",
+    "minimax": "MiniMax",
+    "zhipu": "Zhipu",
+    "moonshot": "Moonshot",
+    "meta": "Meta"
+  },
+  "cases": [
+    {
+      "id": "heuristic_families_in_catalog_order",
+      "models": [
+        "claude-sonnet-4-5",
+        "gpt-5",
+        "claude-opus-4",
+        "gemini-2.5-pro",
+        "deepseek-v3",
+        "my-custom-model"
+      ],
+      "serverFamilies": {},
+      "expected": [
+        {
+          "id": "anthropic",
+          "label": "Anthropic",
+          "models": [
+            "claude-sonnet-4-5",
+            "claude-opus-4"
+          ]
+        },
+        {
+          "id": "openai",
+          "label": "OpenAI",
+          "models": [
+            "gpt-5"
+          ]
+        },
+        {
+          "id": "google",
+          "label": "Google",
+          "models": [
+            "gemini-2.5-pro"
+          ]
+        },
+        {
+          "id": "deepseek",
+          "label": "DeepSeek",
+          "models": [
+            "deepseek-v3"
+          ]
+        },
+        {
+          "id": "other",
+          "label": null,
+          "models": [
+            "my-custom-model"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "server_family_first",
+      "models": [
+        "glm-4.6",
+        "kimi-k2",
+        "gpt-5"
+      ],
+      "serverFamilies": {
+        "glm-4.6": "zhipu",
+        "kimi-k2": "moonshot"
+      },
+      "expected": [
+        {
+          "id": "zhipu",
+          "label": "Zhipu",
+          "models": [
+            "glm-4.6"
+          ]
+        },
+        {
+          "id": "moonshot",
+          "label": "Moonshot",
+          "models": [
+            "kimi-k2"
+          ]
+        },
+        {
+          "id": "openai",
+          "label": "OpenAI",
+          "models": [
+            "gpt-5"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "other_always_last",
+      "models": [
+        "unknown-xyz-2026",
+        "qwen3-32b"
+      ],
+      "serverFamilies": {},
+      "expected": [
+        {
+          "id": "qwen",
+          "label": "Qwen",
+          "models": [
+            "qwen3-32b"
+          ]
+        },
+        {
+          "id": "other",
+          "label": null,
+          "models": [
+            "unknown-xyz-2026"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unlabeled_server_family_uses_id",
+      "models": [
+        "step-3"
+      ],
+      "serverFamilies": {
+        "step-3": "stepfun"
+      },
+      "expected": [
+        {
+          "id": "stepfun",
+          "label": "stepfun",
+          "models": [
+            "step-3"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vendor_prefixed_ids_use_last_segment",
+      "models": [
+        "anthropic/claude-sonnet-4.5",
+        "openai/gpt-5",
+        "acme/house-model"
+      ],
+      "serverFamilies": {},
+      "expected": [
+        {
+          "id": "anthropic",
+          "label": "Anthropic",
+          "models": [
+            "anthropic/claude-sonnet-4.5"
+          ]
+        },
+        {
+          "id": "openai",
+          "label": "OpenAI",
+          "models": [
+            "openai/gpt-5"
+          ]
+        },
+        {
+          "id": "other",
+          "label": null,
+          "models": [
+            "acme/house-model"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "empty_catalog",
+      "models": [],
+      "serverFamilies": {},
+      "expected": []
+    }
+  ]
+}

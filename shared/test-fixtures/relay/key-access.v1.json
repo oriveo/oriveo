@@ -1,0 +1,103 @@
+{
+  "$comment": "Relay multi-key rejection classifier (upstream shapes read from gateway source at fixed commits). One pure function per end: iOS RelayKeyAccess.classify(status:body:), Android RelayKeyAccess.classify(status, body), Web classifyRelayKeyAccess(status, body). It runs on a non-2xx relay response that arrived before any output, BEFORE the capability rejection loop (negative-cache.v1.json). Outcomes: `model_access_denied` = this key may not use this model (another key might) -> record the denial on the model for the bound key, do NOT write a capability negative cache entry, do NOT fall back to another protocol; `key_invalid` = the key itself is rejected (401, or an expired-key code); `key_limited` = balance / quota / rate limit (402, 429, or a 403 whose body carries a quota or balance code); `none` = not about the key, the existing paths decide. Body signals are matched case-insensitively as substrings of the raw body; a bare `model` / `group` / `not found` word is NOT a signal (capability rejections such as 'model does not support image input' and route-level 404s must stay `none`). done-hub folds token-model denial into 503 and cannot be told apart from a busy upstream, so 5xx is always `none`. Test names: KEY-ACCESS-<caseId>.",
+  "version": 1,
+  "outcomes": ["model_access_denied", "key_invalid", "key_limited", "none"],
+  "signals": {
+    "modelAccessDenied": {
+      "statuses": [400, 403, 404],
+      "codes": ["model_not_found", "key_model_access_denied", "team_model_access_denied", "user_model_access_denied", "token_model_forbidden"],
+      "phrases": ["无权访问模型", "无权使用模型", "无权使用分组", "is not available for this group", "is not supported for current token", "unknown provider for model", "do not have access to the model", "does not have access to model", "not allowed to access model", "not allowed to use model"]
+    },
+    "keyInvalid": {
+      "statuses": [401],
+      "codes403": ["api_key_expired", "expired_key", "token_expired"]
+    },
+    "keyLimited": {
+      "statuses": [402, 429],
+      "codes403": ["insufficient_user_quota", "insufficient_balance", "insufficient_quota", "budget_exceeded", "api_key_quota_exhausted", "usage_limit_exceeded"]
+    },
+    "precedence": "statuses 401 / 402 / 429 decide first; then a 403 carrying a keyInvalid or keyLimited code; then modelAccessDenied (status in its list AND a code or phrase present); everything else none"
+  },
+  "classifyCases": [
+    { "caseId": "new_api_token_model_forbidden_403", "source": "new-api middleware/distributor.go token_model_forbidden", "status": 403, "body": "{\"error\":{\"message\":\"该令牌无权访问模型 claude-sonnet-4-5\",\"type\":\"new_api_error\",\"code\":\"\"}}", "expect": "model_access_denied" },
+    { "caseId": "one_api_token_model_forbidden_403", "source": "one-api", "status": 403, "body": "{\"error\":{\"message\":\"该令牌无权使用模型：gpt-4o\",\"type\":\"one_api_error\"}}", "expect": "model_access_denied" },
+    { "caseId": "one_hub_model_not_supported_for_token_404", "source": "one-hub", "status": 404, "body": "{\"error\":{\"message\":\"Model gpt-4o is not supported for current token\",\"type\":\"one_hub_error\",\"code\":\"model_not_found\"}}", "expect": "model_access_denied" },
+    { "caseId": "sub2api_group_allowlist_openai_404", "source": "sub2api middleware/group_model_allowlist.go", "status": 404, "body": "{\"error\":{\"message\":\"Model \\\"gpt-5\\\" is not available for this group\",\"type\":\"invalid_request_error\",\"code\":\"model_not_found\"}}", "expect": "model_access_denied" },
+    { "caseId": "sub2api_group_allowlist_anthropic_404", "source": "sub2api, Anthropic error shape", "status": 404, "body": "{\"type\":\"error\",\"error\":{\"type\":\"not_found_error\",\"message\":\"Model \\\"claude-opus-4\\\" is not available for this group\"}}", "expect": "model_access_denied" },
+    { "caseId": "done_hub_group_permission_403", "source": "done-hub validateGroupPermission", "status": 403, "body": "{\"error\":{\"message\":\"无权使用分组 claude\",\"type\":\"one_hub_error\"}}", "expect": "model_access_denied" },
+    { "caseId": "cliproxy_unknown_model_400", "source": "CLIProxyAPI handlers_routing.go", "status": 400, "body": "{\"error\":{\"message\":\"unknown provider for model gpt-9\",\"type\":\"invalid_request_error\",\"code\":\"model_not_found\",\"param\":\"model\"}}", "expect": "model_access_denied" },
+    { "caseId": "litellm_key_model_access_denied_403", "source": "LiteLLM proxy/auth/model_access_denied.py", "status": 403, "body": "{\"error\":{\"message\":\"key not allowed to access model. This key can only access models=['gpt-4o']. Tried to access claude-3\",\"type\":\"key_model_access_denied\",\"param\":\"model\",\"code\":\"403\"}}", "expect": "model_access_denied" },
+    { "caseId": "openai_model_not_found_404", "source": "OpenAI-shaped model_not_found", "status": 404, "body": "{\"error\":{\"message\":\"The model `gpt-x` does not exist or you do not have access to it.\",\"type\":\"invalid_request_error\",\"code\":\"model_not_found\"}}", "expect": "model_access_denied" },
+    { "caseId": "done_hub_folded_503_is_none", "source": "done-hub FilterOpenAIErr: indistinguishable from busy upstream", "status": 503, "body": "{\"error\":{\"message\":\"当前分组上游负载已饱和，请稍后再试\",\"type\":\"system_error\",\"code\":\"service_unavailable\"}}", "expect": "none" },
+    { "caseId": "new_api_no_channel_503_is_none", "source": "new-api channel_select.go", "status": 503, "body": "{\"error\":{\"message\":\"分组 default 下模型 gpt-4o 无可用渠道（distributor）\",\"code\":\"model_not_found\"}}", "expect": "none" },
+    { "caseId": "capability_rejection_400_is_none", "source": "image refused by a text-only model: belongs to the capability loop", "status": 400, "body": "{\"error\":{\"message\":\"This model does not support image input\",\"type\":\"invalid_request_error\"}}", "expect": "none" },
+    { "caseId": "route_not_found_404_is_none", "source": "gin default 404 for a protocol path the relay lacks: belongs to protocol fallback", "status": 404, "body": "404 page not found", "expect": "none" },
+    { "caseId": "anthropic_route_not_found_404_is_none", "source": "sub2api embeddings/images on a non-openai group", "status": 404, "body": "{\"type\":\"error\",\"error\":{\"type\":\"not_found_error\",\"message\":\"Not found\"}}", "expect": "none" },
+    { "caseId": "sub2api_messages_dispatch_403_is_none", "source": "sub2api openai group without AllowMessagesDispatch: protocol, not model access", "status": 403, "body": "{\"type\":\"error\",\"error\":{\"type\":\"permission_error\",\"message\":\"This group does not allow /v1/messages dispatch\"}}", "expect": "none" },
+    { "caseId": "litellm_route_not_allowed_403_is_none", "source": "LiteLLM route_checks.py", "status": 403, "body": "{\"error\":{\"message\":\"Virtual key is not allowed to call this route\",\"type\":\"auth_error\",\"code\":\"403\"}}", "expect": "none" },
+    { "caseId": "invalid_key_401", "source": "new-api / one-api / CLIProxyAPI 401", "status": 401, "body": "{\"error\":{\"message\":\"无效的令牌\",\"type\":\"new_api_error\"}}", "expect": "key_invalid" },
+    { "caseId": "invalid_key_plain_string_401", "source": "CLIProxyAPI server_middleware.go", "status": 401, "body": "{\"error\":\"Invalid API key\"}", "expect": "key_invalid" },
+    { "caseId": "sub2api_key_expired_403", "source": "sub2api api_key_auth.go flat {code,message}", "status": 403, "body": "{\"code\":\"API_KEY_EXPIRED\",\"message\":\"API key has expired\"}", "expect": "key_invalid" },
+    { "caseId": "sub2api_insufficient_balance_403", "source": "sub2api api_key_auth.go", "status": 403, "body": "{\"code\":\"INSUFFICIENT_BALANCE\",\"message\":\"Insufficient balance\"}", "expect": "key_limited" },
+    { "caseId": "new_api_insufficient_user_quota_403", "source": "new-api / one-api", "status": 403, "body": "{\"error\":{\"message\":\"用户额度不足\",\"type\":\"new_api_error\",\"code\":\"insufficient_user_quota\"}}", "expect": "key_limited" },
+    { "caseId": "openrouter_payment_required_402", "source": "OpenRouter", "status": 402, "body": "{\"error\":{\"code\":402,\"message\":\"Insufficient credits\"}}", "expect": "key_limited" },
+    { "caseId": "quota_exhausted_429", "source": "sub2api insufficient_quota on OpenAI routes", "status": 429, "body": "{\"error\":{\"message\":\"quota exhausted\",\"type\":\"insufficient_quota\",\"code\":\"insufficient_quota\"}}", "expect": "key_limited" },
+    { "caseId": "litellm_budget_exceeded_422_is_none", "source": "LiteLLM budget_exceeded default 422: 422 is a capability rejection status, not reclassified", "status": 422, "body": "{\"error\":{\"message\":\"Budget has been exceeded\",\"type\":\"budget_exceeded\",\"code\":\"422\"}}", "expect": "none" },
+    { "caseId": "official_claude_cli_gate_403_is_none", "source": "www.packyapi.ai Messages, reported 2026-10-12: the key's group only serves the official Claude CLI; its own guidance is negative-cache.v1.json clientGateRules, not a key or model-access problem", "status": 403, "body": "{\"type\":\"error\",\"error\":{\"type\":\"permission_error\",\"message\":\"This API endpoint is only accessible via the official Claude CLI\"}}", "expect": "none" },
+    { "caseId": "plain_403_without_signal_is_none", "source": "unknown 403", "status": 403, "body": "Forbidden", "expect": "none" },
+    { "caseId": "server_error_500_is_none", "source": "generic upstream failure", "status": 500, "body": "{\"error\":{\"message\":\"internal error\"}}", "expect": "none" },
+    { "caseId": "empty_body_404_is_none", "source": "404 with no body", "status": 404, "body": "", "expect": "none" }
+  ],
+  "sendCases": [
+    {
+      "caseId": "SEND-denied_404_skips_negative_cache_and_protocol_fallback",
+      "$comment": "Production-path proof: a relay chat send of an enabled model bound to key `k-claude` (with an image attached) gets this pre-output rejection. Expect: the model records the denial for `k-claude`; no negative-cache entry is written for any level; no second request on another protocol; the message fails with the upstream error (no silent key switch).",
+      "status": 404,
+      "body": "{\"error\":{\"message\":\"Model \\\"gpt-5\\\" is not available for this group\",\"type\":\"invalid_request_error\",\"code\":\"model_not_found\"}}",
+      "boundKeyID": "k-claude",
+      "expect": { "deniedKeyID": "k-claude", "negativeCacheWrites": 0, "requestsSent": 1 }
+    },
+    {
+      "caseId": "SEND-invalid_401_marks_key_status",
+      "$comment": "Production-path proof: 401 on a send marks the bound key's status invalid (with http status and time); the model is not marked denied.",
+      "status": 401,
+      "body": "{\"error\":{\"message\":\"Invalid API key\"}}",
+      "boundKeyID": "k-claude",
+      "expect": { "keyStatus": "invalid", "keyHTTPStatus": 401, "deniedKeyID": null, "negativeCacheWrites": 0 }
+    },
+    {
+      "caseId": "SEND-delivered_single_key_materializes_ok",
+      "$comment": "Production-path proof: a delivered send on a single-key connection (no relayKeys stored) records the primary's status: relayKeys becomes the one-entry list [{id: initial, apiKey: \"\", status ok}]; no model key fields are written.",
+      "provider": "single_key",
+      "status": 200,
+      "body": "",
+      "boundKeyID": "initial",
+      "expect": { "keyStatus": "ok", "relayKeys": [{ "id": "initial", "apiKey": "" }], "deniedKeyID": null, "negativeCacheWrites": 0 }
+    },
+    {
+      "caseId": "SEND-invalid_401_single_key_materializes",
+      "$comment": "Production-path proof: 401 on a send of a single-key connection marks the primary invalid in a one-entry relayKeys list.",
+      "provider": "single_key",
+      "status": 401,
+      "body": "{\"error\":{\"message\":\"Invalid API key\"}}",
+      "boundKeyID": "initial",
+      "expect": { "keyStatus": "invalid", "keyHTTPStatus": 401, "relayKeys": [{ "id": "initial", "apiKey": "" }], "deniedKeyID": null, "negativeCacheWrites": 0 }
+    }
+  ],
+  "generationCases": {
+    "$comment": "Key status from a generation request : one pure function per end, iOS RelayKeyAccess.generationStatus(status:body:), Android RelayKeyAccess.generationStatus(status, body), Web relayGenerationKeyStatus(status, body); status null = network / no response. 2xx -> ok; classify key_invalid -> invalid; key_limited -> limited; everything else (model_access_denied, route-level rejection, client gate, capability rejection, 5xx, network) -> null = leave the key status alone, because it says nothing about the key. Writers: chat send (incl. tool loops), 1-token reverify (incl. after an edit save), lazy probe / re-probe, every capability-test request, catalog refresh (catalogCases mapping, single key too). Not writers: draft 'Test connection' and add-flow step-1 verification (the catalog refresh after saving writes). The status goes on the key the request actually used (the model's effective key; a connection-level verification uses its sample model's effective key), only when state / httpStatus changes, and is dropped when the connection identity changed meanwhile. Test names: KEY-ACCESS-GEN-<caseId>; production paths RL2-KEYSTATUS-NN (same name on all three ends).",
+    "cases": [
+      { "caseId": "success_200_is_ok", "status": 200, "body": "", "expect": "ok" },
+      { "caseId": "invalid_key_401_is_invalid", "status": 401, "body": "{\"error\":{\"message\":\"无效的令牌\",\"type\":\"new_api_error\"}}", "expect": "invalid" },
+      { "caseId": "insufficient_balance_403_is_limited", "status": 403, "body": "{\"code\":\"INSUFFICIENT_BALANCE\",\"message\":\"Insufficient balance\"}", "expect": "limited" },
+      { "caseId": "quota_exhausted_429_is_limited", "status": 429, "body": "{\"error\":{\"message\":\"quota exhausted\",\"type\":\"insufficient_quota\",\"code\":\"insufficient_quota\"}}", "expect": "limited" },
+      { "caseId": "model_denied_404_leaves_key", "status": 404, "body": "{\"error\":{\"message\":\"Model \\\"gpt-5\\\" is not available for this group\",\"type\":\"invalid_request_error\",\"code\":\"model_not_found\"}}", "expect": null },
+      { "caseId": "client_gate_403_leaves_key", "status": 403, "body": "{\"type\":\"error\",\"error\":{\"type\":\"permission_error\",\"message\":\"This API endpoint is only accessible via the official Claude CLI\"}}", "expect": null },
+      { "caseId": "plain_403_leaves_key", "status": 403, "body": "Forbidden", "expect": null },
+      { "caseId": "route_404_leaves_key", "status": 404, "body": "404 page not found", "expect": null },
+      { "caseId": "capability_400_leaves_key", "status": 400, "body": "{\"error\":{\"message\":\"This model does not support image input\",\"type\":\"invalid_request_error\"}}", "expect": null },
+      { "caseId": "server_503_leaves_key", "status": 503, "body": "busy", "expect": null },
+      { "caseId": "network_leaves_key", "status": null, "body": "", "expect": null }
+    ]
+  }
+}

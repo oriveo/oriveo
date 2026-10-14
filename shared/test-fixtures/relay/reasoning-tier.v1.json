@@ -1,0 +1,257 @@
+{
+  "$comment": "Relay thinking tiers. Automatic tier set = Server model-facts reasoningEfforts of the model's family mapped by effortCases (order fast, balanced, deep, max; unknown words ignored). A tier rejection (classifyCases) is recorded in the relay negative cache as kind `reasoningTier:<tier>` (connection × model × effective transport, 7 days, same store and TTL as image / file / toolCall) and the same send is retried once with fallbackCases' tier; later sends use the same fallback function. Re-detect and a user reasoningLevels override clear the model's tier records.",
+  "version": 1,
+  "tiers": [
+    "fast",
+    "balanced",
+    "deep",
+    "max"
+  ],
+  "effortMap": {
+    "low": "fast",
+    "medium": "balanced",
+    "high": "deep",
+    "xhigh": "max",
+    "max": "max"
+  },
+  "effortCases": [
+    {
+      "caseId": "openai_style_four",
+      "efforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ],
+      "expect": [
+        "fast",
+        "balanced",
+        "deep",
+        "max"
+      ]
+    },
+    {
+      "caseId": "three_without_max",
+      "efforts": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "expect": [
+        "fast",
+        "balanced",
+        "deep"
+      ]
+    },
+    {
+      "caseId": "none_and_max_dedupe",
+      "efforts": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "expect": [
+        "fast",
+        "balanced",
+        "deep",
+        "max"
+      ]
+    },
+    {
+      "caseId": "minimal_is_ignored",
+      "efforts": [
+        "minimal",
+        "high"
+      ],
+      "expect": [
+        "deep"
+      ]
+    },
+    {
+      "caseId": "empty_is_no_tiers",
+      "efforts": [],
+      "expect": []
+    }
+  ],
+  "rejectionTokens": [
+    "reasoning",
+    "thinking",
+    "effort",
+    "budget_tokens",
+    "thinkingconfig",
+    "thinkingbudget",
+    "thinkinglevel",
+    "enable_thinking"
+  ],
+  "classifyCases": [
+    {
+      "$comment": "Rejected tier = sentTier when: a tier was sent (not automatic / off), no output had started, status is 400 or 422, and the lowercased body contains one of rejectionTokens. Otherwise null (404 / 415 stay with the protocol fallback; 5xx / 401 / 429 are not capability evidence).",
+      "caseId": "responses_xhigh_unsupported",
+      "transport": "openai_responses",
+      "status": 400,
+      "body": "{\"error\":{\"message\":\"Unsupported value: 'xhigh' is not supported with this model. Supported values are: 'low', 'medium', and 'high'.\",\"param\":\"reasoning.effort\"}}",
+      "sentTier": "max",
+      "outputStarted": false,
+      "expect": "max"
+    },
+    {
+      "caseId": "anthropic_budget_rejected",
+      "transport": "anthropic_messages",
+      "status": 400,
+      "body": "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"thinking.budget_tokens: must be less than max_tokens\"}}",
+      "sentTier": "max",
+      "outputStarted": false,
+      "expect": "max"
+    },
+    {
+      "caseId": "gemini_422_thinking_config",
+      "transport": "gemini_generate_content",
+      "status": 422,
+      "body": "{\"error\":{\"message\":\"Unknown name \\\"thinkingConfig\\\" at 'generation_config'\"}}",
+      "sentTier": "deep",
+      "outputStarted": false,
+      "expect": "deep"
+    },
+    {
+      "caseId": "unrelated_400_is_not_a_tier_rejection",
+      "transport": "openai_chat_completions",
+      "status": 400,
+      "body": "{\"error\":{\"message\":\"messages: content must not be empty\"}}",
+      "sentTier": "deep",
+      "outputStarted": false,
+      "expect": null
+    },
+    {
+      "caseId": "no_tier_sent",
+      "transport": "openai_chat_completions",
+      "status": 400,
+      "body": "{\"error\":{\"message\":\"reasoning_effort is not supported\"}}",
+      "sentTier": null,
+      "outputStarted": false,
+      "expect": null
+    },
+    {
+      "caseId": "server_error_is_not_evidence",
+      "transport": "openai_chat_completions",
+      "status": 500,
+      "body": "{\"error\":{\"message\":\"reasoning backend failed\"}}",
+      "sentTier": "deep",
+      "outputStarted": false,
+      "expect": null
+    },
+    {
+      "caseId": "not_found_stays_with_protocol_fallback",
+      "transport": "openai_chat_completions",
+      "status": 404,
+      "body": "{\"error\":{\"message\":\"reasoning model not found\"}}",
+      "sentTier": "deep",
+      "outputStarted": false,
+      "expect": null
+    },
+    {
+      "caseId": "after_output_is_ignored",
+      "transport": "openai_responses",
+      "status": 400,
+      "body": "{\"error\":{\"message\":\"reasoning.effort unsupported\"}}",
+      "sentTier": "max",
+      "outputStarted": true,
+      "expect": null
+    },
+    {
+      "caseId": "unauthorized_is_ignored",
+      "transport": "openai_responses",
+      "status": 401,
+      "body": "{\"error\":{\"message\":\"invalid key for reasoning models\"}}",
+      "sentTier": "max",
+      "outputStarted": false,
+      "expect": null
+    }
+  ],
+  "fallbackCases": [
+    {
+      "$comment": "fallback(available, rejected, selected): selected unless it is rejected; then the nearest available non-rejected tier below it, else the nearest above it, else null (send without a thinking field). automatic / off pass through.",
+      "caseId": "max_falls_to_deep",
+      "available": [
+        "fast",
+        "balanced",
+        "deep",
+        "max"
+      ],
+      "rejected": [
+        "max"
+      ],
+      "selected": "max",
+      "expect": "deep"
+    },
+    {
+      "caseId": "skips_two_rejected",
+      "available": [
+        "fast",
+        "balanced",
+        "deep",
+        "max"
+      ],
+      "rejected": [
+        "deep",
+        "max"
+      ],
+      "selected": "max",
+      "expect": "balanced"
+    },
+    {
+      "caseId": "goes_up_when_nothing_below",
+      "available": [
+        "fast",
+        "balanced",
+        "deep"
+      ],
+      "rejected": [
+        "fast"
+      ],
+      "selected": "fast",
+      "expect": "balanced"
+    },
+    {
+      "caseId": "unrejected_selection_is_kept",
+      "available": [
+        "fast",
+        "balanced",
+        "deep",
+        "max"
+      ],
+      "rejected": [
+        "max"
+      ],
+      "selected": "balanced",
+      "expect": "balanced"
+    },
+    {
+      "caseId": "all_rejected_sends_none",
+      "available": [
+        "fast",
+        "deep"
+      ],
+      "rejected": [
+        "fast",
+        "deep"
+      ],
+      "selected": "deep",
+      "expect": null
+    },
+    {
+      "caseId": "automatic_passes_through",
+      "available": [
+        "fast",
+        "balanced"
+      ],
+      "rejected": [
+        "fast"
+      ],
+      "selected": "automatic",
+      "expect": "automatic"
+    }
+  ]
+}

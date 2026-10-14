@@ -1,0 +1,76 @@
+{
+  "$comment": "Relay 2.0 default-model retirement. Applies to relay connections only (kind relay, local engines included); official providers keep their server-recommended default. Relay connections have no default model: legacy isDefault=true on a relay model is ignored everywhere. Fallback model for a relay connection = lastUsedModelRef when it points at this connection and the model is enabled, else the first enabled model (models order). verificationSample = fallback, else first catalog model, else null (no request; existing missing-model error). A relay conversation whose stored non-empty modelId is not among the connection's enabled models is 'removed': no silent replacement, composer shows the banner with the connection display name and sending is blocked. Test names: RD1-SELECT-<id> (iOS/Android function names contain RD1_SELECT_<id>).",
+  "version": 1,
+  "cases": [
+    {
+      "id": "last_used_on_connection",
+      "provider": { "id": "relay-a", "kind": "relay", "name": "My Relay", "models": [{ "id": "gpt-5.4", "isDefault": true }, { "id": "claude-4-haiku" }], "catalogModels": [] },
+      "lastUsedModelRef": { "providerId": "relay-a", "modelId": "claude-4-haiku" },
+      "conversationModelId": null,
+      "expect": { "fallbackModelId": "claude-4-haiku", "verificationSampleModelId": "claude-4-haiku", "removed": false }
+    },
+    {
+      "id": "legacy_default_ignored",
+      "provider": { "id": "relay-a", "kind": "relay", "name": "My Relay", "models": [{ "id": "gpt-5.4" }, { "id": "claude-4-haiku", "isDefault": true }], "catalogModels": [] },
+      "lastUsedModelRef": { "providerId": "openai", "modelId": "gpt-5.6-sol" },
+      "conversationModelId": null,
+      "expect": { "fallbackModelId": "gpt-5.4", "verificationSampleModelId": "gpt-5.4", "removed": false }
+    },
+    {
+      "id": "last_used_model_gone",
+      "provider": { "id": "relay-a", "kind": "relay", "name": "My Relay", "models": [{ "id": "gpt-5.4" }], "catalogModels": [] },
+      "lastUsedModelRef": { "providerId": "relay-a", "modelId": "deleted-model" },
+      "conversationModelId": null,
+      "expect": { "fallbackModelId": "gpt-5.4", "verificationSampleModelId": "gpt-5.4", "removed": false }
+    },
+    {
+      "id": "no_enabled_models_catalog_only",
+      "provider": { "id": "relay-a", "kind": "relay", "name": "My Relay", "models": [], "catalogModels": ["qwen3-max"] },
+      "lastUsedModelRef": null,
+      "conversationModelId": null,
+      "expect": { "fallbackModelId": null, "verificationSampleModelId": "qwen3-max", "removed": false }
+    },
+    {
+      "id": "nothing_to_verify",
+      "provider": { "id": "relay-a", "kind": "relay", "name": "My Relay", "models": [], "catalogModels": [] },
+      "lastUsedModelRef": null,
+      "conversationModelId": null,
+      "expect": { "fallbackModelId": null, "verificationSampleModelId": null, "removed": false }
+    },
+    {
+      "id": "conversation_model_present",
+      "provider": { "id": "relay-a", "kind": "relay", "name": "My Relay", "models": [{ "id": "gpt-5.4" }, { "id": "claude-4-haiku" }], "catalogModels": [] },
+      "lastUsedModelRef": null,
+      "conversationModelId": "claude-4-haiku",
+      "expect": { "fallbackModelId": "gpt-5.4", "verificationSampleModelId": "gpt-5.4", "removed": false, "conversationModelId": "claude-4-haiku" }
+    },
+    {
+      "id": "conversation_model_removed",
+      "provider": { "id": "relay-a", "kind": "relay", "name": "My Relay", "models": [{ "id": "gpt-5.4", "isDefault": true }], "catalogModels": ["claude-4-haiku"] },
+      "lastUsedModelRef": { "providerId": "relay-a", "modelId": "gpt-5.4" },
+      "conversationModelId": "claude-4-haiku",
+      "expect": { "fallbackModelId": "gpt-5.4", "verificationSampleModelId": "gpt-5.4", "removed": true, "connectionName": "My Relay", "conversationModelId": "claude-4-haiku" }
+    },
+    {
+      "id": "local_engine_model_removed",
+      "provider": { "id": "local-a", "kind": "relay", "name": "Ollama", "engineProfile": "ollama", "models": [{ "id": "qwen3:8b" }], "catalogModels": ["qwen3:8b"] },
+      "lastUsedModelRef": null,
+      "conversationModelId": "llama3.2:3b",
+      "expect": { "fallbackModelId": "qwen3:8b", "verificationSampleModelId": "qwen3:8b", "removed": true, "connectionName": "Ollama", "conversationModelId": "llama3.2:3b" }
+    },
+    {
+      "id": "empty_conversation_model_uses_fallback",
+      "provider": { "id": "relay-a", "kind": "relay", "name": "My Relay", "models": [{ "id": "gpt-5.4" }], "catalogModels": [] },
+      "lastUsedModelRef": null,
+      "conversationModelId": "",
+      "expect": { "fallbackModelId": "gpt-5.4", "verificationSampleModelId": "gpt-5.4", "removed": false }
+    },
+    {
+      "id": "official_provider_not_in_scope",
+      "provider": { "id": "openai", "kind": "openAI", "name": "OpenAI", "models": [{ "id": "gpt-5.6-sol", "isDefault": true }], "catalogModels": [] },
+      "lastUsedModelRef": null,
+      "conversationModelId": "gpt-4-retired",
+      "expect": { "removed": false }
+    }
+  ]
+}

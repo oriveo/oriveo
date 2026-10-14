@@ -1,0 +1,51 @@
+{
+  "$comment": "Image placeholders on text-only routes. A route that can only send text writes one placeholder line per attached image, byte-identical on every end, and its outgoing request body carries no image block. Each end runs one test per case, named IMAGE_PLACEHOLDER_<id> (Web: it('IMAGE-PLACEHOLDER-<id> ...')), and asserts both the route declaration and the body produced by its production request builder for that route.",
+  "v": 1,
+  "cases": [
+    {
+      "id": "deepseek_chat",
+      "placeholder": "[Image omitted: unsupported by DeepSeek]",
+      "routes": {
+        "ios": "deepSeekChat",
+        "android": "DeepSeekChat",
+        "web": "deepseek_chat"
+      }
+    },
+    {
+      "id": "relay_llamacpp_native",
+      "placeholder": "[Image omitted: this route sends text only]",
+      "routes": {
+        "ios": "relayLlamaCppNative",
+        "android": "LlamaCppNative",
+        "web": "relay_llamacpp_native"
+      }
+    },
+    {
+      "id": "minimax_chat",
+      "placeholder": "[Image omitted: this route sends text only]",
+      "routes": {
+        "ios": "miniMaxChat",
+        "android": "ChatCompletions(MiniMax)",
+        "web": "minimax_chat"
+      }
+    },
+    {
+      "id": "minimax_web",
+      "placeholder": "[Image omitted: this route sends text only]",
+      "routes": {
+        "ios": "miniMaxAnthropicWeb",
+        "android": "MiniMaxAnthropicMessages",
+        "web": "minimax_anthropic_messages"
+      }
+    },
+    {
+      "id": "gemini_interactions",
+      "placeholder": "[Image omitted: this route sends text only]",
+      "routes": {
+        "ios": "geminiInteractions",
+        "android": "GeminiInteractions",
+        "web": "gemini_interactions"
+      }
+    }
+  ]
+}

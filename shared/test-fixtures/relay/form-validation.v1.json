@@ -49,14 +49,14 @@
       {
         "field": "headers",
         "group": "advanced_http",
-        "labelEN": "Custom Headers",
+        "labelEN": "Headers",
         "placeholder": "X-Internal-Token",
         "revalidation": "always"
       },
       {
         "field": "query_params",
         "group": "advanced_http",
-        "labelEN": "Custom Query Params",
+        "labelEN": "Query params",
         "placeholder": "tenant",
         "revalidation": "always"
       }

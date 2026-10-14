@@ -1,0 +1,62 @@
+{
+  "$comment": "Relay address normalization v1. One place per client turns an address into the API root a request goes to: `previewAPIRoot(input)` drives the add page's \"Will request …\" row, `catalogAPIRoot(provider)` drives every catalog GET (add-time key fetches and catalog refresh). previewAPIRoot = describe(input) with terminal routes stripped, then the same version completion effectiveAPIRoot uses (a path that already carries any version segment v<N>[alpha|beta] anywhere is kept, e.g. /api/paas/v4; otherwise the protocol's standard version is appended: openai_chat_completions unless the input names another protocol by its terminal route); input that cannot become a request-safe https address (empty, userinfo, embedded query, plain http to a non-local host) yields null and the row is hidden. catalogAPIRoot = the connection-level verified root (resolvedAPIBaseURLs[connection transport] → legacy resolvedAPIBaseURL, the same rule as effectiveAPIRoot with no model; `auto` / missing is openai_chat_completions), else baseURL with terminal routes stripped and version-completed for the connection transport by that same rule (llamacpp_native adds no version). Catalog URL = catalogAPIRoot + \"/models\". Test ids: RD2-ADDR-PREVIEW-<caseId>, RD2-ADDR-CATALOG-<caseId>; RD2-REFRESH-<caseId> drives catalogCases through the production catalog refresh path and asserts the requested URL.",
+  "version": 1,
+  "previewCases": [
+    { "caseId": "bare_host_gets_https_and_v1", "input": "api.myrelay.dev", "expect": "https://api.myrelay.dev/v1" },
+    { "caseId": "trailing_slash_is_dropped", "input": "https://api.myrelay.dev/", "expect": "https://api.myrelay.dev/v1" },
+    { "caseId": "explicit_v1_is_kept", "input": "https://api.myrelay.dev/v1", "expect": "https://api.myrelay.dev/v1" },
+    { "caseId": "pasted_chat_route_is_trimmed_to_its_root", "input": "https://api.myrelay.dev/v1/chat/completions", "expect": "https://api.myrelay.dev/v1" },
+    { "caseId": "proxy_prefix_is_kept", "input": "https://relay.example.com/proxy", "expect": "https://relay.example.com/proxy/v1" },
+    { "caseId": "explicit_v1beta_is_kept", "input": "https://relay.example.com/v1beta", "expect": "https://relay.example.com/v1beta" },
+    { "caseId": "pasted_messages_route_is_trimmed", "input": "https://relay.example.com/v1/messages", "expect": "https://relay.example.com/v1" },
+    { "caseId": "pasted_models_route_is_trimmed", "input": "https://relay.example.com/v1/models", "expect": "https://relay.example.com/v1" },
+    { "caseId": "empty_input_has_no_preview", "input": "  ", "expect": null },
+    { "caseId": "userinfo_has_no_preview", "input": "https://user:pass@relay.example.com", "expect": null },
+    { "caseId": "embedded_query_has_no_preview", "input": "https://relay.example.com/v1?key=abc", "expect": null },
+    { "caseId": "plain_http_remote_has_no_preview", "input": "http://relay.example.com", "expect": null },
+    { "caseId": "existing_v4_segment_is_kept", "input": "https://open.example.cn/api/paas/v4", "expect": "https://open.example.cn/api/paas/v4" },
+    { "caseId": "pasted_versionless_chat_route_completes_v1", "input": "https://relay.example.com/chat/completions", "expect": "https://relay.example.com/v1" }
+  ],
+  "catalogCases": [
+    {
+      "caseId": "host_only_connection_refreshes_v1_models",
+      "provider": { "baseURL": "https://api.myrelay.dev", "relayRequested": { "transport": "auto" } },
+      "expect": { "catalogURL": "https://api.myrelay.dev/v1/models" }
+    },
+    {
+      "caseId": "verified_root_from_detection_wins",
+      "provider": { "baseURL": "https://api.myrelay.dev", "relayRequested": { "transport": "auto", "resolvedAPIBaseURL": "https://api.myrelay.dev/v1" } },
+      "expect": { "catalogURL": "https://api.myrelay.dev/v1/models" }
+    },
+    {
+      "caseId": "versionless_verified_root_is_not_versioned_again",
+      "provider": { "baseURL": "https://relay.example.com/api", "relayRequested": { "transport": "auto", "resolvedAPIBaseURL": "https://relay.example.com/api" } },
+      "expect": { "catalogURL": "https://relay.example.com/api/models" }
+    },
+    {
+      "caseId": "per_transport_root_of_the_connection_transport_wins",
+      "provider": { "baseURL": "https://relay.example.com", "relayRequested": { "transport": "openai_chat_completions", "resolvedAPIBaseURLs": { "openai_chat_completions": "https://relay.example.com/openai/v1", "anthropic_messages": "https://relay.example.com/claude/v1" } } },
+      "expect": { "catalogURL": "https://relay.example.com/openai/v1/models" }
+    },
+    {
+      "caseId": "stored_chat_route_is_trimmed_before_models",
+      "provider": { "baseURL": "https://relay.example.com/v1/chat/completions", "relayRequested": { "transport": "auto" } },
+      "expect": { "catalogURL": "https://relay.example.com/v1/models" }
+    },
+    {
+      "caseId": "messages_connection_refreshes_its_v1_root",
+      "provider": { "baseURL": "https://relay.example.com", "relayRequested": { "transport": "anthropic_messages" } },
+      "expect": { "catalogURL": "https://relay.example.com/v1/models" }
+    },
+    {
+      "caseId": "gemini_connection_refreshes_its_v1beta_root",
+      "provider": { "baseURL": "https://relay.example.com", "relayRequested": { "transport": "gemini_generate_content" } },
+      "expect": { "catalogURL": "https://relay.example.com/v1beta/models" }
+    },
+    {
+      "caseId": "existing_v4_segment_is_not_versioned_again",
+      "provider": { "baseURL": "https://open.example.cn/api/paas/v4", "relayRequested": { "transport": "auto" } },
+      "expect": { "catalogURL": "https://open.example.cn/api/paas/v4/models" }
+    }
+  ]
+}

@@ -1,0 +1,2383 @@
+{
+  "$comment": "Relay user-triggered capability test (manual per-model capability test). Runs only when the user taps the button on a model; never automatic. Each item (text -> image -> tool) is ONE streaming request built by the same production builders an ordinary chat send uses for the model's current effective transport (same URL root, same headers, same session / transport, key from the per-model key entry), with a synthetic user message from `builtins` and output capped at builtins.maxOutputTokens through the builder's own max-tokens channel; the tool item adds `tools` in the same per-protocol function-tool wire shape the chat tool legs use. No protocol fallback, no parameter self-heal, no retry, no negative-cache write: exactly one request per item. Every item has a TOTAL deadline of deadline.perItemSeconds (connect to last byte, not an idle timeout); hitting it = undetermined with reason `timeout`. `requestShapes[<short transport>]` lists what each request must satisfy: `path` (and `query` when present) after replacing \"{{model}}\"; `bodySubset` and `bodySubsetByKind[kind]` must be subset-matched (objects: every expected key present with a subset-matching value; arrays: same length, element-wise subset); `mustContain[kind]` strings appear verbatim in the body ({{png}} = builtins.imagePNGBase64; a JSON-escaped `\\/` form also counts); `mustNotContain[kind]` never appear. Each end additionally asserts its text request equals what its chat builder produces for the same message and options (RD4-PATH-01). The text request is the baseline: unless it is `accepted`, nothing else is sent and nothing is written. An item whose override already has source \"user\" is not tested and its request is skipped. `classifyCases` define accepted / rejected / undetermined plus a `reason` for one HTTP response (the full body read to stream end); scenarios use the response kinds in `responses`. Only `rejected` writes false and only `accepted` writes true; `undetermined` writes nothing and keeps any earlier value. Written values carry source \"tested\". SSE bodies (contentType text/event-stream): each `data:` payload that parses as JSON is an event; the stream is `rejected` when some event is an error event (non-null top-level `error`, or `type` equal to \"error\" or \"response.failed\") and no event carries output (non-null `choices` / `candidates` / `delta` / `output` / `content` / `content_block`, or a `type` starting with \"response.output\"); otherwise accepted. Reasons: ok, upstream_rejected (400 / 415 / 422 / 2xx error body), not_found (404), unauthorized (401), forbidden (403), rate_limited (429), html (2xx text/html), server (5xx), http (any other status), network, timeout. Scenario setup: a relay connection with baseURL \"https://relay.example.com\", default transport = the scenario transport (full wire value via `transports`), authMode auto, apiKey \"sk-test\", and one enabled model `model` with no model-level transport. Tests inject a short deadline (for example 300 ms) for the `hang` / `drip` kinds and separately assert the production value equals deadline.perItemSeconds. A scenario `connection` object overrides the default connection fields; `expect.bodyExtra` keys are added to every request body subset of that scenario (Responses requests carry store:false when the connection disables response storage). A body key counts as content only when present and not null. Each end runs every classify case and scenario under the same caseId inside tests named after RL2-PROBE-06, and every `panelCases` entry inside tests named RD4-PANEL-<caseId>. Evidence: an image or tool item whose response classifies as `accepted` is then fed through the production stream parser of its transport; the item is `accepted` only with evidence — image: the parser's visible text contains builtins.imageExpectedAnswer as a whole word, case-insensitive (the built-in PNG is solid red); tool: the parser emitted a function call named builtins.tool.name (arguments may be truncated by the output cap). Without evidence the item verdict is `notObserved` with reason `not_observed`: nothing is written and any earlier value is kept (like undetermined). The text item needs no evidence. Response kinds `image_ok` / `tool_ok` carry the evidence; `ok` carries plain text only.",
+  "version": 1,
+  "builtins": {
+    "maxOutputTokens": 16,
+    "textPrompt": "Hi",
+    "imagePrompt": "What color is this image? Answer in one word.",
+    "imageMimeType": "image/png",
+    "imagePNGBase64": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR42mP4z8CAFTEMLQkAKP8/wc53yE8AAAAASUVORK5CYII=",
+    "toolPrompt": "What time is it? Use the tool.",
+    "tool": {
+      "name": "get_current_time",
+      "description": "Returns the current time. Has no side effects.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "description": "IANA time zone name, for example UTC."
+          }
+        }
+      }
+    },
+    "imageExpectedAnswer": "red"
+  },
+  "transports": {
+    "chat": "openai_chat_completions",
+    "responses": "openai_responses",
+    "messages": "anthropic_messages",
+    "gemini": "gemini_generate_content"
+  },
+  "deadline": {
+    "$comment": "Total time allowed for one item, measured from starting the request to reading the last byte. A server that keeps sending bytes is still cut at this limit. Worst case for three items = 3 x perItemSeconds.",
+    "perItemSeconds": 30,
+    "maxItems": 3
+  },
+  "requestShapes": {
+    "chat": {
+      "path": "/v1/chat/completions",
+      "bodySubset": {
+        "model": "{{model}}",
+        "stream": true,
+        "max_tokens": 16
+      },
+      "bodySubsetByKind": {
+        "tool": {
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "get_current_time",
+                "description": "Returns the current time. Has no side effects.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "timezone": {
+                      "type": "string",
+                      "description": "IANA time zone name, for example UTC."
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "responses": {
+      "path": "/v1/responses",
+      "bodySubset": {
+        "model": "{{model}}",
+        "stream": true,
+        "max_output_tokens": 16
+      },
+      "bodySubsetByKind": {
+        "tool": {
+          "tools": [
+            {
+              "type": "function",
+              "name": "get_current_time",
+              "description": "Returns the current time. Has no side effects.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "timezone": {
+                    "type": "string",
+                    "description": "IANA time zone name, for example UTC."
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "messages": {
+      "path": "/v1/messages",
+      "bodySubset": {
+        "model": "{{model}}",
+        "stream": true,
+        "max_tokens": 16
+      },
+      "bodySubsetByKind": {
+        "tool": {
+          "tools": [
+            {
+              "name": "get_current_time",
+              "description": "Returns the current time. Has no side effects.",
+              "input_schema": {
+                "type": "object",
+                "properties": {
+                  "timezone": {
+                    "type": "string",
+                    "description": "IANA time zone name, for example UTC."
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "gemini": {
+      "path": "/v1beta/models/{{model}}:streamGenerateContent",
+      "query": {
+        "alt": "sse"
+      },
+      "bodySubset": {
+        "generationConfig": {
+          "maxOutputTokens": 16
+        }
+      },
+      "bodySubsetByKind": {
+        "tool": {
+          "tools": [
+            {
+              "functionDeclarations": [
+                {
+                  "name": "get_current_time",
+                  "description": "Returns the current time. Has no side effects.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "timezone": {
+                        "type": "string",
+                        "description": "IANA time zone name, for example UTC."
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "mustContain": {
+    "text": [
+      "Hi"
+    ],
+    "image": [
+      "What color is this image? Answer in one word.",
+      "{{png}}"
+    ],
+    "tool": [
+      "What time is it? Use the tool.",
+      "get_current_time"
+    ]
+  },
+  "mustNotContain": {
+    "text": [
+      "{{png}}",
+      "get_current_time"
+    ],
+    "image": [
+      "get_current_time"
+    ],
+    "tool": [
+      "{{png}}"
+    ]
+  },
+  "responses": {
+    "$comment": "Response kinds a fake server serves in scenarios. `network` = connection refused / reset (no HTTP response). `hang` = accept the request and never send response headers. `drip` = send status 200 text/event-stream headers, then one SSE comment line (\": ping\\n\\n\") every 100 ms forever. Success bodies are per short transport and are SSE streams.",
+    "ok": {
+      "status": 200,
+      "contentType": "text/event-stream",
+      "bodyByTransport": {
+        "chat": "data: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"Hello\"}}]}\n\ndata: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"length\"}]}\n\ndata: [DONE]\n\n",
+        "responses": "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"r1\",\"status\":\"in_progress\"}}\n\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"Hello\"}\n\nevent: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"r1\",\"status\":\"incomplete\"}}\n\n",
+        "messages": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"m1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[]}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello\"}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+        "gemini": "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"Hello\"}]},\"finishReason\":\"MAX_TOKENS\"}]}\n\n"
+      }
+    },
+    "http_400": {
+      "status": 400,
+      "contentType": "application/json",
+      "body": {
+        "error": {
+          "message": "This model does not support this input.",
+          "type": "invalid_request_error"
+        }
+      }
+    },
+    "http_404": {
+      "status": 404,
+      "contentType": "application/json",
+      "body": {
+        "error": {
+          "message": "Not found"
+        }
+      }
+    },
+    "http_415": {
+      "status": 415,
+      "contentType": "application/json",
+      "body": {
+        "error": {
+          "message": "Unsupported media type"
+        }
+      }
+    },
+    "http_422": {
+      "status": 422,
+      "contentType": "application/json",
+      "body": {
+        "error": {
+          "message": "Unprocessable entity"
+        }
+      }
+    },
+    "error_body_200": {
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "error": {
+          "message": "image input is not supported by this channel",
+          "code": "invalid_request"
+        }
+      }
+    },
+    "http_401": {
+      "status": 401,
+      "contentType": "application/json",
+      "body": {
+        "error": {
+          "message": "Invalid API key"
+        }
+      }
+    },
+    "http_429": {
+      "status": 429,
+      "contentType": "application/json",
+      "body": {
+        "error": {
+          "message": "Rate limit reached"
+        }
+      }
+    },
+    "http_500": {
+      "status": 500,
+      "contentType": "application/json",
+      "body": {
+        "error": {
+          "message": "Internal error"
+        }
+      }
+    },
+    "http_503": {
+      "status": 503,
+      "contentType": "text/plain",
+      "body": "Service Unavailable"
+    },
+    "html_200": {
+      "status": 200,
+      "contentType": "text/html",
+      "body": "<!doctype html><html><body>Gateway</body></html>"
+    },
+    "network": {
+      "network": true
+    },
+    "sse_error_200": {
+      "status": 200,
+      "contentType": "text/event-stream",
+      "body": "event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"tools are not supported by this channel\"}}\n\n"
+    },
+    "hang": {
+      "hang": true
+    },
+    "drip": {
+      "drip": true
+    },
+    "image_ok": {
+      "status": 200,
+      "contentType": "text/event-stream",
+      "bodyByTransport": {
+        "chat": "data: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"Red\"}}]}\n\ndata: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"length\"}]}\n\ndata: [DONE]\n\n",
+        "responses": "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"r1\",\"status\":\"in_progress\"}}\n\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"Red\"}\n\nevent: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"r1\",\"status\":\"incomplete\"}}\n\n",
+        "messages": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"m1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[]}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Red\"}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+        "gemini": "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"Red\"}]},\"finishReason\":\"MAX_TOKENS\"}]}\n\n"
+      }
+    },
+    "tool_ok": {
+      "status": 200,
+      "contentType": "text/event-stream",
+      "bodyByTransport": {
+        "chat": "data: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"get_current_time\",\"arguments\":\"\"}}]}}]}\n\ndata: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"{\\\"timezone\\\":\\\"UTC\\\"}\"}}]}}]}\n\ndata: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\ndata: [DONE]\n\n",
+        "responses": "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"r1\",\"status\":\"in_progress\"}}\n\nevent: response.output_item.added\ndata: {\"type\":\"response.output_item.added\",\"output_index\":0,\"item\":{\"type\":\"function_call\",\"id\":\"fc_1\",\"call_id\":\"call_1\",\"name\":\"get_current_time\",\"arguments\":\"\"}}\n\nevent: response.function_call_arguments.delta\ndata: {\"type\":\"response.function_call_arguments.delta\",\"output_index\":0,\"item_id\":\"fc_1\",\"delta\":\"{\\\"timezone\\\":\\\"UTC\\\"}\"}\n\nevent: response.function_call_arguments.done\ndata: {\"type\":\"response.function_call_arguments.done\",\"output_index\":0,\"item_id\":\"fc_1\",\"arguments\":\"{\\\"timezone\\\":\\\"UTC\\\"}\"}\n\nevent: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"type\":\"function_call\",\"id\":\"fc_1\",\"call_id\":\"call_1\",\"name\":\"get_current_time\",\"arguments\":\"{\\\"timezone\\\":\\\"UTC\\\"}\",\"status\":\"completed\"}}\n\nevent: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"r1\",\"status\":\"completed\"}}\n\n",
+        "messages": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"m1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[]}}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"get_current_time\",\"input\":{}}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"timezone\\\":\\\"UTC\\\"}\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"tool_use\"}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+        "gemini": "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"functionCall\":{\"name\":\"get_current_time\",\"args\":{\"timezone\":\"UTC\"}}}]},\"finishReason\":\"STOP\"}]}\n\n"
+      }
+    }
+  },
+  "classifyCases": [
+    {
+      "caseId": "ok_json_is_accepted",
+      "status": 200,
+      "contentType": "application/json",
+      "body": "{\"choices\":[{\"message\":{\"content\":\"Hello\"}}]}",
+      "expect": "accepted",
+      "reason": "ok"
+    },
+    {
+      "caseId": "ok_sse_text_is_accepted",
+      "status": 200,
+      "contentType": "text/event-stream",
+      "body": "data: {\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}\n\n",
+      "expect": "accepted",
+      "reason": "ok"
+    },
+    {
+      "caseId": "ok_empty_body_is_accepted",
+      "status": 200,
+      "contentType": "application/json",
+      "body": "",
+      "expect": "accepted",
+      "reason": "ok"
+    },
+    {
+      "caseId": "error_object_without_content_is_rejected",
+      "status": 200,
+      "contentType": "application/json",
+      "body": "{\"error\":{\"message\":\"image input is not supported\"}}",
+      "expect": "rejected",
+      "reason": "upstream_rejected"
+    },
+    {
+      "caseId": "error_string_without_content_is_rejected",
+      "status": 200,
+      "contentType": "application/json",
+      "body": "{\"error\":\"tools are not supported\"}",
+      "expect": "rejected",
+      "reason": "upstream_rejected"
+    },
+    {
+      "caseId": "null_error_with_content_is_accepted",
+      "status": 200,
+      "contentType": "application/json",
+      "body": "{\"error\":null,\"choices\":[{\"message\":{\"content\":\"Hi\"}}]}",
+      "expect": "accepted",
+      "reason": "ok"
+    },
+    {
+      "caseId": "error_alongside_content_is_accepted",
+      "status": 200,
+      "contentType": "application/json",
+      "body": "{\"error\":{\"message\":\"warn\"},\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hi\"}]}}]}",
+      "expect": "accepted",
+      "reason": "ok"
+    },
+    {
+      "caseId": "error_with_null_content_keys_is_rejected",
+      "status": 200,
+      "contentType": "application/json",
+      "body": "{\"error\":{\"message\":\"no channel\"},\"choices\":null,\"output\":null}",
+      "expect": "rejected",
+      "reason": "upstream_rejected"
+    },
+    {
+      "caseId": "html_200_is_undetermined",
+      "status": 200,
+      "contentType": "text/html",
+      "body": "<!doctype html><html></html>",
+      "expect": "undetermined",
+      "reason": "html"
+    },
+    {
+      "caseId": "http_400_is_rejected",
+      "status": 400,
+      "contentType": "application/json",
+      "body": "{\"error\":{\"message\":\"bad\"}}",
+      "expect": "rejected",
+      "reason": "upstream_rejected"
+    },
+    {
+      "caseId": "http_404_is_rejected",
+      "status": 404,
+      "contentType": "application/json",
+      "body": "{}",
+      "expect": "rejected",
+      "reason": "not_found"
+    },
+    {
+      "caseId": "http_415_is_rejected",
+      "status": 415,
+      "contentType": "application/json",
+      "body": "{}",
+      "expect": "rejected",
+      "reason": "upstream_rejected"
+    },
+    {
+      "caseId": "http_422_is_rejected",
+      "status": 422,
+      "contentType": "application/json",
+      "body": "{}",
+      "expect": "rejected",
+      "reason": "upstream_rejected"
+    },
+    {
+      "caseId": "http_401_is_undetermined",
+      "status": 401,
+      "contentType": "application/json",
+      "body": "{}",
+      "expect": "undetermined",
+      "reason": "unauthorized"
+    },
+    {
+      "caseId": "http_403_is_undetermined",
+      "status": 403,
+      "contentType": "application/json",
+      "body": "{}",
+      "expect": "undetermined",
+      "reason": "forbidden"
+    },
+    {
+      "caseId": "http_408_is_undetermined",
+      "status": 408,
+      "contentType": "application/json",
+      "body": "{}",
+      "expect": "undetermined",
+      "reason": "http"
+    },
+    {
+      "caseId": "http_413_is_undetermined",
+      "status": 413,
+      "contentType": "application/json",
+      "body": "{}",
+      "expect": "undetermined",
+      "reason": "http"
+    },
+    {
+      "caseId": "http_429_is_undetermined",
+      "status": 429,
+      "contentType": "application/json",
+      "body": "{}",
+      "expect": "undetermined",
+      "reason": "rate_limited"
+    },
+    {
+      "caseId": "http_500_is_undetermined",
+      "status": 500,
+      "contentType": "application/json",
+      "body": "{}",
+      "expect": "undetermined",
+      "reason": "server"
+    },
+    {
+      "caseId": "http_503_is_undetermined",
+      "status": 503,
+      "contentType": "text/plain",
+      "body": "Service Unavailable",
+      "expect": "undetermined",
+      "reason": "server"
+    },
+    {
+      "caseId": "sse_error_field_without_output_is_rejected",
+      "status": 200,
+      "contentType": "text/event-stream",
+      "body": "data: {\"error\":{\"message\":\"image input is not supported\"}}\n\ndata: [DONE]\n\n",
+      "expect": "rejected",
+      "reason": "upstream_rejected"
+    },
+    {
+      "caseId": "sse_anthropic_error_event_is_rejected",
+      "status": 200,
+      "contentType": "text/event-stream",
+      "body": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"m1\",\"content\":[]}}\n\nevent: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"tools not supported\"}}\n\n",
+      "expect": "rejected",
+      "reason": "upstream_rejected"
+    },
+    {
+      "caseId": "sse_responses_failed_is_rejected",
+      "status": 200,
+      "contentType": "text/event-stream",
+      "body": "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"r1\"}}\n\nevent: response.failed\ndata: {\"type\":\"response.failed\",\"response\":{\"id\":\"r1\",\"error\":{\"message\":\"bad input\"}}}\n\n",
+      "expect": "rejected",
+      "reason": "upstream_rejected"
+    },
+    {
+      "caseId": "sse_output_then_error_is_accepted",
+      "status": 200,
+      "contentType": "text/event-stream",
+      "body": "data: {\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}\n\ndata: {\"error\":{\"message\":\"stream interrupted\"}}\n\n",
+      "expect": "accepted",
+      "reason": "ok"
+    },
+    {
+      "caseId": "sse_done_only_is_accepted",
+      "status": 200,
+      "contentType": "text/event-stream",
+      "body": "data: [DONE]\n\n",
+      "expect": "accepted",
+      "reason": "ok"
+    },
+    {
+      "caseId": "sse_non_json_lines_are_ignored",
+      "status": 200,
+      "contentType": "text/event-stream",
+      "body": "data: hello\n\n: keep-alive\n\ndata: [DONE]\n\n",
+      "expect": "accepted",
+      "reason": "ok"
+    }
+  ],
+  "scenarios": [
+    {
+      "caseId": "all_accepted_writes_true",
+      "transport": "chat",
+      "model": "gpt-4o-mini",
+      "responses": {
+        "text": "ok",
+        "image": "image_ok",
+        "tool": "tool_ok"
+      },
+      "expect": {
+        "requests": [
+          "text",
+          "image",
+          "tool"
+        ],
+        "outcome": "completed",
+        "items": {
+          "image": "accepted",
+          "toolCall": "accepted"
+        },
+        "overrides": {
+          "image": {
+            "value": true,
+            "source": "tested"
+          },
+          "toolCall": {
+            "value": true,
+            "source": "tested"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "image_400_writes_false",
+      "transport": "chat",
+      "model": "deepseek-chat",
+      "responses": {
+        "text": "ok",
+        "image": "http_400",
+        "tool": "tool_ok"
+      },
+      "expect": {
+        "requests": [
+          "text",
+          "image",
+          "tool"
+        ],
+        "outcome": "completed",
+        "items": {
+          "image": "rejected",
+          "toolCall": "accepted"
+        },
+        "overrides": {
+          "image": {
+            "value": false,
+            "source": "tested"
+          },
+          "toolCall": {
+            "value": true,
+            "source": "tested"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "tool_422_writes_false_on_responses",
+      "transport": "responses",
+      "model": "o3-pro",
+      "responses": {
+        "text": "ok",
+        "image": "image_ok",
+        "tool": "http_422"
+      },
+      "expect": {
+        "requests": [
+          "text",
+          "image",
+          "tool"
+        ],
+        "outcome": "completed",
+        "items": {
+          "image": "accepted",
+          "toolCall": "rejected"
+        },
+        "overrides": {
+          "image": {
+            "value": true,
+            "source": "tested"
+          },
+          "toolCall": {
+            "value": false,
+            "source": "tested"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "image_error_body_200_writes_false_on_messages",
+      "transport": "messages",
+      "model": "claude-sonnet-4-5",
+      "responses": {
+        "text": "ok",
+        "image": "error_body_200",
+        "tool": "tool_ok"
+      },
+      "expect": {
+        "requests": [
+          "text",
+          "image",
+          "tool"
+        ],
+        "outcome": "completed",
+        "items": {
+          "image": "rejected",
+          "toolCall": "accepted"
+        },
+        "overrides": {
+          "image": {
+            "value": false,
+            "source": "tested"
+          },
+          "toolCall": {
+            "value": true,
+            "source": "tested"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "image_415_tool_404_on_gemini",
+      "transport": "gemini",
+      "model": "gemini-2.5-flash",
+      "responses": {
+        "text": "ok",
+        "image": "http_415",
+        "tool": "http_404"
+      },
+      "expect": {
+        "requests": [
+          "text",
+          "image",
+          "tool"
+        ],
+        "outcome": "completed",
+        "items": {
+          "image": "rejected",
+          "toolCall": "rejected"
+        },
+        "overrides": {
+          "image": {
+            "value": false,
+            "source": "tested"
+          },
+          "toolCall": {
+            "value": false,
+            "source": "tested"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "image_5xx_and_tool_network_write_nothing",
+      "transport": "chat",
+      "model": "qwen-plus",
+      "responses": {
+        "text": "ok",
+        "image": "http_500",
+        "tool": "network"
+      },
+      "expect": {
+        "requests": [
+          "text",
+          "image",
+          "tool"
+        ],
+        "outcome": "completed",
+        "items": {
+          "image": "undetermined",
+          "toolCall": "undetermined"
+        },
+        "overrides": {},
+        "reasons": {
+          "image": "server",
+          "toolCall": "network"
+        }
+      }
+    },
+    {
+      "caseId": "undetermined_keeps_earlier_tested_value",
+      "transport": "chat",
+      "model": "qwen-plus",
+      "existingOverrides": {
+        "image": {
+          "value": true,
+          "source": "tested"
+        },
+        "toolCall": {
+          "value": false,
+          "source": "tested"
+        }
+      },
+      "responses": {
+        "text": "ok",
+        "image": "http_503",
+        "tool": "http_429"
+      },
+      "expect": {
+        "requests": [
+          "text",
+          "image",
+          "tool"
+        ],
+        "outcome": "completed",
+        "items": {
+          "image": "undetermined",
+          "toolCall": "undetermined"
+        },
+        "overrides": {
+          "image": {
+            "value": true,
+            "source": "tested"
+          },
+          "toolCall": {
+            "value": false,
+            "source": "tested"
+          }
+        },
+        "reasons": {
+          "image": "server",
+          "toolCall": "rate_limited"
+        }
+      }
+    },
+    {
+      "caseId": "tested_result_replaces_earlier_tested_value",
+      "transport": "chat",
+      "model": "qwen-plus",
+      "existingOverrides": {
+        "image": {
+          "value": false,
+          "source": "tested"
+        }
+      },
+      "responses": {
+        "text": "ok",
+        "image": "image_ok",
+        "tool": "tool_ok"
+      },
+      "expect": {
+        "requests": [
+          "text",
+          "image",
+          "tool"
+        ],
+        "outcome": "completed",
+        "items": {
+          "image": "accepted",
+          "toolCall": "accepted"
+        },
+        "overrides": {
+          "image": {
+            "value": true,
+            "source": "tested"
+          },
+          "toolCall": {
+            "value": true,
+            "source": "tested"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "text_rejected_stops_and_writes_nothing",
+      "transport": "chat",
+      "model": "missing-model",
+      "responses": {
+        "text": "http_404",
+        "image": "ok",
+        "tool": "ok"
+      },
+      "expect": {
+        "requests": [
+          "text"
+        ],
+        "outcome": "text_failed",
+        "items": {},
+        "overrides": {},
+        "text": {
+          "verdict": "rejected",
+          "reason": "not_found"
+        }
+      }
+    },
+    {
+      "caseId": "text_network_error_stops_and_writes_nothing",
+      "transport": "responses",
+      "model": "gpt-5",
+      "existingOverrides": {
+        "toolCall": {
+          "value": true,
+          "source": "tested"
+        }
+      },
+      "responses": {
+        "text": "network",
+        "image": "ok",
+        "tool": "ok"
+      },
+      "expect": {
+        "requests": [
+          "text"
+        ],
+        "outcome": "text_failed",
+        "items": {},
+        "overrides": {
+          "toolCall": {
+            "value": true,
+            "source": "tested"
+          }
+        },
+        "text": {
+          "verdict": "undetermined",
+          "reason": "network"
+        }
+      }
+    },
+    {
+      "caseId": "text_html_200_stops_and_writes_nothing",
+      "transport": "chat",
+      "model": "gpt-4o-mini",
+      "responses": {
+        "text": "html_200",
+        "image": "ok",
+        "tool": "ok"
+      },
+      "expect": {
+        "requests": [
+          "text"
+        ],
+        "outcome": "text_failed",
+        "items": {},
+        "overrides": {},
+        "text": {
+          "verdict": "undetermined",
+          "reason": "html"
+        }
+      }
+    },
+    {
+      "caseId": "user_override_item_is_skipped_and_kept",
+      "transport": "chat",
+      "model": "gpt-4o-mini",
+      "existingOverrides": {
+        "image": {
+          "value": false,
+          "source": "user"
+        },
+        "file": {
+          "value": true,
+          "source": "user"
+        }
+      },
+      "responses": {
+        "text": "ok",
+        "image": "ok",
+        "tool": "http_400"
+      },
+      "expect": {
+        "requests": [
+          "text",
+          "tool"
+        ],
+        "outcome": "completed",
+        "items": {
+          "toolCall": "rejected"
+        },
+        "overrides": {
+          "image": {
+            "value": false,
+            "source": "user"
+          },
+          "file": {
+            "value": true,
+            "source": "user"
+          },
+          "toolCall": {
+            "value": false,
+            "source": "tested"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "all_items_user_set_sends_text_only",
+      "transport": "messages",
+      "model": "claude-sonnet-4-5",
+      "existingOverrides": {
+        "image": {
+          "value": true,
+          "source": "user"
+        },
+        "toolCall": {
+          "value": true,
+          "source": "user"
+        }
+      },
+      "responses": {
+        "text": "ok",
+        "image": "ok",
+        "tool": "ok"
+      },
+      "expect": {
+        "requests": [
+          "text"
+        ],
+        "outcome": "completed",
+        "items": {},
+        "overrides": {
+          "image": {
+            "value": true,
+            "source": "user"
+          },
+          "toolCall": {
+            "value": true,
+            "source": "user"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "disable_response_storage_adds_store_false",
+      "transport": "responses",
+      "model": "gpt-5",
+      "connection": {
+        "disableResponseStorage": true
+      },
+      "responses": {
+        "text": "ok",
+        "image": "image_ok",
+        "tool": "tool_ok"
+      },
+      "expect": {
+        "requests": [
+          "text",
+          "image",
+          "tool"
+        ],
+        "bodyExtra": {
+          "store": false
+        },
+        "outcome": "completed",
+        "items": {
+          "image": "accepted",
+          "toolCall": "accepted"
+        },
+        "overrides": {
+          "image": {
+            "value": true,
+            "source": "tested"
+          },
+          "toolCall": {
+            "value": true,
+            "source": "tested"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "tool_sse_error_writes_false_on_messages",
+      "transport": "messages",
+      "model": "claude-sonnet-4-5",
+      "responses": {
+        "text": "ok",
+        "image": "image_ok",
+        "tool": "sse_error_200"
+      },
+      "expect": {
+        "requests": [
+          "text",
+          "image",
+          "tool"
+        ],
+        "outcome": "completed",
+        "items": {
+          "image": "accepted",
+          "toolCall": "rejected"
+        },
+        "overrides": {
+          "image": {
+            "value": true,
+            "source": "tested"
+          },
+          "toolCall": {
+            "value": false,
+            "source": "tested"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "text_hang_times_out_and_stops",
+      "transport": "chat",
+      "model": "gpt-4o-mini",
+      "responses": {
+        "text": "hang",
+        "image": "ok",
+        "tool": "ok"
+      },
+      "expect": {
+        "requests": [
+          "text"
+        ],
+        "outcome": "text_failed",
+        "text": {
+          "verdict": "undetermined",
+          "reason": "timeout"
+        },
+        "items": {},
+        "overrides": {}
+      }
+    },
+    {
+      "caseId": "image_drip_is_cut_by_total_deadline",
+      "transport": "responses",
+      "model": "gpt-5",
+      "responses": {
+        "text": "ok",
+        "image": "drip",
+        "tool": "tool_ok"
+      },
+      "expect": {
+        "requests": [
+          "text",
+          "image",
+          "tool"
+        ],
+        "outcome": "completed",
+        "items": {
+          "image": "undetermined",
+          "toolCall": "accepted"
+        },
+        "reasons": {
+          "image": "timeout"
+        },
+        "overrides": {
+          "toolCall": {
+            "value": true,
+            "source": "tested"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "text_404_sends_one_request_without_protocol_fallback",
+      "transport": "messages",
+      "model": "claude-x",
+      "responses": {
+        "text": "http_404",
+        "image": "ok",
+        "tool": "ok"
+      },
+      "expect": {
+        "requests": [
+          "text"
+        ],
+        "totalHttpRequests": 1,
+        "outcome": "text_failed",
+        "text": {
+          "verdict": "rejected",
+          "reason": "not_found"
+        },
+        "items": {},
+        "overrides": {}
+      }
+    },
+    {
+      "caseId": "image_reply_without_answer_writes_nothing",
+      "transport": "chat",
+      "model": "gpt-4o-mini",
+      "responses": {
+        "text": "ok",
+        "image": "ok",
+        "tool": "tool_ok"
+      },
+      "expect": {
+        "requests": [
+          "text",
+          "image",
+          "tool"
+        ],
+        "outcome": "completed",
+        "items": {
+          "image": "notObserved",
+          "toolCall": "accepted"
+        },
+        "overrides": {
+          "toolCall": {
+            "value": true,
+            "source": "tested"
+          }
+        },
+        "reasons": {
+          "image": "not_observed"
+        }
+      }
+    },
+    {
+      "caseId": "tool_text_only_keeps_earlier_value_on_gemini",
+      "transport": "gemini",
+      "model": "gemini-2.5-flash",
+      "existingOverrides": {
+        "toolCall": {
+          "value": true,
+          "source": "tested"
+        }
+      },
+      "responses": {
+        "text": "ok",
+        "image": "image_ok",
+        "tool": "ok"
+      },
+      "expect": {
+        "requests": [
+          "text",
+          "image",
+          "tool"
+        ],
+        "outcome": "completed",
+        "items": {
+          "image": "accepted",
+          "toolCall": "notObserved"
+        },
+        "overrides": {
+          "image": {
+            "value": true,
+            "source": "tested"
+          },
+          "toolCall": {
+            "value": true,
+            "source": "tested"
+          }
+        },
+        "reasons": {
+          "toolCall": "not_observed"
+        }
+      }
+    },
+    {
+      "caseId": "tool_text_only_writes_nothing_on_messages",
+      "transport": "messages",
+      "model": "claude-sonnet-4-5",
+      "responses": {
+        "text": "ok",
+        "image": "image_ok",
+        "tool": "ok"
+      },
+      "expect": {
+        "requests": [
+          "text",
+          "image",
+          "tool"
+        ],
+        "outcome": "completed",
+        "items": {
+          "image": "accepted",
+          "toolCall": "notObserved"
+        },
+        "overrides": {
+          "image": {
+            "value": true,
+            "source": "tested"
+          }
+        },
+        "reasons": {
+          "toolCall": "not_observed"
+        }
+      }
+    },
+    {
+      "caseId": "evidence_accepted_on_responses",
+      "transport": "responses",
+      "model": "gpt-4.1-mini",
+      "responses": {
+        "text": "ok",
+        "image": "image_ok",
+        "tool": "tool_ok"
+      },
+      "expect": {
+        "requests": [
+          "text",
+          "image",
+          "tool"
+        ],
+        "outcome": "completed",
+        "items": {
+          "image": "accepted",
+          "toolCall": "accepted"
+        },
+        "overrides": {
+          "image": {
+            "value": true,
+            "source": "tested"
+          },
+          "toolCall": {
+            "value": true,
+            "source": "tested"
+          }
+        }
+      }
+    }
+  ],
+  "restoreAutomatic": {
+    "$comment": "Restore automatic for the tested result clears only entries with source \"tested\"; \"user\" entries stay. An empty result means the model has no overrides (field omitted).",
+    "cases": [
+      {
+        "caseId": "clears_only_tested_entries",
+        "before": {
+          "image": {
+            "value": false,
+            "source": "tested"
+          },
+          "toolCall": {
+            "value": true,
+            "source": "user"
+          }
+        },
+        "after": {
+          "toolCall": {
+            "value": true,
+            "source": "user"
+          }
+        }
+      },
+      {
+        "caseId": "all_tested_becomes_empty",
+        "before": {
+          "image": {
+            "value": true,
+            "source": "tested"
+          },
+          "toolCall": {
+            "value": false,
+            "source": "tested"
+          }
+        },
+        "after": {}
+      }
+    ]
+  },
+  "noAutomaticRequests": {
+    "$comment": "Adding a connection, enabling a model and re-detecting must send zero text / image / tool capability-test requests: the image and tool bodies above never leave the device unless the user taps the button. Each end asserts this on its existing add / enable / re-detect fake-server tests by checking no request body contains builtins.imagePNGBase64 or builtins.tool.name. The web search probe is the only capability check that may run automatically, and only per the trigger table in web-probe.v1.json (after saving a fragment, after enabling a model on a transport that has one; never on add or re-detect; capped and deduped there)."
+  },
+  "panelCases": {
+    "$comment": "Pure presentation of the bottom panel (capability test panel). Input: `items` = the kinds that will be sent in order (text always first; image / toolCall only when not user-set), `keyName` = bound key name when the connection has 2+ keys (null = 1 key: no key chip, info line without a name), `phase` running | completed | stopped, `results` per finished kind (verdict, reason, status, elapsedMs), `running` = the kind in flight and its elapsed time, `written` = write-back happened (completed only), `stopReason` cancelled | connection | protocol | unavailable. Output: header {progress:[current,total]} while running (current = 1-based index of the running kind), \"done\" when completed, \"stopped\" when stopped; progressFraction = [finished items, total] (completed = total); chips = protocol short name + key name or null; rows in `items` order with icon waiting | running | accepted | rejected | undetermined | notRun, subtitle = a string id (Android resource name; each end maps it to its own key) or null, subtitleArg = a string id used as the %@ argument, a status code as text, or \"<id>:<code>\" for an id that itself takes the code; trailing = \"waiting\", \"elapsed:<seconds with one decimal, rounded half up>\", \"running:<same>\", or null; footer = info line while running (count = items length), saved / nothing when completed, stopped line with reason id when stopped; button cancel | done; dismissible = the panel can be swiped / clicked away (false only while running). Subtitle rules: text accepted -> text_ok; text rejected not_found -> text_not_found; text rejected other -> text_rejected with the status; undetermined -> undetermined with reason id (server / http reasons carry the status); image / toolCall accepted -> supported_saved when written, else the existing relay_capability_test_supported; notObserved -> icon undetermined with relay_cap_test_image_not_observed / relay_cap_test_tool_not_observed (no subtitleArg); rejected -> image_rejected / tool_rejected when written, else relay_capability_test_unsupported; kinds after a failed text check -> not_run; kinds never finished when stopped -> not_tested. Web item: `web` is listed last, only when the model's first-send transport has a saved web search fragment (web-probe.v1.json triggers: the manual probe, no cap, no dedupe, not counted); it runs after the text check like image / toolCall and is not_run when the text check failed. Its verdict is the probe result: searched -> icon accepted + model_options_relay_web_search_confirmed; silent -> icon undetermined + model_options_relay_web_no_search_in_test; rejected -> icon rejected + model_options_relay_web_rejected (no subtitleArg, whether or not written); undetermined -> as the other kinds. Running subtitle relay_cap_test_running_web. While running and web is listed, the info footer uses relay_cap_test_info_web / relay_cap_test_info_web_named_key (same count / keyName). `written` also counts the web override write (searched / rejected).",
+    "cases": [
+      {
+        "caseId": "running_second_of_three",
+        "transport": "messages",
+        "items": [
+          "text",
+          "image",
+          "toolCall"
+        ],
+        "keyName": "Claude 分组",
+        "phase": "running",
+        "results": {
+          "text": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 1200,
+            "status": 200
+          }
+        },
+        "running": {
+          "kind": "image",
+          "elapsedMs": 4100
+        },
+        "expect": {
+          "header": {
+            "progress": [
+              2,
+              3
+            ]
+          },
+          "progressFraction": [
+            1,
+            3
+          ],
+          "chips": {
+            "transport": "messages",
+            "key": "Claude 分组"
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_text_ok",
+              "trailing": "elapsed:1.2"
+            },
+            {
+              "kind": "image",
+              "icon": "running",
+              "subtitle": "relay_cap_test_running_image",
+              "trailing": "running:4.1"
+            },
+            {
+              "kind": "toolCall",
+              "icon": "waiting",
+              "subtitle": null,
+              "trailing": "waiting"
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_info_named_key",
+            "count": 3,
+            "keyName": "Claude 分组"
+          },
+          "button": "cancel",
+          "dismissible": false
+        }
+      },
+      {
+        "caseId": "completed_board",
+        "transport": "messages",
+        "items": [
+          "text",
+          "image",
+          "toolCall"
+        ],
+        "keyName": "Claude 分组",
+        "phase": "completed",
+        "results": {
+          "text": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 1200,
+            "status": 200
+          },
+          "image": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 4600,
+            "status": 200
+          },
+          "toolCall": {
+            "verdict": "rejected",
+            "reason": "upstream_rejected",
+            "elapsedMs": 900,
+            "status": 400
+          }
+        },
+        "written": true,
+        "expect": {
+          "header": "done",
+          "progressFraction": [
+            3,
+            3
+          ],
+          "chips": {
+            "transport": "messages",
+            "key": "Claude 分组"
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_text_ok",
+              "trailing": "elapsed:1.2"
+            },
+            {
+              "kind": "image",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_supported_saved",
+              "trailing": "elapsed:4.6"
+            },
+            {
+              "kind": "toolCall",
+              "icon": "rejected",
+              "subtitle": "relay_cap_test_tool_rejected",
+              "trailing": "elapsed:0.9"
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_footer_saved"
+          },
+          "button": "done",
+          "dismissible": true
+        }
+      },
+      {
+        "caseId": "completed_nothing_saved_single_key",
+        "transport": "chat",
+        "items": [
+          "text",
+          "image",
+          "toolCall"
+        ],
+        "keyName": null,
+        "phase": "completed",
+        "results": {
+          "text": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 800,
+            "status": 200
+          },
+          "image": {
+            "verdict": "undetermined",
+            "reason": "timeout",
+            "elapsedMs": 20000
+          },
+          "toolCall": {
+            "verdict": "undetermined",
+            "reason": "rate_limited",
+            "elapsedMs": 300,
+            "status": 429
+          }
+        },
+        "written": false,
+        "expect": {
+          "header": "done",
+          "progressFraction": [
+            3,
+            3
+          ],
+          "chips": {
+            "transport": "chat",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_text_ok",
+              "trailing": "elapsed:0.8"
+            },
+            {
+              "kind": "image",
+              "icon": "undetermined",
+              "subtitle": "relay_cap_test_undetermined",
+              "subtitleArg": "relay_cap_test_reason_timeout",
+              "trailing": "elapsed:20.0"
+            },
+            {
+              "kind": "toolCall",
+              "icon": "undetermined",
+              "subtitle": "relay_cap_test_undetermined",
+              "subtitleArg": "relay_cap_test_reason_rate_limited",
+              "trailing": "elapsed:0.3"
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_footer_nothing"
+          },
+          "button": "done",
+          "dismissible": true
+        }
+      },
+      {
+        "caseId": "running_first_single_key_image_user_set",
+        "transport": "chat",
+        "items": [
+          "text",
+          "toolCall"
+        ],
+        "keyName": null,
+        "phase": "running",
+        "results": {},
+        "running": {
+          "kind": "text",
+          "elapsedMs": 400
+        },
+        "expect": {
+          "header": {
+            "progress": [
+              1,
+              2
+            ]
+          },
+          "progressFraction": [
+            0,
+            2
+          ],
+          "chips": {
+            "transport": "chat",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "running",
+              "subtitle": "relay_cap_test_running_text",
+              "trailing": "running:0.4"
+            },
+            {
+              "kind": "toolCall",
+              "icon": "waiting",
+              "subtitle": null,
+              "trailing": "waiting"
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_info",
+            "count": 2
+          },
+          "button": "cancel",
+          "dismissible": false
+        }
+      },
+      {
+        "caseId": "text_not_found",
+        "transport": "chat",
+        "items": [
+          "text",
+          "image",
+          "toolCall"
+        ],
+        "keyName": null,
+        "phase": "completed",
+        "results": {
+          "text": {
+            "verdict": "rejected",
+            "reason": "not_found",
+            "elapsedMs": 500,
+            "status": 404
+          }
+        },
+        "written": false,
+        "expect": {
+          "header": "done",
+          "progressFraction": [
+            3,
+            3
+          ],
+          "chips": {
+            "transport": "chat",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "rejected",
+              "subtitle": "relay_cap_test_text_not_found",
+              "trailing": "elapsed:0.5"
+            },
+            {
+              "kind": "image",
+              "icon": "notRun",
+              "subtitle": "relay_cap_test_not_run",
+              "trailing": null
+            },
+            {
+              "kind": "toolCall",
+              "icon": "notRun",
+              "subtitle": "relay_cap_test_not_run",
+              "trailing": null
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_footer_nothing"
+          },
+          "button": "done",
+          "dismissible": true
+        }
+      },
+      {
+        "caseId": "text_rejected_422",
+        "transport": "chat",
+        "items": [
+          "text",
+          "image",
+          "toolCall"
+        ],
+        "keyName": null,
+        "phase": "completed",
+        "results": {
+          "text": {
+            "verdict": "rejected",
+            "reason": "upstream_rejected",
+            "elapsedMs": 700,
+            "status": 422
+          }
+        },
+        "written": false,
+        "expect": {
+          "header": "done",
+          "progressFraction": [
+            3,
+            3
+          ],
+          "chips": {
+            "transport": "chat",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "rejected",
+              "subtitle": "relay_cap_test_text_rejected",
+              "subtitleArg": "422",
+              "trailing": "elapsed:0.7"
+            },
+            {
+              "kind": "image",
+              "icon": "notRun",
+              "subtitle": "relay_cap_test_not_run",
+              "trailing": null
+            },
+            {
+              "kind": "toolCall",
+              "icon": "notRun",
+              "subtitle": "relay_cap_test_not_run",
+              "trailing": null
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_footer_nothing"
+          },
+          "button": "done",
+          "dismissible": true
+        }
+      },
+      {
+        "caseId": "text_unauthorized",
+        "transport": "chat",
+        "items": [
+          "text",
+          "image",
+          "toolCall"
+        ],
+        "keyName": null,
+        "phase": "completed",
+        "results": {
+          "text": {
+            "verdict": "undetermined",
+            "reason": "unauthorized",
+            "elapsedMs": 300,
+            "status": 401
+          }
+        },
+        "written": false,
+        "expect": {
+          "header": "done",
+          "progressFraction": [
+            3,
+            3
+          ],
+          "chips": {
+            "transport": "chat",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "undetermined",
+              "subtitle": "relay_cap_test_undetermined",
+              "subtitleArg": "relay_cap_test_reason_unauthorized",
+              "trailing": "elapsed:0.3"
+            },
+            {
+              "kind": "image",
+              "icon": "notRun",
+              "subtitle": "relay_cap_test_not_run",
+              "trailing": null
+            },
+            {
+              "kind": "toolCall",
+              "icon": "notRun",
+              "subtitle": "relay_cap_test_not_run",
+              "trailing": null
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_footer_nothing"
+          },
+          "button": "done",
+          "dismissible": true
+        }
+      },
+      {
+        "caseId": "stopped_cancelled_during_tool",
+        "transport": "chat",
+        "items": [
+          "text",
+          "image",
+          "toolCall"
+        ],
+        "keyName": null,
+        "phase": "stopped",
+        "results": {
+          "text": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 1000,
+            "status": 200
+          },
+          "image": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 2000,
+            "status": 200
+          }
+        },
+        "stopReason": "cancelled",
+        "expect": {
+          "header": "stopped",
+          "progressFraction": [
+            2,
+            3
+          ],
+          "chips": {
+            "transport": "chat",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_text_ok",
+              "trailing": "elapsed:1.0"
+            },
+            {
+              "kind": "image",
+              "icon": "accepted",
+              "subtitle": "relay_capability_test_supported",
+              "trailing": "elapsed:2.0"
+            },
+            {
+              "kind": "toolCall",
+              "icon": "notRun",
+              "subtitle": "relay_cap_test_not_tested",
+              "trailing": null
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_stopped",
+            "reason": "relay_cap_test_stop_cancelled"
+          },
+          "button": "done",
+          "dismissible": true
+        }
+      },
+      {
+        "caseId": "stopped_connection_changed_before_write",
+        "transport": "chat",
+        "items": [
+          "text",
+          "image",
+          "toolCall"
+        ],
+        "keyName": null,
+        "phase": "stopped",
+        "results": {
+          "text": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 1000,
+            "status": 200
+          },
+          "image": {
+            "verdict": "rejected",
+            "reason": "upstream_rejected",
+            "elapsedMs": 1500,
+            "status": 400
+          },
+          "toolCall": {
+            "verdict": "undetermined",
+            "reason": "server",
+            "elapsedMs": 600,
+            "status": 502
+          }
+        },
+        "stopReason": "connection",
+        "expect": {
+          "header": "stopped",
+          "progressFraction": [
+            3,
+            3
+          ],
+          "chips": {
+            "transport": "chat",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_text_ok",
+              "trailing": "elapsed:1.0"
+            },
+            {
+              "kind": "image",
+              "icon": "rejected",
+              "subtitle": "relay_capability_test_unsupported",
+              "trailing": "elapsed:1.5"
+            },
+            {
+              "kind": "toolCall",
+              "icon": "undetermined",
+              "subtitle": "relay_cap_test_undetermined",
+              "subtitleArg": "relay_cap_test_reason_server:502",
+              "trailing": "elapsed:0.6"
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_stopped",
+            "reason": "relay_cap_test_stop_connection"
+          },
+          "button": "done",
+          "dismissible": true
+        }
+      },
+      {
+        "caseId": "stopped_protocol_changed",
+        "transport": "responses",
+        "items": [
+          "text",
+          "image"
+        ],
+        "keyName": null,
+        "phase": "stopped",
+        "results": {
+          "text": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 900,
+            "status": 200
+          }
+        },
+        "stopReason": "protocol",
+        "expect": {
+          "header": "stopped",
+          "progressFraction": [
+            1,
+            2
+          ],
+          "chips": {
+            "transport": "responses",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_text_ok",
+              "trailing": "elapsed:0.9"
+            },
+            {
+              "kind": "image",
+              "icon": "notRun",
+              "subtitle": "relay_cap_test_not_tested",
+              "trailing": null
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_stopped",
+            "reason": "relay_cap_test_stop_protocol"
+          },
+          "button": "done",
+          "dismissible": true
+        }
+      },
+      {
+        "caseId": "stopped_model_unavailable",
+        "transport": "chat",
+        "items": [
+          "text",
+          "image",
+          "toolCall"
+        ],
+        "keyName": null,
+        "phase": "stopped",
+        "results": {},
+        "stopReason": "unavailable",
+        "expect": {
+          "header": "stopped",
+          "progressFraction": [
+            0,
+            3
+          ],
+          "chips": {
+            "transport": "chat",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "notRun",
+              "subtitle": "relay_cap_test_not_tested",
+              "trailing": null
+            },
+            {
+              "kind": "image",
+              "icon": "notRun",
+              "subtitle": "relay_cap_test_not_tested",
+              "trailing": null
+            },
+            {
+              "kind": "toolCall",
+              "icon": "notRun",
+              "subtitle": "relay_cap_test_not_tested",
+              "trailing": null
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_stopped",
+            "reason": "relay_cap_test_stop_unavailable"
+          },
+          "button": "done",
+          "dismissible": true
+        }
+      },
+      {
+        "caseId": "completed_not_observed_single_key",
+        "transport": "chat",
+        "items": [
+          "text",
+          "image",
+          "toolCall"
+        ],
+        "keyName": null,
+        "phase": "completed",
+        "results": {
+          "text": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 700,
+            "status": 200
+          },
+          "image": {
+            "verdict": "notObserved",
+            "reason": "not_observed",
+            "elapsedMs": 1500,
+            "status": 200
+          },
+          "toolCall": {
+            "verdict": "notObserved",
+            "reason": "not_observed",
+            "elapsedMs": 900,
+            "status": 200
+          }
+        },
+        "written": false,
+        "expect": {
+          "header": "done",
+          "progressFraction": [
+            3,
+            3
+          ],
+          "chips": {
+            "transport": "chat",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_text_ok",
+              "trailing": "elapsed:0.7"
+            },
+            {
+              "kind": "image",
+              "icon": "undetermined",
+              "subtitle": "relay_cap_test_image_not_observed",
+              "trailing": "elapsed:1.5"
+            },
+            {
+              "kind": "toolCall",
+              "icon": "undetermined",
+              "subtitle": "relay_cap_test_tool_not_observed",
+              "trailing": "elapsed:0.9"
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_footer_nothing"
+          },
+          "button": "done",
+          "dismissible": true
+        }
+      },
+      {
+        "caseId": "running_web_after_not_observed",
+        "transport": "responses",
+        "items": [
+          "text",
+          "image",
+          "toolCall",
+          "web"
+        ],
+        "keyName": null,
+        "phase": "running",
+        "results": {
+          "text": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 700,
+            "status": 200
+          },
+          "image": {
+            "verdict": "notObserved",
+            "reason": "not_observed",
+            "elapsedMs": 1500,
+            "status": 200
+          },
+          "toolCall": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 900,
+            "status": 200
+          }
+        },
+        "running": {
+          "kind": "web",
+          "elapsedMs": 2300
+        },
+        "expect": {
+          "header": {
+            "progress": [
+              4,
+              4
+            ]
+          },
+          "progressFraction": [
+            3,
+            4
+          ],
+          "chips": {
+            "transport": "responses",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_text_ok",
+              "trailing": "elapsed:0.7"
+            },
+            {
+              "kind": "image",
+              "icon": "undetermined",
+              "subtitle": "relay_cap_test_image_not_observed",
+              "trailing": "elapsed:1.5"
+            },
+            {
+              "kind": "toolCall",
+              "icon": "accepted",
+              "subtitle": "relay_capability_test_supported",
+              "trailing": "elapsed:0.9"
+            },
+            {
+              "kind": "web",
+              "icon": "running",
+              "subtitle": "relay_cap_test_running_web",
+              "trailing": "running:2.3"
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_info_web",
+            "count": 4
+          },
+          "button": "cancel",
+          "dismissible": false
+        }
+      },
+      {
+        "caseId": "running_text_named_key_with_web",
+        "transport": "messages",
+        "items": [
+          "text",
+          "web"
+        ],
+        "keyName": "Claude 分组",
+        "phase": "running",
+        "results": {},
+        "running": {
+          "kind": "text",
+          "elapsedMs": 300
+        },
+        "expect": {
+          "header": {
+            "progress": [
+              1,
+              2
+            ]
+          },
+          "progressFraction": [
+            0,
+            2
+          ],
+          "chips": {
+            "transport": "messages",
+            "key": "Claude 分组"
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "running",
+              "subtitle": "relay_cap_test_running_text",
+              "trailing": "running:0.3"
+            },
+            {
+              "kind": "web",
+              "icon": "waiting",
+              "subtitle": null,
+              "trailing": "waiting"
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_info_web_named_key",
+            "count": 2,
+            "keyName": "Claude 分组"
+          },
+          "button": "cancel",
+          "dismissible": false
+        }
+      },
+      {
+        "caseId": "completed_web_searched",
+        "transport": "messages",
+        "items": [
+          "text",
+          "image",
+          "toolCall",
+          "web"
+        ],
+        "keyName": "Claude 分组",
+        "phase": "completed",
+        "results": {
+          "text": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 1000,
+            "status": 200
+          },
+          "image": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 2000,
+            "status": 200
+          },
+          "toolCall": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 1100,
+            "status": 200
+          },
+          "web": {
+            "verdict": "searched",
+            "reason": "ok",
+            "elapsedMs": 5240,
+            "status": 200
+          }
+        },
+        "written": true,
+        "expect": {
+          "header": "done",
+          "progressFraction": [
+            4,
+            4
+          ],
+          "chips": {
+            "transport": "messages",
+            "key": "Claude 分组"
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_text_ok",
+              "trailing": "elapsed:1.0"
+            },
+            {
+              "kind": "image",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_supported_saved",
+              "trailing": "elapsed:2.0"
+            },
+            {
+              "kind": "toolCall",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_supported_saved",
+              "trailing": "elapsed:1.1"
+            },
+            {
+              "kind": "web",
+              "icon": "accepted",
+              "subtitle": "model_options_relay_web_search_confirmed",
+              "trailing": "elapsed:5.2"
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_footer_saved"
+          },
+          "button": "done",
+          "dismissible": true
+        }
+      },
+      {
+        "caseId": "completed_web_silent_nothing_saved",
+        "transport": "chat",
+        "items": [
+          "text",
+          "web"
+        ],
+        "keyName": null,
+        "phase": "completed",
+        "results": {
+          "text": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 600,
+            "status": 200
+          },
+          "web": {
+            "verdict": "silent",
+            "reason": "ok",
+            "elapsedMs": 3100,
+            "status": 200
+          }
+        },
+        "written": false,
+        "expect": {
+          "header": "done",
+          "progressFraction": [
+            2,
+            2
+          ],
+          "chips": {
+            "transport": "chat",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_text_ok",
+              "trailing": "elapsed:0.6"
+            },
+            {
+              "kind": "web",
+              "icon": "undetermined",
+              "subtitle": "model_options_relay_web_no_search_in_test",
+              "trailing": "elapsed:3.1"
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_footer_nothing"
+          },
+          "button": "done",
+          "dismissible": true
+        }
+      },
+      {
+        "caseId": "completed_web_rejected",
+        "transport": "chat",
+        "items": [
+          "text",
+          "web"
+        ],
+        "keyName": null,
+        "phase": "completed",
+        "results": {
+          "text": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 600,
+            "status": 200
+          },
+          "web": {
+            "verdict": "rejected",
+            "reason": "upstream_rejected",
+            "elapsedMs": 400,
+            "status": 400
+          }
+        },
+        "written": true,
+        "expect": {
+          "header": "done",
+          "progressFraction": [
+            2,
+            2
+          ],
+          "chips": {
+            "transport": "chat",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_text_ok",
+              "trailing": "elapsed:0.6"
+            },
+            {
+              "kind": "web",
+              "icon": "rejected",
+              "subtitle": "model_options_relay_web_rejected",
+              "trailing": "elapsed:0.4"
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_footer_saved"
+          },
+          "button": "done",
+          "dismissible": true
+        }
+      },
+      {
+        "caseId": "text_failed_web_not_run",
+        "transport": "chat",
+        "items": [
+          "text",
+          "web"
+        ],
+        "keyName": null,
+        "phase": "completed",
+        "results": {
+          "text": {
+            "verdict": "rejected",
+            "reason": "not_found",
+            "elapsedMs": 500,
+            "status": 404
+          }
+        },
+        "written": false,
+        "expect": {
+          "header": "done",
+          "progressFraction": [
+            2,
+            2
+          ],
+          "chips": {
+            "transport": "chat",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "rejected",
+              "subtitle": "relay_cap_test_text_not_found",
+              "trailing": "elapsed:0.5"
+            },
+            {
+              "kind": "web",
+              "icon": "notRun",
+              "subtitle": "relay_cap_test_not_run",
+              "trailing": null
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_footer_nothing"
+          },
+          "button": "done",
+          "dismissible": true
+        }
+      }
+    ]
+  }
+}

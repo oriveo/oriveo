@@ -1,0 +1,54 @@
+event: interaction.created
+data: {"interaction":{"id":"v1_...","status":"in_progress","object":"interaction","model":"gemini-3-flash-preview"},"event_type":"interaction.created"}
+
+event: interaction.status_update
+data: {"interaction_id":"v1_...","status":"in_progress","event_type":"interaction.status_update"}
+
+event: step.start
+data: {"index":0,"step":{"id":"mkutnkgn","signature":"","type":"google_search_call"},"event_type":"step.start"}
+
+event: step.delta
+data: {"index":0,"delta":{"signature":"...","type":"google_search_call","arguments":{"queries":["UEFA Euro 2024 winner"]}},"event_type":"step.delta"}
+
+event: step.stop
+data: {"index":0,"event_type":"step.stop"}
+
+event: step.start
+data: {"index":1,"step":{"call_id":"mkutnkgn","signature":"","type":"google_search_result"},"event_type":"step.start"}
+
+event: step.delta
+data: {"index":1,"delta":{"signature":"...","type":"google_search_result","is_error":false},"event_type":"step.delta"}
+
+event: step.stop
+data: {"index":1,"event_type":"step.stop"}
+
+event: step.start
+data: {"index":2,"step":{"type":"thought"},"event_type":"step.start"}
+
+event: step.delta
+data: {"index":2,"delta":{"signature":"...","type":"thought_signature"},"event_type":"step.delta"}
+
+event: step.stop
+data: {"index":2,"event_type":"step.stop"}
+
+event: step.start
+data: {"index":3,"step":{"type":"model_output"},"event_type":"step.start"}
+
+event: step.delta
+data: {"index":3,"delta":{"type":"text","text":"Spain won Euro 2024, defeating England 2-1 in the final."},"event_type":"step.delta"}
+
+event: step.delta
+data: {"index":3,"delta":{"type":"text","text":" This victory marks Spain's record fourth European Championship title."},"event_type":"step.delta"}
+
+event: step.delta
+data: {"index":3,"delta":{"type":"text_annotation_delta","annotations":[{"type":"url_citation","url":"https://www.aljazeera.com/sports/euro-2024-final","title":"aljazeera.com","start_index":0,"end_index":56},{"type":"url_citation","url":"https://www.uefa.com/euro2024/news/spain-wins-euro-2024","title":"uefa.com","start_index":57,"end_index":126}]},"event_type":"step.delta"}
+
+event: step.stop
+data: {"index":3,"event_type":"step.stop"}
+
+event: interaction.completed
+data: {"interaction":{"id":"v1_...","status":"completed","usage":{"total_tokens":299,"total_input_tokens":138,"input_tokens_by_modality":[{"modality":"text","tokens":138}],"total_cached_tokens":0,"total_output_tokens":20,"total_tool_use_tokens":0,"total_thought_tokens":141,"grounding_tool_count":[{"type":"google_search","count":1}]},"object":"interaction","model":"gemini-3-flash-preview"},"event_type":"interaction.completed"}
+
+event: done
+data: [DONE]
+

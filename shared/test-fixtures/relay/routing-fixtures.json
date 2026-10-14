@@ -170,7 +170,7 @@
     ]
   },
   "pickChatDriverModelID": {
-    "describe": "Choosing the model that drives the conversation. A model that is not image-only drives it itself; an image-only one hands over to the default model, or else to the first available non-image model in the list. When the list holds nothing else, the result is missingChatDriverModel.",
+    "describe": "Choosing the model that drives the conversation. A model that is not image-only drives it itself; an image-only one hands over to the first available non-image model in the list (relay connections no longer have a default model, so any legacy isDefault flag is ignored). When the call passes a currentKeyID on a multi-key connection, a model bound to that same keyID is preferred. When the list holds nothing else, the result is missingChatDriverModel.",
     "cases": [
       {
         "id": "PC-01",
@@ -199,7 +199,7 @@
       },
       {
         "id": "PC-02",
-        "note": "The current model is image-only, so the default model takes over.",
+        "note": "The current model is image-only, so the first available non-image model in the list takes over.",
         "currentModelID": "gpt-image-2",
         "models": [
           {
@@ -224,7 +224,7 @@
       },
       {
         "id": "PC-03",
-        "note": "Both the current and the default model are image-only, so the first available non-image model in the list takes over.",
+        "note": "The current model and the legacy isDefault model are both image-only, so the first available non-image model in the list takes over.",
         "currentModelID": "gpt-image-2",
         "models": [
           {
@@ -322,6 +322,113 @@
           }
         ],
         "expectedSuccess": "gpt-5.5"
+      },
+      {
+        "id": "PC-07",
+        "note": "Legacy isDefault flags are ignored even when set on a later chat model: the first available non-image model in list order wins.",
+        "currentModelID": "gpt-image-2",
+        "models": [
+          {
+            "id": "gpt-image-2",
+            "capabilities": [
+              "text",
+              "imageGen"
+            ],
+            "available": true,
+            "isDefault": false
+          },
+          {
+            "id": "claude-4-haiku",
+            "capabilities": [
+              "text"
+            ],
+            "available": true,
+            "isDefault": false
+          },
+          {
+            "id": "gpt-5.4",
+            "capabilities": [
+              "text"
+            ],
+            "available": true,
+            "isDefault": true
+          }
+        ],
+        "expectedSuccess": "claude-4-haiku"
+      },
+      {
+        "id": "PC-08",
+        "note": "On a multi-key connection the image model is bound to one key and the request is sent with that key, so the driver model prefers one bound to the same key (currentKeyID / keyID are each model's effective key; callers omit them when the connection has a single key).",
+        "currentModelID": "gpt-image-2",
+        "currentKeyID": "k-openai",
+        "models": [
+          {
+            "id": "gpt-image-2",
+            "capabilities": [
+              "text",
+              "imageGen"
+            ],
+            "available": true,
+            "isDefault": false,
+            "keyID": "k-openai"
+          },
+          {
+            "id": "claude-4-haiku",
+            "capabilities": [
+              "text"
+            ],
+            "available": true,
+            "isDefault": false,
+            "keyID": "k-claude"
+          },
+          {
+            "id": "gpt-5.4",
+            "capabilities": [
+              "text"
+            ],
+            "available": true,
+            "isDefault": false,
+            "keyID": "k-openai"
+          }
+        ],
+        "expectedSuccess": "gpt-5.4"
+      },
+      {
+        "id": "PC-09",
+        "note": "When no available chat model is bound to the same key, fall back to the first available non-image model so a key mismatch never blocks image generation.",
+        "currentModelID": "gpt-image-2",
+        "currentKeyID": "k-openai",
+        "models": [
+          {
+            "id": "gpt-image-2",
+            "capabilities": [
+              "text",
+              "imageGen"
+            ],
+            "available": true,
+            "isDefault": false,
+            "keyID": "k-openai"
+          },
+          {
+            "id": "claude-4-haiku",
+            "capabilities": [
+              "text"
+            ],
+            "available": true,
+            "isDefault": false,
+            "keyID": "k-claude"
+          },
+          {
+            "id": "gpt-5.4",
+            "capabilities": [
+              "text"
+            ],
+            "available": false,
+            "isDefault": false,
+            "keyID": "k-openai"
+          }
+        ],
+        "expectedSuccess": "claude-4-haiku"
       }
     ]
   },

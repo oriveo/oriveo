@@ -1,0 +1,1112 @@
+{
+ "$comment": "Real responses recorded from local engines, endpoint by endpoint. Nothing is hand-written: the only edits are the redactions and omittedKeys below, and no retained value was changed. Engine fingerprint rules and per-model capability declaration parsing on all three ends read this file; field names here are authoritative. Engines with status=pending were not recorded; do not add hand-written responses for them.",
+ "version": 1,
+ "redactions": [
+  "The local home directory prefix inside strings is replaced with ~ (llama.cpp uses the absolute path of the model file as the model id)"
+ ],
+ "engines": {
+  "ollama": {
+   "status": "recorded",
+   "engineVersion": "0.32.5",
+   "recorded_at": "2026-10-10T07:53:04Z",
+   "endpoint": "http://127.0.0.1:11434",
+   "omitted": "The license / modelfile / tensors keys of POST /api/show are large and unrelated to capabilities, so they were removed; see omittedKeys on each record",
+   "records": [
+    {
+     "request": {
+      "method": "GET",
+      "path": "/api/version"
+     },
+     "response": {
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+       "version": "0.32.5"
+      }
+     }
+    },
+    {
+     "request": {
+      "method": "GET",
+      "path": "/api/tags"
+     },
+     "response": {
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+       "models": [
+        {
+         "name": "qwen3:0.6b",
+         "model": "qwen3:0.6b",
+         "modified_at": "2026-10-10T15:52:48.176928832+08:00",
+         "size": 522653767,
+         "digest": "7df6b6e09427a769808717c0a93cadc4ae99ed4eb8bf5ca557c90846becea435",
+         "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "qwen3",
+          "families": [
+           "qwen3"
+          ],
+          "parameter_size": "751.63M",
+          "quantization_level": "Q4_K_M",
+          "context_length": 40960,
+          "embedding_length": 1024
+         },
+         "capabilities": [
+          "completion",
+          "tools",
+          "thinking"
+         ]
+        },
+        {
+         "name": "oriveo-fixture-smolvlm:latest",
+         "model": "oriveo-fixture-smolvlm:latest",
+         "modified_at": "2026-10-10T15:52:08.968518305+08:00",
+         "size": 278824724,
+         "digest": "80e96e7181ca8b87293a0b28050c7e8deef7ebb9016f59bcb927ac5ad29c8508",
+         "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "llama",
+          "families": [
+           "llama"
+          ],
+          "parameter_size": "162.97M",
+          "quantization_level": "Q8_0",
+          "context_length": 8192,
+          "embedding_length": 576
+         },
+         "capabilities": [
+          "completion",
+          "vision"
+         ]
+        },
+        {
+         "name": "qwen2.5:0.5b",
+         "model": "qwen2.5:0.5b",
+         "modified_at": "2026-10-08T11:10:42.671386809+08:00",
+         "size": 397821319,
+         "digest": "a8b0c51577010a279d933d14c2a8ab4b268079d44c5c8830c0a93900f1827c67",
+         "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "qwen2",
+          "families": [
+           "qwen2"
+          ],
+          "parameter_size": "494.03M",
+          "quantization_level": "Q4_K_M",
+          "context_length": 32768,
+          "embedding_length": 896
+         },
+         "capabilities": [
+          "completion",
+          "tools"
+         ]
+        },
+        {
+         "name": "tinyllama:latest",
+         "model": "tinyllama:latest",
+         "modified_at": "2026-08-05T16:37:14.483514619+08:00",
+         "size": 637700138,
+         "digest": "2644915ede352ea7bdfaff0bfac0be74c719d5d5202acb63a6fb095b52f394a4",
+         "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "llama",
+          "families": [
+           "llama"
+          ],
+          "parameter_size": "1B",
+          "quantization_level": "Q4_0",
+          "context_length": 2048,
+          "embedding_length": 2048
+         },
+         "capabilities": [
+          "completion"
+         ]
+        }
+       ]
+      }
+     }
+    },
+    {
+     "request": {
+      "method": "POST",
+      "path": "/api/show",
+      "body": {
+       "model": "qwen3:0.6b"
+      }
+     },
+     "response": {
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+       "parameters": "temperature                    0.6\ntop_k                          20\ntop_p                          0.95\nrepeat_penalty                 1\nstop                           \"<|im_start|>\"\nstop                           \"<|im_end|>\"",
+       "template": "\n{{- $lastUserIdx := -1 -}}\n{{- range $idx, $msg := .Messages -}}\n{{- if eq $msg.Role \"user\" }}{{ $lastUserIdx = $idx }}{{ end -}}\n{{- end }}\n{{- if or .System .Tools }}<|im_start|>system\n{{ if .System }}\n{{ .System }}\n{{- end }}\n{{- if .Tools }}\n\n# Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{{- range .Tools }}\n{\"type\": \"function\", \"function\": {{ .Function }}}\n{{- end }}\n</tools>\n\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\n<tool_call>\n{\"name\": <function-name>, \"arguments\": <args-json-object>}\n</tool_call>\n{{- end -}}\n<|im_end|>\n{{ end }}\n{{- range $i, $_ := .Messages }}\n{{- $last := eq (len (slice $.Messages $i)) 1 -}}\n{{- if eq .Role \"user\" }}<|im_start|>user\n{{ .Content }}\n{{- if and $.IsThinkSet (eq $i $lastUserIdx) }}\n   {{- if $.Think -}}\n      {{- \" \"}}/think\n   {{- else -}}\n      {{- \" \"}}/no_think\n   {{- end -}}\n{{- end }}<|im_end|>\n{{ else if eq .Role \"assistant\" }}<|im_start|>assistant\n{{ if (and $.IsThinkSet (and .Thinking (or $last (gt $i $lastUserIdx)))) -}}\n<think>{{ .Thinking }}</think>\n{{ end -}}\n{{ if .Content }}{{ .Content }}\n{{- else if .ToolCalls }}<tool_call>\n{{ range .ToolCalls }}{\"name\": \"{{ .Function.Name }}\", \"arguments\": {{ .Function.Arguments }}}\n{{ end }}</tool_call>\n{{- end }}{{ if not $last }}<|im_end|>\n{{ end }}\n{{- else if eq .Role \"tool\" }}<|im_start|>user\n<tool_response>\n{{ .Content }}\n</tool_response><|im_end|>\n{{ end }}\n{{- if and (ne .Role \"assistant\") $last }}<|im_start|>assistant\n{{ if and $.IsThinkSet (not $.Think) -}}\n<think>\n\n</think>\n\n{{ end -}}\n{{ end }}\n{{- end }}",
+       "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen3",
+        "families": [
+         "qwen3"
+        ],
+        "parameter_size": "751.63M",
+        "quantization_level": "Q4_K_M"
+       },
+       "model_info": {
+        "general.architecture": "qwen3",
+        "general.basename": "Qwen3",
+        "general.file_type": 15,
+        "general.license": "apache-2.0",
+        "general.parameter_count": 751632384,
+        "general.quantization_version": 2,
+        "general.size_label": "0.6B",
+        "general.type": "model",
+        "qwen3.attention.head_count": 16,
+        "qwen3.attention.head_count_kv": 8,
+        "qwen3.attention.key_length": 128,
+        "qwen3.attention.layer_norm_rms_epsilon": 1e-06,
+        "qwen3.attention.value_length": 128,
+        "qwen3.block_count": 28,
+        "qwen3.context_length": 40960,
+        "qwen3.embedding_length": 1024,
+        "qwen3.feed_forward_length": 3072,
+        "qwen3.rope.freq_base": 1000000,
+        "tokenizer.ggml.add_bos_token": false,
+        "tokenizer.ggml.bos_token_id": 151643,
+        "tokenizer.ggml.eos_token_id": 151645,
+        "tokenizer.ggml.merges": null,
+        "tokenizer.ggml.model": "gpt2",
+        "tokenizer.ggml.padding_token_id": 151643,
+        "tokenizer.ggml.pre": "qwen2",
+        "tokenizer.ggml.token_type": null,
+        "tokenizer.ggml.tokens": null
+       },
+       "capabilities": [
+        "completion",
+        "tools",
+        "thinking"
+       ],
+       "modified_at": "2026-10-10T15:52:48.176928832+08:00"
+      },
+      "omittedKeys": [
+       "license",
+       "modelfile",
+       "tensors"
+      ]
+     }
+    },
+    {
+     "request": {
+      "method": "POST",
+      "path": "/api/show",
+      "body": {
+       "model": "oriveo-fixture-smolvlm:latest"
+      }
+     },
+     "response": {
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+       "template": "<|im_start|>{% for message in messages %}{{message['role'] | capitalize}}{% if message['content'][0]['type'] == 'image' %}{{':'}}{% else %}{{': '}}{% endif %}{% for line in message['content'] %}{% if line['type'] == 'text' %}{{line['text']}}{% elif line['type'] == 'image' %}{{ '<image>' }}{% endif %}{% endfor %}<end_of_utterance>\n{% endfor %}{% if add_generation_prompt %}{{ 'Assistant:' }}{% endif %}",
+       "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "llama",
+        "families": [
+         "llama"
+        ],
+        "parameter_size": "162.97M",
+        "quantization_level": "Q8_0"
+       },
+       "model_info": {
+        "general.architecture": "llama",
+        "general.base_model.0.name": "SmolLM2 135M Instruct",
+        "general.base_model.0.organization": "HuggingFaceTB",
+        "general.base_model.0.repo_url": "https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct",
+        "general.base_model.1.name": "Siglip Base Patch16 512",
+        "general.base_model.1.organization": "Google",
+        "general.base_model.1.repo_url": "https://huggingface.co/google/siglip-base-patch16-512",
+        "general.base_model.1.version": "512",
+        "general.base_model.count": 2,
+        "general.basename": "SmolVLM",
+        "general.dataset.0.name": "The_Cauldron",
+        "general.dataset.0.organization": "HuggingFaceM4",
+        "general.dataset.0.repo_url": "https://huggingface.co/HuggingFaceM4/the_cauldron",
+        "general.dataset.1.name": "Docmatix",
+        "general.dataset.1.organization": "HuggingFaceM4",
+        "general.dataset.1.repo_url": "https://huggingface.co/HuggingFaceM4/Docmatix",
+        "general.dataset.count": 2,
+        "general.file_type": 7,
+        "general.finetune": "Instruct",
+        "general.languages": null,
+        "general.license": "apache-2.0",
+        "general.parameter_count": 162974016,
+        "general.quantization_version": 2,
+        "general.size_label": "256M",
+        "general.tags": null,
+        "general.type": "model",
+        "llama.attention.head_count": 9,
+        "llama.attention.head_count_kv": 3,
+        "llama.attention.key_length": 64,
+        "llama.attention.layer_norm_rms_epsilon": 1e-05,
+        "llama.attention.value_length": 64,
+        "llama.block_count": 30,
+        "llama.context_length": 8192,
+        "llama.embedding_length": 576,
+        "llama.feed_forward_length": 1536,
+        "llama.rope.dimension_count": 64,
+        "llama.rope.freq_base": 100000,
+        "llama.vocab_size": 49280,
+        "tokenizer.ggml.add_space_prefix": false,
+        "tokenizer.ggml.bos_token_id": 1,
+        "tokenizer.ggml.eos_token_id": 49279,
+        "tokenizer.ggml.merges": null,
+        "tokenizer.ggml.model": "gpt2",
+        "tokenizer.ggml.padding_token_id": 2,
+        "tokenizer.ggml.pre": "smollm",
+        "tokenizer.ggml.token_type": null,
+        "tokenizer.ggml.tokens": null,
+        "tokenizer.ggml.unknown_token_id": 0
+       },
+       "projector_info": {
+        "clip.has_vision_encoder": true,
+        "clip.projector_type": "idefics3",
+        "clip.use_gelu": true,
+        "clip.vision.attention.head_count": 12,
+        "clip.vision.attention.layer_norm_epsilon": 1e-06,
+        "clip.vision.block_count": 12,
+        "clip.vision.embedding_length": 768,
+        "clip.vision.feed_forward_length": 3072,
+        "clip.vision.image_mean": null,
+        "clip.vision.image_size": 512,
+        "clip.vision.image_std": null,
+        "clip.vision.patch_size": 16,
+        "clip.vision.projection_dim": 576,
+        "clip.vision.projector.scale_factor": 4,
+        "general.architecture": "clip",
+        "general.base_model.0.name": "SmolLM2 135M Instruct",
+        "general.base_model.0.organization": "HuggingFaceTB",
+        "general.base_model.0.repo_url": "https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct",
+        "general.base_model.1.name": "Siglip Base Patch16 512",
+        "general.base_model.1.organization": "Google",
+        "general.base_model.1.repo_url": "https://huggingface.co/google/siglip-base-patch16-512",
+        "general.base_model.1.version": "512",
+        "general.base_model.count": 2,
+        "general.basename": "SmolVLM",
+        "general.dataset.0.name": "The_Cauldron",
+        "general.dataset.0.organization": "HuggingFaceM4",
+        "general.dataset.0.repo_url": "https://huggingface.co/HuggingFaceM4/the_cauldron",
+        "general.dataset.1.name": "Docmatix",
+        "general.dataset.1.organization": "HuggingFaceM4",
+        "general.dataset.1.repo_url": "https://huggingface.co/HuggingFaceM4/Docmatix",
+        "general.dataset.count": 2,
+        "general.file_type": 7,
+        "general.finetune": "256m-Instruct",
+        "general.languages": null,
+        "general.license": "apache-2.0",
+        "general.name": "SmolVLM 256M Instruct",
+        "general.parameter_count": 93510912,
+        "general.quantization_version": 2,
+        "general.size_label": "94M",
+        "general.tags": null,
+        "general.type": "clip-vision"
+       },
+       "capabilities": [
+        "completion",
+        "vision"
+       ],
+       "modified_at": "2026-10-10T15:52:08.968518305+08:00"
+      },
+      "omittedKeys": [
+       "modelfile",
+       "tensors"
+      ]
+     }
+    },
+    {
+     "request": {
+      "method": "POST",
+      "path": "/api/show",
+      "body": {
+       "model": "qwen2.5:0.5b"
+      }
+     },
+     "response": {
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+       "template": "{{- if .Messages }}\n{{- if or .System .Tools }}<|im_start|>system\n{{- if .System }}\n{{ .System }}\n{{- end }}\n{{- if .Tools }}\n\n# Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{{- range .Tools }}\n{\"type\": \"function\", \"function\": {{ .Function }}}\n{{- end }}\n</tools>\n\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\n<tool_call>\n{\"name\": <function-name>, \"arguments\": <args-json-object>}\n</tool_call>\n{{- end }}<|im_end|>\n{{ end }}\n{{- range $i, $_ := .Messages }}\n{{- $last := eq (len (slice $.Messages $i)) 1 -}}\n{{- if eq .Role \"user\" }}<|im_start|>user\n{{ .Content }}<|im_end|>\n{{ else if eq .Role \"assistant\" }}<|im_start|>assistant\n{{ if .Content }}{{ .Content }}\n{{- else if .ToolCalls }}<tool_call>\n{{ range .ToolCalls }}{\"name\": \"{{ .Function.Name }}\", \"arguments\": {{ .Function.Arguments }}}\n{{ end }}</tool_call>\n{{- end }}{{ if not $last }}<|im_end|>\n{{ end }}\n{{- else if eq .Role \"tool\" }}<|im_start|>user\n<tool_response>\n{{ .Content }}\n</tool_response><|im_end|>\n{{ end }}\n{{- if and (ne .Role \"assistant\") $last }}<|im_start|>assistant\n{{ end }}\n{{- end }}\n{{- else }}\n{{- if .System }}<|im_start|>system\n{{ .System }}<|im_end|>\n{{ end }}{{ if .Prompt }}<|im_start|>user\n{{ .Prompt }}<|im_end|>\n{{ end }}<|im_start|>assistant\n{{ end }}{{ .Response }}{{ if .Response }}<|im_end|>{{ end }}",
+       "system": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant.",
+       "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen2",
+        "families": [
+         "qwen2"
+        ],
+        "parameter_size": "494.03M",
+        "quantization_level": "Q4_K_M"
+       },
+       "model_info": {
+        "general.architecture": "qwen2",
+        "general.base_model.0.name": "Qwen2.5 0.5B",
+        "general.base_model.0.organization": "Qwen",
+        "general.base_model.0.repo_url": "https://huggingface.co/Qwen/Qwen2.5-0.5B",
+        "general.base_model.count": 1,
+        "general.basename": "Qwen2.5",
+        "general.file_type": 15,
+        "general.finetune": "Instruct",
+        "general.languages": null,
+        "general.license": "apache-2.0",
+        "general.license.link": "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/blob/main/LICENSE",
+        "general.parameter_count": 494032768,
+        "general.quantization_version": 2,
+        "general.size_label": "0.5B",
+        "general.tags": null,
+        "general.type": "model",
+        "qwen2.attention.head_count": 14,
+        "qwen2.attention.head_count_kv": 2,
+        "qwen2.attention.layer_norm_rms_epsilon": 1e-06,
+        "qwen2.block_count": 24,
+        "qwen2.context_length": 32768,
+        "qwen2.embedding_length": 896,
+        "qwen2.feed_forward_length": 4864,
+        "qwen2.rope.freq_base": 1000000,
+        "tokenizer.ggml.add_bos_token": false,
+        "tokenizer.ggml.bos_token_id": 151643,
+        "tokenizer.ggml.eos_token_id": 151645,
+        "tokenizer.ggml.merges": null,
+        "tokenizer.ggml.model": "gpt2",
+        "tokenizer.ggml.padding_token_id": 151643,
+        "tokenizer.ggml.pre": "qwen2",
+        "tokenizer.ggml.token_type": null,
+        "tokenizer.ggml.tokens": null
+       },
+       "capabilities": [
+        "completion",
+        "tools"
+       ],
+       "modified_at": "2026-10-08T11:10:42.671386809+08:00"
+      },
+      "omittedKeys": [
+       "license",
+       "modelfile",
+       "tensors"
+      ]
+     }
+    },
+    {
+     "request": {
+      "method": "POST",
+      "path": "/api/show",
+      "body": {
+       "model": "tinyllama:latest"
+      }
+     },
+     "response": {
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+       "parameters": "stop                           \"<|system|>\"\nstop                           \"<|user|>\"\nstop                           \"<|assistant|>\"\nstop                           \"</s>\"",
+       "template": "<|system|>\n{{ .System }}</s>\n<|user|>\n{{ .Prompt }}</s>\n<|assistant|>\n",
+       "system": "You are a helpful AI assistant.",
+       "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "llama",
+        "families": [
+         "llama"
+        ],
+        "parameter_size": "1B",
+        "quantization_level": "Q4_0"
+       },
+       "model_info": {
+        "general.architecture": "llama",
+        "general.file_type": 2,
+        "general.parameter_count": 1100048384,
+        "general.quantization_version": 2,
+        "llama.attention.head_count": 32,
+        "llama.attention.head_count_kv": 4,
+        "llama.attention.layer_norm_rms_epsilon": 1e-05,
+        "llama.block_count": 22,
+        "llama.context_length": 2048,
+        "llama.embedding_length": 2048,
+        "llama.feed_forward_length": 5632,
+        "llama.rope.dimension_count": 64,
+        "llama.rope.freq_base": 10000,
+        "tokenizer.ggml.bos_token_id": 1,
+        "tokenizer.ggml.eos_token_id": 2,
+        "tokenizer.ggml.merges": null,
+        "tokenizer.ggml.model": "llama",
+        "tokenizer.ggml.padding_token_id": 2,
+        "tokenizer.ggml.scores": null,
+        "tokenizer.ggml.token_type": null,
+        "tokenizer.ggml.tokens": null,
+        "tokenizer.ggml.unknown_token_id": 0
+       },
+       "capabilities": [
+        "completion"
+       ],
+       "modified_at": "2026-08-05T16:37:14.483514619+08:00"
+      },
+      "omittedKeys": [
+       "modelfile",
+       "tensors"
+      ]
+     }
+    },
+    {
+     "request": {
+      "method": "GET",
+      "path": "/v1/models"
+     },
+     "response": {
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+       "object": "list",
+       "data": [
+        {
+         "id": "qwen3:0.6b",
+         "object": "model",
+         "created": 1791618768,
+         "owned_by": "library"
+        },
+        {
+         "id": "oriveo-fixture-smolvlm:latest",
+         "object": "model",
+         "created": 1791618728,
+         "owned_by": "library"
+        },
+        {
+         "id": "qwen2.5:0.5b",
+         "object": "model",
+         "created": 1791429042,
+         "owned_by": "library"
+        },
+        {
+         "id": "tinyllama:latest",
+         "object": "model",
+         "created": 1785919034,
+         "owned_by": "library"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "request": {
+      "method": "GET",
+      "path": "/props"
+     },
+     "response": {
+      "status": 404,
+      "contentType": "text/plain",
+      "text": "404 page not found"
+     }
+    },
+    {
+     "request": {
+      "method": "GET",
+      "path": "/api/v0/models"
+     },
+     "response": {
+      "status": 404,
+      "contentType": "text/plain",
+      "text": "404 page not found"
+     }
+    },
+    {
+     "request": {
+      "method": "GET",
+      "path": "/version"
+     },
+     "response": {
+      "status": 404,
+      "contentType": "text/plain",
+      "text": "404 page not found"
+     }
+    }
+   ]
+  },
+  "llamacpp": {
+   "status": "recorded",
+   "engineVersion": "b10270-071327508",
+   "recorded_at": "2026-10-10T07:50:18Z",
+   "endpoint": "http://127.0.0.1:8080",
+   "omitted": "The chat_template / ui / ui_settings keys of GET /props were removed; see omittedKeys on each record",
+   "instances": {
+    "text_only": {
+     "launch": "llama-server -m <tinyllama.gguf>",
+     "records": [
+      {
+       "request": {
+        "method": "GET",
+        "path": "/health"
+       },
+       "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "body": {
+         "status": "ok"
+        }
+       }
+      },
+      {
+       "request": {
+        "method": "GET",
+        "path": "/props"
+       },
+       "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "body": {
+         "default_generation_settings": {
+          "params": {
+           "seed": 4294967295,
+           "temperature": 0.800000011920929,
+           "dynatemp_range": 0.0,
+           "dynatemp_exponent": 1.0,
+           "top_k": 40,
+           "top_p": 0.949999988079071,
+           "min_p": 0.05000000074505806,
+           "top_n_sigma": -1.0,
+           "xtc_probability": 0.0,
+           "xtc_threshold": 0.10000000149011612,
+           "typical_p": 1.0,
+           "repeat_last_n": 64,
+           "repeat_penalty": 1.0,
+           "presence_penalty": 0.0,
+           "frequency_penalty": 0.0,
+           "dry_multiplier": 0.0,
+           "dry_base": 1.75,
+           "dry_allowed_length": 2,
+           "dry_penalty_last_n": -1,
+           "mirostat": 0,
+           "mirostat_tau": 5.0,
+           "mirostat_eta": 0.10000000149011612,
+           "adaptive_target": -1.0,
+           "adaptive_decay": 0.8999999761581421,
+           "max_tokens": -1,
+           "n_predict": -1,
+           "n_keep": 0,
+           "n_discard": 0,
+           "ignore_eos": false,
+           "stream": false,
+           "n_probs": 0,
+           "min_keep": 0,
+           "chat_format": "Content-only",
+           "reasoning_format": "none",
+           "reasoning_in_content": false,
+           "generation_prompt": "",
+           "samplers": [
+            "penalties",
+            "dry",
+            "top_n_sigma",
+            "top_k",
+            "typ_p",
+            "top_p",
+            "min_p",
+            "xtc",
+            "temperature"
+           ],
+           "speculative.types": "none",
+           "timings_per_token": false,
+           "post_sampling_probs": false,
+           "backend_sampling": false,
+           "lora": []
+          },
+          "n_ctx": 2048
+         },
+         "total_slots": 4,
+         "model_alias": "~/.lmstudio/models/oriveo/tinyllama/oriveo-tinyllama.095Aaw.gguf",
+         "model_ftype": "Q4_0",
+         "model_path": "~/.lmstudio/models/oriveo/tinyllama/oriveo-tinyllama.095Aaw.gguf",
+         "modalities": {
+          "vision": false,
+          "video": false,
+          "audio": false
+         },
+         "media_marker": "<__media_gBeIWkvz5ZXCRGlOwqMKiOioSw7zKpPv__>",
+         "endpoint_slots": true,
+         "endpoint_props": false,
+         "endpoint_metrics": false,
+         "chat_template_caps": {
+          "supports_object_arguments": false,
+          "supports_parallel_tool_calls": false,
+          "supports_preserve_reasoning": false,
+          "supports_string_content": true,
+          "supports_system_role": true,
+          "supports_tool_calls": false,
+          "supports_tools": false,
+          "supports_typed_content": false
+         },
+         "bos_token": "<s>",
+         "eos_token": "</s>",
+         "build_info": "b10270-071327508",
+         "is_sleeping": false,
+         "cors_proxy_enabled": false
+        },
+        "omittedKeys": [
+         "chat_template",
+         "ui_settings",
+         "ui"
+        ]
+       }
+      },
+      {
+       "request": {
+        "method": "GET",
+        "path": "/v1/models"
+       },
+       "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "body": {
+         "models": [
+          {
+           "name": "~/.lmstudio/models/oriveo/tinyllama/oriveo-tinyllama.095Aaw.gguf",
+           "model": "~/.lmstudio/models/oriveo/tinyllama/oriveo-tinyllama.095Aaw.gguf",
+           "modified_at": "",
+           "size": "",
+           "digest": "",
+           "type": "model",
+           "description": "",
+           "tags": [
+            ""
+           ],
+           "capabilities": [
+            "completion"
+           ],
+           "parameters": "",
+           "details": {
+            "parent_model": "",
+            "format": "gguf",
+            "family": "",
+            "families": [
+             ""
+            ],
+            "parameter_size": "",
+            "quantization_level": ""
+           }
+          }
+         ],
+         "object": "list",
+         "data": [
+          {
+           "id": "~/.lmstudio/models/oriveo/tinyllama/oriveo-tinyllama.095Aaw.gguf",
+           "aliases": [
+            "~/.lmstudio/models/oriveo/tinyllama/oriveo-tinyllama.095Aaw.gguf"
+           ],
+           "tags": [],
+           "object": "model",
+           "created": 1791618618,
+           "owned_by": "llamacpp",
+           "meta": {
+            "vocab_type": 1,
+            "n_vocab": 32000,
+            "n_ctx": 2048,
+            "n_ctx_train": 2048,
+            "n_embd": 2048,
+            "n_params": 1100048384,
+            "size": 635990016,
+            "ftype": "Q4_0"
+           }
+          }
+         ]
+        }
+       }
+      },
+      {
+       "request": {
+        "method": "GET",
+        "path": "/api/tags"
+       },
+       "response": {
+        "status": 404,
+        "contentType": "application/json; charset=utf-8",
+        "body": {
+         "error": {
+          "message": "File Not Found",
+          "type": "not_found_error",
+          "code": 404
+         }
+        }
+       }
+      },
+      {
+       "request": {
+        "method": "GET",
+        "path": "/api/v0/models"
+       },
+       "response": {
+        "status": 404,
+        "contentType": "application/json; charset=utf-8",
+        "body": {
+         "error": {
+          "message": "File Not Found",
+          "type": "not_found_error",
+          "code": 404
+         }
+        }
+       }
+      },
+      {
+       "request": {
+        "method": "GET",
+        "path": "/version"
+       },
+       "response": {
+        "status": 404,
+        "contentType": "application/json; charset=utf-8",
+        "body": {
+         "error": {
+          "message": "File Not Found",
+          "type": "not_found_error",
+          "code": 404
+         }
+        }
+       }
+      }
+     ]
+    },
+    "vision": {
+     "launch": "llama-server -hf ggml-org/SmolVLM-256M-Instruct-GGUF",
+     "recorded_at": "2026-10-10T07:51:59Z",
+     "records": [
+      {
+       "request": {
+        "method": "GET",
+        "path": "/health"
+       },
+       "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "body": {
+         "status": "ok"
+        }
+       }
+      },
+      {
+       "request": {
+        "method": "GET",
+        "path": "/props"
+       },
+       "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "body": {
+         "default_generation_settings": {
+          "params": {
+           "seed": 4294967295,
+           "temperature": 0.800000011920929,
+           "dynatemp_range": 0.0,
+           "dynatemp_exponent": 1.0,
+           "top_k": 40,
+           "top_p": 0.949999988079071,
+           "min_p": 0.05000000074505806,
+           "top_n_sigma": -1.0,
+           "xtc_probability": 0.0,
+           "xtc_threshold": 0.10000000149011612,
+           "typical_p": 1.0,
+           "repeat_last_n": 64,
+           "repeat_penalty": 1.0,
+           "presence_penalty": 0.0,
+           "frequency_penalty": 0.0,
+           "dry_multiplier": 0.0,
+           "dry_base": 1.75,
+           "dry_allowed_length": 2,
+           "dry_penalty_last_n": -1,
+           "mirostat": 0,
+           "mirostat_tau": 5.0,
+           "mirostat_eta": 0.10000000149011612,
+           "adaptive_target": -1.0,
+           "adaptive_decay": 0.8999999761581421,
+           "max_tokens": -1,
+           "n_predict": -1,
+           "n_keep": 0,
+           "n_discard": 0,
+           "ignore_eos": false,
+           "stream": false,
+           "n_probs": 0,
+           "min_keep": 0,
+           "chat_format": "Content-only",
+           "reasoning_format": "none",
+           "reasoning_in_content": false,
+           "generation_prompt": "",
+           "samplers": [
+            "penalties",
+            "dry",
+            "top_n_sigma",
+            "top_k",
+            "typ_p",
+            "top_p",
+            "min_p",
+            "xtc",
+            "temperature"
+           ],
+           "speculative.types": "none",
+           "timings_per_token": false,
+           "post_sampling_probs": false,
+           "backend_sampling": false,
+           "lora": []
+          },
+          "n_ctx": 8192
+         },
+         "total_slots": 4,
+         "model_alias": "ggml-org/SmolVLM-256M-Instruct-GGUF",
+         "model_ftype": "Q8_0",
+         "model_path": "~/.cache/huggingface/hub/models--ggml-org--SmolVLM-256M-Instruct-GGUF/snapshots/b9e4379657e1450d04d02eec8e345667265b0a00/SmolVLM-256M-Instruct-Q8_0.gguf",
+         "modalities": {
+          "vision": true,
+          "video": true,
+          "audio": false
+         },
+         "media_marker": "<__media_rmcQwgV44nJQnEVuErUBfENVelZDlo6W__>",
+         "endpoint_slots": true,
+         "endpoint_props": false,
+         "endpoint_metrics": false,
+         "chat_template_caps": {
+          "supports_object_arguments": false,
+          "supports_parallel_tool_calls": false,
+          "supports_preserve_reasoning": false,
+          "supports_string_content": false,
+          "supports_system_role": true,
+          "supports_tool_calls": false,
+          "supports_tools": false,
+          "supports_typed_content": true
+         },
+         "bos_token": "<|im_start|>",
+         "eos_token": "<end_of_utterance>",
+         "build_info": "b10270-071327508",
+         "is_sleeping": false,
+         "cors_proxy_enabled": false
+        },
+        "omittedKeys": [
+         "chat_template",
+         "ui_settings",
+         "ui"
+        ]
+       }
+      },
+      {
+       "request": {
+        "method": "GET",
+        "path": "/v1/models"
+       },
+       "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "body": {
+         "models": [
+          {
+           "name": "ggml-org/SmolVLM-256M-Instruct-GGUF",
+           "model": "ggml-org/SmolVLM-256M-Instruct-GGUF",
+           "modified_at": "",
+           "size": "",
+           "digest": "",
+           "type": "model",
+           "description": "",
+           "tags": [
+            ""
+           ],
+           "capabilities": [
+            "completion",
+            "multimodal"
+           ],
+           "parameters": "",
+           "details": {
+            "parent_model": "",
+            "format": "gguf",
+            "family": "",
+            "families": [
+             ""
+            ],
+            "parameter_size": "",
+            "quantization_level": ""
+           }
+          }
+         ],
+         "object": "list",
+         "data": [
+          {
+           "id": "ggml-org/SmolVLM-256M-Instruct-GGUF",
+           "aliases": [
+            "ggml-org/SmolVLM-256M-Instruct-GGUF"
+           ],
+           "tags": [],
+           "object": "model",
+           "created": 1791618719,
+           "owned_by": "llamacpp",
+           "meta": {
+            "vocab_type": 2,
+            "n_vocab": 49280,
+            "n_ctx": 8192,
+            "n_ctx_train": 8192,
+            "n_embd": 576,
+            "n_params": 162974016,
+            "size": 173263104,
+            "ftype": "Q8_0"
+           }
+          }
+         ]
+        }
+       }
+      }
+     ]
+    }
+   }
+  },
+  "lmstudio": {
+   "status": "recorded",
+   "engineVersion": "0.4.20+1",
+   "recorded_at": "2026-10-10T07:52:14Z",
+   "endpoint": "http://127.0.0.1:1234",
+   "records": [
+    {
+     "request": {
+      "method": "GET",
+      "path": "/api/v0/models"
+     },
+     "response": {
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+       "data": [
+        {
+         "id": "smolvlm-256m-instruct",
+         "object": "model",
+         "type": "vlm",
+         "publisher": "ggml-org",
+         "arch": "llama",
+         "compatibility_type": "gguf",
+         "quantization": "Q8_0",
+         "state": "not-loaded",
+         "max_context_length": 8192
+        },
+        {
+         "id": "qwen/qwen3-0.6b",
+         "object": "model",
+         "type": "llm",
+         "publisher": "qwen",
+         "arch": "qwen3",
+         "compatibility_type": "mlx",
+         "quantization": "4bit",
+         "state": "not-loaded",
+         "max_context_length": 40960,
+         "capabilities": [
+          "tool_use"
+         ]
+        },
+        {
+         "id": "tinyllama",
+         "object": "model",
+         "type": "llm",
+         "publisher": "oriveo",
+         "arch": "llama",
+         "compatibility_type": "gguf",
+         "state": "not-loaded",
+         "max_context_length": 2048
+        },
+        {
+         "id": "text-embedding-nomic-embed-text-v1.5",
+         "object": "model",
+         "type": "embeddings",
+         "publisher": "nomic-ai",
+         "arch": "nomic-bert",
+         "compatibility_type": "gguf",
+         "quantization": "Q4_K_M",
+         "state": "not-loaded",
+         "max_context_length": 2048
+        }
+       ],
+       "object": "list"
+      }
+     }
+    },
+    {
+     "request": {
+      "method": "GET",
+      "path": "/v1/models"
+     },
+     "response": {
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+       "data": [
+        {
+         "id": "smolvlm-256m-instruct",
+         "object": "model",
+         "owned_by": "organization_owner"
+        },
+        {
+         "id": "qwen/qwen3-0.6b",
+         "object": "model",
+         "owned_by": "organization_owner"
+        },
+        {
+         "id": "tinyllama",
+         "object": "model",
+         "owned_by": "organization_owner"
+        },
+        {
+         "id": "text-embedding-nomic-embed-text-v1.5",
+         "object": "model",
+         "owned_by": "organization_owner"
+        }
+       ],
+       "object": "list"
+      }
+     }
+    },
+    {
+     "request": {
+      "method": "GET",
+      "path": "/props"
+     },
+     "response": {
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+       "error": "Unexpected endpoint or method. (GET /props)"
+      }
+     }
+    },
+    {
+     "request": {
+      "method": "GET",
+      "path": "/api/tags"
+     },
+     "response": {
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+       "error": "Unexpected endpoint or method. (GET /api/tags)"
+      }
+     }
+    },
+    {
+     "request": {
+      "method": "GET",
+      "path": "/version"
+     },
+     "response": {
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+       "error": "Unexpected endpoint or method. (GET /version)"
+      }
+     }
+    }
+   ]
+  },
+  "vllm": {
+   "status": "pending",
+   "reason": "The recording machine is macOS arm64 without vLLM (the official package ships for Linux + CUDA only); the GET /version and GET /v1/models responses are still to be recorded",
+   "record_with": "On a Linux machine with vLLM, start any model, request each of /version, /v1/models, /health, /props, /api/tags and /api/v0/models once, and append the results in the shape of the records in this file"
+  }
+ }
+}

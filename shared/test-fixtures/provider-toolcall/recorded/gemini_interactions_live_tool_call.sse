@@ -1,0 +1,30 @@
+event: interaction.created
+data: {"interaction":{"object":"interaction","model":"gemini-3.1-flash-lite"},"event_type":"interaction.created"}
+
+event: interaction.status_update
+data: {"status":"in_progress","event_type":"interaction.status_update"}
+
+event: step.start
+data: {"index":0,"step":{"type":"thought"},"event_type":"step.start"}
+
+event: step.delta
+data: {"index":0,"delta":{"signature":"EnMKcQFpFH0Trg8gp4Fy9FOPSNThW+BYmXLif2/2xfRJes9Mj0Fjs1cgNf7mr8kjdkrncktFr4FCNN/0g9AVeBN3VogXtFkLWlPMw92GvsnAhV3BjLDNCb9ITmg675TBRzOFZ1sHVtV+IwIMHi5ztNldVP7z","type":"thought_signature"},"event_type":"step.delta"}
+
+event: step.stop
+data: {"index":0,"event_type":"step.stop"}
+
+event: step.start
+data: {"index":1,"step":{"id":"call_662411","signature":"AWkUfROuDyCngXL0U49I1OFb4FiZcuJ/b/bF9El6z0yPQWOzVyA1/uavySN2SudyS0WvgUI03/SD0BV4E3dWiBe0WQtaU8zD3Ya+ycCFXcGMsM0Jv0hOaDrvlMFHM4VnWwdW1X4jAgweLnO02V1U/vM=","type":"function_call","name":"get_weather","arguments":{}},"event_type":"step.start"}
+
+event: step.delta
+data: {"index":1,"delta":{"arguments":"{\"city\":\"Paris\"}","type":"arguments_delta"},"event_type":"step.delta"}
+
+event: step.stop
+data: {"index":1,"event_type":"step.stop"}
+
+event: interaction.completed
+data: {"interaction":{"status":"requires_action","usage":{"total_tokens":85,"total_input_tokens":69,"input_tokens_by_modality":[{"modality":"text","tokens":69}],"total_cached_tokens":0,"total_output_tokens":16,"total_tool_use_tokens":0,"total_thought_tokens":0},"created":"2026-10-13T11:33:28Z","updated":"2026-10-13T11:33:28Z","object":"interaction","model":"gemini-3.1-flash-lite"},"event_type":"interaction.completed"}
+
+event: done
+data: [DONE]
+

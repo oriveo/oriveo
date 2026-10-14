@@ -1,0 +1,219 @@
+{
+  "$comment": "Relay 2.0 per-model probe orchestration (per-model protocol probing). Candidate order only decides which protocol a 1-token probe tries first; it is never a source, never stored, never shown as a badge. A passing probe stores `reachable` on that model only and its root in relayRequested.resolvedAPIBaseURLs[transport]; the connection default protocol is never changed by probing. Short protocol names map to wire values through `transports`. new-api `supported_endpoint_types` cases come from gateway-models.v1.json (records + expected.candidates); this file holds the family path, the by-model lookup and the orchestration scenarios. Each end runs every case and scenario under the same caseId inside tests named after the RL2-PROBE-0N id.",
+  "version": 1,
+  "transports": {
+    "chat": "openai_chat_completions",
+    "responses": "openai_responses",
+    "messages": "anthropic_messages",
+    "gemini": "gemini_generate_content"
+  },
+  "candidateRules": {
+    "$comment": "1) Map the model's supported_endpoint_types in array order through endpointTypeToCandidate, drop unknown values and duplicates; if anything survives, that is the order. 2) Otherwise look the model up in the Server by-model view (GET /api/metadata/model-facts?view=by-model): key = normalizeModelFactsID(id) (same as Server normalizeModelsDevJoinID); on a miss, retry with the segment after the last '/' of that normalized id (same as Server modelsDevJoinLastSegment fallback). A hit's family selects familyCandidates; a miss, an unknown family, or a failed / unavailable view selects defaultCandidates. Never guess a family from the model id text. 3) Keep at most maxCandidates.",
+    "endpointTypeToCandidate": { "openai": "chat", "openai-response": "responses", "anthropic": "messages", "gemini": "gemini" },
+    "familyCandidates": { "anthropic": ["messages", "chat"], "google": ["gemini", "chat"], "openai": ["responses", "chat"] },
+    "defaultCandidates": ["chat"],
+    "maxCandidates": 2,
+    "explicitConnection": "When the connection transport is not 'auto' (the user chose it, or the address carries a protocol path), a model without its own protocol follows the connection and is never probed: enabling it and redetect send no probe request and write no model field, and the send-time protocol fallback has no other candidate. supported_endpoint_types, the family lookup and a discovered generation route are ignored for that connection. The add flow still verifies the sample model with one request on the connection protocol."
+  },
+  "probeOutcomeRules": {
+    "$comment": "What one probe request means. pass -> store reachable on that protocol and stop. routeRejected -> this protocol path does not serve this model; try the next candidate. inconclusive -> nothing was learned (bad key, rate limit, upstream trouble, a parameter the gateway disliked): stop at once, send no further candidate with the same key, write no model field. routeRejected is exactly the send-time protocol fallback trigger (negative-cache.v1.json protocolFallbackRules); the two must share one predicate on each end. http_403_route is a 403 whose body contains one of protocolFallbackRules.phrases; any other 403 is http_403. html_200 is a 2xx whose body is a web page (the gateway's SPA fallback, i.e. the path is not an API route; same recognition as RelaySuccessResponsePolicy ).",
+    "pass": ["ok"],
+    "routeRejected": ["http_404", "http_405", "http_415", "http_403_route", "html_200"],
+    "inconclusive": ["http_400", "http_401", "http_403", "http_422", "http_429", "http_5xx", "network"]
+  },
+  "probeRequestRules": {
+    "$comment": "A probe is the chat request with a one-message conversation. It is built by the same request builder as a chat send on that protocol (same headers, same identity / storage / cache fields), so a gateway that validates the client sees one shape. Only the conversation, streaming and the output cap differ. responsesMaxOutputTokens is the official lower bound of the Responses API; the other protocols keep 1.",
+    "responsesMaxOutputTokens": 16,
+    "otherProtocolsMaxTokens": 1
+  },
+  "byModelResponse": {
+    "$comment": "Shape of the Server by-model view body. Fake servers in tests serve exactly this.",
+    "code": 0,
+    "data": {
+      "revision": "sha256:probe-orchestration-fixture",
+      "byModel": {
+        "claude-sonnet-4-5": { "family": "anthropic", "providerKind": "anthropic", "facts": {} },
+        "gemini-2.5-pro": { "family": "google", "providerKind": "gemini", "facts": {} },
+        "gpt-5": { "family": "openai", "providerKind": "openAI", "facts": {} },
+        "deepseek-chat": { "family": "deepseek", "providerKind": "deepseek", "facts": {} }
+      }
+    }
+  },
+  "familyCases": [
+    { "caseId": "dated_id_hits_family_after_normalization", "modelId": "claude-sonnet-4-5-20250929", "expect": ["messages", "chat"] },
+    { "caseId": "vendor_prefixed_id_hits_by_last_segment", "modelId": "anthropic/claude-sonnet-4-5", "expect": ["messages", "chat"] },
+    { "caseId": "google_family_tries_gemini_then_chat", "modelId": "gemini-2.5-pro", "expect": ["gemini", "chat"] },
+    { "caseId": "openai_family_tries_responses_then_chat", "modelId": "GPT-5", "expect": ["responses", "chat"] },
+    { "caseId": "other_family_gets_chat_only", "modelId": "deepseek-chat", "expect": ["chat"] },
+    { "caseId": "unknown_model_gets_chat_only_without_id_guessing", "modelId": "claude-renamed-by-gateway", "expect": ["chat"] },
+    { "caseId": "endpoint_types_that_map_to_nothing_fall_back_to_family", "modelId": "gemini-2.5-pro", "supportedEndpointTypes": ["image-generation"], "expect": ["gemini", "chat"] },
+    { "caseId": "endpoint_types_win_over_family", "modelId": "claude-sonnet-4-5", "supportedEndpointTypes": ["openai-response", "openai"], "expect": ["responses", "chat"] },
+    { "caseId": "by_model_view_unavailable_gets_chat_only", "modelId": "claude-sonnet-4-5", "byModelUnavailable": true, "expect": ["chat"] }
+  ],
+  "generationRouteCases": {
+    "$comment": "When the add flow found no catalog and discovery only reached a generation route (detection evidence generation_probe) with protocol `route`, that protocol is the first candidate for the first selected model; the candidateRules result for the model follows, duplicates dropped, at most maxCandidates. Test ids RD2-ROUTE-<caseId>; byModelResponse is the by-model view used for the family lookup.",
+    "cases": [
+      { "caseId": "unknown_family_route_then_default", "route": "messages", "modelId": "relay-house-model-x", "expect": ["messages", "chat"] },
+      { "caseId": "route_first_then_family_capped_at_two", "route": "responses", "modelId": "gemini-2.5-pro", "expect": ["responses", "gemini"] },
+      { "caseId": "route_already_in_family_is_not_repeated", "route": "messages", "modelId": "claude-sonnet-4-5-20250929", "expect": ["messages", "chat"] }
+    ]
+  },
+  "scenarios": [
+    {
+      "$comment": "connection = relay connection before the step (transport 'auto' means the user did not choose one). models[].supportedEndpointTypes is what the catalog returned for that id. ping maps '<modelId>@<short transport>' to one of the outcomes in probeOutcomeRules; anything unlisted is http_404. Only ok passes; only a routeRejected outcome moves on to the next candidate, an inconclusive one ends the step . expect.pings is the exact ordered list of probe requests the step sends; expect.models lists the Relay 2.0 fields per model after the step (absent key = nil); expect.connectionTransport is relayRequested.transport after the step. expect.resolvedAPIBaseURLs is exactly the set of entries the probe step itself writes; a root recorded by connection-level catalog discovery (which depends on each end's catalog discovery order) is outside these scenarios and asserted by the end's own discovery tests.",
+      "caseId": "add_probes_only_the_default_model",
+      "test": "RL2-PROBE-03",
+      "step": "add_connection",
+      "connection": { "baseURL": "https://relay.example.com", "transport": "auto" },
+      "models": [
+        { "id": "claude-sonnet-4-5", "supportedEndpointTypes": ["anthropic", "openai"] },
+        { "id": "gpt-4o-mini", "supportedEndpointTypes": ["openai"] },
+        { "id": "o3-pro", "supportedEndpointTypes": ["openai-response"] }
+      ],
+      "defaultModel": "claude-sonnet-4-5",
+      "ping": { "claude-sonnet-4-5@messages": "ok" },
+      "expect": {
+        "pings": [["claude-sonnet-4-5", "messages"]],
+        "verified": true,
+        "connectionTransport": "auto",
+        "resolvedAPIBaseURLs": { "anthropic_messages": "https://relay.example.com/v1" },
+        "models": {
+          "claude-sonnet-4-5": { "relayTransport": "anthropic_messages", "relayTransportSource": "reachable" },
+          "gpt-4o-mini": {},
+          "o3-pro": {}
+        }
+      }
+    },
+    {
+      "caseId": "add_moves_to_the_second_candidate_when_the_first_fails",
+      "test": "RL2-PROBE-03",
+      "step": "add_connection",
+      "connection": { "baseURL": "https://relay.example.com", "transport": "auto" },
+      "models": [{ "id": "claude-sonnet-4-5", "supportedEndpointTypes": ["anthropic", "openai"] }],
+      "defaultModel": "claude-sonnet-4-5",
+      "ping": { "claude-sonnet-4-5@messages": "http_404", "claude-sonnet-4-5@chat": "ok" },
+      "expect": {
+        "pings": [["claude-sonnet-4-5", "messages"], ["claude-sonnet-4-5", "chat"]],
+        "verified": true,
+        "connectionTransport": "auto",
+        "resolvedAPIBaseURLs": { "openai_chat_completions": "https://relay.example.com/v1" },
+        "models": { "claude-sonnet-4-5": { "relayTransport": "openai_chat_completions", "relayTransportSource": "reachable" } }
+      }
+    },
+    {
+      "caseId": "add_with_a_user_chosen_connection_protocol_verifies_on_it_and_pins_nothing",
+      "test": "RL2-PROBE-03",
+      "step": "add_connection",
+      "connection": { "baseURL": "https://relay.example.com", "transport": "anthropic_messages" },
+      "models": [{ "id": "claude-sonnet-4-5", "supportedEndpointTypes": ["openai", "anthropic"] }],
+      "defaultModel": "claude-sonnet-4-5",
+      "ping": { "claude-sonnet-4-5@messages": "ok" },
+      "expect": {
+        "pings": [["claude-sonnet-4-5", "messages"]],
+        "verified": true,
+        "connectionTransport": "anthropic_messages",
+        "resolvedAPIBaseURLs": {},
+        "models": { "claude-sonnet-4-5": {} }
+      }
+    },
+    {
+      "caseId": "add_with_every_candidate_failing_is_not_verified_and_pins_nothing",
+      "test": "RL2-PROBE-03",
+      "step": "add_connection",
+      "connection": { "baseURL": "https://relay.example.com", "transport": "auto" },
+      "models": [{ "id": "o3-pro", "supportedEndpointTypes": ["openai-response"] }],
+      "defaultModel": "o3-pro",
+      "ping": { "o3-pro@responses": "http_5xx" },
+      "expect": {
+        "pings": [["o3-pro", "responses"]],
+        "verified": false,
+        "connectionTransport": "auto",
+        "resolvedAPIBaseURLs": {},
+        "models": { "o3-pro": {} }
+      }
+    },
+    {
+      "caseId": "enable_probes_the_enabled_model_and_stores_reachable",
+      "test": "RL2-PROBE-04",
+      "step": "enable_model",
+      "connection": { "baseURL": "https://relay.example.com/v1", "transport": "auto" },
+      "models": [{ "id": "o3-pro", "supportedEndpointTypes": ["openai-response"] }],
+      "enable": "o3-pro",
+      "ping": { "o3-pro@responses": "ok" },
+      "expect": {
+        "pings": [["o3-pro", "responses"]],
+        "enabled": ["o3-pro"],
+        "connectionTransport": "auto",
+        "resolvedAPIBaseURLs": { "openai_responses": "https://relay.example.com/v1" },
+        "models": { "o3-pro": { "relayTransport": "openai_responses", "relayTransportSource": "reachable" } }
+      }
+    },
+    {
+      "caseId": "enable_with_every_candidate_failing_still_enables_and_follows_the_connection",
+      "test": "RL2-PROBE-04",
+      "step": "enable_model",
+      "connection": { "baseURL": "https://relay.example.com/v1", "transport": "auto" },
+      "models": [{ "id": "claude-renamed-by-gateway" }],
+      "enable": "claude-renamed-by-gateway",
+      "ping": { "claude-renamed-by-gateway@chat": "network" },
+      "expect": {
+        "pings": [["claude-renamed-by-gateway", "chat"]],
+        "enabled": ["claude-renamed-by-gateway"],
+        "connectionTransport": "auto",
+        "resolvedAPIBaseURLs": {},
+        "models": { "claude-renamed-by-gateway": {} }
+      }
+    },
+    {
+      "caseId": "reachable_does_not_authorize_the_native_file_whitelist",
+      "test": "RL2-PROBE-04",
+      "step": "enrich_from_official_catalog",
+      "$comment": "A Relay model whose id matches the official Anthropic catalog entry that carries nativeFileMimes / pdfNativeDefault (reuse the end's S0 test catalog). With relayTransport anthropic_messages: source reachable -> nativeFileMimes empty and pdfNativeDefault false; source observed or user -> both inherited exactly as S0 does today.",
+      "sources": { "reachable": "not_inherited", "observed": "inherited", "user": "inherited" }
+    },
+    {
+      "caseId": "a_delivered_send_upgrades_reachable_to_observed",
+      "test": "RL2-PROBE-04",
+      "step": "send_delivered",
+      "$comment": "Only a model whose relayTransport is set with source reachable, and whose relayTransport at completion equals the protocol the send started with, becomes observed. A model following the connection (nil) stays nil; user stays user; a failed or partial send changes nothing.",
+      "before": [
+        { "id": "a", "relayTransport": "openai_responses", "relayTransportSource": "reachable", "outcome": "delivered", "after": { "relayTransport": "openai_responses", "relayTransportSource": "observed" } },
+        { "id": "b", "outcome": "delivered", "after": {} },
+        { "id": "c", "relayTransport": "anthropic_messages", "relayTransportSource": "user", "outcome": "delivered", "after": { "relayTransport": "anthropic_messages", "relayTransportSource": "user" } },
+        { "id": "d", "relayTransport": "openai_responses", "relayTransportSource": "reachable", "outcome": "failed", "after": { "relayTransport": "openai_responses", "relayTransportSource": "reachable" } }
+      ]
+    },
+    {
+      "caseId": "redetect_clears_reachable_and_negative_cache_and_keeps_stronger_sources",
+      "test": "RL2-PROBE-05",
+      "step": "redetect",
+      "$comment": "Before the step every listed model is enabled and the connection has entries in the end's existing per-connection negative caches (capability rejection cache and tool-call memory). After: reachable is cleared on every model, then every enabled model whose relayTransport is nil after clearing is re-probed, in enabled order (relay connections have no default model; the defaultModel field below is legacy isDefault data and must be ignored); observed / user / tested overrides stay; no enabled model is removed; both negative caches hold nothing for this connection; the connection protocol is unchanged.",
+      "connection": { "baseURL": "https://relay.example.com/v1", "transport": "auto" },
+      "models": [
+        { "id": "o3-pro", "supportedEndpointTypes": ["openai-response"], "relayTransport": "openai_responses", "relayTransportSource": "reachable" },
+        { "id": "claude-sonnet-4-5", "supportedEndpointTypes": ["anthropic"], "relayTransport": "anthropic_messages", "relayTransportSource": "observed" },
+        { "id": "gemini-2.5-pro", "supportedEndpointTypes": ["gemini"], "relayTransport": "gemini_generate_content", "relayTransportSource": "user" },
+        { "id": "gpt-4o-mini", "supportedEndpointTypes": ["openai"], "relayTransport": "openai_chat_completions", "relayTransportSource": "reachable", "relayCapabilityOverrides": { "image": { "value": true, "source": "tested" } } }
+      ],
+      "defaultModel": "o3-pro",
+      "ping": { "o3-pro@responses": "ok", "gpt-4o-mini@chat": "ok" },
+      "expect": {
+        "pings": [["o3-pro", "responses"], ["gpt-4o-mini", "chat"]],
+        "enabled": ["o3-pro", "claude-sonnet-4-5", "gemini-2.5-pro", "gpt-4o-mini"],
+        "connectionTransport": "auto",
+        "negativeCacheEntriesForConnection": 0,
+        "models": {
+          "o3-pro": { "relayTransport": "openai_responses", "relayTransportSource": "reachable" },
+          "claude-sonnet-4-5": { "relayTransport": "anthropic_messages", "relayTransportSource": "observed" },
+          "gemini-2.5-pro": { "relayTransport": "gemini_generate_content", "relayTransportSource": "user" },
+          "gpt-4o-mini": { "relayTransport": "openai_chat_completions", "relayTransportSource": "reachable", "relayCapabilityOverrides": { "image": { "value": true, "source": "tested" } } }
+        }
+      }
+    },
+    {"caseId": "enable_on_a_user_chosen_connection_protocol_sends_no_probe_and_pins_nothing", "test": "RL2-PROBE-04", "step": "enable_model", "connection": {"baseURL": "https://relay.example.com/v1", "transport": "openai_chat_completions"}, "models": [{"id": "o3-pro", "supportedEndpointTypes": ["openai-response", "openai"]}], "enable": "o3-pro", "ping": {"o3-pro@responses": "ok", "o3-pro@chat": "ok"}, "expect": {"pings": [], "enabled": ["o3-pro"], "connectionTransport": "openai_chat_completions", "resolvedAPIBaseURLs": {}, "models": {"o3-pro": {}}}},
+    {"caseId": "enable_stops_at_an_inconclusive_first_candidate_and_pins_nothing", "test": "RL2-PROBE-04", "step": "enable_model", "$comment": "Run once per outcome in probeOutcomeRules.inconclusive in place of http_429: the second candidate would pass, yet it is never sent.", "connection": {"baseURL": "https://relay.example.com", "transport": "auto"}, "models": [{"id": "claude-sonnet-4-5", "supportedEndpointTypes": ["anthropic", "openai"]}], "enable": "claude-sonnet-4-5", "ping": {"claude-sonnet-4-5@messages": "http_429", "claude-sonnet-4-5@chat": "ok"}, "expect": {"pings": [["claude-sonnet-4-5", "messages"]], "enabled": ["claude-sonnet-4-5"], "connectionTransport": "auto", "resolvedAPIBaseURLs": {}, "models": {"claude-sonnet-4-5": {}}}},
+    {"caseId": "enable_moves_on_after_a_route_level_403", "test": "RL2-PROBE-04", "step": "enable_model", "connection": {"baseURL": "https://relay.example.com", "transport": "auto"}, "models": [{"id": "claude-sonnet-4-5", "supportedEndpointTypes": ["anthropic", "openai"]}], "enable": "claude-sonnet-4-5", "ping": {"claude-sonnet-4-5@messages": "http_403_route", "claude-sonnet-4-5@chat": "ok"}, "expect": {"pings": [["claude-sonnet-4-5", "messages"], ["claude-sonnet-4-5", "chat"]], "enabled": ["claude-sonnet-4-5"], "connectionTransport": "auto", "resolvedAPIBaseURLs": {"openai_chat_completions": "https://relay.example.com/v1"}, "models": {"claude-sonnet-4-5": {"relayTransport": "openai_chat_completions", "relayTransportSource": "reachable"}}}},
+    {"caseId": "add_stops_at_an_inconclusive_first_candidate_and_is_not_verified", "test": "RL2-PROBE-03", "step": "add_connection", "connection": {"baseURL": "https://relay.example.com", "transport": "auto"}, "models": [{"id": "claude-sonnet-4-5", "supportedEndpointTypes": ["anthropic", "openai"]}], "defaultModel": "claude-sonnet-4-5", "ping": {"claude-sonnet-4-5@messages": "http_401", "claude-sonnet-4-5@chat": "ok"}, "expect": {"pings": [["claude-sonnet-4-5", "messages"]], "verified": false, "connectionTransport": "auto", "resolvedAPIBaseURLs": {}, "models": {"claude-sonnet-4-5": {}}}},
+    {"caseId": "redetect_on_a_user_chosen_connection_protocol_clears_reachable_and_sends_no_probe", "test": "RL2-PROBE-05", "step": "redetect", "connection": {"baseURL": "https://relay.example.com/v1", "transport": "openai_chat_completions"}, "models": [{"id": "o3-pro", "supportedEndpointTypes": ["openai-response"], "relayTransport": "openai_responses", "relayTransportSource": "reachable"}, {"id": "gemini-2.5-pro", "supportedEndpointTypes": ["gemini"], "relayTransport": "gemini_generate_content", "relayTransportSource": "user"}], "ping": {"o3-pro@responses": "ok", "o3-pro@chat": "ok"}, "expect": {"pings": [], "enabled": ["o3-pro", "gemini-2.5-pro"], "connectionTransport": "openai_chat_completions", "models": {"o3-pro": {}, "gemini-2.5-pro": {"relayTransport": "gemini_generate_content", "relayTransportSource": "user"}}}}
+  ]
+}

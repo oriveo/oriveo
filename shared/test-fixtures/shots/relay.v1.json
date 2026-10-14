@@ -1,0 +1,205 @@
+{
+  "$comment": "Shared sample-screen manifest for the relay family (sample-screen tool). One source for page names, demo data, per-page presets and the clock across iOS (RelayFamilyDebugShots.swift), Android debug (RelayFamilyShots*) and Web dev (/dev/relay-shots). All three ends render the same values (iOS is the gold reference); every end builds its in-memory demo connections from this file through production model builders; mechanics (navigation, injection hooks, network stubs, wait loops) stay in each end. Keys starting with '$' are documentation and ignored by readers. Lint: every page listed here must be implemented by all three ends and registered in the sample-screen page list. Preset webFragments = saved web search fragments by transport (stored before the page opens); webProbeRecords = device-local web probe records written with the hash of the current fragment of their transport.",
+  "schema": "oriveo-shots-manifest/v1",
+  "family": "relay",
+  "clock": {
+    "$comment": "Relative to the moment the page is opened, so relative-time labels stay stable between runs. A fixed wall-clock would drift the labels.",
+    "connectionCheckedAgoSeconds": 180,
+    "keyCheckedAgoSeconds": 240,
+    "localCheckedAgoSeconds": 60
+  },
+  "relay": {
+    "id": "5E1A7000-0000-4000-8000-000000000001",
+    "name": "Demo Relay",
+    "endpoint": "https://api.relay-demo.example",
+    "apiRoot": "https://api.relay-demo.example/v1",
+    "transport": "auto",
+    "authMode": "bearer",
+    "securityMode": "remote_https",
+    "resolvedTransports": ["openai_chat_completions", "openai_responses"],
+    "unauthorizedError": {
+      "$comment": "What the demo relay answers with an invalid key (edit save failure, manual setup failure). iOS wraps it as the invalidAPIKey detail \"HTTP 401 · <body>\"; Android and Web serve it as the HTTP response body.",
+      "httpStatus": 401,
+      "body": "{\"error\":{\"message\":\"Incorrect API key provided\",\"type\":\"invalid_request_error\"}}"
+    },
+    "keys": [
+      { "ref": "main", "implicit": true, "name": "Main", "secret": "sk-relay-demo-main-7Q4f", "state": "ok", "httpStatus": null },
+      { "ref": "backup", "id": "k-demo-backup", "name": "Backup", "secret": "sk-relay-demo-backup-9Zc2", "state": "invalid", "httpStatus": 401 },
+      { "ref": "team", "id": "k-demo-team", "secret": "sk-relay-demo-team-51Lx", "state": "limited", "httpStatus": 429 }
+    ],
+    "catalog": [
+      { "id": "gpt-5.6-sol", "listedBy": ["main", "team"] },
+      { "id": "gpt-5.6-mini", "listedBy": ["main", "team"] },
+      { "id": "gpt-image-1", "listedBy": ["main"] },
+      { "id": "claude-sonnet-5", "listedBy": ["backup"] },
+      { "id": "claude-opus-5", "listedBy": ["backup"] },
+      { "id": "claude-haiku-5", "listedBy": ["backup"] },
+      { "id": "relay-chat-large", "listedBy": ["main"] },
+      { "id": "claude-sonnet-5-extended-thinking-preview-20261001", "listedBy": ["backup"] },
+      { "id": "deepseek-chat", "listedBy": ["team"] }
+    ],
+    "enabled": [
+      {
+        "id": "gpt-5.6-sol",
+        "key": "main",
+        "capabilities": { "image": true, "toolCall": true },
+        "capabilitySource": "tested",
+        "transport": "openai_responses",
+        "transportSource": "observed"
+      },
+      {
+        "id": "claude-sonnet-5",
+        "key": "backup",
+        "capabilities": { "image": true, "file": false },
+        "capabilitySource": "user",
+        "transport": "openai_chat_completions",
+        "transportSource": "reachable"
+      },
+      { "id": "relay-chat-large", "key": "main" },
+      { "id": "claude-sonnet-5-extended-thinking-preview-20261001", "key": "backup" }
+    ]
+  },
+  "local": {
+    "id": "5E1A7000-0000-4000-8000-000000000002",
+    "name": "Studio Ollama",
+    "endpoint": "http://192.168.1.20:11434",
+    "transport": "openai_chat_completions",
+    "authMode": "none",
+    "securityMode": "local_http",
+    "engine": "ollama",
+    "models": [
+      { "id": "qwen3:8b", "load": "loaded", "declaration": { "image": false, "toolCall": true, "thinking": true } },
+      { "id": "llama3.3:70b", "load": "unloaded", "declaration": { "toolCall": true, "thinking": false } },
+      { "id": "gemma3:12b", "load": "unloaded", "declaration": { "image": true } }
+    ],
+    "enabledCount": 2
+  },
+  "setupCatalog": [
+    "gpt-5.6-sol",
+    "gpt-5.6-mini",
+    "gpt-image-1",
+    "claude-sonnet-5",
+    "claude-opus-5",
+    "claude-haiku-5",
+    "deepseek-chat",
+    "relay-chat-large",
+    "claude-sonnet-5-extended-thinking-preview-20261001"
+  ],
+  "pages": [
+    { "name": "relayDetail", "host": "relay", "view": "detail" },
+    {
+      "name": "relayDetailIssue",
+      "host": "relay",
+      "view": "detail",
+      "connection": { "transport": "openai_responses", "modelTransports": "unset", "status": "unverified" }
+    },
+    { "name": "localDetail", "host": "local", "view": "detail" },
+    { "name": "relayKeys", "host": "relay", "view": "keys", "preset": { "fetchingKeys": ["main"] } },
+    { "name": "relayKeyInput", "host": "relay", "view": "keys", "preset": { "addKeyOpen": true } },
+    { "name": "relayKeysAdded", "host": "relay", "view": "keys", "$comment": "keyAdded = the moment right after adding this key with its catalog fetch written back ok: the key's status is ok on this page and the notice comes from the production notice function (team lists 3, 1 only by itself).", "preset": { "keyAdded": "team" } },
+    { "name": "relayLibrary", "host": "relay", "view": "library", "preset": { "expandedGroups": ["openai"] } },
+    { "name": "relayLibraryLast", "host": "relay", "view": "library", "connection": { "enabled": ["gpt-5.6-sol"] } },
+    { "name": "relayLibraryByKey", "host": "relay", "view": "library", "preset": { "keyFilter": "backup" } },
+    { "name": "relayAdvanced", "host": "relay", "view": "advanced", "model": "gpt-5.6-sol" },
+    {
+      "name": "relayAdvancedFixed",
+      "host": "relay",
+      "view": "advanced",
+      "model": "relay-chat-large",
+      "connection": { "transport": "openai_responses", "modelTransports": "unset" }
+    },
+    {
+      "name": "relayCapabilityTest",
+      "host": "relay",
+      "view": "advanced",
+      "model": "gpt-5.6-sol",
+      "preset": {
+        "capabilityTest": {
+          "key": "main",
+          "items": ["text", "image", "toolCall"],
+          "results": {
+            "text": { "verdict": "accepted", "reason": "ok", "status": 200, "elapsedMs": 1240 },
+            "image": { "verdict": "rejected", "reason": "upstream_rejected", "status": 400, "elapsedMs": 860 }
+          },
+          "running": "toolCall"
+        }
+      }
+    },
+    {
+      "name": "relayCapabilityTestWeb",
+      "host": "relay",
+      "view": "advanced",
+      "model": "gpt-5.6-sol",
+      "preset": {
+        "webFragments": { "openai_responses": { "tools": [{ "type": "web_search" }] } },
+        "capabilityTest": {
+          "key": "main",
+          "items": ["text", "image", "toolCall", "web"],
+          "results": {
+            "text": { "verdict": "accepted", "reason": "ok", "status": 200, "elapsedMs": 700 },
+            "image": { "verdict": "notObserved", "reason": "not_observed", "status": 200, "elapsedMs": 1500 },
+            "toolCall": { "verdict": "accepted", "reason": "ok", "status": 200, "elapsedMs": 900 }
+          },
+          "running": "web"
+        }
+      }
+    },
+    {
+      "name": "relayWebSearch",
+      "host": "relay",
+      "view": "webSearch",
+      "preset": { "draftFromTemplate": ["openai_responses", "openai_chat_completions"] }
+    },
+    {
+      "$comment": "Saved fragment on Chat Completions; claude-sonnet-5 (first-send transport openai_chat_completions) has a current rejected record, so the page lists it with a retest button under the groups, and the disclosure line sits above Save.",
+      "name": "relayWebSearchRejected",
+      "host": "relay",
+      "view": "webSearch",
+      "preset": {
+        "webFragments": { "openai_chat_completions": { "web_search_options": {} } },
+        "webProbeRecords": [{ "model": "claude-sonnet-5", "transport": "openai_chat_completions", "result": "rejected", "source": "tested" }]
+      }
+    },
+    { "name": "relayEdit", "host": "relay", "view": "detail", "preset": { "editConnection": true } },
+    {
+      "name": "relayEditFailure",
+      "host": "relay",
+      "view": "detail",
+      "preset": {
+        "editConnection": true,
+        "saveFailure": { "afterMs": 600, "httpStatus": 401, "reason": "invalid_api_key", "canSaveUnverified": true }
+      }
+    },
+    { "name": "localEdit", "host": "local", "view": "detail", "preset": { "editConnection": true } },
+    { "name": "relayManualSetup", "host": "setup", "view": "setup", "preset": { "setup": { "mode": "manual" } } },
+    {
+      "name": "relayManualSetupFailure",
+      "host": "setup",
+      "view": "setup",
+      "preset": {
+        "setup": {
+          "mode": "manual",
+          "endpoint": "relay",
+          "key": "main",
+          "transport": "openai_chat_completions",
+          "model": "gpt-5.6-sol",
+          "submit": true,
+          "failure": { "httpStatus": 401, "reason": "invalid_api_key" }
+        }
+      }
+    },
+    {
+      "name": "relaySetupModels",
+      "host": "setup",
+      "view": "setup",
+      "preset": { "setup": { "mode": "quick", "endpoint": "relay", "key": "main", "detect": true } }
+    },
+    {
+      "name": "relaySetupModelsAlert",
+      "host": "setup",
+      "view": "setup",
+      "preset": { "setup": { "mode": "quick", "endpoint": "relay", "key": "main", "detect": true, "manualModelAddOpen": true } }
+    },
+    { "name": "relaySetup", "host": "setup", "view": "setup", "preset": { "setup": { "mode": "quick" } } }
+  ]
+}

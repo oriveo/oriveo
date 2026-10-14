@@ -1,0 +1,9 @@
+event: interaction.created
+data: {"interaction":{"id":"v1_...","status":"in_progress","object":"interaction","model":"gemini-3-flash-preview"},"event_type":"interaction.created"}
+
+event: interaction.status_update
+data: {"interaction_id":"v1_...","status":"in_progress","event_type":"interaction.status_update"}
+
+event: error
+data: {"error":{"message":"Deadline expired before operation could complete.","code":"gateway_timeout"},"event_type":"error"}
+

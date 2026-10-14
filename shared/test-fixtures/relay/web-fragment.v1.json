@@ -1,0 +1,992 @@
+{
+  "$comment": "Relay connection-level web search fragments. One JSON object per wire protocol per connection, stored on this device only (iOS UserDefaults / Android SharedPreferences `relay_web_fragments.v1`, Web localStorage `oriveo.relay-web-fragments.v1`, keyed by connection id). A saved fragment is sent on every chat request of that connection whose effective protocol matches (text / image / tool capability-test items and auxiliary requests never carry it; the web search probe item does, see web-probe.v1.json). effectiveFragments(stored, relayRequested, profiles) = stored when it has at least one entry, otherwise legacyCases mapping (read-time only, never written back). Saving on the web search page clears the two legacy fields.",
+  "version": 1,
+  "transports": [
+    "openai_chat_completions",
+    "openai_responses",
+    "anthropic_messages",
+    "gemini_generate_content"
+  ],
+  "templates": {
+    "openai_responses": {
+      "tools": [
+        {
+          "type": "web_search"
+        }
+      ]
+    },
+    "openai_chat_completions": {
+      "web_search_options": {}
+    },
+    "anthropic_messages": {
+      "tools": [
+        {
+          "type": "web_search_20250305",
+          "name": "web_search",
+          "max_uses": 5
+        }
+      ]
+    },
+    "gemini_generate_content": {
+      "tools": [
+        {
+          "googleSearch": {}
+        }
+      ]
+    }
+  },
+  "limits": {
+    "maxBytes": 8192,
+    "forbiddenTopLevelKeys": [
+      "model",
+      "messages",
+      "input",
+      "contents",
+      "system",
+      "systemInstruction",
+      "system_instruction",
+      "instructions",
+      "stream",
+      "stream_options",
+      "previous_response_id",
+      "tool_choice",
+      "toolConfig",
+      "tool_config"
+    ],
+    "functionToolMarkers": {
+      "typeEquals": "function",
+      "keys": [
+        "functionDeclarations",
+        "function_declarations"
+      ]
+    }
+  },
+  "validateCases": [
+    {
+      "$comment": "raw is the editor text. Order of checks: not_json, not_object, empty, too_large (UTF-8 bytes of raw), forbidden_key (first offending key in `limits.forbiddenTopLevelKeys` order), invalid_tools (tools not an array of objects), function_tool. `rawPadTo: N` means raw = '{\"x\":\"' + 'a' repeated N-8 times + '\"}' (exactly N bytes).",
+      "caseId": "responses_template_is_valid",
+      "raw": "{\"tools\": [{\"type\": \"web_search\"}]}",
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "caseId": "messages_template_is_valid",
+      "raw": "{\"tools\": [{\"type\": \"web_search_20250305\", \"name\": \"web_search\", \"max_uses\": 5}]}",
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "caseId": "chat_template_is_valid",
+      "raw": "{\"web_search_options\": {}}",
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "caseId": "gemini_template_is_valid",
+      "raw": "{\"tools\": [{\"googleSearch\": {}}]}",
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "caseId": "broken_json",
+      "raw": "{\"tools\":[",
+      "expect": {
+        "ok": false,
+        "error": "not_json"
+      }
+    },
+    {
+      "caseId": "array_is_not_an_object",
+      "raw": "[]",
+      "expect": {
+        "ok": false,
+        "error": "not_object"
+      }
+    },
+    {
+      "caseId": "empty_object",
+      "raw": "{}",
+      "expect": {
+        "ok": false,
+        "error": "empty"
+      }
+    },
+    {
+      "caseId": "over_8kb",
+      "rawPadTo": 8193,
+      "expect": {
+        "ok": false,
+        "error": "too_large"
+      }
+    },
+    {
+      "caseId": "exactly_8kb_is_fine",
+      "rawPadTo": 8192,
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "caseId": "model_key_is_forbidden",
+      "raw": "{\"model\":\"x\",\"plugins\":[{\"id\":\"web\"}]}",
+      "expect": {
+        "ok": false,
+        "error": "forbidden_key",
+        "key": "model"
+      }
+    },
+    {
+      "caseId": "tool_choice_is_forbidden",
+      "raw": "{\"tools\":[{\"type\":\"web_search\"}],\"tool_choice\":\"auto\"}",
+      "expect": {
+        "ok": false,
+        "error": "forbidden_key",
+        "key": "tool_choice"
+      }
+    },
+    {
+      "caseId": "tools_must_be_an_array",
+      "raw": "{\"tools\":{\"type\":\"web_search\"}}",
+      "expect": {
+        "ok": false,
+        "error": "invalid_tools"
+      }
+    },
+    {
+      "caseId": "tools_entries_must_be_objects",
+      "raw": "{\"tools\":[\"web_search\"]}",
+      "expect": {
+        "ok": false,
+        "error": "invalid_tools"
+      }
+    },
+    {
+      "caseId": "function_tool_is_rejected",
+      "raw": "{\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"f\"}}]}",
+      "expect": {
+        "ok": false,
+        "error": "function_tool"
+      }
+    },
+    {
+      "caseId": "gemini_function_declarations_are_rejected",
+      "raw": "{\"tools\":[{\"functionDeclarations\":[{\"name\":\"f\"}]}]}",
+      "expect": {
+        "ok": false,
+        "error": "function_tool"
+      }
+    },
+    {
+      "caseId": "non_tool_keys_are_fine",
+      "raw": "{\"plugins\":[{\"id\":\"web\"}],\"web_search_options\":{\"search_context_size\":\"low\"}}",
+      "expect": {
+        "ok": true
+      }
+    }
+  ],
+  "mergeCases": [
+    {
+      "$comment": "merge(transport, builderBody, fragment): tools are appended after the builder's tools (Gemini: when the builder body already has a tools entry with functionDeclarations, the fragment's tools are skipped entirely); every other key deep-merges and on a leaf / type conflict the builder value wins. Runs after the protocol builder and before the user's additional request body.",
+      "caseId": "responses_appends_after_function_tools",
+      "transport": "openai_responses",
+      "builderBody": {
+        "model": "m",
+        "input": [
+          {
+            "role": "user",
+            "content": "hi"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "lookup",
+            "parameters": {}
+          }
+        ]
+      },
+      "fragment": {
+        "tools": [
+          {
+            "type": "web_search"
+          }
+        ]
+      },
+      "expect": {
+        "model": "m",
+        "input": [
+          {
+            "role": "user",
+            "content": "hi"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "lookup",
+            "parameters": {}
+          },
+          {
+            "type": "web_search"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "responses_without_builder_tools",
+      "transport": "openai_responses",
+      "builderBody": {
+        "model": "m",
+        "input": "hi",
+        "stream": true
+      },
+      "fragment": {
+        "tools": [
+          {
+            "type": "web_search"
+          }
+        ]
+      },
+      "expect": {
+        "model": "m",
+        "input": "hi",
+        "stream": true,
+        "tools": [
+          {
+            "type": "web_search"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "messages_template_lands_in_tools",
+      "transport": "anthropic_messages",
+      "builderBody": {
+        "model": "m",
+        "messages": [],
+        "max_tokens": 8192
+      },
+      "fragment": {
+        "tools": [
+          {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 5
+          }
+        ]
+      },
+      "expect": {
+        "model": "m",
+        "messages": [],
+        "max_tokens": 8192,
+        "tools": [
+          {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 5
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "gemini_without_function_tools",
+      "transport": "gemini_generate_content",
+      "builderBody": {
+        "contents": []
+      },
+      "fragment": {
+        "tools": [
+          {
+            "googleSearch": {}
+          }
+        ]
+      },
+      "expect": {
+        "contents": [],
+        "tools": [
+          {
+            "googleSearch": {}
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "gemini_function_tools_skip_fragment_tools",
+      "transport": "gemini_generate_content",
+      "builderBody": {
+        "contents": [],
+        "tools": [
+          {
+            "functionDeclarations": [
+              {
+                "name": "f"
+              }
+            ]
+          }
+        ]
+      },
+      "fragment": {
+        "tools": [
+          {
+            "googleSearch": {}
+          }
+        ],
+        "generationConfig": {
+          "candidateCount": 1
+        }
+      },
+      "expect": {
+        "contents": [],
+        "tools": [
+          {
+            "functionDeclarations": [
+              {
+                "name": "f"
+              }
+            ]
+          }
+        ],
+        "generationConfig": {
+          "candidateCount": 1
+        }
+      }
+    },
+    {
+      "caseId": "chat_object_key_is_added",
+      "transport": "openai_chat_completions",
+      "builderBody": {
+        "model": "m",
+        "messages": [],
+        "stream": true
+      },
+      "fragment": {
+        "web_search_options": {
+          "search_context_size": "low"
+        }
+      },
+      "expect": {
+        "model": "m",
+        "messages": [],
+        "stream": true,
+        "web_search_options": {
+          "search_context_size": "low"
+        }
+      }
+    },
+    {
+      "caseId": "builder_leaf_wins_on_conflict",
+      "transport": "openai_chat_completions",
+      "builderBody": {
+        "model": "m",
+        "messages": [],
+        "web_search_options": {
+          "search_context_size": "high"
+        }
+      },
+      "fragment": {
+        "web_search_options": {
+          "search_context_size": "low",
+          "user_location": {
+            "type": "approximate"
+          }
+        }
+      },
+      "expect": {
+        "model": "m",
+        "messages": [],
+        "web_search_options": {
+          "search_context_size": "high",
+          "user_location": {
+            "type": "approximate"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "chat_plugins_are_added",
+      "transport": "openai_chat_completions",
+      "builderBody": {
+        "model": "m",
+        "messages": []
+      },
+      "fragment": {
+        "plugins": [
+          {
+            "id": "web",
+            "max_results": 5
+          }
+        ]
+      },
+      "expect": {
+        "model": "m",
+        "messages": [],
+        "plugins": [
+          {
+            "id": "web",
+            "max_results": 5
+          }
+        ]
+      }
+    }
+  ],
+  "legacyProfiles": {
+    "ant_web_tool": {
+      "tools": [
+        {
+          "max_uses": 5,
+          "name": "web_search",
+          "type": "web_search_20250305"
+        }
+      ]
+    },
+    "gem_web": {
+      "tools": [
+        {
+          "google_search": {}
+        }
+      ]
+    },
+    "gem_web_retrieval": {
+      "tools": [
+        {
+          "google_search_retrieval": {
+            "dynamic_retrieval_config": {
+              "mode": "MODE_DYNAMIC"
+            }
+          }
+        }
+      ]
+    },
+    "grok_responses_web": {
+      "tools": [
+        {
+          "enable_image_understanding": true,
+          "filters": {
+            "allowed_domains": [],
+            "excluded_domains": []
+          },
+          "type": "web_search"
+        }
+      ]
+    },
+    "kimi_web_search": {
+      "tools": [
+        {
+          "function": {
+            "name": "$web_search"
+          },
+          "type": "builtin_function"
+        }
+      ]
+    },
+    "oai_responses_web": {
+      "tool_choice": "auto",
+      "tools": [
+        {
+          "type": "web_search"
+        }
+      ]
+    },
+    "oai_web_tool": {},
+    "or_web": {
+      "plugins": [
+        {
+          "id": "web",
+          "max_results": 5
+        }
+      ]
+    },
+    "qwen_web": {
+      "enable_search": true
+    },
+    "zhipu_web": {
+      "tools": [
+        {
+          "type": "web_search",
+          "web_search": {
+            "enable": true,
+            "search_engine": "search_pro",
+            "search_result": true
+          }
+        }
+      ]
+    }
+  },
+  "profileTransport": {
+    "oai_responses_web": "openai_responses",
+    "grok_responses_web": "openai_responses",
+    "ant_web_tool": "anthropic_messages",
+    "gem_web": "gemini_generate_content",
+    "gem_web_retrieval": "gemini_generate_content",
+    "or_web": "openai_chat_completions",
+    "qwen_web": "openai_chat_completions",
+    "zhipu_web": "openai_chat_completions",
+    "oai_web_tool": "openai_chat_completions",
+    "kimi_web_search": "openai_chat_completions"
+  },
+  "legacyCases": [
+    {
+      "$comment": "Read-time mapping of the legacy connection fields (only when no stored fragment exists). hasWebSearch must be true. Known profile with non-empty mergeParams (after dropping forbiddenTopLevelKeys; kimi_web_search excluded because it needs a tool loop) → one fragment on profileTransport[profile]. No profile, or a profile missing from the metadata profiles → Responses fragment {tools:[{type: webSearchToolName ?? 'web_search'}]} unless webSearchToolName == 'disabled', plus the Gemini template. Mapping result is never written back.",
+      "caseId": "no_flag_no_fragment",
+      "stored": {},
+      "relayRequested": {},
+      "expect": {}
+    },
+    {
+      "caseId": "flag_false_ignores_profile",
+      "stored": {},
+      "relayRequested": {
+        "hasWebSearch": false,
+        "webSearchProfile": "ant_web_tool"
+      },
+      "expect": {}
+    },
+    {
+      "caseId": "flag_without_profile_maps_to_responses_and_gemini",
+      "stored": {},
+      "relayRequested": {
+        "hasWebSearch": true
+      },
+      "expect": {
+        "openai_responses": {
+          "tools": [
+            {
+              "type": "web_search"
+            }
+          ]
+        },
+        "gemini_generate_content": {
+          "tools": [
+            {
+              "googleSearch": {}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "flag_without_profile_keeps_preview_tool_name",
+      "stored": {},
+      "relayRequested": {
+        "hasWebSearch": true,
+        "webSearchToolName": "web_search_preview"
+      },
+      "expect": {
+        "openai_responses": {
+          "tools": [
+            {
+              "type": "web_search_preview"
+            }
+          ]
+        },
+        "gemini_generate_content": {
+          "tools": [
+            {
+              "googleSearch": {}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "flag_without_profile_tool_disabled_keeps_gemini_only",
+      "stored": {},
+      "relayRequested": {
+        "hasWebSearch": true,
+        "webSearchToolName": "disabled"
+      },
+      "expect": {
+        "gemini_generate_content": {
+          "tools": [
+            {
+              "googleSearch": {}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "anthropic_profile_maps_to_messages",
+      "stored": {},
+      "relayRequested": {
+        "hasWebSearch": true,
+        "webSearchProfile": "ant_web_tool"
+      },
+      "expect": {
+        "anthropic_messages": {
+          "tools": [
+            {
+              "max_uses": 5,
+              "name": "web_search",
+              "type": "web_search_20250305"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "openrouter_profile_maps_to_chat_plugins",
+      "stored": {},
+      "relayRequested": {
+        "hasWebSearch": true,
+        "webSearchProfile": "or_web"
+      },
+      "expect": {
+        "openai_chat_completions": {
+          "plugins": [
+            {
+              "id": "web",
+              "max_results": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "responses_profile_drops_tool_choice",
+      "stored": {},
+      "relayRequested": {
+        "hasWebSearch": true,
+        "webSearchProfile": "oai_responses_web"
+      },
+      "expect": {
+        "openai_responses": {
+          "tools": [
+            {
+              "type": "web_search"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "gemini_profile_keeps_its_spelling",
+      "stored": {},
+      "relayRequested": {
+        "hasWebSearch": true,
+        "webSearchProfile": "gem_web"
+      },
+      "expect": {
+        "gemini_generate_content": {
+          "tools": [
+            {
+              "google_search": {}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "qwen_profile_maps_to_chat",
+      "stored": {},
+      "relayRequested": {
+        "hasWebSearch": true,
+        "webSearchProfile": "qwen_web"
+      },
+      "expect": {
+        "openai_chat_completions": {
+          "enable_search": true
+        }
+      }
+    },
+    {
+      "caseId": "kimi_profile_needs_a_tool_loop_and_is_not_mapped",
+      "stored": {},
+      "relayRequested": {
+        "hasWebSearch": true,
+        "webSearchProfile": "kimi_web_search"
+      },
+      "expect": {}
+    },
+    {
+      "caseId": "empty_merge_params_profile_is_not_mapped",
+      "stored": {},
+      "relayRequested": {
+        "hasWebSearch": true,
+        "webSearchProfile": "oai_web_tool"
+      },
+      "expect": {}
+    },
+    {
+      "caseId": "unknown_profile_falls_back_to_the_no_profile_defaults",
+      "stored": {},
+      "relayRequested": {
+        "hasWebSearch": true,
+        "webSearchProfile": "future_web"
+      },
+      "expect": {
+        "openai_responses": {
+          "tools": [
+            {
+              "type": "web_search"
+            }
+          ]
+        },
+        "gemini_generate_content": {
+          "tools": [
+            {
+              "googleSearch": {}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "stored_fragments_win_over_the_legacy_flag",
+      "stored": {
+        "openai_chat_completions": {
+          "plugins": [
+            {
+              "id": "web"
+            }
+          ]
+        }
+      },
+      "relayRequested": {
+        "hasWebSearch": true,
+        "webSearchProfile": "ant_web_tool"
+      },
+      "expect": {
+        "openai_chat_completions": {
+          "plugins": [
+            {
+              "id": "web"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "citationCases": [
+    {
+      "$comment": "Citation stream-shape profile derived from the fragment actually merged into this request (looked up in metadata profiles.webSearch like before). null = no citation shape.",
+      "caseId": "responses_web_search",
+      "transport": "openai_responses",
+      "fragment": {
+        "tools": [
+          {
+            "type": "web_search"
+          }
+        ]
+      },
+      "expect": "oai_responses_web"
+    },
+    {
+      "caseId": "responses_preview_tool",
+      "transport": "openai_responses",
+      "fragment": {
+        "tools": [
+          {
+            "type": "web_search_preview"
+          }
+        ]
+      },
+      "expect": "oai_responses_web"
+    },
+    {
+      "caseId": "messages_basic_tool",
+      "transport": "anthropic_messages",
+      "fragment": {
+        "tools": [
+          {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 5
+          }
+        ]
+      },
+      "expect": "ant_web_tool"
+    },
+    {
+      "caseId": "messages_newer_tool_version",
+      "transport": "anthropic_messages",
+      "fragment": {
+        "tools": [
+          {
+            "type": "web_search_20260318",
+            "name": "web_search",
+            "allowed_callers": [
+              "direct"
+            ]
+          }
+        ]
+      },
+      "expect": "ant_web_tool"
+    },
+    {
+      "caseId": "gemini_camel",
+      "transport": "gemini_generate_content",
+      "fragment": {
+        "tools": [
+          {
+            "googleSearch": {}
+          }
+        ]
+      },
+      "expect": "gem_web"
+    },
+    {
+      "caseId": "gemini_snake",
+      "transport": "gemini_generate_content",
+      "fragment": {
+        "tools": [
+          {
+            "google_search": {}
+          }
+        ]
+      },
+      "expect": "gem_web"
+    },
+    {
+      "caseId": "gemini_retrieval",
+      "transport": "gemini_generate_content",
+      "fragment": {
+        "tools": [
+          {
+            "google_search_retrieval": {
+              "dynamic_retrieval_config": {
+                "mode": "MODE_DYNAMIC"
+              }
+            }
+          }
+        ]
+      },
+      "expect": "gem_web"
+    },
+    {
+      "caseId": "chat_openrouter_plugin",
+      "transport": "openai_chat_completions",
+      "fragment": {
+        "plugins": [
+          {
+            "id": "web"
+          }
+        ]
+      },
+      "expect": "or_web"
+    },
+    {
+      "caseId": "chat_web_search_options",
+      "transport": "openai_chat_completions",
+      "fragment": {
+        "web_search_options": {}
+      },
+      "expect": "oai_web_tool"
+    },
+    {
+      "caseId": "chat_zhipu_tool",
+      "transport": "openai_chat_completions",
+      "fragment": {
+        "tools": [
+          {
+            "type": "web_search",
+            "web_search": {
+              "enable": true,
+              "search_engine": "search_pro",
+              "search_result": true
+            }
+          }
+        ]
+      },
+      "expect": "zhipu_web"
+    },
+    {
+      "caseId": "chat_qwen_flag_has_no_shape",
+      "transport": "openai_chat_completions",
+      "fragment": {
+        "enable_search": true
+      },
+      "expect": null
+    },
+    {
+      "caseId": "no_fragment",
+      "transport": "openai_responses",
+      "fragment": null,
+      "expect": null
+    }
+  ],
+  "presentationCases": [
+    {
+      "$comment": "Web row of the model options panel for a Relay-form model. effectiveFragments already folds in legacy mapping. With a fragment for the effective transport the status follows the device-local web probe record (web-probe.v1.json presentationCases): no record = \"Set · not verified\" (disclosure, action openConnectionWebSearch); searched = \"Search confirmed\" and silent = \"Didn’t search when tested\" (same disclosure shape); rejected = notice \"This model rejects the web search settings\" with link \"Test again in Web Search\" to openConnectionWebSearch, and chat omits the fragment.",
+      "caseId": "local_engine_connection_cannot",
+      "engineProfile": "ollama",
+      "protocolUndecided": false,
+      "effectiveTransport": "openai_chat_completions",
+      "fragments": {},
+      "expect": {
+        "shape": "disclosure",
+        "status": "This connection can’t do this"
+      }
+    },
+    {
+      "caseId": "protocol_undecided_first",
+      "engineProfile": null,
+      "protocolUndecided": true,
+      "effectiveTransport": "openai_chat_completions",
+      "fragments": {
+        "openai_chat_completions": {
+          "web_search_options": {}
+        }
+      },
+      "expect": {
+        "shape": "protocolUndecided"
+      }
+    },
+    {
+      "caseId": "fragment_for_effective_transport_is_set_by_you",
+      "engineProfile": null,
+      "protocolUndecided": false,
+      "effectiveTransport": "openai_responses",
+      "fragments": {
+        "openai_responses": {
+          "tools": [
+            {
+              "type": "web_search"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "shape": "disclosure",
+        "status": "Set · not verified",
+        "action": "openConnectionWebSearch"
+      }
+    },
+    {
+      "caseId": "fragment_only_for_another_transport_needs_setup",
+      "engineProfile": null,
+      "protocolUndecided": false,
+      "effectiveTransport": "anthropic_messages",
+      "fragments": {
+        "openai_responses": {
+          "tools": [
+            {
+              "type": "web_search"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "shape": "notice",
+        "status": "Needs manual setup",
+        "link": "openConnectionWebSearch"
+      }
+    },
+    {
+      "caseId": "no_fragment_needs_setup",
+      "engineProfile": null,
+      "protocolUndecided": false,
+      "effectiveTransport": "gemini_generate_content",
+      "fragments": {},
+      "expect": {
+        "shape": "notice",
+        "status": "Needs manual setup",
+        "link": "openConnectionWebSearch"
+      }
+    }
+  ]
+}

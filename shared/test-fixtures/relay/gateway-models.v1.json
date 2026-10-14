@@ -1,0 +1,203 @@
+{
+  "$comment": "Real recordings of the Relay gateway /v1/models response. records are the verbatim responses of a real gateway running on the recording machine, not hand-written, with no key removed or edited; they are produced by the repository's gateway recording script, and re-recording follows that script. new-api's supported_endpoint_types is derived from a per-channel-type lookup and is the union across channels; it only orders probe candidates and is never a source of protocol or capability. The OpenRouter recording lives in fixtures.relay_gateway of the capability truth contract (a public endpoint, reconciled daily so it self-heals).",
+  "version": 1,
+  "gateways": {
+    "new_api": {
+      "status": "recorded",
+      "gatewayVersion": "v1.0.0-rc.43",
+      "source": "https://github.com/QuantumNous/new-api/tree/c6741c36a9a1a729554ad94ee99f21602a214a23",
+      "commit": "c6741c36a9a1a729554ad94ee99f21602a214a23",
+      "recorded_at": "2026-10-10T15:40:41Z",
+      "endpoint": "http://127.0.0.1:<random port>",
+      "patches": [
+        "main.go: Addr \":\" + port -> \"127.0.0.1:\" + port (listen on localhost only)",
+        "web/dist/index.html: placeholder page (satisfies go:embed; the frontend is not built)"
+      ],
+      "setup": {
+        "mode": "POST /api/setup SelfUseModeEnabled=true (self-use mode: models without a configured ratio are listed too)",
+        "channels": [
+          {
+            "type": 1,
+            "name": "fixture-openai",
+            "models": [
+              "gpt-4o-mini",
+              "o3-pro",
+              "gpt-image-1"
+            ],
+            "base_url": "http://127.0.0.1:9",
+            "key": "<placeholder, not a real key>",
+            "group": "default"
+          },
+          {
+            "type": 14,
+            "name": "fixture-anthropic",
+            "models": [
+              "claude-sonnet-4-5"
+            ],
+            "base_url": "http://127.0.0.1:9",
+            "key": "<placeholder, not a real key>",
+            "group": "default"
+          },
+          {
+            "type": 24,
+            "name": "fixture-gemini",
+            "models": [
+              "gemini-2.5-flash"
+            ],
+            "base_url": "http://127.0.0.1:9",
+            "key": "<placeholder, not a real key>",
+            "group": "default"
+          },
+          {
+            "type": 48,
+            "name": "fixture-xai",
+            "models": [
+              "grok-4"
+            ],
+            "base_url": "http://127.0.0.1:9",
+            "key": "<placeholder, not a real key>",
+            "group": "default"
+          },
+          {
+            "type": 60,
+            "name": "fixture-upstream-new-api",
+            "models": [
+              "deepseek-chat",
+              "claude-sonnet-4-5"
+            ],
+            "base_url": "http://127.0.0.1:9",
+            "key": "<placeholder, not a real key>",
+            "group": "default"
+          }
+        ],
+        "pricingWarmup": "GET /api/pricing once (supported_endpoint_types comes from the pricing cache; after adding channels it is only recomputed once the pricing page is visited or the process restarts; without this call the field is an empty array everywhere)",
+        "token": "POST /api/token/ creates a regular token with unlimited quota; call /v1/models with Authorization: Bearer"
+      },
+      "records": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/v1/models",
+            "auth": "Bearer <token>"
+          },
+          "response": {
+            "status": 200,
+            "contentType": "application/json; charset=utf-8",
+            "body": {
+              "data": [
+                {
+                  "id": "claude-sonnet-4-5",
+                  "object": "model",
+                  "created": 1626777600,
+                  "owned_by": "claude",
+                  "supported_endpoint_types": [
+                    "anthropic",
+                    "openai",
+                    "openai-response",
+                    "openai-response-compact",
+                    "gemini",
+                    "openai-alpha-search"
+                  ]
+                },
+                {
+                  "id": "deepseek-chat",
+                  "object": "model",
+                  "created": 1626777600,
+                  "owned_by": "newapi",
+                  "supported_endpoint_types": [
+                    "openai",
+                    "openai-response",
+                    "openai-response-compact",
+                    "anthropic",
+                    "gemini",
+                    "openai-alpha-search"
+                  ]
+                },
+                {
+                  "id": "gemini-2.5-flash",
+                  "object": "model",
+                  "created": 1626777600,
+                  "owned_by": "google gemini",
+                  "supported_endpoint_types": [
+                    "gemini",
+                    "openai"
+                  ]
+                },
+                {
+                  "id": "gpt-4o-mini",
+                  "object": "model",
+                  "created": 1626777600,
+                  "owned_by": "openai",
+                  "supported_endpoint_types": [
+                    "openai"
+                  ]
+                },
+                {
+                  "id": "gpt-image-1",
+                  "object": "model",
+                  "created": 1626777600,
+                  "owned_by": "openai",
+                  "supported_endpoint_types": [
+                    "image-generation",
+                    "openai"
+                  ]
+                },
+                {
+                  "id": "grok-4",
+                  "object": "model",
+                  "created": 1626777600,
+                  "owned_by": "xai",
+                  "supported_endpoint_types": [
+                    "openai",
+                    "openai-response"
+                  ]
+                },
+                {
+                  "id": "o3-pro",
+                  "object": "model",
+                  "created": 1626777600,
+                  "owned_by": "openai",
+                  "supported_endpoint_types": [
+                    "openai-response"
+                  ]
+                }
+              ],
+              "object": "list",
+              "success": true
+            }
+          }
+        }
+      ],
+      "expected": {
+        "$comment": "Computed from the verbatim records above by the recording script's candidateOrder: it only decides which protocol a probe tries first; it is not a source and is never stored",
+        "candidates": {
+          "claude-sonnet-4-5": [
+            "messages",
+            "chat"
+          ],
+          "deepseek-chat": [
+            "chat",
+            "responses"
+          ],
+          "gemini-2.5-flash": [
+            "gemini",
+            "chat"
+          ],
+          "gpt-4o-mini": [
+            "chat"
+          ],
+          "gpt-image-1": [
+            "chat"
+          ],
+          "grok-4": [
+            "chat",
+            "responses"
+          ],
+          "o3-pro": [
+            "responses"
+          ]
+        }
+      }
+    }
+  }
+}

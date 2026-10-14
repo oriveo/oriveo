@@ -1,0 +1,2370 @@
+{
+  "$comment": "Relay web search probe (RELAY web search capability). Relay form only: BYOK / FREE / MANAGED / SUB never send a probe. The probe is the 4th capability-test item and the only kind that may run automatically (see triggers). A probe request is built by the ordinary chat builder of the model's effective transport, with the connection's saved fragment for that transport merged exactly as in chat (web-fragment.v1.json mergeCases), the fixed prompt below as the only user message, streaming, the output limit below in whatever field that builder already uses, one attempt, no fallback, no retry, total timeout timeoutSeconds. No fragment for the effective transport = the item is not listed and zero web requests are sent. The result is decided only from evidence emitted by that transport's production stream parser; HTTP 2xx alone is never evidence. Results live in a device-local record store (the only source for whether chat attaches the fragment) keyed connection × model × transport (never synced, never written into a Server recipe, deleted with the connection) and never upgrade message-level execution facts (custom fragment messages stay `unconfirmed`). gatewayRecordings holds real gateway output recorded on this machine (via the repository's recording script); each recording carries its own expect and must go through the production parser like evidenceCases. Test names (each end): RL2-WEBPROBE-SHAPE-<requestShapes caseId>, RL2-WEBPROBE-EV-<evidenceCases caseId>, RL2-WEBPROBE-GW-<gatewayRecordings key>, RL2-WEBPROBE-HASH-<fragmentHash caseId>, RL2-WEBPROBE-MERGE-<mergeCases caseId>, RL2-WEBPROBE-PRES-<presentationCases caseId>, RL2-WEBPROBE-FORMS (no probe outside RELAY), RL2-WEBPROBE-CHAT-01 (chat omits the fragment while the current record is rejected), RL2-WEBPROBE-CHAT-02 (a delivered chat whose parser emitted a citation writes searched / observed; no evidence or an error writes nothing), RL2-WEBPROBE-OVERRIDE (searched / rejected map to override web, source tested; a user-set web override is kept). Further tests: RL2-WEBPROBE-TRIG-<triggerCases caseId> (the pure selection with an injected clock), RL2-WEBPROBE-STATE-<presentationCases caseId> (capability truth / globe state for web_search = expect.state, and the composer control sends the fragment iff expect.sendsFragment), RL2-WEBPROBE-WIRE-save (saving fragments runs the selected automatic probes serially through the production probe and writes records; untested models get no request), RL2-WEBPROBE-WIRE-enable (one probe after the lazy verify passed; none when it failed or did not run), RL2-WEBPROBE-OVERRIDE-clear (a fragment change, or a probe result of silent / undetermined after a lift, drops a tested web override; user-set kept), RL2-WEBPROBE-RETEST (the web search page lists models whose current record is rejected; its retest is a manual probe that does not count toward the cap), RD4-PANEL-<capability-test.v1.json panelCases caseId> for the web item.",
+  "version": 1,
+  "forms": {
+    "probe": [
+      "RELAY"
+    ],
+    "never": [
+      "BYOK",
+      "FREE",
+      "MANAGED",
+      "SUB"
+    ]
+  },
+  "request": {
+    "prompt": "Search the web and give one source URL for today's top news.",
+    "outputLimit": 256,
+    "timeoutSeconds": 30,
+    "stream": true,
+    "attempts": 1,
+    "$comment": "mustContain is checked on the JSON body actually sent; mustNotContain uses capability-test.v1.json builtins (the probe never carries the image or the tool). mustContain is a subset match: objects need every expected key, arrays need every expected element to be present (the chat builder may add its own entries, e.g. the Responses builder already sends an image_generation tool next to the fragment web_search tool)."
+  },
+  "requestShapes": [
+    {
+      "caseId": "openai_chat_completions_probe_body",
+      "transport": "openai_chat_completions",
+      "fragment": {
+        "web_search_options": {}
+      },
+      "mustContain": {
+        "web_search_options": {}
+      },
+      "mustContainPrompt": true,
+      "mustNotContain": [
+        "builtins.imagePNGBase64",
+        "builtins.tool.name"
+      ]
+    },
+    {
+      "caseId": "openai_responses_probe_body",
+      "transport": "openai_responses",
+      "fragment": {
+        "tools": [
+          {
+            "type": "web_search"
+          }
+        ]
+      },
+      "mustContain": {
+        "tools": [
+          {
+            "type": "web_search"
+          }
+        ]
+      },
+      "mustContainPrompt": true,
+      "mustNotContain": [
+        "builtins.imagePNGBase64",
+        "builtins.tool.name"
+      ]
+    },
+    {
+      "caseId": "anthropic_messages_probe_body",
+      "transport": "anthropic_messages",
+      "fragment": {
+        "tools": [
+          {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 5
+          }
+        ]
+      },
+      "mustContain": {
+        "tools": [
+          {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 5
+          }
+        ]
+      },
+      "mustContainPrompt": true,
+      "mustNotContain": [
+        "builtins.imagePNGBase64",
+        "builtins.tool.name"
+      ]
+    },
+    {
+      "caseId": "gemini_generate_content_probe_body",
+      "transport": "gemini_generate_content",
+      "fragment": {
+        "tools": [
+          {
+            "googleSearch": {}
+          }
+        ]
+      },
+      "mustContain": {
+        "tools": [
+          {
+            "googleSearch": {}
+          }
+        ]
+      },
+      "mustContainPrompt": true,
+      "mustNotContain": [
+        "builtins.imagePNGBase64",
+        "builtins.tool.name"
+      ]
+    }
+  ],
+  "evidence": {
+    "$comment": "Per transport, what counts as evidence that a search actually ran (non-empty). Anything else on a 2xx is silent.",
+    "openai_chat_completions": "choices[].delta.annotations[] or choices[].message.annotations[] with type url_citation and a non-empty url_citation.url; start_index / end_index may be missing and extra keys (cited_text, encrypted_index) may be present — still evidence (gatewayRecordings.new_api_chat_to_claude)",
+    "openai_responses": "an output item of type web_search_call with status completed, or a url_citation annotation with a non-empty url",
+    "anthropic_messages": "a web_search_tool_result content block whose content is an array, empty included (the search ran); a web_search_tool_result_error object is not evidence",
+    "gemini_generate_content": "groundingMetadata with a non-empty webSearchQueries or groundingChunks"
+  },
+  "classify": {
+    "$comment": "Same status classes as capability-test.v1.json classifyCases. A rejection is only one that arrives before any output.",
+    "searched": "2xx and the production parser emitted evidence → web = true (override source tested)",
+    "silent": "2xx completed with no evidence (includes Anthropic 200 + web_search_tool_result_error) → no true / false written; record result silent",
+    "rejected": "400 / 404 / 415 / 422, or a 2xx JSON body with a non-empty top-level error and no output → web = false (source tested) and record result rejected. The record is the single source of truth for chat: while the current fragment's record for this model × transport is rejected, chat does not attach the fragment (no TTL; a retest or a fragment change is the way out). No negative-cache entry is written for web.",
+    "undetermined": "401 / 403 / 408 / 413 / 429 / other 4xx / 5xx / HTML / network / timeout / cancelled, or an error frame after output started → nothing written, reason line as capability-test"
+  },
+  "evidenceCases": [
+    {
+      "caseId": "chat_url_citation_searched",
+      "transport": "openai_chat_completions",
+      "status": 200,
+      "$source": "synthetic, shape per OpenAI Chat web search guide (delta.annotations)",
+      "sse": [
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"Today's top story\"}}]}",
+        "",
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"annotations\":[{\"type\":\"url_citation\",\"url_citation\":{\"url\":\"https://news.example.com/top\",\"title\":\"Top story\",\"start_index\":0,\"end_index\":17}}]}}]}",
+        "",
+        "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}",
+        "",
+        "data: [DONE]",
+        ""
+      ],
+      "expect": {
+        "result": "searched",
+        "evidenceUrls": [
+          "https://news.example.com/top"
+        ]
+      }
+    },
+    {
+      "caseId": "chat_text_only_silent",
+      "transport": "openai_chat_completions",
+      "status": 200,
+      "$source": "synthetic",
+      "sse": [
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"I can't browse, but here is a guess.\"}}]}",
+        "",
+        "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}",
+        "",
+        "data: [DONE]",
+        ""
+      ],
+      "expect": {
+        "result": "silent",
+        "evidenceUrls": []
+      }
+    },
+    {
+      "caseId": "chat_400_rejected",
+      "transport": "openai_chat_completions",
+      "status": 400,
+      "body": {
+        "error": {
+          "message": "Web search options not supported with this model.",
+          "type": "invalid_request_error"
+        }
+      },
+      "expect": {
+        "result": "rejected"
+      }
+    },
+    {
+      "caseId": "responses_web_search_call_searched",
+      "transport": "openai_responses",
+      "status": 200,
+      "$source": "synthetic, event names per OpenAI Responses streaming reference",
+      "sse": [
+        "event: response.output_item.added",
+        "data: {\"type\":\"response.output_item.added\",\"output_index\":0,\"item\":{\"type\":\"web_search_call\",\"id\":\"ws_1\",\"status\":\"in_progress\"}}",
+        "",
+        "event: response.output_item.done",
+        "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"type\":\"web_search_call\",\"id\":\"ws_1\",\"status\":\"completed\",\"action\":{\"type\":\"search\",\"query\":\"top news today\"}}}",
+        "",
+        "event: response.output_text.delta",
+        "data: {\"type\":\"response.output_text.delta\",\"output_index\":1,\"content_index\":0,\"delta\":\"Today's top story\"}",
+        "",
+        "event: response.output_text.annotation.added",
+        "data: {\"type\":\"response.output_text.annotation.added\",\"output_index\":1,\"content_index\":0,\"annotation_index\":0,\"annotation\":{\"type\":\"url_citation\",\"url\":\"https://news.example.com/top\",\"title\":\"Top story\",\"start_index\":0,\"end_index\":17}}",
+        "",
+        "event: response.completed",
+        "data: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\"}}",
+        ""
+      ],
+      "expect": {
+        "result": "searched",
+        "evidenceUrls": [
+          "https://news.example.com/top"
+        ]
+      }
+    },
+    {
+      "caseId": "responses_text_only_silent",
+      "transport": "openai_responses",
+      "status": 200,
+      "$source": "synthetic",
+      "sse": [
+        "event: response.output_text.delta",
+        "data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"content_index\":0,\"delta\":\"No search was run.\"}",
+        "",
+        "event: response.completed",
+        "data: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\"}}",
+        ""
+      ],
+      "expect": {
+        "result": "silent",
+        "evidenceUrls": []
+      }
+    },
+    {
+      "caseId": "responses_422_rejected",
+      "transport": "openai_responses",
+      "status": 422,
+      "body": {
+        "error": {
+          "message": "Unsupported tool type: web_search",
+          "type": "invalid_request_error"
+        }
+      },
+      "expect": {
+        "result": "rejected"
+      }
+    },
+    {
+      "caseId": "messages_web_search_tool_result_searched",
+      "transport": "anthropic_messages",
+      "status": 200,
+      "$source": "synthetic, block shapes per Anthropic web search tool docs",
+      "sse": [
+        "event: message_start",
+        "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"usage\":{\"input_tokens\":20,\"output_tokens\":1}}}",
+        "",
+        "event: content_block_start",
+        "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"server_tool_use\",\"id\":\"srvtoolu_1\",\"name\":\"web_search\",\"input\":{\"query\":\"top news today\"}}}",
+        "",
+        "event: content_block_stop",
+        "data: {\"type\":\"content_block_stop\",\"index\":0}",
+        "",
+        "event: content_block_start",
+        "data: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"web_search_tool_result\",\"tool_use_id\":\"srvtoolu_1\",\"content\":[{\"type\":\"web_search_result\",\"url\":\"https://news.example.com/top\",\"title\":\"Top story\",\"encrypted_content\":\"EqgfCio\",\"page_age\":\"1 hour ago\"}]}}",
+        "",
+        "event: content_block_stop",
+        "data: {\"type\":\"content_block_stop\",\"index\":1}",
+        "",
+        "event: content_block_start",
+        "data: {\"type\":\"content_block_start\",\"index\":2,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}",
+        "",
+        "event: content_block_delta",
+        "data: {\"type\":\"content_block_delta\",\"index\":2,\"delta\":{\"type\":\"text_delta\",\"text\":\"Today's top story\"}}",
+        "",
+        "event: content_block_stop",
+        "data: {\"type\":\"content_block_stop\",\"index\":2}",
+        "",
+        "event: message_delta",
+        "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":12,\"server_tool_use\":{\"web_search_requests\":1}}}",
+        "",
+        "event: message_stop",
+        "data: {\"type\":\"message_stop\"}",
+        ""
+      ],
+      "expect": {
+        "result": "searched",
+        "evidenceUrls": [
+          "https://news.example.com/top"
+        ]
+      }
+    },
+    {
+      "caseId": "messages_tool_result_error_is_silent",
+      "transport": "anthropic_messages",
+      "status": 200,
+      "$comment": "HTTP 200 with web_search_tool_result_error (search failed upstream) is not evidence: silent, never false.",
+      "$source": "synthetic, error shape per Anthropic web search tool docs",
+      "sse": [
+        "event: message_start",
+        "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_2\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"usage\":{\"input_tokens\":20,\"output_tokens\":1}}}",
+        "",
+        "event: content_block_start",
+        "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"server_tool_use\",\"id\":\"srvtoolu_2\",\"name\":\"web_search\",\"input\":{\"query\":\"top news today\"}}}",
+        "",
+        "event: content_block_stop",
+        "data: {\"type\":\"content_block_stop\",\"index\":0}",
+        "",
+        "event: content_block_start",
+        "data: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"web_search_tool_result\",\"tool_use_id\":\"srvtoolu_2\",\"content\":{\"type\":\"web_search_tool_result_error\",\"error_code\":\"unavailable\"}}}",
+        "",
+        "event: content_block_stop",
+        "data: {\"type\":\"content_block_stop\",\"index\":1}",
+        "",
+        "event: content_block_start",
+        "data: {\"type\":\"content_block_start\",\"index\":2,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}",
+        "",
+        "event: content_block_delta",
+        "data: {\"type\":\"content_block_delta\",\"index\":2,\"delta\":{\"type\":\"text_delta\",\"text\":\"Search is unavailable right now.\"}}",
+        "",
+        "event: content_block_stop",
+        "data: {\"type\":\"content_block_stop\",\"index\":2}",
+        "",
+        "event: message_delta",
+        "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":9}}",
+        "",
+        "event: message_stop",
+        "data: {\"type\":\"message_stop\"}",
+        ""
+      ],
+      "expect": {
+        "result": "silent",
+        "evidenceUrls": []
+      }
+    },
+    {
+      "caseId": "messages_text_only_silent",
+      "transport": "anthropic_messages",
+      "status": 200,
+      "$source": "synthetic",
+      "sse": [
+        "event: message_start",
+        "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_3\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"usage\":{\"input_tokens\":20,\"output_tokens\":1}}}",
+        "",
+        "event: content_block_start",
+        "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}",
+        "",
+        "event: content_block_delta",
+        "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"No search.\"}}",
+        "",
+        "event: content_block_stop",
+        "data: {\"type\":\"content_block_stop\",\"index\":0}",
+        "",
+        "event: message_delta",
+        "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":3}}",
+        "",
+        "event: message_stop",
+        "data: {\"type\":\"message_stop\"}",
+        ""
+      ],
+      "expect": {
+        "result": "silent",
+        "evidenceUrls": []
+      }
+    },
+    {
+      "caseId": "messages_400_rejected",
+      "transport": "anthropic_messages",
+      "status": 400,
+      "body": {
+        "type": "error",
+        "error": {
+          "type": "invalid_request_error",
+          "message": "web search is disabled for this organization"
+        }
+      },
+      "expect": {
+        "result": "rejected"
+      }
+    },
+    {
+      "caseId": "gemini_grounding_searched",
+      "transport": "gemini_generate_content",
+      "status": 200,
+      "$source": "synthetic, field names per Gemini grounding with Google Search docs",
+      "sse": [
+        "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"Today's top story\"}]},\"index\":0}]}",
+        "",
+        "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\".\"}]},\"finishReason\":\"STOP\",\"index\":0,\"groundingMetadata\":{\"webSearchQueries\":[\"top news today\"],\"groundingChunks\":[{\"web\":{\"uri\":\"https://news.example.com/top\",\"title\":\"Top story\"}}]}}]}",
+        ""
+      ],
+      "expect": {
+        "result": "searched",
+        "evidenceUrls": [
+          "https://news.example.com/top"
+        ]
+      }
+    },
+    {
+      "caseId": "gemini_text_only_silent",
+      "transport": "gemini_generate_content",
+      "status": 200,
+      "$source": "synthetic",
+      "sse": [
+        "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"No search.\"}]},\"finishReason\":\"STOP\",\"index\":0}]}",
+        ""
+      ],
+      "expect": {
+        "result": "silent",
+        "evidenceUrls": []
+      }
+    },
+    {
+      "caseId": "gemini_400_rejected",
+      "transport": "gemini_generate_content",
+      "status": 400,
+      "body": {
+        "error": {
+          "code": 400,
+          "message": "Search Grounding is not supported.",
+          "status": "INVALID_ARGUMENT"
+        }
+      },
+      "expect": {
+        "result": "rejected"
+      }
+    },
+    {
+      "caseId": "chat_401_undetermined",
+      "transport": "openai_chat_completions",
+      "status": 401,
+      "body": {
+        "error": {
+          "message": "auth"
+        }
+      },
+      "expect": {
+        "result": "undetermined"
+      }
+    },
+    {
+      "caseId": "chat_429_undetermined",
+      "transport": "openai_chat_completions",
+      "status": 429,
+      "body": {
+        "error": {
+          "message": "rate"
+        }
+      },
+      "expect": {
+        "result": "undetermined"
+      }
+    },
+    {
+      "caseId": "chat_503_undetermined",
+      "transport": "openai_chat_completions",
+      "status": 503,
+      "body": {
+        "error": {
+          "message": "server"
+        }
+      },
+      "expect": {
+        "result": "undetermined"
+      }
+    },
+    {
+      "caseId": "chat_timeout_undetermined",
+      "transport": "openai_chat_completions",
+      "status": null,
+      "failure": "timeout",
+      "expect": {
+        "result": "undetermined"
+      }
+    },
+    {
+      "caseId": "responses_web_search_call_only_searched",
+      "transport": "openai_responses",
+      "status": 200,
+      "$comment": "A completed web_search_call with no citation is still evidence.",
+      "$source": "synthetic",
+      "sse": [
+        "event: response.output_item.done",
+        "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"type\":\"web_search_call\",\"id\":\"ws_2\",\"status\":\"completed\",\"action\":{\"type\":\"search\",\"query\":\"top news today\"}}}",
+        "",
+        "event: response.output_text.delta",
+        "data: {\"type\":\"response.output_text.delta\",\"output_index\":1,\"content_index\":0,\"delta\":\"Here is what I found.\"}",
+        "",
+        "event: response.completed",
+        "data: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\"}}",
+        ""
+      ],
+      "expect": {
+        "result": "searched",
+        "evidenceUrls": []
+      }
+    },
+    {
+      "caseId": "messages_empty_result_array_searched",
+      "transport": "anthropic_messages",
+      "status": 200,
+      "$comment": "An empty result array means the search ran and found nothing: searched.",
+      "$source": "synthetic",
+      "sse": [
+        "event: message_start",
+        "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_4\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"usage\":{\"input_tokens\":20,\"output_tokens\":1}}}",
+        "",
+        "event: content_block_start",
+        "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"server_tool_use\",\"id\":\"srvtoolu_4\",\"name\":\"web_search\",\"input\":{\"query\":\"top news today\"}}}",
+        "",
+        "event: content_block_stop",
+        "data: {\"type\":\"content_block_stop\",\"index\":0}",
+        "",
+        "event: content_block_start",
+        "data: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"web_search_tool_result\",\"tool_use_id\":\"srvtoolu_4\",\"content\":[]}}",
+        "",
+        "event: content_block_stop",
+        "data: {\"type\":\"content_block_stop\",\"index\":1}",
+        "",
+        "event: message_delta",
+        "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":1,\"server_tool_use\":{\"web_search_requests\":1}}}",
+        "",
+        "event: message_stop",
+        "data: {\"type\":\"message_stop\"}",
+        ""
+      ],
+      "expect": {
+        "result": "searched",
+        "evidenceUrls": []
+      }
+    },
+    {
+      "caseId": "chat_404_rejected",
+      "transport": "openai_chat_completions",
+      "status": 404,
+      "body": {
+        "error": {
+          "message": "model not found"
+        }
+      },
+      "expect": {
+        "result": "rejected"
+      }
+    },
+    {
+      "caseId": "messages_415_rejected",
+      "transport": "anthropic_messages",
+      "status": 415,
+      "body": {
+        "type": "error",
+        "error": {
+          "type": "invalid_request_error",
+          "message": "unsupported media type"
+        }
+      },
+      "expect": {
+        "result": "rejected"
+      }
+    },
+    {
+      "caseId": "chat_2xx_top_level_error_rejected",
+      "transport": "openai_chat_completions",
+      "status": 200,
+      "body": {
+        "error": {
+          "message": "web_search_options is not supported",
+          "type": "invalid_request_error"
+        }
+      },
+      "expect": {
+        "result": "rejected"
+      }
+    },
+    {
+      "caseId": "chat_error_after_output_undetermined",
+      "transport": "openai_chat_completions",
+      "status": 200,
+      "$comment": "An error frame after output started is not a rejection: nothing written.",
+      "$source": "synthetic",
+      "sse": [
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"Partial\"}}]}",
+        "",
+        "data: {\"error\":{\"message\":\"upstream reset\",\"type\":\"server_error\"}}",
+        ""
+      ],
+      "expect": {
+        "result": "undetermined"
+      }
+    }
+  ],
+  "triggers": {
+    "$comment": "Automatic probes: after saving a fragment for a transport (enabled models on that transport, serially, in enabled-list order, at most perSave); after enabling a model on a transport that already has a fragment, once its lazy verify passed (1). Never on add connection, re-detect, key add / swap, catalog refresh, or app launch. Retest: the web search page offers a retest for models whose record is rejected (and the panel's web item is the same manual probe). Manual: the capability-test panel lists web as the 4th item only when the model's effective transport has a fragment; manual runs ignore perSave, the daily cap and dedupe, and do not count toward the daily cap. One save is one automatic event: candidates are the enabled models whose first-send transport has a non-empty saved fragment after the save, in enabled-list order, and perSave applies to the whole save (not per transport), so the page can promise \"up to perSave models\". Enable: only after a lazy verify that actually ran and passed; when no lazy verify runs (transport already known or fixed by the user) nothing is sent automatically. Automatic probes run in the background after the page closes, one at a time.",
+    "perSave": 5,
+    "perConnectionPerWindow": 10,
+    "windowSeconds": 86400,
+    "dedupeKey": [
+      "connectionId",
+      "modelId",
+      "transport",
+      "fragmentHash"
+    ],
+    "$windowComment": "The daily cap is a rolling window: an automatic probe counts while now - sentAt < windowSeconds. Rolling, not calendar day, so the cap is timezone free and testable with an injected clock .",
+    "$orderComment": "Selection for one automatic event: take candidates in enabled-list order, drop those whose dedupe key is already in the automatic history (they do not use a slot), then send to the first min(perSave, perConnectionPerWindow - automatic probes of this connection in the window) of the rest; the others are reported untested. Only automatic probes enter the history; manual probes neither dedupe nor count. History entries carry connectionId; only the event's connection counts."
+  },
+  "fragmentHash": {
+    "$comment": "Lower-case hex SHA-256 of the UTF-8 bytes of the canonical JSON of the stored fragment object: object keys sorted by Unicode code point at every level, array order kept, no whitespace, strings not escaped beyond JSON's mandatory escapes, numbers as stored.",
+    "cases": [
+      {
+        "caseId": "chat_template",
+        "fragment": {
+          "web_search_options": {}
+        },
+        "canonical": "{\"web_search_options\":{}}",
+        "sha256": "cf5745829f214c0ee432b0e8661c565fb4ded42a9cc63afb85b38cd6f88086f8"
+      },
+      {
+        "caseId": "messages_template",
+        "fragment": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        },
+        "canonical": "{\"tools\":[{\"max_uses\":5,\"name\":\"web_search\",\"type\":\"web_search_20250305\"}]}",
+        "sha256": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec"
+      },
+      {
+        "caseId": "messages_template_reordered_keys",
+        "fragment": {
+          "tools": [
+            {
+              "max_uses": 5,
+              "name": "web_search",
+              "type": "web_search_20250305"
+            }
+          ]
+        },
+        "canonical": "{\"tools\":[{\"max_uses\":5,\"name\":\"web_search\",\"type\":\"web_search_20250305\"}]}",
+        "sha256": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec"
+      },
+      {
+        "caseId": "messages_max_uses_3",
+        "fragment": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 3
+            }
+          ]
+        },
+        "canonical": "{\"tools\":[{\"max_uses\":3,\"name\":\"web_search\",\"type\":\"web_search_20250305\"}]}",
+        "sha256": "871e1f62ca946ff715aa723f2a4d873855c7253615f35708adcedcef9546792b"
+      },
+      {
+        "caseId": "unicode_value",
+        "fragment": {
+          "web_search_options": {
+            "user_location": {
+              "type": "approximate",
+              "approximate": {
+                "city": "東京"
+              }
+            }
+          }
+        },
+        "canonical": "{\"web_search_options\":{\"user_location\":{\"approximate\":{\"city\":\"東京\"},\"type\":\"approximate\"}}}",
+        "sha256": "b6b3f3032ffc89f0600eb0c12d9124d8cff889b5e56f0ec20c8365fd5d13b35d"
+      }
+    ]
+  },
+  "triggerCases": [
+    {
+      "caseId": "save_probes_at_most_five",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "saveFragment",
+        "transport": "anthropic_messages",
+        "fragment": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "enabledOnTransport": [
+        "m1",
+        "m2",
+        "m3",
+        "m4",
+        "m5",
+        "m6",
+        "m7"
+      ],
+      "autoHistory": [],
+      "expect": {
+        "probe": [
+          "m1",
+          "m2",
+          "m3",
+          "m4",
+          "m5"
+        ],
+        "untested": [
+          "m6",
+          "m7"
+        ]
+      },
+      "connectionId": "conn-1"
+    },
+    {
+      "caseId": "save_respects_rolling_daily_cap",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "saveFragment",
+        "transport": "anthropic_messages",
+        "fragment": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "enabledOnTransport": [
+        "m1",
+        "m2",
+        "m3"
+      ],
+      "autoHistory": [
+        {
+          "modelId": "x0",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T02:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x1",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T02:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x2",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T02:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x3",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T02:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x4",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T02:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x5",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T02:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x6",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T02:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x7",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T02:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x8",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T02:00:00Z",
+          "connectionId": "conn-1"
+        }
+      ],
+      "expect": {
+        "probe": [
+          "m1"
+        ],
+        "untested": [
+          "m2",
+          "m3"
+        ]
+      },
+      "connectionId": "conn-1"
+    },
+    {
+      "caseId": "history_outside_window_does_not_count",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "saveFragment",
+        "transport": "anthropic_messages",
+        "fragment": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "enabledOnTransport": [
+        "m1",
+        "m2"
+      ],
+      "autoHistory": [
+        {
+          "modelId": "x0",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T11:59:59Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x1",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T11:59:59Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x2",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T11:59:59Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x3",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T11:59:59Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x4",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T11:59:59Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x5",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T11:59:59Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x6",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T11:59:59Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x7",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T11:59:59Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x8",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T11:59:59Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x9",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T11:59:59Z",
+          "connectionId": "conn-1"
+        }
+      ],
+      "expect": {
+        "probe": [
+          "m1",
+          "m2"
+        ],
+        "untested": []
+      },
+      "connectionId": "conn-1"
+    },
+    {
+      "caseId": "same_fragment_saved_again_is_deduped",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "saveFragment",
+        "transport": "anthropic_messages",
+        "fragment": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "enabledOnTransport": [
+        "m1",
+        "m2"
+      ],
+      "autoHistory": [
+        {
+          "modelId": "m1",
+          "transport": "anthropic_messages",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec",
+          "sentAt": "2026-10-10T00:00:00Z",
+          "connectionId": "conn-1"
+        }
+      ],
+      "expect": {
+        "probe": [
+          "m2"
+        ],
+        "untested": []
+      },
+      "connectionId": "conn-1"
+    },
+    {
+      "caseId": "changed_fragment_probes_again",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "saveFragment",
+        "transport": "anthropic_messages",
+        "fragment": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 3
+            }
+          ]
+        }
+      },
+      "enabledOnTransport": [
+        "m1"
+      ],
+      "autoHistory": [
+        {
+          "modelId": "m1",
+          "transport": "anthropic_messages",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec",
+          "sentAt": "2026-10-13T11:00:00Z",
+          "connectionId": "conn-1"
+        }
+      ],
+      "expect": {
+        "probe": [
+          "m1"
+        ],
+        "untested": []
+      },
+      "connectionId": "conn-1"
+    },
+    {
+      "caseId": "enable_with_fragment_after_lazy_verify",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "enableModel",
+        "modelId": "m9",
+        "transport": "anthropic_messages",
+        "lazyVerify": "passed"
+      },
+      "fragments": {
+        "anthropic_messages": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "autoHistory": [],
+      "expect": {
+        "probe": [
+          "m9"
+        ],
+        "untested": []
+      },
+      "connectionId": "conn-1"
+    },
+    {
+      "caseId": "enable_lazy_verify_failed_no_probe",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "enableModel",
+        "modelId": "m9",
+        "transport": "anthropic_messages",
+        "lazyVerify": "failed"
+      },
+      "fragments": {
+        "anthropic_messages": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "autoHistory": [],
+      "expect": {
+        "probe": [],
+        "untested": []
+      },
+      "connectionId": "conn-1"
+    },
+    {
+      "caseId": "enable_without_fragment_no_probe",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "enableModel",
+        "modelId": "m9",
+        "transport": "gemini_generate_content",
+        "lazyVerify": "passed"
+      },
+      "fragments": {
+        "anthropic_messages": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "autoHistory": [],
+      "expect": {
+        "probe": [],
+        "untested": []
+      },
+      "connectionId": "conn-1"
+    },
+    {
+      "caseId": "redetect_never_probes",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "redetect"
+      },
+      "fragments": {
+        "anthropic_messages": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "autoHistory": [],
+      "expect": {
+        "probe": [],
+        "untested": []
+      },
+      "connectionId": "conn-1"
+    },
+    {
+      "caseId": "add_connection_never_probes",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "addConnection"
+      },
+      "fragments": {},
+      "autoHistory": [],
+      "expect": {
+        "probe": [],
+        "untested": []
+      },
+      "connectionId": "conn-1"
+    },
+    {
+      "caseId": "manual_ignores_caps_and_dedupe",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "manualTest",
+        "modelId": "m1",
+        "transport": "anthropic_messages"
+      },
+      "fragments": {
+        "anthropic_messages": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "autoHistory": [
+        {
+          "modelId": "m1",
+          "transport": "anthropic_messages",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec",
+          "sentAt": "2026-10-13T11:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x0",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x1",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x2",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x3",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x4",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x5",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x6",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x7",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x8",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z",
+          "connectionId": "conn-1"
+        },
+        {
+          "modelId": "x9",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z",
+          "connectionId": "conn-1"
+        }
+      ],
+      "expect": {
+        "probe": [
+          "m1"
+        ],
+        "untested": [],
+        "countsTowardCap": false
+      },
+      "connectionId": "conn-1"
+    },
+    {
+      "caseId": "manual_without_fragment_lists_no_web_item",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "manualTest",
+        "modelId": "m1",
+        "transport": "openai_responses"
+      },
+      "fragments": {
+        "anthropic_messages": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "autoHistory": [],
+      "expect": {
+        "probe": [],
+        "untested": []
+      },
+      "connectionId": "conn-1"
+    },
+    {
+      "caseId": "platform_form_byok_never_probes",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "BYOK",
+      "event": {
+        "type": "manualTest",
+        "modelId": "m1",
+        "transport": "anthropic_messages"
+      },
+      "fragments": {
+        "anthropic_messages": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "autoHistory": [],
+      "expect": {
+        "probe": [],
+        "untested": []
+      },
+      "connectionId": "conn-1"
+    },
+    {
+      "caseId": "platform_form_free_never_probes",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "FREE",
+      "event": {
+        "type": "manualTest",
+        "modelId": "m1",
+        "transport": "anthropic_messages"
+      },
+      "fragments": {
+        "anthropic_messages": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "autoHistory": [],
+      "expect": {
+        "probe": [],
+        "untested": []
+      },
+      "connectionId": "conn-1"
+    },
+    {
+      "caseId": "platform_form_managed_never_probes",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "MANAGED",
+      "event": {
+        "type": "manualTest",
+        "modelId": "m1",
+        "transport": "anthropic_messages"
+      },
+      "fragments": {
+        "anthropic_messages": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "autoHistory": [],
+      "expect": {
+        "probe": [],
+        "untested": []
+      },
+      "connectionId": "conn-1"
+    },
+    {
+      "caseId": "platform_form_sub_never_probes",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "SUB",
+      "event": {
+        "type": "manualTest",
+        "modelId": "m1",
+        "transport": "anthropic_messages"
+      },
+      "fragments": {
+        "anthropic_messages": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "autoHistory": [],
+      "expect": {
+        "probe": [],
+        "untested": []
+      },
+      "connectionId": "conn-1"
+    },
+    {
+      "caseId": "history_exactly_window_old_does_not_count",
+      "connectionId": "conn-1",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "saveFragment",
+        "transport": "anthropic_messages",
+        "fragment": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "enabledOnTransport": [
+        "m1"
+      ],
+      "autoHistory": [
+        {
+          "connectionId": "conn-1",
+          "modelId": "x0",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x1",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x2",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x3",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x4",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x5",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x6",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x7",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x8",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x9",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:00Z"
+        }
+      ],
+      "expect": {
+        "probe": [
+          "m1"
+        ],
+        "untested": []
+      }
+    },
+    {
+      "caseId": "history_one_second_inside_window_counts",
+      "connectionId": "conn-1",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "saveFragment",
+        "transport": "anthropic_messages",
+        "fragment": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "enabledOnTransport": [
+        "m1"
+      ],
+      "autoHistory": [
+        {
+          "connectionId": "conn-1",
+          "modelId": "x0",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:01Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x1",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:01Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x2",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:01Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x3",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:01Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x4",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:01Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x5",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:01Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x6",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:01Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x7",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:01Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x8",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:01Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x9",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-12T12:00:01Z"
+        }
+      ],
+      "expect": {
+        "probe": [],
+        "untested": [
+          "m1"
+        ]
+      }
+    },
+    {
+      "caseId": "deduped_model_does_not_use_a_slot",
+      "connectionId": "conn-1",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "saveFragment",
+        "transport": "anthropic_messages",
+        "fragment": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "enabledOnTransport": [
+        "m1",
+        "m2",
+        "m3",
+        "m4",
+        "m5",
+        "m6",
+        "m7"
+      ],
+      "autoHistory": [
+        {
+          "connectionId": "conn-1",
+          "modelId": "m2",
+          "transport": "anthropic_messages",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec",
+          "sentAt": "2026-10-10T00:00:00Z"
+        }
+      ],
+      "expect": {
+        "probe": [
+          "m1",
+          "m3",
+          "m4",
+          "m5",
+          "m6"
+        ],
+        "untested": [
+          "m7"
+        ]
+      }
+    },
+    {
+      "caseId": "other_connection_history_does_not_count",
+      "connectionId": "conn-1",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "saveFragment",
+        "transport": "anthropic_messages",
+        "fragment": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "enabledOnTransport": [
+        "m1"
+      ],
+      "autoHistory": [
+        {
+          "connectionId": "conn-2",
+          "modelId": "x0",
+          "transport": "anthropic_messages",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec",
+          "sentAt": "2026-10-13T11:00:00Z"
+        },
+        {
+          "connectionId": "conn-2",
+          "modelId": "x1",
+          "transport": "anthropic_messages",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec",
+          "sentAt": "2026-10-13T11:00:00Z"
+        },
+        {
+          "connectionId": "conn-2",
+          "modelId": "x2",
+          "transport": "anthropic_messages",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec",
+          "sentAt": "2026-10-13T11:00:00Z"
+        },
+        {
+          "connectionId": "conn-2",
+          "modelId": "x3",
+          "transport": "anthropic_messages",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec",
+          "sentAt": "2026-10-13T11:00:00Z"
+        },
+        {
+          "connectionId": "conn-2",
+          "modelId": "x4",
+          "transport": "anthropic_messages",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec",
+          "sentAt": "2026-10-13T11:00:00Z"
+        },
+        {
+          "connectionId": "conn-2",
+          "modelId": "x5",
+          "transport": "anthropic_messages",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec",
+          "sentAt": "2026-10-13T11:00:00Z"
+        },
+        {
+          "connectionId": "conn-2",
+          "modelId": "x6",
+          "transport": "anthropic_messages",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec",
+          "sentAt": "2026-10-13T11:00:00Z"
+        },
+        {
+          "connectionId": "conn-2",
+          "modelId": "x7",
+          "transport": "anthropic_messages",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec",
+          "sentAt": "2026-10-13T11:00:00Z"
+        },
+        {
+          "connectionId": "conn-2",
+          "modelId": "x8",
+          "transport": "anthropic_messages",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec",
+          "sentAt": "2026-10-13T11:00:00Z"
+        },
+        {
+          "connectionId": "conn-2",
+          "modelId": "x9",
+          "transport": "anthropic_messages",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec",
+          "sentAt": "2026-10-13T11:00:00Z"
+        },
+        {
+          "connectionId": "conn-2",
+          "modelId": "m1",
+          "transport": "anthropic_messages",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec",
+          "sentAt": "2026-10-13T11:00:00Z"
+        }
+      ],
+      "expect": {
+        "probe": [
+          "m1"
+        ],
+        "untested": []
+      }
+    },
+    {
+      "caseId": "enable_when_daily_cap_full_is_untested",
+      "connectionId": "conn-1",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "enableModel",
+        "modelId": "m9",
+        "transport": "anthropic_messages",
+        "lazyVerify": "passed"
+      },
+      "fragments": {
+        "anthropic_messages": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "autoHistory": [
+        {
+          "connectionId": "conn-1",
+          "modelId": "x0",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x1",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x2",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x3",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x4",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x5",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x6",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x7",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x8",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x9",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        }
+      ],
+      "expect": {
+        "probe": [],
+        "untested": [
+          "m9"
+        ]
+      }
+    },
+    {
+      "caseId": "enable_already_probed_with_same_fragment_is_deduped",
+      "connectionId": "conn-1",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "enableModel",
+        "modelId": "m9",
+        "transport": "anthropic_messages",
+        "lazyVerify": "passed"
+      },
+      "fragments": {
+        "anthropic_messages": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "autoHistory": [
+        {
+          "connectionId": "conn-1",
+          "modelId": "m9",
+          "transport": "anthropic_messages",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec",
+          "sentAt": "2026-10-01T00:00:00Z"
+        }
+      ],
+      "expect": {
+        "probe": [],
+        "untested": []
+      }
+    },
+    {
+      "caseId": "retest_rejected_model_from_web_search_page",
+      "connectionId": "conn-1",
+      "now": "2026-10-13T12:00:00Z",
+      "form": "RELAY",
+      "event": {
+        "type": "retest",
+        "modelId": "m1",
+        "transport": "anthropic_messages"
+      },
+      "fragments": {
+        "anthropic_messages": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search",
+              "max_uses": 5
+            }
+          ]
+        }
+      },
+      "autoHistory": [
+        {
+          "connectionId": "conn-1",
+          "modelId": "m1",
+          "transport": "anthropic_messages",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec",
+          "sentAt": "2026-10-13T11:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x0",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x1",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x2",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x3",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x4",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x5",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x6",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x7",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        },
+        {
+          "connectionId": "conn-1",
+          "modelId": "x8",
+          "transport": "openai_chat_completions",
+          "fragmentHash": "h",
+          "sentAt": "2026-10-13T10:00:00Z"
+        }
+      ],
+      "expect": {
+        "probe": [
+          "m1"
+        ],
+        "untested": [],
+        "countsTowardCap": false
+      }
+    }
+  ],
+  "record": {
+    "$comment": "{result: searched|rejected|silent, source: tested|observed, at, fragmentHash}. A record whose fragmentHash differs from the current fragment of its transport is ignored (treated as untested), and so is the web override it produced. Merge rules for the same hash: an incoming rejected (tested) replaces anything; an incoming searched (tested or observed) replaces anything; an incoming silent replaces silent or rejected but never searched (absence of a search does not refute one). A retest of a rejected model is a manual probe, so its searched / silent result lifts the rejection and chat attaches the fragment again. Passive: a real chat that carried the fragment and whose production parser emitted evidence writes searched with source observed (no extra request); a chat with no evidence or with an error writes nothing. searched / rejected also map to the model override web (source tested, restorable to automatic; a user-set override wins); the override key is implemented on all three ends.",
+    "mergeCases": [
+      {
+        "caseId": "silent_does_not_erase_searched",
+        "existing": {
+          "result": "searched",
+          "source": "tested",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec"
+        },
+        "incoming": {
+          "result": "silent",
+          "source": "tested",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec"
+        },
+        "expect": {
+          "result": "searched",
+          "source": "tested"
+        }
+      },
+      {
+        "caseId": "rejected_replaces_searched",
+        "existing": {
+          "result": "searched",
+          "source": "observed",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec"
+        },
+        "incoming": {
+          "result": "rejected",
+          "source": "tested",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec"
+        },
+        "expect": {
+          "result": "rejected",
+          "source": "tested"
+        }
+      },
+      {
+        "caseId": "observed_searched_replaces_silent",
+        "existing": {
+          "result": "silent",
+          "source": "tested",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec"
+        },
+        "incoming": {
+          "result": "searched",
+          "source": "observed",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec"
+        },
+        "expect": {
+          "result": "searched",
+          "source": "observed"
+        }
+      },
+      {
+        "caseId": "new_hash_replaces_old_record",
+        "existing": {
+          "result": "rejected",
+          "source": "tested",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec"
+        },
+        "incoming": {
+          "result": "silent",
+          "source": "tested",
+          "fragmentHash": "871e1f62ca946ff715aa723f2a4d873855c7253615f35708adcedcef9546792b"
+        },
+        "expect": {
+          "result": "silent",
+          "source": "tested"
+        }
+      },
+      {
+        "caseId": "no_existing_takes_incoming",
+        "existing": null,
+        "incoming": {
+          "result": "silent",
+          "source": "tested",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec"
+        },
+        "expect": {
+          "result": "silent",
+          "source": "tested"
+        }
+      },
+      {
+        "caseId": "retest_searched_lifts_rejected",
+        "existing": {
+          "result": "rejected",
+          "source": "tested",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec"
+        },
+        "incoming": {
+          "result": "searched",
+          "source": "tested",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec"
+        },
+        "expect": {
+          "result": "searched",
+          "source": "tested"
+        }
+      },
+      {
+        "caseId": "retest_silent_lifts_rejected",
+        "existing": {
+          "result": "rejected",
+          "source": "tested",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec"
+        },
+        "incoming": {
+          "result": "silent",
+          "source": "tested",
+          "fragmentHash": "52b8f2c30e09e08721fc4e41e548d5f1ec05c2c549fdd3164e54114e9aaddfec"
+        },
+        "expect": {
+          "result": "silent",
+          "source": "tested"
+        }
+      }
+    ]
+  },
+  "presentationCases": {
+    "$comment": "Web row of the model options panel for a RELAY model; replaces web-fragment.v1.json presentationCases rows that say \"Set by you\" once this lands. status is a state id; each end maps it to its own copy (copy is defined per end). protocolUndecided and local engine rows are unchanged from web-fragment.v1.json.",
+    "cases": [
+      {
+        "caseId": "fragment_searched_supported",
+        "hasFragment": true,
+        "record": {
+          "result": "searched",
+          "fragmentHash": "current"
+        },
+        "expect": {
+          "state": "supported",
+          "statusId": "web_probe_searched",
+          "sendsFragment": true
+        }
+      },
+      {
+        "caseId": "fragment_rejected_unsupported",
+        "hasFragment": true,
+        "record": {
+          "result": "rejected",
+          "fragmentHash": "current"
+        },
+        "expect": {
+          "state": "unsupported",
+          "statusId": "web_probe_rejected",
+          "sendsFragment": false,
+          "retestLink": "openConnectionWebSearch"
+        }
+      },
+      {
+        "caseId": "fragment_silent_unknown",
+        "hasFragment": true,
+        "record": {
+          "result": "silent",
+          "fragmentHash": "current"
+        },
+        "expect": {
+          "state": "unknown",
+          "statusId": "web_probe_silent",
+          "sendsFragment": true
+        }
+      },
+      {
+        "caseId": "fragment_untested_unknown",
+        "hasFragment": true,
+        "record": null,
+        "expect": {
+          "state": "unknown",
+          "statusId": "web_probe_unverified",
+          "sendsFragment": true
+        }
+      },
+      {
+        "caseId": "fragment_stale_record_is_untested",
+        "hasFragment": true,
+        "record": {
+          "result": "rejected",
+          "fragmentHash": "other"
+        },
+        "expect": {
+          "state": "unknown",
+          "statusId": "web_probe_unverified",
+          "sendsFragment": true
+        }
+      },
+      {
+        "caseId": "no_fragment_needs_setup",
+        "hasFragment": false,
+        "record": null,
+        "expect": {
+          "state": "unknown",
+          "statusId": "needs_manual_setup",
+          "sendsFragment": false
+        }
+      }
+    ]
+  },
+  "disclosure": {
+    "$comment": "What the UI must say before anything is sent (copy is localized into 16 languages): the web search page above Save — saving sends one web search request with your key to at most perSave enabled models, and the relay may bill searches; the capability-test panel info line — N requests, 1 of them searches the web (only when the web item is listed); the keys page footer — key status comes from catalog fetches and real requests, including capability tests."
+  },
+  "gatewayRecordings": {
+    "new_api_chat_to_claude": {
+      "$comment": "Real new-api conversion recorded on this machine: Chat Completions request with web_search_options → Claude channel → fixture upstream replaying an official-shape web search stream → Chat SSE back. `response.sse` is the gateway output verbatim (data lines only, chunk ids / created vary per run). Evidence for a production Chat parser: delta.annotations url_citation, with no start_index / end_index (citations_delta carries no text offsets) and two non-standard keys cited_text / encrypted_index; per new-api source (relaykit/relayconvert/internal/claude_messages/to_oai_chat_resp.go ConvertChunk, not exercised by this single-result recording) uncited search results and the search query are dropped and usage carries no search count, so a search without citations can only read as silent. Produced by the repository's recording script.",
+      "gatewayVersion": "v1.0.0-rc.43",
+      "source": "https://github.com/QuantumNous/new-api/tree/c6741c36a9a1a729554ad94ee99f21602a214a23",
+      "commit": "c6741c36a9a1a729554ad94ee99f21602a214a23",
+      "recorded_at": "2026-10-13T14:45:03Z",
+      "channel": {
+        "type": 14,
+        "model": "claude-sonnet-4-5",
+        "base_url": "http://127.0.0.1:<fixture upstream>",
+        "key": "<placeholder, not a key>"
+      },
+      "request": {
+        "method": "POST",
+        "path": "/v1/chat/completions",
+        "body": {
+          "model": "claude-sonnet-4-5",
+          "stream": true,
+          "max_tokens": 256,
+          "web_search_options": {},
+          "messages": [
+            {
+              "role": "user",
+              "content": "Search the web and give one source URL for today's top news."
+            }
+          ]
+        }
+      },
+      "upstreamRequest": {
+        "path": "/v1/messages",
+        "body": {
+          "model": "claude-sonnet-4-5",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Search the web and give one source URL for today's top news."
+            }
+          ],
+          "max_tokens": 256,
+          "stream": true,
+          "tools": [
+            {
+              "name": "web_search",
+              "type": "web_search_20250305"
+            }
+          ]
+        }
+      },
+      "upstreamSse": [
+        {
+          "event": "message_start",
+          "data": {
+            "type": "message_start",
+            "message": {
+              "id": "msg_fixture",
+              "type": "message",
+              "role": "assistant",
+              "model": "claude-sonnet-4-5",
+              "content": [],
+              "stop_reason": null,
+              "usage": {
+                "input_tokens": 24,
+                "output_tokens": 1
+              }
+            }
+          }
+        },
+        {
+          "event": "content_block_start",
+          "data": {
+            "type": "content_block_start",
+            "index": 0,
+            "content_block": {
+              "type": "server_tool_use",
+              "id": "srvtoolu_fixture",
+              "name": "web_search",
+              "input": {}
+            }
+          }
+        },
+        {
+          "event": "content_block_delta",
+          "data": {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {
+              "type": "input_json_delta",
+              "partial_json": "{\"query\":\"top news today\"}"
+            }
+          }
+        },
+        {
+          "event": "content_block_stop",
+          "data": {
+            "type": "content_block_stop",
+            "index": 0
+          }
+        },
+        {
+          "event": "content_block_start",
+          "data": {
+            "type": "content_block_start",
+            "index": 1,
+            "content_block": {
+              "type": "web_search_tool_result",
+              "tool_use_id": "srvtoolu_fixture",
+              "content": [
+                {
+                  "type": "web_search_result",
+                  "url": "https://news.example.com/top",
+                  "title": "Top story",
+                  "encrypted_content": "EqgfCioIARgB",
+                  "page_age": "1 hour ago"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "event": "content_block_stop",
+          "data": {
+            "type": "content_block_stop",
+            "index": 1
+          }
+        },
+        {
+          "event": "content_block_start",
+          "data": {
+            "type": "content_block_start",
+            "index": 2,
+            "content_block": {
+              "type": "text",
+              "text": "",
+              "citations": []
+            }
+          }
+        },
+        {
+          "event": "content_block_delta",
+          "data": {
+            "type": "content_block_delta",
+            "index": 2,
+            "delta": {
+              "type": "citations_delta",
+              "citation": {
+                "type": "web_search_result_location",
+                "url": "https://news.example.com/top",
+                "title": "Top story",
+                "encrypted_index": "EpMBCioIAhgB",
+                "cited_text": "The top story today is a fixture."
+              }
+            }
+          }
+        },
+        {
+          "event": "content_block_delta",
+          "data": {
+            "type": "content_block_delta",
+            "index": 2,
+            "delta": {
+              "type": "text_delta",
+              "text": "The top story today is a fixture."
+            }
+          }
+        },
+        {
+          "event": "content_block_stop",
+          "data": {
+            "type": "content_block_stop",
+            "index": 2
+          }
+        },
+        {
+          "event": "message_delta",
+          "data": {
+            "type": "message_delta",
+            "delta": {
+              "stop_reason": "end_turn",
+              "stop_sequence": null
+            },
+            "usage": {
+              "output_tokens": 14,
+              "server_tool_use": {
+                "web_search_requests": 1
+              }
+            }
+          }
+        },
+        {
+          "event": "message_stop",
+          "data": {
+            "type": "message_stop"
+          }
+        }
+      ],
+      "response": {
+        "status": 200,
+        "contentType": "text/event-stream",
+        "sse": [
+          "data: {\"id\":\"msg_fixture\",\"object\":\"chat.completion.chunk\",\"created\":1791902703,\"model\":\"claude-sonnet-4-5\",\"system_fingerprint\":null,\"choices\":[{\"delta\":{\"content\":\"\",\"role\":\"assistant\"},\"logprobs\":null,\"finish_reason\":null,\"index\":0}],\"usage\":null}",
+          "data: {\"id\":\"msg_fixture\",\"object\":\"chat.completion.chunk\",\"created\":1791902703,\"model\":\"claude-sonnet-4-5\",\"system_fingerprint\":null,\"choices\":[{\"delta\":{\"content\":\"\"},\"logprobs\":null,\"finish_reason\":null,\"index\":0}],\"usage\":null}",
+          "data: {\"id\":\"msg_fixture\",\"object\":\"chat.completion.chunk\",\"created\":1791902703,\"model\":\"claude-sonnet-4-5\",\"system_fingerprint\":null,\"choices\":[{\"delta\":{\"annotations\":[{\"type\":\"url_citation\",\"url_citation\":{\"cited_text\":\"The top story today is a fixture.\",\"encrypted_index\":\"EpMBCioIAhgB\",\"title\":\"Top story\",\"url\":\"https://news.example.com/top\"}}]},\"logprobs\":null,\"finish_reason\":null,\"index\":0}],\"usage\":null}",
+          "data: {\"id\":\"msg_fixture\",\"object\":\"chat.completion.chunk\",\"created\":1791902703,\"model\":\"claude-sonnet-4-5\",\"system_fingerprint\":null,\"choices\":[{\"delta\":{\"content\":\"The top story today is a fixture.\"},\"logprobs\":null,\"finish_reason\":null,\"index\":0}],\"usage\":null}",
+          "data: {\"id\":\"msg_fixture\",\"object\":\"chat.completion.chunk\",\"created\":1791902703,\"model\":\"claude-sonnet-4-5\",\"system_fingerprint\":null,\"choices\":[{\"delta\":{},\"logprobs\":null,\"finish_reason\":\"stop\",\"index\":0}],\"usage\":null}",
+          "data: {\"id\":\"msg_fixture\",\"object\":\"chat.completion.chunk\",\"created\":1791902703,\"model\":\"claude-sonnet-4-5\",\"system_fingerprint\":null,\"choices\":[],\"usage\":{\"prompt_tokens\":24,\"completion_tokens\":14,\"total_tokens\":38,\"usage_semantic\":\"openai\",\"usage_source\":\"anthropic\",\"billing_usage\":{\"source\":\"claude_messages\",\"semantic\":\"anthropic\",\"claude_usage\":{\"input_tokens\":24,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":14,\"claude_cache_creation_5_m_tokens\":0,\"claude_cache_creation_1_h_tokens\":0}},\"prompt_tokens_details\":{\"cached_tokens\":0,\"text_tokens\":0,\"audio_tokens\":0,\"image_tokens\":0},\"completion_tokens_details\":{\"text_tokens\":0,\"audio_tokens\":0,\"image_tokens\":0,\"reasoning_tokens\":0},\"input_tokens\":24,\"output_tokens\":0,\"input_tokens_details\":null,\"claude_cache_creation_5_m_tokens\":0,\"claude_cache_creation_1_h_tokens\":0}}",
+          "data: [DONE]"
+        ]
+      },
+      "expect": {
+        "transport": "openai_chat_completions",
+        "result": "searched",
+        "evidenceUrls": [
+          "https://news.example.com/top"
+        ]
+      }
+    }
+  }
+}

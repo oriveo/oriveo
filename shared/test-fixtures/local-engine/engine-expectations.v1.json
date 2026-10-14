@@ -1,0 +1,87 @@
+{
+  "$comment": "Expected outcomes over the recordings in engine-declarations.v1.json. Recorded bodies are never copied here: every response is a pointer {engine, instance?, path} into that file. A path a case does not list answers 404 text/plain \"404 page not found\"; `unreachable: true` means every request fails at the network layer. Test names carry the RL2-ENGINE-0N id and iterate over caseId. Engines with status pending in the recordings (vLLM) keep status pending here too: tests assert they are still pending and skip them, and nobody hand-writes their responses.",
+  "version": 1,
+  "channels": {
+    "$comment": "Channel wire values (RelayRequestedConfig.transport). The channel is connection-level; capabilities are model-level.",
+    "chat": "openai_chat_completions",
+    "native": "llamacpp_native",
+    "byEngine": {
+      "llamacpp": ["chat", "native"],
+      "ollama": ["chat"],
+      "lmstudio": ["chat"],
+      "vllm": ["chat"],
+      "openwebui": ["chat"]
+    },
+    "selectorShownOnlyWhenMoreThanOne": true
+  },
+  "fingerprint": {
+    "$comment": "RL2-ENGINE-01. Read-only GETs, all five requested; the status code alone never decides (LM Studio answers 200 + {\"error\": ...} on unknown paths). A rule hits only on a 2xx JSON object of the stated shape. Exactly one engine hit -> that engine; two or more engine hits -> manual; no engine hit -> generic when the generic rule hits, otherwise manual. Every outcome but manual uses the default channel chat; generic leaves engineProfile empty.",
+    "requests": ["/props", "/api/tags", "/api/v0/models", "/version", "/v1/models"],
+    "rules": {
+      "llamacpp": "GET /props: object with an object `modalities` or an object `default_generation_settings`",
+      "ollama": "GET /api/tags: object whose `models` is an array and every row has a string `name`",
+      "lmstudio": "GET /api/v0/models: object whose `data` is an array and every row has a string `type`",
+      "vllm": "GET /version: object with a string `version` and no `error` key",
+      "generic": "GET /v1/models: object whose `data` is an array (consulted only when no engine rule hits)"
+    },
+    "cases": [
+      { "caseId": "ollama_recording", "responses": [{ "engine": "ollama", "all": true }], "expect": { "outcome": "engine", "engineProfile": "ollama", "channel": "chat" } },
+      { "caseId": "lmstudio_recording", "responses": [{ "engine": "lmstudio", "all": true }], "expect": { "outcome": "engine", "engineProfile": "lmstudio", "channel": "chat" } },
+      { "caseId": "llamacpp_text_only_recording", "responses": [{ "engine": "llamacpp", "instance": "text_only", "all": true }], "expect": { "outcome": "engine", "engineProfile": "llamacpp", "channel": "chat" } },
+      { "caseId": "llamacpp_vision_recording", "responses": [{ "engine": "llamacpp", "instance": "vision", "all": true }], "expect": { "outcome": "engine", "engineProfile": "llamacpp", "channel": "chat" } },
+      { "caseId": "vllm_recording", "status": "pending", "responses": [{ "engine": "vllm", "all": true }], "expect": { "outcome": "engine", "engineProfile": "vllm", "channel": "chat" } },
+      { "caseId": "two_engines_answer_falls_back_to_manual", "responses": [{ "engine": "ollama", "path": "/api/tags" }, { "engine": "llamacpp", "instance": "text_only", "path": "/props" }], "expect": { "outcome": "manual" } },
+      { "caseId": "only_v1_models_is_generic", "responses": [{ "engine": "ollama", "path": "/v1/models" }], "expect": { "outcome": "generic", "channel": "chat" } },
+      { "caseId": "nothing_answers_falls_back_to_manual", "responses": [], "expect": { "outcome": "manual" } },
+      { "caseId": "unreachable_falls_back_to_manual", "unreachable": true, "responses": [], "expect": { "outcome": "manual" } }
+    ]
+  },
+  "declarations": {
+    "$comment": "RL2-ENGINE-02. Per-model capability declarations, parsed by the production connector from responses it already requests. Values are true / false / null (null = unknown, stored as an absent key of AIModel.engineDeclaration). Ollama reads `models[].capabilities` of GET /api/tags (identical to POST /api/show in the recording, so no extra request): vision -> image, tools -> toolCall, thinking -> thinking, a missing word is false; a row without the `capabilities` key is all null. LM Studio reads GET /api/v0/models: type vlm -> image true, llm -> image false, embeddings -> not in the chat catalog; `capabilities` containing tool_use -> toolCall true, present without it -> false, key absent -> null; thinking null. llama.cpp reads GET /props once and applies it to every model of the connection: modalities.vision true/false -> image; chat_template_caps.supports_tools true -> toolCall true, false -> null (not a negative declaration); thinking null. vLLM, Open WebUI and generic connections declare nothing: all null. Consumer side: image true -> facade vision_input supported and the composer photo entry visible; image false -> unsupported and hidden; null is left to the Relay unknown rule (U7, not asserted here).",
+    "cases": [
+      { "caseId": "ollama_qwen3_tools_and_thinking", "engine": "ollama", "modelId": "qwen3:0.6b", "inChatCatalog": true, "expect": { "image": false, "toolCall": true, "thinking": true } },
+      { "caseId": "ollama_smolvlm_vision", "engine": "ollama", "modelId": "oriveo-fixture-smolvlm:latest", "inChatCatalog": true, "expect": { "image": true, "toolCall": false, "thinking": false } },
+      { "caseId": "ollama_qwen25_tools_only", "engine": "ollama", "modelId": "qwen2.5:0.5b", "inChatCatalog": true, "expect": { "image": false, "toolCall": true, "thinking": false } },
+      { "caseId": "ollama_tinyllama_completion_only", "engine": "ollama", "modelId": "tinyllama:latest", "inChatCatalog": true, "expect": { "image": false, "toolCall": false, "thinking": false } },
+      { "caseId": "lmstudio_vlm", "engine": "lmstudio", "modelId": "smolvlm-256m-instruct", "inChatCatalog": true, "expect": { "image": true, "toolCall": null, "thinking": null } },
+      { "caseId": "lmstudio_llm_with_tool_use", "engine": "lmstudio", "modelId": "qwen/qwen3-0.6b", "inChatCatalog": true, "expect": { "image": false, "toolCall": true, "thinking": null } },
+      { "caseId": "lmstudio_llm_without_capabilities_key", "engine": "lmstudio", "modelId": "tinyllama", "inChatCatalog": true, "expect": { "image": false, "toolCall": null, "thinking": null } },
+      { "caseId": "lmstudio_embeddings_not_in_chat_catalog", "engine": "lmstudio", "modelId": "text-embedding-nomic-embed-text-v1.5", "inChatCatalog": false },
+      { "caseId": "llamacpp_text_only_instance", "engine": "llamacpp", "instance": "text_only", "modelId": "~/.lmstudio/models/oriveo/tinyllama/oriveo-tinyllama.095Aaw.gguf", "inChatCatalog": true, "expect": { "image": false, "toolCall": null, "thinking": null } },
+      { "caseId": "llamacpp_vision_instance", "engine": "llamacpp", "instance": "vision", "modelId": "ggml-org/SmolVLM-256M-Instruct-GGUF", "inChatCatalog": true, "expect": { "image": true, "toolCall": null, "thinking": null } },
+      { "caseId": "vllm_declares_nothing", "engine": "vllm", "modelId": "any-model", "rule": "no response body is read: engineProfile vllm yields an empty declaration for any model", "expect": { "image": null, "toolCall": null, "thinking": null } }
+    ]
+  },
+  "thinking": {
+    "$comment": "RL2-ENGINE-04. For a connection with an engineProfile the thinking row is decided by the write-path table, not by the protocol. writable -> the existing chat-template toggle (chat_template_kwargs.enable_thinking). Not writable -> the existing notice \"Uses the model’s default\" (no new copy), except Ollama whose engineDeclaration.thinking is false -> the existing unsupported disclosure. llama.cpp native keeps today's non-Chat notice. Connections without an engineProfile keep the Relay rule unchanged.",
+    "writePaths": [
+      { "engineProfile": "llamacpp", "channel": "chat", "writable": true },
+      { "engineProfile": "llamacpp", "channel": "native", "writable": false },
+      { "engineProfile": "ollama", "channel": "chat", "writable": false },
+      { "engineProfile": "lmstudio", "channel": "chat", "writable": false },
+      { "engineProfile": "vllm", "channel": "chat", "writable": false },
+      { "engineProfile": "openwebui", "channel": "chat", "writable": false }
+    ],
+    "cases": [
+      { "caseId": "llamacpp_chat_gets_toggle", "engineProfile": "llamacpp", "channel": "chat", "declaredThinking": null, "expect": "toggle" },
+      { "caseId": "llamacpp_native_keeps_non_chat_notice", "engineProfile": "llamacpp", "channel": "native", "declaredThinking": null, "expect": "nonChatNotice" },
+      { "caseId": "ollama_declared_thinking_gets_model_default_notice", "engineProfile": "ollama", "channel": "chat", "declaredThinking": true, "expect": "usesModelDefaultNotice" },
+      { "caseId": "ollama_without_thinking_is_unsupported", "engineProfile": "ollama", "channel": "chat", "declaredThinking": false, "expect": "unsupported" },
+      { "caseId": "ollama_unknown_declaration_gets_model_default_notice", "engineProfile": "ollama", "channel": "chat", "declaredThinking": null, "expect": "usesModelDefaultNotice" },
+      { "caseId": "lmstudio_chat_gets_model_default_notice", "engineProfile": "lmstudio", "channel": "chat", "declaredThinking": null, "expect": "usesModelDefaultNotice" },
+      { "caseId": "vllm_chat_gets_model_default_notice", "engineProfile": "vllm", "channel": "chat", "declaredThinking": null, "expect": "usesModelDefaultNotice" },
+      { "caseId": "relay_without_engine_profile_keeps_chat_toggle", "engineProfile": null, "channel": "chat", "declaredThinking": null, "expect": "toggle" }
+    ]
+  },
+  "edit": {
+    "$comment": "RL2-ENGINE-03. Editing a local connection (one with an engineProfile) keeps engineProfile, securityMode and certificateFingerprint exactly as they were, whatever the edit, including a relay-kind change. A channel change re-verifies the default model; when that verification fails the user value is not discarded: the existing save-as-unverified action stores the new channel and the connection shows the existing unverified state. Channel candidates come from channels.byEngine only.",
+    "connection": { "baseURL": "https://192.168.1.20:8443", "relayRequested": { "transport": "openai_chat_completions", "engineProfile": "llamacpp", "securityMode": "tofu_https", "certificateFingerprint": "sha256:00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff" } },
+    "cases": [
+      { "caseId": "edit_address_keeps_engine_fields", "change": { "baseURL": "https://192.168.1.21:8443" }, "expect": { "keepsEngineFields": true, "verifiesDefaultModel": "as today" } },
+      { "caseId": "edit_key_keeps_engine_fields", "change": { "apiKey": "new-key" }, "expect": { "keepsEngineFields": true, "verifiesDefaultModel": "as today" } },
+      { "caseId": "edit_channel_reverifies_default_model", "change": { "transport": "llamacpp_native" }, "verification": "passes", "expect": { "keepsEngineFields": true, "verifiesDefaultModel": true, "transport": "llamacpp_native", "verified": true } },
+      { "caseId": "edit_channel_failed_verification_keeps_user_value", "change": { "transport": "llamacpp_native" }, "verification": "fails", "expect": { "keepsEngineFields": true, "verifiesDefaultModel": true, "transport": "llamacpp_native", "verified": false } },
+      { "caseId": "relay_kind_change_keeps_engine_fields", "change": { "relayKind": "any other kind the end offers" }, "expect": { "keepsEngineFields": true } }
+    ]
+  }
+}

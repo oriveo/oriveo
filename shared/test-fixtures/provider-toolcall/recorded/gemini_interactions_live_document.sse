@@ -1,0 +1,30 @@
+event: interaction.created
+data: {"interaction":{"id":"","status":"in_progress","object":"interaction","model":"gemini-2.5-flash-lite"},"event_type":"interaction.created"}
+
+event: interaction.status_update
+data: {"interaction_id":"","status":"in_progress","event_type":"interaction.status_update"}
+
+event: step.start
+data: {"index":0,"step":{"type":"thought"},"event_type":"step.start"}
+
+event: step.delta
+data: {"index":0,"delta":{"signature":"CiRlMjQ4MzBhNy01Y2Q2LTQyZmUtOTk4Yi1lZTUzOWU3MmI5YzM=","type":"thought_signature"},"event_type":"step.delta"}
+
+event: step.stop
+data: {"index":0,"event_type":"step.stop"}
+
+event: step.start
+data: {"index":1,"step":{"type":"model_output"},"event_type":"step.start"}
+
+event: step.delta
+data: {"index":1,"delta":{"text":"4721","type":"text"},"event_type":"step.delta"}
+
+event: step.stop
+data: {"index":1,"event_type":"step.stop"}
+
+event: interaction.completed
+data: {"interaction":{"id":"","status":"completed","usage":{"total_tokens":278,"total_input_tokens":274,"input_tokens_by_modality":[{"modality":"text","tokens":16},{"modality":"document","tokens":258}],"total_cached_tokens":0,"total_output_tokens":4,"total_tool_use_tokens":0,"total_thought_tokens":0},"created":"2026-10-13T11:30:17Z","updated":"2026-10-13T11:30:17Z","object":"interaction","model":"gemini-2.5-flash-lite"},"event_type":"interaction.completed"}
+
+event: done
+data: [DONE]
+

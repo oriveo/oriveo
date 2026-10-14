@@ -1,0 +1,248 @@
+{
+  "schema": "oriveo.gemini-interactions-request-golden/v1",
+  "purpose": "Golden request bodies for the production Gemini Interactions builder (line contract sections on request shape, attachments and thinking; cases GI-01 to GI-05). Each client runs its production builder on the case input and either compares the result with expected_body or checks the listed assertions. The same case id maps to a same-named test on every client.",
+  "sources": {
+    "api_reference": "https://ai.google.dev/api/interactions-api",
+    "openapi": "https://ai.google.dev/static/api/interactions.openapi.json",
+    "thinking_guide": "https://ai.google.dev/gemini-api/docs/interactions/thinking",
+    "image_understanding_guide": "https://ai.google.dev/gemini-api/docs/interactions/image-understanding",
+    "retrieved_at": "2026-10-13"
+  },
+  "conventions": {
+    "comparison": "expected_body is compared with the body produced by the production builder after JSON normalization: object key order and whitespace are ignored, array order is significant. Only the body is compared. The URL path comes from the recipe (/v1beta/interactions, because live samples showed /v1 returns 400 when google_search or system_instruction is present); no Api-Revision header is sent.",
+    "input_model": "input.messages is a client-neutral message description: role is user or assistant; text parts are used verbatim; image and document parts carry mime_type and base64 data (a document also carries a file name in name and extracted text in extracted_text, which pre_activation injects as text). system is the fully assembled system prompt string (empty string means no system_instruction is sent). web is the web-search switch; reasoning_recipe says whether the model has a Gemini Interactions thinking recipe; reasoning is the reasoningIntent from the capability preference sync contract (shared/model-contracts/capability_preference_sync.v1.json; null means no level is selected, i.e. automatic).",
+    "steps": "input is always a Step[] (a single turn is still an array): user becomes {type:user_input, content}, assistant becomes {type:model_output, content}. role, parts, inlineData and inline_data never appear. In this first version an assistant turn replays only its body text, not thought or signature.",
+    "content_order": "Within one turn, text comes first and images / documents after (official image_understanding_guide: for a single image with text, place the text prompt before the image).",
+    "store": "Every request body carries store:false and stream:true and has no previous_interaction_id (each turn sends the full Step[]).",
+    "attachment_profile": "pre_activation is the currently declared line behavior (images become a placeholder, files are delivered as text, per the line contract); activated is the typed image / document tier enabled after verification against a real provider. Under pre_activation, files have already been turned into xml-v1 text by the attachment injector (per the chat attachment delivery contract) before the builder runs, so the builder only sees text and image.",
+    "thinking_overlay": "The thinking values are delivered by the server recipe and clients do not copy them; tests feed the table below to the production compiler as the recipe input, and the output must equal each case. The table is itself the acceptance baseline for the server recipe. The key automatic corresponds to reasoningIntent=null; a null max means that level is not set (the official thinking_level tops out at high, consistent with gemini.generate_content.reasoning.v2; the model's availableIntents do not include max, so the control does not offer it).",
+    "reasoning_recipe": "The recipe form of thinking_overlay: all three clients feed it to the production compiler as the reasoning recipe delivered by the server (last-specific-wins, per provider_recipe_request_compiler.v1.json rule D8). The automatic level (reasoningIntent=null) is still compiled inside the Interactions builder with selectedIntent=null and yields only the base op without an intent. The server-delivered recipe must match it field by field (availableIntents is actually delivered per model; this file lists the four levels the golden uses)."
+  },
+  "thinking_overlay": {
+    "automatic": { "generation_config": { "thinking_summaries": "auto" } },
+    "off": { "generation_config": { "thinking_level": "minimal", "thinking_summaries": "none" } },
+    "low": { "generation_config": { "thinking_level": "low", "thinking_summaries": "auto" } },
+    "balanced": { "generation_config": { "thinking_level": "medium", "thinking_summaries": "auto" } },
+    "deep": { "generation_config": { "thinking_level": "high", "thinking_summaries": "auto" } },
+    "max": null
+  },
+  "reasoning_recipe": {
+    "id": "gemini.interactions.reasoning.v1",
+    "providerKind": "gemini",
+    "transport": { "protocol": "gemini_interactions", "endpointClass": "interactions", "requiredHeaders": [], "streaming": "optional" },
+    "capability": "reasoning",
+    "executionKind": "request_overlay",
+    "requestOps": [
+      { "op": "set", "pointer": "/generation_config/thinking_summaries", "value": "auto" },
+      { "op": "set", "intent": "off", "pointer": "/generation_config/thinking_level", "value": "minimal" },
+      { "op": "set", "intent": "off", "pointer": "/generation_config/thinking_summaries", "value": "none" },
+      { "op": "set", "intent": "low", "pointer": "/generation_config/thinking_level", "value": "low" },
+      { "op": "set", "intent": "balanced", "pointer": "/generation_config/thinking_level", "value": "medium" },
+      { "op": "set", "intent": "deep", "pointer": "/generation_config/thinking_level", "value": "high" }
+    ],
+    "responseParserKind": "gemini_thinking_v1",
+    "continuationKind": "none",
+    "controlRefs": [],
+    "fallbackPolicy": "remove_auto_patch_once_pre_token",
+    "sourceRefs": ["gemini.interactions"],
+    "availableIntents": ["off", "low", "balanced", "deep"]
+  },
+  "image_placeholder": "[Image omitted: this route sends text only]",
+  "cases": [
+    {
+      "id": "GI_TEXT_SINGLE",
+      "gi": ["GI-01", "GI-05"],
+      "input": { "model": "gemini-3.1-flash-lite", "system": "", "web": false, "reasoning_recipe": false, "reasoning": null, "attachment_profile": "pre_activation",
+        "messages": [ { "role": "user", "parts": [ { "type": "text", "text": "Hello" } ] } ] },
+      "expected_body": {
+        "model": "gemini-3.1-flash-lite",
+        "input": [ { "type": "user_input", "content": [ { "type": "text", "text": "Hello" } ] } ],
+        "stream": true,
+        "store": false
+      }
+    },
+    {
+      "id": "GI_MULTI_TURN_SYSTEM",
+      "gi": ["GI-01", "GI-05"],
+      "input": { "model": "gemini-3.1-flash-lite", "system": "You are concise.", "web": false, "reasoning_recipe": false, "reasoning": null, "attachment_profile": "pre_activation",
+        "messages": [
+          { "role": "user", "parts": [ { "type": "text", "text": "My name is Ada." } ] },
+          { "role": "assistant", "parts": [ { "type": "text", "text": "Nice to meet you, Ada." } ] },
+          { "role": "user", "parts": [ { "type": "text", "text": "What is my name?" } ] }
+        ] },
+      "expected_body": {
+        "model": "gemini-3.1-flash-lite",
+        "system_instruction": "You are concise.",
+        "input": [
+          { "type": "user_input", "content": [ { "type": "text", "text": "My name is Ada." } ] },
+          { "type": "model_output", "content": [ { "type": "text", "text": "Nice to meet you, Ada." } ] },
+          { "type": "user_input", "content": [ { "type": "text", "text": "What is my name?" } ] }
+        ],
+        "stream": true,
+        "store": false
+      }
+    },
+    {
+      "id": "GI_WEB_ON",
+      "gi": ["GI-04", "GI-05"],
+      "input": { "model": "gemini-3.1-flash-lite", "system": "", "web": true, "reasoning_recipe": false, "reasoning": null, "attachment_profile": "pre_activation",
+        "messages": [ { "role": "user", "parts": [ { "type": "text", "text": "Who won Euro 2024?" } ] } ] },
+      "expected_body": {
+        "model": "gemini-3.1-flash-lite",
+        "input": [ { "type": "user_input", "content": [ { "type": "text", "text": "Who won Euro 2024?" } ] } ],
+        "tools": [ { "type": "google_search" } ],
+        "stream": true,
+        "store": false
+      }
+    },
+    {
+      "id": "GI_THINKING_AUTOMATIC",
+      "gi": ["GI-03"],
+      "input": { "model": "gemini-3.1-flash-lite", "system": "", "web": false, "reasoning_recipe": true, "reasoning": null, "attachment_profile": "pre_activation",
+        "messages": [ { "role": "user", "parts": [ { "type": "text", "text": "Hello" } ] } ] },
+      "expected_body": {
+        "model": "gemini-3.1-flash-lite",
+        "input": [ { "type": "user_input", "content": [ { "type": "text", "text": "Hello" } ] } ],
+        "generation_config": { "thinking_summaries": "auto" },
+        "stream": true,
+        "store": false
+      },
+      "assertions": { "absent_pointers": ["/generation_config/thinking_level"] }
+    },
+    {
+      "id": "GI_THINKING_OFF",
+      "gi": ["GI-03"],
+      "input": { "model": "gemini-3.1-flash-lite", "system": "", "web": false, "reasoning_recipe": true, "reasoning": "off", "attachment_profile": "pre_activation",
+        "messages": [ { "role": "user", "parts": [ { "type": "text", "text": "Hello" } ] } ] },
+      "expected_body": {
+        "model": "gemini-3.1-flash-lite",
+        "input": [ { "type": "user_input", "content": [ { "type": "text", "text": "Hello" } ] } ],
+        "generation_config": { "thinking_level": "minimal", "thinking_summaries": "none" },
+        "stream": true,
+        "store": false
+      }
+    },
+    {
+      "id": "GI_THINKING_LOW",
+      "gi": ["GI-03"],
+      "input": { "model": "gemini-3.1-flash-lite", "system": "", "web": false, "reasoning_recipe": true, "reasoning": "low", "attachment_profile": "pre_activation",
+        "messages": [ { "role": "user", "parts": [ { "type": "text", "text": "Hello" } ] } ] },
+      "expected_body": {
+        "model": "gemini-3.1-flash-lite",
+        "input": [ { "type": "user_input", "content": [ { "type": "text", "text": "Hello" } ] } ],
+        "generation_config": { "thinking_level": "low", "thinking_summaries": "auto" },
+        "stream": true,
+        "store": false
+      }
+    },
+    {
+      "id": "GI_THINKING_BALANCED",
+      "gi": ["GI-03"],
+      "input": { "model": "gemini-3.1-flash-lite", "system": "", "web": false, "reasoning_recipe": true, "reasoning": "balanced", "attachment_profile": "pre_activation",
+        "messages": [ { "role": "user", "parts": [ { "type": "text", "text": "Hello" } ] } ] },
+      "expected_body": {
+        "model": "gemini-3.1-flash-lite",
+        "input": [ { "type": "user_input", "content": [ { "type": "text", "text": "Hello" } ] } ],
+        "generation_config": { "thinking_level": "medium", "thinking_summaries": "auto" },
+        "stream": true,
+        "store": false
+      }
+    },
+    {
+      "id": "GI_THINKING_DEEP_WEB_MULTI_TURN",
+      "gi": ["GI-01", "GI-03", "GI-04", "GI-05"],
+      "input": { "model": "gemini-3.1-flash-lite", "system": "You are concise.", "web": true, "reasoning_recipe": true, "reasoning": "deep", "attachment_profile": "pre_activation",
+        "messages": [
+          { "role": "user", "parts": [ { "type": "text", "text": "Who won Euro 2024?" } ] },
+          { "role": "assistant", "parts": [ { "type": "text", "text": "Spain won Euro 2024." } ] },
+          { "role": "user", "parts": [ { "type": "text", "text": "Who did they beat in the final?" } ] }
+        ] },
+      "expected_body": {
+        "model": "gemini-3.1-flash-lite",
+        "system_instruction": "You are concise.",
+        "input": [
+          { "type": "user_input", "content": [ { "type": "text", "text": "Who won Euro 2024?" } ] },
+          { "type": "model_output", "content": [ { "type": "text", "text": "Spain won Euro 2024." } ] },
+          { "type": "user_input", "content": [ { "type": "text", "text": "Who did they beat in the final?" } ] }
+        ],
+        "tools": [ { "type": "google_search" } ],
+        "generation_config": { "thinking_level": "high", "thinking_summaries": "auto" },
+        "stream": true,
+        "store": false
+      }
+    },
+    {
+      "id": "GI_IMAGE_PRE_ACTIVATION",
+      "gi": ["GI-02", "GI-05"],
+      "input": { "model": "gemini-3.1-flash-lite", "system": "", "web": false, "reasoning_recipe": false, "reasoning": null, "attachment_profile": "pre_activation",
+        "messages": [ { "role": "user", "parts": [ { "type": "text", "text": "Describe this." }, { "type": "image", "mime_type": "image/png", "data": "iVBORw0KGgo=" } ] } ] },
+      "assertions": {
+        "input_step_types": ["user_input"],
+        "content_types_only": ["text"],
+        "user_text_contains": ["Describe this.", "[Image omitted: this route sends text only]"],
+        "absent_keys_anywhere": ["role", "parts", "inlineData", "inline_data", "previous_interaction_id"],
+        "absent_substrings": ["iVBORw0KGgo="],
+        "store": false
+      },
+      "note": "How the placeholder line and the user text are joined into text (one part or separate parts) follows each client's existing injection behavior (image-placeholder.v1.json locks only the literal and the absence of an image block), so this case asserts but does not compare the whole body."
+    },
+    {
+      "id": "GI_IMAGE_ACTIVATED",
+      "gi": ["GI-02"],
+      "input": { "model": "gemini-3.1-flash-lite", "system": "", "web": false, "reasoning_recipe": false, "reasoning": null, "attachment_profile": "activated",
+        "messages": [ { "role": "user", "parts": [ { "type": "text", "text": "Describe this." }, { "type": "image", "mime_type": "image/png", "data": "iVBORw0KGgo=" } ] } ] },
+      "expected_body": {
+        "model": "gemini-3.1-flash-lite",
+        "input": [ { "type": "user_input", "content": [
+          { "type": "text", "text": "Describe this." },
+          { "type": "image", "data": "iVBORw0KGgo=", "mime_type": "image/png" }
+        ] } ],
+        "stream": true,
+        "store": false
+      }
+    },
+    {
+      "id": "GI_DOCUMENT_ACTIVATED",
+      "gi": ["GI-02"],
+      "input": { "model": "gemini-3.1-flash-lite", "system": "", "web": false, "reasoning_recipe": false, "reasoning": null, "attachment_profile": "activated",
+        "messages": [ { "role": "user", "parts": [ { "type": "text", "text": "Summarize this." }, { "type": "document", "mime_type": "application/pdf", "data": "JVBERi0xLjQK" } ] } ] },
+      "expected_body": {
+        "model": "gemini-3.1-flash-lite",
+        "input": [ { "type": "user_input", "content": [
+          { "type": "text", "text": "Summarize this." },
+          { "type": "document", "data": "JVBERi0xLjQK", "mime_type": "application/pdf" }
+        ] } ],
+        "stream": true,
+        "store": false
+      }
+    },
+    {
+      "id": "GI_DOCUMENT_PRE_ACTIVATION",
+      "gi": ["GI-02"],
+      "input": { "model": "gemini-3.1-flash-lite", "system": "", "web": false, "reasoning_recipe": false, "reasoning": null, "attachment_profile": "pre_activation",
+        "messages": [ { "role": "user", "parts": [ { "type": "text", "text": "Summarize this." }, { "type": "document", "mime_type": "application/pdf", "data": "JVBERi0xLjQK", "name": "plan.pdf", "extracted_text": "Quarterly plan: ship Interactions." } ] } ] },
+      "assertions": {
+        "content_types_only": ["text"],
+        "user_text_contains": ["Summarize this.", "<ATTACHMENT_FILE>", "<FILE_NAME>plan.pdf</FILE_NAME>", "Quarterly plan: ship Interactions."],
+        "absent_keys_anywhere": ["inlineData", "inline_data", "previous_interaction_id"],
+        "absent_substrings": ["JVBERi0xLjQK"],
+        "store": false
+      },
+      "note": "Under pre_activation the PDF is wrapped by the attachment injector into xml-v1 text from extracted_text (per the chat attachment delivery contract); the exact byte shape of the wrapper block is guarded by each client's injector tests. Here we only assert that the file name and body text are in text, and that the outbound request has no document block and no original base64."
+    },
+    {
+      "id": "GI_EMPTY_ASSISTANT_SKIPPED",
+      "gi": ["GI-01", "GI-05"],
+      "note": "An assistant turn whose body is empty (whitespace only counts as empty) is not added to Step[]: a reply that failed or was interrupted before any body was written is not replayed as an empty model_output. The user turns before and after it each become their own step and are not merged.",
+      "input": { "model": "gemini-3.1-flash-lite", "system": "", "web": false, "reasoning_recipe": false, "reasoning": null, "attachment_profile": "pre_activation", "messages": [
+        { "role": "user", "parts": [{ "type": "text", "text": "Hi" }] },
+        { "role": "assistant", "parts": [{ "type": "text", "text": "  " }] },
+        { "role": "user", "parts": [{ "type": "text", "text": "Are you there?" }] }
+      ] },
+      "expected_body": { "model": "gemini-3.1-flash-lite", "input": [
+        { "type": "user_input", "content": [{ "type": "text", "text": "Hi" }] },
+        { "type": "user_input", "content": [{ "type": "text", "text": "Are you there?" }] }
+      ], "stream": true, "store": false }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+event: interaction.created
+data: {"interaction":{"id":"v1_...","status":"in_progress","object":"interaction","model":"gemini-3-flash-preview"},"event_type":"interaction.created"}
+
+event: step.start
+data: {"index":0,"step":{"type":"model_output"},"event_type":"step.start"}
+
+event: step.delta
+data: {"index":0,"delta":{"type":"text","text":"Hello, my name is Phil"},"event_type":"step.delta"}
+
+event: step.delta
+data: {"index":0,"delta":{"type":"text","text":", and I live in Germany." },"event_type":"step.delta"}
+

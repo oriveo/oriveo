@@ -168,8 +168,8 @@
       "modelId": "gemini-3-flash",
       "capability": "web",
       "responseParserKind": "gemini_google_search_v1",
-      "continuationKind": "previous_id",
-      "selectorExpected": false
+      "continuationKind": "none",
+      "selectorExpected": true
     },
     {
       "providerKind": "grok",
@@ -421,7 +421,7 @@
         "stream": true
       },
       "expected": {
-        "endpointPath": "/v1/interactions",
+        "endpointPath": "/v1beta/interactions",
         "targetTransport": "gemini_interactions",
         "bodyDelta": {
           "tools": [
@@ -524,18 +524,14 @@
       }
     },
     {
-      "caseId": "continuation.previous_interaction_id",
-      "kind": "previous_id",
+      "caseId": "continuation.gemini_interactions_none",
+      "kind": "none",
       "targetProtocol": "gemini_interactions",
-      "step": 1,
+      "step": 0,
       "state": {
         "previousResponseId": "interaction_1"
       },
-      "expectedWire": {
-        "bodyDelta": {
-          "previous_interaction_id": "interaction_1"
-        }
-      }
+      "expectedWire": {}
     },
     {
       "caseId": "continuation.replay_anthropic_blocks",

@@ -1,0 +1,3 @@
+event: error
+data: {"error":{"message":"Search as tool is not enabled for api version v1. Use api version v1beta instead.","code":"invalid_request"},"event_type":"error"}
+

@@ -1,0 +1,49 @@
+{
+  "schema": "oriveo.gemini-interactions-selection/v1",
+  "purpose": "Production route selection on all three clients: when the server marks a model's transport as gemini_interactions (reachable only through an admin transport override; the default is still gemini_generate), which requests go through Interactions and which recipe they carry. The case id is the same-named test on every client. See the Gemini Interactions line contract, section on route selection.",
+  "conventions": {
+    "metadata": "model + capability_controls equal the capabilityControls the server delivers for this transport. The web recipe is read from the server's capability recipe registry (capability_runtime.v1.json), entry gemini.interactions.web.v1; the reasoning recipe is read from reasoning_recipe in gemini_interactions.request-golden.v1.json (it must match the same-id server recipe field by field, which a server-side golden-match test guards).",
+    "messages": "Client-neutral description, same as request-golden: role is user or assistant; text parts are used verbatim; video parts carry mime_type and base64 data. Requests are always streaming.",
+    "selection": "Interactions is selected only when the model transport is gemini_interactions, web search is on, the web control selects the endpoint_route recipe, and the outbound history (the messages actually sent after context trimming) contains no video attachment. An attachment of video type counts whether or not its bytes are loaded; the pre-send check and the model panel's file-card prediction use the same outbound history. Once selected, the thinking recipe is the gemini_interactions-protocol request_overlay that capability_controls.reasoning points to; reasoning=null (automatic) also uses it, compiled inside the builder with selectedIntent=null and not counted as requested.",
+    "generate_content_fallback": "When Interactions is not selected and the request goes through generateContent, any recipe whose transport.protocol is gemini_interactions stays out of the request body (not compiled, not counted as requested); generateContent is sent by the current builder, and video is delivered as inlineData as it is today.",
+    "assertions": "route=interactions: the URL path ends with expected.path_suffix, the body's generation_config after normalization equals expected.generation_config (null means the key must not appear), and tools equals expected.tools. route=generate_content: the URL path contains :streamGenerateContent; the body has no input / store / generation_config key, no thinking_summaries or thinking_level key at any level, and no tools; when expected.video_inline is non-empty, exactly one part in contents has an inlineData of {mimeType, data} equal to it."
+  },
+  "model": {"providerKind": "gemini", "modelId": "gemini-3.5-flash", "transport": "gemini_interactions"},
+  "capability_controls": {
+    "web": {"state": "auto_available", "recipeRef": "gemini.interactions.web.v1", "sourceRefs": ["gemini.interactions"]},
+    "reasoning": {"state": "auto_available", "recipeRef": "gemini.interactions.reasoning.v1", "sourceRefs": ["gemini.interactions"], "availableIntents": ["off", "low", "balanced", "deep"]},
+    "generation": {"state": "custom_only", "reasonCode": "transport_not_supported", "sourceRefs": ["gemini.thinking"]}
+  },
+  "cases": [
+    {
+      "id": "GI_SEL_REASONING_EXPLICIT",
+      "input": {"web": true, "reasoning": "deep", "messages": [{"role": "user", "parts": [{"type": "text", "text": "Who won Euro 2024?"}]}]},
+      "expected": {"route": "interactions", "path_suffix": "/v1beta/interactions", "generation_config": {"thinking_level": "high", "thinking_summaries": "auto"}, "tools": [{"type": "google_search"}]}
+    },
+    {
+      "id": "GI_SEL_REASONING_AUTOMATIC",
+      "input": {"web": true, "reasoning": null, "messages": [{"role": "user", "parts": [{"type": "text", "text": "Who won Euro 2024?"}]}]},
+      "expected": {"route": "interactions", "path_suffix": "/v1beta/interactions", "generation_config": {"thinking_summaries": "auto"}, "tools": [{"type": "google_search"}]}
+    },
+    {
+      "id": "GI_SEL_WEB_OFF_STAYS_GENERATE",
+      "input": {"web": false, "reasoning": "deep", "messages": [{"role": "user", "parts": [{"type": "text", "text": "Hello"}]}]},
+      "expected": {"route": "generate_content", "video_inline": null}
+    },
+    {
+      "id": "GI_SEL_VIDEO_EXCLUDES_INTERACTIONS",
+      "input": {"web": true, "reasoning": "deep", "messages": [{"role": "user", "parts": [{"type": "text", "text": "What happens in this clip?"}, {"type": "video", "mime_type": "video/mp4", "data": "AAAAIGZ0eXBpc29t"}]}]},
+      "expected": {"route": "generate_content", "video_inline": {"mimeType": "video/mp4", "data": "AAAAIGZ0eXBpc29t"}}
+    },
+    {
+      "id": "GI_SEL_VIDEO_IN_HISTORY_EXCLUDES_INTERACTIONS",
+      "input": {"web": true, "reasoning": null, "messages": [{"role": "user", "parts": [{"type": "text", "text": "What happens in this clip?"}, {"type": "video", "mime_type": "video/mp4", "data": "AAAAIGZ0eXBpc29t"}]}, {"role": "assistant", "parts": [{"type": "text", "text": "A ball rolls."}]}, {"role": "user", "parts": [{"type": "text", "text": "And then?"}]}]},
+      "expected": {"route": "generate_content", "video_inline": {"mimeType": "video/mp4", "data": "AAAAIGZ0eXBpc29t"}}
+    },
+    {
+      "id": "GI_SEL_VIDEO_WITHOUT_DATA_EXCLUDES_INTERACTIONS",
+      "input": {"web": true, "reasoning": "deep", "messages": [{"role": "user", "parts": [{"type": "text", "text": "What happens in this clip?"}, {"type": "video", "mime_type": "video/mp4", "data": null}]}]},
+      "expected": {"route": "generate_content", "video_inline": null}
+    }
+  ]
+}

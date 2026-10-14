@@ -1,0 +1,42 @@
+{
+  "$comment": "RL2-MIGRATE-01 baseline: whole outbound request (method, URL, headers, body bytes) per case, recorded on each end BEFORE the U5 choke-point replacement and replayed byte-for-byte after it. Inputs are shared so the three ends can be diffed; outputs live in <end>.v1.json next to this file and are NOT expected to be identical across ends (key order and the v2 version-segment handling differ today). The API key is a fake literal and is recorded as is. No network: each end captures the request at its HTTP seam.",
+  "version": 1,
+  "apiKey": "sk-golden-0000",
+  "conversation": [
+    {"role": "system", "content": "You are a golden fixture."},
+    {"role": "user", "content": "Hello"},
+    {"role": "assistant", "content": "Hi there."},
+    {"role": "user", "content": "Summarize in one word."}
+  ],
+  "defaults": {"stream": true, "attachments": [], "tools": [], "webSearch": false, "reasoning": "provider default", "generationParameters": "none set"},
+  "official": [
+    {"caseId": "official_openAI", "providerKind": "openAI", "model": "gpt-4o"},
+    {"caseId": "official_anthropic", "providerKind": "anthropic", "model": "claude-sonnet-4-5"},
+    {"caseId": "official_gemini", "providerKind": "gemini", "model": "gemini-2.5-flash"},
+    {"caseId": "official_openRouter", "providerKind": "openRouter", "model": "openai/gpt-4o"},
+    {"caseId": "official_deepseek", "providerKind": "deepseek", "model": "deepseek-chat"},
+    {"caseId": "official_groq", "providerKind": "groq", "model": "llama-3.3-70b-versatile"},
+    {"caseId": "official_siliconFlow", "providerKind": "siliconFlow", "model": "Qwen/Qwen2.5-7B-Instruct"},
+    {"caseId": "official_togetherAI", "providerKind": "togetherAI", "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo"},
+    {"caseId": "official_fireworksAI", "providerKind": "fireworksAI", "model": "accounts/fireworks/models/llama-v3p3-70b-instruct"},
+    {"caseId": "official_miniMax", "providerKind": "miniMax", "model": "MiniMax-M2"},
+    {"caseId": "official_zhipu", "providerKind": "zhipu", "model": "glm-4.6"},
+    {"caseId": "official_qwen", "providerKind": "qwen", "model": "qwen-plus"},
+    {"caseId": "official_grok", "providerKind": "grok", "model": "grok-4"},
+    {"caseId": "official_moonshot", "providerKind": "moonshot", "model": "kimi-k2-0905-preview"},
+    {"caseId": "official_mistral", "providerKind": "mistral", "model": "mistral-large-latest"}
+  ],
+  "relay": [
+    {"caseId": "relay_chat_bare_host", "baseURL": "https://relay.example.com", "relayRequested": {"transport": "openai_chat_completions"}},
+    {"caseId": "relay_auto_bare_host", "baseURL": "https://relay.example.com", "relayRequested": {"transport": "auto"}},
+    {"caseId": "relay_responses_bare_host", "baseURL": "https://relay.example.com", "relayRequested": {"transport": "openai_responses"}},
+    {"caseId": "relay_messages_bare_host", "baseURL": "https://relay.example.com", "relayRequested": {"transport": "anthropic_messages"}},
+    {"caseId": "relay_gemini_bare_host", "baseURL": "https://relay.example.com", "relayRequested": {"transport": "gemini_generate_content"}},
+    {"caseId": "relay_chat_v1_in_base", "baseURL": "https://relay.example.com/v1", "relayRequested": {"transport": "openai_chat_completions"}},
+    {"caseId": "relay_chat_v2_in_base", "$comment": "v2 version segment: iOS/Android only recognise v1/v1beta, Web recognises v\\d+(alpha|beta)?; the three ends are expected to differ here today", "baseURL": "https://relay.example.com/v2", "relayRequested": {"transport": "openai_chat_completions"}},
+    {"caseId": "relay_messages_legacy_resolved_root", "baseURL": "https://relay.example.com", "relayRequested": {"transport": "anthropic_messages", "resolvedAPIBaseURL": "https://relay.example.com/custom/v1"}},
+    {"caseId": "relay_chat_legacy_resolved_root", "baseURL": "https://relay.example.com", "relayRequested": {"transport": "openai_chat_completions", "resolvedAPIBaseURL": "https://relay.example.com/gateway/v1"}}
+  ],
+  "relayModel": "golden-relay-model",
+  "record": {"shape": {"caseId": "string", "method": "string", "url": "string", "headers": "object, lower-cased names, sorted, values verbatim", "body": "string, exact bytes as sent"}, "unsupported": "a case the end cannot build today is recorded as {caseId, unsupported: \"<reason>\"} instead of being skipped"}
+}

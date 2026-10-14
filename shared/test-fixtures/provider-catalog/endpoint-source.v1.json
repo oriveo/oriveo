@@ -1,0 +1,184 @@
+{
+  "$comment": "An official provider record keeps a local-only `endpointSource`: `default`, `region:<id>` or `custom`. `default` and `region:<id>` resolve their base URL from the current metadata at request time, so a server-side change reaches existing records without a release; `custom` and anything that cannot be resolved keep today's literal `baseURLText`. `baseURLText` is still written as before (older clients and sync read it). Never synced, never exported. Normalisation before matching: trim, lowercase scheme and host, drop trailing slashes, drop a trailing `/compatible-mode/v1`. A region match wins over a default match. Metadata values are the trusted-host filtered ones: an untrusted metadata URL counts as absent.",
+  "version": 1,
+  "configs": {
+    "qwen": {
+      "kind": "qwen",
+      "defaultBaseURL": "https://dashscope-intl.aliyuncs.com",
+      "trustedHosts": ["aliyuncs.com"],
+      "regionOptions": [
+        { "id": "sg", "label": "Singapore", "baseURL": "https://dashscope-intl.aliyuncs.com" },
+        { "id": "bj", "label": "Beijing", "baseURL": "https://dashscope.aliyuncs.com" }
+      ]
+    },
+    "deepseek": {
+      "kind": "deepseek",
+      "defaultBaseURL": "https://api.deepseek.com",
+      "trustedHosts": ["deepseek.com"]
+    },
+    "together": {
+      "kind": "togetherAI",
+      "defaultBaseURL": "https://api.together.xyz/v1",
+      "trustedHosts": ["together.xyz"]
+    },
+    "zhipu": {
+      "kind": "zhipu",
+      "defaultBaseURL": "https://open.bigmodel.cn/api/paas/v4",
+      "trustedHosts": ["bigmodel.cn"]
+    }
+  },
+  "classifyCases": [
+    { "caseId": "empty_is_default", "config": "deepseek", "baseURLText": null, "expect": "default" },
+    { "caseId": "blank_is_default", "config": "deepseek", "baseURLText": "   ", "expect": "default" },
+    { "caseId": "equal_to_default_is_default", "config": "deepseek", "baseURLText": "https://api.deepseek.com/", "expect": "default" },
+    { "caseId": "region_match_exact", "config": "qwen", "baseURLText": "https://dashscope.aliyuncs.com", "expect": "region:bj" },
+    { "caseId": "region_match_trailing_slash", "config": "qwen", "baseURLText": "https://dashscope.aliyuncs.com/", "expect": "region:bj" },
+    { "caseId": "region_match_legacy_compat_suffix", "config": "qwen", "baseURLText": "https://dashscope.aliyuncs.com/compatible-mode/v1", "expect": "region:bj" },
+    { "caseId": "region_match_case_insensitive_host", "config": "qwen", "baseURLText": "https://DashScope.aliyuncs.com", "expect": "region:bj" },
+    { "caseId": "region_beats_default_when_equal", "config": "qwen", "baseURLText": "https://dashscope-intl.aliyuncs.com", "expect": "region:sg" },
+    { "caseId": "other_host_is_custom", "config": "qwen", "baseURLText": "https://proxy.example.com/v1", "expect": "custom" },
+    { "caseId": "empty_with_regions_is_default", "config": "qwen", "baseURLText": null, "expect": "default" }
+  ],
+  "resolveCases": [
+    {
+      "caseId": "region_follows_metadata_change",
+      "config": "qwen",
+      "stored": { "baseURLText": "https://dashscope.aliyuncs.com", "endpointSource": "region:bj" },
+      "metadataPatch": { "regionOptions.bj.baseURL": "https://cn-beijing.dashscope.aliyuncs.com" },
+      "expectBaseURL": "https://cn-beijing.dashscope.aliyuncs.com"
+    },
+    {
+      "caseId": "default_follows_metadata_change",
+      "config": "deepseek",
+      "stored": { "baseURLText": "https://api.deepseek.com", "endpointSource": "default" },
+      "metadataPatch": { "defaultBaseURL": "https://api2.deepseek.com" },
+      "expectBaseURL": "https://api2.deepseek.com"
+    },
+    {
+      "caseId": "custom_keeps_literal",
+      "config": "qwen",
+      "stored": { "baseURLText": "https://proxy.example.com/v1", "endpointSource": "custom" },
+      "metadataPatch": {},
+      "expectBaseURL": "https://proxy.example.com/v1"
+    },
+    {
+      "caseId": "region_removed_falls_back_to_literal",
+      "config": "qwen",
+      "stored": { "baseURLText": "https://dashscope.aliyuncs.com", "endpointSource": "region:bj" },
+      "metadataPatch": { "regionOptions.bj": null },
+      "expectBaseURL": "https://dashscope.aliyuncs.com"
+    },
+    {
+      "caseId": "untrusted_metadata_falls_back_to_literal",
+      "config": "qwen",
+      "stored": { "baseURLText": "https://dashscope.aliyuncs.com", "endpointSource": "region:bj" },
+      "metadataPatch": { "regionOptions.bj.baseURL": "https://evil.example.com" },
+      "expectBaseURL": "https://dashscope.aliyuncs.com"
+    },
+    {
+      "caseId": "no_metadata_uses_literal",
+      "config": "qwen",
+      "stored": { "baseURLText": "https://dashscope.aliyuncs.com", "endpointSource": "region:bj" },
+      "metadataPatch": "absent",
+      "expectBaseURL": "https://dashscope.aliyuncs.com"
+    },
+    {
+      "caseId": "missing_source_is_classified_then_follows",
+      "config": "qwen",
+      "stored": { "baseURLText": "https://dashscope.aliyuncs.com", "endpointSource": null },
+      "classifyWithBaseMetadataFirst": true,
+      "metadataPatch": { "regionOptions.bj.baseURL": "https://cn-beijing.dashscope.aliyuncs.com" },
+      "expectEndpointSource": "region:bj",
+      "expectBaseURL": "https://cn-beijing.dashscope.aliyuncs.com"
+    }
+  ],
+  "writeCases": [
+    { "caseId": "setup_region_choice_writes_region", "config": "qwen", "action": "setup", "regionId": "bj", "expect": { "endpointSource": "region:bj", "baseURLText": "https://dashscope.aliyuncs.com" } },
+    { "caseId": "setup_without_regions_writes_default", "config": "deepseek", "action": "setup", "regionId": null, "expect": { "endpointSource": "default", "baseURLText": "https://api.deepseek.com" } },
+    { "caseId": "edit_base_reclassifies", "config": "qwen", "action": "editBaseURL", "before": { "baseURLText": "https://dashscope.aliyuncs.com", "endpointSource": "region:bj" }, "baseURLText": "https://proxy.example.com", "expect": { "endpointSource": "custom", "baseURLText": "https://proxy.example.com" } },
+    { "caseId": "sync_incoming_base_reclassifies", "config": "qwen", "action": "syncApply", "before": { "baseURLText": "https://dashscope.aliyuncs.com", "endpointSource": "region:bj" }, "baseURLText": "https://dashscope-intl.aliyuncs.com", "expect": { "endpointSource": "region:sg", "baseURLText": "https://dashscope-intl.aliyuncs.com" } },
+    { "caseId": "never_in_sync_payload", "config": "qwen", "action": "syncUpload", "before": { "baseURLText": "https://dashscope.aliyuncs.com", "endpointSource": "region:bj" }, "expect": { "payloadHasKey": "baseURL", "payloadLacksKey": "endpointSource" } }
+  ],
+  "$e3Comment": "metadataPatch keys without a dot (`defaultBaseURL`, `trustedHosts`, `regionOptions`) replace the whole value; `zhipuE3` is the metadata a later change will ship. `reconcileCases` run the lazy migration: `expect` is what the startup backfill persists (never bumps updatedAt, never uploads), `expectRequestBaseURL` is what the next request uses (the same rules applied in memory at request time). Rule R1: a record on a retired region (source `region:<regionId>` or literal host equal to `host`, any source) moves to `replacement`, literal rewritten to the replacement URL of the current trusted metadata, or the built-in one when metadata is absent; runs without metadata. Rule R2: source `default` with a non-empty literal that matches a current trusted region option becomes `region:<id>`, literal unchanged. `identityCases` give the region segment of the deterministic provider id (before the SiliconFlow cn fold): taken from the frozen `identityRegions` table only, never from metadata; a `region:<id>` source wins when the id is in that table, else today's literal lookup; a kind absent from the table is always empty. `echoCases` give the region the detail page shows as selected: a `region:<id>` source wins when the option is in the displayed (trusted) catalog, else today's literal behaviour. `regionPickerCases`: the region picker is shown, and a region change is saved, exactly when the displayed catalog has at least one region option. `builtInCases` pin the built-in fallback table (no metadata). Classification adds one step: region match, then current trusted metadata default, then the built-in default of `builtInDefaults` (the full URL setup writes when metadata is absent), else `custom` — a record created before a server-side default move still counts as `default` and follows it.",
+  "metadataPresets": {
+    "zhipuE3": {
+      "defaultBaseURL": "https://api.z.ai/api/paas/v4",
+      "trustedHosts": ["bigmodel.cn", "z.ai"],
+      "regionOptions": [
+        { "id": "intl", "label": "International (api.z.ai)", "baseURL": "https://api.z.ai/api/paas/v4" },
+        { "id": "cn", "label": "China Mainland (open.bigmodel.cn)", "baseURL": "https://open.bigmodel.cn/api/paas/v4" }
+      ]
+    },
+    "togetherAi": {
+      "defaultBaseURL": "https://api.together.ai/v1",
+      "trustedHosts": ["together.xyz", "together.ai"]
+    }
+  },
+  "builtInDefaults": {
+    "qwen": "https://dashscope-intl.aliyuncs.com",
+    "together": "https://api.together.xyz/v1",
+    "zhipu": "https://open.bigmodel.cn/api/paas/v4"
+  },
+  "retiredRegions": [
+    { "kind": "qwen", "regionId": "us", "host": "dashscope-us.aliyuncs.com", "replacement": "sg", "builtInReplacementBaseURL": "https://dashscope-intl.aliyuncs.com" }
+  ],
+  "identityRegions": {
+    "miniMax": [
+      { "id": "global", "baseURL": "https://api.minimax.io/v1" },
+      { "id": "cn", "baseURL": "https://api.minimaxi.com/v1" }
+    ],
+    "qwen": [
+      { "id": "sg", "baseURL": "https://dashscope-intl.aliyuncs.com" },
+      { "id": "bj", "baseURL": "https://dashscope.aliyuncs.com" },
+      { "id": "hk", "baseURL": "https://cn-hongkong.dashscope.aliyuncs.com" },
+      { "id": "us", "baseURL": "https://dashscope-us.aliyuncs.com" }
+    ],
+    "moonshot": [
+      { "id": "intl", "baseURL": "https://api.moonshot.ai/v1" },
+      { "id": "cn", "baseURL": "https://api.moonshot.cn/v1" }
+    ],
+    "siliconFlow": [
+      { "id": "cn", "baseURL": "https://api.siliconflow.cn/v1" },
+      { "id": "intl", "baseURL": "https://api.siliconflow.com/v1" }
+    ]
+  },
+  "reconcileCases": [
+    { "caseId": "qwen_us_region_moves_to_sg", "config": "qwen", "metadataPatch": {}, "stored": { "baseURLText": "https://dashscope-us.aliyuncs.com", "endpointSource": "region:us" }, "expect": { "endpointSource": "region:sg", "baseURLText": "https://dashscope-intl.aliyuncs.com" }, "expectRequestBaseURL": "https://dashscope-intl.aliyuncs.com", "sendPath": true },
+    { "caseId": "qwen_us_literal_unclassified_moves_to_sg", "config": "qwen", "metadataPatch": {}, "stored": { "baseURLText": "https://dashscope-us.aliyuncs.com", "endpointSource": null }, "expect": { "endpointSource": "region:sg", "baseURLText": "https://dashscope-intl.aliyuncs.com" }, "expectRequestBaseURL": "https://dashscope-intl.aliyuncs.com" },
+    { "caseId": "qwen_us_custom_literal_moves_to_sg", "config": "qwen", "metadataPatch": {}, "stored": { "baseURLText": "https://dashscope-us.aliyuncs.com/compatible-mode/v1", "endpointSource": "custom" }, "expect": { "endpointSource": "region:sg", "baseURLText": "https://dashscope-intl.aliyuncs.com" }, "expectRequestBaseURL": "https://dashscope-intl.aliyuncs.com" },
+    { "caseId": "qwen_us_without_metadata_moves_to_builtin_sg", "config": "qwen", "metadataPatch": "absent", "stored": { "baseURLText": "https://dashscope-us.aliyuncs.com", "endpointSource": "region:us" }, "expect": { "endpointSource": "region:sg", "baseURLText": "https://dashscope-intl.aliyuncs.com" }, "expectRequestBaseURL": "https://dashscope-intl.aliyuncs.com" },
+    { "caseId": "zhipu_cn_literal_default_pins_cn", "config": "zhipu", "metadataPatch": "zhipuE3", "stored": { "baseURLText": "https://open.bigmodel.cn/api/paas/v4", "endpointSource": "default" }, "expect": { "endpointSource": "region:cn", "baseURLText": "https://open.bigmodel.cn/api/paas/v4" }, "expectRequestBaseURL": "https://open.bigmodel.cn/api/paas/v4", "sendPath": true },
+    { "caseId": "zhipu_cn_literal_unclassified_pins_cn", "config": "zhipu", "metadataPatch": "zhipuE3", "stored": { "baseURLText": "https://open.bigmodel.cn/api/paas/v4", "endpointSource": null }, "expect": { "endpointSource": "region:cn", "baseURLText": "https://open.bigmodel.cn/api/paas/v4" }, "expectRequestBaseURL": "https://open.bigmodel.cn/api/paas/v4" },
+    { "caseId": "zhipu_empty_literal_follows_new_default", "config": "zhipu", "metadataPatch": "zhipuE3", "stored": { "baseURLText": null, "endpointSource": "default" }, "expect": { "endpointSource": "default", "baseURLText": null }, "expectRequestBaseURL": "https://api.z.ai/api/paas/v4" },
+    { "caseId": "zhipu_before_regions_stays_default", "config": "zhipu", "metadataPatch": {}, "stored": { "baseURLText": "https://open.bigmodel.cn/api/paas/v4", "endpointSource": "default" }, "expect": { "endpointSource": "default", "baseURLText": "https://open.bigmodel.cn/api/paas/v4" }, "expectRequestBaseURL": "https://open.bigmodel.cn/api/paas/v4" },
+    { "caseId": "together_default_moves_to_ai", "config": "together", "metadataPatch": "togetherAi", "stored": { "baseURLText": "https://api.together.xyz/v1", "endpointSource": "default" }, "expect": { "endpointSource": "default", "baseURLText": "https://api.together.xyz/v1" }, "expectRequestBaseURL": "https://api.together.ai/v1", "sendPath": true },
+    { "caseId": "together_unclassified_moves_to_ai", "config": "together", "metadataPatch": "togetherAi", "stored": { "baseURLText": "https://api.together.xyz/v1", "endpointSource": null }, "expect": { "endpointSource": "default", "baseURLText": "https://api.together.xyz/v1" }, "expectRequestBaseURL": "https://api.together.ai/v1" },
+    { "caseId": "together_ai_untrusted_keeps_literal", "config": "together", "metadataPatch": { "defaultBaseURL": "https://api.together.ai/v1" }, "stored": { "baseURLText": "https://api.together.xyz/v1", "endpointSource": "default" }, "expect": { "endpointSource": "default", "baseURLText": "https://api.together.xyz/v1" }, "expectRequestBaseURL": "https://api.together.xyz/v1" },
+    { "caseId": "together_custom_keeps_literal", "config": "together", "metadataPatch": "togetherAi", "stored": { "baseURLText": "https://proxy.example.com/v1", "endpointSource": "custom" }, "expect": { "endpointSource": "custom", "baseURLText": "https://proxy.example.com/v1" }, "expectRequestBaseURL": "https://proxy.example.com/v1" }
+  ],
+  "identityCases": [
+    { "caseId": "identity_region_source_beats_moved_literal", "config": "qwen", "metadataPatch": { "regionOptions.bj.baseURL": "https://cn-beijing.dashscope.aliyuncs.com" }, "stored": { "baseURLText": "https://cn-beijing.dashscope.aliyuncs.com", "endpointSource": "region:bj" }, "expectRegionId": "bj" },
+    { "caseId": "identity_unclassified_uses_literal", "config": "qwen", "metadataPatch": {}, "stored": { "baseURLText": "https://dashscope.aliyuncs.com", "endpointSource": null }, "expectRegionId": "bj" },
+    { "caseId": "identity_retired_us_literal_keeps_us", "config": "qwen", "metadataPatch": {}, "stored": { "baseURLText": "https://dashscope-us.aliyuncs.com", "endpointSource": null }, "expectRegionId": "us" },
+    { "caseId": "identity_zhipu_cn_ignores_metadata_regions", "config": "zhipu", "metadataPatch": "zhipuE3", "stored": { "baseURLText": "https://open.bigmodel.cn/api/paas/v4", "endpointSource": "region:cn" }, "expectRegionId": "" },
+    { "caseId": "identity_zhipu_intl_ignores_metadata_regions", "config": "zhipu", "metadataPatch": "zhipuE3", "stored": { "baseURLText": "https://api.z.ai/api/paas/v4", "endpointSource": "region:intl" }, "expectRegionId": "" }
+  ],
+  "echoCases": [
+    { "caseId": "echo_region_source_after_metadata_moves_address", "config": "qwen", "metadataPatch": { "regionOptions.bj.baseURL": "https://cn-beijing.dashscope.aliyuncs.com" }, "stored": { "baseURLText": "https://dashscope.aliyuncs.com", "endpointSource": "region:bj" }, "expectRegionId": "bj" },
+    { "caseId": "echo_unclassified_uses_literal", "config": "qwen", "metadataPatch": {}, "stored": { "baseURLText": "https://dashscope.aliyuncs.com", "endpointSource": null }, "expectRegionId": "bj" },
+    { "caseId": "echo_source_region_not_in_catalog_uses_literal", "config": "qwen", "metadataPatch": {}, "stored": { "baseURLText": "https://dashscope.aliyuncs.com", "endpointSource": "region:hk" }, "expectRegionId": "bj" },
+    { "caseId": "echo_zhipu_cn_after_e3", "config": "zhipu", "metadataPatch": "zhipuE3", "stored": { "baseURLText": "https://open.bigmodel.cn/api/paas/v4", "endpointSource": "region:cn" }, "expectRegionId": "cn" }
+  ],
+  "regionPickerCases": [
+    { "caseId": "picker_zhipu_after_e3", "config": "zhipu", "metadataPatch": "zhipuE3", "expectShown": true },
+    { "caseId": "picker_zhipu_before_e3", "config": "zhipu", "metadataPatch": {}, "expectShown": false },
+    { "caseId": "picker_together", "config": "together", "metadataPatch": "togetherAi", "expectShown": false },
+    { "caseId": "picker_qwen", "config": "qwen", "metadataPatch": {}, "expectShown": true }
+  ],
+  "builtInCases": [
+    { "caseId": "builtin_qwen_selectable_regions_drop_us", "kind": "qwen", "expectRegionIds": ["sg", "bj", "hk"] },
+    { "caseId": "builtin_qwen_default_is_intl", "kind": "qwen", "expectDefaultMatchKey": "https://dashscope-intl.aliyuncs.com" },
+    { "caseId": "builtin_zhipu_has_no_regions", "kind": "zhipu", "expectRegionIds": [] },
+    { "caseId": "builtin_defaults_match_fixture", "kinds": ["qwen", "together", "zhipu"], "expectEqualsBuiltInDefaults": true }
+  ]
+}

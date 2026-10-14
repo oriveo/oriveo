@@ -1,0 +1,72 @@
+{
+  "$comment": "Subscription upstream /models responses for the CAP-SUB-* contract tests. Field shapes follow each end's production decoder for the Grok CLI proxy (data[].supports_backend_search / api_backend / reasoning_efforts[].value+default) and the Codex backend (models[].slug / visibility / supported_in_api / web_search_tool_type / supported_reasoning_levels[].effort / default_reasoning_level / input_modalities). Values are test values, not a recording. Every end decodes these bodies with its production decoder and maps them with its production catalog mapping; expected lists what verdict, presentation and outbound body must follow.",
+  "version": 1,
+  "grok_models": {
+    "object": "list",
+    "data": [
+      {
+        "id": "grok-4.6",
+        "name": "Grok 4.6",
+        "api_backend": "responses",
+        "supports_backend_search": true,
+        "supports_reasoning_effort": true,
+        "reasoning_efforts": [
+          { "value": "low" },
+          { "value": "high", "default": true }
+        ],
+        "context_window": 256000
+      },
+      {
+        "id": "grok-4.6-chat",
+        "name": "Grok 4.6 (chat backend)",
+        "api_backend": "chat",
+        "supports_backend_search": true,
+        "supports_reasoning_effort": false,
+        "reasoning_efforts": [],
+        "context_window": 256000
+      }
+    ]
+  },
+  "codex_models": {
+    "models": [
+      {
+        "slug": "gpt-5.6-sol",
+        "display_name": "GPT-5.6 Sol",
+        "visibility": "list",
+        "supported_in_api": true,
+        "web_search_tool_type": "web_search",
+        "supported_reasoning_levels": [
+          { "effort": "low" },
+          { "effort": "medium" },
+          { "effort": "high" },
+          { "effort": "xhigh" }
+        ],
+        "default_reasoning_level": "medium",
+        "input_modalities": ["text", "image"],
+        "context_window": 272000
+      }
+    ]
+  },
+  "expected": {
+    "grok-4.6": {
+      "transport": "openai_responses",
+      "web": { "state": "auto_available", "intents": ["automatic"], "reasonCode": "subscription_web_always_on", "presentation": "alwaysOn" },
+      "webRow": { "shape": "notice", "status": "Always on", "body": "This subscription always searches the web for this model.", "link": null },
+      "outboundToolsWithWebPreferenceOff": [{ "type": "web_search" }],
+      "automaticEffort": "high",
+      "fileLine": { "nativeFileBlock": "input_file", "nativeFiles": "alwaysWithTextFallback" }
+    },
+    "grok-4.6-chat": {
+      "transport": "openai_chat",
+      "web": { "state": "unavailable", "reasonCode": "upstream_transport_without_web_search" }
+    },
+    "gpt-5.6-sol": {
+      "transport": "openai_responses",
+      "web": { "state": "auto_available", "intents": ["off", "automatic"], "reasonCode": "subscription_upstream_declared", "presentation": "automaticAvailable" },
+      "outboundToolsWithWebPreferenceOff": null,
+      "reasoningIntents": ["low", "balanced", "deep", "max"],
+      "effortForIntent": { "low": "low", "balanced": "medium", "deep": "high", "max": "xhigh" },
+      "automaticEffort": null
+    }
+  }
+}

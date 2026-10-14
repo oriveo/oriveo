@@ -214,5 +214,314 @@
       },
       "expected": false
     }
-  ]
+  ],
+  "relayCases": {
+    "_comment": "Relay connections (providerKind relay, including local engine connections) identify a model by its literal ID: trimmed, case-insensitive. Date snapshots, canonicalModelId and display names never make two relay models the same. canonicalModelId is only read by readCompatCases (stored values written before literal identity). Consumers: iOS / Android / Web ModelIdentityContract tests.",
+    "providerKind": "relay",
+    "sameRemoteCases": [
+      {
+        "id": "relay_base_and_dated_snapshot_are_different_models",
+        "left": {
+          "id": "gpt-4o",
+          "name": "GPT-4o",
+          "canonicalModelId": "gpt-4o"
+        },
+        "right": {
+          "id": "gpt-4o-2024-08-06",
+          "name": "GPT-4o",
+          "canonicalModelId": "gpt-4o"
+        },
+        "expected": false
+      },
+      {
+        "id": "relay_two_dated_snapshots_are_different_models",
+        "left": {
+          "id": "gpt-4o-2024-08-06",
+          "name": "GPT-4o",
+          "canonicalModelId": "gpt-4o"
+        },
+        "right": {
+          "id": "gpt-4o-2024-11-20",
+          "name": "GPT-4o",
+          "canonicalModelId": "gpt-4o"
+        },
+        "expected": false
+      },
+      {
+        "id": "relay_ids_differing_only_in_case_are_same_model",
+        "left": {
+          "id": "GPT-4o",
+          "name": "GPT-4o",
+          "canonicalModelId": "gpt-4o"
+        },
+        "right": {
+          "id": "gpt-4o",
+          "name": "GPT-4o",
+          "canonicalModelId": "gpt-4o"
+        },
+        "expected": true
+      },
+      {
+        "id": "relay_ids_differing_only_in_surrounding_whitespace_are_same_model",
+        "left": {
+          "id": " gpt-4o ",
+          "name": "GPT-4o",
+          "canonicalModelId": "gpt-4o"
+        },
+        "right": {
+          "id": "gpt-4o",
+          "name": "GPT-4o",
+          "canonicalModelId": "gpt-4o"
+        },
+        "expected": true
+      },
+      {
+        "id": "relay_same_display_name_and_canonical_different_id_are_different_models",
+        "left": {
+          "id": "claude-sonnet-4-5",
+          "name": "Claude Sonnet 4.5",
+          "canonicalModelId": "anthropic/claude-sonnet-4.5"
+        },
+        "right": {
+          "id": "anthropic/claude-sonnet-4.5",
+          "name": "Claude Sonnet 4.5",
+          "canonicalModelId": "anthropic/claude-sonnet-4.5"
+        },
+        "expected": false
+      }
+    ],
+    "lookupCases": [
+      {
+        "id": "relay_base_query_does_not_match_dated_snapshot",
+        "query": "gpt-4o",
+        "models": [
+          {
+            "id": "gpt-4o-2024-08-06",
+            "name": "GPT-4o",
+            "canonicalModelId": "gpt-4o"
+          }
+        ],
+        "expectedModelId": null
+      },
+      {
+        "id": "relay_dated_query_matches_dated_snapshot_not_base",
+        "query": "gpt-4o-2024-08-06",
+        "models": [
+          {
+            "id": "gpt-4o",
+            "name": "GPT-4o",
+            "canonicalModelId": "gpt-4o"
+          },
+          {
+            "id": "gpt-4o-2024-08-06",
+            "name": "GPT-4o",
+            "canonicalModelId": "gpt-4o"
+          }
+        ],
+        "expectedModelId": "gpt-4o-2024-08-06"
+      },
+      {
+        "id": "relay_base_query_matches_base_not_dated_snapshot",
+        "query": "gpt-4o",
+        "models": [
+          {
+            "id": "gpt-4o-2024-08-06",
+            "name": "GPT-4o",
+            "canonicalModelId": "gpt-4o"
+          },
+          {
+            "id": "gpt-4o",
+            "name": "GPT-4o",
+            "canonicalModelId": "gpt-4o"
+          }
+        ],
+        "expectedModelId": "gpt-4o"
+      },
+      {
+        "id": "relay_query_matches_ignoring_case",
+        "query": "GPT-4O",
+        "models": [
+          {
+            "id": "gpt-4o",
+            "name": "GPT-4o",
+            "canonicalModelId": "gpt-4o"
+          }
+        ],
+        "expectedModelId": "gpt-4o"
+      },
+      {
+        "id": "relay_query_never_matches_by_display_name",
+        "query": "GPT-4o (Relay)",
+        "models": [
+          {
+            "id": "gpt-4o",
+            "name": "GPT-4o (Relay)",
+            "canonicalModelId": "gpt-4o"
+          }
+        ],
+        "expectedModelId": null
+      }
+    ],
+    "storedIdentifierCases": [
+      {
+        "id": "relay_dated_snapshot_stores_literal_id",
+        "model": {
+          "id": "gpt-4o-2024-08-06",
+          "name": "GPT-4o",
+          "canonicalModelId": "gpt-4o"
+        },
+        "expectedStoredModelId": "gpt-4o-2024-08-06"
+      },
+      {
+        "id": "relay_model_with_foreign_canonical_stores_literal_id",
+        "model": {
+          "id": "my-gpt",
+          "name": "My GPT",
+          "canonicalModelId": "gpt-4o"
+        },
+        "expectedStoredModelId": "my-gpt"
+      }
+    ],
+    "dedupeCases": [
+      {
+        "id": "relay_dedupe_keeps_base_and_dated_snapshots",
+        "models": [
+          {
+            "id": "gpt-4o-2024-08-06",
+            "name": "GPT-4o",
+            "canonicalModelId": "gpt-4o"
+          },
+          {
+            "id": "gpt-4o",
+            "name": "GPT-4o",
+            "canonicalModelId": "gpt-4o"
+          },
+          {
+            "id": "gpt-4o-2024-11-20",
+            "name": "GPT-4o",
+            "canonicalModelId": "gpt-4o"
+          }
+        ],
+        "expectedModelIds": [
+          "gpt-4o-2024-08-06",
+          "gpt-4o",
+          "gpt-4o-2024-11-20"
+        ]
+      },
+      {
+        "id": "relay_dedupe_keeps_same_display_name_different_ids",
+        "models": [
+          {
+            "id": "claude-sonnet-4-5",
+            "name": "Claude Sonnet 4.5",
+            "canonicalModelId": "anthropic/claude-sonnet-4.5"
+          },
+          {
+            "id": "anthropic/claude-sonnet-4.5",
+            "name": "Claude Sonnet 4.5",
+            "canonicalModelId": "anthropic/claude-sonnet-4.5"
+          }
+        ],
+        "expectedModelIds": [
+          "claude-sonnet-4-5",
+          "anthropic/claude-sonnet-4.5"
+        ]
+      },
+      {
+        "id": "relay_dedupe_collapses_case_only_duplicates_keeping_first",
+        "models": [
+          {
+            "id": "GPT-4o",
+            "name": "GPT-4o",
+            "canonicalModelId": "gpt-4o"
+          },
+          {
+            "id": "gpt-4o",
+            "name": "GPT-4o",
+            "canonicalModelId": "gpt-4o"
+          }
+        ],
+        "expectedModelIds": [
+          "GPT-4o"
+        ]
+      }
+    ],
+    "readCompatCases": [
+      {
+        "id": "relay_read_literal_match_wins_over_canonical",
+        "storedModelId": "gpt-4o",
+        "enabledModels": [
+          {
+            "id": "gpt-4o-2024-08-06",
+            "name": "GPT-4o",
+            "canonicalModelId": "gpt-4o"
+          },
+          {
+            "id": "gpt-4o",
+            "name": "GPT-4o",
+            "canonicalModelId": "gpt-4o"
+          }
+        ],
+        "expectedModelId": "gpt-4o"
+      },
+      {
+        "id": "relay_read_falls_back_to_the_only_model_with_that_canonical",
+        "storedModelId": "gpt-4o",
+        "enabledModels": [
+          {
+            "id": "gpt-4o-2024-08-06",
+            "name": "GPT-4o",
+            "canonicalModelId": "gpt-4o"
+          },
+          {
+            "id": "claude-sonnet-4-5",
+            "name": "Claude Sonnet 4.5",
+            "canonicalModelId": "anthropic/claude-sonnet-4.5"
+          }
+        ],
+        "expectedModelId": "gpt-4o-2024-08-06"
+      },
+      {
+        "id": "relay_read_ambiguous_canonical_resolves_to_nothing",
+        "storedModelId": "gpt-4o",
+        "enabledModels": [
+          {
+            "id": "gpt-4o-2024-08-06",
+            "name": "GPT-4o",
+            "canonicalModelId": "gpt-4o"
+          },
+          {
+            "id": "gpt-4o-2024-11-20",
+            "name": "GPT-4o",
+            "canonicalModelId": "gpt-4o"
+          }
+        ],
+        "expectedModelId": null
+      },
+      {
+        "id": "relay_read_dated_value_does_not_fall_back_to_base",
+        "storedModelId": "gpt-4o-2024-08-06",
+        "enabledModels": [
+          {
+            "id": "gpt-4o",
+            "name": "GPT-4o",
+            "canonicalModelId": "gpt-4o"
+          }
+        ],
+        "expectedModelId": null
+      },
+      {
+        "id": "relay_read_never_matches_by_display_name",
+        "storedModelId": "GPT-4o",
+        "enabledModels": [
+          {
+            "id": "my-gpt",
+            "name": "GPT-4o",
+            "canonicalModelId": "my-gpt"
+          }
+        ],
+        "expectedModelId": null
+      }
+    ]
+  }
 }

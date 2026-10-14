@@ -1,0 +1,42 @@
+{
+  "$comment": "`providerConfigs[].setupFields` lists the extra values the official setup page asks for. Closed set of ids known by clients: `workspaceId`. A field is shown only when the selected base URL template (`defaultBaseURL` or the chosen `regionOptions[].baseURL`) contains `{<id>}`; `required` then blocks submit while the value is missing or invalid. A value is trimmed and lowercased and must be one DNS label: [a-z0-9] or '-', 1-63 chars, not starting or ending with '-'. Decode-time trusted-host filtering checks a template with every `{<id>}` replaced by `a`; an option whose template names an id outside the closed set, or one not declared in `setupFields`, is dropped. The built base URL goes into `baseURLText`, the values into the local-only `setupValues`, and `endpointSource` is handled the same way; at request time a `region:<id>` / `default` source whose current template has placeholders is filled from `setupValues`, and a missing value falls back to the literal. Production metadata sends no `setupFields` until stage E-3.",
+  "version": 1,
+  "config": {
+    "kind": "qwen",
+    "defaultBaseURL": "https://dashscope-intl.aliyuncs.com",
+    "trustedHosts": ["aliyuncs.com"],
+    "setupFields": [ { "id": "workspaceId", "required": true } ],
+    "regionOptions": [
+      { "id": "sg", "label": "Singapore", "baseURL": "https://dashscope-intl.aliyuncs.com" },
+      { "id": "sg-ws", "label": "Singapore · Workspace", "baseURL": "https://{workspaceId}.ap-southeast-1.maas.aliyuncs.com" },
+      { "id": "unknown-field", "label": "Unknown", "baseURL": "https://{projectId}.ap-southeast-1.maas.aliyuncs.com" },
+      { "id": "untrusted", "label": "Untrusted", "baseURL": "https://{workspaceId}.example.com" }
+    ]
+  },
+  "decodeCases": [
+    { "caseId": "keeps_trusted_template_option", "expectRegionIds": ["sg", "sg-ws"] },
+    { "caseId": "drops_unknown_placeholder", "dropped": "unknown-field" },
+    { "caseId": "drops_untrusted_template", "dropped": "untrusted" },
+    { "caseId": "drops_undeclared_placeholder", "configPatch": { "setupFields": null }, "expectRegionIds": ["sg"] }
+  ],
+  "formCases": [
+    { "caseId": "plain_region_shows_no_field", "regionId": "sg", "expectFields": [], "value": null, "expectSubmit": true, "expect": { "endpointSource": "region:sg", "baseURLText": "https://dashscope-intl.aliyuncs.com" } },
+    { "caseId": "template_region_shows_field", "regionId": "sg-ws", "expectFields": ["workspaceId"], "value": null, "expectSubmit": false },
+    { "caseId": "invalid_underscore_blocks", "regionId": "sg-ws", "expectFields": ["workspaceId"], "value": "ws_1", "expectSubmit": false },
+    { "caseId": "invalid_leading_hyphen_blocks", "regionId": "sg-ws", "expectFields": ["workspaceId"], "value": "-ab", "expectSubmit": false },
+    { "caseId": "invalid_dot_blocks", "regionId": "sg-ws", "expectFields": ["workspaceId"], "value": "a.b", "expectSubmit": false },
+    { "caseId": "invalid_too_long_blocks", "regionId": "sg-ws", "expectFields": ["workspaceId"], "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "expectSubmit": false },
+    { "caseId": "valid_value_builds_base", "regionId": "sg-ws", "expectFields": ["workspaceId"], "value": "  WS-123abc ", "expectSubmit": true, "expect": { "endpointSource": "region:sg-ws", "baseURLText": "https://ws-123abc.ap-southeast-1.maas.aliyuncs.com", "setupValues": { "workspaceId": "ws-123abc" } } },
+    { "caseId": "no_setup_fields_in_metadata", "configPatch": { "setupFields": null, "regionOptions": [ { "id": "sg", "label": "Singapore", "baseURL": "https://dashscope-intl.aliyuncs.com" } ] }, "regionId": "sg", "expectFields": [], "value": null, "expectSubmit": true }
+  ],
+  "resolveCases": [
+    { "caseId": "template_change_follows_with_stored_value", "stored": { "baseURLText": "https://ws-123abc.ap-southeast-1.maas.aliyuncs.com", "endpointSource": "region:sg-ws", "setupValues": { "workspaceId": "ws-123abc" } }, "metadataPatch": { "regionOptions.sg-ws.baseURL": "https://{workspaceId}.cn-x.maas.aliyuncs.com" }, "expectBaseURL": "https://ws-123abc.cn-x.maas.aliyuncs.com" },
+    { "caseId": "missing_value_uses_literal", "stored": { "baseURLText": "https://ws-123abc.ap-southeast-1.maas.aliyuncs.com", "endpointSource": "region:sg-ws", "setupValues": null }, "metadataPatch": { "regionOptions.sg-ws.baseURL": "https://{workspaceId}.cn-x.maas.aliyuncs.com" }, "expectBaseURL": "https://ws-123abc.ap-southeast-1.maas.aliyuncs.com" }
+  ],
+  "serverCases": [
+    { "caseId": "public_view_omits_null", "column": null, "expectPublicKey": false },
+    { "caseId": "public_view_sends_array", "column": [ { "id": "workspaceId", "required": true } ], "expectPublicKey": true },
+    { "caseId": "admin_rejects_unknown_id", "write": [ { "id": "projectId", "required": true } ], "expectError": "unknown_setup_field" },
+    { "caseId": "admin_rejects_duplicate_id", "write": [ { "id": "workspaceId", "required": true }, { "id": "workspaceId", "required": false } ], "expectError": "duplicate_setup_field" }
+  ]
+}

@@ -1,0 +1,750 @@
+{
+  "schema": "oriveo.gemini-interactions-sse-fixtures/v1",
+  "purpose": "Streaming response fixtures for Gemini Interactions (line contract sections on streaming, errors and cases GI-06 to GI-08). Each client's production parser replays every case and the body, thinking, citations, web-search evidence, error and terminal state land in their respective fields. Taken from official documentation samples; real recorded samples are added under recorded_samples and do not replace this group. Unrelated to the sibling expected.json (the leg-1 tool call corpus) and must not be merged into it: that list's entry count is locked by tests on all clients and on desktop.",
+  "sources": {
+    "streaming_guide": "https://ai.google.dev/gemini-api/docs/interactions/streaming",
+    "google_search_guide": "https://ai.google.dev/gemini-api/docs/interactions/google-search",
+    "api_reference": "https://ai.google.dev/api/interactions-api",
+    "openapi": "https://ai.google.dev/static/api/interactions.openapi.json",
+    "retrieved_at": "2026-10-13"
+  },
+  "provenance_legend": {
+    "official": "frames are byte-for-byte from the official documentation samples",
+    "official_adapted": "taken from an official sample with only the noted fields changed",
+    "schema": "the official docs have no streaming sample, so it is synthesized from the OpenAPI schema"
+  },
+  "conventions": {
+    "wire": "Each frame is `event: <event_type>` + `data: <json>` + a blank line, LF line endings; a normal end is interaction.completed followed by `event: done` / `data: [DONE]`. The parser relies on the event_type inside data, and `[DONE]` is not parsed as JSON.",
+    "step_delta": "In step.delta, index and delta sit at the top level of the frame with no step object; step.start's step.type is used only for grouping and is not a filter for body text.",
+    "ignored_delta_types": "thought_signature and google_search_call deltas do not enter the body, thinking or evidence; an unknown delta.type / event_type is ignored with one local diagnostic and does not interrupt the stream.",
+    "search_evidence": "A google_search_result delta whose is_error is not true counts as one web-search evidence item; the official streaming sample carries no result (the schema marks it required), so the parser must not require result to be present.",
+    "citations": "For entries with type=url_citation in text_annotation_delta.annotations[], start_index / end_index are passed through unchanged (clients do not slice by them). The unit is UTF-8 bytes: the real sample gemini_interactions_live_search.sse (Chinese body of 198 characters / 558 bytes; citation 125..275 overflows when sliced by character and yields a complete clause when sliced by byte) agrees with the schema, so the official guide's by-character example code is wrong for non-ASCII bodies.",
+    "text": "expected.text is the original concatenation of all text deltas in arrival order (not trimmed); thinking likewise concatenates thought_summary.content.text.",
+    "terminal": "completed = an interaction.completed with status=completed was received; incomplete = status=incomplete (content already emitted is kept and the reply ends as truncated output, same as max_tokens); error = an error frame was received, or interaction.completed has status=failed (code recorded as interaction_failed) or requires_action (this line sends no client tools; recorded as interaction_requires_action); interrupted = status=cancelled, or the connection closed with neither completed nor error. Error phase: before_content = no body or thinking so far (handled as an upstream error); after_content = content already exists (the message fails, the received content is kept, and nothing is resent). error.code is a string (official schema: a URI-style identifier), not the integer code of generateContent.",
+    "citations_dedupe": "When a client compares citations, both sides are first de-duplicated by url (keeping the first occurrence and its range) and then compared: all three clients merge sources by url in production (iOS CitationAccumulator.ingest, Web mergeUrlCitations, Android ChatRepository to CitationParser.mergeCitations), so users see a list of distinct sources and clients do not slice by index; dropping later ranges of the same url has no visible effect. A parser that outputs every entry unchanged (Android) also satisfies this after de-duplication. The reference parser's expected keeps every entry unchanged."
+  },
+  "fixtures": [
+    {
+      "file": "gemini_interactions_text.sse",
+      "gi": [
+        "GI-06"
+      ],
+      "provenance": "official (streaming_guide REST sample \"Count to from 1 to 25\", with the official `...` elision line removed)",
+      "covers": [
+        "interaction.created",
+        "interaction.status_update",
+        "step.start",
+        "step.delta:thought_signature",
+        "step.delta:text",
+        "step.stop",
+        "interaction.completed",
+        "done"
+      ],
+      "expected": {
+        "text": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,",
+        "thinking": "",
+        "citations": [],
+        "search_evidence": [],
+        "error": null,
+        "terminal": "completed",
+        "usage": {
+          "input_total": 11,
+          "output_total": 90,
+          "reasoning": 245
+        }
+      }
+    },
+    {
+      "file": "gemini_interactions_thought_summary.sse",
+      "gi": [
+        "GI-06"
+      ],
+      "provenance": "official up to the step.start of model_output (streaming_guide REST sample \"Streaming with thinking\"); the later body delta, step.stop and interaction.completed are official_adapted (the official page omits them; the body and usage numbers are filled in by this fixture)",
+      "covers": [
+        "step.delta:thought_summary",
+        "step.delta:thought_signature",
+        "step.delta:text",
+        "interaction.completed",
+        "done"
+      ],
+      "expected": {
+        "text": "The greatest common divisor of 1071 and 462 is 21.",
+        "thinking": "**Implementing Euclidean Algorithm**\n\nI've just worked through a detailed example applying the Euclidean algorithm to find the GCD of 1071 and 462, confirming its step-by-step nature. The calculations went smoothly, tracking the remainders until zero. My focus is now solidifying the implementation logic, ensuring accuracy and considering potential edge cases. I'll translate this example into code.\n\n\n",
+        "citations": [],
+        "search_evidence": [],
+        "error": null,
+        "terminal": "completed",
+        "usage": {
+          "input_total": 18,
+          "output_total": 16,
+          "reasoning": 256
+        }
+      }
+    },
+    {
+      "file": "gemini_interactions_search_citation.sse",
+      "gi": [
+        "GI-06"
+      ],
+      "provenance": "The google_search_call / google_search_result / thought frame shapes are taken from the streaming_guide REST sample \"function calling + google_search\" (official_adapted: the query is replaced with this example's); the body and citations are taken from the google_search_guide non-streaming response (official_adapted: the second end_index is corrected from the official 124 to the real byte offset 126); the text_annotation_delta frames are from the schema; usage.grounding_tool_count is from the schema",
+      "covers": [
+        "step.delta:google_search_call",
+        "step.delta:google_search_result",
+        "step.delta:thought_signature",
+        "step.delta:text",
+        "step.delta:text_annotation_delta",
+        "interaction.completed",
+        "done"
+      ],
+      "expected": {
+        "text": "Spain won Euro 2024, defeating England 2-1 in the final. This victory marks Spain's record fourth European Championship title.",
+        "thinking": "",
+        "citations": [
+          {
+            "url": "https://www.aljazeera.com/sports/euro-2024-final",
+            "title": "aljazeera.com",
+            "start_index": 0,
+            "end_index": 56
+          },
+          {
+            "url": "https://www.uefa.com/euro2024/news/spain-wins-euro-2024",
+            "title": "uefa.com",
+            "start_index": 57,
+            "end_index": 126
+          }
+        ],
+        "search_evidence": [
+          {
+            "is_error": false,
+            "result_count": 0
+          }
+        ],
+        "error": null,
+        "terminal": "completed",
+        "usage": {
+          "input_total": 138,
+          "output_total": 20,
+          "reasoning": 141
+        }
+      }
+    },
+    {
+      "file": "gemini_interactions_error.sse",
+      "gi": [
+        "GI-06",
+        "GI-07"
+      ],
+      "provenance": "official (the error frame is from the streaming_guide \"Error\" sample; the first two frames are from the same page's sample)",
+      "covers": [
+        "error"
+      ],
+      "expected": {
+        "text": "",
+        "thinking": "",
+        "citations": [],
+        "search_evidence": [],
+        "error": {
+          "code": "gateway_timeout",
+          "message": "Deadline expired before operation could complete.",
+          "phase": "before_content"
+        },
+        "terminal": "error",
+        "usage": null
+      }
+    },
+    {
+      "file": "gemini_interactions_error_after_text.sse",
+      "gi": [
+        "GI-07"
+      ],
+      "provenance": "official_adapted (frame shapes taken verbatim from the streaming_guide step.start / text delta / error samples, assembled as an error arriving after body content)",
+      "covers": [
+        "step.delta:text",
+        "error"
+      ],
+      "expected": {
+        "text": "Hello, my name is Phil",
+        "thinking": "",
+        "citations": [],
+        "search_evidence": [],
+        "error": {
+          "code": "gateway_timeout",
+          "message": "Deadline expired before operation could complete.",
+          "phase": "after_content"
+        },
+        "terminal": "error",
+        "usage": null
+      }
+    },
+    {
+      "file": "gemini_interactions_truncated.sse",
+      "gi": [
+        "GI-08"
+      ],
+      "provenance": "official_adapted (frame shapes taken verbatim from the streaming_guide text delta sample, including the space before `}` in the official second frame; the connection then closes with no interaction.completed and no done)",
+      "covers": [
+        "step.delta:text"
+      ],
+      "expected": {
+        "text": "Hello, my name is Phil, and I live in Germany.",
+        "thinking": "",
+        "citations": [],
+        "search_evidence": [],
+        "error": null,
+        "terminal": "interrupted",
+        "usage": null
+      }
+    },
+    {
+      "file": "gemini_interactions_incomplete.sse",
+      "gi": [
+        "GI-08"
+      ],
+      "provenance": "official_adapted (frame shapes from the streaming_guide samples; interaction.status takes the OpenAPI InteractionSseEventInteraction.status enum value incomplete)",
+      "covers": [
+        "step.delta:text",
+        "interaction.completed",
+        "done"
+      ],
+      "expected": {
+        "text": "1, 2, 3, 4, 5, 6, ",
+        "thinking": "",
+        "citations": [],
+        "search_evidence": [],
+        "error": null,
+        "terminal": "incomplete",
+        "usage": {
+          "input_total": 11,
+          "output_total": 16,
+          "reasoning": 0
+        }
+      }
+    },
+    {
+      "file": "gemini_interactions_failed.sse",
+      "gi": [
+        "GI-07"
+      ],
+      "provenance": "official_adapted (same as above, status=failed, no error frame)",
+      "covers": [
+        "step.delta:text",
+        "interaction.completed",
+        "done"
+      ],
+      "expected": {
+        "text": "Hello, my name is Phil",
+        "thinking": "",
+        "citations": [],
+        "search_evidence": [],
+        "error": {
+          "code": "interaction_failed",
+          "message": null,
+          "phase": "after_content"
+        },
+        "terminal": "error",
+        "usage": null
+      }
+    },
+    {
+      "file": "gemini_interactions_cancelled.sse",
+      "gi": [
+        "GI-08"
+      ],
+      "provenance": "official_adapted (same as above, status=cancelled; the official schema states that Cancel also emits interaction.completed)",
+      "covers": [
+        "step.delta:text",
+        "interaction.completed",
+        "done"
+      ],
+      "expected": {
+        "text": "Hello, my name is Phil",
+        "thinking": "",
+        "citations": [],
+        "search_evidence": [],
+        "error": null,
+        "terminal": "interrupted",
+        "usage": null
+      }
+    }
+  ],
+  "recorded_samples": [
+    {
+      "file": "gemini_interactions_live_text.sse",
+      "kind": "c4_sample",
+      "sample": "text",
+      "recorded_at": "2026-10-13T11:30:01.818Z",
+      "model": "gemini-2.5-flash-lite",
+      "path": "/v1/interactions",
+      "request": "golden GI_TEXT_SINGLE (with the model swapped, real media / a Chinese question, plus generation_config.max_output_tokens=512)",
+      "http_status": 200,
+      "usage": {
+        "input_total": 2,
+        "output_total": 11,
+        "reasoning": 0
+      },
+      "cost_usd": 0.000005,
+      "note": "body is non-empty",
+      "expected": {
+        "text": "Hello there! How can I help you today? 😊",
+        "thinking": "",
+        "citations": [],
+        "search_evidence": [],
+        "error": null,
+        "terminal": "completed",
+        "usage": {
+          "input_total": 2,
+          "output_total": 11,
+          "reasoning": 0
+        }
+      }
+    },
+    {
+      "file": "gemini_interactions_live_image.sse",
+      "kind": "measurement",
+      "sample": "image",
+      "recorded_at": "2026-10-13T11:30:12.603Z",
+      "model": "gemini-2.5-flash-lite",
+      "path": "/v1/interactions",
+      "request": "golden GI_IMAGE_ACTIVATED (with the model swapped, real media / a Chinese question, plus generation_config.max_output_tokens=512)",
+      "http_status": 200,
+      "usage": {
+        "input_total": 273,
+        "output_total": 1,
+        "reasoning": 0
+      },
+      "cost_usd": 0.000028,
+      "note": "32x32 solid red PNG, answer Red; recorded on /v1 (also 200); a same-basis sample on the production path /v1beta is in gemini_interactions_live_image_v1beta.sse"
+    },
+    {
+      "file": "gemini_interactions_live_document.sse",
+      "kind": "measurement",
+      "sample": "document",
+      "recorded_at": "2026-10-13T11:30:14.603Z",
+      "model": "gemini-2.5-flash-lite",
+      "path": "/v1/interactions",
+      "request": "golden GI_DOCUMENT_ACTIVATED (with the model swapped, real media / a Chinese question, plus generation_config.max_output_tokens=512)",
+      "http_status": 200,
+      "usage": {
+        "input_total": 274,
+        "output_total": 4,
+        "reasoning": 0
+      },
+      "cost_usd": 0.000029,
+      "note": "single-page PDF \"invoice number is 4721\", answer 4721; recorded on /v1 (also 200); a same-basis sample on the production path /v1beta is in gemini_interactions_live_document_v1beta.sse"
+    },
+    {
+      "file": "gemini_interactions_live_image_v1beta.sse",
+      "kind": "c4_sample",
+      "sample": "image",
+      "recorded_at": "2026-10-13T12:09:23.781Z",
+      "model": "gemini-2.5-flash-lite",
+      "path": "/v1beta/interactions",
+      "request": "golden GI_IMAGE_ACTIVATED (with the model swapped, real media, plus generation_config.max_output_tokens=512)",
+      "http_status": 200,
+      "usage": {
+        "input_total": 273,
+        "output_total": 1,
+        "reasoning": 0
+      },
+      "cost_usd": 0.000028,
+      "note": "32x32 solid red PNG, answer Red; production path /v1beta (recorded as a follow-up)",
+      "expected": {
+        "text": "Red",
+        "thinking": "",
+        "citations": [],
+        "search_evidence": [],
+        "error": null,
+        "terminal": "completed",
+        "usage": {
+          "input_total": 273,
+          "output_total": 1,
+          "reasoning": 0
+        }
+      }
+    },
+    {
+      "file": "gemini_interactions_live_document_v1beta.sse",
+      "kind": "c4_sample",
+      "sample": "document",
+      "recorded_at": "2026-10-13T12:09:25.866Z",
+      "model": "gemini-2.5-flash-lite",
+      "path": "/v1beta/interactions",
+      "request": "golden GI_DOCUMENT_ACTIVATED (with the model swapped, real media, plus generation_config.max_output_tokens=512)",
+      "http_status": 200,
+      "usage": {
+        "input_total": 274,
+        "output_total": 4,
+        "reasoning": 0
+      },
+      "cost_usd": 0.000029,
+      "note": "single-page PDF \"invoice number is 4721\", answer 4721; production path /v1beta (recorded as a follow-up)",
+      "expected": {
+        "text": "4721",
+        "thinking": "",
+        "citations": [],
+        "search_evidence": [],
+        "error": null,
+        "terminal": "completed",
+        "usage": {
+          "input_total": 274,
+          "output_total": 4,
+          "reasoning": 0
+        }
+      }
+    },
+    {
+      "file": "gemini_interactions_live_search.sse",
+      "kind": "c4_sample",
+      "sample": "search",
+      "recorded_at": "2026-10-13T11:30:56.953Z",
+      "model": "gemini-2.5-flash-lite",
+      "path": "/v1beta/interactions",
+      "request": "golden GI_WEB_ON (with the model swapped, real media / a Chinese question, plus generation_config.max_output_tokens=512)",
+      "http_status": 200,
+      "usage": {
+        "input_total": 34,
+        "output_total": 175,
+        "reasoning": 0
+      },
+      "cost_usd": 0.000073,
+      "note": "a Chinese current-events question triggers google_search; url_citation indices are UTF-8 bytes (slicing by character overflows, slicing by byte yields a complete clause)",
+      "expected": {
+        "text": "本周（截至2026年10月13日）的国际新闻头条主要聚焦于地缘政治冲突、经济动态以及科技发展。美国总统特朗普关于俄乌“能源停火”的说法并未得到乌克兰总统泽连斯基证实，同时俄军继续对乌克兰发动袭击。沙特阿拉伯因胡塞武装的袭击而暂停利雅得机场的运营，英国则指责伊朗策划空袭并宣布了制裁。此外，SpaceX与NASA正准备向国际空间站运送补给货物，而人工智能的发展及其在军事和经济领域的影响也备受关注。",
+        "thinking": "",
+        "citations": [
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEVDBbIYtf5dG4s8gYikD5Sz5ZyVuRuxFoN14Npz3AEa3AtdX817rYsBC9VIVayq7QH8AoupsSY2NWDGib8fs5t00vEvmtYIOhnoglpDXVqwpJx01ysjWuA6-FFbM-nMvyFCrUQUoM4wGuVy8YqOTQajXZUv6uTTqEkAw==",
+            "title": "aa.com.tr",
+            "start_index": 125,
+            "end_index": 275
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGdeK4tBXBtfQaeMhxnH8Zi5QQO69m2UVD5igC5JioM0xqus4fFLoWTk158bGovCaJ9RgxIn2ItajMr3vKH9oQCVULWB0kHejmMl0o0bZXG-ROf0WciRbTypXi1vL7aPerkEGnafno=",
+            "title": "youtube.com",
+            "start_index": 125,
+            "end_index": 275
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHXm3fHK7gZYv06-vVZeMw1mhFdQk0iHaHyHPdYvzhxM-yZPsD2sLR3yc2_JjAY0n3bxBwNQtub1JdCW6hht5L0wNatoE1WBM76EtzGMryUKq4HfQHOafzCEnGNNS4YuRrxQYFcSP4=",
+            "title": "youtube.com",
+            "start_index": 125,
+            "end_index": 275
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGtfanlmSE9Aekoszhwc3XQxogE67DCGUUZn4_29fA33o-zPb5TeeCm6NUmFvX4uHUSAMGk76fTeU-u_R05HMzzv2XUz-TZKVtKJeu5RmYZrrXO6-5kJUwpNMdNbjQXyWyBZZkFCs6JQdJ6f0GyYIayTh0OlLndNqQszB0gVMI5_jjS8A9GoZNKJMzgtw0Z9weg",
+            "title": "moomoo.com",
+            "start_index": 125,
+            "end_index": 275
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEVDBbIYtf5dG4s8gYikD5Sz5ZyVuRuxFoN14Npz3AEa3AtdX817rYsBC9VIVayq7QH8AoupsSY2NWDGib8fs5t00vEvmtYIOhnoglpDXVqwpJx01ysjWuA6-FFbM-nMvyFCrUQUoM4wGuVy8YqOTQajXZUv6uTTqEkAw==",
+            "title": "aa.com.tr",
+            "start_index": 278,
+            "end_index": 404
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGgJFcU_ZcCS3ONGnNG-lf4TwNE8rUHJVIO1_8Mzg3o75PW1dWvSiu3juV3bFk9PV8iyADdEBAM4LBWnUG9iao5TT-kwjei5cH1ZJg5uL4viDYG6FQZws5PyBukfJOxu6OwVCJI-Jw=",
+            "title": "euronews.com",
+            "start_index": 278,
+            "end_index": 404
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHtT6oL29S0H5xcMwVE1K1Sf9GzMjmQQ19bS-BsUEGjUxgWRG9L5WiblHVVEmTYzSKCVt6YiR5a_KJA0WbtEUl3ERy_wdWZODPPeVBwfwv0MZPfLVuVzLEN5Rn8xIJebMTq9Aa7ACUW4-Yuv5mRveWMppLoYLOjb6wS_YR_TYU37diqhtM3_OH8FZbDHQQy8QPtUMqJ4NURFNNUvuqxctG0q8zFuZGQRhcnyoUa9r13pvr9k2q8hE32OaulJrlejWkS",
+            "title": "spaceflightnow.com",
+            "start_index": 407,
+            "end_index": 555
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQF81fecZ_nM4-oIN00hY_CL9vDv7UjeKsJAhx4rfDZN2v77agFZpD2b_k1TcGiP_6c8tD3DnKDxkLrE8jmPaFGJ181CE406PF2PHt6iujl2iXHCDOEvss3F6FRRpPSxjgwh6dM_HP-M4TzwrQNa4QzfKKhuZgWTBPXrODYpUw4s22sTNmjCgA==",
+            "title": "sina.com.cn",
+            "start_index": 407,
+            "end_index": 555
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGtfanlmSE9Aekoszhwc3XQxogE67DCGUUZn4_29fA33o-zPb5TeeCm6NUmFvX4uHUSAMGk76fTeU-u_R05HMzzv2XUz-TZKVtKJeu5RmYZrrXO6-5kJUwpNMdNbjQXyWyBZZkFCs6JQdJ6f0GyYIayTh0OlLndNqQszB0gVMI5_jjS8A9GoZNKJMzgtw0Z9weg",
+            "title": "moomoo.com",
+            "start_index": 407,
+            "end_index": 555
+          }
+        ],
+        "search_evidence": [
+          {
+            "is_error": false,
+            "result_count": 7
+          }
+        ],
+        "error": null,
+        "terminal": "completed",
+        "usage": {
+          "input_total": 34,
+          "output_total": 175,
+          "reasoning": 0
+        }
+      }
+    },
+    {
+      "file": "gemini_interactions_live_multi_turn.sse",
+      "kind": "c4_sample",
+      "sample": "multi_turn",
+      "recorded_at": "2026-10-13T11:30:43.222Z",
+      "model": "gemini-2.5-flash-lite",
+      "path": "/v1beta/interactions",
+      "request": "golden GI_MULTI_TURN_SYSTEM (with the model swapped, real media / a Chinese question, plus generation_config.max_output_tokens=512)",
+      "http_status": 200,
+      "usage": {
+        "input_total": 25,
+        "output_total": 5,
+        "reasoning": 0
+      },
+      "cost_usd": 0.000005,
+      "note": "store:false full Step[] (including system_instruction and the previous model_output); the second turn answers the first turn's name, Ada",
+      "expected": {
+        "text": "Your name is Ada.",
+        "thinking": "",
+        "citations": [],
+        "search_evidence": [],
+        "error": null,
+        "terminal": "completed",
+        "usage": {
+          "input_total": 25,
+          "output_total": 5,
+          "reasoning": 0
+        }
+      }
+    },
+    {
+      "file": "gemini_interactions_live_tool_call.sse",
+      "kind": "measurement",
+      "sample": "tool_call",
+      "recorded_at": "2026-10-13T11:33:26.699Z",
+      "model": "gemini-3.1-flash-lite",
+      "path": "/v1/interactions",
+      "request": "get_weather function tool, store:false",
+      "http_status": 200,
+      "usage": {
+        "input_total": 69,
+        "output_total": 16,
+        "reasoning": 0
+      },
+      "cost_usd": 0.000041,
+      "note": "client function tool: the function_call id / name / signature are in step.start (arguments is {}), arguments arrive via delta.type=arguments_delta in the field arguments (a partial JSON string); there is no interaction.requires_action event, the state appears only as interaction.completed.status=requires_action; the intermediate status event is interaction.status_update"
+    },
+    {
+      "file": "gemini_interactions_live_search_on_v1.sse",
+      "kind": "measurement",
+      "sample": "search_on_v1",
+      "recorded_at": "2026-10-13T11:30:17.873Z",
+      "model": "gemini-2.5-flash-lite",
+      "path": "/v1/interactions",
+      "request": "golden GI_WEB_ON (with the model swapped, real media / a Chinese question, plus generation_config.max_output_tokens=512)",
+      "http_status": 400,
+      "usage": null,
+      "cost_usd": 0,
+      "note": "/v1/interactions with google_search: HTTP 400, the response body is an SSE error frame (code string invalid_request)"
+    }
+  ],
+  "live_probe_ledger": {
+    "$comment": "All real requests sent by the live probe script on 2026-10-13, 22 in total (the last 2 are the /v1beta image and PDF requests recorded later the same day). cost_usd = usage x the price list, a 400 is not billed and is recorded as 0. search_v1beta appears twice: the first time the question was \"2024 Euro champion\" and the model answered from memory without triggering search, the second time a current-events question was asked; only the second SSE is kept.",
+    "requests": [
+      {
+        "id": "text",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 200,
+        "input_tokens": 2,
+        "output_tokens": 11,
+        "cost_usd": 0.000005,
+        "finding": "body is non-empty"
+      },
+      {
+        "id": "path_v1beta",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 200,
+        "input_tokens": 2,
+        "output_tokens": 10,
+        "cost_usd": 0.000004,
+        "finding": "/v1beta, same shape, 200"
+      },
+      {
+        "id": "header_api_revision",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 200,
+        "input_tokens": 2,
+        "output_tokens": 9,
+        "cost_usd": 0.000004,
+        "finding": "/v1 with Api-Revision: 2026-05-20, 200, no difference from without it"
+      },
+      {
+        "id": "image",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 200,
+        "input_tokens": 273,
+        "output_tokens": 1,
+        "cost_usd": 0.000028,
+        "finding": "C4 image"
+      },
+      {
+        "id": "document",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 200,
+        "input_tokens": 274,
+        "output_tokens": 4,
+        "cost_usd": 0.000029,
+        "finding": "C4 PDF"
+      },
+      {
+        "id": "search",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 400,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": 0,
+        "finding": "/v1 + google_search → 400 not enabled for api version v1"
+      },
+      {
+        "id": "multi_turn",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 400,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": 0,
+        "finding": "/v1 + system_instruction → 400 Developer instruction is not enabled for api version v1"
+      },
+      {
+        "id": "gen_temperature",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 200,
+        "input_tokens": 2,
+        "output_tokens": 10,
+        "cost_usd": 0.000004,
+        "finding": "temperature 0.2 → 200"
+      },
+      {
+        "id": "gen_top_p",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 200,
+        "input_tokens": 2,
+        "output_tokens": 10,
+        "cost_usd": 0.000004,
+        "finding": "top_p 0.5 → 200"
+      },
+      {
+        "id": "response_format",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 200,
+        "input_tokens": 16,
+        "output_tokens": 14,
+        "cost_usd": 0.000007,
+        "finding": "/v1 response_format{type:text,mime_type:application/json,schema} -> 200, but 2.5-flash-lite output carries a ```json fence (not enforced)"
+      },
+      {
+        "id": "search_v1beta",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 200,
+        "input_tokens": 21,
+        "output_tokens": 36,
+        "cost_usd": 0.000017,
+        "finding": "first (asking about the 2024 Euro) the model answered from memory without searching; after switching to a current-events question search was triggered (this is the one recorded)"
+      },
+      {
+        "id": "multi_turn_v1beta",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 200,
+        "input_tokens": 25,
+        "output_tokens": 5,
+        "cost_usd": 0.000005,
+        "finding": "C4 multi-turn"
+      },
+      {
+        "id": "search_v1beta",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 200,
+        "input_tokens": 34,
+        "output_tokens": 175,
+        "cost_usd": 0.000073,
+        "finding": "first (asking about the 2024 Euro) the model answered from memory without searching; after switching to a current-events question search was triggered (this is the one recorded)"
+      },
+      {
+        "id": "gen_temperature_out_of_range",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 400,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": 0,
+        "finding": "temperature 5 -> 400 Invalid input received (the field is validated = accepted)"
+      },
+      {
+        "id": "gen_top_p_out_of_range",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 400,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": 0,
+        "finding": "top_p 2 → 400 Invalid input received"
+      },
+      {
+        "id": "response_format_v1beta",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 200,
+        "input_tokens": 16,
+        "output_tokens": 14,
+        "cost_usd": 0.000007,
+        "finding": "/v1beta same as above, 2.5-flash-lite still carries the fence"
+      },
+      {
+        "id": "response_format_v1beta_gemini-3.1-flash-lite",
+        "model": "gemini-3.1-flash-lite",
+        "http_status": 200,
+        "input_tokens": 16,
+        "output_tokens": 11,
+        "cost_usd": 0.000021,
+        "finding": "3.1-flash-lite outputs bare JSON (schema takes effect)"
+      },
+      {
+        "id": "tool_call",
+        "model": "gemini-3.1-flash-lite",
+        "http_status": 200,
+        "input_tokens": 69,
+        "output_tokens": 16,
+        "cost_usd": 0.000041,
+        "finding": "function tool first turn -> status requires_action"
+      },
+      {
+        "id": "tool_replay_full",
+        "model": "gemini-3.1-flash-lite",
+        "http_status": 200,
+        "input_tokens": 93,
+        "output_tokens": 17,
+        "cost_usd": 0.000049,
+        "finding": "echoing back thought + function_call + function_result unchanged -> 200 body"
+      },
+      {
+        "id": "tool_replay_no_thought",
+        "model": "gemini-3.1-flash-lite",
+        "http_status": 200,
+        "input_tokens": 93,
+        "output_tokens": 17,
+        "cost_usd": 0.000049,
+        "finding": "with the thought step removed (the function_call keeps its own signature) -> 200 body, not rejected"
+      },
+      {
+        "id": "image_v1beta",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 200,
+        "input_tokens": 273,
+        "output_tokens": 1,
+        "cost_usd": 0.000028,
+        "finding": "/v1beta image -> 200 Red"
+      },
+      {
+        "id": "document_v1beta",
+        "model": "gemini-2.5-flash-lite",
+        "http_status": 200,
+        "input_tokens": 274,
+        "output_tokens": 4,
+        "cost_usd": 0.000029,
+        "finding": "/v1beta PDF → 200 4721"
+      }
+    ],
+    "total_usd": 0.000403
+  }
+}
