@@ -154,7 +154,7 @@ class RelayWebFragmentFixtureTest {
                 ),
             )
             val expect = case.getValue("expect").jsonObject
-            val message = "RELAY-WEBFRAG-presentation-$caseId：$shape"
+            val message = "RELAY-WEBFRAG-presentation-$caseId: $shape"
             when (expect.string("shape")) {
                 "protocolUndecided" -> assertEquals(message, ModelOptionCapabilityShape.ProtocolUndecided, shape)
                 "disclosure" -> {
@@ -317,7 +317,7 @@ class RelayWebFragmentFixtureTest {
                 ),
             )
             assertEquals(
-                "RL2-WEBPROBE-PRES-auto_first_send_messages：$shape",
+                "RL2-WEBPROBE-PRES-auto_first_send_messages: $shape",
                 RelayWebChat.Status.Searched,
                 (shape as? ModelOptionCapabilityShape.RelayWebToggle)?.status,
             )
