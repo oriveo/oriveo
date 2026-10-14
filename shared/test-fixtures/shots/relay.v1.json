@@ -182,7 +182,7 @@
       }
     },
     {
-      "$comment": "Same panel with a rejected record under the template hash and no chat web preference: the toggle is disabled, the status reads 'This model rejects the web search settings' and the retest link is 'Test capabilities'.",
+      "$comment": "Same panel with a rejected record under the template hash and no chat web preference: the toggle stays switchable and is off (no preference and no saved fragment; a rejected record never disables it), the status reads 'This model rejects the web search settings' and the retest link is 'Test capabilities'.",
       "name": "relayModelOptionsWebRejected",
       "host": "relay",
       "view": "modelOptions",
