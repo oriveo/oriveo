@@ -792,8 +792,8 @@ describe('BOARD-DETAIL-09 multi-key inline', () => {
 describe('BOARD-DETAIL-10 header', () => {
   it('BOARD-DETAIL-10 relay avatar uses the unified resolver, a pencil is visible next to the name, status row model count = enabled ∪ catalog', () => {
     const board = relayDetailBoard(relayProvider());
-    // Default avatar icon layer (relay-avatar-icon.v1.json): a relay with no brand gets an icon by connection id, relay-1 -> sailboat.
-    expect(board.avatar).toEqual({ kind: 'icon', icon: 'sailboat' });
+    // Default avatar icon layer (relay-avatar-icon.v1.json): a relay with no brand gets an icon by connection id, relay-1 -> relay-bell.
+    expect(board.avatar).toEqual({ kind: 'icon', icon: 'relay-bell' });
     expect(board.modelCount).toBe(42);
 
     const { container } = render(<RelayDetail provider={relayProvider({ customName: 'OpenRouter \u5907\u7528' })} />);

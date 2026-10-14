@@ -1242,16 +1242,16 @@
       "changeIcon": "Đổi biểu tượng",
       "avatarLetter": "Chữ cái",
       "avatarIcons": {
-        "planet": "Hành tinh",
-        "compass": "La bàn",
-        "sailboat": "Thuyền buồm",
-        "lighthouse": "Hải đăng",
-        "mountains": "Núi non",
-        "sunHorizon": "Bình minh",
-        "flame": "Ngọn lửa",
-        "treeEvergreen": "Cây thông",
-        "moonStars": "Trăng sao",
-        "butterfly": "Bướm"
+        "paperPlane": "Máy bay giấy",
+        "signalTower": "Tháp tín hiệu",
+        "relayBell": "Chuông",
+        "satellite": "Vệ tinh",
+        "signpost": "Biển chỉ đường",
+        "archBridge": "Cây cầu",
+        "kite": "Diều",
+        "messageBottle": "Thư trong chai",
+        "pennant": "Cờ đuôi nheo",
+        "hotAirBalloon": "Khinh khí cầu"
       }
     },
     "providerDetail": {

@@ -1242,16 +1242,16 @@
       "changeIcon": "تغيير الأيقونة",
       "avatarLetter": "حرف",
       "avatarIcons": {
-        "planet": "كوكب",
-        "compass": "بوصلة",
-        "sailboat": "مركب شراعي",
-        "lighthouse": "منارة",
-        "mountains": "جبال",
-        "sunHorizon": "شروق الشمس",
-        "flame": "لهب",
-        "treeEvergreen": "صنوبر",
-        "moonStars": "قمر ونجوم",
-        "butterfly": "فراشة"
+        "paperPlane": "طائرة من ورق",
+        "signalTower": "برج إرسال",
+        "relayBell": "جرس",
+        "satellite": "قمر صناعي",
+        "signpost": "لافتة طريق",
+        "archBridge": "جسر",
+        "kite": "طائرة ورقية",
+        "messageBottle": "رسالة في زجاجة",
+        "pennant": "راية",
+        "hotAirBalloon": "منطاد"
       }
     },
     "providerDetail": {

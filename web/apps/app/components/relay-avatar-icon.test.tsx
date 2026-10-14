@@ -19,6 +19,8 @@ import {
   setRelayAvatarChoice,
 } from '../lib/core/providers/relay-avatar-choices';
 import { ProviderIcon } from './ProviderIcon';
+import { RelayAvatar as RelayAvatarView } from './RelayAvatar';
+import { RELAY_AVATAR_GLYPHS } from './relay-avatar-glyphs.generated';
 import { RelayDetailBoard } from '../app/providers/[providerId]/components/RelayDetailBoard';
 import { relayDetailBoard } from '../app/providers/[providerId]/relay-detail-board';
 
@@ -28,7 +30,7 @@ import { relayDetailBoard } from '../app/providers/[providerId]/relay-detail-boa
  */
 
 interface IconFixture {
-  icons: Array<{ id: string; phosphor: string; palette: string }>;
+  icons: Array<{ id: string; palette: string }>;
   letterChoice: string;
   cases: Array<{ id: string; providerId: string; name: string; url: string; choice?: string; expected: RelayAvatar }>;
   pickerCases: Array<{ id: string; name: string; url: string; cells: string[] }>;
@@ -83,8 +85,27 @@ describe('RELAY-AVATAR-ICON fixture relay-avatar-icon.v1.json', () => {
     })).toEqual(item.expected);
   });
 
-  it('RELAY-AVATAR-ICON icon table matches the fixture entry by entry (id / phosphor / palette, in order)', () => {
-    expect(RELAY_AVATAR_ICONS.map(({ id, phosphor, palette }) => ({ id, phosphor, palette }))).toEqual(fixture.icons);
+  it('RELAY-AVATAR-ICON icon table matches the fixture entry by entry (id / palette, in order)', () => {
+    expect(RELAY_AVATAR_ICONS.map(({ id, palette }) => ({ id, palette }))).toEqual(fixture.icons);
+  });
+});
+
+describe('RELAY-AVATAR-GLYPH original icon assets', () => {
+  it('RELAY-AVATAR-GLYPH-01 all ten ids have a glyph, the enum / map match the fixture icons in order and name, and each renders an svg with paths', () => {
+    const fixtureIds = fixture.icons.map((icon) => icon.id);
+    expect(RELAY_AVATAR_ICONS.map((icon) => icon.id)).toEqual(fixtureIds);
+    expect(Object.keys(RELAY_AVATAR_GLYPHS)).toEqual(fixtureIds);
+    for (const id of RELAY_AVATAR_ICONS.map((icon) => icon.id)) {
+      expect(RELAY_AVATAR_GLYPHS[id]?.flatMap((group) => group.paths).length, id).toBeGreaterThan(0);
+      const { container, unmount } = render(<RelayAvatarView avatar={{ kind: 'icon', icon: id }} size={32} />);
+      const svg = container.querySelector(`[data-relay-avatar="icon:${id}"] svg`);
+      expect(svg, id).not.toBeNull();
+      expect(svg!.getAttribute('viewBox')).toBe('0 0 24 24');
+      expect(svg!.getAttribute('aria-hidden')).toBe('true');
+      expect(svg!.getAttribute('width')).toBe('32');
+      expect(svg!.querySelectorAll('path').length, id).toBeGreaterThan(0);
+      unmount();
+    }
   });
 });
 
@@ -100,17 +121,17 @@ describe('RELAY-AVATAR-STORE on-device choice', () => {
     const { container } = render(<ProviderIcon kind="relay" size={22} bare {...relayIconSource(provider)} />);
     expect(markersIn(container)).toEqual(['brand:openrouter']);
 
-    act(() => { setRelayAvatarChoice(provider.id, 'butterfly'); });
+    act(() => { setRelayAvatarChoice(provider.id, 'hot-air-balloon'); });
 
-    expect(getRelayAvatarChoice(provider.id)).toBe('butterfly');
-    expect(markersIn(container)).toEqual(['icon:butterfly']);
+    expect(getRelayAvatarChoice(provider.id)).toBe('hot-air-balloon');
+    expect(markersIn(container)).toEqual(['icon:hot-air-balloon']);
     // Key = connection id: other connections are unaffected.
     expect(getRelayAvatarChoice('relay-1')).toBeUndefined();
   });
 
   it('RELAY-AVATAR-STORE-02 picking the brand cell removes the stored choice', () => {
     const provider = relayProvider();
-    setRelayAvatarChoice(provider.id, 'flame');
+    setRelayAvatarChoice(provider.id, 'kite');
     const brandCell = relayAvatarPickerCells({ name: provider.customName, baseURL: provider.baseURLText })[0];
     expect(relayAvatarPickerCellMarker(brandCell)).toBe('brand:openrouter');
 
@@ -132,7 +153,7 @@ describe('RELAY-AVATAR-STORE on-device choice', () => {
     applyRelayAvatarPickerCell('relay-2', cells[cells.length - 1]);
     expect(getRelayAvatarChoice('relay-2')).toBe(fixture.letterChoice);
     applyRelayAvatarPickerCell('relay-2', cells[1]);
-    expect(getRelayAvatarChoice('relay-2')).toBe('planet');
+    expect(getRelayAvatarChoice('relay-2')).toBe('paper-plane');
   });
 });
 
@@ -174,11 +195,11 @@ describe('BOARD-AVATAR-PICKER change icon from the detail header', () => {
     fireEvent.click(screen.getByRole('button', { name: 'pages.relayDetail.changeIcon' }));
     const dialog = screen.getByRole('dialog');
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'pages.relayDetail.avatarIcons.butterfly' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'pages.relayDetail.avatarIcons.hotAirBalloon' }));
 
-    expect(getRelayAvatarChoice(provider.id)).toBe('butterfly');
-    expect(markersIn(screen.getByRole('button', { name: 'pages.relayDetail.changeIcon' }))).toEqual(['icon:butterfly']);
-    expect(dialog.querySelector('[data-relay-avatar-cell="butterfly"]')!.getAttribute('aria-pressed')).toBe('true');
+    expect(getRelayAvatarChoice(provider.id)).toBe('hot-air-balloon');
+    expect(markersIn(screen.getByRole('button', { name: 'pages.relayDetail.changeIcon' }))).toEqual(['icon:hot-air-balloon']);
+    expect(dialog.querySelector('[data-relay-avatar-cell="hot-air-balloon"]')!.getAttribute('aria-pressed')).toBe('true');
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'pages.relayDetail.avatarLetter' }));
     expect(markersIn(screen.getByRole('button', { name: 'pages.relayDetail.changeIcon' }))).toEqual(['initial:M']);

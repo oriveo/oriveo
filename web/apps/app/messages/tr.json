@@ -1242,16 +1242,16 @@
       "changeIcon": "Simgeyi değiştir",
       "avatarLetter": "Harf",
       "avatarIcons": {
-        "planet": "Gezegen",
-        "compass": "Pusula",
-        "sailboat": "Yelkenli",
-        "lighthouse": "Deniz feneri",
-        "mountains": "Dağlar",
-        "sunHorizon": "Gün doğumu",
-        "flame": "Alev",
-        "treeEvergreen": "Çam",
-        "moonStars": "Ay ve yıldızlar",
-        "butterfly": "Kelebek"
+        "paperPlane": "Kâğıt uçak",
+        "signalTower": "Sinyal kulesi",
+        "relayBell": "Çan",
+        "satellite": "Uydu",
+        "signpost": "Yön tabelası",
+        "archBridge": "Köprü",
+        "kite": "Uçurtma",
+        "messageBottle": "Şişedeki mektup",
+        "pennant": "Flama",
+        "hotAirBalloon": "Sıcak hava balonu"
       }
     },
     "providerDetail": {

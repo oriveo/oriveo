@@ -1042,13 +1042,13 @@ describe('provider-ops', () => {
 
   it('RELAY-AVATAR-STORE-03 deleting a connection clears its on-device avatar choice and leaves other connections alone', async () => {
     store.getState().addProvider(baseProvider);
-    setRelayAvatarChoice('p1', 'flame');
-    setRelayAvatarChoice('p2', 'planet');
+    setRelayAvatarChoice('p1', 'kite');
+    setRelayAvatarChoice('p2', 'paper-plane');
 
     await expect(deleteProvider(store, 'p1')).resolves.toBe(true);
 
     expect(getRelayAvatarChoice('p1')).toBeUndefined();
-    expect(getRelayAvatarChoice('p2')).toBe('planet');
+    expect(getRelayAvatarChoice('p2')).toBe('paper-plane');
   });
 
   it('deleting a provider does not delete existing conversations; history stays in the store until the model-unavailable marker consumes it', async () => {

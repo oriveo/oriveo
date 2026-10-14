@@ -1242,16 +1242,16 @@
       "changeIcon": "Change icon",
       "avatarLetter": "Letter",
       "avatarIcons": {
-        "planet": "Planet",
-        "compass": "Compass",
-        "sailboat": "Sailboat",
-        "lighthouse": "Lighthouse",
-        "mountains": "Mountains",
-        "sunHorizon": "Sunrise",
-        "flame": "Flame",
-        "treeEvergreen": "Pine",
-        "moonStars": "Moon & stars",
-        "butterfly": "Butterfly"
+        "paperPlane": "Paper plane",
+        "signalTower": "Signal tower",
+        "relayBell": "Bell",
+        "satellite": "Satellite",
+        "signpost": "Signpost",
+        "archBridge": "Bridge",
+        "kite": "Kite",
+        "messageBottle": "Bottle",
+        "pennant": "Pennant",
+        "hotAirBalloon": "Balloon"
       }
     },
     "providerDetail": {

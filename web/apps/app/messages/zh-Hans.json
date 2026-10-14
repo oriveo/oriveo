@@ -1242,16 +1242,16 @@
       "changeIcon": "更换图标",
       "avatarLetter": "首字母",
       "avatarIcons": {
-        "planet": "星球",
-        "compass": "罗盘",
-        "sailboat": "帆船",
-        "lighthouse": "灯塔",
-        "mountains": "群山",
-        "sunHorizon": "日出",
-        "flame": "火焰",
-        "treeEvergreen": "松树",
-        "moonStars": "星月",
-        "butterfly": "蝴蝶"
+        "paperPlane": "纸飞机",
+        "signalTower": "信号塔",
+        "relayBell": "驿铃",
+        "satellite": "卫星",
+        "signpost": "路牌",
+        "archBridge": "拱桥",
+        "kite": "风筝",
+        "messageBottle": "漂流瓶",
+        "pennant": "驿旗",
+        "hotAirBalloon": "热气球"
       }
     },
     "providerDetail": {

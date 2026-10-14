@@ -1,21 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import {
-  ButterflyIcon,
-  CompassIcon,
-  FlameIcon,
-  LighthouseIcon,
-  MoonStarsIcon,
-  MountainsIcon,
-  PlanetIcon,
-  SailboatIcon,
-  SunHorizonIcon,
-  TreeEvergreenIcon,
-  type Icon,
-} from "@phosphor-icons/react";
 import { useIsDarkTheme } from "../lib/hooks/useIsDarkTheme";
 import { resolveOfficialProviderLogo } from "./provider-logo-assets";
+import { RELAY_AVATAR_GLYPHS } from "./relay-avatar-glyphs.generated";
 import {
   RELAY_AVATAR_BRAND_LOGO_KIND,
   relayAvatarMarker,
@@ -57,27 +45,56 @@ export function RelayWaypointsIcon({ size, className }: { size: number; classNam
   );
 }
 
-/** Default avatar icon -> Phosphor component and color token (fixture palette: detailRow.* -> --o-row-*, capability.* -> --o-cap-*). */
-const RELAY_AVATAR_ICON_ART: Record<RelayAvatarIconId, { Icon: Icon; color: string }> = {
-  planet: { Icon: PlanetIcon, color: "var(--o-row-indigo)" },
-  compass: { Icon: CompassIcon, color: "var(--o-row-teal)" },
-  sailboat: { Icon: SailboatIcon, color: "var(--o-row-cyan)" },
-  lighthouse: { Icon: LighthouseIcon, color: "var(--o-cap-attachment)" },
-  mountains: { Icon: MountainsIcon, color: "var(--o-cap-web-search)" },
-  "sun-horizon": { Icon: SunHorizonIcon, color: "var(--o-row-orange)" },
-  flame: { Icon: FlameIcon, color: "var(--o-row-rose)" },
-  "tree-evergreen": { Icon: TreeEvergreenIcon, color: "var(--o-cap-vision)" },
-  "moon-stars": { Icon: MoonStarsIcon, color: "var(--o-cap-reasoning)" },
-  butterfly: { Icon: ButterflyIcon, color: "var(--o-cap-tools)" },
+/** Default avatar icon -> color token (fixture palette: detailRow.* -> --o-row-*, capability.* -> --o-cap-*; dark 400 / light 600 by theme). */
+const RELAY_AVATAR_ICON_COLOR: Record<RelayAvatarIconId, string> = {
+  "paper-plane": "var(--o-row-indigo)",
+  "signal-tower": "var(--o-row-teal)",
+  "relay-bell": "var(--o-cap-attachment)",
+  satellite: "var(--o-cap-reasoning)",
+  signpost: "var(--o-cap-vision)",
+  "arch-bridge": "var(--o-cap-web-search)",
+  kite: "var(--o-row-rose)",
+  "message-bottle": "var(--o-row-cyan)",
+  pennant: "var(--o-row-orange)",
+  "hot-air-balloon": "var(--o-cap-tools)",
 };
 
-/** Draws just the icon (the sheet cells use it too); with forceDark the theme of this small box is pinned to dark so the color tokens take their dark values. */
-export function RelayAvatarIconArt({ icon, size, forceDark }: { icon: RelayAvatarIconId; size: number; forceDark?: boolean }) {
-  const { Icon: Art, color } = RELAY_AVATAR_ICON_ART[icon];
+/**
+ * Original icon art (generated file relay-avatar-glyphs.generated.ts, 24x24 grid): single-color currentColor,
+ * with layer opacity carried by the asset; paths with a null stroke are filled, the rest are stroked only. Fills the avatar box, with no base plate and no border.
+ */
+function RelayAvatarGlyph({ icon, size }: { icon: RelayAvatarIconId; size: number }) {
+  const groups = RELAY_AVATAR_GLYPHS[icon] ?? [];
   return (
-    <span className={styles.relayAvatar} style={{ width: size, height: size }} data-theme={forceDark ? "dark" : undefined}>
-      <Art size={size} weight="duotone" color={color} aria-hidden="true" />
-    </span>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      style={{ color: RELAY_AVATAR_ICON_COLOR[icon] }}
+      aria-hidden="true"
+      focusable="false"
+      data-relay-avatar-glyph={icon}
+    >
+      {groups.map((group, groupIndex) => (
+        <g key={groupIndex} transform={group.transform ?? undefined}>
+          {group.paths.map((path, pathIndex) =>
+            path.stroke ? (
+              <path
+                key={pathIndex}
+                d={path.d}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={path.stroke.width}
+                strokeLinecap={path.stroke.cap as "butt" | "round" | "square"}
+                opacity={path.opacity ?? undefined}
+              />
+            ) : (
+              <path key={pathIndex} d={path.d} fill="currentColor" opacity={path.opacity ?? undefined} />
+            ),
+          )}
+        </g>
+      ))}
+    </svg>
   );
 }
 
@@ -87,7 +104,7 @@ interface RelayAvatarProps {
   forceDark?: boolean;
 }
 
-/** Relay avatar: brand = official asset, icon = tinted Phosphor duotone, initial = neutral secondary text color, generic = relay icon; none has a base plate or a border. */
+/** Relay avatar: brand = official asset, icon = original icon in a single tint, initial = neutral secondary text color, generic = relay icon; none has a base plate or a border. */
 export function RelayAvatar({ avatar, size, forceDark }: RelayAvatarProps) {
   const systemDark = useIsDarkTheme();
   const isDark = forceDark ?? systemDark;
@@ -105,7 +122,6 @@ export function RelayAvatar({ avatar, size, forceDark }: RelayAvatarProps) {
     }
   }
   if (avatar.kind === "icon") {
-    const { Icon: Art, color } = RELAY_AVATAR_ICON_ART[avatar.icon];
     return (
       <span
         className={styles.relayAvatar}
@@ -113,7 +129,7 @@ export function RelayAvatar({ avatar, size, forceDark }: RelayAvatarProps) {
         data-relay-avatar={marker}
         data-theme={forceDark ? "dark" : undefined}
       >
-        <Art size={size} weight="duotone" color={color} aria-hidden="true" />
+        <RelayAvatarGlyph icon={avatar.icon} size={size} />
       </span>
     );
   }

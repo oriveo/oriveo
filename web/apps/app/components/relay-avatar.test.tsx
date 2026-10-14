@@ -182,8 +182,8 @@ describe('BOARD-AVATAR-01 the same function, the same result in five places', ()
       name: 'myrelay.dev',
       baseURL: 'https://api.myrelay.dev',
     }));
-    // Fixture default_relay_1: relay-1 -> sailboat.
-    expect(expected).toBe('icon:sailboat');
+    // Fixture default_relay_1: relay-1 -> relay-bell.
+    expect(expected).toBe('icon:relay-bell');
     resolveSpy.mockClear();
 
     const surfaces: Array<[string, HTMLElement]> = [];
@@ -246,14 +246,14 @@ describe('BOARD-AVATAR-01 the same function, the same result in five places', ()
     const resolveSpy = vi.mocked(relayAvatar.resolveRelayConnectionAvatar);
     resolveSpy.mockClear();
     // No on-device choice -> default icon; picking the letter still reaches the host initial through the initial rule.
-    expect(relayDetailBoard(provider).avatar).toEqual({ kind: 'icon', icon: 'sailboat' });
+    expect(relayDetailBoard(provider).avatar).toEqual({ kind: 'icon', icon: 'relay-bell' });
     expect(resolveRelayConnectionAvatar({ providerId: provider.id, name: '', baseURL: provider.baseURLText, choice: 'letter' }))
       .toEqual({ kind: 'initial', text: 'M' });
     resolveSpy.mockClear();
     const { container } = render(<ProviderListCard provider={provider} monthlyCost={0} onClick={vi.fn()} />);
-    expect(markersIn(container)).toEqual(['icon:sailboat']);
+    expect(markersIn(container)).toEqual(['icon:relay-bell']);
     const trigger = render(<ModelTrigger modelName="m" providerKind="relay" relayProvider={provider} />);
-    expect(markersIn(trigger.container)).toEqual(['icon:sailboat']);
+    expect(markersIn(trigger.container)).toEqual(['icon:relay-bell']);
     expect(resolveSpy).toHaveBeenCalled();
     for (const call of resolveSpy.mock.calls) {
       expect(call[0]).toEqual({ providerId: 'relay-1', name: '', baseURL: 'https://api.myrelay.dev' });
@@ -286,13 +286,13 @@ describe('RL2-AVATAR-COVER connection avatar decision', () => {
 
   it('RL2-AVATAR-COVER-02 relay with no brand -> default icon by connection id, not drawn by protocol type', () => {
     expect(markersFor(relayProvider({ customName: 'Moon Relay', baseURLText: 'https://api.myrelay.dev/v1' }))).toEqual([
-      'icon:sailboat',
+      'icon:relay-bell',
     ]);
   });
 
   it('RL2-AVATAR-COVER-03 connection no longer exists -> generic; connection exists but name and address are both empty -> default icon', () => {
     expect(markersFor(null)).toEqual(['generic']);
-    expect(markersFor(relayProvider({ customName: '', baseURLText: '' }))).toEqual(['icon:sailboat']);
+    expect(markersFor(relayProvider({ customName: '', baseURLText: '' }))).toEqual(['icon:relay-bell']);
   });
 
   it('RL2-AVATAR-COVER-06 note source does not record the connection: relay sources are always generic and are not inferred from the name', () => {

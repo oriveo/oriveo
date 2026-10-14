@@ -1242,16 +1242,16 @@
       "changeIcon": "Symbol ändern",
       "avatarLetter": "Buchstabe",
       "avatarIcons": {
-        "planet": "Planet",
-        "compass": "Kompass",
-        "sailboat": "Segelboot",
-        "lighthouse": "Leuchtturm",
-        "mountains": "Berge",
-        "sunHorizon": "Sonnenaufgang",
-        "flame": "Flamme",
-        "treeEvergreen": "Tanne",
-        "moonStars": "Mond & Sterne",
-        "butterfly": "Schmetterling"
+        "paperPlane": "Papierflieger",
+        "signalTower": "Funkturm",
+        "relayBell": "Glocke",
+        "satellite": "Satellit",
+        "signpost": "Wegweiser",
+        "archBridge": "Brücke",
+        "kite": "Drachen",
+        "messageBottle": "Flaschenpost",
+        "pennant": "Wimpel",
+        "hotAirBalloon": "Heißluftballon"
       }
     },
     "providerDetail": {

@@ -1242,16 +1242,16 @@
       "changeIcon": "Cambiar icono",
       "avatarLetter": "Inicial",
       "avatarIcons": {
-        "planet": "Planeta",
-        "compass": "Brújula",
-        "sailboat": "Velero",
-        "lighthouse": "Faro",
-        "mountains": "Montañas",
-        "sunHorizon": "Amanecer",
-        "flame": "Llama",
-        "treeEvergreen": "Pino",
-        "moonStars": "Luna y estrellas",
-        "butterfly": "Mariposa"
+        "paperPlane": "Avión de papel",
+        "signalTower": "Antena",
+        "relayBell": "Campana",
+        "satellite": "Satélite",
+        "signpost": "Señal",
+        "archBridge": "Puente",
+        "kite": "Cometa",
+        "messageBottle": "Botella",
+        "pennant": "Banderín",
+        "hotAirBalloon": "Globo"
       }
     },
     "providerDetail": {

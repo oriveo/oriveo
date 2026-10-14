@@ -1242,16 +1242,16 @@
       "changeIcon": "आइकन बदलें",
       "avatarLetter": "अक्षर",
       "avatarIcons": {
-        "planet": "ग्रह",
-        "compass": "कम्पास",
-        "sailboat": "पाल नाव",
-        "lighthouse": "प्रकाशस्तंभ",
-        "mountains": "पहाड़",
-        "sunHorizon": "सूर्योदय",
-        "flame": "लौ",
-        "treeEvergreen": "देवदार",
-        "moonStars": "चाँद-तारे",
-        "butterfly": "तितली"
+        "paperPlane": "कागज़ का हवाई जहाज़",
+        "signalTower": "सिग्नल टावर",
+        "relayBell": "घंटी",
+        "satellite": "उपग्रह",
+        "signpost": "दिशा-सूचक",
+        "archBridge": "पुल",
+        "kite": "पतंग",
+        "messageBottle": "बोतल में संदेश",
+        "pennant": "झंडी",
+        "hotAirBalloon": "गर्म हवा का गुब्बारा"
       }
     },
     "providerDetail": {

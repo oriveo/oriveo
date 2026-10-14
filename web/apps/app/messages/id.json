@@ -1242,16 +1242,16 @@
       "changeIcon": "Ubah ikon",
       "avatarLetter": "Huruf",
       "avatarIcons": {
-        "planet": "Planet",
-        "compass": "Kompas",
-        "sailboat": "Perahu layar",
-        "lighthouse": "Mercusuar",
-        "mountains": "Pegunungan",
-        "sunHorizon": "Matahari terbit",
-        "flame": "Nyala api",
-        "treeEvergreen": "Pohon pinus",
-        "moonStars": "Bulan & bintang",
-        "butterfly": "Kupu-kupu"
+        "paperPlane": "Pesawat kertas",
+        "signalTower": "Menara sinyal",
+        "relayBell": "Lonceng",
+        "satellite": "Satelit",
+        "signpost": "Papan penunjuk",
+        "archBridge": "Jembatan",
+        "kite": "Layang-layang",
+        "messageBottle": "Pesan dalam botol",
+        "pennant": "Panji",
+        "hotAirBalloon": "Balon udara"
       }
     },
     "providerDetail": {

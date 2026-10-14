@@ -68,15 +68,19 @@
   background: var(--o-bg-subtle);
 }
 
+/* Cell labels: at most 2 lines, centered (long labels such as "Hot air balloon" wrap in every language instead of being cut to one line). */
 .cellLabel {
+  display: -webkit-box;
   max-width: 100%;
   overflow: hidden;
   color: var(--o-text-secondary);
   font-size: 12px;
   line-height: 1.3;
   text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .cell[aria-pressed='true'] .cellLabel {

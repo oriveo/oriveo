@@ -1242,16 +1242,16 @@
       "changeIcon": "เปลี่ยนไอคอน",
       "avatarLetter": "ตัวอักษร",
       "avatarIcons": {
-        "planet": "ดาวเคราะห์",
-        "compass": "เข็มทิศ",
-        "sailboat": "เรือใบ",
-        "lighthouse": "ประภาคาร",
-        "mountains": "ภูเขา",
-        "sunHorizon": "พระอาทิตย์ขึ้น",
-        "flame": "เปลวไฟ",
-        "treeEvergreen": "ต้นสน",
-        "moonStars": "จันทร์และดาว",
-        "butterfly": "ผีเสื้อ"
+        "paperPlane": "เครื่องบินกระดาษ",
+        "signalTower": "เสาสัญญาณ",
+        "relayBell": "กระดิ่ง",
+        "satellite": "ดาวเทียม",
+        "signpost": "ป้ายบอกทาง",
+        "archBridge": "สะพาน",
+        "kite": "ว่าว",
+        "messageBottle": "ขวดจดหมาย",
+        "pennant": "ธงสามเหลี่ยม",
+        "hotAirBalloon": "บอลลูน"
       }
     },
     "providerDetail": {

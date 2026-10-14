@@ -21,16 +21,16 @@ import styles from "./RelayAvatarPicker.module.css";
 
 /** Icon cell label keys (listed statically so the string scanners can see them). */
 const ICON_LABEL_KEYS: Record<RelayAvatarIconId, string> = {
-  planet: "pages.relayDetail.avatarIcons.planet",
-  compass: "pages.relayDetail.avatarIcons.compass",
-  sailboat: "pages.relayDetail.avatarIcons.sailboat",
-  lighthouse: "pages.relayDetail.avatarIcons.lighthouse",
-  mountains: "pages.relayDetail.avatarIcons.mountains",
-  "sun-horizon": "pages.relayDetail.avatarIcons.sunHorizon",
-  flame: "pages.relayDetail.avatarIcons.flame",
-  "tree-evergreen": "pages.relayDetail.avatarIcons.treeEvergreen",
-  "moon-stars": "pages.relayDetail.avatarIcons.moonStars",
-  butterfly: "pages.relayDetail.avatarIcons.butterfly",
+  "paper-plane": "pages.relayDetail.avatarIcons.paperPlane",
+  "signal-tower": "pages.relayDetail.avatarIcons.signalTower",
+  "relay-bell": "pages.relayDetail.avatarIcons.relayBell",
+  satellite: "pages.relayDetail.avatarIcons.satellite",
+  signpost: "pages.relayDetail.avatarIcons.signpost",
+  "arch-bridge": "pages.relayDetail.avatarIcons.archBridge",
+  kite: "pages.relayDetail.avatarIcons.kite",
+  "message-bottle": "pages.relayDetail.avatarIcons.messageBottle",
+  pennant: "pages.relayDetail.avatarIcons.pennant",
+  "hot-air-balloon": "pages.relayDetail.avatarIcons.hotAirBalloon",
 };
 
 const CHANGE_ICON_KEY = "pages.relayDetail.changeIcon";

@@ -1242,16 +1242,16 @@
       "changeIcon": "아이콘 변경",
       "avatarLetter": "첫 글자",
       "avatarIcons": {
-        "planet": "행성",
-        "compass": "나침반",
-        "sailboat": "돛단배",
-        "lighthouse": "등대",
-        "mountains": "산",
-        "sunHorizon": "일출",
-        "flame": "불꽃",
-        "treeEvergreen": "소나무",
-        "moonStars": "달과 별",
-        "butterfly": "나비"
+        "paperPlane": "종이비행기",
+        "signalTower": "송신탑",
+        "relayBell": "종",
+        "satellite": "인공위성",
+        "signpost": "이정표",
+        "archBridge": "아치교",
+        "kite": "연",
+        "messageBottle": "유리병 편지",
+        "pennant": "삼각기",
+        "hotAirBalloon": "열기구"
       }
     },
     "providerDetail": {

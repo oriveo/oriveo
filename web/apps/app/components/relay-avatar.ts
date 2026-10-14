@@ -9,16 +9,16 @@ import type { Provider } from '@oriveo/shared';
 export type RelayAvatarBrand = 'openrouter' | 'siliconflow' | 'together' | 'fireworks' | 'groq';
 
 export type RelayAvatarIconId =
-  | 'planet'
-  | 'compass'
-  | 'sailboat'
-  | 'lighthouse'
-  | 'mountains'
-  | 'sun-horizon'
-  | 'flame'
-  | 'tree-evergreen'
-  | 'moon-stars'
-  | 'butterfly';
+  | 'paper-plane'
+  | 'signal-tower'
+  | 'relay-bell'
+  | 'satellite'
+  | 'signpost'
+  | 'arch-bridge'
+  | 'kite'
+  | 'message-bottle'
+  | 'pennant'
+  | 'hot-air-balloon';
 
 export type RelayAvatar =
   | { kind: 'brand'; brand: RelayAvatarBrand }
@@ -28,19 +28,20 @@ export type RelayAvatar =
 
 /**
  * Default avatar icon table (`icons` in fixture `relay-avatar-icon.v1.json`); the order is both the modulo index and the sheet cell order.
- * `palette` is the color name from the fixture; the render layer maps it to existing color tokens (dark 400 / light 600 by theme), never a hex value.
+ * Rendering uses the generated `RELAY_AVATAR_GLYPHS[id]`; `palette` is the color name from the fixture,
+ * which the render layer maps to existing color tokens (dark 400 / light 600 by theme), never a hex value.
  */
-export const RELAY_AVATAR_ICONS: ReadonlyArray<{ id: RelayAvatarIconId; phosphor: string; palette: string }> = [
-  { id: 'planet', phosphor: 'planet', palette: 'detailRow.indigo' },
-  { id: 'compass', phosphor: 'compass', palette: 'detailRow.teal' },
-  { id: 'sailboat', phosphor: 'sailboat', palette: 'detailRow.cyan' },
-  { id: 'lighthouse', phosphor: 'lighthouse', palette: 'capability.attachment' },
-  { id: 'mountains', phosphor: 'mountains', palette: 'capability.webSearch' },
-  { id: 'sun-horizon', phosphor: 'sun-horizon', palette: 'detailRow.orange' },
-  { id: 'flame', phosphor: 'flame', palette: 'detailRow.rose' },
-  { id: 'tree-evergreen', phosphor: 'tree-evergreen', palette: 'capability.vision' },
-  { id: 'moon-stars', phosphor: 'moon-stars', palette: 'capability.reasoning' },
-  { id: 'butterfly', phosphor: 'butterfly', palette: 'capability.tools' },
+export const RELAY_AVATAR_ICONS: ReadonlyArray<{ id: RelayAvatarIconId; palette: string }> = [
+  { id: 'paper-plane', palette: 'detailRow.indigo' },
+  { id: 'signal-tower', palette: 'detailRow.teal' },
+  { id: 'relay-bell', palette: 'capability.attachment' },
+  { id: 'satellite', palette: 'capability.reasoning' },
+  { id: 'signpost', palette: 'capability.vision' },
+  { id: 'arch-bridge', palette: 'capability.webSearch' },
+  { id: 'kite', palette: 'detailRow.rose' },
+  { id: 'message-bottle', palette: 'detailRow.cyan' },
+  { id: 'pennant', palette: 'detailRow.orange' },
+  { id: 'hot-air-balloon', palette: 'capability.tools' },
 ];
 
 /** The on-device choice value that means "initial" (fixture `letterChoice`). */

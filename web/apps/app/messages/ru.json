@@ -1242,16 +1242,16 @@
       "changeIcon": "Сменить значок",
       "avatarLetter": "Буква",
       "avatarIcons": {
-        "planet": "Планета",
-        "compass": "Компас",
-        "sailboat": "Парусник",
-        "lighthouse": "Маяк",
-        "mountains": "Горы",
-        "sunHorizon": "Рассвет",
-        "flame": "Пламя",
-        "treeEvergreen": "Ель",
-        "moonStars": "Луна и звёзды",
-        "butterfly": "Бабочка"
+        "paperPlane": "Бумажный самолётик",
+        "signalTower": "Радиовышка",
+        "relayBell": "Колокольчик",
+        "satellite": "Спутник",
+        "signpost": "Указатель",
+        "archBridge": "Мост",
+        "kite": "Воздушный змей",
+        "messageBottle": "Бутылка с письмом",
+        "pennant": "Вымпел",
+        "hotAirBalloon": "Воздушный шар"
       }
     },
     "providerDetail": {

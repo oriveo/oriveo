@@ -1242,16 +1242,16 @@
       "changeIcon": "アイコンを変更",
       "avatarLetter": "頭文字",
       "avatarIcons": {
-        "planet": "惑星",
-        "compass": "コンパス",
-        "sailboat": "ヨット",
-        "lighthouse": "灯台",
-        "mountains": "山並み",
-        "sunHorizon": "日の出",
-        "flame": "炎",
-        "treeEvergreen": "モミの木",
-        "moonStars": "月と星",
-        "butterfly": "蝶"
+        "paperPlane": "紙飛行機",
+        "signalTower": "電波塔",
+        "relayBell": "ベル",
+        "satellite": "人工衛星",
+        "signpost": "道しるべ",
+        "archBridge": "アーチ橋",
+        "kite": "凧",
+        "messageBottle": "ボトルメール",
+        "pennant": "三角旗",
+        "hotAirBalloon": "気球"
       }
     },
     "providerDetail": {
