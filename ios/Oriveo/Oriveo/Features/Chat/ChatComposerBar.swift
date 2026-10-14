@@ -258,6 +258,8 @@ struct QuoteContextChip: View {
 struct ChatComposerBar: View {
     let provider: Provider
     let currentModel: AIModel?
+    /// Set when the conversation's model has been removed: a banner shows above the input and sending is disabled.
+    var modelRemovedBanner: ChatModelRemovedBanner? = nil
     let visibleCapabilityKeys: Set<String>
     let capabilityEvidenceIdentity: CapabilityEvidenceRequestIdentity?
     let generationProjection: GenerationParameterEvidenceProjection?
@@ -310,6 +312,8 @@ struct ChatComposerBar: View {
     @State private var showsModelControls = false
     @State private var opensModelPickerAfterControls = false
     @State private var opensConnectionSettingsAfterControls = false
+    /// Same idea: after "Open web search settings" is tapped on a relay's web row, push the connection's web search settings page.
+    @State private var opensConnectionWebSearchAfterControls = false
     @State private var webPreferenceSelection: CapabilityWebPreference = .off
 
     private var visibleRelatedNotes: [NoteRecallEngine.Suggestion] {
@@ -350,9 +354,17 @@ struct ChatComposerBar: View {
     }
 
     private var attachmentSupport: (image: Bool, video: Bool, nativeFile: Bool, textFileInline: Bool) {
+        Self.attachmentSupport(provider: provider, model: currentModel)
+    }
+
+    static func attachmentSupport(
+        provider: Provider,
+        model: AIModel?
+    ) -> (image: Bool, video: Bool, nativeFile: Bool, textFileInline: Bool) {
         if provider.kind == .relay,
            let runtime = RelayRuntimeSupport.attachmentSupport(
                for: provider,
+               model: model,
                runtimeConfig: MetadataClient.shared.syncRelayRuntimeConfig()
            ) {
             return runtime
@@ -361,8 +373,19 @@ struct ChatComposerBar: View {
     }
 
     private var supportsImageAttachment: Bool {
+        Self.supportsImageAttachment(
+            provider: provider, model: currentModel, visibleCapabilityKeys: visibleCapabilityKeys
+        )
+    }
+
+    /// The single criterion for the photo / image entry; internal so contract tests can call the production criterion directly.
+    static func supportsImageAttachment(
+        provider: Provider,
+        model: AIModel?,
+        visibleCapabilityKeys: Set<String>
+    ) -> Bool {
         visibleCapabilityKeys.contains("vision_input")
-            && attachmentSupport.image
+            && attachmentSupport(provider: provider, model: model).image
     }
 
     private var supportsVideoAttachment: Bool {
@@ -462,7 +485,11 @@ struct ChatComposerBar: View {
     }
 
     private var hasDraftHighlight: Bool {
-        hasComposerContent && !controlsDisabled
+        ChatModelRemovedBanner.isSendEnabled(
+            hasComposerContent: hasComposerContent,
+            controlsDisabled: controlsDisabled,
+            banner: modelRemovedBanner
+        )
     }
 
     private var attachmentAccessibilityLabel: String {
@@ -577,6 +604,11 @@ struct ChatComposerBar: View {
         #endif
         let _ = CapabilityEvidenceObservationBridge.shared.contentRevision
         VStack(alignment: .leading, spacing: 10) {
+            if let modelRemovedBanner {
+                modelRemovedBannerView(modelRemovedBanner)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
             noteContextSection
 
             if showsModeControls {
@@ -785,6 +817,11 @@ struct ChatComposerBar: View {
                     appState.navigation.openProviderDetail(providerID: provider.id)
                     return
                 }
+                if opensConnectionWebSearchAfterControls {
+                    opensConnectionWebSearchAfterControls = false
+                    appState.openRelayWebSearch(providerID: provider.id)
+                    return
+                }
                 guard opensModelPickerAfterControls else { return }
                 opensModelPickerAfterControls = false
                 onChooseModel()
@@ -808,6 +845,10 @@ struct ChatComposerBar: View {
                     },
                     onOpenConnectionSettings: {
                         opensConnectionSettingsAfterControls = true
+                        showsModelControls = false
+                    },
+                    onOpenConnectionWebSearch: {
+                        opensConnectionWebSearchAfterControls = true
                         showsModelControls = false
                     }
                 )
@@ -851,7 +892,7 @@ struct ChatComposerBar: View {
     // MARK: - Attachment Preview
 
     private var attachmentPreviewRow: some View {
-        let canUseKnowledge = provider.kind == .openAI && !provider.apiKey.isEmpty
+        let canUseKnowledge = provider.kind == .openAI && !ProviderCredentialResolver.apiKey(provider: provider, modelID: nil).isEmpty
         let hasTruncatedChip = canUseKnowledge && pendingAttachments.contains { $0.extractedTruncated == true }
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: OriveoTheme.Spacing.sm) {
@@ -1091,6 +1132,38 @@ struct ChatComposerBar: View {
         }
     }
 
+    /// The row shown when the conversation's model was removed: the same compact style as the attachment sync banner, with one button on the right that opens the model picker.
+    private func modelRemovedBannerView(_ banner: ChatModelRemovedBanner) -> some View {
+        let tint = OriveoTheme.Palette.warning
+        return HStack(alignment: .center, spacing: 8) {
+            Image(systemName: "exclamationmark.circle")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+            Text(banner.message)
+                .font(OriveoTheme.Typography.footnote)
+                .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Button(banner.actionTitle, action: onChooseModel)
+                .font(OriveoTheme.Typography.footnote.weight(.semibold))
+                .foregroundStyle(OriveoTheme.Palette.primary)
+                .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(tint.opacity(isDarkMode ? 0.14 : 0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(tint.opacity(isDarkMode ? 0.28 : 0.20), lineWidth: 1)
+                )
+        }
+    }
+
     // MARK: - Attachment Composer Button
 
     private func attachmentComposerButton(
@@ -1209,7 +1282,11 @@ struct ChatComposerBar: View {
     // MARK: - Action Cluster
 
     private var composerActionCluster: some View {
-        let isPrimed = hasComposerContent && !controlsDisabled
+        let isPrimed = ChatModelRemovedBanner.isSendEnabled(
+            hasComposerContent: hasComposerContent,
+            controlsDisabled: controlsDisabled,
+            banner: modelRemovedBanner
+        )
 
         return Group {
             if isSendingMessage {

@@ -49,10 +49,32 @@ struct OpenAIChatStrategy: TransportStrategy {
             }
         }
 
-        if let arrayPath = shape?.citationsArrayPath,
-           let citations = parseCitations(from: json, arrayPath: arrayPath, shape: shape) {
-            for c in citations {
-                ctx.citationsAccumulator.ingest(c)
+        if let arrayPath = shape?.citationsArrayPath {
+            var paths = [arrayPath]
+            let messagePrefix = "choices.0.message."
+            if ctx.readsDeltaCitations, arrayPath.hasPrefix(messagePrefix) {
+                paths.append("choices.0.delta." + arrayPath.dropFirst(messagePrefix.count))
+            }
+            for path in paths {
+                for c in parseCitations(from: json, arrayPath: path, shape: shape) ?? [] {
+                    ctx.citationsAccumulator.ingest(c)
+                }
+            }
+        }
+
+        // Web-search evidence: a url_citation with a non-empty url in choices[].delta|message.annotations[]
+        // (a missing start/end_index still counts). It is recorded only in ctx.webSearchEvidence, never in
+        // citations, so chat output is unchanged.
+        if let choices = (json as? [String: Any])?["choices"] as? [[String: Any]] {
+            for choice in choices {
+                for container in ["delta", "message"] {
+                    let annotations = (choice[container] as? [String: Any])?["annotations"] as? [[String: Any]] ?? []
+                    for annotation in annotations where (annotation["type"] as? String) == "url_citation" {
+                        if let url = (annotation["url_citation"] as? [String: Any])?["url"] as? String {
+                            ctx.webSearchEvidence.note(url: url)
+                        }
+                    }
+                }
             }
         }
 

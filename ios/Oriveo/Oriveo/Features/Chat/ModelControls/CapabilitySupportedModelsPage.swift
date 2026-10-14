@@ -39,7 +39,7 @@ struct CapabilitySupportedModelsPage: View {
         switch capability {
         case "web": return L10n.tr("Web Search", table: .chat)
         case "reasoning": return L10n.tr("Thinking Mode", table: .chat)
-        default: return L10n.tr("Advanced Settings")
+        default: return L10n.tr("Parameters", table: .providers)
         }
     }
 
@@ -61,7 +61,7 @@ struct CapabilitySupportedModelsPage: View {
             onSelect(candidate)
         } label: {
             HStack(spacing: 12) {
-                ProviderBadgeIcon(kind: provider.kind, size: 26, relayKind: provider.relayKind)
+                ConnectionAvatarIcon(provider: provider, kind: provider.kind, relayKind: provider.relayKind, size: 26)
 
                 Text(candidate.name)
                     .font(.system(size: 15, weight: .medium))
@@ -74,7 +74,7 @@ struct CapabilitySupportedModelsPage: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(OriveoTheme.Palette.primary)
 
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(OriveoTheme.Palette.textTertiary)
             }

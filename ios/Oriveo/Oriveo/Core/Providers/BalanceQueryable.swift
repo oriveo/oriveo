@@ -107,7 +107,7 @@ final class ProviderBalanceStore {
 
         if forceRefresh == false,
            let cached = entries[providerID],
-           cached.apiKey == normalizedKey,
+           cached.apiKey == normalizedKey, // key-choke: not-provider
            cached.baseURL == normalizedBaseURL,
            now().timeIntervalSince(cached.balance.fetchedAt) < cacheTTL {
             return cached.balance
@@ -144,7 +144,7 @@ final class ProviderBalanceStore {
     /// on the first frame and replaces it in place once the refresh lands.
     func cachedBalance(providerID: UUID, apiKey: String, baseURL: String?) -> ProviderBalance? {
         guard let cached = entries[providerID],
-              cached.apiKey == apiKey.trimmingCharacters(in: .whitespacesAndNewlines),
+              cached.apiKey == apiKey.trimmingCharacters(in: .whitespacesAndNewlines), // key-choke: not-provider
               cached.baseURL == (baseURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") else {
             return nil
         }

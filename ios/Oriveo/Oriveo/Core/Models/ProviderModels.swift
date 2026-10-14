@@ -199,6 +199,10 @@ enum ProviderKind: String, CaseIterable, Hashable, Identifiable, Codable, Sendab
         case .zhipu:
             return "open.bigmodel.cn/api/paas/v4"
         case .qwen:
+            // DashScope origin (without /compatible-mode/v1): chat is composed by QwenService.composeCompatibleChatURL
+            // as <origin>/compatible-mode/v1/chat/completions, image generation uses the native
+            // <origin>/api/v1/services/aigc/multimodal-generation/generation, and key validation appends the
+            // metadata validation probePath to the base URL that EndpointResolver.resolveBaseURL returns.
             return "dashscope-intl.aliyuncs.com"
         case .moonshot:
             return "api.moonshot.ai/v1"
@@ -208,6 +212,21 @@ enum ProviderKind: String, CaseIterable, Hashable, Identifiable, Codable, Sendab
             return "api.siliconflow.cn/v1"
         case .relay:
             return nil
+        }
+    }
+
+    /// Retired regions: stored records are migrated to the replacement region at launch backfill and at request time.
+    var retiredEndpointRegions: [RetiredEndpointRegion] {
+        switch self {
+        case .qwen:
+            return [RetiredEndpointRegion(
+                regionID: "us",
+                host: "dashscope-us.aliyuncs.com",
+                replacementID: "sg",
+                builtInReplacementBaseURLText: "dashscope-intl.aliyuncs.com"
+            )]
+        default:
+            return []
         }
     }
 
@@ -227,6 +246,7 @@ enum ProviderKind: String, CaseIterable, Hashable, Identifiable, Codable, Sendab
                 ),
             ]
         case .qwen:
+            // DashScope origin (no /compatible-mode/v1); each request entry composes its own path (see the qwen note in `defaultBaseURLText`).
             return [
                 ProviderEndpointOption(
                     id: "sg",
@@ -243,11 +263,7 @@ enum ProviderKind: String, CaseIterable, Hashable, Identifiable, Codable, Sendab
                     label: L10n.tr("Hong Kong", table: .providers),
                     baseURLText: "cn-hongkong.dashscope.aliyuncs.com"
                 ),
-                ProviderEndpointOption(
-                    id: "us",
-                    label: L10n.tr("Virginia (US)", table: .providers),
-                    baseURLText: "dashscope-us.aliyuncs.com"
-                ),
+                // us (Virginia) is retired: it is no longer selectable; the frozen identity table still keeps it, and stored records are migrated to sg lazily.
             ]
         case .moonshot:
             return [
@@ -824,6 +840,14 @@ struct GenerationParameterRange: Codable, Equatable, Hashable, Sendable {
     var step: Double?
 }
 
+/// Per-model capability declaration issued by the catalog. Each item is tri-state: true / false = the catalog says so, nil = the catalog has no such key.
+struct CatalogCapabilityTruth: Hashable, Sendable {
+    var visionInput: Bool?
+    var webSearch: Bool?
+    /// Whether the model shows its thinking process (`capabilityFlags.reasoning` in the catalog). Nil = the catalog has no explicit object, fall back to the legacy array.
+    var reasoning: Bool? = nil
+}
+
 struct AIModel: Identifiable, Hashable, Codable, Sendable {
     let id: String
     var name: String
@@ -874,6 +898,10 @@ struct AIModel: Identifiable, Hashable, Codable, Sendable {
     /// (`CapabilityControlResolution.subscriptionFinalTransport`). Refilled on every catalog fetch.
     var upstreamAPIBackend: String? = nil
     var upstreamDefaultReasoningLevel: String? = nil
+    /// The per-item capability verdict a catalog declares for this model (for the truth adapter only).
+    /// Nil = this object was not produced by decoding the current catalog; an item inside being nil = the catalog did not declare it.
+    /// Same discipline as `upstreamReasoningLevels`: **not in `CodingKeys`**, refilled on every catalog fetch.
+    var catalogCapabilityTruth: CatalogCapabilityTruth? = nil
 
     var supportsWebSearchControl: Bool {
         capabilities.contains(.web)
@@ -885,6 +913,40 @@ struct AIModel: Identifiable, Hashable, Codable, Sendable {
             && imageGenProfile?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
     }
     var isManual: Bool = false
+    /// Relay 2.0: model-level protocol. Nil = follow the connection's default protocol; `.auto` is not a valid model-level value.
+    /// Reads go only through `RelayEndpointResolver.effectiveTransport(provider:model:)`.
+    /// Model-level fields (including engineDeclaration below) are stored only on this device and in the user's own backup file, never in Firestore.
+    var relayTransport: RelayTransport? = nil
+    /// Where the model-level protocol came from; meaningless when `relayTransport` is nil, and omitted when encoding.
+    var relayTransportSource: RelayTransportSource? = nil
+    /// The user's manual override of this model's capabilities.
+    var relayCapabilityOverrides: RelayCapabilityOverrides? = nil
+    /// The capability declaration the local engine makes for this model. Written only by the local engine connector; nil = no declaration.
+    var engineDeclaration: EngineDeclaration? = nil
+    /// Multiple keys: the id of the key this model is bound to; nil or pointing at a deleted key = the primary key. Not written when the connection has a single key.
+    var relayKeyID: String? = nil
+    /// Catalog entry: ids of the keys that listed this model when the catalog was fetched (in key order); nil = listed by the primary key.
+    var relayListedByKeyIDs: [String]? = nil
+    /// The id of the key most recently judged "this key cannot use this model"; meaningful only when it equals the key currently in effect.
+    var relayDeniedKeyID: String? = nil
+
+    /// The Relay 2.0 model-level field surface. `CaseIterable` is deliberate: the cross-platform fixture `modelFields.all` reconciles against it.
+    enum RelayFieldKey: String, CaseIterable {
+        case relayTransport, relayTransportSource, relayCapabilityOverrides, engineDeclaration
+        case relayKeyID, relayListedByKeyIDs, relayDeniedKeyID
+    }
+
+    /// The subset of model-level fields allowed to leave this device for Firestore: currently none.
+    nonisolated static let relayPortableFieldNames: Set<String> = []
+
+    /// Protocol and source must come as a pair: a protocol of `auto` or missing means neither; a protocol without a source drops both.
+    nonisolated static func normalizedRelayTransport(
+        transport: RelayTransport?,
+        source: RelayTransportSource?
+    ) -> (transport: RelayTransport?, source: RelayTransportSource?) {
+        guard let transport, transport != .auto, let source else { return (nil, nil) }
+        return (transport, source)
+    }
     var attachmentExtraction: AttachmentExtractionLimits? = nil
     var nativeFileMimes: [String] = []
     var pdfNativeDefault: Bool = false
@@ -1012,6 +1074,8 @@ struct AIModel: Identifiable, Hashable, Codable, Sendable {
         case nativeFileMimes
         case pdfNativeDefault
         case freeQuotaEligible, localLoadState, executionLocality
+        case relayTransport, relayTransportSource, relayCapabilityOverrides, engineDeclaration
+        case relayKeyID, relayListedByKeyIDs, relayDeniedKeyID
     }
 
     init(from decoder: Decoder) throws {
@@ -1071,6 +1135,27 @@ struct AIModel: Identifiable, Hashable, Codable, Sendable {
         freeQuotaEligible = try c.decodeIfPresent(Bool.self, forKey: .freeQuotaEligible) ?? true
         localLoadState = try c.decodeIfPresent(LocalModelLoadState.self, forKey: .localLoadState)
         executionLocality = try c.decodeIfPresent(ModelExecutionLocality.self, forKey: .executionLocality)
+        // Relay 2.0 model-level fields are tolerated one by one: an unknown protocol / source or a malformed
+        // override drops only itself and never fails the whole model decode. They are read as raw strings
+        // because `RelayTransport`'s own decoding folds unknown values into `.auto`, while here
+        // "unknown = absent" is wanted.
+        let rawRelayTransport = try? c.decodeIfPresent(String.self, forKey: .relayTransport)
+        let rawRelaySource = try? c.decodeIfPresent(String.self, forKey: .relayTransportSource)
+        let relay = Self.normalizedRelayTransport(
+            transport: rawRelayTransport.flatMap(RelayTransport.init(rawValue:)),
+            source: rawRelaySource.flatMap(RelayTransportSource.init(rawValue:))
+        )
+        relayTransport = relay.transport
+        relayTransportSource = relay.source
+        let overrides = try? c.decodeIfPresent(RelayCapabilityOverrides.self, forKey: .relayCapabilityOverrides)
+        relayCapabilityOverrides = overrides?.isEmpty == false ? overrides : nil
+        let declaration = try? c.decodeIfPresent(EngineDeclaration.self, forKey: .engineDeclaration)
+        engineDeclaration = declaration?.isEmpty == false ? declaration : nil
+        // The three key-binding fields are tolerated one by one as well: a malformed one drops only itself, and an empty string / empty list counts as absent.
+        relayKeyID = (try? c.decodeIfPresent(String.self, forKey: .relayKeyID)).flatMap { $0.isEmpty ? nil : $0 }
+        let listedBy = (try? c.decodeIfPresent([String].self, forKey: .relayListedByKeyIDs))?.filter { !$0.isEmpty }
+        relayListedByKeyIDs = listedBy?.isEmpty == false ? listedBy : nil
+        relayDeniedKeyID = (try? c.decodeIfPresent(String.self, forKey: .relayDeniedKeyID)).flatMap { $0.isEmpty ? nil : $0 }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -1127,6 +1212,18 @@ struct AIModel: Identifiable, Hashable, Codable, Sendable {
         }
         try c.encodeIfPresent(localLoadState, forKey: .localLoadState)
         try c.encodeIfPresent(executionLocality, forKey: .executionLocality)
+        let relay = Self.normalizedRelayTransport(transport: relayTransport, source: relayTransportSource)
+        try c.encodeIfPresent(relay.transport, forKey: .relayTransport)
+        try c.encodeIfPresent(relay.source, forKey: .relayTransportSource)
+        if let relayCapabilityOverrides, !relayCapabilityOverrides.isEmpty {
+            try c.encode(relayCapabilityOverrides, forKey: .relayCapabilityOverrides)
+        }
+        if let engineDeclaration, !engineDeclaration.isEmpty {
+            try c.encode(engineDeclaration, forKey: .engineDeclaration)
+        }
+        try c.encodeIfPresent(relayKeyID, forKey: .relayKeyID)
+        try c.encodeIfPresent(relayListedByKeyIDs, forKey: .relayListedByKeyIDs)
+        try c.encodeIfPresent(relayDeniedKeyID, forKey: .relayDeniedKeyID)
     }
 }
 
@@ -1143,6 +1240,8 @@ enum ModelExecutionLocality: String, Codable, Hashable, Sendable {
 struct LocalModelRuntimeMetadata: Sendable {
     let loadState: LocalModelLoadState
     let executionLocality: ModelExecutionLocality
+    /// The capability declaration the connector parsed from the engine's existing responses; an empty declaration is recorded as nil.
+    var engineDeclaration: EngineDeclaration? = nil
 }
 
 struct ModelSourceSummary: Hashable, Codable, Sendable {
@@ -1178,6 +1277,14 @@ struct Provider: Identifiable, Hashable, Codable, Sendable {
     var relayKind: RelayKind? = nil
 
     var authMode: ProviderAuthMode = .apiKey
+    /// Where an official provider's address came from. Stored only on this device: not in the sync payload or the backup export; nil = unclassified.
+    var endpointSource: ProviderEndpointSource? = nil
+    /// Template values entered at setup (currently only `workspaceId`). Stored only on this device.
+    var setupValues: [String: String]? = nil
+    /// The relay's key list, produced only by the user's key operations; nil = one implicit key `initial`.
+    /// The first is the primary key and its value always lives in `apiKey` (the entry's own `apiKey` stays empty); the other entries' values go to the Keychain.
+    /// Stored only on this device like `setupValues`: not in Firestore or backups, and a remote merge keeps the local value.
+    var relayKeys: [RelayKey]? = nil
 
     var displayName: String {
         if let trimmed = customName?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty {
@@ -1215,7 +1322,11 @@ struct Provider: Identifiable, Hashable, Codable, Sendable {
     var availableModelCount: Int {
         cachedAvailableModelCount ?? models.count
     }
-    var defaultModel: AIModel? { models.first(where: \.isDefault) ?? models.first }
+    /// A relay (including a local engine) has no default model: `isDefault` in old data is ignored and the first enabled model is used.
+    var defaultModel: AIModel? {
+        guard kind != .relay else { return models.first }
+        return models.first(where: \.isDefault) ?? models.first
+    }
 
     func recoveredFromPersistence() -> Provider {
         guard case .syncing = status else { return self }
@@ -1232,6 +1343,8 @@ extension Provider {
         case lastSyncedText, customName, updatedAt
         case cachedAvailableModelCount
         case relayRequested, relayKind, authMode
+        case endpointSource, setupValues
+        case relayKeys
         case recommendedModels, relayImage, relayImport
     }
 
@@ -1240,9 +1353,12 @@ extension Provider {
         id = try c.decode(UUID.self, forKey: .id)
         kind = try c.decode(ProviderKind.self, forKey: .kind)
         status = try c.decode(ProviderConnectionState.self, forKey: .status)
-        models = try c.decode([AIModel].self, forKey: .models)
-        catalogModels = CatalogModelBuilder.deduplicateByCanonical(
-            try c.decodeIfPresent([AIModel].self, forKey: .catalogModels) ?? []
+        let decodedModels = try c.decode([AIModel].self, forKey: .models)
+        // A relay's enabled list is also deduplicated by literal key; an official enabled list is kept as is
+        models = kind == .relay ? ModelResolver.relayDeduplicated(decodedModels) : decodedModels
+        catalogModels = CatalogModelBuilder.deduplicate(
+            try c.decodeIfPresent([AIModel].self, forKey: .catalogModels) ?? [],
+            providerKind: kind
         )
         lastCheckedAt = try c.decodeIfPresent(Date.self, forKey: .lastCheckedAt)
             ?? c.decodeIfPresent(Date.self, forKey: .lastSyncedAt)
@@ -1256,6 +1372,12 @@ extension Provider {
         relayRequested = try c.decodeIfPresent(RelayRequestedConfig.self, forKey: .relayRequested)
         relayKind = try c.decodeIfPresent(RelayKind.self, forKey: .relayKind)
         authMode = try c.decodeIfPresent(ProviderAuthMode.self, forKey: .authMode) ?? .apiKey
+        // An unknown source value counts as unclassified and is reclassified from metadata on the next launch, so the whole record never fails to decode.
+        endpointSource = (try? c.decodeIfPresent(String.self, forKey: .endpointSource))
+            .flatMap(ProviderEndpointSource.init(rawValue:))
+        setupValues = try? c.decodeIfPresent([String: String].self, forKey: .setupValues)
+        // A malformed column is dropped as a whole (falls back to the implicit single key) so the Provider still decodes.
+        relayKeys = (try? c.decodeIfPresent([RelayKey].self, forKey: .relayKeys)).flatMap { $0.isEmpty ? nil : $0 }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -1275,5 +1397,62 @@ extension Provider {
         try c.encodeIfPresent(relayRequested, forKey: .relayRequested)
         try c.encodeIfPresent(relayKind, forKey: .relayKind)
         try c.encode(authMode, forKey: .authMode)
+        try c.encodeIfPresent(endpointSource?.rawValue, forKey: .endpointSource)
+        try c.encodeIfPresent(setupValues, forKey: .setupValues)
+        // Same discipline as apiKey: the Provider JSON never stores any key value, and non-primary key values live only in the Keychain.
+        try c.encodeIfPresent(relayKeys?.map(\.withoutSecret), forKey: .relayKeys)
+    }
+}
+
+/// One key of a relay connection. `status` comes only from catalog fetches and real requests; nil = not checked.
+nonisolated struct RelayKey: Codable, Hashable, Sendable {
+    var id: String
+    var name: String?
+    var apiKey: String
+    var status: Status?
+
+    init(id: String, name: String? = nil, apiKey: String = "", status: Status? = nil) {
+        self.id = id
+        self.name = name
+        self.apiKey = apiKey
+        self.status = status
+    }
+
+    struct Status: Codable, Hashable, Sendable {
+        enum State: String, Codable, CaseIterable, Sendable {
+            case ok, invalid, denied, limited, failed
+        }
+
+        var state: State
+        var httpStatus: Int?
+        var checkedAt: Date?
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, name, apiKey, status }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        guard !id.isEmpty else {
+            throw DecodingError.dataCorruptedError(forKey: .id, in: c, debugDescription: "empty relay key id")
+        }
+        name = try? c.decodeIfPresent(String.self, forKey: .name)
+        apiKey = (try? c.decodeIfPresent(String.self, forKey: .apiKey)) ?? ""
+        // A value outside the status vocabulary or a malformed one drops only the status (= not checked), not the whole key.
+        status = try? c.decodeIfPresent(Status.self, forKey: .status)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encodeIfPresent(name, forKey: .name)
+        try c.encode(apiKey, forKey: .apiKey)
+        try c.encodeIfPresent(status, forKey: .status)
+    }
+
+    var withoutSecret: RelayKey {
+        var copy = self
+        copy.apiKey = ""
+        return copy
     }
 }

@@ -44,7 +44,7 @@ struct ProviderBalanceCard: View {
                 }
             }
         }
-        .onChange(of: provider.apiKey) {
+        .onChange(of: ProviderCredentialResolver.apiKey(provider: provider, modelID: nil)) {
             Task { await loadIfNeeded(forceRefresh: true) }
         }
         .onChange(of: provider.baseURLText) {
@@ -357,7 +357,7 @@ struct ProviderBalanceCard: View {
             withAnimation(.easeOut(duration: 0.2)) { state = .hidden }
             return
         }
-        let apiKey = provider.apiKey
+        let apiKey = ProviderCredentialResolver.apiKey(provider: provider, modelID: nil)
         guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             withAnimation(.easeOut(duration: 0.2)) {
                 errorKind = .keyInvalid(detail: "Missing API key.")
@@ -374,7 +374,7 @@ struct ProviderBalanceCard: View {
                 providerID: provider.id,
                 kind: provider.kind,
                 apiKey: apiKey,
-                baseURL: provider.baseURLText,
+                baseURL: provider.requestBaseURLText(),
                 forceRefresh: forceRefresh
             )
             withAnimation(.easeOut(duration: 0.25)) {

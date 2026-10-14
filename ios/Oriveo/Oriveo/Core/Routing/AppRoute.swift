@@ -19,6 +19,13 @@ enum AppRoute: Hashable {
     case providerSetup(entryPoint: ProviderSetupEntryPoint, preselectedKind: ProviderKind? = nil)
     case manualModelEntry(providerID: UUID, context: ManualModelEntryContext)
     case providerDetail(providerID: UUID)
+    /// Sub-pages of the relay / local detail screen: real navigation levels, so Back pops one level at a time.
+    case relayModelLibrary(providerID: UUID, keyID: String? = nil)
+    case relayKeys(providerID: UUID)
+    /// Web-search settings page of a relay connection.
+    case relayWebSearch(providerID: UUID)
+    /// Model > Advanced. `readOnly` means a not-yet-enabled model opened from a model library catalog row (read-only, zero requests).
+    case relayModelAdvanced(providerID: UUID, modelID: String, readOnly: Bool)
     case chat(conversationID: UUID?)
     case relaySetup(entryPoint: ProviderSetupEntryPoint)
     case localComputeSetup(entryPoint: ProviderSetupEntryPoint)

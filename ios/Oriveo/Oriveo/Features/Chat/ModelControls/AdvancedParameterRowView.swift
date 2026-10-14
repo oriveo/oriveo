@@ -938,7 +938,8 @@ struct AdvancedChevron: View {
     var isExpanded: Bool = false
 
     var body: some View {
-        Image(systemName: "chevron.right")
+        // The angle is not negated by layout direction: SwiftUI rotation is mirrored along with RTL, so a left-pointing chevron also turns to point down.
+        Image(systemName: "chevron.forward")
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(OriveoTheme.Palette.textTertiary.opacity(0.8))
             .rotationEffect(.degrees(isExpanded ? 90 : 0))

@@ -35,6 +35,11 @@ enum ProviderLogoResolver {
 
     static func logoKind(for provider: Provider) -> ProviderKind {
         guard provider.kind == .relay else { return provider.kind }
+        // A relay connection is recognized only by the aggregator brand table keyed on name / domain, no longer
+        // inferred from model ids or protocol type; the inference and memo below are kept for local-engine connections only.
+        guard RelayAvatarResolver.isLocalEngine(provider) else {
+            return RelayAvatarResolver.brandKind(for: provider) ?? .relay
+        }
         if let memo = memos[provider.id], memo.matches(provider) {
             return memo.kind
         }
@@ -56,7 +61,7 @@ enum ProviderLogoResolver {
         return kind
     }
 
-    /// Reads only displayName (for a relay it depends on customName and baseURLText), baseURLText,
+    /// Used only for local-engine connections. Reads only displayName (for a relay it depends on customName and baseURLText), baseURLText,
     /// models and relayKind, which are exactly the fields `Memo.matches` compares. Change both
     /// together when adding an input.
     private static func inferRelayLogoKind(for provider: Provider) -> ProviderKind {

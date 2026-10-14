@@ -4,6 +4,11 @@ import Foundation
 import GRDB
 import os
 
+extension Notification.Name {
+    /// Posted synchronously on the main thread after a split snapshot is published to the shared state. Derived registrations that depend on metadata resolution (the relay legacy key aliases) recompute on it.
+    static let metadataSnapshotDidPublish = Notification.Name("oriveo.metadataSnapshotDidPublish")
+}
+
 actor MetadataClient {
     static let shared = MetadataClient()
 
@@ -403,6 +408,11 @@ actor MetadataClient {
         let regionOptions: [ProviderRegionOption]?
         let sortOrder: Int?
         var protocolFeatures: RawProtocolFeatures? = nil
+        /// The trusted-host table for official base URLs and region options. An empty table is not sent, so missing and empty mean the same;
+        /// malformed entries are dropped one by one on decode (`TrustedHostList`).
+        var trustedHosts: TrustedHostList? = nil
+        /// Extra setup fields. Missing / null = none; unknown ids are dropped on decode.
+        var setupFields: ProviderSetupFieldList? = nil
     }
 
     struct RawProtocolFeatures: Codable, Sendable, Equatable {
@@ -461,6 +471,9 @@ actor MetadataClient {
         let acceptedVersions: [String]
         let headerProfile: String
         let codexIdentityDefault: Bool
+        /// The raw Codex CLI version string issued by the server (carried only by openai_responses); unvalidated,
+        /// and it reaches a request header only after `RelayRuntimeSupport.resolvedCodexCliVersion` validates it.
+        var codexClientVersion: String? = nil
         let webSearchToolName: String
         let imageRoute: String
         let forceStreamForImageGeneration: Bool
@@ -473,6 +486,7 @@ actor MetadataClient {
         let acceptedVersions: [String]?
         let headerProfile: String?
         let codexIdentityDefault: Bool?
+        let codexClientVersion: String?
         let webSearchToolName: String?
         let imageRoute: String?
         let forceStreamForImageGeneration: Bool?
@@ -1683,13 +1697,9 @@ actor MetadataClient {
               control.state == RequestControlAvailability.autoAvailable.rawValue,
               let ref = control.recipeRef,
               let recipe = runtime.recipes[ref],
-              (
-                Self.canonicalCapabilityTransport(resolved.transport ?? "") == Self.canonicalCapabilityTransport(recipe.transport.protocolName)
-                // Endpoint-route recipes are an explicit runtime transport replacement, not a
-                // selector alias. Gemini Interactions is therefore reachable only through its
-                // exact control/route validation, while ordinary model transport misses fail.
-                || (recipe.executionKind == "endpoint_route" && recipe.transport.protocolName == "gemini_interactions")
-              )
+              // The model transport and the recipe protocol must agree; Gemini Interactions is likewise selectable only when the
+              // model transport is gemini_interactions (the same criterion as the server's verdict), with no exemption.
+              Self.canonicalCapabilityTransport(resolved.transport ?? "") == Self.canonicalCapabilityTransport(recipe.transport.protocolName)
         else { return nil }
         return recipe
     }
@@ -1934,6 +1944,7 @@ actor MetadataClient {
                         : base.acceptedVersions,
                     headerProfile: override.headerProfile ?? base.headerProfile,
                     codexIdentityDefault: override.codexIdentityDefault ?? base.codexIdentityDefault,
+                    codexClientVersion: override.codexClientVersion ?? base.codexClientVersion,
                     webSearchToolName: override.webSearchToolName ?? base.webSearchToolName,
                     imageRoute: override.imageRoute ?? base.imageRoute,
                     forceStreamForImageGeneration: override.forceStreamForImageGeneration ?? base.forceStreamForImageGeneration
@@ -1982,6 +1993,14 @@ actor MetadataClient {
                 .subscriptionAuth
         }
         return OpenAISubscriptionAuthResolver.resolve(raw: raw)
+    }
+
+    /// The public config issued for this official provider (apiProtocol / trustedHosts / defaultBaseURL).
+    nonisolated func syncPublicProviderConfig(providerKind: ProviderKind) -> PublicProviderConfig? {
+        let backendKind = Self.kindMap[providerKind.rawValue] ?? providerKind.rawValue
+        return Self.withSharedSnapshot { snapshot in
+            snapshot?.providerConfigs?.first { $0.kind == backendKind }
+        }
     }
 
     nonisolated func syncHasPublicProviderConfigSource() -> Bool {
@@ -3067,6 +3086,10 @@ actor MetadataClient {
         publishConfirmedCatalogs()
         await publishCapabilityEvidenceContent(snapshot: snapshot, etag: state.indexETag)
         Self.syncSelfHealPatternsToClassifier()
+        // When metadata arrives later than providers, the relay legacy key aliases must be re-registered against the new snapshot; the post is delivered synchronously on the main thread, so they are registered by the time publishing returns
+        await MainActor.run {
+            NotificationCenter.default.post(name: .metadataSnapshotDidPublish, object: nil)
+        }
     }
 
     /// Only catalogs matching the index confirmed this session count as confirmed; last-good does not.
@@ -3167,6 +3190,116 @@ actor MetadataClient {
             await publishCapabilityEvidenceContent(snapshot: merged, etag: currentSnapshotETag)
         } catch {
             errorReporter(error, ["operation": "model_facts_fetch"])
+        }
+    }
+
+    // MARK: - Relay 2.0 per-model probing: the by-model family lookup
+
+    /// The "normalized id -> family" map from `GET /api/metadata/model-facts?view=by-model`. Nil = not fetched yet this session;
+    /// it is fetched lazily only when a probe needs the family and lives only in memory. It sits behind a lock so that it can be read synchronously when a model is enabled (multi-key binding).
+    private nonisolated let relayFamilyByModelLock = OSAllocatedUnfairLock<[String: String]?>(initialState: nil)
+    private var relayFamilyByModel: [String: String]? {
+        get { relayFamilyByModelLock.withLock { $0 } }
+        set { relayFamilyByModelLock.withLock { $0 = newValue } }
+    }
+
+    /// The family of a relay model; nil when it cannot be found or the view is unavailable (failure / 404 / offline), in which case the caller tries Chat only.
+    func relayModelFamily(for modelID: String) async -> String? {
+        if relayFamilyByModel == nil {
+            relayFamilyByModel = await fetchRelayFamilyByModel()
+        }
+        guard let map = relayFamilyByModel else { return nil }
+        return Self.relayModelFamily(in: map, modelID: modelID)
+    }
+
+    /// Reads only the family map already fetched this session and sends no request: the protocol ratio bar on the add page uses only responses already received.
+    func cachedRelayModelFamily(for modelID: String) -> String? {
+        guard let map = relayFamilyByModel else { return nil }
+        return Self.relayModelFamily(in: map, modelID: modelID)
+    }
+
+    /// Same as above but without entering the actor: used to compute the key binding synchronously when a model is enabled or added by hand; it reads only the already-fetched family map and sends no request.
+    nonisolated func cachedRelayModelFamilyNow(for modelID: String) -> String? {
+        guard let map = relayFamilyByModelLock.withLock({ $0 }) else { return nil }
+        return Self.relayModelFamily(in: map, modelID: modelID)
+    }
+
+    /// The `providerKind` (a server key) of each entry in the by-model view. Relay reasoning levels use it to go back to the default view and read model-facts.
+    private nonisolated let relayFactsKindByModelLock = OSAllocatedUnfairLock<[String: String]?>(initialState: nil)
+
+    /// Reads only the by-model map already fetched this session (no request is made for it): on a hit it returns the model-facts
+    /// providerKind and the key that matched (the normalized id or its last segment), for use with `syncModelFacts`.
+    nonisolated func cachedRelayModelFactsKeyNow(for modelID: String) -> (providerKind: ProviderKind, modelID: String)? {
+        guard let map = relayFactsKindByModelLock.withLock({ $0 }) else { return nil }
+        let normalized = Self.normalizeModelFactsID(modelID)
+        guard !normalized.isEmpty else { return nil }
+        var key = normalized
+        if map[key] == nil, let slash = normalized.lastIndex(of: "/") {
+            key = String(normalized[normalized.index(after: slash)...])
+        }
+        guard let serverKind = map[key],
+              let raw = Self.kindMap.first(where: { $0.value == serverKind })?.key,
+              let kind = ProviderKind(rawValue: raw) else { return nil }
+        return (kind, key)
+    }
+
+    nonisolated static func decodeRelayFactsKindByModel(_ data: Data) -> [String: String]? {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        let body = root["data"] as? [String: Any] ?? root
+        guard let byModel = body["byModel"] as? [String: Any] else { return nil }
+        return byModel.reduce(into: [String: String]()) { result, entry in
+            if let kind = (entry.value as? [String: Any])?["providerKind"] as? String, !kind.isEmpty {
+                result[entry.key] = kind
+            }
+        }
+    }
+
+    /// Injects a by-model response in tests, equivalent to having fetched it this session.
+    func setRelayByModelForTesting(_ data: Data) {
+        relayFamilyByModel = Self.decodeRelayFamilyByModel(data)
+        relayFactsKindByModelLock.withLock { $0 = Self.decodeRelayFactsKindByModel(data) }
+    }
+
+    /// The key is `normalizeModelFactsID(id)`; on a miss, the segment after the last `/` of the normalized id is tried
+    /// (the same rule as the server's `modelsDevJoinLastSegment` fallback). The family is never guessed from the id text.
+    nonisolated static func relayModelFamily(in byModel: [String: String], modelID: String) -> String? {
+        let normalized = normalizeModelFactsID(modelID)
+        guard !normalized.isEmpty else { return nil }
+        if let hit = byModel[normalized] { return hit }
+        guard let slash = normalized.lastIndex(of: "/") else { return nil }
+        let lastSegment = String(normalized[normalized.index(after: slash)...])
+        return lastSegment.isEmpty ? nil : byModel[lastSegment]
+    }
+
+    nonisolated static func decodeRelayFamilyByModel(_ data: Data) -> [String: String]? {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        let body = root["data"] as? [String: Any] ?? root
+        guard let byModel = body["byModel"] as? [String: Any] else { return nil }
+        return byModel.reduce(into: [String: String]()) { result, entry in
+            if let family = (entry.value as? [String: Any])?["family"] as? String, !family.isEmpty {
+                result[entry.key] = family
+            }
+        }
+    }
+
+    private func fetchRelayFamilyByModel() async -> [String: String]? {
+        guard networkAllowed else { return nil }
+        guard let url = URL(string: "\(BackendURLResolver.resolve())/api/metadata/model-facts?view=by-model") else {
+            return nil
+        }
+        do {
+            let (data, response) = try await dataForBackendRequest(URLRequest(url: url))
+            guard let http = response as? HTTPURLResponse else { return nil }
+            // The server does not have this view: this session treats the family as unknown and does not keep asking.
+            if http.statusCode == 404 {
+                relayFactsKindByModelLock.withLock { $0 = [:] }
+                return [:]
+            }
+            guard http.statusCode == 200 else { return nil }
+            relayFactsKindByModelLock.withLock { $0 = Self.decodeRelayFactsKindByModel(data) }
+            return Self.decodeRelayFamilyByModel(data)
+        } catch {
+            return nil
         }
     }
 
@@ -3845,6 +3978,8 @@ extension MetadataClient {
         Self.syncSelfHealPatternsToClassifier()
         storedETag = nil
         storedModelFactsETag = nil
+        relayFamilyByModel = nil
+        relayFactsKindByModelLock.withLock { $0 = nil }
         boundUID = nil
         bootstrappedUID = nil
         initialization?.task.cancel()

@@ -1611,8 +1611,9 @@ final class ConversationStore: @unchecked Sendable {
                         reasoningText, reasoningDurationMs,
                         cachedInputTokens, cacheCreation5mTokens, cacheCreation1hTokens, costSource,
                         inputTokens, outputTokens, cacheCreationInputTokens,
-                        capabilityExecution, unhandledToolCalls, toolSteps, toolFallbackNotice
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        capabilityExecution, unhandledToolCalls, toolSteps, toolFallbackNotice,
+                        recoveryPrimaryAction
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         text = excluded.text,
                         quoteContext = excluded.quoteContext,
@@ -1635,7 +1636,8 @@ final class ConversationStore: @unchecked Sendable {
                         capabilityExecution = excluded.capabilityExecution,
                         unhandledToolCalls = excluded.unhandledToolCalls,
                         toolSteps = excluded.toolSteps,
-                        toolFallbackNotice = excluded.toolFallbackNotice
+                        toolFallbackNotice = excluded.toolFallbackNotice,
+                        recoveryPrimaryAction = excluded.recoveryPrimaryAction
                     """,
                 arguments: [
                     message.id.uuidString,
@@ -1669,6 +1671,7 @@ final class ConversationStore: @unchecked Sendable {
                     RecordMappers.encodeUnhandledToolCalls(message.unhandledToolCalls),
                     RecordMappers.encodeToolSteps(message.toolSteps),
                     message.toolFallbackNotice,
+                    message.recoveryPrimaryAction,
                 ]
             )
 
@@ -1811,8 +1814,9 @@ final class ConversationStore: @unchecked Sendable {
                         reasoningText, reasoningDurationMs,
                         cachedInputTokens, cacheCreation5mTokens, cacheCreation1hTokens, costSource,
                         inputTokens, outputTokens, cacheCreationInputTokens,
-                        capabilityExecution, unhandledToolCalls, toolSteps, toolFallbackNotice
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        capabilityExecution, unhandledToolCalls, toolSteps, toolFallbackNotice,
+                        recoveryPrimaryAction
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         text = excluded.text,
                         quoteContext = excluded.quoteContext,
@@ -1835,7 +1839,8 @@ final class ConversationStore: @unchecked Sendable {
                         capabilityExecution = excluded.capabilityExecution,
                         unhandledToolCalls = excluded.unhandledToolCalls,
                         toolSteps = excluded.toolSteps,
-                        toolFallbackNotice = excluded.toolFallbackNotice
+                        toolFallbackNotice = excluded.toolFallbackNotice,
+                        recoveryPrimaryAction = excluded.recoveryPrimaryAction
                     """,
                 arguments: [
                     message.id.uuidString,
@@ -1869,6 +1874,7 @@ final class ConversationStore: @unchecked Sendable {
                     RecordMappers.encodeUnhandledToolCalls(message.unhandledToolCalls),
                     RecordMappers.encodeToolSteps(message.toolSteps),
                     message.toolFallbackNotice,
+                    message.recoveryPrimaryAction,
                 ]
             )
 

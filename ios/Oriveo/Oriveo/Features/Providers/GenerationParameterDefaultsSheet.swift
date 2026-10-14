@@ -57,6 +57,8 @@ struct GenerationParameterDefaultsSheet: View {
     @State private var exportDocument: GenerationParameterJSONDocument?
     @State private var exportFilename = "oriveo-generation-parameters.v1"
     @State private var dormantExpanded = false
+    /// Expanded state of the "More" disclosure at the bottom of the page. Deliberately not persisted: it resets when you leave the page.
+    @State private var maintenanceExpanded = false
     /// The previous frame's dormant ids, stored per modelID. They are **bucketed by model** so that switching models is not reported as a "recovery":
     /// what changed then is the observed object, not this connection's capability. A missing key means this model has not been seen in this session yet: record, do not report.
     @State private var dormantSnapshots: [String: [String]] = [:]
@@ -78,9 +80,9 @@ struct GenerationParameterDefaultsSheet: View {
         self.presentation = presentation
         self.capabilityHeader = capabilityHeader
         self.isReadOnly = isReadOnly
+        // A relay ignores the legacy isDefault flag; `defaultModel` already branches on kind.
         let initialID = initialModelID
-            ?? provider.models.first(where: \.isDefault)?.id
-            ?? provider.models.first?.id
+            ?? provider.defaultModel?.id
             ?? ""
         self.initialModelID = initialID
         _modelID = State(initialValue: initialID)
@@ -147,6 +149,18 @@ struct GenerationParameterDefaultsSheet: View {
 
     private var resetScope: AdvancedSettingsResetScope { .init(conversationID: conversationID) }
 
+    private var maintenanceBlocks: [GenerationParameterMaintenanceBlock] {
+        GenerationParameterMaintenanceBlock.visible(
+            showsConnectionTools: presentation.showsConnectionTools,
+            hasProfileFingerprint: profileFingerprint != nil,
+            isConnectionScope: conversationID == nil,
+            // The community edition has no diagnostics history section.
+            canViewDiagnosticsHistory: false,
+            hasCompatibilityConflicts: !compatibilityConflicts.isEmpty,
+            isCustomLLMRelay: provider.kind == .relay
+        )
+    }
+
     var body: some View {
         if presentation == .embeddedPage {
             AdvancedSettingsPage(
@@ -207,9 +221,8 @@ struct GenerationParameterDefaultsSheet: View {
 
     private var editor: some View {
         sheetEditor
-        // Both presentations are titled "Advanced settings": one page with two names on two paths
-        // would be taken for two different things.
-        .navigationTitle(L10n.tr("Advanced Settings"))
+        // Both presentations share one title: a page with two names on two paths would be taken for two different things.
+        .navigationTitle(L10n.tr("Parameters", table: .providers))
         .onAppear {
             recordSeenProfile()
             rebuildCatalog()
@@ -347,150 +360,6 @@ struct GenerationParameterDefaultsSheet: View {
                     .listRowBackground(OriveoTheme.Palette.surface)
                 }
 
-                if presentation.showsConnectionTools, let fingerprint = profileFingerprint {
-                    Section(L10n.tr("Presets", table: .providers)) {
-                        HStack {
-                            TextField(L10n.tr("Preset name", table: .providers), text: $presetName)
-                            Button(L10n.tr("Save")) {
-                                // Passing all `values` (including those this device considers dormant) is intentional,
-                                // not a missing filter: see the comment on GenerationParameterPresetStore.save.
-                                _ = GenerationParameterPresetStore.shared.save(
-                                    name: presetName,
-                                    providerID: provider.id,
-                                    modelID: modelID,
-                                    profileFingerprint: fingerprint,
-                                    values: values
-                                )
-                                presetName = ""
-                                presetRevision += 1
-                            }
-                            .disabled(presetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        }
-                        ForEach(presets(fingerprint: fingerprint)) { preset in
-                            HStack {
-                                Button(preset.name) {
-                                    // With no current values there is nothing to overwrite, so apply directly; otherwise confirm first.
-                                    if GenerationParameterPresetApplication.needsConfirmation(current: values) {
-                                        pendingPresetApplication = preset
-                                    } else {
-                                        applyPreset(preset)
-                                    }
-                                }
-                                Spacer()
-                                Button {
-                                    if let copied = GenerationParameterPresetStore.shared.apply(
-                                        preset,
-                                        providerID: provider.id,
-                                        modelID: modelID,
-                                        profileFingerprint: fingerprint,
-                                        semanticMapping: portableSemanticMapping
-                                    ) {
-                                        _ = GenerationParameterPresetStore.shared.save(
-                                            // Copies with the same name cannot be told apart in the list; one could only guess by position which is new.
-                                            name: copyName(of: preset.name, fingerprint: fingerprint),
-                                            providerID: provider.id,
-                                            modelID: modelID,
-                                            profileFingerprint: fingerprint,
-                                            values: copied
-                                        )
-                                        presetRevision += 1
-                                    }
-                                } label: {
-                                    Image(systemName: "plus.square.on.square")
-                                        .frame(width: 44, height: 44)
-                                        .contentShape(Rectangle())
-                                }
-                                // Several Buttons in one List row without a buttonStyle all trigger the same action:
-                                // tapping the trash can might "apply the preset".
-                                .buttonStyle(.borderless)
-                                .accessibilityLabel(L10n.tr("Copy"))
-                                Button(role: .destructive) {
-                                    pendingPresetDeletion = preset
-                                } label: {
-                                    Image(systemName: "trash")
-                                        .frame(width: 44, height: 44)
-                                        .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.borderless)
-                                .accessibilityLabel(L10n.tr("Delete"))
-                            }
-                        }
-                        .id(presetRevision)
-                    }
-                    .listRowBackground(OriveoTheme.Palette.surface)
-                }
-
-                if presentation.showsConnectionTools, conversationID == nil {
-                    Section(L10n.tr("Connection", table: .providers)) {
-                        Button {
-                            let portableIDs = Set(parameters.filter { $0.portability == "portable" }.compactMap(\.id))
-                            GenerationParameterSettingsStore.shared.setConnectionDefaults(
-                                .init(values: values.values.filter { portableIDs.contains($0.key) }),
-                                providerID: provider.id
-                            )
-                        } label: {
-                            Label(L10n.tr("Save"), systemImage: "link")
-                        }
-                        Button {
-                            exportFilename = "oriveo-generation-parameters.v1"
-                            exportDocument = try? .init(data: GenerationParameterSyncContract.exportJSON())
-                            showExporter = exportDocument != nil
-                            exportFailed = exportDocument == nil
-                        } label: {
-                            Label(L10n.tr("Export Backup", table: .backup), systemImage: "square.and.arrow.up")
-                        }
-                        Button {
-                            showImporter = true
-                        } label: {
-                            Label(L10n.tr("Import Backup", table: .backup), systemImage: "square.and.arrow.down")
-                        }
-                    }
-                    .listRowBackground(OriveoTheme.Palette.surface)
-                }
-
-                if !compatibilityConflicts.isEmpty {
-                    Section(L10n.tr("Compatibility", table: .providers)) {
-                        Text(compatibilityConflicts.sorted().map(parameterTitle).joined(separator: " · "))
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                        if !isReadOnly {
-                            Button(
-                                L10n.tr("Remove conflicts", table: .providers),
-                                role: .destructive
-                            ) {
-                                pendingDestruction = .removeConflicts
-                            }
-                        }
-                    }
-                    .listRowBackground(OriveoTheme.Palette.surface)
-                }
-
-                if presentation.showsConnectionTools, provider.kind == .relay {
-                    Section {
-                        // A button that stays tappable without a model or identity and silently does nothing is a trap.
-                        // When it cannot run it is disabled, and after running it confirms in place with one line.
-                        Button(
-                            L10n.tr("Clear learned capabilities", table: .providers)
-                        ) {
-                            guard let model, let identity = capabilityEvidenceIdentity else { return }
-                            UnsupportedParamCache.shared.clear(
-                                providerKind: .relay,
-                                modelID: model.id,
-                                identity: identity
-                            )
-                            didClearLearnedCapabilities = true
-                        }
-                        .disabled(model == nil || capabilityEvidenceIdentity == nil)
-
-                        if didClearLearnedCapabilities {
-                            Label(L10n.tr("Done"), systemImage: "checkmark.circle.fill")
-                                .font(.caption)
-                                .foregroundStyle(OriveoTheme.Palette.success)
-                        }
-                    }
-                    .listRowBackground(OriveoTheme.Palette.surface)
-                }
-
                 if parameters.isEmpty {
                     // The container **never collapses**. There has to be something to say even without a model, hence the fallback to the "not measured yet" state
                     // (it holds just as well for a connection with no model to choose, and it is the fail-safe side).
@@ -562,10 +431,184 @@ struct GenerationParameterDefaultsSheet: View {
                     Text(L10n.tr("Saved on this device only, not synced", table: .chat))
                 }
                 .listRowBackground(OriveoTheme.Palette.surface)
+
+                // The "More" disclosure at the bottom of the page: presets, connection backup, compatibility and clearing learned
+                // capabilities are connection-level maintenance, not parameter tuning. It sits after the parameters and the
+                // Developer group, is collapsed by default and is not persisted. Whether each block appears, and in what order,
+                // is decided only by `GenerationParameterMaintenanceBlock.visible`.
+                if !maintenanceBlocks.isEmpty {
+                    Section {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) { maintenanceExpanded.toggle() }
+                        } label: {
+                            HStack {
+                                Text(L10n.tr("More", table: .chat))
+                                    .foregroundStyle(OriveoTheme.Palette.textPrimary)
+                                Spacer()
+                                ModelOptionChevron()
+                                    .rotationEffect(.degrees(maintenanceExpanded ? 90 : 0))
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .listRowBackground(OriveoTheme.Palette.surface)
+
+                    if maintenanceExpanded {
+                                if maintenanceBlocks.contains(.presets), let fingerprint = profileFingerprint {
+                                    Section(L10n.tr("Presets", table: .providers)) {
+                                        HStack {
+                                            TextField(L10n.tr("Preset name", table: .providers), text: $presetName)
+                                            Button(L10n.tr("Save")) {
+                                                // Passing all `values` (including those this device considers dormant) is intentional,
+                                                // not a missing filter: see the comment on GenerationParameterPresetStore.save.
+                                                _ = GenerationParameterPresetStore.shared.save(
+                                                    name: presetName,
+                                                    providerID: provider.id,
+                                                    modelID: modelID,
+                                                    profileFingerprint: fingerprint,
+                                                    values: values
+                                                )
+                                                presetName = ""
+                                                presetRevision += 1
+                                            }
+                                            .disabled(presetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                        }
+                                        ForEach(presets(fingerprint: fingerprint)) { preset in
+                                            HStack {
+                                                Button(preset.name) {
+                                                    // With no current values there is nothing to overwrite, so apply directly; otherwise confirm first.
+                                                    if GenerationParameterPresetApplication.needsConfirmation(current: values) {
+                                                        pendingPresetApplication = preset
+                                                    } else {
+                                                        applyPreset(preset)
+                                                    }
+                                                }
+                                                Spacer()
+                                                Button {
+                                                    if let copied = GenerationParameterPresetStore.shared.apply(
+                                                        preset,
+                                                        providerID: provider.id,
+                                                        modelID: modelID,
+                                                        profileFingerprint: fingerprint,
+                                                        semanticMapping: portableSemanticMapping
+                                                    ) {
+                                                        _ = GenerationParameterPresetStore.shared.save(
+                                                            // Copies with the same name cannot be told apart in the list; one could only guess by position which is new.
+                                                            name: copyName(of: preset.name, fingerprint: fingerprint),
+                                                            providerID: provider.id,
+                                                            modelID: modelID,
+                                                            profileFingerprint: fingerprint,
+                                                            values: copied
+                                                        )
+                                                        presetRevision += 1
+                                                    }
+                                                } label: {
+                                                    Image(systemName: "plus.square.on.square")
+                                                        .frame(width: 44, height: 44)
+                                                        .contentShape(Rectangle())
+                                                }
+                                                // Several Buttons in one List row without a buttonStyle all trigger the same action:
+                                                // tapping the trash can might "apply the preset".
+                                                .buttonStyle(.borderless)
+                                                .accessibilityLabel(L10n.tr("Copy"))
+                                                Button(role: .destructive) {
+                                                    pendingPresetDeletion = preset
+                                                } label: {
+                                                    Image(systemName: "trash")
+                                                        .frame(width: 44, height: 44)
+                                                        .contentShape(Rectangle())
+                                                }
+                                                .buttonStyle(.borderless)
+                                                .accessibilityLabel(L10n.tr("Delete"))
+                                            }
+                                        }
+                                        .id(presetRevision)
+                                    }
+                                    .listRowBackground(OriveoTheme.Palette.surface)
+                                }
+
+                                if maintenanceBlocks.contains(.connection) {
+                                    Section(L10n.tr("Connection", table: .providers)) {
+                                        Button {
+                                            let portableIDs = Set(parameters.filter { $0.portability == "portable" }.compactMap(\.id))
+                                            GenerationParameterSettingsStore.shared.setConnectionDefaults(
+                                                .init(values: values.values.filter { portableIDs.contains($0.key) }),
+                                                providerID: provider.id
+                                            )
+                                        } label: {
+                                            Label(L10n.tr("Save"), systemImage: "link")
+                                        }
+                                        Button {
+                                            exportFilename = "oriveo-generation-parameters.v1"
+                                            exportDocument = try? .init(data: GenerationParameterSyncContract.exportJSON())
+                                            showExporter = exportDocument != nil
+                                            exportFailed = exportDocument == nil
+                                        } label: {
+                                            Label(L10n.tr("Export Backup", table: .backup), systemImage: "square.and.arrow.up")
+                                        }
+                                        Button {
+                                            showImporter = true
+                                        } label: {
+                                            Label(L10n.tr("Import Backup", table: .backup), systemImage: "square.and.arrow.down")
+                                        }
+                                    }
+                                    .listRowBackground(OriveoTheme.Palette.surface)
+                                }
+
+                        if maintenanceBlocks.contains(.compatibility) {
+                            compatibilitySection
+                        }
+
+                                if maintenanceBlocks.contains(.clearLearnedCapabilities) {
+                                    Section {
+                                        // A button that stays tappable without a model or identity and silently does nothing is a trap.
+                                        // When it cannot run it is disabled, and after running it confirms in place with one line.
+                                        Button(
+                                            L10n.tr("Clear learned capabilities", table: .providers)
+                                        ) {
+                                            guard let model, let identity = capabilityEvidenceIdentity else { return }
+                                            UnsupportedParamCache.shared.clear(
+                                                providerKind: .relay,
+                                                modelID: model.id,
+                                                identity: identity
+                                            )
+                                            didClearLearnedCapabilities = true
+                                        }
+                                        .disabled(model == nil || capabilityEvidenceIdentity == nil)
+
+                                        if didClearLearnedCapabilities {
+                                            Label(L10n.tr("Done"), systemImage: "checkmark.circle.fill")
+                                                .font(.caption)
+                                                .foregroundStyle(OriveoTheme.Palette.success)
+                                        }
+                                    }
+                                    .listRowBackground(OriveoTheme.Palette.surface)
+                                }
+                    }
+                }
             }
             // Pushed from the model options panel, the background has to match: not one light page and one dark.
             .scrollContentBackground(.hidden)
             .background(OriveoTheme.Palette.background)
+    }
+
+    /// The compatibility conflict group, tucked into "More" at the bottom (sheetEditor renders only in the `.sheet` form, which is always connection scope).
+    private var compatibilitySection: some View {
+        Section(L10n.tr("Compatibility", table: .providers)) {
+            Text(compatibilityConflicts.sorted().map(parameterTitle).joined(separator: " · "))
+                .font(.caption)
+                .foregroundStyle(.orange)
+            if !isReadOnly {
+                Button(
+                    L10n.tr("Remove conflicts", table: .providers),
+                    role: .destructive
+                ) {
+                    pendingDestruction = .removeConflicts
+                }
+            }
+        }
+        .listRowBackground(OriveoTheme.Palette.surface)
     }
 
     // MARK: - Developer group (entry to the additional request body)
@@ -934,5 +977,37 @@ private struct GenerationParameterJSONDocument: FileDocument {
     }
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
         FileWrapper(regularFileWithContents: data)
+    }
+}
+
+/// The five connection-level maintenance blocks inside the "More" disclosure at the bottom of the parameters page (connection scope).
+/// Declaration order is page order; each block keeps the condition it had before being moved here.
+nonisolated enum GenerationParameterMaintenanceBlock: CaseIterable, Equatable, Sendable {
+    case presets
+    case connection
+    case diagnosticRecords
+    case compatibility
+    case clearLearnedCapabilities
+
+    /// An empty array means the whole "More" row is hidden. More belongs to connection scope only: any form without connection-level tools returns empty.
+    /// The conversation-scope parameters page is `AdvancedSettingsPage` (`.embeddedPage` does not go through sheetEditor) and never had maintenance items.
+    static func visible(
+        showsConnectionTools: Bool,
+        hasProfileFingerprint: Bool,
+        isConnectionScope: Bool,
+        canViewDiagnosticsHistory: Bool,
+        hasCompatibilityConflicts: Bool,
+        isCustomLLMRelay: Bool
+    ) -> [Self] {
+        guard showsConnectionTools else { return [] }
+        return allCases.filter { block in
+            switch block {
+            case .presets: return hasProfileFingerprint
+            case .connection: return isConnectionScope
+            case .diagnosticRecords: return canViewDiagnosticsHistory
+            case .compatibility: return hasCompatibilityConflicts
+            case .clearLearnedCapabilities: return isCustomLLMRelay
+            }
+        }
     }
 }

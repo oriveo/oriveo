@@ -8,6 +8,7 @@ struct ChatBubble: View, Equatable {
     var resolvedProviderName: String?
     var resolvedModelName: String?
     var relayKind: RelayKind?
+    var relayAvatar: RelayAvatar?
     var retryCapabilitySelection: ChatCapabilitySelection?
     var renderHint: MarkdownRenderHint?
     var onContentHeightDidChange: ((CGFloat) -> Void)?
@@ -21,6 +22,7 @@ struct ChatBubble: View, Equatable {
             lhs.showMetadata == rhs.showMetadata &&
             lhs.resolvedProviderName == rhs.resolvedProviderName &&
             lhs.resolvedModelName == rhs.resolvedModelName &&
+            lhs.relayAvatar == rhs.relayAvatar &&
             lhs.retryCapabilitySelection == rhs.retryCapabilitySelection &&
             lhs.renderHint == rhs.renderHint &&
             (lhs.onRetry != nil) == (rhs.onRetry != nil) &&
@@ -43,6 +45,7 @@ struct ChatBubble: View, Equatable {
                 resolvedProviderName: resolvedProviderName,
                 resolvedModelName: resolvedModelName,
                 relayKind: relayKind,
+                relayAvatar: relayAvatar,
                 renderHint: renderHint,
                 onContentHeightDidChange: onContentHeightDidChange,
                 onRetry: onRetry

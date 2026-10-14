@@ -15,7 +15,7 @@ struct ProviderListCard: View {
 
     private var modelsText: String {
         if let enabledModelsText { return enabledModelsText }
-        return String(format: L10n.tr("%lld models"), Int64(provider.availableModelCount))
+        return L10n.format(L10n.tr("%lld models"), Int64(provider.availableModelCount))
     }
 
     private var syncRelativeText: String {
@@ -69,10 +69,11 @@ struct ProviderListCard: View {
                 .padding(.leading, 14)
                 .padding(.trailing, 16)
 
-            ProviderBadgeIcon(
+            ConnectionAvatarIcon(
+                provider: provider,
                 kind: resolvedLogoKind,
-                size: 38,
-                relayKind: resolvedRelayKind
+                relayKind: resolvedRelayKind,
+                size: 38
             )
             .padding(.trailing, 13)
 
@@ -172,7 +173,7 @@ struct ProviderListCard: View {
                 amountInline(trailingAmount)
             }
 
-            Image(systemName: "chevron.right")
+            Image(systemName: "chevron.forward")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(OriveoTheme.Palette.textTertiary.opacity(0.55))
         }

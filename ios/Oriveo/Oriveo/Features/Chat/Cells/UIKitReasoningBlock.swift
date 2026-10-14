@@ -67,6 +67,8 @@ final class UIKitReasoningBlock: UIView {
     var _testStreamingRevision: UInt64 { streamingRevision }
     var _testIsExpanded: Bool { isExpanded }
     func _testTapHeader() { headerTapped() }
+    /// Test seam: the collapse chevron (to check its mirroring and rotation direction under RTL).
+    var _testChevronIcon: UIImageView { chevronIcon }
     #endif
 
     private lazy var streamingSingleLineHeight: NSLayoutConstraint =
@@ -337,7 +339,8 @@ final class UIKitReasoningBlock: UIView {
         ])
         headerStack.addArrangedSubview(pulseDot)
 
-        let chevronImage = UIImage(systemName: "chevron.right")?
+        // The forward variant already mirrors in RTL, so it does not flip twice together with the explicit mirror below.
+        let chevronImage = UIImage(systemName: "chevron.forward")?
             .withConfiguration(UIImage.SymbolConfiguration(pointSize: 10, weight: .semibold))
             .imageFlippedForRightToLeftLayoutDirection()
         chevronIcon.image = chevronImage
@@ -508,9 +511,10 @@ final class UIKitReasoningBlock: UIView {
             updateContent()
         }
 
-        let targetTransform: CGAffineTransform = expanded
-            ? CGAffineTransform(rotationAngle: .pi / 2)
-            : .identity
+        let targetTransform = CGAffineTransform(rotationAngle: Self.chevronRotationAngle(
+            expanded: expanded,
+            layoutDirection: chevronIcon.effectiveUserInterfaceLayoutDirection
+        ))
         let shouldAnimate = animated && !UIAccessibility.isReduceMotionEnabled
         if shouldAnimate {
             UIView.animate(withDuration: 0.2) { [weak self] in
@@ -523,6 +527,17 @@ final class UIKitReasoningBlock: UIView {
         if notifyLayout {
             onLayoutChange?()
         }
+    }
+
+    /// Rotation angle of the chevron when expanded. UIKit transforms do not mirror with the layout direction:
+    /// in RTL the collapsed chevron is already mirrored to point left, so a clockwise 90 degree turn would point up;
+    /// turning the other way points it down.
+    static func chevronRotationAngle(
+        expanded: Bool,
+        layoutDirection: UIUserInterfaceLayoutDirection
+    ) -> CGFloat {
+        guard expanded else { return 0 }
+        return layoutDirection == .rightToLeft ? -.pi / 2 : .pi / 2
     }
 
     private static let streamingDecorationColor =

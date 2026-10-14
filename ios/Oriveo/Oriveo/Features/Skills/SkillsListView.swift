@@ -21,7 +21,7 @@ struct SkillsListView: View {
 
     private var openAIProviderForKnowledgeCleanup: Provider? {
         appState.providers.first {
-            $0.kind == .openAI && !$0.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            $0.kind == .openAI && !ProviderCredentialResolver.apiKey(provider: $0, modelID: nil).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
 

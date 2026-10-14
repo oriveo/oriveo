@@ -7,6 +7,7 @@ enum TransportRegistry {
         .openaiResponses: OpenAIResponsesStrategy(),
         .anthropicMessages: AnthropicMessagesStrategy(),
         .geminiGenerate: GeminiGenerateStrategy(),
+        .geminiInteractions: GeminiGenerateStrategy(kind: .geminiInteractions),
         .dashscopeNative: DashScopeNativeStrategy(),
         .openaiImages: OpenAIImagesStrategy(),
         .geminiImage: GeminiImageStrategy(),

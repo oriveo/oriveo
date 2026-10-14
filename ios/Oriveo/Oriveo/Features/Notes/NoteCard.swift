@@ -219,7 +219,7 @@ struct NoteCard: View {
     }
 
     private var detailGlyph: some View {
-        Image(systemName: "chevron.right")
+        Image(systemName: "chevron.forward")
             .font(.system(size: 11, weight: .bold))
             .foregroundStyle(OriveoTheme.Palette.textTertiary.opacity(0.62))
             .frame(width: 18, height: 26)

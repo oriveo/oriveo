@@ -31,6 +31,8 @@ struct ModelControlsEntrySheet: View {
     /// The only way out when a relay's protocol is undecided. The panel does not push by itself (see `identityRecoveryAction`);
     /// the composer dismisses the modal and then routes to the provider detail page through appState.
     let onOpenConnectionSettings: () -> Void
+    /// The way out of the relay web search row: as with the protocol, the composer dismisses the modal and then pushes the connection's web search settings page.
+    let onOpenConnectionWebSearch: () -> Void
 
     @ViewBuilder
     var body: some View {
@@ -47,7 +49,8 @@ struct ModelControlsEntrySheet: View {
                 reasoningMode: $reasoningMode,
                 reasoningIntentSelection: $reasoningIntentSelection,
                 onChooseConnection: onChooseConnection,
-                onOpenConnectionSettings: onOpenConnectionSettings
+                onOpenConnectionSettings: onOpenConnectionSettings,
+                onOpenConnectionWebSearch: onOpenConnectionWebSearch
             )
         } else {
             ModelControlsMissingModelSheet(provider: provider, onChooseConnection: onChooseConnection)
@@ -64,7 +67,7 @@ private struct ModelControlsMissingModelSheet: View {
         [
             L10n.tr("Web Search", table: .chat),
             L10n.tr("Thinking Mode", table: .chat),
-            L10n.tr("Advanced Settings"),
+            L10n.tr("Parameters", table: .providers),
         ]
     }
 
@@ -172,6 +175,8 @@ struct ModelControlsSheet: View {
     let onChooseConnection: () -> Void
     /// See `ModelControlsEntrySheet.onOpenConnectionSettings`.
     let onOpenConnectionSettings: () -> Void
+    /// See `ModelControlsEntrySheet.onOpenConnectionWebSearch`.
+    let onOpenConnectionWebSearch: () -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(AppState.self) private var appState
@@ -208,7 +213,7 @@ struct ModelControlsSheet: View {
 
     private var relayTransportIsDecided: Bool {
         CapabilityPreferenceRuntimeIdentity.relayFinalTransport(
-            provider: provider, resolvedFinalTransport: nil
+            provider: provider, model: model, resolvedFinalTransport: nil
         ) != nil
     }
 
@@ -252,7 +257,7 @@ struct ModelControlsSheet: View {
     @ViewBuilder
     private func destination(for route: ModelControlsRoute) -> some View {
         switch route {
-        case .modelBehavior:
+        case .parameters:
             GenerationParameterDefaultsSheet(
                 provider: provider,
                 initialModelID: model.id,
@@ -311,7 +316,7 @@ struct ModelControlsSheet: View {
         // The chat template's thinking switch only makes sense on a protocol that applies a chat template.
         let supportsChatTemplate = ChatTemplateThinkingSwitch.applies(
             toTransport: CapabilityPreferenceRuntimeIdentity.relayFinalTransport(
-                provider: provider, resolvedFinalTransport: nil
+                provider: provider, model: model, resolvedFinalTransport: nil
             )
         )
         // A custom connection without an official configuration: thinking goes through the additional request body, and writing that needs no runtime identity.
@@ -320,13 +325,33 @@ struct ModelControlsSheet: View {
         let rejectedKeys = rejectedCapabilityKeys
         let takenOver: [ModelOptionCapabilityShape.Capability] =
             (webOverridden ? [.web] : []) + (reasoningOverridden ? [.reasoning] : [])
+        // The file card describes the route this turn will take (the same decision `AttachmentTransportResolver` makes when sending).
+        let fileTransport = AttachmentTransportResolver.resolve(
+            provider: provider, model: model,
+            request: .init(
+                webSearchEnabled: web != .off, webPreferenceIsAutomatic: web == .automatic,
+                // Only the Gemini route looks at video in the history.
+                historyHasVideo: provider.kind == .gemini
+                    && appState.chatManager.preflightHistoryHasVideo(conversationID: conversationID)
+            )
+        )
+        let fileModel = fileTransport.map {
+            AttachmentTransportResolver.deliveryModel(provider: provider, model: model, transport: $0)
+        } ?? model
+        let relayFileRejected = provider.kind == .relay && NativeFileFallback.isKnownTextOnly(.relayScope(
+            RelayFirstSendTransport.current(provider: provider, model: model),
+            connectionID: provider.id, modelID: model.id,
+            fileOverride: model.relayCapabilityOverrides?.file
+        ))
 
-        return .init(
+        var facts = ModelOptionsPanelFacts(
             modelName: model.name,
             connectionName: provider.displayName,
             protocolLabel: customTransport.map(CapabilityTransportLabel.display),
             engineProfile: provider.relayRequested?.engineProfile,
-            apiRoot: provider.relayRequested?.resolvedAPIBaseURL ?? provider.baseURLText,
+            apiRoot: provider.kind == .relay
+                ? RelayEndpointResolver.effectiveAPIRoot(provider: provider, model: model)
+                : provider.baseURLText,
             web: .init(
                 capability: .web,
                 presentation: webStatus,
@@ -334,7 +359,12 @@ struct ModelControlsSheet: View {
                 selectedIntent: web.rawValue,
                 connection: connection,
                 isWritable: editability.canPersist && !webOverridden,
-                protocolUndecided: protocolUndecided
+                protocolUndecided: protocolUndecided,
+                // Relay web search depends only on the connection-level fragment, and its state comes from the local probe record;
+                // the outbound gate and the badge read the same storage.
+                relayWeb: provider.kind == .relay
+                    ? RelayWebProbe.panelFact(provider: provider, model: model)
+                    : nil
             ),
             reasoning: .init(
                 capability: .reasoning,
@@ -347,12 +377,16 @@ struct ModelControlsSheet: View {
                     : editability.canPersist && !reasoningOverridden,
                 protocolUndecided: protocolUndecided,
                 // The negative cache is checked once per level: the rejected level is not necessarily the selected one.
+                // A relay records level rejections in the relay negative cache, read by the effective protocol.
                 rejectedIntents: reasoningIntents.filter { intent in
                     !rejectedKeys.isDisjoint(with: CapabilityRecipeRequestCompiler.capabilityEvidenceKeys(
                         capability: .reasoning, selectedIntent: intent
-                    ))
+                    )) || RelayReasoningLevelOverride.mode(ofIntent: intent).map(relayRejectedTiers.contains) == true
                 },
-                supportsChatTemplate: supportsChatTemplate
+                supportsChatTemplate: supportsChatTemplate,
+                // A local connection decides the thinking row from the write-path table, not from the protocol.
+                localEngineThinking: ModelOptionCapabilityShape.localEngineThinking(provider: provider, model: model),
+                showsThinking: ModelOptionCapabilityShape.showsThinking(model)
             ),
             chatTemplateThinking: ChatTemplateThinkingSwitch.state(
                 of: GenerationParameterSettingsStore.shared.effectiveAdditionalRequestBody(
@@ -370,6 +404,16 @@ struct ModelControlsSheet: View {
             advancedRows: advancedRows,
             scopeUpgrade: showsScopeUpgrade ? (scopeUpgradeConfirmed ? .confirmed : .offer) : nil
         )
+        // The vision card uses the same criterion as the composer's photo picker entry; "unknown" uses the same predicate as the rejection recording.
+        facts.visionVisible = ChatView.photoPickerVisible(
+            provider: provider, model: model, partitionID: appState.sessionPartitionUID
+        )
+        facts.visionSupportUnknown = RelayRejectionRecording.imageSupportUnknown(provider: provider, model: model)
+        facts.fileMode = fileTransport?.profile.effectiveNativeFiles
+        facts.nativeFileMimes = fileModel.nativeFileMimes
+        facts.pdfNativeDefault = fileModel.pdfNativeDefault
+        facts.relayFileRejected = relayFileRejected
+        return facts
     }
 
     /// The read-only note at the top of the page. An undecided protocol is not mentioned here: the capability card says it, and saying it twice is repetition.
@@ -452,7 +496,7 @@ struct ModelControlsSheet: View {
         case let .open(destination, capability):
             open(destination, capability: capability)
         case .openAdvancedSettings:
-            path.append(.modelBehavior)
+            path.append(.parameters)
         case .banner(.refetch):
             Task { await refreshRuntime() }
         case .banner(.chooseAnotherModel):
@@ -502,6 +546,9 @@ struct ModelControlsSheet: View {
             onOpenConnectionSettings()
         case .switchConnection:
             onChooseConnection()
+        case .openConnectionWebSearch:
+            // As with the protocol way out, the panel does not push by itself: the composer dismisses the modal and routes to the web search settings page through appState.
+            onOpenConnectionWebSearch()
         }
     }
 
@@ -544,21 +591,49 @@ struct ModelControlsSheet: View {
         )
     }
 
+    private var relayRejectedTiers: Set<ReasoningMode> {
+        RelayReasoningTier.rejectedTiers(
+            provider: provider, model: model,
+            transport: RelayFirstSendTransport.current(provider: provider, model: model)
+        )
+    }
+
     /// Capability keys the upstream has rejected for this connection / model / generation, from the local negative cache. No request is made and no verdict changes.
     /// The keys have the same source as the outbound gate: `web_search` / `reasoning_level/<level>`.
     private var rejectedCapabilityKeys: Set<String> {
+        Self.rejectedCapabilityKeys(provider: provider, model: model, partitionID: appState.sessionPartitionUID)
+    }
+
+    /// Internal so contract tests can call the production criterion directly. A facade candidate needs an endpoint fingerprint,
+    /// which official connections do not have, so the negative cache is also read directly for every owner x recipeRef of the
+    /// current runtime (the same read interface the outbound path uses to record rejections).
+    static func rejectedCapabilityKeys(provider: Provider, model: AIModel, partitionID: String) -> Set<String> {
         guard let identity = CapabilityEvidenceProductionAdapter.uiDispatchIdentity(
-            provider: provider, model: model, partitionID: appState.sessionPartitionUID
+            provider: provider, model: model, partitionID: partitionID
         ) ?? (provider.relayRequested == nil
             ? CapabilityEvidenceRequestIdentity.make(
-                provider: provider, model: model, partitionID: appState.sessionPartitionUID,
+                provider: provider, model: model, partitionID: partitionID,
                 hasExplicitValue: true
             )
             : nil) else { return [] }
-        return Set(UnsupportedParamCache.shared.capabilityRejectedCandidates(
+        var keys = Set(UnsupportedParamCache.shared.capabilityRejectedCandidates(
             providerKind: provider.kind, modelID: model.id,
             endpointFingerprint: identity.query.endpointFingerprint, identity: identity
         ).map(\.key))
+        let snapshot = MetadataClient.shared.syncCapabilityRecipeRuntime(
+            modelID: model.id, providerKind: provider.kind
+        )
+        guard let runtime = snapshot.runtime,
+              let scoped = identity.runtimeRevision?.isEmpty == false
+                ? identity : identity.resolvingRuntimeRevision(runtime.revision) else { return keys }
+        for (owner, control) in snapshot.controls ?? [:] {
+            guard let recipeRef = control.recipeRef else { continue }
+            keys.formUnion(UnsupportedParamCache.shared.recipeRejectedCapabilityKeys(
+                providerKind: provider.kind, modelID: scoped.query.effectiveModelID,
+                owner: owner, recipeRef: recipeRef, identity: scoped
+            ).keys)
+        }
+        return keys
     }
 
     /// The criterion lives in `CapabilityControlPresentationResolver`: the composer and ChatView answer
@@ -600,7 +675,7 @@ struct ModelControlsSheet: View {
         switch status {
         case .unsupported, .externalConnectorOnly, .pending, .unknown:
             return !supportedModelCandidates(for: capability).isEmpty
-        case .automaticAvailable, .forceUnsupported, .customOnly:
+        case .automaticAvailable, .alwaysOn, .forceUnsupported, .customOnly:
             return true
         }
     }
@@ -879,6 +954,7 @@ struct ModelOptionsPanel: View {
     let onAction: (ModelOptionsPanelAction) -> Void
 
     @Environment(\.layoutDirection) private var layoutDirection
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(spacing: 10) {
@@ -893,6 +969,10 @@ struct ModelOptionsPanel: View {
 
             ModelOptionSectionLabel(text: L10n.tr("Parameters", table: .providers))
             advancedCard
+
+            if let summary = model.summaryText {
+                ModelOptionTurnSummary(text: summary)
+            }
 
             if let scopeUpgrade = model.scopeUpgrade {
                 ModelControlScopeUpgradeRow(isConfirmed: scopeUpgrade == .confirmed) {
@@ -999,174 +1079,157 @@ struct ModelOptionsPanel: View {
 
     // MARK: Capability card
 
+    /// The capability area: web search, thinking, vision and files as four cards in a 2x2 grid, collapsing to one column at
+    /// accessibility type sizes; when the protocol is undecided the whole area shrinks to one message. Level notes and
+    /// supplementary notes sit below the grid.
+    @ViewBuilder
     private var capabilityCard: some View {
-        VStack(spacing: 0) {
-            switch model.card {
-            case let .callout(callout):
+        switch model.card {
+        case let .callout(callout):
+            VStack(spacing: 0) {
                 calloutBlock(callout)
-            case let .rows(rows):
-                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                    if index > 0 { ModelControlHairline() }
-                    capabilityRow(row)
+                if !model.notes.isEmpty {
+                    ModelControlHairline()
+                    notesBlock
                 }
             }
-
-            if !model.notes.isEmpty {
-                ModelControlHairline()
-                notesBlock
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .modelControlSurface()
+        case .rows:
+            VStack(spacing: 10) {
+                tileGrid
+                let footnotes = tierFootnotes
+                if !footnotes.isEmpty || !model.notes.isEmpty {
+                    VStack(spacing: 0) {
+                        if !footnotes.isEmpty {
+                            ModelOptionCaption(text: ModelOptionsText.joined(footnotes))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        if !model.notes.isEmpty {
+                            if !footnotes.isEmpty { ModelControlHairline() }
+                            notesBlock
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .modelControlSurface()
+                }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .modelControlSurface()
+    }
+
+    /// Notes the level card has no room for (rejected levels, cost hints) still sit below the grid.
+    private var tierFootnotes: [String] {
+        model.tiles.flatMap { tile -> [String] in
+            if case let .tiers(tiers)? = tile.row?.shape { return tiers.footnotes }
+            return []
+        }
+    }
+
+    private var tileGrid: some View {
+        let columns = dynamicTypeSize.isAccessibilitySize ? 1 : 2
+        let lines = stride(from: 0, to: model.tiles.count, by: columns).map {
+            Array(model.tiles[$0..<min($0 + columns, model.tiles.count)])
+        }
+        return VStack(spacing: 10) {
+            ForEach(lines.indices, id: \.self) { index in
+                HStack(alignment: .top, spacing: 10) {
+                    ForEach(lines[index]) { tile in
+                        capabilityTile(tile)
+                    }
+                }
+                // The two cards in a row have equal height: measure the row from its content first, then let the cards fill it.
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     @ViewBuilder
-    private func capabilityRow(_ row: ModelOptionsPanelModel.Row) -> some View {
-        let title = Self.title(row.capability)
+    private func capabilityTile(_ tile: ModelOptionsTiles.Tile) -> some View {
+        if let action = tile.tapAction, let capability = tile.row?.capability {
+            Button {
+                onAction(.open(action, capability: capability))
+            } label: {
+                tileBody(tile)
+            }
+            .buttonStyle(.plain)
+        } else {
+            tileBody(tile)
+        }
+    }
+
+    private func tileBody(_ tile: ModelOptionsTiles.Tile) -> some View {
+        ModelOptionCapabilityTile(
+            kind: tile.kind, title: tile.title, status: tile.status, detail: tile.detail
+        ) {
+            tileAccessory(tile)
+        } content: {
+            if let row = tile.row {
+                tileControl(row, title: tile.title)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func tileAccessory(_ tile: ModelOptionsTiles.Tile) -> some View {
+        switch tile.accessory {
+        case let .toggle(isOn):
+            if let row = tile.row, let toggle = row.shape.toggleValue {
+                Toggle(
+                    "",
+                    isOn: Binding(
+                        get: { isOn },
+                        set: { onAction(.setToggle(capability: row.capability, target: toggle.target, isOn: $0)) }
+                    )
+                )
+                .labelsHidden()
+                .tint(OriveoTheme.Palette.primaryTextSafe)
+                .accessibilityLabel(Text(tile.title))
+            }
+        case .levelCount:
+            if let text = tile.levelCountText {
+                ModelOptionCaption(text: text, alignment: .trailing)
+            }
+        case .check:
+            ModelOptionTileMark(icon: .check, color: OriveoTheme.Palette.success)
+        case .question:
+            ModelOptionTileMark(icon: .question, color: OriveoTheme.Palette.textSecondary)
+        case .cross:
+            ModelOptionTileMark(icon: .x, color: OriveoTheme.Palette.textSecondary)
+        case .chevron:
+            ModelOptionChevron()
+        case .none:
+            EmptyView()
+        }
+    }
+
+    /// Controls inside a card: the timing segments, the level segments (bar icons only), and any attached way out. Other shapes only have a status row.
+    @ViewBuilder
+    private func tileControl(_ row: ModelOptionsPanelModel.Row, title: String) -> some View {
         switch row.shape {
         case let .toggle(toggle):
-            toggleRow(title: title, toggle: toggle, capability: row.capability)
+            if let link = toggle.link {
+                linkButton(link, capability: row.capability)
+            }
         case let .tiers(tiers):
-            tiersBlock(title: title, tiers: tiers)
-        case let .toggleWithTiming(toggle, timing):
-            toggleRow(title: title, toggle: toggle, capability: row.capability)
-            ModelControlHairline()
+            ModelOptionSegmentedControl(
+                options: tiers.options, selection: tiers.selection,
+                showsLabels: false, allowsClearing: tiers.allowsClearing,
+                accessibilityTitle: title
+            ) { selected in
+                onAction(.selectReasoningTier(selected))
+            }
+        case let .toggleWithTiming(_, timing):
             ModelOptionSegmentedControl(
                 options: timing.options, selection: timing.selection, showsGlyphs: false,
                 accessibilityTitle: title
             ) { selected in
                 if let selected { onAction(.selectWebTiming(selected)) }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 14)
-        case let .notice(notice):
-            noticeBlock(title: title, notice: notice, capability: row.capability)
-        case let .disclosure(disclosure):
-            disclosureRow(title: title, disclosure: disclosure, capability: row.capability)
-        case let .protocolUndecided(callout):
-            calloutBlock(callout)
+        case .notice(_), .disclosure(_), .protocolUndecided(_):
+            EmptyView()
         }
-    }
-
-    private static func title(_ capability: Shape.Capability) -> String {
-        switch capability {
-        case .web: return L10n.tr("Web Search", table: .chat)
-        case .reasoning: return L10n.tr("Thinking Mode", table: .chat)
-        }
-    }
-
-    /// Title and caption on the left, toggle on the right, on one horizontal line.
-    private func toggleRow(title: String, toggle: Shape.Toggle, capability: Shape.Capability) -> some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                ModelOptionRowTitle(text: title)
-                if let caption = toggle.caption {
-                    ModelOptionCaption(text: caption)
-                }
-                if let link = toggle.link {
-                    linkButton(link, capability: capability)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Toggle(
-                "",
-                isOn: Binding(
-                    get: { toggle.isOn },
-                    set: { onAction(.setToggle(capability: capability, target: toggle.target, isOn: $0)) }
-                )
-            )
-            .labelsHidden()
-            .tint(OriveoTheme.Palette.primaryTextSafe)
-            .accessibilityLabel(Text(title))
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .frame(minHeight: 64)
-    }
-
-    /// Title and a note at the top right → a row of levels → a paragraph below.
-    private func tiersBlock(title: String, tiers: Shape.Tiers) -> some View {
-        VStack(alignment: .leading, spacing: 11) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                ModelOptionRowTitle(text: title)
-                Spacer(minLength: 8)
-                if let note = tiers.headerNote {
-                    ModelOptionCaption(
-                        text: note,
-                        color: tiers.headerTone == .warning
-                            ? OriveoTheme.Palette.warningText
-                            : OriveoTheme.Palette.textSecondary,
-                        alignment: .trailing
-                    )
-                }
-            }
-
-            ModelOptionSegmentedControl(
-                options: tiers.options, selection: tiers.selection,
-                allowsClearing: tiers.allowsClearing,
-                accessibilityTitle: title
-            ) { selected in
-                onAction(.selectReasoningTier(selected))
-            }
-
-            if !tiers.footnotes.isEmpty {
-                ModelOptionCaption(text: ModelOptionsText.joined(tiers.footnotes))
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, 15)
-    }
-
-    /// Title and a status at the top right → a paragraph → a way forward.
-    private func noticeBlock(title: String, notice: Shape.Notice, capability: Shape.Capability) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                ModelOptionRowTitle(text: title)
-                Spacer(minLength: 8)
-                ModelOptionStatusText(text: notice.status)
-            }
-            ModelOptionCaption(text: notice.body)
-            if let link = notice.link {
-                linkButton(link, capability: capability)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, notice.link == nil ? 15 : 9)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// One status row. With a destination the whole row is tappable and has a chevron; without one it is plain text and does not pretend to be tappable.
-    @ViewBuilder
-    private func disclosureRow(
-        title: String, disclosure: Shape.Disclosure, capability: Shape.Capability
-    ) -> some View {
-        if let action = disclosure.action {
-            Button {
-                onAction(.open(action, capability: capability))
-            } label: {
-                statusRow(title: title, status: disclosure.status, showsChevron: true)
-            }
-            .buttonStyle(.plain)
-        } else {
-            statusRow(title: title, status: disclosure.status, showsChevron: false)
-        }
-    }
-
-    private func statusRow(title: String, status: String, showsChevron: Bool) -> some View {
-        HStack(spacing: 10) {
-            ModelOptionRowTitle(text: title)
-            Spacer(minLength: 8)
-            ModelOptionStatusText(text: status)
-            if showsChevron { ModelOptionChevron() }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .frame(minHeight: 56)
-        .contentShape(Rectangle())
     }
 
     /// Undecided protocol: the whole card says just that one thing and offers one primary button.
@@ -1203,7 +1266,7 @@ struct ModelOptionsPanel: View {
                     Button {
                         onAction(.openAdvancedSettings)
                     } label: {
-                        ModelOptionLinkLabel(title: L10n.tr("Go to Advanced Settings", table: .chat))
+                        ModelOptionLinkLabel(title: L10n.tr("Go to Parameters", table: .chat))
                     }
                     .buttonStyle(.plain)
                 }
@@ -1225,41 +1288,65 @@ struct ModelOptionsPanel: View {
 
     // MARK: Parameter card
 
-    /// "Advanced settings": items changed in this conversation appear as chips, two at most, the rest only counted. With nothing changed,
-    /// one sentence says what tapping through leads to.
+    /// Two rows on the parameter card: temperature (omitted when the model has no such item), which opens the parameters page when tapped;
+    /// and below it the original "advanced settings" entry, where the other items changed in this conversation appear as chips,
+    /// two at most, the rest only counted. With nothing changed, one sentence says what tapping through leads to.
     private var advancedCard: some View {
-        Button {
-            onAction(.openAdvancedSettings)
-        } label: {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 8) {
-                    ModelOptionRowTitle(text: L10n.tr("Advanced Settings"))
-                    if model.advanced.chips.isEmpty {
-                        ModelOptionCaption(text: L10n.tr(
-                            "Max tokens, temperature, and other request parameters", table: .chat
-                        ))
-                    } else {
-                        HStack(spacing: 6) {
-                            ForEach(model.advanced.chips) { chip in
-                                ModelOptionSettingChip(title: chip.title, value: chip.value)
-                            }
-                            if model.advanced.moreCount > 0 {
-                                ModelOptionMoreChip(count: model.advanced.moreCount)
-                                    .layoutPriority(1)
+        VStack(spacing: 0) {
+            if let temperature = model.temperature {
+                Button {
+                    onAction(.openAdvancedSettings)
+                } label: {
+                    HStack(spacing: 10) {
+                        ModelOptionParametersLeadingIcon(icon: ModelOptionParametersLeadingIcon.temperature)
+                        ModelOptionRowTitle(text: temperature.title)
+                        Spacer(minLength: 8)
+                        ModelOptionStatusText(text: temperature.value)
+                        ModelOptionChevron()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .frame(minHeight: 56)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                ModelControlHairline()
+            }
+
+            Button {
+                onAction(.openAdvancedSettings)
+            } label: {
+                HStack(spacing: 10) {
+                    ModelOptionParametersLeadingIcon(icon: ModelOptionParametersLeadingIcon.parameters)
+                    VStack(alignment: .leading, spacing: 8) {
+                        ModelOptionRowTitle(text: L10n.tr("Parameters", table: .providers))
+                        if model.advanced.chips.isEmpty {
+                            ModelOptionCaption(text: L10n.tr(
+                                "Max tokens, temperature, and other request parameters", table: .chat
+                            ))
+                        } else {
+                            HStack(spacing: 6) {
+                                ForEach(model.advanced.chips) { chip in
+                                    ModelOptionSettingChip(title: chip.title, value: chip.value)
+                                }
+                                if model.advanced.moreCount > 0 {
+                                    ModelOptionMoreChip(count: model.advanced.moreCount)
+                                        .layoutPriority(1)
+                                }
                             }
                         }
                     }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                ModelOptionChevron()
+                    ModelOptionChevron()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .frame(minHeight: 74)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .frame(minHeight: 74)
-            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
         .modelControlSurface()
     }
 }
@@ -1269,7 +1356,7 @@ struct ModelOptionsPanel: View {
 /// Routes that need a page of their own: the full set of request parameters (advanced settings), the additional request body editor, the candidate model list.
 /// Web search and thinking expand in place. The additional request body is normally reached from advanced settings; the capability card's "Open additional request body" goes straight to it.
 enum ModelControlsRoute: Hashable {
-    case modelBehavior
+    case parameters
     case additionalRequestBody
     case supportedModels(capability: String)
 }

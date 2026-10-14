@@ -16,7 +16,7 @@ struct AdvancedPageHeader: View {
     var body: some View {
         HStack(spacing: 0) {
             Button(action: onBack) {
-                Image(systemName: "chevron.left")
+                Image(systemName: "chevron.backward")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(OriveoTheme.Palette.textPrimary)
                     .frame(width: 44, height: 44)
@@ -164,9 +164,9 @@ struct AdvancedSettingsPage: View {
         self.isReadOnly = isReadOnly
         self.store = store
         self.fixtureCatalog = fixtureCatalog
+        // A relay's old isDefault is not read; `defaultModel` is already routed by kind.
         _modelID = State(initialValue: initialModelID
-            ?? provider.models.first(where: \.isDefault)?.id
-            ?? provider.models.first?.id
+            ?? provider.defaultModel?.id
             ?? "")
         _expandedRows = State(initialValue: expandedRows)
         _expandedClusters = State(initialValue: expandedClusters)
@@ -202,7 +202,7 @@ struct AdvancedSettingsPage: View {
         let revision = CapabilityEvidenceObservationBridge.shared.contentRevision
         VStack(spacing: 0) {
             AdvancedPageHeader(
-                title: L10n.tr("Advanced Settings"),
+                title: L10n.tr("Parameters", table: .providers),
                 subtitle: headerSubtitle,
                 trailingTitle: isReadOnly ? nil : L10n.tr("Reset", table: .providers),
                 trailingEnabled: !values.values.isEmpty,

@@ -163,6 +163,8 @@ struct ChatMessageList: View, Equatable {
     @State private var outlineScrollMessageID: UUID?
     @State private var outlineScrollShouldFlash = false
     @State private var crosscheckTarget: ChatCrosscheckTarget?
+    /// Sheet for switching to another key after a message failed.
+    @State private var switchKeyOffer: RelaySwitchKey.Offer?
     @State private var noteReferenceChoices: [NoteSummary] = []
     @State private var showNoteReferenceChoices = false
     @State private var cachedRowsKey = RowsCacheKey(
@@ -321,6 +323,10 @@ struct ChatMessageList: View, Equatable {
                     onRegenerateMessage: handleRegenerateMessage,
                     onEditMessage: handleEditMessage,
                     onSwitchModelRequested: { showModelSwitcher = true },
+                    offersSwitchKey: { RelaySwitchKey.offer(for: $0, providers: appState.providers) != nil },
+                    onSwitchKeyRequested: { message in
+                        switchKeyOffer = RelaySwitchKey.offer(for: message, providers: appState.providers)
+                    },
                     onPendingSearchTargetHandled: clearPendingSearchTargetIfNeeded,
                     onDismissComposer: dismissKeyboardIfNeeded,
                     onAnchorUserMessageConsumed: { userMessageID in
@@ -366,6 +372,14 @@ struct ChatMessageList: View, Equatable {
             ))
             .environment(appState)
             .interactiveDismissDisabled(true)
+        }
+        .sheet(item: $switchKeyOffer) { offer in
+            // Picking a key only rebinds and closes the sheet; it never resends on its own (the user taps the existing retry).
+            RelaySwitchKeySheet(offer: offer) { keyID in
+                let manager = appState.providerManager
+                Task { await RelaySwitchKey.select(offer, keyID: keyID, manager: manager) }
+            }
+            .presentationDetents([.medium, .large])
         }
         .confirmationDialog(
             L10n.tr("Saved notes", table: .notes),

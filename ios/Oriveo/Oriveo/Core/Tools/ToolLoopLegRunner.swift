@@ -1170,7 +1170,7 @@ nonisolated enum ToolLoopLegRunnerFactory {
         toolCallMemory: ToolCallMemoryStore,
         session: URLSession = .shared
     ) throws -> Pair {
-        let transport = ToolCallCapabilityPolicy.effectiveTransport(provider: provider, model: model)
+        let transport = ToolCallCapabilityPolicy.finalTransportKindName(provider: provider, model: model)
             ?? TransportKind.openaiChat.rawValue
         guard let adapter = ToolProtocolAdapters.adapter(for: transport) else {
             throw ProviderServiceError.invalidConfiguration(

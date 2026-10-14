@@ -1,111 +1,13 @@
 import SwiftUI
 import UIKit
 
-struct RelaySimpleSection: View {
-    @Binding var name: String
-    @Binding var endpoint: String
-    @Binding var apiKey: String
-    @Binding var defaultModelID: String
-
-    let isSubmitting: Bool
-    var showsName: Bool = true
-    var endpointFootnote: String? = nil
-    var usesQuickSetupStyle: Bool = false
-    var discoveredModelIDs: [String] = []
-    var endpointNormalizationHighlightToken = 0
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: fieldSpacing) {
-            if showsName {
-                RelaySetupField(
-                    title: L10n.tr("Display Name", table: .providers),
-                    text: $name,
-                    placeholder: L10n.tr("e.g. My Relay", table: .providers),
-                    footnote: L10n.tr("A display name for this relay provider", table: .providers),
-                    isSecure: false,
-                    isEnabled: !isSubmitting,
-                    leadingSystemImage: usesQuickSetupStyle ? "textformat" : nil,
-                    usesQuickSetupStyle: usesQuickSetupStyle
-                )
-            }
-
-            RelaySetupField(
-                title: L10n.tr("Request URL", table: .providers),
-                text: $endpoint,
-                placeholder: "https://api.example.com",
-                footnote: endpointFootnote ?? L10n.tr("The base URL of the OpenAI-compatible API", table: .providers),
-                isSecure: false,
-                isEnabled: !isSubmitting,
-                leadingSystemImage: usesQuickSetupStyle ? "link" : nil,
-                usesQuickSetupStyle: usesQuickSetupStyle,
-                highlightToken: endpointNormalizationHighlightToken,
-                keyboardType: .URL
-            )
-
-            RelaySetupField(
-                title: L10n.tr("API Key", table: .providers),
-                text: $apiKey,
-                placeholder: "sk-...",
-                footnote: usesQuickSetupStyle
-                    ? nil
-                    : L10n.tr("Your API key is stored securely on this device and is sent only to your relay.", table: .providers),
-                isSecure: true,
-                isEnabled: !isSubmitting,
-                leadingSystemImage: usesQuickSetupStyle ? "key.horizontal" : nil,
-                usesQuickSetupStyle: usesQuickSetupStyle
-            )
-
-            if usesQuickSetupStyle {
-                privacyNote
-            }
-
-            if discoveredModelIDs.isEmpty {
-                RelaySetupField(
-                    title: L10n.tr("Default Model", table: .providers),
-                    text: $defaultModelID,
-                    placeholder: RelayModelPlaceholder.current,
-                    footnote: L10n.tr("Recommended. Used when the relay does not return a model list.", table: .providers),
-                    isSecure: false,
-                    isEnabled: !isSubmitting,
-                    leadingSystemImage: usesQuickSetupStyle ? "sparkles" : nil,
-                    usesQuickSetupStyle: usesQuickSetupStyle
-                )
-            } else {
-                RelayDiscoveredModelField(
-                    selection: $defaultModelID,
-                    modelIDs: discoveredModelIDs,
-                    isEnabled: !isSubmitting,
-                    usesQuickSetupStyle: usesQuickSetupStyle
-                )
-            }
-        }
-    }
-
-    private var fieldSpacing: CGFloat {
-        usesQuickSetupStyle ? OriveoTheme.Spacing.xl : OriveoTheme.Spacing.lg
-    }
-
-    private var privacyNote: some View {
-        HStack(alignment: .top, spacing: OriveoTheme.Spacing.sm) {
-            Image(systemName: "lock.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(OriveoTheme.Palette.primary)
-                .padding(.top, 1)
-                .accessibilityHidden(true)
-
-            Text(L10n.tr("Your API key is stored securely on this device and is sent only to your relay.", table: .providers))
-                .font(OriveoTheme.Typography.footnote)
-                .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.top, -OriveoTheme.Spacing.md)
-    }
-}
-
 enum RelayModelPlaceholder {
     static let fallback = "gpt-5.6-sol"
 
     static var current: String {
+        #if DEBUG
+        if RelayFamilyDebugShots.isActive { return fallback }
+        #endif
         let metadataDefault = MetadataClient.shared
             .syncProviderDefaultModelID(providerKind: .openAI)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -114,84 +16,31 @@ enum RelayModelPlaceholder {
     }
 }
 
-struct RelayDiscoveredModelField: View {
-    @Binding var selection: String
-    let modelIDs: [String]
-    let isEnabled: Bool
-    let usesQuickSetupStyle: Bool
+/// Read/write rules for an address slot with a scheme chip: the slot shows only the part after the scheme.
+/// Pasting a full URL replaces the whole text, clearing the slot clears the whole text, and otherwise the scheme the user
+/// already wrote is kept. An address without a scheme stays as typed and is completed by normalization before the request.
+enum RelaySchemeSlotText {
+    private static let schemePattern = #"^[A-Za-z][A-Za-z0-9+.-]*://"#
 
-    @Environment(\.colorScheme) private var colorScheme
+    /// The scheme (lowercased) the user wrote in the address text, or nil if there is none.
+    static func explicitScheme(in text: String) -> String? {
+        guard let range = text.range(of: schemePattern, options: .regularExpression) else { return nil }
+        return String(text[range].dropLast(3)).lowercased()
+    }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: OriveoTheme.Spacing.sm) {
-            HStack(spacing: OriveoTheme.Spacing.sm) {
-                if usesQuickSetupStyle {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(OriveoTheme.Palette.primary)
-                        .frame(width: 18)
-                        .accessibilityHidden(true)
-                }
+    /// The part shown in the slot: the text with the leading scheme removed.
+    static func body(of text: String) -> String {
+        guard let range = text.range(of: schemePattern, options: .regularExpression) else { return text }
+        return String(text[range.upperBound...])
+    }
 
-                Text(L10n.tr("Default Model", table: .providers))
-                    .font(OriveoTheme.Typography.caption.weight(.semibold))
-                    .foregroundStyle(
-                        usesQuickSetupStyle
-                            ? OriveoTheme.Palette.textSecondary
-                            : OriveoTheme.Palette.textPrimary
-                    )
-            }
-            .padding(.leading, usesQuickSetupStyle ? 2 : 0)
-
-            Menu {
-                Picker("", selection: $selection) {
-                    ForEach(modelIDs, id: \.self) { modelID in
-                        Text(modelID).tag(modelID)
-                    }
-                }
-                .labelsHidden()
-            } label: {
-                HStack(spacing: OriveoTheme.Spacing.sm) {
-                    Text(selection.isEmpty ? (modelIDs.first ?? "") : selection)
-                        .font(OriveoTheme.Typography.body)
-                        .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                        .accessibilityHidden(true)
-                }
-                .padding(.horizontal, OriveoTheme.Spacing.lg)
-                .frame(minHeight: 54)
-                .frame(maxWidth: .infinity)
-                .background {
-                    let shape = RoundedRectangle(cornerRadius: OriveoTheme.Radius.inset, style: .continuous)
-                    ZStack {
-                        shape.fill(OriveoTheme.Palette.surfaceInset)
-                        shape.fill(
-                            OriveoTheme.Palette.primarySoft.opacity(colorScheme == .dark ? 0.68 : 0.62)
-                        )
-                    }
-                }
-                .contentShape(Rectangle())
-            }
-            .disabled(!isEnabled)
-            .accessibilityLabel(L10n.tr("Default Model", table: .providers))
-
-            Text(String(
-                format: L10n.tr("Found %d model(s) in the catalog.", table: .providers),
-                modelIDs.count
-            ))
-            .font(OriveoTheme.Typography.footnote)
-            .foregroundStyle(OriveoTheme.Palette.textSecondary)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.leading, usesQuickSetupStyle ? 2 : 0)
-        }
-        .padding(usesQuickSetupStyle ? 0 : OriveoTheme.Spacing.xs)
-        .opacity(isEnabled ? 1 : 0.66)
+    /// The full address after the user types `next` into the slot.
+    static func text(_ text: String, replacingBodyWith next: String) -> String {
+        // Clearing the slot clears the whole text, so no dangling "https://" is left behind.
+        if next.isEmpty { return "" }
+        if next.contains("://") { return next }
+        if let scheme = explicitScheme(in: text) { return "\(scheme)://\(next)" }
+        return next
     }
 }
 
@@ -207,8 +56,16 @@ struct RelaySetupField: View {
     var highlightToken = 0
     var keyboardType: UIKeyboardType = .default
     var forcesLeftToRightValue = false
+    /// Setup-page board: a Phosphor icon before the title (replaces `leadingSystemImage` when given).
+    var leadingPhosphor: PhosphorIcon? = nil
+    /// Setup-page board: the scheme prefix chip of the address slot. The value is the default scheme shown while the text has
+    /// none; the slot shows only the part after the scheme, and editing keeps whatever scheme the user already wrote.
+    var schemePrefix: String? = nil
     var trailingActionTitle: String? = nil
     var trailingActionSystemImage: String? = nil
+    var trailingActionPhosphor: PhosphorIcon? = nil
+    /// Setup-page board: put the trailing action inside the input slot (the "Search" action of the local address slot).
+    var trailingActionInSlot = false
     var onTrailingAction: (() -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
@@ -221,7 +78,16 @@ struct RelaySetupField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: OriveoTheme.Spacing.sm) {
             HStack(spacing: OriveoTheme.Spacing.sm) {
-                if usesQuickSetupStyle, let leadingSystemImage {
+                if usesQuickSetupStyle, let leadingPhosphor {
+                    leadingPhosphor.image(.regular)
+                        .resizable()
+                        .renderingMode(.template)
+                        .scaledToFit()
+                        .frame(width: 16, height: 16)
+                        .foregroundStyle(OriveoTheme.Palette.primary)
+                        .frame(width: 18)
+                        .accessibilityHidden(true)
+                } else if usesQuickSetupStyle, let leadingSystemImage {
                     Image(systemName: leadingSystemImage)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(OriveoTheme.Palette.primary)
@@ -239,9 +105,25 @@ struct RelaySetupField: View {
 
                 Spacer(minLength: 0)
 
-                if let trailingActionTitle, let trailingActionSystemImage, let onTrailingAction {
+                if !trailingActionInSlot,
+                   let trailingActionTitle, let onTrailingAction,
+                   trailingActionPhosphor != nil || trailingActionSystemImage != nil {
                     Button(action: onTrailingAction) {
-                        Label(trailingActionTitle, systemImage: trailingActionSystemImage)
+                        Label {
+                            Text(trailingActionTitle)
+                        } icon: {
+                            // Use the Phosphor icon when given (same priority as the in-slot action), else fall back to the system symbol.
+                            if let trailingActionPhosphor {
+                                trailingActionPhosphor.image(.regular)
+                                    .resizable()
+                                    .renderingMode(.template)
+                                    .scaledToFit()
+                                    .frame(width: 14, height: 14)
+                                    .accessibilityHidden(true)
+                            } else if let trailingActionSystemImage {
+                                Image(systemName: trailingActionSystemImage)
+                            }
+                        }
                             .font(OriveoTheme.Typography.footnote.weight(.semibold))
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
@@ -263,6 +145,20 @@ struct RelaySetupField: View {
                         .accessibilityHidden(true)
                 }
 
+                if schemePrefix != nil {
+                    Text(verbatim: displayedScheme)
+                        .font(OriveoTheme.Typography.footnote.weight(.semibold))
+                        .foregroundStyle(OriveoTheme.Palette.primary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(OriveoTheme.Palette.primarySoft)
+                        )
+                        .environment(\.layoutDirection, .leftToRight)
+                        .accessibilityHidden(true)
+                }
+
                 Group {
                     if isSecure && !revealsSecureText {
                         SecureField(
@@ -274,8 +170,8 @@ struct RelaySetupField: View {
                     } else {
                         TextField(
                             "",
-                            text: $text,
-                            prompt: Text(placeholder)
+                            text: displayedText,
+                            prompt: Text(displayedPlaceholder)
                                 .foregroundStyle(OriveoTheme.Palette.textTertiary)
                         )
                     }
@@ -291,15 +187,58 @@ struct RelaySetupField: View {
                 .accessibilityHint(footnote ?? "")
                 .environment(\.layoutDirection, forcesLeftToRightValue ? .leftToRight : layoutDirection)
 
+                if trailingActionInSlot,
+                   let trailingActionTitle, let onTrailingAction {
+                    Button(action: onTrailingAction) {
+                        HStack(spacing: 6) {
+                            if let trailingActionPhosphor {
+                                trailingActionPhosphor.image(.regular)
+                                    .resizable()
+                                    .renderingMode(.template)
+                                    .scaledToFit()
+                                    .frame(width: 16, height: 16)
+                                    .accessibilityHidden(true)
+                            } else if let trailingActionSystemImage {
+                                Image(systemName: trailingActionSystemImage)
+                                    .accessibilityHidden(true)
+                            }
+                            Text(trailingActionTitle)
+                                .lineLimit(1)
+                        }
+                        .font(OriveoTheme.Typography.footnote.weight(.semibold))
+                        .padding(.horizontal, OriveoTheme.Spacing.md)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .background(
+                            RoundedRectangle(cornerRadius: OriveoTheme.Radius.md, style: .continuous)
+                                .fill(OriveoTheme.Palette.surfaceInset.opacity(0.8))
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(OriveoTheme.Palette.primary)
+                    .disabled(!isEnabled)
+                    .accessibilityLabel(trailingActionTitle)
+                }
+
                 if isSecure {
                     Button {
                         revealsSecureText.toggle()
                     } label: {
-                        Image(systemName: revealsSecureText ? "eye.slash" : "eye")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
+                        Group {
+                            if usesQuickSetupStyle {
+                                PhosphorIcon.eye.image(revealsSecureText ? .duotone : .regular)
+                                    .resizable()
+                                    .renderingMode(.template)
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
+                            } else {
+                                Image(systemName: revealsSecureText ? "eye.slash" : "eye")
+                                    .font(.system(size: 16, weight: .medium))
+                            }
+                        }
+                        .foregroundStyle(OriveoTheme.Palette.textTertiary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(L10n.tr(
@@ -308,8 +247,8 @@ struct RelaySetupField: View {
                     ))
                 }
             }
-            .padding(.leading, OriveoTheme.Spacing.lg)
-            .padding(.trailing, isSecure ? OriveoTheme.Spacing.xs : OriveoTheme.Spacing.lg)
+            .padding(.leading, schemePrefix != nil ? OriveoTheme.Spacing.sm : OriveoTheme.Spacing.lg)
+            .padding(.trailing, isSecure || trailingActionInSlot ? OriveoTheme.Spacing.xs : OriveoTheme.Spacing.lg)
             .frame(minHeight: 54)
             .background(inputBackground)
             .contentShape(Rectangle())
@@ -333,6 +272,28 @@ struct RelaySetupField: View {
         }
         .padding(usesQuickSetupStyle ? 0 : OriveoTheme.Spacing.xs)
         .opacity(isEnabled ? 1 : 0.66)
+    }
+
+    private var explicitScheme: String? {
+        RelaySchemeSlotText.explicitScheme(in: text)
+    }
+
+    private var displayedScheme: String {
+        explicitScheme ?? schemePrefix ?? ""
+    }
+
+    private var displayedPlaceholder: String {
+        guard schemePrefix != nil else { return placeholder }
+        return RelaySchemeSlotText.body(of: placeholder)
+    }
+
+    /// With a scheme chip the slot edits only the part after the scheme (rules in `RelaySchemeSlotText`).
+    private var displayedText: Binding<String> {
+        guard schemePrefix != nil else { return $text }
+        return Binding(
+            get: { RelaySchemeSlotText.body(of: text) },
+            set: { text = RelaySchemeSlotText.text(text, replacingBodyWith: $0) }
+        )
     }
 
     private var inputBackground: some View {
@@ -377,6 +338,9 @@ struct RelaySetupMenuField: View {
     let isEnabled: Bool
     let leadingSystemImage: String
     var forcesLeftToRightValue = false
+    /// A footnote next to the title (setup page).
+    var titleFootnote: String? = nil
+    var leadingPhosphor: PhosphorIcon? = nil
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.layoutDirection) private var layoutDirection
@@ -384,15 +348,33 @@ struct RelaySetupMenuField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: OriveoTheme.Spacing.sm) {
             HStack(spacing: OriveoTheme.Spacing.sm) {
-                Image(systemName: leadingSystemImage)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(OriveoTheme.Palette.primary)
-                    .frame(width: 18)
-                    .accessibilityHidden(true)
+                Group {
+                    if let leadingPhosphor {
+                        leadingPhosphor.image(.regular)
+                            .resizable()
+                            .renderingMode(.template)
+                            .scaledToFit()
+                            .frame(width: 16, height: 16)
+                    } else {
+                        Image(systemName: leadingSystemImage)
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                }
+                .foregroundStyle(OriveoTheme.Palette.primary)
+                .frame(width: 18)
+                .accessibilityHidden(true)
 
                 Text(title)
                     .font(OriveoTheme.Typography.caption.weight(.semibold))
                     .foregroundStyle(OriveoTheme.Palette.textSecondary)
+
+                if let titleFootnote {
+                    Text(verbatim: "· \(titleFootnote)")
+                        .font(OriveoTheme.Typography.footnote)
+                        .foregroundStyle(OriveoTheme.Palette.textTertiary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
             }
             .padding(.leading, 2)
 

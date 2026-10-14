@@ -53,8 +53,14 @@ struct RelayDetectedConfiguration: Equatable, Sendable, Identifiable {
     let authMode: RelayAuthMode
     let apiBaseURL: String
     let modelIDs: [String]
+    /// Each model's self-reported `supported_endpoint_types` from the catalog (only gateways such as
+    /// new-api provide it). Used only to order candidates for per-model probing; it is not a protocol
+    /// conclusion and is never persisted.
+    let endpointTypesByModel: [String: [String]]
     let endpointEvidence: RelayEndpointCandidateEvidence
     let generationVerified: Bool
+    /// The user-entered model that generation route discovery used, if any (nil for the sentinel model).
+    let generationProbeModelID: String?
     let detectionEvidence: RelayDetectionEvidence
 
     init(
@@ -62,17 +68,21 @@ struct RelayDetectedConfiguration: Equatable, Sendable, Identifiable {
         authMode: RelayAuthMode,
         apiBaseURL: String,
         modelIDs: [String],
+        endpointTypesByModel: [String: [String]] = [:],
         endpointEvidence: RelayEndpointCandidateEvidence,
         generationVerified: Bool,
-        detectionEvidence: RelayDetectionEvidence = .catalog
+        detectionEvidence: RelayDetectionEvidence = .catalog,
+        generationProbeModelID: String? = nil
     ) {
         self.transport = transport
         self.authMode = authMode
         self.apiBaseURL = apiBaseURL
         self.modelIDs = modelIDs
+        self.endpointTypesByModel = endpointTypesByModel
         self.endpointEvidence = endpointEvidence
         self.generationVerified = generationVerified
         self.detectionEvidence = detectionEvidence
+        self.generationProbeModelID = generationProbeModelID
     }
 }
 
@@ -190,7 +200,7 @@ final class RelayDiscoveryService: BaseAPIService {
 
                 switch http.statusCode {
                 case 200 ..< 300:
-                    guard let modelIDs = parseModelIDs(data: data, transport: transport) else {
+                    guard let catalog = Self.parseCatalog(data: data, transport: transport) else {
                         attempts.append(.init(
                             candidate: candidate,
                             requestURL: catalogURL.absoluteString,
@@ -207,6 +217,10 @@ final class RelayDiscoveryService: BaseAPIService {
                         failure: nil,
                         upstreamMessage: Self.upstreamSummary(data)
                     ))
+                    RelayCatalogEndpointTypesCache.shared.record(
+                        endpoint: endpoint,
+                        endpointTypesByModel: catalog.endpointTypesByModel
+                    )
                     let transports = detectedTransports(
                         requestedTransport: transport,
                         descriptor: descriptor
@@ -216,7 +230,8 @@ final class RelayDiscoveryService: BaseAPIService {
                             transport: detectedTransport,
                             authMode: authMode,
                             apiBaseURL: candidate.apiBaseURL,
-                            modelIDs: modelIDs,
+                            modelIDs: catalog.modelIDs,
+                            endpointTypesByModel: catalog.endpointTypesByModel,
                             endpointEvidence: candidate.evidence,
                             generationVerified: false,
                             detectionEvidence: .catalog
@@ -328,7 +343,7 @@ final class RelayDiscoveryService: BaseAPIService {
             let authMode = defaultAuthMode(for: transport)
             for candidate in RelayEndpointResolver.candidates(for: descriptor, transport: transport) {
                 try Task.checkCancellation()
-                guard let spec = probeSpec(for: transport, modelID: probeModel),
+                guard let spec = probeSpec(for: transport, modelID: probeModel, hasKey: RelayCredentialPolicy.hasStoredKey(trimmedKey)),
                       let probeURL = try? RelayEndpointResolver.endpointURL(
                           apiBaseURL: candidate.apiBaseURL,
                           endpointPath: spec.path
@@ -410,7 +425,8 @@ final class RelayDiscoveryService: BaseAPIService {
                                 modelIDs: [],
                                 endpointEvidence: candidate.evidence,
                                 generationVerified: generationVerified,
-                                detectionEvidence: .generationProbe
+                                detectionEvidence: .generationProbe,
+                                generationProbeModelID: usesUserModel ? probeModel : nil
                             ),
                         ],
                         attempts: attempts,
@@ -484,7 +500,8 @@ final class RelayDiscoveryService: BaseAPIService {
 
     private func probeSpec(
         for transport: RelayTransport,
-        modelID: String
+        modelID: String,
+        hasKey: Bool
     ) -> (path: String, body: [String: Any])? {
         switch transport {
         case .llamacppNative:
@@ -499,15 +516,20 @@ final class RelayDiscoveryService: BaseAPIService {
                 ]
             )
         case .openaiResponses:
-            return (
-                "/responses",
-                [
-                    "model": modelID,
-                    "input": "ping",
-                    "max_output_tokens": 1,
-                    "store": false,
-                ]
-            )
+            var body: [String: Any] = [
+                "model": modelID,
+                "input": "ping",
+                "max_output_tokens": 1,
+                "store": false,
+            ]
+            // Some Codex-style relays answer 403 without a prompt_cache_key, which would make an existing route look nonexistent;
+            // this uses the same algorithm as the connection test's ping. A probe without a key carries no identity material.
+            if hasKey {
+                body["prompt_cache_key"] = RelayRuntimeSupport.promptCacheKey(
+                    model: modelID, instructions: "", firstUserText: "ping"
+                )
+            }
+            return ("/responses", body)
         case .anthropicMessages:
             return (
                 "/messages",
@@ -606,7 +628,12 @@ final class RelayDiscoveryService: BaseAPIService {
         }
     }
 
-    private func parseModelIDs(data: Data, transport: RelayTransport) -> [String]? {
+    nonisolated struct ParsedCatalog: Equatable, Sendable {
+        let modelIDs: [String]
+        let endpointTypesByModel: [String: [String]]
+    }
+
+    nonisolated static func parseCatalog(data: Data, transport: RelayTransport) -> ParsedCatalog? {
         guard let root = try? JSONSerialization.jsonObject(with: data) else { return nil }
         let rawItems: [Any]?
         if let object = root as? [String: Any] {
@@ -621,12 +648,15 @@ final class RelayDiscoveryService: BaseAPIService {
         guard let rawItems else { return nil }
 
         var seen: Set<String> = []
-        return rawItems.compactMap { item -> String? in
+        var endpointTypesByModel: [String: [String]] = [:]
+        let modelIDs = rawItems.compactMap { item -> String? in
             let rawID: String?
+            var endpointTypes: [String]?
             if let string = item as? String {
                 rawID = string
             } else if let object = item as? [String: Any] {
                 rawID = (object["id"] as? String) ?? (object["name"] as? String)
+                endpointTypes = object["supported_endpoint_types"] as? [String]
             } else {
                 rawID = nil
             }
@@ -637,8 +667,12 @@ final class RelayDiscoveryService: BaseAPIService {
                 id.removeFirst("models/".count)
             }
             guard seen.insert(id).inserted else { return nil }
+            if let endpointTypes, !endpointTypes.isEmpty {
+                endpointTypesByModel[id] = endpointTypes
+            }
             return id
         }
+        return ParsedCatalog(modelIDs: modelIDs, endpointTypesByModel: endpointTypesByModel)
     }
 
     static let sentinelProbeModelID = "oriveo-endpoint-probe-no-such-model"

@@ -32,8 +32,8 @@ struct GenerationParameterSupportedModelsPage: View {
                         ForEach(Array(candidates.enumerated()), id: \.element.id) { index, candidate in
                             if index > 0 { ModelControlHairline() }
                             HStack(spacing: 12) {
-                                ProviderBadgeIcon(
-                                    kind: provider.kind, size: 26, relayKind: provider.relayKind
+                                ConnectionAvatarIcon(
+                                    provider: provider, kind: provider.kind, relayKind: provider.relayKind, size: 26
                                 )
                                 Text(candidate.name)
                                     .font(.system(size: 15, weight: .medium))

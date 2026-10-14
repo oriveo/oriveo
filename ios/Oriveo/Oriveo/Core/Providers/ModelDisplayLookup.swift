@@ -7,6 +7,8 @@ nonisolated struct ModelDisplayLookup: Sendable {
         let modelDisplayNamesByKey: [String: String]
         let contextLengthsByKey: [String: Int]
         let relayKind: RelayKind?
+        /// The avatar of a relay connection; nil for official and local connections.
+        let relayAvatar: RelayAvatar?
         /// The enabled models this entry was built from. When a conversation row falls back to searching the
         /// enabled models, the index below is used only if the caller's Provider holds this same array (shared
         /// storage makes the comparison O(1)); otherwise it compares one by one as before.
@@ -28,16 +30,16 @@ nonisolated struct ModelDisplayLookup: Sendable {
             self.providerKind = providerKind
         }
 
-        func match(_ modelID: String) -> AIModel? {
+        func resolveStored(_ modelID: String) -> AIModel? {
             lock.lock()
             defer { lock.unlock() }
             var built = index ?? ModelResolver.MatchingModelIndex(models, providerKind: providerKind)
-            let result = built.match(modelID)
+            let result = built.resolveStored(modelID)
             index = built
             return result
         }
 
-        /// Builds both the exact and the fuzzy layer now.
+        /// Builds both the exact and the fuzzy layer now (for a relay the fuzzy layer is the canonical read compatibility).
         func prewarm() {
             lock.lock()
             defer { lock.unlock() }
@@ -94,7 +96,7 @@ nonisolated struct ModelDisplayLookup: Sendable {
         return hasher.finalize()
     }
 
-    /// Exactly equivalent to `ModelResolver.matchingModel(modelID:in: provider.models, providerKind:)`. When this
+    /// Exactly equivalent to `ModelResolver.resolveStoredModel(_:in: provider.models, providerKind:)`. When this
     /// lookup was built from `provider`'s current enabled models it queries the index (after "Add all" the enabled
     /// models are the whole relay catalog, and comparing one by one per row grows with the catalog); otherwise it
     /// compares one by one as before.
@@ -102,9 +104,9 @@ nonisolated struct ModelDisplayLookup: Sendable {
         guard let entry = entriesByProviderID[provider.id],
               entry.providerKind == provider.kind,
               entry.enabledModels == provider.models else {
-            return ModelResolver.matchingModel(modelID: modelID, in: provider.models, providerKind: provider.kind)
+            return ModelResolver.resolveStoredModel(modelID, in: provider.models, providerKind: provider.kind)
         }
-        return entry.enabledModelIndex.match(modelID)
+        return entry.enabledModelIndex.resolveStored(modelID)
     }
 
     /// Builds every Provider's enabled-model index now. Call it off the main thread.
@@ -120,6 +122,13 @@ nonisolated struct ModelDisplayLookup: Sendable {
 
     nonisolated func relayKind(providerID: UUID) -> RelayKind? {
         entriesByProviderID[providerID]?.relayKind
+    }
+
+    /// The relay avatar for a message header: taken from the conversation's connection; generic when the connection is gone or was never recorded; nil for a non-relay message (which uses the original logo).
+    nonisolated func relayAvatar(providerID: UUID?, providerKind: ProviderKind) -> RelayAvatar? {
+        guard providerKind == .relay else { return nil }
+        guard let providerID, let entry = entriesByProviderID[providerID] else { return .generic }
+        return entry.relayAvatar
     }
 
     nonisolated func modelDisplayName(
@@ -140,11 +149,18 @@ nonisolated struct ModelDisplayLookup: Sendable {
             }
         }
 
-        if entry.providerKind != .relay,
-           let resolved = metadata.syncResolveCatalogModel(
+        // A relay literal miss: read-compatible with old canonical stored values on the same terms as
+        // `ModelResolver.resolveStoredModel`; the name is taken only when exactly one enabled model's canonical
+        // equals the stored value, and with several it falls back to the fallback name.
+        if entry.providerKind == .relay {
+            guard let resolved = entry.enabledModelIndex.resolveStored(trimmedModelID) else { return fallback }
+            return entry.modelDisplayNamesByKey[ModelResolver.relayIdentityKey(resolved.id)] ?? resolved.name
+        }
+
+        if let resolved = metadata.syncResolveCatalogModel(
             modelID: trimmedModelID,
             providerKind: entry.providerKind
-           ) {
+        ) {
             return resolved.displayName ?? fallback
         }
 
@@ -176,6 +192,11 @@ nonisolated struct ModelDisplayLookup: Sendable {
         return nil
     }
     fileprivate nonisolated static func localLookupKeys(for model: AIModel, providerKind: ProviderKind) -> [String] {
+        // A relay is matched by the literal key only: a canonical / date-stripped key would give a stored gpt-4o the name of the dated snapshot's row.
+        if providerKind == .relay {
+            let key = ModelResolver.relayIdentityKey(model.id)
+            return key.isEmpty ? [] : [key]
+        }
         let rawValues = [
             model.id,
             ModelResolver.resolvedProviderModelIdentifier(model.id, providerKind: providerKind),
@@ -224,6 +245,7 @@ private enum ModelDisplayLookupBuilder {
                         metadata: metadata
                     ),
                     relayKind: provider.kind == .relay ? provider.relayKind : nil,
+                    relayAvatar: RelayAvatarResolver.avatar(for: provider),
                     enabledModels: provider.models,
                     enabledModelIndex: ModelDisplayLookup.SharedMatchingModelIndex(
                         provider.models,

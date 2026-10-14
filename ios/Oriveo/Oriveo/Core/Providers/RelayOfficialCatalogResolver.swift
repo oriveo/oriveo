@@ -18,10 +18,10 @@ enum RelayOfficialCatalogResolver {
             )
         }
 
-        let envelope = RelayRuntimeSupport.envelopeKey(for: provider)
+        let envelope = RelayRuntimeSupport.envelopeKey(for: provider, model: localModel)
             .flatMap { runtimeConfig.transportEnvelopes[$0] }
 
-        let priority = RelayRuntimeSupport.transportProviderKind(for: provider)
+        let priority = RelayRuntimeSupport.transportProviderKind(for: provider, model: localModel)
         guard let match = metadata.syncResolveCatalogModelAcrossProvidersWithProvider(
             modelID: localModel.id,
             transportPriority: priority
@@ -47,7 +47,7 @@ enum RelayOfficialCatalogResolver {
             : nil
 
         let pricing = CatalogModelBuilder.pricePresentation(from: match.metadata)
-        let nativeFile = nativeFileInheritance(match: match, envelope: envelope)
+        let nativeFile = nativeFileInheritance(match: match, envelope: envelope, model: localModel)
 
         return AIModel(
             id: localModel.id,
@@ -77,6 +77,10 @@ enum RelayOfficialCatalogResolver {
         )
     }
 
+    /// A manually entered model that exactly matches the catalog (by its raw id or with the date suffix
+    /// stripped) inherits capabilities (union), profiles and pricing the same way catalog models do.
+    /// The user's own name and summary are kept, the user's own capabilities are kept, and profiles
+    /// always follow the official data.
     private static func enrichManualOfficialPricing(
         localModel: AIModel,
         provider: Provider,
@@ -87,7 +91,7 @@ enum RelayOfficialCatalogResolver {
             localModel.id,
             providerKind: provider.kind
         )
-        let priority = RelayRuntimeSupport.transportProviderKind(for: provider)
+        let priority = RelayRuntimeSupport.transportProviderKind(for: provider, model: localModel)
         guard let match = metadata.syncResolveCatalogModelAcrossProvidersWithProvider(
             modelID: remoteModelID,
             transportPriority: priority
@@ -96,10 +100,21 @@ enum RelayOfficialCatalogResolver {
         }
 
         let pricing = CatalogModelBuilder.pricePresentation(from: match.metadata)
-        let envelope = RelayRuntimeSupport.envelopeKey(for: provider)
+        let envelope = RelayRuntimeSupport.envelopeKey(for: provider, model: localModel)
             .flatMap { runtimeConfig.transportEnvelopes[$0] }
-        let nativeFile = nativeFileInheritance(match: match, envelope: envelope)
+        let nativeFile = nativeFileInheritance(match: match, envelope: envelope, model: localModel)
         var enriched = localModel
+        let officialCaps = match.metadata.capabilities.isEmpty ? [.text] : match.metadata.capabilities
+        let intersected = intersectCapabilities(officialCaps, envelope: envelope)
+        let effectiveCaps = mergeUnique(base: intersected.isEmpty ? [.text] : intersected, add: localModel.capabilities)
+        enriched.capabilities = effectiveCaps
+        // Profiles follow the same rule as catalog models: official data wins, and a missing official
+        // profile (or a capability that is not present) clears any stale local value. Same on all platforms.
+        enriched.reasoningProfile = effectiveCaps.contains(.reasoning) ? match.metadata.profiles.reasoning : nil
+        enriched.webSearchProfile = effectiveCaps.contains(.web) ? match.metadata.profiles.webSearch : nil
+        enriched.imageGenProfile = effectiveCaps.contains(.imageGen) ? match.metadata.profiles.imageGen : nil
+        enriched.generationProfile = match.metadata.generationProfile
+        enriched.reasoningModeAvailable = effectiveCaps.contains(.reasoning) && enriched.reasoningProfile != nil
         // Written back even when empty, so a stale allowlist on a stored model is cleared.
         enriched.nativeFileMimes = nativeFile.mimes
         enriched.pdfNativeDefault = nativeFile.pdfNativeDefault
@@ -143,12 +158,19 @@ enum RelayOfficialCatalogResolver {
     /// only carry over when the match comes from the provider that owns this transport. A
     /// cross-provider match, or an envelope that turns native files off, yields empty values.
     /// A missing envelope does not count as off.
+    /// If the model's protocol was only established by a 1-token probe (`reachable`), the probe cannot
+    /// prove that file blocks are accepted as-is, so the allowlist and the PDF default are not inherited;
+    /// the extraction limits still are. `observed` / `user` sources and following the connection are unchanged.
     private static func nativeFileInheritance(
         match: MetadataClient.RelayCatalogMatchResult,
-        envelope: MetadataClient.RelayTransportEnvelope?
+        envelope: MetadataClient.RelayTransportEnvelope?,
+        model: AIModel
     ) -> (mimes: [String], pdfNativeDefault: Bool, extraction: AttachmentExtractionLimits?) {
         guard match.source == .transportFirst, envelope?.nativeFile != false else {
             return ([], false, nil)
+        }
+        if model.relayTransport != nil, model.relayTransportSource == .reachable {
+            return ([], false, match.metadata.attachmentExtraction)
         }
         return (
             match.metadata.nativeFileMimes,

@@ -31,29 +31,33 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
         let resolved = MetadataClient.shared.syncResolveCatalogModel(modelID: modelID, providerKind: .grok)
 
         if let subscription = requestOptions.grokSubscription, subscription.usesResponses {
-            let request = try buildSubscriptionResponsesRequest(
-                modelID: modelID, messages: messages, apiKey: apiKey, subscription: subscription,
-                stream: false, reasoningMode: reasoningMode, webSearchEnabled: webSearchEnabled,
-                requestOptions: requestOptions
-            )
-            let data: Data
-            do {
-                CapabilityExecutionRuntime.confirmRequestDispatched()
-                let (raw, response) = try await session.relayData(for: request)
-                guard let http = response as? HTTPURLResponse else {
-                    throw ProviderServiceError.network(detail: "Missing HTTPURLResponse.")
+            // When the subscription proxy rejects a native file block before any output, resend once with the files injected as text (NativeFileFallback).
+            let data: Data = try await NativeFileFallback.run(
+                .grokSubscriptionScope(connectionID: requestOptions.attachmentConnectionID)
+            ) {
+                let request = try self.buildSubscriptionResponsesRequest(
+                    modelID: modelID, messages: messages, apiKey: apiKey, subscription: subscription,
+                    stream: false, reasoningMode: reasoningMode, webSearchEnabled: webSearchEnabled,
+                    requestOptions: requestOptions
+                )
+                do {
+                    CapabilityExecutionRuntime.confirmRequestDispatched()
+                    let (raw, response) = try await self.session.relayData(for: request)
+                    guard let http = response as? HTTPURLResponse else {
+                        throw ProviderServiceError.network(detail: "Missing HTTPURLResponse.")
+                    }
+                    guard (200 ..< 300).contains(http.statusCode) else {
+                        throw self.mapHTTPError(
+                            statusCode: http.statusCode, data: raw,
+                            url: request.url, request: request, subscriptionLane: .grok
+                        )
+                    }
+                    return raw
+                } catch let error as ProviderServiceError {
+                    throw error
+                } catch {
+                    throw ProviderServiceError.network(detail: error.localizedDescription)
                 }
-                guard (200 ..< 300).contains(http.statusCode) else {
-                    throw mapHTTPError(
-                        statusCode: http.statusCode, data: raw,
-                        url: request.url, request: request, subscriptionLane: .grok
-                    )
-                }
-                data = raw
-            } catch let error as ProviderServiceError {
-                throw error
-            } catch {
-                throw ProviderServiceError.network(detail: error.localizedDescription)
             }
             let response = try decoder.decode(GrokResponsesResponse.self, from: data)
             let text = response.resolvedText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -188,13 +192,21 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
                     await MetadataClient.shared.ensureInitialized()
                     let resolved = MetadataClient.shared.syncResolveCatalogModel(modelID: modelID, providerKind: .grok)
                     if let subscription = requestOptions.grokSubscription, subscription.usesResponses {
-                        let request = try self.buildSubscriptionResponsesRequest(
-                            modelID: modelID, messages: messages, apiKey: apiKey, subscription: subscription,
-                            stream: true, reasoningMode: reasoningMode, webSearchEnabled: webSearchEnabled,
-                            requestOptions: requestOptions
-                        )
-                        try await self.consumeResponsesStream(
-                            request: request,
+                        // When the subscription proxy rejects a native file block before the first event, resend once with the files injected as text (NativeFileFallback).
+                        let bytes = try await NativeFileFallback.run(
+                            .grokSubscriptionScope(connectionID: requestOptions.attachmentConnectionID)
+                        ) {
+                            let request = try self.buildSubscriptionResponsesRequest(
+                                modelID: modelID, messages: messages, apiKey: apiKey, subscription: subscription,
+                                stream: true, reasoningMode: reasoningMode, webSearchEnabled: webSearchEnabled,
+                                requestOptions: requestOptions
+                            )
+                            return try await self.openResponsesBytes(
+                                request: request, modelID: modelID, subscriptionLane: .grok
+                            )
+                        }
+                        try await self.consumeResponsesBytes(
+                            bytes,
                             modelID: modelID,
                             resolved: nil,
                             reasoningMode: reasoningMode,
@@ -416,6 +428,27 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
         subscriptionLane: SubscriptionLane? = nil,
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
     ) async throws {
+        let bytes = try await openResponsesBytes(
+            request: request, modelID: modelID, subscriptionLane: subscriptionLane
+        )
+        try await consumeResponsesBytes(
+            bytes,
+            modelID: modelID,
+            resolved: resolved,
+            reasoningMode: reasoningMode,
+            webSearchEnabled: webSearchEnabled,
+            requestOptions: requestOptions,
+            subscriptionLane: subscriptionLane,
+            continuation: continuation
+        )
+    }
+
+    /// Sends the Responses request and gets the 2xx byte stream; a non-2xx is mapped to an error and thrown here (the fallback layer uses that to decide whether to resend).
+    private func openResponsesBytes(
+        request: URLRequest,
+        modelID: String,
+        subscriptionLane: SubscriptionLane?
+    ) async throws -> URLSession.AsyncBytes {
         let (bytes, _) = try await bytesWithUnsupportedParamSelfHeal(
             providerKind: .grok,
             modelID: modelID,
@@ -423,6 +456,19 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
             effectiveTransport: TransportKind.openaiResponses.rawValue,
             subscriptionLane: subscriptionLane
         )
+        return bytes
+    }
+
+    private func consumeResponsesBytes(
+        _ bytes: URLSession.AsyncBytes,
+        modelID: String,
+        resolved: MetadataClient.ResolvedModelMetadata?,
+        reasoningMode: ReasoningMode,
+        webSearchEnabled: Bool,
+        requestOptions: ChatRequestOptions,
+        subscriptionLane: SubscriptionLane?,
+        continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
+    ) async throws {
 
         var accumulatedText = ""
         var accumulatedReasoning = ""
@@ -593,21 +639,34 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
         let attachments = msg.attachments ?? []
         let imageAttachments = attachments.filter { $0.kind == .image }
         let fileAttachments = attachments.filter { $0.kind == .file }
-        let combinedText = try AttachmentDelivery.deliver(
+        // Native files go out as `input_file`, in the same shape as the Codex subscription; which files go native is decided by the model's
+        // `nativeFileMimes` and the route tier, and when they are rejected `NativeFileFallback` comes back through here as a text route.
+        let delivery = try AttachmentDelivery.deliver(
             isOutgoingTurn: isOutgoingTurn,
             userText: msg.text,
             attachments: fileAttachments,
             transport: .grokSubscription,
             model: model
-        ).injectedText
+        )
+        let combinedText = delivery.injectedText
+        let nativeFiles = delivery.native
         var parts: [[String: Any]] = []
-        if !combinedText.isEmpty || imageAttachments.isEmpty {
+        if !combinedText.isEmpty || (imageAttachments.isEmpty && nativeFiles.isEmpty) {
             parts.append(["type": "input_text", "text": combinedText])
         }
         for image in imageAttachments {
             let dataURL = image.resolvedDataURL
             guard !dataURL.isEmpty else { continue }
             parts.append(["type": "input_image", "image_url": dataURL, "detail": "auto"])
+        }
+        for file in nativeFiles {
+            // An empty string is skipped like nil: an empty file_data would be rejected by the upstream.
+            guard let base64 = file.originalBase64Data, !base64.isEmpty else { continue }
+            parts.append([
+                "type": "input_file",
+                "filename": file.fileName,
+                "file_data": "data:\(file.mimeType);base64,\(base64)",
+            ])
         }
         return ["role": role, "content": parts]
     }

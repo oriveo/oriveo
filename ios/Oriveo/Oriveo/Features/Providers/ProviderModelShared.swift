@@ -12,41 +12,27 @@ enum RelayCatalogMembership {
     }
 
     /// For checking every enabled row: scanning the whole catalog per row costs enabled × catalog
-    /// comparisons. Fold the catalog identifiers and names into sets once, then answer each row in
+    /// comparisons. Fold the catalog's literal id keys into a set once, then answer each row in
     /// O(1) with the same rule as the linear comparison above.
     struct Index {
         private let isActive: Bool
-        private let providerKind: ProviderKind
         private let identifiers: Set<String>
-        private let names: Set<String>
 
         init(provider: Provider) {
-            providerKind = provider.kind
             isActive = provider.kind == .relay
                 && !provider.catalogModels.isEmpty
                 && provider.lastError != ProviderIssueMessage.catalogUnavailableKey
             guard isActive else {
                 identifiers = []
-                names = []
                 return
             }
-            identifiers = Set(provider.catalogModels.map {
-                Self.fold(ModelResolver.preferredStoredModelIdentifier(for: $0, providerKind: provider.kind))
-            })
-            names = Set(provider.catalogModels.map { Self.fold($0.name) })
+            // Relay only: uses the same literal key as the relay branch of `modelsShareSameRemoteModel`.
+            identifiers = Set(provider.catalogModels.map { ModelResolver.relayIdentityKey($0.id) })
         }
 
         func isMissingEnabledModel(_ model: AIModel) -> Bool {
             guard isActive, !model.isManual else { return false }
-            let identifier = Self.fold(ModelResolver.preferredStoredModelIdentifier(for: model, providerKind: providerKind))
-            if identifiers.contains(identifier) { return false }
-            if providerKind != .openRouter, names.contains(Self.fold(model.name)) { return false }
-            return true
-        }
-
-        /// Case folding that matches `caseInsensitiveCompare == .orderedSame`.
-        private static func fold(_ value: String) -> String {
-            value.folding(options: .caseInsensitive, locale: nil)
+            return !identifiers.contains(ModelResolver.relayIdentityKey(model.id))
         }
     }
 }
@@ -116,6 +102,63 @@ nonisolated struct ProviderCatalogProjectionInput: Sendable {
     let enabledModels: [AIModel]
     let catalogModels: [AIModel]
     let priorityScores: [String: Int]
+    /// Family per model id (model id -> family id) for relay grouping, resolved once when the input is built, because the projection runs on a background thread and must not touch caches or regexes.
+    var relayFamilies: [String: String] = [:]
+    /// Localized title of the "Other" group.
+    var relayOtherTitle = RelayCatalogGrouping.otherTitleKey
+}
+
+/// Relay model-library grouping, shared with the other clients through the `catalog-groups.v1.json` fixture.
+/// A model's family comes from the cached server by-model family, falling back to `RelayFamilyHeuristics`. Groups follow the order in which they first appear in the catalog, "Other" comes last, and models inside a group keep catalog order.
+/// The model library and step 2 of the add flow share it (both go through `projectProviderCatalogGroups`); official provider groups do not use it.
+nonisolated enum RelayCatalogGrouping {
+    static let otherID = "other"
+    /// Key in the Providers string table.
+    static let otherTitleKey = "Other"
+    /// Family id -> group title (proper nouns, not translated); a family missing here falls back to its id.
+    static let labels: [String: String] = [
+        "openai": "OpenAI",
+        "anthropic": "Anthropic",
+        "google": "Google",
+        "deepseek": "DeepSeek",
+        "xai": "xAI",
+        "qwen": "Qwen",
+        "mistral": "Mistral",
+        "minimax": "MiniMax",
+        "zhipu": "Zhipu",
+        "moonshot": "Moonshot",
+        "meta": "Meta",
+    ]
+
+    struct Group: Equatable, Sendable {
+        let id: String
+        /// nil means "Other", which is localized at display time.
+        let label: String?
+        let models: [String]
+    }
+
+    /// Relays often prefix model ids with a vendor (`anthropic/claude-x`). When the whole id has no known family, retry with the part after the last `/`. This only affects grouping; the family used for key binding is unchanged.
+    static func familyAllowingVendorPrefix(_ id: String, family: (String) -> String?) -> String? {
+        if let hit = family(id)?.trimmingCharacters(in: .whitespacesAndNewlines), !hit.isEmpty { return hit }
+        guard let slash = id.lastIndex(of: "/") else { return nil }
+        let tail = String(id[id.index(after: slash)...])
+        return tail.isEmpty ? nil : family(tail)
+    }
+
+    static func groups(models: [String], family: (String) -> String?) -> [Group] {
+        var order: [String] = []
+        var members: [String: [String]] = [:]
+        for id in models {
+            let familyID = familyAllowingVendorPrefix(id, family: family)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let groupID = familyID?.isEmpty == false ? familyID! : otherID
+            if members[groupID] == nil { order.append(groupID) }
+            members[groupID, default: []].append(id)
+        }
+        let ordered = order.filter { $0 != otherID } + (members[otherID] == nil ? [] : [otherID])
+        return ordered.map { id in
+            Group(id: id, label: id == otherID ? nil : (labels[id] ?? id), models: members[id] ?? [])
+        }
+    }
 }
 
 nonisolated struct ProviderCatalogExpansionSignature: Hashable, Sendable {
@@ -610,6 +653,8 @@ nonisolated private func projectedCatalogModelSort(
 
 func sortedEnabledModels(for provider: Provider) -> [AIModel] {
     guard !provider.kind.usesServerOrderedModels else { return provider.models }
+    // A relay has no default model, so keep the enabled order instead of reordering.
+    guard provider.kind != .relay else { return provider.models }
 
     let priorityScores = catalogPriorityScores(for: provider.models, provider: provider)
     return provider.models.sorted { lhs, rhs in
@@ -640,8 +685,8 @@ func makeProviderCatalogProjectionInput(for provider: Provider) -> ProviderCatal
     let catalogSource = resolved.catalog.isEmpty && !provider.catalogModels.isEmpty
         ? provider.catalogModels
         : resolved.catalog.map(\.model)
-    let dedupedCatalog = CatalogModelBuilder.deduplicateByCanonical(catalogSource)
-    return ProviderCatalogProjectionInput(
+    let dedupedCatalog = CatalogModelBuilder.deduplicate(catalogSource, providerKind: provider.kind)
+    var input = ProviderCatalogProjectionInput(
         providerID: provider.id,
         providerKind: provider.kind,
         providerDisplayName: provider.displayName,
@@ -649,6 +694,15 @@ func makeProviderCatalogProjectionInput(for provider: Provider) -> ProviderCatal
         catalogModels: dedupedCatalog,
         priorityScores: catalogPriorityScores(for: dedupedCatalog, provider: provider)
     )
+    if provider.kind == .relay {
+        input.relayFamilies = dedupedCatalog.reduce(into: [:]) { families, model in
+            let family = MetadataClient.shared.cachedRelayModelFamilyNow(for: model.id)
+                ?? RelayFamilyHeuristics.infer(modelID: model.id)?.rawValue
+            if let family { families[model.id] = family }
+        }
+        input.relayOtherTitle = L10n.tr(RelayCatalogGrouping.otherTitleKey, table: .providers)
+    }
+    return input
 }
 
 func buildProviderCatalogGroups(
@@ -673,6 +727,9 @@ nonisolated func projectProviderCatalogGroups(
             return false
         }
         return true
+    }
+    if input.providerKind == .relay {
+        return projectRelayCatalogGroups(input: input, models: availableCatalogModels, normalizedQuery: normalizedQuery)
     }
     let groupScoresByID = Dictionary(
         grouping: input.catalogModels,
@@ -725,6 +782,24 @@ nonisolated func projectProviderCatalogGroups(
 
         return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
     }
+}
+
+/// Relay: groups come from `RelayCatalogGrouping`; group order and in-group order both follow the catalog and are never re-ranked by score.
+nonisolated private func projectRelayCatalogGroups(
+    input: ProviderCatalogProjectionInput,
+    models: [AIModel],
+    normalizedQuery: String
+) -> [ProviderCatalogGroup] {
+    let byID = Dictionary(models.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    return RelayCatalogGrouping.groups(models: models.map(\.id)) { input.relayFamilies[$0] }
+        .compactMap { group in
+            let title = group.label ?? input.relayOtherTitle
+            let members = group.models.compactMap { byID[$0] }
+            let filtered = normalizedQuery.isEmpty
+                ? members
+                : filterModelsWithinGroup(members, normalizedQuery: normalizedQuery, title: title, groupID: group.id)
+            return filtered.isEmpty ? nil : ProviderCatalogGroup(id: group.id, title: title, models: filtered)
+        }
 }
 
 func shouldAutoExpandProviderCatalogGroups(searchText: String) -> Bool {
@@ -851,7 +926,7 @@ private func pickerProviderScore(for provider: Provider) -> Int {
 }
 
 private func preferredEnabledModel(for provider: Provider) -> AIModel? {
-    provider.models.first(where: \.isDefault) ?? provider.models.first
+    provider.defaultModel
 }
 
 nonisolated private func filterModelsWithinGroup(
@@ -883,8 +958,15 @@ struct ProviderCatalogGroupList: View {
     let searchText: String
     let expandedGroupIDs: Set<String>
     let coordinateSpaceName: String?
+    /// Passed only by the relay / local model-library subpages; the home "Add model" page and
+    /// official providers always leave it nil.
+    var catalogBoard: RelayCatalogBoardContext? = nil
     var onToggleGroup: (String) -> Void
     var onAddModel: (AIModel, CGRect) -> Void
+    /// Tapping a catalog row on the board (read-only advanced page); nil means a tap enables the model.
+    var onOpenModel: ((AIModel) -> Void)? = nil
+    /// "Add All" on a board group header; nil hides it (home "Add model" page and official providers).
+    var onEnableAllInGroup: ((ProviderCatalogGroup) -> Void)? = nil
 
     @State private var rowFrames = CatalogRowFrameStore()
 
@@ -900,8 +982,11 @@ struct ProviderCatalogGroupList: View {
                     canToggle: !shouldAutoExpandProviderCatalogGroups(searchText: searchText),
                     coordinateSpaceName: coordinateSpaceName,
                     rowFrames: rowFrames,
+                    catalogBoard: catalogBoard,
                     onToggle: { onToggleGroup(group.id) },
-                    onAddModel: onAddModel
+                    onAddModel: onAddModel,
+                    onOpenModel: onOpenModel,
+                    onEnableAll: onEnableAllInGroup.map { enableAll in { enableAll(group) } }
                 )
             }
         }
@@ -916,10 +1001,30 @@ private struct ProviderCatalogGroupCard: View {
     let canToggle: Bool
     let coordinateSpaceName: String?
     let rowFrames: CatalogRowFrameStore
+    let catalogBoard: RelayCatalogBoardContext?
     var onToggle: () -> Void
     var onAddModel: (AIModel, CGRect) -> Void
+    var onOpenModel: ((AIModel) -> Void)? = nil
+    var onEnableAll: (() -> Void)? = nil
+
+    /// "Add All" on a board group header; shown only while the group still has models that can be enabled (`RelayCatalogBoardModel.enableAllModelIDs`).
+    private var enableAllAction: (() -> Void)? {
+        guard catalogBoard != nil, let onEnableAll,
+              !RelayCatalogBoardModel.enableAllModelIDs(provider: provider, groupModels: group.models).isEmpty
+        else { return nil }
+        return onEnableAll
+    }
+
+    private var enableAllTitle: String {
+        L10n.tr(RelayCatalogBoardModel.enableAllKey, table: .providers)
+    }
+
+    private var enableAllLabel: some View {
+        RelayCatalogTextButtonLabel(title: enableAllTitle)
+    }
 
     var body: some View {
+        let enableAll = enableAllAction
         VStack(spacing: 0) {
             Button {
                 if canToggle {
@@ -934,14 +1039,19 @@ private struct ProviderCatalogGroupCard: View {
                             .font(OriveoTheme.Typography.title3.weight(.semibold))
                             .foregroundStyle(OriveoTheme.Palette.textPrimary)
 
-                        Text(String(format: L10n.tr("%lld models"), group.models.count))
+                        Text(L10n.format(L10n.tr("%lld models"), group.models.count))
                             .font(OriveoTheme.Typography.footnote)
                             .foregroundStyle(OriveoTheme.Palette.textSecondary)
                     }
 
                     Spacer()
 
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    if enableAll != nil {
+                        // Placeholder only: the real button is overlaid on the group header (see below) instead of being nested in the expand button.
+                        enableAllLabel.hidden()
+                    }
+
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.forward")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(OriveoTheme.Palette.textSecondary)
                         .frame(width: 28, height: 28)
@@ -953,6 +1063,19 @@ private struct ProviderCatalogGroupCard: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            // "Add All" is its own tap target on the group header: it works while collapsed and does not expand the group.
+            // Aligned with the placeholder above (trailing chevron 28 + two md paddings).
+            .overlay(alignment: .trailing) {
+                if let enableAll {
+                    Button(action: enableAll) {
+                        enableAllLabel
+                    }
+                    .buttonStyle(OriveoTextButtonStyle())
+                    // Several "Add All" buttons can be on screen at once, so VoiceOver needs the group name.
+                    .accessibilityLabel(Text(verbatim: "\(enableAllTitle), \(group.title)"))
+                    .padding(.trailing, OriveoTheme.Spacing.md * 2 + 28)
+                }
+            }
 
             if isExpanded {
                 Rectangle()
@@ -974,11 +1097,12 @@ private struct ProviderCatalogGroupCard: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        // On the relay / local model-library pages the card is drawn like the detail page: no border, no shadow. Other callers are unchanged.
         .oriveoRoundedSurface(
             fill: OriveoTheme.Palette.surfaceElevated,
-            border: OriveoTheme.Palette.border.opacity(0.66),
+            border: catalogBoard == nil ? OriveoTheme.Palette.border.opacity(0.66) : .clear,
             radius: OriveoTheme.Radius.lg,
-            shadow: .soft
+            shadow: catalogBoard == nil ? .soft : .none
         )
     }
 
@@ -997,7 +1121,9 @@ private struct ProviderCatalogGroupCard: View {
             model: model,
             provider: provider,
             capabilityEvidenceRevision: capabilityEvidenceRevision,
-            nested: true
+            nested: true,
+            catalogBoard: catalogBoard,
+            openAdvancedAction: { onOpenModel?(model) }
         ) {
             onAddModel(model, rowFrames.frame(for: model.id))
         }

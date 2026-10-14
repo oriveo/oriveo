@@ -292,7 +292,7 @@ struct ModelControlInlineActionLabel: View {
                         .font(.caption)
                         .foregroundStyle(OriveoTheme.Palette.textTertiary)
                 }
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(OriveoTheme.Palette.textTertiary)
             }
@@ -363,9 +363,30 @@ struct ModelOptionStatusText: View {
 /// The chevron at the end of a row: the row can be tapped.
 struct ModelOptionChevron: View {
     var body: some View {
-        Image(systemName: "chevron.right")
+        Image(systemName: "chevron.forward")
             .font(.caption.weight(.semibold))
             .foregroundStyle(OriveoTheme.Palette.textTertiary)
+            .accessibilityHidden(true)
+    }
+}
+
+/// Leading icon of the two parameter-card rows: 22pt duotone in the neutral secondary color. These rows are not
+/// capabilities, and a capability color would read as "yet another capability switch".
+struct ModelOptionParametersLeadingIcon: View {
+    static let temperature: PhosphorIcon = .thermometerSimple
+    static let parameters: PhosphorIcon = .slidersHorizontal
+    static let weight: PhosphorIcon.Weight = .duotone
+    static let size: CGFloat = 22
+
+    let icon: PhosphorIcon
+
+    var body: some View {
+        icon.image(Self.weight)
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: Self.size, height: Self.size)
+            .foregroundStyle(OriveoTheme.Palette.textSecondary)
             .accessibilityHidden(true)
     }
 }
@@ -475,6 +496,8 @@ struct ModelOptionSegmentedControl: View {
     let selection: String?
     /// Thinking levels carry an icon and are tall; search timing has none and is short.
     var showsGlyphs = true
+    /// The capability card has no room for level words: draw only the bar icon and leave the level word to the accessibility name.
+    var showsLabels = true
     /// Tapping the selected segment again clears the selection (back to never chosen).
     var allowsClearing = false
     let accessibilityTitle: String
@@ -504,14 +527,16 @@ struct ModelOptionSegmentedControl: View {
                         if showsGlyphs {
                             ModelOptionTierGlyph(intent: option.id, isSelected: selected)
                         }
-                        Text(option.label)
-                            .font(.footnote.weight(selected ? .semibold : .regular))
-                            .foregroundStyle(selected ? Self.selectedLabel : unselectedLabelColor)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
+                        if showsLabels {
+                            Text(option.label)
+                                .font(.footnote.weight(selected ? .semibold : .regular))
+                                .foregroundStyle(selected ? Self.selectedLabel : unselectedLabelColor)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                        }
                     }
                     .padding(.horizontal, 2)
-                    .frame(maxWidth: .infinity, minHeight: showsGlyphs ? 52 : 38)
+                    .frame(maxWidth: .infinity, minHeight: showsLabels ? (showsGlyphs ? 52 : 38) : 34)
                     .background {
                         if selected {
                             RoundedRectangle(cornerRadius: 11, style: .continuous)
@@ -645,5 +670,109 @@ struct ModelOptionCloseButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(L10n.tr("Close")))
+    }
+}
+
+// MARK: - Capability tiles
+
+/// One tile of the capability area: a 28pt capability icon top left (Phosphor duotone, capability color), a control or mark top right,
+/// the title and status line below (plus small explanatory text), then the in-card controls.
+struct ModelOptionCapabilityTile<Accessory: View, Content: View>: View {
+    let kind: ModelOptionsTiles.Kind
+    let title: String
+    let status: String?
+    let detail: String?
+    @ViewBuilder let accessory: () -> Accessory
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 8) {
+                Self.icon(kind).image(.duotone)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 28, height: 28)
+                    .foregroundStyle(Self.tint(kind))
+                    .accessibilityHidden(true)
+                Spacer(minLength: 8)
+                accessory()
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                ModelOptionRowTitle(text: title)
+                if let status {
+                    ModelOptionCaption(text: status)
+                }
+                if let detail {
+                    ModelOptionCaption(text: detail)
+                }
+            }
+
+            content()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .modelControlSurface()
+    }
+
+    static func icon(_ kind: ModelOptionsTiles.Kind) -> PhosphorIcon {
+        switch kind {
+        case .web: return .globe
+        case .reasoning: return .brain
+        case .vision: return .eye
+        case .files: return .paperclip
+        }
+    }
+
+    static func tint(_ kind: ModelOptionsTiles.Kind) -> Color {
+        switch kind {
+        case .web: return CapabilityPalette.webSearch
+        case .reasoning: return CapabilityPalette.reasoning
+        case .vision: return CapabilityPalette.vision
+        case .files: return CapabilityPalette.attachment
+        }
+    }
+}
+
+/// The mark at the top right of the vision / files tiles: check, question mark, cross. The status line already says it in words, so the mark does not repeat it.
+struct ModelOptionTileMark: View {
+    let icon: PhosphorIcon
+    let color: Color
+
+    var body: some View {
+        icon.image(.regular)
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 16, height: 16)
+            .foregroundStyle(color)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The "this turn will send" summary bar: lists only the controls that are on right now, and shows nothing when there are none.
+struct ModelOptionTurnSummary: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            PhosphorIcon.lightning.image(.regular)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 15, height: 15)
+                .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(.footnote)
+                .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .modelControlSurface(cornerRadius: 16)
     }
 }

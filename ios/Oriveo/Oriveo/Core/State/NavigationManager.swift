@@ -101,6 +101,22 @@ final class NavigationManager {
         attemptNavigate(to: .backup)
     }
 
+    func openRelayModelLibrary(providerID: UUID, keyID: String? = nil) {
+        attemptNavigate(to: .relayModelLibrary(providerID: providerID, keyID: keyID))
+    }
+
+    func openRelayKeys(providerID: UUID) {
+        attemptNavigate(to: .relayKeys(providerID: providerID))
+    }
+
+    func openRelayWebSearch(providerID: UUID) {
+        attemptNavigate(to: .relayWebSearch(providerID: providerID))
+    }
+
+    func openRelayModelAdvanced(providerID: UUID, modelID: String, readOnly: Bool) {
+        attemptNavigate(to: .relayModelAdvanced(providerID: providerID, modelID: modelID, readOnly: readOnly))
+    }
+
     func openRelaySetup(from entryPoint: ProviderSetupEntryPoint) {
         attemptNavigate(to: .relaySetup(entryPoint: entryPoint))
     }

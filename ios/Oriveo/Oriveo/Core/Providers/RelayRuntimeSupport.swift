@@ -1,5 +1,6 @@
 //  RelayRuntimeSupport.swift
 
+import CryptoKit
 import Foundation
 #if canImport(UIKit)
 import UIKit
@@ -8,9 +9,14 @@ import UIKit
 enum RelayRuntimeSupport {
     typealias AttachmentSupport = (image: Bool, video: Bool, nativeFile: Bool, textFileInline: Bool)
 
-    static func envelopeKey(for provider: Provider) -> String? {
+    /// Maps a relay transport to its runtime envelope key (aligned with the backend `transportEnvelopes` keys).
+    /// The protocol is resolved per model (`RelayEndpointResolver.effectiveTransport`); without a model
+    /// the connection default is used.
+    static func envelopeKey(for provider: Provider, model: AIModel?) -> String? {
         guard provider.kind == .relay else { return nil }
-        switch provider.relayRequested?.transport ?? .auto {
+        let transport = model.map { RelayEndpointResolver.effectiveTransport(provider: provider, model: $0) }
+            ?? RelayEndpointResolver.connectionTransport(of: provider)
+        switch transport {
         case .auto:
             return MetadataClient.RelayTransportKey.openaiChatCompletions
         case .openaiResponses:
@@ -26,8 +32,8 @@ enum RelayRuntimeSupport {
         }
     }
 
-    static func transportProviderKind(for provider: Provider) -> ProviderKind? {
-        guard let key = envelopeKey(for: provider) else { return nil }
+    static func transportProviderKind(for provider: Provider, model: AIModel?) -> ProviderKind? {
+        guard let key = envelopeKey(for: provider, model: model) else { return nil }
         let runtime = MetadataClient.shared.syncRelayRuntimeConfig()
         if let raw = runtime.transportRules[key]?.providerPriority,
            let kind = providerKindFromBackendKey(raw) {
@@ -38,34 +44,38 @@ enum RelayRuntimeSupport {
 
     static func attachmentSupport(
         for provider: Provider,
+        model: AIModel?,
         runtimeConfig: MetadataClient.RelayRuntimeConfig
     ) -> AttachmentSupport? {
-        guard let key = envelopeKey(for: provider) else { return nil }
+        guard let key = envelopeKey(for: provider, model: model) else { return nil }
         guard let env = runtimeConfig.transportEnvelopes[key] else { return nil }
         return (image: env.image, video: false, nativeFile: env.nativeFile, textFileInline: env.textFileInline)
     }
 
     static func supportsWebSearch(
         for provider: Provider,
+        model: AIModel?,
         runtimeConfig: MetadataClient.RelayRuntimeConfig
     ) -> Bool {
-        guard let key = envelopeKey(for: provider) else { return false }
+        guard let key = envelopeKey(for: provider, model: model) else { return false }
         return runtimeConfig.transportEnvelopes[key]?.webSearch ?? false
     }
 
     static func supportsImageGeneration(
         for provider: Provider,
+        model: AIModel?,
         runtimeConfig: MetadataClient.RelayRuntimeConfig
     ) -> Bool {
-        guard let key = envelopeKey(for: provider) else { return false }
+        guard let key = envelopeKey(for: provider, model: model) else { return false }
         return runtimeConfig.transportEnvelopes[key]?.imageGeneration ?? false
     }
 
     static func supportsReasoning(
         for provider: Provider,
+        model: AIModel?,
         runtimeConfig: MetadataClient.RelayRuntimeConfig
     ) -> Bool {
-        guard let key = envelopeKey(for: provider) else { return false }
+        guard let key = envelopeKey(for: provider, model: model) else { return false }
         return runtimeConfig.transportEnvelopes[key]?.reasoning ?? false
     }
 
@@ -106,6 +116,14 @@ enum RelayRuntimeSupport {
         case unsupported
     }
 
+    /// Whether this relay message goes through image-generation dispatch: a model-level image-generation
+    /// override (user / tested) takes precedence over the model's capabilities. `true` is treated as if
+    /// the capabilities included image generation (existing errors apply when the route does not support
+    /// it); `false` sends it as chat even if the capabilities include image generation.
+    nonisolated static func dispatchesImageGeneration(model: AIModel) -> Bool {
+        model.relayCapabilityOverrides?.imageGeneration ?? model.capabilities.contains(.imageGen)
+    }
+
     static func imageRoute(for transport: RelayTransport) -> ImageRoute {
         let key = transport == .auto
             ? MetadataClient.RelayTransportKey.openaiChatCompletions
@@ -125,7 +143,22 @@ enum RelayRuntimeSupport {
     }
 
 
-    static let codexCliVersion = "0.50.0"
+    /// Built-in fallback value. The server delivers the current version under
+    /// `transportRules.openai_responses.codexClientVersion`; this is used only when the delivered value is
+    /// missing, invalid, or the runtime config has not loaded yet (see `resolvedCodexCliVersion`).
+    nonisolated static let codexCliVersion = "0.162.1"
+
+    /// A delivered value is accepted only if it matches `^\d{1,6}\.\d{1,6}\.\d{1,6}$` (ASCII digits);
+    /// otherwise the built-in value is used. Checked byte by byte instead of with a regex: `$` would let a
+    /// trailing newline through and `\d` would let non-ASCII digits through, and neither may end up in a header.
+    nonisolated static func resolvedCodexCliVersion(delivered: String?) -> String {
+        guard let delivered else { return codexCliVersion }
+        let parts = delivered.utf8.split(separator: UInt8(ascii: "."), omittingEmptySubsequences: false)
+        let isValid = parts.count == 3 && parts.allSatisfy { part in
+            (1...6).contains(part.count) && part.allSatisfy { (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) }
+        }
+        return isValid ? delivered : codexCliVersion
+    }
     static let codexOriginator = "codex_cli_rs"
     static let codexOpenAIBeta = "responses=experimental"
 
@@ -137,7 +170,11 @@ enum RelayRuntimeSupport {
         let os = ProcessInfo.processInfo.operatingSystemVersion
         systemVersion = "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
         #endif
-        return "codex_cli_rs/\(codexCliVersion) (iOS \(systemVersion); arm64)"
+        let version = resolvedCodexCliVersion(
+            delivered: MetadataClient.shared.syncRelayRuntimeConfig()
+                .transportRules[MetadataClient.RelayTransportKey.openaiResponses]?.codexClientVersion
+        )
+        return "codex_cli_rs/\(version) (iOS \(systemVersion); arm64)"
     }
 
     static func codexIdentityHeaders(
@@ -164,14 +201,43 @@ enum RelayRuntimeSupport {
         return [:]
     }
 
+    /// Codex identity headers for a relay request, gated on the resolved auth mode not being none. This is
+    /// the single check shared by chat, ping and the library legs. An empty result means no identity
+    /// headers are injected and the request body also omits `prompt_cache_key` (the two go together).
+    static func codexIdentityHeaders(
+        for transport: RelayTransport,
+        relayRequested: RelayRequestedConfig?,
+        resolvedAuthMode: RelayAuthMode
+    ) -> [String: String] {
+        guard resolvedAuthMode != .none else { return [:] }
+        return codexIdentityHeaders(for: transport, codexCompatIdentity: relayRequested?.effectiveCodexCompatIdentity)
+    }
+
+    /// `prompt_cache_key` of a Responses request body (a public OpenAI Responses API parameter). Same
+    /// algorithm on all platforms: the first 32 lowercase hex characters of
+    /// SHA-256(model + "\n" + instructions + "\n" + firstUserText).
+    ///
+    /// Some Codex-style relays (observed with packyapi) check only whether this key is present in the body
+    /// and answer 403 ("use the standard Codex client") without it, regardless of headers. Only the first
+    /// user text is used, so the value stays the same for later turns of one conversation.
+    nonisolated static func promptCacheKey(model: String, instructions: String, firstUserText: String) -> String {
+        let digest = SHA256.hash(data: Data("\(model)\n\(instructions)\n\(firstUserText)".utf8))
+        return String(digest.map { String(format: "%02x", $0) }.joined().prefix(32))
+    }
 
     enum RoutingError: Error, Equatable {
         case missingChatDriverModel
     }
 
+    /// Multi-key: `currentKeyID` is the effective key of the image model and `keyID` returns the effective
+    /// key of each model. A driver model bound to the same key is preferred; otherwise fall back to the
+    /// plain rule (a key mismatch never blocks image generation). Callers pass nothing when the
+    /// connection has a single key.
     static func pickChatDriverModelID(
         in provider: Provider,
-        currentModel: AIModel
+        currentModel: AIModel,
+        currentKeyID: String? = nil,
+        keyID: ((AIModel) -> String?)? = nil
     ) -> Result<String, RoutingError> {
         func upstreamID(_ model: AIModel) -> String {
             ModelResolver.preferredStoredModelIdentifier(for: model, providerKind: provider.kind)
@@ -185,9 +251,11 @@ enum RelayRuntimeSupport {
                 && !isDedicatedImageModel(upstreamID(model))
                 && !model.capabilities.contains(.imageGen)
         }
-        if let def = provider.defaultModel, acceptableChatDriver(def) {
-            return .success(upstreamID(def))
+        if let currentKeyID, let keyID,
+           let sameKey = provider.allModels.first(where: { acceptableChatDriver($0) && keyID($0) == currentKeyID }) {
+            return .success(upstreamID(sameKey))
         }
+        // A relay has no default model and the legacy isDefault flag is not read: take the first model in allModels order that can drive a chat.
         if let first = provider.allModels.first(where: acceptableChatDriver) {
             return .success(upstreamID(first))
         }

@@ -99,7 +99,7 @@ nonisolated struct CapabilityPreferenceRuntimeIdentity: Equatable, Sendable {
         let transport: String?
         if provider.kind == .relay {
             transport = relayFinalTransport(
-                provider: provider, resolvedFinalTransport: resolvedFinalTransport
+                provider: provider, model: model, resolvedFinalTransport: resolvedFinalTransport
             )
         } else {
             transport = input.resolved?.transport
@@ -115,28 +115,80 @@ nonisolated struct CapabilityPreferenceRuntimeIdentity: Equatable, Sendable {
     /// Model ID for device-local scopes. It does not depend on the recipe runtime: the additional
     /// request body is also available on connections with no recipe at all (self-hosted engines,
     /// relays whose transport is auto), where `make` returns nil.
+    ///
+    /// A relay writes the literal key: the key is the stored model ID and dated snapshots each keep their own. Values written
+    /// under a canonical key before literal matching are registered as read-compatible aliases, which the store reads when the literal key misses.
     static func canonicalModelID(provider: Provider, model: AIModel) -> String {
         if CapabilityControlResolution.subscriptionFinalTransport(for: provider, model: model) != nil {
             return trimmed(model.canonicalModelId) ?? model.id
         }
+        if provider.kind == .relay {
+            let literal = ModelResolver.preferredStoredModelIdentifier(for: model, providerKind: provider.kind)
+            GenerationParameterSettingsStore.registerLegacyModelIDs(
+                legacyRelayModelIDs(provider: provider, model: model),
+                providerID: provider.id, modelID: literal
+            )
+            return literal
+        }
+        return metadataCanonicalModelID(provider: provider, model: model)
+    }
+
+    private static func metadataCanonicalModelID(provider: Provider, model: AIModel) -> String {
         let input = MetadataClient.shared.syncCapabilityEvidenceModelInput(
             modelID: model.id, providerKind: provider.kind
         )
         return trimmed(input.resolved?.canonicalModelId) ?? trimmed(model.canonicalModelId) ?? model.id
     }
 
+    /// Pre-registers the old canonical keys of a relay's enabled models as read-compatible aliases: the settings and parameter pages read
+    /// with `model.id` directly and may not have gone through the send path first on a cold start, so read compatibility cannot depend on
+    /// "the identity was computed once". Both the literal key and the raw `model.id` are registered.
+    /// A connection whose enabled models and metadata snapshot are both unchanged is skipped, so each providers write pays for one comparison only.
+    static func registerRelayLegacyAliases(for providers: [Provider]) {
+        let metadataVersion = MetadataClient.shared.syncMetadataSnapshotVersion() ?? -1
+        for provider in providers where provider.kind == .relay {
+            var hasher = Hasher()
+            hasher.combine(metadataVersion)
+            for model in provider.models {
+                hasher.combine(model.id)
+                hasher.combine(model.canonicalModelId)
+            }
+            guard GenerationParameterSettingsStore.markRelayAliasFingerprint(hasher.finalize(), providerID: provider.id) else {
+                continue
+            }
+            for model in provider.models {
+                let legacy = legacyRelayModelIDs(provider: provider, model: model)
+                guard !legacy.isEmpty else { continue }
+                let literal = ModelResolver.preferredStoredModelIdentifier(for: model, providerKind: provider.kind)
+                GenerationParameterSettingsStore.registerLegacyModelIDs(legacy, providerID: provider.id, modelID: literal)
+                if model.id != literal {
+                    GenerationParameterSettingsStore.registerLegacyModelIDs(legacy, providerID: provider.id, modelID: model.id)
+                }
+            }
+        }
+    }
+
+    /// The keys used to write parameter / capability preferences before relays were matched by literal ID (the old criterion of this function and of the send path); the literal key itself is excluded.
+    static func legacyRelayModelIDs(provider: Provider, model: AIModel) -> [String] {
+        let literal = ModelResolver.preferredStoredModelIdentifier(for: model, providerKind: provider.kind)
+        var result: [String] = []
+        for candidate in [metadataCanonicalModelID(provider: provider, model: model), trimmed(model.canonicalModelId)] {
+            guard let candidate, candidate != literal, !result.contains(candidate) else { continue }
+            result.append(candidate)
+        }
+        return result
+    }
+
     static func relayFinalTransport(
         provider: Provider,
+        model: AIModel,
         resolvedFinalTransport: String?
     ) -> String? {
         guard provider.kind == .relay else { return trimmed(resolvedFinalTransport) }
         if let resolved = trimmed(resolvedFinalTransport) { return resolved }
-        guard let selected = provider.relayRequested?.transport, selected != .auto else {
-            // Relay auto is an intent, not the production dispatch selection. UI/persistence
-            // cannot invent the final transport before the builder resolves it.
-            return nil
-        }
-        return selected.rawValue
+        // Relay auto is an intent, not the production dispatch selection. UI/persistence
+        // cannot invent the final transport before the builder resolves it.
+        return RelayEndpointResolver.explicitTransport(provider: provider, model: model)?.rawValue
     }
 
     static let subscriptionRuntimeRevision = "subscription"
@@ -413,6 +465,43 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
     private let maximumRecordCount = 200
     private let recordTTL: TimeInterval = 180 * 24 * 60 * 60
 
+    /// Relay read-compatibility aliases: "connection x literal key" -> old canonical keys. Memory only, registered when
+    /// `CapabilityPreferenceRuntimeIdentity.canonicalModelID` computes a key; keyed by connection UUID and shared by every store instance.
+    nonisolated private static let legacyAliasLock = NSLock()
+    nonisolated(unsafe) private static var legacyModelIDsByScope: [String: [String]] = [:]
+
+    nonisolated static func registerLegacyModelIDs(_ legacy: [String], providerID: UUID, modelID: String) {
+        legacyAliasLock.lock()
+        defer { legacyAliasLock.unlock() }
+        legacyModelIDsByScope["\(providerID.uuidString)|\(modelID)"] = legacy.isEmpty ? nil : legacy
+    }
+
+    nonisolated(unsafe) private static var relayAliasFingerprints: [UUID: Int] = [:]
+
+    /// Returns true (and records it) only when the fingerprint changed.
+    nonisolated static func markRelayAliasFingerprint(_ fingerprint: Int, providerID: UUID) -> Bool {
+        legacyAliasLock.lock()
+        defer { legacyAliasLock.unlock() }
+        guard relayAliasFingerprints[providerID] != fingerprint else { return false }
+        relayAliasFingerprints[providerID] = fingerprint
+        return true
+    }
+
+    /// Read order: the literal key, then the registered old canonical keys. Writes go only to the literal key.
+    nonisolated private static func readModelIDs(providerID: UUID, modelID: String) -> [String] {
+        legacyAliasLock.lock()
+        defer { legacyAliasLock.unlock() }
+        return [modelID] + (legacyModelIDsByScope["\(providerID.uuidString)|\(modelID)"] ?? [])
+    }
+
+    /// Reads key by key; the first one that yields a value wins.
+    nonisolated private static func firstReading<T>(providerID: UUID, modelID: String, _ read: (String) -> T?) -> T? {
+        for candidate in readModelIDs(providerID: providerID, modelID: modelID) {
+            if let value = read(candidate) { return value }
+        }
+        return nil
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         migrateRetiredLocalCustomDeveloperGate()
@@ -490,10 +579,13 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
     }
 
     func modelDefaults(providerID: UUID, modelID: String, profileFingerprint: String? = nil) -> GenerationParameterOverrides? {
-        Self.latest(records()) { record in
-            Self.effectiveScope(record) == "model_default" && record.providerID == providerID
-                && record.modelID == modelID && record.conversationID == nil
-        }?.values
+        let records = records()
+        return Self.firstReading(providerID: providerID, modelID: modelID) { key in
+            Self.latest(records) { record in
+                Self.effectiveScope(record) == "model_default" && record.providerID == providerID
+                    && record.modelID == key && record.conversationID == nil
+            }?.values
+        }
     }
 
     func connectionDefaults(providerID: UUID) -> GenerationParameterOverrides? {
@@ -506,9 +598,12 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         conversationID: UUID,
         profileFingerprint: String? = nil
     ) -> GenerationParameterOverrides? {
-        Self.latest(records()) { record in
-            record.providerID == providerID && record.modelID == modelID && record.conversationID == conversationID
-        }?.values
+        let records = records()
+        return Self.firstReading(providerID: providerID, modelID: modelID) { key in
+            Self.latest(records) { record in
+                record.providerID == providerID && record.modelID == key && record.conversationID == conversationID
+            }?.values
+        }
     }
 
     func setModelDefaults(_ values: GenerationParameterOverrides?, providerID: UUID, modelID: String, profileFingerprint: String? = nil) {
@@ -545,11 +640,14 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         guard CapabilityPreferenceRuntimeIdentity.decode(transportIdentity) != nil else { return nil }
         lock.lock()
         defer { lock.unlock() }
-        return capabilityRecordsLocked().filter {
-            $0.scope != .connection && $0.providerID == providerID && $0.modelID == modelID
-                && $0.conversationID == conversationID && $0.skillID == skillID
-                && $0.transportIdentity == transportIdentity
-        }.max { $0.updatedAt < $1.updatedAt }?.values
+        let records = capabilityRecordsLocked()
+        return Self.firstReading(providerID: providerID, modelID: modelID) { key in
+            records.filter {
+                $0.scope != .connection && $0.providerID == providerID && $0.modelID == key
+                    && $0.conversationID == conversationID && $0.skillID == skillID
+                    && $0.transportIdentity == transportIdentity
+            }.max { $0.updatedAt < $1.updatedAt }?.values
+        }
     }
 
     func setCapabilityPreferences(
@@ -606,10 +704,13 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         guard !modelID.isEmpty,
               CapabilityPreferenceRuntimeIdentity.decode(transportIdentity) != nil else { return nil }
         lock.lock(); defer { lock.unlock() }
-        return capabilityRecordsLocked().filter {
-            $0.scope == .connection && $0.providerID == providerID && $0.modelID == modelID
-                && $0.transportIdentity == transportIdentity
-        }.max { $0.updatedAt < $1.updatedAt }?.values
+        let records = capabilityRecordsLocked()
+        return Self.firstReading(providerID: providerID, modelID: modelID) { key in
+            records.filter {
+                $0.scope == .connection && $0.providerID == providerID && $0.modelID == key
+                    && $0.transportIdentity == transportIdentity
+            }.max { $0.updatedAt < $1.updatedAt }?.values
+        }
     }
 
     func setConnectionCapabilityPreferences(
@@ -919,11 +1020,14 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         guard !transportIdentity.isEmpty else { return nil }
         lock.lock()
         defer { lock.unlock() }
-        return localCustomRecordsLocked().filter {
-            $0.providerID == providerID && $0.modelID == modelID
-                && $0.conversationID == conversationID && $0.transportIdentity == transportIdentity
-                && $0.namespace == namespace
-        }.max { $0.updatedAt < $1.updatedAt }?.rawJSON
+        let records = localCustomRecordsLocked()
+        return Self.firstReading(providerID: providerID, modelID: modelID) { key in
+            records.filter {
+                $0.providerID == providerID && $0.modelID == key
+                    && $0.conversationID == conversationID && $0.transportIdentity == transportIdentity
+                    && $0.namespace == namespace
+            }.max { $0.updatedAt < $1.updatedAt }?.rawJSON
+        }
     }
 
     func localCustomConfiguration(
@@ -938,11 +1042,14 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         }
         lock.lock()
         defer { lock.unlock() }
-        guard let record = localCustomRecordsLocked().filter({
-            $0.providerID == providerID && $0.modelID == modelID
-                && $0.conversationID == conversationID && $0.transportIdentity == transportIdentity
-                && $0.namespace == namespace
-        }).max(by: { $0.updatedAt < $1.updatedAt }) else {
+        let records = localCustomRecordsLocked()
+        guard let record = Self.firstReading(providerID: providerID, modelID: modelID, { key in
+            records.filter {
+                $0.providerID == providerID && $0.modelID == key
+                    && $0.conversationID == conversationID && $0.transportIdentity == transportIdentity
+                    && $0.namespace == namespace
+            }.max(by: { $0.updatedAt < $1.updatedAt })
+        }) else {
             return .init(mode: .automatic, rawJSON: "")
         }
         return .init(mode: record.mode ?? .custom, rawJSON: record.rawJSON)
@@ -973,11 +1080,13 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         defer { lock.unlock() }
         let records = localCustomRecordsLocked()
         func latest(_ scope: UUID?) -> LocalCustomFragmentRecord? {
-            records.filter {
-                $0.providerID == providerID && $0.modelID == modelID
-                    && $0.conversationID == scope && $0.transportIdentity == transportIdentity
-                    && $0.namespace == namespace
-            }.max { $0.updatedAt < $1.updatedAt }
+            Self.firstReading(providerID: providerID, modelID: modelID) { key in
+                records.filter {
+                    $0.providerID == providerID && $0.modelID == key
+                        && $0.conversationID == scope && $0.transportIdentity == transportIdentity
+                        && $0.namespace == namespace
+                }.max { $0.updatedAt < $1.updatedAt }
+            }
         }
         if let record = latest(conversationID) {
             return .init(mode: record.mode ?? .custom, rawJSON: record.rawJSON)
@@ -1193,8 +1302,11 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
     ) -> AdditionalRequestBodyConfiguration? {
         lock.lock()
         defer { lock.unlock() }
-        return additionalRequestBodyRecordsLocked().first {
-            $0.providerID == providerID && $0.modelID == modelID && $0.conversationID == conversationID
+        let records = additionalRequestBodyRecordsLocked()
+        return Self.firstReading(providerID: providerID, modelID: modelID) { key in
+            records.first {
+                $0.providerID == providerID && $0.modelID == key && $0.conversationID == conversationID
+            }
         }.map { .init(rawJSON: $0.rawJSON, sendsWithRequest: $0.sendsWithRequest) }
     }
 
@@ -2291,7 +2403,7 @@ private extension ISO8601DateFormatter {
 enum GenerationParameterProfileFingerprint {
     static func make(provider: Provider, model: AIModel) -> String {
         let endpoint = provider.kind == .relay
-            ? (provider.relayRequested?.resolvedAPIBaseURL ?? provider.baseURLText ?? "")
+            ? RelayEndpointResolver.fingerprintAPIRoot(provider: provider, model: model)
             : ""
         let endpointHash = sanitizedEndpoint(endpoint).map { value in
             "ep_" + String(SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined().prefix(16))

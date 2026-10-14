@@ -44,16 +44,22 @@ struct OpenAIResponsesStrategy: TransportStrategy {
            let annotation = json["annotation"] as? [String: Any],
            let citation = parseUrlCitation(annotation) {
             ctx.citationsAccumulator.ingest(citation)
+            ctx.webSearchEvidence.note(url: citation.url)
         }
 
         if type == "response.output_item.done",
            let item = json["item"] as? [String: Any] {
+            // Web-search evidence: a completed web_search_call item counts as a search that ran, even without citations.
+            if (item["type"] as? String) == "web_search_call", (item["status"] as? String) == "completed" {
+                ctx.webSearchEvidence.ran = true
+            }
             if let content = item["content"] as? [[String: Any]] {
                 for block in content {
                     if let annotations = block["annotations"] as? [[String: Any]] {
                         for a in annotations {
                             if let citation = parseUrlCitation(a) {
                                 ctx.citationsAccumulator.ingest(citation)
+                                ctx.webSearchEvidence.note(url: citation.url)
                             }
                         }
                     }
@@ -66,6 +72,7 @@ struct OpenAIResponsesStrategy: TransportStrategy {
             for item in arr {
                 if let dict = item as? [String: Any], let citation = parseUrlCitation(dict) {
                     ctx.citationsAccumulator.ingest(citation)
+                    ctx.webSearchEvidence.note(url: citation.url)
                 }
             }
         }

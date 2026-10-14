@@ -17,17 +17,23 @@ enum AttachmentTransportResolver {
         var webPreferenceIsAutomatic = false
         /// This turn goes out through the tool loop (MCP tools or a library agent leg).
         var usesToolLoop = false
+        /// The request history (including this turn) has a video attachment; the Gemini Interactions route is excluded by it.
+        var historyHasVideo = false
     }
 
     static func resolve(provider: Provider, model: AIModel, request: Request) -> AttachmentTransport? {
         // Image generation has its own dispatch (a separate image endpoint and driver model) and is not predicted here.
-        guard !model.capabilities.contains(.imageGen) else { return nil }
+        // A relay uses the same check as the image dispatch (including the image generation override).
+        let dispatchesImageGeneration = provider.kind == .relay
+            ? RelayRuntimeSupport.dispatchesImageGeneration(model: model)
+            : model.capabilities.contains(.imageGen)
+        guard !dispatchesImageGeneration else { return nil }
         if request.usesToolLoop { return .toolLoop(provider.kind) }
 
         let modelID = ModelResolver.resolvedProviderModelIdentifier(model.id, providerKind: provider.kind)
         switch provider.kind {
         case .relay:
-            return relay(provider.relayRequested?.transport ?? .openaiChatCompletions)
+            return relay(RelayEndpointResolver.effectiveTransport(provider: provider, model: model))
 
         case .openAI:
             if provider.authMode == .subscription { return .codexSubscription }
@@ -50,7 +56,9 @@ enum AttachmentTransportResolver {
             return GrokService.transportKind(for: resolved) == .openaiResponses ? .grokResponses : .grokChat
         case .gemini:
             guard catalogReady(.gemini) else { return nil }
-            return GeminiService.interactionsRecipe(modelID: modelID, webSearchEnabled: request.webSearchEnabled) != nil
+            return GeminiService.interactionsRecipe(
+                modelID: modelID, webSearchEnabled: request.webSearchEnabled, historyHasVideo: request.historyHasVideo
+            ) != nil
                 ? .geminiInteractions
                 : .geminiGenerateContent
         case .miniMax:
@@ -73,7 +81,7 @@ enum AttachmentTransportResolver {
         }
     }
 
-    /// A relay's route is decided only by the protocol configured on the connection; "auto" sends Chat Completions.
+    /// A relay's route is decided by the protocol this model actually uses (the model's own protocol first, otherwise the connection's); "auto" sends Chat Completions.
     static func relay(_ transport: RelayTransport) -> AttachmentTransport {
         switch transport {
         case .openaiChatCompletions, .auto: return .relayOpenAIChat
@@ -93,12 +101,47 @@ enum AttachmentTransportResolver {
 
     static func evidenceModel(provider: Provider, model: AIModel) -> AIModel {
         provider.kind == .relay
-            ? model
+            ? RelayFileOverride.applied(to: model, provider: provider)
             : MetadataClient.shared.syncCurrentCapabilityEvidenceModel(model, providerKind: provider.kind)
     }
 
     /// While the snapshot or this provider's catalog has not arrived, a route computed now for a provider that picks its protocol from the catalog cannot be trusted.
     private static func catalogReady(_ kind: ProviderKind) -> Bool {
         MetadataClient.shared.syncHasSnapshot() && !MetadataClient.shared.syncIsCatalogPending(providerKind: kind)
+    }
+}
+
+/// Applies a relay model-level file override onto the native-file allowlist. The pre-send check, the outbound
+/// delivery and the model options panel all read this one copy through `evidenceModel`, so the three places
+/// see the same allowlist.
+/// - On: adds `application/pdf` and sets `pdfNativeDefault = true` (the original allowlist is kept as a union);
+///   when the route envelope says it does not accept native files (`nativeFile == false`) the file stays text,
+///   because the protocol cannot carry a file block.
+/// - Off: the allowlist is treated as empty and every file is injected as text.
+/// - No override: unchanged.
+/// When On and the upstream rejects the file, the send falls back to text as the attachment spec requires and the
+/// override itself is not rewritten; an override takes precedence over the `file` negative cache (see
+/// `NativeFileFallback.Scope.fileOverride`).
+enum RelayFileOverride {
+    static let pdfMime = "application/pdf"
+
+    static func applied(
+        to model: AIModel,
+        provider: Provider,
+        runtimeConfig: @autoclosure () -> MetadataClient.RelayRuntimeConfig = MetadataClient.shared.syncRelayRuntimeConfig()
+    ) -> AIModel {
+        guard let value = model.relayCapabilityOverrides?.file else { return model }
+        var out = model
+        let envelopeClosed = RelayRuntimeSupport.attachmentSupport(
+            for: provider, model: model, runtimeConfig: runtimeConfig()
+        )?.nativeFile == false
+        if value, !envelopeClosed {
+            if !out.nativeFileMimes.contains(pdfMime) { out.nativeFileMimes.append(pdfMime) }
+            out.pdfNativeDefault = true
+        } else {
+            out.nativeFileMimes = []
+            out.pdfNativeDefault = false
+        }
+        return out
     }
 }

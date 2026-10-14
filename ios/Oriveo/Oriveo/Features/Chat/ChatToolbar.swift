@@ -36,7 +36,7 @@ struct ChatToolbar: View {
                 showModelSwitcher = true
             } label: {
                 HStack(spacing: OriveoTheme.Spacing.sm) {
-                    ProviderBadgeIcon(kind: provider.kind, size: 26, relayKind: provider.relayKind)
+                    ConnectionAvatarIcon(provider: provider, kind: provider.kind, relayKind: provider.relayKind, size: 26)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(currentModel?.name ?? L10n.tr("Choose Model"))
@@ -372,7 +372,7 @@ private struct MemoryPopoverActionLabel: View {
 
             Spacer(minLength: 0)
 
-            Image(systemName: "chevron.right")
+            Image(systemName: "chevron.forward")
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(foreground.opacity(0.72))
         }

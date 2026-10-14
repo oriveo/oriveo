@@ -46,6 +46,14 @@ struct AnthropicMessagesStrategy: TransportStrategy {
                (block["name"] as? String) == "web_search" {
                 events.append(.activity(.webSearch))
             }
+            // Web-search evidence: the content of web_search_tool_result is an array (an empty array also counts as the search having run);
+            // it does not count when content is a web_search_tool_result_error object.
+            if (block["type"] as? String) == "web_search_tool_result", let results = block["content"] as? [Any] {
+                ctx.webSearchEvidence.ran = true
+                for case let result as [String: Any] in results {
+                    if let url = result["url"] as? String { ctx.webSearchEvidence.note(url: url) }
+                }
+            }
             let expectedBlockType = shape?.citationsBlockType ?? "web_search_tool_result"
             if (block["type"] as? String) == expectedBlockType {
                 if let items = block["content"] as? [[String: Any]] {

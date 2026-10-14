@@ -479,7 +479,8 @@ struct SkillEditView: View {
                                 .font(OriveoTheme.V2.Typography.body)
                                 .foregroundStyle(Colors.textPrimary)
                             Spacer()
-                            Image(systemName: "chevron.right")
+                            // The angle is not flipped for layout direction: SwiftUI rotation mirrors under RTL, so a left-pointing arrow also turns to point down.
+                            Image(systemName: "chevron.forward")
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(Colors.textTertiary)
                                 .rotationEffect(.degrees(showAdvanced ? 90 : 0))
@@ -661,8 +662,8 @@ struct SkillEditView: View {
                         errorMessage = localizedKnowledgeError(.openAINotConfigured)
                         return
                     }
-                    var cleanupBody: [String: Any] = ["apiKey": openAIProvider.apiKey]
-                    if let baseURL = openAIProvider.baseURLText,
+                    var cleanupBody: [String: Any] = ["apiKey": ProviderCredentialResolver.apiKey(provider: openAIProvider, modelID: nil)]
+                    if let baseURL = openAIProvider.requestBaseURLText(),
                        !baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         cleanupBody["baseURL"] = baseURL
                     }
@@ -732,7 +733,7 @@ struct SkillEditView: View {
 
     private var openAIProvider: Provider? {
         appState.providers.first {
-            $0.kind == .openAI && !$0.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            $0.kind == .openAI && !ProviderCredentialResolver.apiKey(provider: $0, modelID: nil).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
 

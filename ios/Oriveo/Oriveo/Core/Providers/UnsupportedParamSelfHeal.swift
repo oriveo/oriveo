@@ -479,11 +479,16 @@ final class UnsupportedParamCache: @unchecked Sendable {
             providerKind: providerKind, modelID: modelID, identity: identity
         ), !owner.isEmpty, !setting.isEmpty,
            source != .providerRecipe || !(recipeRef?.isEmpty ?? true) else { return false }
-        let key = Self.capabilityKey(
+        var key = Self.capabilityKey(
             connectionID: exact.connectionID, canonicalModelID: exact.canonicalModelID,
             finalTransport: exact.finalTransport, runtimeRevision: exact.runtimeRevision,
             source: source, owner: owner, recipeRef: recipeRef, setting: setting
         )
+        // Thinking is recorded per tier: rejections of different tiers on the same pointer each keep one entry, and a later tier does not overwrite an earlier one.
+        // Records without a capability key (custom / legacy data) keep their original key, so the storage shape is unchanged.
+        if let capabilityKey, !capabilityKey.isEmpty {
+            key += "|" + Self.hex(capabilityKey)
+        }
         lock.lock()
         defer { lock.unlock() }
         pruneCapabilityLocked()
@@ -583,6 +588,48 @@ final class UnsupportedParamCache: @unchecked Sendable {
                   entry.recipeRef == recipeRef else { return nil }
             return entry.setting
         })
+    }
+
+    /// Result of `recipeRejectedCapabilityKeys`: rejections that carry a capability key, and whether there are still rejections without a capability key (not split by tier).
+    struct RecipeRejectedCapabilities: Equatable {
+        var keys: Set<String> = []
+        var hasUntiered = false
+    }
+
+    /// Same filtering as `recipeRejectedPointers`, returning the rejected capability keys (`web_search` / `reasoning_level/<tier>`),
+    /// and telling whether any rejection without a capability key exists -- if so there is no way to tell which tier is still usable, and the caller must put the whole group to sleep.
+    /// Pure read: no prune, no persist (the panel also reads it on the SwiftUI body evaluation path, see `capabilityRejectedCandidates`);
+    /// expired entries are excluded directly by TTL. It does not go through the facade candidate, so official connections (no endpoint fingerprint) can read it too.
+    func recipeRejectedCapabilityKeys(
+        providerKind: ProviderKind,
+        modelID: String,
+        owner: String,
+        recipeRef: String,
+        identity: CapabilityEvidenceRequestIdentity
+    ) -> RecipeRejectedCapabilities {
+        guard let exact = capabilityIdentity(
+            providerKind: providerKind, modelID: modelID, identity: identity
+        ) else { return .init() }
+        let cutoff = Date().addingTimeInterval(-ttl)
+        lock.lock()
+        defer { lock.unlock() }
+        var result = RecipeRejectedCapabilities()
+        for entry in capabilityRejected.values {
+            guard entry.observedAt >= cutoff,
+                  entry.connectionID == exact.connectionID,
+                  entry.canonicalModelID == exact.canonicalModelID,
+                  entry.finalTransport == exact.finalTransport,
+                  entry.runtimeRevision == exact.runtimeRevision,
+                  entry.source == .providerRecipe,
+                  entry.owner == owner,
+                  entry.recipeRef == recipeRef else { continue }
+            if let key = entry.capabilityKey, !key.isEmpty {
+                result.keys.insert(key)
+            } else {
+                result.hasUntiered = true
+            }
+        }
+        return result
     }
 
     /// Editing or explicitly reselecting a custom fragment is reconfirmation for that source only.

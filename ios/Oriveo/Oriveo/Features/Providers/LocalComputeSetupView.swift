@@ -29,10 +29,11 @@ struct LocalComputeSetupView: View {
     @State private var securityMode: RelayConnectionSecurityMode = .remoteHTTPS
     @State private var showsSecurityModePicker = false
     @State private var endpointNormalizationHighlightToken = 0
+    /// The verification sample resolved by the connector (first catalog entry): used only to compare connection identity and to persist; there is no input slot for it.
     @State private var modelID = ""
     @State private var apiKey = ""
     @State private var errorMessage: String?
-    @State private var recoveryAction: LocalConnectionRecoveryAction?
+    @State private var recoveryAction: LocalRecoveryButton?
     @State private var showsLocalNetworkSettings = false
     @State private var isDiscovering = false
     @State private var discoveryPhase: LocalDiscoveryPhase = .idle
@@ -45,6 +46,11 @@ struct LocalComputeSetupView: View {
     @State private var networkRevisionMonitor = LocalNetworkRevisionMonitor()
     @State private var verifiedConnection: LocalEngineConnection?
     @State private var verifiedEvidence: CustomLLMConnectionEvidence?
+    /// Connection-level channel. When the fingerprint recognizes the engine it supplies the channel; with a manual pick only llama.cpp has a second one (native).
+    @State private var channel: RelayTransport = .openaiChatCompletions
+    /// Whether the manual engine / channel picker is expanded: opened from the secondary row, or automatically when the fingerprint cannot recognize the engine (generic / manual).
+    @State private var showsManualPicker = false
+    @State private var detectionFailure: LocalSetupBoardModel.Failure?
     @AccessibilityFocusState private var accessibilityFocus: LocalAccessibilityField?
 
     private var isVerificationInFlight: Bool {
@@ -54,22 +60,12 @@ struct LocalComputeSetupView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: OriveoTheme.Spacing.xl) {
+                let board = self.board
+
                 localQuickSetupHeader
 
-                RelaySetupMenuField(
-                    title: L10n.tr("Engine", table: .providers),
-                    selection: engineIDBinding,
-                    options: LocalEngineKind.allCases.map {
-                        .init(id: $0.rawValue, title: Self.displayName(for: $0))
-                    },
-                    footnote: nil,
-                    isEnabled: !isVerificationInFlight,
-                    leadingSystemImage: "cpu"
-                )
-                .accessibilityFocused($accessibilityFocus, equals: .engine)
-
                 RelaySetupField(
-                    title: L10n.tr("Request URL", table: .providers),
+                    title: L10n.tr("Engine address", table: .providers),
                     text: endpointBinding,
                     placeholder: "192.168.1.20:11434",
                     footnote: L10n.tr("localhost means this phone, not your computer.", table: .providers),
@@ -80,13 +76,21 @@ struct LocalComputeSetupView: View {
                     highlightToken: endpointNormalizationHighlightToken,
                     keyboardType: .URL,
                     forcesLeftToRightValue: true,
+                    leadingPhosphor: .hardDrives,
+                    schemePrefix: securityMode == .localHTTP || securityMode == .privateVPN ? "http" : "https",
                     trailingActionTitle: isDiscovering ? L10n.tr("Cancel") : L10n.tr("Search"),
                     trailingActionSystemImage: isDiscovering ? "xmark" : "magnifyingglass",
+                    trailingActionPhosphor: isDiscovering ? .x : .scan,
+                    trailingActionInSlot: true,
                     onTrailingAction: toggleDiscovery
                 )
                 .accessibilityFocused($accessibilityFocus, equals: .address)
 
-                discoveryStatus
+                if !board.networkChips.isEmpty {
+                    SetupNetworkChipRow(addresses: board.networkChips)
+                } else {
+                    discoveryStatus
+                }
 
                 RelaySecurityModeSummaryRow(
                     securityMode: securityMode,
@@ -100,6 +104,10 @@ struct LocalComputeSetupView: View {
                 .accessibilityHint(RelaySecurityModeSummaryRow.detail(for: securityMode))
                 .accessibilityFocused($accessibilityFocus, equals: .security)
 
+                if board.showsManualPicker {
+                    manualEnginePicker(showsChannel: board.showsChannelPicker)
+                }
+
                 if authenticationPolicy.requiresCredential {
                     RelaySetupField(
                         title: L10n.tr("API Key", table: .providers),
@@ -109,7 +117,8 @@ struct LocalComputeSetupView: View {
                         isSecure: true,
                         isEnabled: !isVerificationInFlight,
                         leadingSystemImage: "key.horizontal",
-                        usesQuickSetupStyle: true
+                        usesQuickSetupStyle: true,
+                        leadingPhosphor: .key
                     )
                     .accessibilityFocused($accessibilityFocus, equals: .authentication)
                 } else {
@@ -121,34 +130,7 @@ struct LocalComputeSetupView: View {
                     .foregroundStyle(OriveoTheme.Palette.textSecondary)
                 }
 
-                if let connection = verifiedConnection, !connection.modelIDs.isEmpty {
-                    RelaySetupMenuField(
-                        title: L10n.tr("Model", table: .providers),
-                        selection: modelBinding,
-                        options: connection.modelIDs.map { .init(id: $0, title: $0) },
-                        footnote: String(
-                            format: L10n.tr("Found %d model(s) in the catalog.", table: .providers),
-                            connection.modelIDs.count
-                        ),
-                        isEnabled: !isVerificationInFlight,
-                        leadingSystemImage: "sparkles",
-                        forcesLeftToRightValue: true
-                    )
-                    .accessibilityFocused($accessibilityFocus, equals: .model)
-                } else {
-                    RelaySetupField(
-                        title: L10n.tr("Model (optional)", table: .providers),
-                        text: modelBinding,
-                        placeholder: "llama3.2",
-                        footnote: nil,
-                        isSecure: false,
-                        isEnabled: !isVerificationInFlight,
-                        leadingSystemImage: "sparkles",
-                        usesQuickSetupStyle: true,
-                        forcesLeftToRightValue: true
-                    )
-                    .accessibilityFocused($accessibilityFocus, equals: .model)
-                }
+                localDetectionCard(board)
 
                 if let errorMessage {
                     RelaySetupStatusRow(
@@ -161,14 +143,6 @@ struct LocalComputeSetupView: View {
                         action: showsLocalNetworkSettings
                             ? openAppSettings
                             : recoveryAction.map { action in { performRecovery(action) } }
-                    )
-                }
-
-                if isConnectionVerified {
-                    RelaySetupStatusRow(
-                        message: L10n.tr("Connection verified.", table: .providers),
-                        systemImage: "checkmark.circle.fill",
-                        tone: .success
                     )
                 }
             }
@@ -232,26 +206,106 @@ struct LocalComputeSetupView: View {
         }
     }
 
-    @ViewBuilder
     private var localQuickSetupHeader: some View {
-        VStack(alignment: .leading, spacing: OriveoTheme.Spacing.sm) {
-            Label(L10n.tr("Quick Setup", table: .providers), systemImage: "wand.and.stars")
-                .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                .foregroundStyle(OriveoTheme.Palette.primary)
+        SetupBoardHero(
+            icon: .plug,
+            labelKey: LocalSetupBoardModel.heroLabelKey,
+            titleKey: LocalSetupBoardModel.heroTitleKey,
+            subtitleKey: LocalSetupBoardModel.heroSubtitleKey
+        )
+    }
 
-            Text(L10n.tr("Connect a relay or local engine", table: .providers))
-                .font(OriveoTheme.Typography.hero)
-                .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
+    /// The single source of state for the setup page: the view only renders it.
+    private var board: LocalSetupBoardModel {
+        LocalSetupBoardModel.make(.init(
+            isDetecting: isVerificationInFlight,
+            summary: isConnectionVerified ? verifiedConnection.map(LocalSetupBoardModel.Summary.make) : nil,
+            failure: detectionFailure,
+            engine: engine,
+            showsManualPicker: showsManualPicker,
+            discoveredAddresses: discoveredAddresses,
+            canAct: canConnect
+        ))
+    }
 
-            Text(L10n.tr("Connect directly to an engine on this device or your private network.", table: .providers))
-                .font(OriveoTheme.Typography.body)
-                .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+    private var discoveredAddresses: [String] {
+        if case .candidate(let address) = discoveryPhase { return [address] }
+        return []
+    }
+
+    /// Manual pick: the existing engine menu plus the llama.cpp channel.
+    private func manualEnginePicker(showsChannel: Bool) -> some View {
+        VStack(alignment: .leading, spacing: OriveoTheme.Spacing.lg) {
+            RelaySetupMenuField(
+                title: L10n.tr("Engine", table: .providers),
+                selection: engineIDBinding,
+                options: LocalEngineKind.allCases.map {
+                    .init(id: $0.rawValue, title: Self.displayName(for: $0))
+                },
+                footnote: nil,
+                isEnabled: !isVerificationInFlight,
+                leadingSystemImage: "cpu"
+            )
+            .accessibilityFocused($accessibilityFocus, equals: .engine)
+
+            if showsChannel {
+                RelaySetupMenuField(
+                    title: L10n.tr(LocalSetupBoardModel.channelTileKey, table: .providers),
+                    selection: channelBinding,
+                    options: LocalEngineChannelCandidates.candidates(engineProfile: engine.rawValue).map {
+                        .init(id: $0.rawValue, title: relayTransportLabel($0))
+                    },
+                    footnote: nil,
+                    isEnabled: !isVerificationInFlight,
+                    leadingSystemImage: "arrow.left.arrow.right",
+                    leadingPhosphor: .slidersHorizontal
+                )
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, OriveoTheme.Spacing.sm)
-        .padding(.bottom, OriveoTheme.Spacing.xs)
+    }
+
+    @ViewBuilder
+    private func localDetectionCard(_ board: LocalSetupBoardModel) -> some View {
+        switch board.card {
+        case .hidden:
+            EmptyView()
+        case .detecting:
+            SetupDetectionCardSurface(tone: .progress) {
+                SetupDetectionHeadline(
+                    icon: nil,
+                    tint: OriveoTheme.Palette.primary,
+                    title: L10n.tr(SetupPrimaryButton.detecting.titleKey, table: .providers),
+                    showsProgress: true
+                )
+            }
+        case .succeeded:
+            if let summary = board.summary {
+                SetupDetectionCardSurface(tone: .success) {
+                    SetupDetectionHeadline(
+                        icon: .checkCircle,
+                        tint: OriveoTheme.Palette.success,
+                        title: String(
+                            format: L10n.tr(LocalSetupBoardModel.recognizedKey, table: .providers),
+                            Self.displayName(for: summary.engine),
+                            summary.modelCount
+                        )
+                    )
+                    LocalDetectionTiles(summary: summary)
+                }
+            }
+        case .failed:
+            // A connection failure keeps using the existing failure row below; this card only draws "engine not recognized".
+            if board.failure == .unrecognized {
+                SetupDetectionCardSurface(tone: .warning) {
+                    SetupDetectionHeadline(
+                        icon: .warningCircle,
+                        tint: OriveoTheme.Palette.warning,
+                        title: L10n.tr(LocalSetupBoardModel.unrecognizedTitleKey, table: .providers),
+                        detail: L10n.tr(LocalSetupBoardModel.unrecognizedBodyKey, table: .providers)
+                    )
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -311,20 +365,43 @@ struct LocalComputeSetupView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, OriveoTheme.Spacing.xl)
             }
-            Button(
-                isVerificationInFlight
-                    ? L10n.tr("Connecting...", table: .providers)
-                    : isConnectionVerified
-                        ? L10n.tr("Connect and save", table: .providers)
-                        : L10n.tr("Test connection", table: .providers)
-            ) {
-                connect()
+            let board = self.board
+            VStack(spacing: OriveoTheme.Spacing.sm) {
+                Button {
+                    connect()
+                } label: {
+                    HStack(spacing: OriveoTheme.Spacing.sm) {
+                        if board.primaryButton.showsProgress {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else if board.primaryButton == .connectAndSave {
+                            PhosphorIcon.check.image(.regular)
+                                .resizable()
+                                .renderingMode(.template)
+                                .scaledToFit()
+                                .frame(width: 18, height: 18)
+                                .accessibilityHidden(true)
+                        }
+                        Text(L10n.tr(board.primaryButton.titleKey, table: .providers))
+                    }
+                }
+                .buttonStyle(RelaySetupPrimaryButtonStyle())
+                .disabled(!board.isPrimaryEnabled)
+                .opacity(board.isPrimaryEnabled || board.primaryButton.showsProgress ? 1 : 0.48)
+                .accessibilityHint(connectionBlockReason ?? "")
+                .accessibilityFocused($accessibilityFocus, equals: .primaryAction)
+
+                SetupBoardSecondaryRow(
+                    icon: .slidersHorizontal,
+                    titleKey: LocalSetupBoardModel.secondaryActionKey,
+                    isEnabled: !isVerificationInFlight
+                ) {
+                    withAnimation(.snappy(duration: 0.18)) {
+                        showsManualPicker.toggle()
+                    }
+                    if showsManualPicker { accessibilityFocus = .engine }
+                }
             }
-            .buttonStyle(RelaySetupPrimaryButtonStyle())
-            .disabled(!canConnect)
-            .opacity(canConnect ? 1 : 0.48)
-            .accessibilityHint(connectionBlockReason ?? "")
-            .accessibilityFocused($accessibilityFocus, equals: .primaryAction)
             .padding(.horizontal, OriveoTheme.Spacing.xl)
             .padding(.top, OriveoTheme.Spacing.xl)
             .padding(.bottom, OriveoTheme.Spacing.md)
@@ -430,11 +507,48 @@ struct LocalComputeSetupView: View {
         errorMessage = nil
         recoveryAction = nil
         showsLocalNetworkSettings = false
+        detectionFailure = nil
+        if LocalSetupDetectRoute.skipsFingerprint(showsManualPicker: showsManualPicker) {
+            startConnection(address: writeback.endpoint)
+        } else {
+            detectEngine(address: writeback.endpoint)
+        }
+    }
+
+    /// "Detect" first identifies the engine (five read-only GETs); if recognized it connects with that engine and channel,
+    /// otherwise it falls back to the manual picker. A fingerprint is not verification evidence: the attempt carries no
+    /// identity, and once the engine is recognized `startConnection` opens a new attempt with it.
+    private func detectEngine(address: String) {
+        let revision = networkRevisionMonitor.revision
+        let mode = securityMode
+        let attempt = coordinator.beginVerification(for: .local)
+        let fingerprintTask = Task {
+            let outcome = await LocalEngineConnector.fingerprint(endpoint: address, securityMode: mode)
+            guard !Task.isCancelled,
+                  coordinator.isCurrent(attempt),
+                  networkRevisionMonitor.revision == revision else { return }
+            switch LocalSetupDetectRoute.route(for: outcome) {
+            case .connect(let detected, let detectedChannel):
+                engine = detected
+                channel = detectedChannel
+                startConnection(address: address)
+            case .unrecognized:
+                guard coordinator.acceptFailure(for: attempt) else { return }
+                detectionFailure = .unrecognized
+                withAnimation(.snappy(duration: 0.18)) { showsManualPicker = true }
+            }
+        }
+        coordinator.registerCancellation(for: attempt) { fingerprintTask.cancel() }
+    }
+
+    private func startConnection(address: String) {
+        let selectedChannel = channel
         let draft = LocalConnectionDraft(
             engine: engine,
-            endpoint: writeback.endpoint,
+            endpoint: address,
             securityMode: securityMode,
-            modelID: modelID.trimmingCharacters(in: .whitespacesAndNewlines),
+            // There is no model slot: the connector takes the first catalog entry as the verification sample.
+            modelID: "",
             apiKey: apiKey,
             networkRevision: networkRevisionMonitor.revision
         )
@@ -455,9 +569,10 @@ struct LocalComputeSetupView: View {
                             engine: draft.engine,
                             endpoint: candidate.endpoint,
                             securityMode: candidate.securityMode,
-                            modelHint: draft.modelID,
+                            modelHint: nil,
                             apiKey: draft.apiKey,
-                            certificateFingerprint: nil
+                            certificateFingerprint: nil,
+                            channel: selectedChannel
                         )
                         break
                     } catch {
@@ -489,8 +604,9 @@ struct LocalComputeSetupView: View {
                 return
             } catch {
                 guard coordinator.acceptFailure(for: attempt) else { return }
+                detectionFailure = .connection
                 showsLocalNetworkSettings = (error as? LocalEngineConnectionError) == .localNetworkDenied
-                recoveryAction = (error as? LocalEngineConnectionError).map(LocalConnectionRecoveryAction.action)
+                recoveryAction = (error as? LocalEngineConnectionError).flatMap { LocalRecoveryButton(.action(for: $0)) }
                 errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             }
         }
@@ -524,6 +640,7 @@ struct LocalComputeSetupView: View {
         cancelDiscovery(resetPhase: clearDiscovery)
         verifiedConnection = nil
         verifiedEvidence = nil
+        detectionFailure = nil
     }
 
     nonisolated static func defaultSecurityMode(for engine: LocalEngineKind) -> RelayConnectionSecurityMode {
@@ -651,23 +768,20 @@ struct LocalComputeSetupView: View {
         return nil
     }
 
-    private func recoveryTitle(for action: LocalConnectionRecoveryAction) -> String {
+    private func recoveryTitle(for action: LocalRecoveryButton) -> String {
         switch action {
-        case .editAddress: L10n.tr("Request URL", table: .providers)
+        case .editAddress: L10n.tr("Engine address", table: .providers)
         case .chooseEngine: L10n.tr("Engine", table: .providers)
-        // shortenContext does the same as chooseModel (clears the error and focuses the model field, see
-        // performRecovery), so it gets the same title
-        case .chooseModel, .shortenContext: L10n.tr("Model", table: .providers)
         case .openSettings: L10n.tr("Settings")
-        case .waitAndRetry, .startEngine, .freeMemory: L10n.tr("Retry")
+        case .retry: L10n.tr("Retry")
         }
     }
 
-    private func performRecovery(_ action: LocalConnectionRecoveryAction) {
+    private func performRecovery(_ action: LocalRecoveryButton) {
         switch action {
         case .openSettings:
             openAppSettings()
-        case .waitAndRetry, .startEngine, .freeMemory:
+        case .retry:
             connect()
         case .editAddress:
             errorMessage = nil
@@ -677,10 +791,6 @@ struct LocalComputeSetupView: View {
             errorMessage = nil
             recoveryAction = nil
             accessibilityFocus = .engine
-        case .chooseModel, .shortenContext:
-            errorMessage = nil
-            recoveryAction = nil
-            accessibilityFocus = .model
         }
     }
 
@@ -721,11 +831,22 @@ struct LocalComputeSetupView: View {
             guard next != engine else { return }
             invalidateConnectionState(clearDiscovery: true)
             engine = next
+            channel = next.defaultTransport
             securityMode = Self.defaultSecurityMode(for: next)
             if next != .openwebui { apiKey = "" }
             errorMessage = nil
             recoveryAction = nil
             showsLocalNetworkSettings = false
+        })
+    }
+
+    private var channelBinding: Binding<String> {
+        Binding(get: { channel.rawValue }, set: { rawValue in
+            guard let next = RelayTransport(rawValue: rawValue), next != channel else { return }
+            invalidateConnectionState(clearDiscovery: false)
+            channel = next
+            errorMessage = nil
+            recoveryAction = nil
         })
     }
 
@@ -744,16 +865,6 @@ struct LocalComputeSetupView: View {
             guard next != apiKey else { return }
             invalidateConnectionState(clearDiscovery: true)
             apiKey = next
-            errorMessage = nil
-            recoveryAction = nil
-        })
-    }
-
-    private var modelBinding: Binding<String> {
-        Binding(get: { modelID }, set: { next in
-            guard next != modelID else { return }
-            invalidateConnectionState(clearDiscovery: false)
-            modelID = next
             errorMessage = nil
             recoveryAction = nil
         })
@@ -871,8 +982,26 @@ private enum LocalAccessibilityField: Hashable {
     case address
     case security
     case authentication
-    case model
     case primaryAction
+}
+
+/// Recovery buttons on the error row: only actions that have a landing spot on this page. "Switch model" actions
+/// (no models, context too long) went away with the model slot, so those errors show the message without a button.
+enum LocalRecoveryButton: Equatable {
+    case editAddress
+    case chooseEngine
+    case retry
+    case openSettings
+
+    init?(_ action: LocalConnectionRecoveryAction) {
+        switch action {
+        case .editAddress: self = .editAddress
+        case .chooseEngine: self = .chooseEngine
+        case .waitAndRetry, .startEngine, .freeMemory: self = .retry
+        case .openSettings: self = .openSettings
+        case .chooseModel, .shortenContext: return nil
+        }
+    }
 }
 
 private enum LocalDiscoveryPhase: Equatable {

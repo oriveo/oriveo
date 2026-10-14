@@ -302,6 +302,7 @@ final class AssistantMessageCell: UICollectionViewCell {
         providerBadge.configure(
             kind: model.message.providerKind,
             relayKind: model.relayKind,
+            relayAvatar: model.relayAvatar,
             size: 28
         )
 

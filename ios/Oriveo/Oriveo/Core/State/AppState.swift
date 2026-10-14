@@ -91,6 +91,10 @@ private final class AppStatePendingWorkItems: @unchecked Sendable {
 final class AppState {
     var providerManager: ProviderManager
     var relayCatalogRefreshingProviderIDs = Set<UUID>()
+    /// Per-session state of the lazy verification of enabled relay models (connection -> model id -> verifying /
+    /// unreachable). In memory only: written by ProviderManager, read by the model library rows; never persisted
+    /// and not kept across restarts.
+    var relayModelProbeStates: [UUID: [String: RelayModelProbeState]] = [:]
     var chatManager: ChatManager
     /// The confirmation gate for remote MCP tools: the tool loop suspends here and the confirmation sheet
     /// sends the user's choice back.
@@ -184,6 +188,9 @@ final class AppState {
     var expandedFolderIDs: Set<UUID> = []
     var preferences: AppPreference
     var pendingSuccessBanner: String?
+    /// One-shot notice for the provider detail page: "Added n models..." after setup, or the explanation when a
+    /// manual setup failed verification. The page takes it when it appears and it is cleared at once, so it shows only once.
+    var providerDetailNotice: ProviderDetailNotice?
     /// A Skill needs a provider before it can start a conversation: shown as a prompt to open provider setup.
     var showSkillProviderPrompt = false
     var hasConfiguredProviderKey: Bool {
@@ -312,6 +319,7 @@ final class AppState {
     /// The model display name lookup shared by Home and folder conversation rows (built in the background, reused by
     /// fingerprint); see `ConversationModelLookupStore`.
     @ObservationIgnored let conversationModelLookupStore = ConversationModelLookupStore()
+    @ObservationIgnored private nonisolated(unsafe) var metadataPublishObserver: NSObjectProtocol?
     private var lastAutoRefreshDate: Date?
 
     init(
@@ -385,6 +393,15 @@ final class AppState {
             }
         }
 
+        // Legacy relay key aliases depend on metadata resolution: register them again when the snapshot arrives after the providers (the fingerprint makes this idempotent, and unchanged connections are skipped)
+        metadataPublishObserver = NotificationCenter.default.addObserver(
+            forName: .metadataSnapshotDidPublish, object: nil, queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                CapabilityPreferenceRuntimeIdentity.registerRelayLegacyAliases(for: self.providers)
+            }
+        }
     }
 
     static let preview: AppState = {
@@ -393,6 +410,9 @@ final class AppState {
 
     nonisolated deinit {
         pendingWorkItems.cancelAll()
+        if let metadataPublishObserver {
+            NotificationCenter.default.removeObserver(metadataPublishObserver)
+        }
     }
 
     private func resetTransientNoteContext() {
@@ -929,10 +949,43 @@ final class AppState {
 
     func currentModel(for conversation: Conversation) -> AIModel? {
         guard let provider = provider(for: conversation.providerID) else { return nil }
+        if provider.kind == .relay {
+            // Relay: a removed conversation model is not replaced; an empty conversation model falls back to the last-used model.
+            if case .removed = conversationModelState(for: conversation) { return nil }
+            if conversation.modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return fallbackModel(in: provider)
+            }
+        }
         return ProviderSelectionSnapshot.currentModel(
             storedModelID: conversation.modelID,
             in: provider
         )
+    }
+
+    /// Conversation model state: a relay conversation whose stored model is no longer among the connection's
+    /// enabled models is `removed`.
+    func conversationModelState(for conversation: Conversation) -> ProviderSelectionSnapshot.ConversationModelState {
+        guard let provider = provider(for: conversation.providerID) else { return .resolved }
+        return ProviderSelectionSnapshot.conversationModelState(
+            storedModelID: conversation.modelID,
+            in: provider
+        )
+    }
+
+    /// The model used by send / retry / continue / regenerate: nil when the conversation model was removed, and
+    /// the caller returns immediately without sending any request.
+    func sendableModel(for conversation: Conversation, provider: Provider) -> AIModel? {
+        if case .removed = conversationModelState(for: conversation) { return nil }
+        return currentModel(for: conversation) ?? provider.defaultModel
+    }
+
+    /// Fallback model for a connection: a relay uses the last-used model (if it points at this connection and is enabled),
+    /// then the first enabled one; official providers keep taking the default model.
+    func fallbackModel(in provider: Provider) -> AIModel? {
+        guard provider.kind == .relay else {
+            return ProviderSelectionSnapshot.defaultModel(in: provider)
+        }
+        return ProviderSelectionSnapshot.relayFallbackModel(in: provider, lastUsedModelRef: lastUsedModelRef)
     }
 
     func startOnboarding() {
@@ -945,6 +998,22 @@ final class AppState {
 
     func openProviderDetail(providerID: UUID) {
         navigation.openProviderDetail(providerID: providerID)
+    }
+
+    func openRelayModelLibrary(providerID: UUID, keyID: String? = nil) {
+        navigation.openRelayModelLibrary(providerID: providerID, keyID: keyID)
+    }
+
+    func openRelayKeys(providerID: UUID) {
+        navigation.openRelayKeys(providerID: providerID)
+    }
+
+    func openRelayWebSearch(providerID: UUID) {
+        navigation.openRelayWebSearch(providerID: providerID)
+    }
+
+    func openRelayModelAdvanced(providerID: UUID, modelID: String, readOnly: Bool) {
+        navigation.openRelayModelAdvanced(providerID: providerID, modelID: modelID, readOnly: readOnly)
     }
 
     func openManualModelEntry(providerID: UUID, context: ManualModelEntryContext) {
@@ -972,6 +1041,8 @@ final class AppState {
 
     private func rebuildProviderLookup() {
         providerLookup = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, $0) })
+        // Read-compat for relay parameter / capability keys: aliases are registered as providers land, without waiting for the send path to compute the identity first
+        CapabilityPreferenceRuntimeIdentity.registerRelayLegacyAliases(for: providers)
     }
 
     private func rebuildConversationLookup() {
@@ -1114,7 +1185,9 @@ final class AppState {
         customName: String? = nil,
         isAdditionalInstance: Bool = false,
         authMode: ProviderAuthMode = .apiKey,
-        subscriptionAccountID: String? = nil
+        subscriptionAccountID: String? = nil,
+        endpointSource: ProviderEndpointSource? = nil,
+        setupValues: [String: String]? = nil
     ) async throws -> Provider {
         try await providerManager.registerProvider(
             kind: kind,
@@ -1124,19 +1197,27 @@ final class AppState {
             customName: customName,
             isAdditionalInstance: isAdditionalInstance,
             authMode: authMode,
-            subscriptionAccountID: subscriptionAccountID
+            subscriptionAccountID: subscriptionAccountID,
+            endpointSource: endpointSource,
+            setupValues: setupValues
         )
     }
 
-    func completeProviderSetup(providerID: UUID, entryPoint: ProviderSetupEntryPoint) {
-        guard let provider = provider(for: providerID),
-              let defaultModel = ProviderSelectionSnapshot.defaultModel(in: provider) else {
-            return
+    func completeProviderSetup(
+        providerID: UUID,
+        entryPoint: ProviderSetupEntryPoint,
+        verifiedModelID: String? = nil
+    ) {
+        guard let provider = provider(for: providerID) else { return }
+        // After setup, select the model that was just verified; if it is not among the enabled models, fall back to the fallback model.
+        let verifiedModel = verifiedModelID.flatMap {
+            ModelResolver.matchingModel(modelID: $0, in: provider.models, providerKind: provider.kind)
         }
+        guard let selectedModel = verifiedModel ?? fallbackModel(in: provider) else { return }
 
         // Every successful setup selects the exact model produced by the verified persistence
         // path before navigation changes. Entry points differ only in where the caller resumes.
-        setActiveModel(providerID: provider.id, modelID: defaultModel.id)
+        setActiveModel(providerID: provider.id, modelID: selectedModel.id)
 
         switch entryPoint {
         case .welcome:
@@ -1149,6 +1230,38 @@ final class AppState {
         case .modelPicker, .skillEdit:
             navigation.returnToProviderSetupCaller()
         }
+    }
+
+    /// Relay setup finished: the providers entry point opens the detail page with a one-shot notice; other entry points keep using `completeProviderSetup`.
+    func completeRelaySetup(
+        providerID: UUID,
+        entryPoint: ProviderSetupEntryPoint,
+        verifiedModelID: String?,
+        addedModelCount: Int
+    ) {
+        guard entryPoint == .providers else {
+            completeProviderSetup(providerID: providerID, entryPoint: entryPoint, verifiedModelID: verifiedModelID)
+            return
+        }
+        guard let provider = provider(for: providerID) else { return }
+        let verifiedModel = verifiedModelID.flatMap {
+            ModelResolver.matchingModel(modelID: $0, in: provider.models, providerKind: provider.kind)
+        }
+        if let selectedModel = verifiedModel ?? fallbackModel(in: provider) {
+            setActiveModel(providerID: provider.id, modelID: selectedModel.id)
+        }
+        providerDetailNotice = ProviderDetailNotice(providerID: providerID, kind: .addedModels(addedModelCount))
+        pendingNavigationPathCommitTask?.cancel()
+        pendingNavigationPathCommitTask = nil
+        selectedTab = .providers
+        navigation.path = [.providerDetail(providerID: providerID)]
+    }
+
+    /// The detail page takes the one-shot notice that belongs to it; taking it clears it.
+    func consumeProviderDetailNotice(for providerID: UUID) -> ProviderDetailNotice.Kind? {
+        guard let notice = providerDetailNotice, notice.providerID == providerID else { return nil }
+        providerDetailNotice = nil
+        return notice.kind
     }
 
     private func commitNewChatNavigation(deferringIfNeeded: Bool) {
@@ -1218,6 +1331,13 @@ final class AppState {
         try await providerManager.updateBaseURL(providerID: providerID, baseURLText: baseURLText)
     }
 
+    /// On the official detail page a template entry with placeholders was chosen: the address, the source and the template values are written together, then it syncs again.
+    func updateEndpointSetup(providerID: UUID, submission: ProviderSetupSubmission) async throws {
+        guard let provider = provider(for: providerID),
+              ProviderSetupCatalog.current().usesConfigurableBaseURL(provider.kind) else { return }
+        try await providerManager.updateEndpointSetup(providerID: providerID, submission: submission)
+    }
+
     @discardableResult
     func deleteProvider(providerID: UUID) -> Bool {
         guard provider(for: providerID) != nil,
@@ -1269,7 +1389,7 @@ final class AppState {
 
         if let pid = preferredProviderID, let p = providers.first(where: { $0.id == pid }) {
             resolvedProvider = p
-            resolvedModelID = preferredModelID ?? ProviderSelectionSnapshot.defaultModel(in: p)?.id ?? ""
+            resolvedModelID = preferredModelID ?? fallbackModel(in: p)?.id ?? ""
         } else if let active = activeModel {
             resolvedProvider = active.provider
             resolvedModelID = preferredModelID ?? active.model.id
@@ -1299,14 +1419,14 @@ final class AppState {
         }
 
         if let primary = primaryProvider,
-           let defaultModel = ProviderSelectionSnapshot.defaultModel(in: primary) {
+           let defaultModel = fallbackModel(in: primary) {
             setActiveModel(providerID: primary.id, modelID: defaultModel.id)
             return true
         }
 
         if !providers.isEmpty,
            let any = providers.first,
-           let defaultModel = ProviderSelectionSnapshot.defaultModel(in: any) {
+           let defaultModel = fallbackModel(in: any) {
             setActiveModel(providerID: any.id, modelID: defaultModel.id)
             return true
         }
@@ -1317,20 +1437,63 @@ final class AppState {
     }
 
     func setDefaultModel(modelID: String, for providerID: UUID) {
+        // Relays have no default model.
+        guard provider(for: providerID)?.kind != .relay else { return }
         providerManager.setDefaultModel(modelID: modelID, for: providerID)
         setActiveModel(providerID: providerID, modelID: modelID)
     }
 
     @discardableResult
-    func enableModel(modelID: String, for providerID: UUID) -> ProviderManager.EnableModelResult {
-        providerManager.enableModel(modelID: modelID, for: providerID)
+    func enableModel(
+        modelID: String,
+        for providerID: UUID,
+        lazilyVerifiesRelayTransport: Bool = false
+    ) -> ProviderManager.EnableModelResult {
+        providerManager.enableModel(
+            modelID: modelID,
+            for: providerID,
+            lazilyVerifiesRelayTransport: lazilyVerifiesRelayTransport
+        )
+    }
+
+    @discardableResult
+    func enableModels(modelIDs: [String], for providerID: UUID) -> Int {
+        providerManager.enableModels(modelIDs: modelIDs, for: providerID)
     }
 
     func disableModel(modelID: String, for providerID: UUID) {
+        let before = provider(for: providerID)
         providerManager.disableModel(modelID: modelID, for: providerID)
-        GenerationParameterSettingsStore.shared.removeScopes(providerID: providerID, modelID: modelID)
-        GenerationParameterSettingsStore.shared.removeCapabilityScopes(providerID: providerID, modelID: modelID)
-        GenerationParameterPresetStore.shared.removeScopes(providerID: providerID, modelID: modelID)
+        for key in Self.parameterKeysToRemove(onDisabling: modelID, before: before, after: provider(for: providerID)) {
+            GenerationParameterSettingsStore.shared.removeScopes(providerID: providerID, modelID: key)
+            GenerationParameterSettingsStore.shared.removeCapabilityScopes(providerID: providerID, modelID: key)
+            GenerationParameterPresetStore.shared.removeScopes(providerID: providerID, modelID: key)
+        }
+    }
+
+    /// Keys whose saved parameters are removed when a model is disabled. Official providers remove the key that
+    /// was passed in. Relays remove the literal key; a legacy canonical key is removed only when no remaining
+    /// enabled model of the connection still uses it (by canonical or literal), because a dated snapshot under
+    /// the same canonical may still be in use.
+    private static func parameterKeysToRemove(onDisabling modelID: String, before: Provider?, after: Provider?) -> [String] {
+        guard let before, before.kind == .relay,
+              let removed = ModelResolver.matchingModel(for: modelID, in: before) else { return [modelID] }
+        let literal = ModelResolver.preferredStoredModelIdentifier(for: removed, providerKind: before.kind)
+        // Compare by identity key: both the literal keys of the remaining enabled models and their legacy canonical keys count as "still in use".
+        var stillUsed = Set<String>()
+        for model in after?.models ?? [] {
+            stillUsed.insert(ModelResolver.relayIdentityKey(model.id))
+            for legacy in CapabilityPreferenceRuntimeIdentity.legacyRelayModelIDs(provider: before, model: model) {
+                stillUsed.insert(ModelResolver.relayIdentityKey(legacy))
+            }
+        }
+        var keys = [literal]
+        if modelID != literal { keys.append(modelID) }
+        for legacy in CapabilityPreferenceRuntimeIdentity.legacyRelayModelIDs(provider: before, model: removed)
+        where !stillUsed.contains(ModelResolver.relayIdentityKey(legacy)) && !keys.contains(legacy) {
+            keys.append(legacy)
+        }
+        return keys
     }
 
     func selectModel(modelID: String, providerID: UUID? = nil, for conversationID: UUID?) {
@@ -1691,6 +1854,7 @@ final class AppState {
         if !providers.isEmpty {
             Task {
                 await MetadataClient.shared.ensureInitialized()
+                backfillProviderEndpointSources()
                 await refreshProviderMetadata()
             }
         }
@@ -1699,6 +1863,20 @@ final class AppState {
     /// Refreshes the stored providers' model metadata once Metadata has initialized.
     /// Reads from the MetadataClient actor over the async path so a stale shared snapshot
     /// cannot hide a fresh value.
+    /// Classify unclassified official providers against the current metadata, then run the lazy migrations
+    /// (retired regions, endpoint-source reconciliation) over every official provider and write the result back
+    /// locally. It mutates the array directly instead of going through updateProvider: updatedAt is untouched and
+    /// nothing is uploaded. When metadata is missing, providers stay unclassified but the retired-region
+    /// migration still runs.
+    func backfillProviderEndpointSources(catalog: ProviderSetupCatalog = .current()) {
+        var updated = providers
+        var changed = false
+        for index in updated.indices where updated[index].reconcileEndpointSource(catalog: catalog) {
+            changed = true
+        }
+        if changed { providers = updated }
+    }
+
     func refreshProviderMetadata() async {
         guard !providers.isEmpty else { return }
         await MetadataClient.shared.ensureInitialized()
@@ -1926,7 +2104,7 @@ final class AppState {
             return
         }
 
-        let modelID = resolvedModelID ?? ProviderSelectionSnapshot.defaultModel(in: provider)?.id ?? ""
+        let modelID = resolvedModelID ?? fallbackModel(in: provider)?.id ?? ""
 
         var conversation = createConversation(provider: provider, modelID: modelID)
         conversation.title = skill.localizedName
@@ -2007,4 +2185,17 @@ final class AppState {
 
     // queueAssistantResponse through sampleContinuation live in ChatManager.
     // makeProviderError lives in AppErrors.swift.
+}
+
+/// One-shot notice at the top of the provider detail page.
+struct ProviderDetailNotice: Equatable {
+    enum Kind: Equatable {
+        /// Setup finished: how many models were enabled.
+        case addedModels(Int)
+        /// A manual setup failed its liveness probe but was saved anyway: the raw failure reason.
+        case unverifiedSave(String)
+    }
+
+    let providerID: UUID
+    let kind: Kind
 }

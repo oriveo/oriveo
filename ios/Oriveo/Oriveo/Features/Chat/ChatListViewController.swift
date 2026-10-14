@@ -97,6 +97,8 @@ final class ChatListViewController: UIViewController {
     private var onRegenerate: (ChatMessage) -> Void = { _ in }
     private var onEditMessage: (ChatMessage) -> Void = { _ in }
     private var onSwitchModel: () -> Void = {}
+    private var offersSwitchKey: (ChatMessage) -> Bool = { _ in false }
+    private var onSwitchKey: (ChatMessage) -> Void = { _ in }
     private var isSendingMessage = false
     private var pendingAnchorUserMessageID: UUID?
     private var onAnchorUserMessageConsumed: (UUID) -> Void = { _ in }
@@ -328,6 +330,8 @@ final class ChatListViewController: UIViewController {
         onRegenerate: @escaping (ChatMessage) -> Void,
         onEditMessage: @escaping (ChatMessage) -> Void,
         onSwitchModel: @escaping () -> Void,
+        offersSwitchKey: @escaping (ChatMessage) -> Bool = { _ in false },
+        onSwitchKey: @escaping (ChatMessage) -> Void = { _ in },
         pendingAnchorUserMessageID: UUID? = nil,
         onAnchorUserMessageConsumed: @escaping (UUID) -> Void = { _ in },
         scrollToBottomRequest: UInt = 0,
@@ -360,6 +364,8 @@ final class ChatListViewController: UIViewController {
         self.onRegenerate = onRegenerate
         self.onEditMessage = onEditMessage
         self.onSwitchModel = onSwitchModel
+        self.offersSwitchKey = offersSwitchKey
+        self.onSwitchKey = onSwitchKey
         self.pendingAnchorUserMessageID = pendingAnchorUserMessageID
         self.onAnchorUserMessageConsumed = onAnchorUserMessageConsumed
         self.onIsAtBottomChanged = onIsAtBottomChanged
@@ -730,6 +736,8 @@ final class ChatListViewController: UIViewController {
             onRegenerate: onRegenerate,
             onEditMessage: onEditMessage,
             onSwitchModel: onSwitchModel,
+            offersSwitchKey: offersSwitchKey,
+            onSwitchKey: onSwitchKey,
             isSendingMessage: isSendingMessage,
             isErrorDismissed: { [weak self] id in self?.dismissedErrorIDs.contains(id) ?? false },
             isRecoveryDetailExpanded: { [weak self] id in self?.expandedRecoveryDetailIDs.contains(id) ?? false },

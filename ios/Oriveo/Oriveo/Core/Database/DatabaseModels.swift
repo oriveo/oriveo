@@ -133,6 +133,7 @@ struct MessageRecord {
     let toolSteps: String?
     /// Code of a device-local notice shown with the tool steps (`ToolFallbackNotice`).
     let toolFallbackNotice: String?
+    let recoveryPrimaryAction: String?
 
     nonisolated init(row: Row) {
         id = row["id"]
@@ -166,6 +167,7 @@ struct MessageRecord {
         unhandledToolCalls = row["unhandledToolCalls"]
         toolSteps = row["toolSteps"]
         toolFallbackNotice = row["toolFallbackNotice"]
+        recoveryPrimaryAction = row["recoveryPrimaryAction"]
     }
 }
 

@@ -405,9 +405,14 @@ struct CrosscheckSheet: View {
     @ViewBuilder
     private var selectedModelLogo: some View {
         if let selectedModel {
-            ProviderBadgeIcon(kind: selectedModel.logoProviderKind, size: 24, relayKind: selectedModel.relayKind)
-                .frame(width: 28, height: 28)
-                .accessibilityHidden(true)
+            ConnectionAvatarIcon(
+                provider: appState.provider(for: selectedModel.providerID),
+                kind: selectedModel.logoProviderKind,
+                relayKind: selectedModel.relayKind,
+                size: 24
+            )
+            .frame(width: 28, height: 28)
+            .accessibilityHidden(true)
         } else {
             Image(systemName: "questionmark")
                 .font(.system(size: 15, weight: .bold))
@@ -420,9 +425,14 @@ struct CrosscheckSheet: View {
     @ViewBuilder
     private var sourceModelLogo: some View {
         if let originalProviderKind {
-            ProviderBadgeIcon(kind: originalProviderKind, size: 24, relayKind: originalRelayKind)
-                .frame(width: 28, height: 28)
-                .accessibilityHidden(true)
+            ConnectionAvatarIcon(
+                provider: originalProvider,
+                kind: originalProviderKind,
+                relayKind: originalRelayKind,
+                size: 24
+            )
+            .frame(width: 28, height: 28)
+            .accessibilityHidden(true)
         } else {
             Image(systemName: "doc.text")
                 .font(.system(size: 14, weight: .semibold))
@@ -522,6 +532,7 @@ struct CrosscheckSheet: View {
         VStack(spacing: 18) {
             if let selectedModel {
                 providerLogoMark(
+                    provider: appState.provider(for: selectedModel.providerID),
                     kind: selectedModel.logoProviderKind,
                     relayKind: selectedModel.relayKind,
                     size: 70
@@ -594,8 +605,13 @@ struct CrosscheckSheet: View {
             } label: {
                 HStack(spacing: 12) {
                     if let originalProviderKind {
-                        ProviderBadgeIcon(kind: originalProviderKind, size: 28, relayKind: originalRelayKind)
-                            .frame(width: 34, height: 34)
+                        ConnectionAvatarIcon(
+                            provider: originalProvider,
+                            kind: originalProviderKind,
+                            relayKind: originalRelayKind,
+                            size: 28
+                        )
+                        .frame(width: 34, height: 34)
                     } else {
                         Image(systemName: "doc.text.magnifyingglass")
                             .font(.system(size: 16, weight: .semibold))
@@ -618,10 +634,10 @@ struct CrosscheckSheet: View {
 
                     Spacer(minLength: 10)
 
-                    Image(systemName: "chevron.down")
+                    // Collapse indicator: collapsed points in the reading direction (forward flips with RTL), expanded points down.
+                    Image(systemName: showOriginalAnswer ? "chevron.down" : "chevron.forward")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                        .rotationEffect(.degrees(showOriginalAnswer ? 180 : 0))
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -743,11 +759,12 @@ struct CrosscheckSheet: View {
     }
 
     private func providerLogoMark(
+        provider: Provider?,
         kind: ProviderKind,
         relayKind: RelayKind?,
         size: CGFloat
     ) -> some View {
-        ProviderBadgeIcon(kind: kind, size: size * 0.70, relayKind: relayKind)
+        ConnectionAvatarIcon(provider: provider, kind: kind, relayKind: relayKind, size: size * 0.70)
             .frame(width: size, height: size)
     }
 
@@ -843,6 +860,13 @@ struct CrosscheckSheet: View {
         case .note(let note):
             return note.sourceProviderKind
         }
+    }
+
+    /// The connection of the original answer; nil for note sources and deleted connections (relays draw generic accordingly).
+    private var originalProvider: Provider? {
+        guard case .chatMessage(_, let message, _) = origin,
+              let providerID = message.providerID else { return nil }
+        return appState.provider(for: providerID)
     }
 
     private var originalRelayKind: RelayKind? {

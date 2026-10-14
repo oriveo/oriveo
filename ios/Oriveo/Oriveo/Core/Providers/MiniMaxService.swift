@@ -759,7 +759,8 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
         let capabilityIntent = CapabilityEvidenceProductionAdapter.finalChatIntent(
             messages: requestMessagesInput, request: request, effectiveTransport: resolved?.transport ?? "",
             model: requestOptions.capabilityEvidenceModel,
-            requestedReasoningMode: reasoningMode, webSearchEnabled: requestOptions.webIntentRequested
+            requestedReasoningMode: reasoningMode, webSearchEnabled: requestOptions.webIntentRequested,
+            imagePlaceholderText: AttachmentTransport.miniMaxChat.profile.imagePlaceholderText
         )
 
         var apiMessages: [[String: Any]] = []

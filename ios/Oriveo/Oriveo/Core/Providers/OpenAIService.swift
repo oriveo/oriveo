@@ -29,8 +29,15 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         if relayRequested?.engineProfile != nil {
             normalizedBase = try requireConfiguredRelayBaseURL(
                 apiKey: apiKey,
-                baseURL: relayRequested?.resolvedAPIBaseURL ?? baseURL,
+                baseURL: RelayEndpointResolver.injectedAPIRoot(relayRequested) ?? baseURL,
                 relayRequested: relayRequested
+            )
+        } else if relayRequested != nil {
+            // Connection-level catalog GET (refresh / one request per key): the root address comes only from
+            // catalogAPIRoot. Otherwise the user's stored address as typed could miss a /v1 or carry a terminal
+            // path into /models. If no root can be derived, report the security error for the original address.
+            normalizedBase = try RelayEndpointPolicy.requireSecure(
+                RelayEndpointResolver.catalogAPIRoot(baseURL: baseURL, relayRequested: relayRequested) ?? baseURL
             )
         } else {
             normalizedBase = try RelayEndpointPolicy.requireSecure(baseURL)
@@ -45,13 +52,37 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         request.timeoutInterval = 20
         applyHeaders(to: &request, apiKey: apiKey)
         request.applyRelaySecurityMode(relayRequested)
-        let response: OpenAIModelsResponse = try await perform(request, isRelay: true)
-        let chatModels = response.data.filter { isChatModel($0.id) }
+        let data = try await performData(request, isRelay: true)
+        let remoteModels: [OpenAIRemoteModel]
+        do {
+            remoteModels = try Self.decodeRelayCatalog(data)
+        } catch {
+            throw ProviderServiceError.network(detail: "Decoding failed: \(error.localizedDescription)")
+        }
+        // A catalog refresh and "add" discovery parse the same raw body: each model's self-reported endpoint
+        // types go into the probe candidate cache.
+        if let catalog = RelayDiscoveryService.parseCatalog(data: data, transport: .openaiChatCompletions) {
+            RelayCatalogEndpointTypesCache.shared.record(
+                endpoint: baseURL,
+                endpointTypesByModel: catalog.endpointTypesByModel
+            )
+        }
+        let chatModels = remoteModels.filter { isChatModel($0.id) }
         let models = await buildModels(from: chatModels, preferredModelID: preferredModelID)
 
         return ProviderSyncResult(
             models: models
         )
+    }
+
+    /// Decodes a catalog refresh response. The OpenAI list, the new-api `success` wrapper and the Anthropic
+    /// paginated shape all carry the models in a `data` array, and only that array is read, in upstream order.
+    private static func decodeRelayCatalog(_ data: Data) throws -> [OpenAIRemoteModel] {
+        try JSONDecoder().decode(OpenAIModelsResponse.self, from: data).data
+    }
+
+    static func relayCatalogModelIDs(from data: Data) throws -> [String] {
+        try decodeRelayCatalog(data).map(\.id)
     }
 
 
@@ -97,10 +128,25 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         throw ProviderServiceError.invalidConfiguration(detail: "Missing model identifier.")
                     }
 
-                    let transport = relayRequested?.transport ?? .openaiChatCompletions
-                    let webSearchShape: MetadataClient.StreamShape? = webSearchEnabled
-                        ? self.resolveRelayWebSearchShape(modelID: modelID, relayRequested: relayRequested)
-                        : nil
+                    let transport = RelayEndpointResolver.injectedTransport(relayRequested) ?? .openaiChatCompletions
+                    // The citation stream shape is derived from the web-search fragment merged in for this turn;
+                    // without a fragment, citation parsing is skipped. Every branch other than Responses sends
+                    // through the Chat Completions builder, so it takes the Chat part of the fragment.
+                    let fragmentTransport: RelayTransport = transport == .openaiResponses
+                        ? .openaiResponses : .openaiChatCompletions
+                    let webSearchShape: MetadataClient.StreamShape?
+                    if requestOptions.officialForeignRoute {
+                        // The official cross-protocol route keeps the original behavior: with web search on,
+                        // citations are parsed with the profile the catalog matched.
+                        webSearchShape = webSearchEnabled ? self.officialForeignWebSearchShape(modelID: modelID) : nil
+                    } else {
+                        webSearchShape = MetadataClient.shared.syncWebSearchStreamShape(
+                            profileName: RelayWebFragments.citationProfile(
+                                transport: fragmentTransport,
+                                fragment: requestOptions.relayWebFragments?.object(for: fragmentTransport)
+                            )
+                        )
+                    }
                     switch transport {
                     case .llamacppNative:
                         let stream = self.streamLlamaCppNative(
@@ -117,12 +163,10 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
 
                     case .openaiResponses:
                         let stream = self.streamRelayResponses(
-                            initialReasoningEffort: self.resolveRelayResponsesReasoningEffort(
-                                relayRequested: relayRequested,
-                                reasoningMode: reasoningMode
-                            ),
                             webSearchShape: webSearchShape,
-                            attachmentConnectionID: requestOptions.attachmentConnectionID
+                            attachmentConnectionID: requestOptions.attachmentConnectionID,
+                            attachmentModelID: requestOptions.capabilityEvidenceModel?.id,
+                            attachmentFileOverride: requestOptions.capabilityEvidenceModel?.relayCapabilityOverrides?.file
                         ) { hints in
                             try self.buildRelayResponsesRequest(
                                 modelID: modelID,
@@ -147,10 +191,6 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
 
                     case .openaiChatCompletions, .auto, .anthropicMessages, .geminiGenerateContent:
                         let stream = self.streamRelayChatCompletions(
-                            initialReasoningEffort: self.resolveRelayChatCompletionsReasoningEffort(
-                                relayRequested: relayRequested,
-                                reasoningMode: reasoningMode
-                            ),
                             webSearchShape: webSearchShape
                         )
                         { reasoningEffortOverride in
@@ -238,7 +278,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             throw ProviderServiceError.invalidConfiguration(detail: "Missing model identifier.")
         }
 
-        let transport = relayRequested?.transport ?? .openaiChatCompletions
+        let transport = RelayEndpointResolver.injectedTransport(relayRequested) ?? .openaiChatCompletions
         switch transport {
         case .llamacppNative:
             return try await sendLlamaCppNative(
@@ -252,13 +292,8 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         case .openaiResponses:
             // When a relay rejects a native file block, resend once with the files injected as text (NativeFileFallback).
             let (data, _) = try await NativeFileFallback.run(
-                .relayScope(.openaiResponses, connectionID: requestOptions.attachmentConnectionID)
-            ) { try await performRelayResponsesDataRequestWithFallbacks(
-                initialReasoningEffort: resolveRelayResponsesReasoningEffort(
-                    relayRequested: relayRequested,
-                    reasoningMode: reasoningMode
-                )
-            ) { hints in
+                .relayScope(.openaiResponses, connectionID: requestOptions.attachmentConnectionID, modelID: requestOptions.capabilityEvidenceModel?.id, fileOverride: requestOptions.capabilityEvidenceModel?.relayCapabilityOverrides?.file)
+            ) { try await performRelayResponsesDataRequestWithFallbacks { hints in
                 try self.buildRelayResponsesRequest(
                     modelID: modelID,
                     messages: messages,
@@ -301,12 +336,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             )
 
         case .openaiChatCompletions, .auto, .anthropicMessages, .geminiGenerateContent:
-            let (data, _) = try await performRelayDataRequestWithXHighRetry(
-                initialReasoningEffort: resolveRelayChatCompletionsReasoningEffort(
-                    relayRequested: relayRequested,
-                    reasoningMode: reasoningMode
-                )
-            ) { reasoningEffortOverride in
+            let (data, _) = try await performRelayChatDataRequest { reasoningEffortOverride in
                 try self.buildChatCompletionsRequest(
                     modelID: modelID,
                     messages: messages,
@@ -1578,7 +1608,15 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         return bytes
     }
 
-    private func buildChatCompletionsRequest(
+    /// Chat Completions request for a custom base URL (relays).
+    ///
+    /// When `relayRequested` is set the cc-switch import contract applies:
+    /// - `reasoningEffort` (the connection-level stored level) is void on read and is not sent; the level comes only from this turn's `reasoningMode`
+    /// - `serviceTier` takes effect only for OpenAI-style transports (Chat Completions / Responses)
+    /// - `headers` / `queryParams` are merged into the request headers / URL
+    /// `functionTools`: the capability test's tool entries; when given, this tools array (already in this protocol's shape) is written into the body. Chat does not pass it, so chat output is unchanged.
+    /// `omitReasoning`: for probes; `reasoning_effort` is not written. Chat does not pass it, so chat output is unchanged.
+    func buildChatCompletionsRequest(
         modelID: String,
         messages: [ChatMessage],
         apiKey: String,
@@ -1588,7 +1626,10 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         requestOptions: ChatRequestOptions = ChatRequestOptions(),
         relayRequested: RelayRequestedConfig? = nil,
         reasoningEffortOverride: String? = nil,
-        validationMaxTokens: Int? = nil
+        validationMaxTokens: Int? = nil,
+        functionTools: [Any]? = nil,
+        keepImageAttachments: Bool = false,
+        omitReasoning: Bool = false
     ) throws -> URLRequest {
         let finalURL = try buildRelayEndpointURL(
             baseURL: baseURL,
@@ -1611,15 +1652,13 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         for header in relayRequested?.effectiveHeaders ?? [] {
             request.setValue(header.value, forHTTPHeaderField: header.key)
         }
-        let evidenceReasoningMode = Self.relaySemanticReasoningMode(
-            relayRequested?.reasoningEffort, fallback: reasoningMode
-        )
         let capabilityIntent = CapabilityEvidenceProductionAdapter.finalChatIntent(
             messages: messages, request: request,
             effectiveTransport: RelayTransport.openaiChatCompletions.rawValue,
             model: requestOptions.capabilityEvidenceModel,
-            requestedReasoningMode: evidenceReasoningMode,
-            webSearchEnabled: false
+            requestedReasoningMode: reasoningMode,
+            webSearchEnabled: false,
+            keepImageAttachments: keepImageAttachments
         )
         var apiMessages: [ChatCompletionRequest.Message] = []
         let systemPrompt = requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1628,15 +1667,14 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         }
         apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, transport: .relayOpenAIChat, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
 
-        let reasoningEffort = capabilityIntent.reasoningMode.flatMap { allowedMode in
-            reasoningEffortOverride ?? resolveRelayChatCompletionsReasoningEffort(
-                relayRequested: relayRequested,
-                reasoningMode: allowedMode
-            )
+        // reasoning_effort follows this turn's reasoningMode only; the stored connection-level level is void on read and is not sent.
+        let reasoningEffort = omitReasoning ? nil : capabilityIntent.reasoningMode.flatMap { allowedMode in
+            reasoningEffortOverride ?? Self.relayOpenAIReasoningEffort(allowedMode)
         }
         let serviceTier: String? = {
+            let transport = RelayEndpointResolver.injectedTransport(relayRequested)
             guard let relayRequested,
-                  relayRequested.transport == .openaiChatCompletions || relayRequested.transport == .openaiResponses,
+                  transport == .openaiChatCompletions || transport == .openaiResponses,
                   let trimmed = relayRequested.serviceTier?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !trimmed.isEmpty else {
                 return nil
@@ -1654,19 +1692,37 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             messages: apiMessages
         )
         var body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
+        if let functionTools {
+            body["tools"] = functionTools
+        }
         ProfileParamsResolver.applyGenerationParameters(
             to: &body,
             options: requestOptions,
             finalRequest: request,
             effectiveTransport: RelayTransport.openaiChatCompletions.rawValue
         )
+        // Relay web-search fragment: applied after the builder's output and before the additional request body.
+        RelayWebFragments.apply(requestOptions.relayWebFragments, transport: .openaiChatCompletions, to: &body)
         try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
         return request
     }
 
-    private func buildRelayResponsesRequest(
+    /// Responses request for a relay (Codex-style).
+    ///
+    /// Web search: relays no longer get a tool attached from the chat's web-search preference; a Responses
+    /// web-search fragment is merged here only when the connection has stored one. The official cross-protocol
+    /// route (`requestOptions.officialForeignRoute`) keeps the original behavior: with `webSearchEnabled` the
+    /// web_search tool is attached.
+    ///
+    /// Whether stream is true is derived by the caller via `RelayRuntimeSupport.shouldForceStream`.
+    ///
+    /// Two inputs exist for the capability test; chat passes neither and its output is unchanged:
+    /// `maxOutputTokens` replaces the default 16384; when `functionTools` is given, this request's `tools`
+    /// holds only that array (no image_generation / web_search).
+    /// `omitReasoning`: for probes; `reasoning` is not written. Chat does not pass it, so chat output is unchanged.
+    func buildRelayResponsesRequest(
         modelID: String,
         messages: [ChatMessage],
         apiKey: String,
@@ -1679,7 +1735,11 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         webSearchEnabled: Bool = false,
         supportsImageGeneration: Bool = false,
         imageToolModelID: String? = nil,
-        removeTools: Bool = false
+        removeTools: Bool = false,
+        maxOutputTokens: Int? = nil,
+        functionTools: [Any]? = nil,
+        keepImageAttachments: Bool = false,
+        omitReasoning: Bool = false
     ) throws -> URLRequest {
         let finalURL = try buildRelayEndpointURL(
             baseURL: baseURL,
@@ -1704,15 +1764,14 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             request.setValue(header.value, forHTTPHeaderField: header.key)
         }
 
-        let evidenceReasoningMode = Self.relaySemanticReasoningMode(
-            relayRequested?.reasoningEffort, fallback: reasoningMode
-        )
         let capabilityIntent = CapabilityEvidenceProductionAdapter.finalChatIntent(
             messages: messages, request: request,
             effectiveTransport: RelayTransport.openaiResponses.rawValue,
             model: requestOptions.capabilityEvidenceModel,
-            requestedReasoningMode: evidenceReasoningMode,
-            webSearchEnabled: webSearchEnabled
+            requestedReasoningMode: reasoningMode,
+            // Only the official cross-protocol route still expresses web-search intent; relay web search comes from the connection-level fragment alone.
+            webSearchEnabled: requestOptions.officialForeignRoute && webSearchEnabled,
+            keepImageAttachments: keepImageAttachments
         )
 
         let serviceTier: String? = {
@@ -1723,29 +1782,18 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             return trimmedTier.isEmpty ? nil : trimmedTier
         }()
         let reasoningEffort = capabilityIntent.reasoningMode.flatMap { allowedMode in
-            reasoningEffortOverride ?? resolveRelayResponsesReasoningEffort(
-                relayRequested: relayRequested,
-                reasoningMode: allowedMode
-            )
+            reasoningEffortOverride ?? Self.relayOpenAIReasoningEffort(allowedMode)
         }
         let systemPrompt = requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         var toolsArray: [ResponsesRequest.Tool] = []
-        if !removeTools {
+        if !removeTools, functionTools == nil {
             toolsArray.append(.init(
                 type: "image_generation",
                 model: supportsImageGeneration ? imageToolModelID : nil
             ))
-            if capabilityIntent.webSearchEnabled {
-                let webSearchName = relayRequested?.webSearchToolName
-                    ?? relayWebSearchToolNameFromRuntime(
-                        MetadataClient.shared.syncRelayRuntimeConfig()
-                            .transportRules[MetadataClient.RelayTransportKey.openaiResponses]?
-                            .webSearchToolName
-                    )
-                    ?? .webSearch
-                if webSearchName != .disabled {
-                    toolsArray.append(.init(type: webSearchName.rawValue))
-                }
+            if requestOptions.officialForeignRoute, capabilityIntent.webSearchEnabled,
+               let webTool = officialForeignResponsesWebTool(relayRequested: relayRequested) {
+                toolsArray.append(webTool)
             }
         }
         let tools: [ResponsesRequest.Tool]? = toolsArray.isEmpty ? nil : toolsArray
@@ -1754,21 +1802,37 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             input: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildResponsesInputMessage($0, transport: .relayOpenAIResponses, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) },
             instructions: systemPrompt.isEmpty ? nil : systemPrompt,
             stream: stream ? true : nil,
-            reasoning: capabilityIntent.reasoningMode == nil
+            reasoning: omitReasoning || capabilityIntent.reasoningMode == nil
                 ? nil : .init(effort: reasoningEffort, summary: "auto"),
             tools: tools,
             service_tier: serviceTier,
             store: relayRequested?.disableResponseStorage == true ? false : nil,
-            max_output_tokens: 16384
+            max_output_tokens: maxOutputTokens ?? 16384
         )
         var body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
+        if let functionTools {
+            body["tools"] = functionTools
+        }
         ProfileParamsResolver.applyGenerationParameters(
             to: &body,
             options: requestOptions,
             finalRequest: request,
             effectiveTransport: RelayTransport.openaiResponses.rawValue
         )
+        // Relay web-search fragment: applied after the builder's output and before the additional request body.
+        RelayWebFragments.apply(requestOptions.relayWebFragments, transport: .openaiResponses, to: &body)
         try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
+        // Placed after the additional request body so a prompt_cache_key the user wrote themselves is kept.
+        // The official cross-protocol route is not a relay, so its body is left alone.
+        if !requestOptions.officialForeignRoute, body["prompt_cache_key"] == nil,
+           let cacheKey = relayResponsesPromptCacheKey(
+            relayRequested: relayRequested,
+            model: body["model"] as? String ?? modelID,
+            instructions: body["instructions"] as? String ?? "",
+            firstUserText: capabilityIntent.outboundMessages.first(where: { $0.role == .user })?.text ?? ""
+           ) {
+            body["prompt_cache_key"] = cacheKey
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
         return request
@@ -1780,10 +1844,14 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         let probedEndpoint: String
     }
 
+    /// Lightweight ping: the endpoint is chosen by the transport.
+    /// - codex-style / openai_responses → POST `{base}/responses` probe (store=false, no stream, output cap 16)
+    ///   Codex-style relays often have no standard /models, so a lightweight /responses ping is used instead
     /// - openai_chat_completions / auto + modelID → POST `{base}/chat/completions` 1-token ping
     /// - openai_chat_completions / auto without modelID → GET `{base}/models` catalog fallback
     /// - anthropic_messages → POST `{base}/v1/messages` 1-token ping(max_tokens=1)
     /// - gemini_generate_content → POST `{base}/v1beta/models/{model}:generateContent` 1-token ping
+    /// The probe requests of all four generation endpoints are produced by the chat request builders (`relayProbeRequest`).
     func pingRelay(
         apiKey: String,
         baseURL: String,
@@ -1795,7 +1863,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             baseURL: baseURL,
             relayRequested: relayRequested
         )
-        let transport = relayRequested?.transport ?? .auto
+        let transport = RelayEndpointResolver.injectedTransport(relayRequested) ?? .auto
         switch transport {
         case .llamacppNative:
             let probedEndpoint = try await pingLlamaCppNative(
@@ -1806,7 +1874,8 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             return RelayPingResult(modelCount: 0, probedEndpoint: probedEndpoint)
 
         case .openaiResponses:
-            let probedEndpoint = try await pingRelayResponses(
+            let probedEndpoint = try await pingRelayProbe(
+                transport: .openaiResponses,
                 apiKey: apiKey,
                 baseURL: secureBaseURL,
                 modelID: modelID ?? "gpt-5",
@@ -1816,7 +1885,8 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         case .openaiChatCompletions, .auto:
             if let modelID = modelID?.trimmingCharacters(in: .whitespacesAndNewlines),
                !modelID.isEmpty {
-                let probedEndpoint = try await pingRelayChatCompletions(
+                let probedEndpoint = try await pingRelayProbe(
+                    transport: .openaiChatCompletions,
                     apiKey: apiKey,
                     baseURL: secureBaseURL,
                     modelID: modelID,
@@ -1832,7 +1902,8 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                 return RelayPingResult(modelCount: result.models.count, probedEndpoint: "GET /models")
             }
         case .anthropicMessages:
-            let probedEndpoint = try await pingRelayAnthropicMessages(
+            let probedEndpoint = try await pingRelayProbe(
+                transport: .anthropicMessages,
                 apiKey: apiKey,
                 baseURL: secureBaseURL,
                 modelID: modelID ?? "claude-3-5-haiku-latest",
@@ -1840,7 +1911,8 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             )
             return RelayPingResult(modelCount: 0, probedEndpoint: probedEndpoint)
         case .geminiGenerateContent:
-            let probedEndpoint = try await pingRelayGemini(
+            let probedEndpoint = try await pingRelayProbe(
+                transport: .geminiGenerateContent,
                 apiKey: apiKey,
                 baseURL: secureBaseURL,
                 modelID: modelID ?? "gemini-2.0-flash",
@@ -1850,38 +1922,85 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         }
     }
 
-    private func pingRelayChatCompletions(
+    /// A probe request is the chat request with a one-line conversation: all four protocols are produced by the
+    /// same request builder that protocol's chat send uses (same headers and the same identity / storage / cache
+    /// fields). Only the conversation content, streaming and the output cap differ, and no tool or reasoning
+    /// fields are sent (including the connection-level reasoning level). Chat has its own "drop the field and
+    /// resend" loop when upstream rejects those fields; a probe has none, so sending them would mix a rejected
+    /// field up with the question of whether this route accepts the model at all. It only builds the request and
+    /// never sends it; `baseURL` is an address that already passed `requireConfiguredRelayBaseURL`.
+    func relayProbeRequest(
+        transport: RelayTransport,
+        apiKey: String,
+        baseURL: String,
+        modelID: String,
+        relayRequested: RelayRequestedConfig?
+    ) throws -> URLRequest {
+        let messages = [
+            ChatMessage(
+                id: UUID(),
+                role: .user,
+                text: "ping",
+                providerKind: .relay,
+                providerName: "Relay",
+                modelName: modelID,
+                state: .delivered
+            )
+        ]
+        switch transport {
+        case .openaiResponses:
+            return try buildRelayResponsesRequest(
+                modelID: modelID, messages: messages, apiKey: apiKey, baseURL: baseURL, stream: false,
+                reasoningMode: .automatic, relayRequested: relayRequested,
+                removeTools: true, maxOutputTokens: RelayModelProbe.responsesMaxOutputTokens,
+                omitReasoning: true
+            )
+        case .openaiChatCompletions, .auto:
+            return try buildChatCompletionsRequest(
+                modelID: modelID, messages: messages, apiKey: apiKey, stream: false, baseURL: baseURL,
+                reasoningMode: .automatic, relayRequested: relayRequested,
+                validationMaxTokens: RelayModelProbe.otherProtocolsMaxTokens,
+                omitReasoning: true
+            )
+        case .anthropicMessages:
+            return try AnthropicService(session: session).buildRelayMessagesRequest(
+                modelID: modelID, messages: messages, apiKey: apiKey, baseURL: baseURL, stream: false,
+                reasoningMode: .automatic, relayRequested: relayRequested,
+                droppedParams: ["thinking", "output_config"],
+                maxOutputTokens: RelayModelProbe.otherProtocolsMaxTokens
+            )
+        case .geminiGenerateContent:
+            return try GeminiService(session: session).buildRelayGenerateContentRequest(
+                modelID: modelID, messages: messages, apiKey: apiKey, baseURL: baseURL, stream: false,
+                reasoningMode: .automatic, supportsImageGen: false, relayRequested: relayRequested,
+                droppedParams: ["thinking_config"],
+                maxOutputTokens: RelayModelProbe.otherProtocolsMaxTokens
+            )
+        case .llamacppNative:
+            throw ProviderServiceError.invalidConfiguration(detail: "Relay probe does not support this transport here.")
+        }
+    }
+
+    /// Sends one probe request. With a modelID it goes through the real chat path, so a successful `/models`
+    /// with an unusable generation endpoint is not mistaken for success.
+    private func pingRelayProbe(
+        transport: RelayTransport,
         apiKey: String,
         baseURL: String,
         modelID: String,
         relayRequested: RelayRequestedConfig?
     ) async throws -> String {
-        let request = try buildChatCompletionsRequest(
-            modelID: modelID,
-            messages: [
-                ChatMessage(
-                    id: UUID(),
-                    role: .user,
-                    text: "ping",
-                    providerKind: .relay,
-                    providerName: "Relay",
-                    modelName: modelID,
-                    state: .delivered
-                )
-            ],
-            apiKey: apiKey,
-            stream: false,
-            baseURL: baseURL,
-            reasoningMode: .automatic,
-            relayRequested: relayRequested,
-            validationMaxTokens: 1
+        let request = try relayProbeRequest(
+            transport: transport, apiKey: apiKey, baseURL: baseURL, modelID: modelID, relayRequested: relayRequested
         )
-
         let (data, response) = try await session.relayData(for: request)
-        try requireSuccessfulRelayPing(
-            data: data, response: response, request: request, transport: .openaiChatCompletions
-        )
-        return "POST /chat/completions"
+        try requireSuccessfulRelayPing(data: data, response: response, request: request, transport: transport)
+        switch transport {
+        case .openaiResponses: return "POST /responses"
+        case .anthropicMessages: return "POST /v1/messages"
+        case .geminiGenerateContent: return "POST :generateContent"
+        case .openaiChatCompletions, .auto, .llamacppNative: return "POST /chat/completions"
+        }
     }
 
     private func pingLlamaCppNative(
@@ -1910,155 +2029,40 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         return "POST /completion"
     }
 
-    private func pingRelayResponses(
+    /// The Chat / Responses request for "Test capabilities": the same validation and builder as relay streaming
+    /// chat (the address goes through `requireConfiguredRelayBaseURL`, `stream: true`), with just two extra
+    /// inputs, the output cap and function tools. It only builds the request and never sends it.
+    func relayCapabilityTestRequest(
         apiKey: String,
-        baseURL: String,
         modelID: String,
-        relayRequested: RelayRequestedConfig?
-    ) async throws -> String {
-        let url = try buildRelayEndpointURL(
-            baseURL: baseURL,
-            defaultVersion: "v1",
-            acceptedVersions: ["v1"],
-            endpointPath: "/responses",
-            relayRequested: relayRequested,
-            apiKey: apiKey,
-            authMode: resolveRelayOpenAIAuthMode(relayRequested)
-        )
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 30
-        applyRelayOpenAIHeaders(
-            to: &request,
-            apiKey: apiKey,
-            relayRequested: relayRequested,
-            transport: .openaiResponses
-        )
-        for header in relayRequested?.effectiveHeaders ?? [] {
-            request.setValue(header.value, forHTTPHeaderField: header.key)
-        }
-
-        let payload = ResponsesRequest(
-            model: modelID,
-            input: [
-                .init(
-                    role: "user",
-                    content: .parts([.init(type: "input_text", text: "ping")])
-                )
-            ],
-            instructions: nil,
-            stream: nil,
-            reasoning: nil,
-            tools: nil,
-            service_tier: nil,
-            store: relayRequested?.disableResponseStorage == true ? false : nil,
-            max_output_tokens: 1
-        )
-        request.httpBody = try JSONEncoder().encode(payload)
-
-        let (data, response) = try await session.relayData(for: request)
-        try requireSuccessfulRelayPing(
-            data: data, response: response, request: request, transport: .openaiResponses
-        )
-        return "POST /responses"
-    }
-
-    private func pingRelayAnthropicMessages(
-        apiKey: String,
+        messages: [ChatMessage],
         baseURL: String,
-        modelID: String,
-        relayRequested: RelayRequestedConfig?
-    ) async throws -> String {
-        let resolvedAuth = resolveRelayAnthropicAuthMode(relayRequested)
-        let url = try buildRelayEndpointURL(
-            baseURL: baseURL,
-            defaultVersion: "v1",
-            acceptedVersions: ["v1"],
-            endpointPath: "/messages",
-            relayRequested: relayRequested,
-            apiKey: apiKey,
-            authMode: resolvedAuth
-        )
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 30
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        switch resolvedAuth {
-        case .none:
-            break
-        case .bearer:
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        case .auto, .xApiKey:
-            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        case .xGoogApiKey:
-            request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
-        case .queryKey:
-            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        requestOptions: ChatRequestOptions,
+        relayRequested: RelayRequestedConfig?,
+        maxOutputTokens: Int,
+        functionTools: [Any]?
+    ) throws -> URLRequest {
+        try validateRelayAPIKeyIfRequired(apiKey, relayRequested: relayRequested)
+        let secureBaseURL = try requireConfiguredRelayBaseURL(apiKey: apiKey, baseURL: baseURL, relayRequested: relayRequested)
+        guard !modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ProviderServiceError.invalidConfiguration(detail: "Missing model identifier.")
         }
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        for header in resolvedAuth == .none ? [] : relayRequested?.effectiveHeaders ?? [] {
-            request.setValue(header.value, forHTTPHeaderField: header.key)
+        switch RelayEndpointResolver.injectedTransport(relayRequested) ?? .openaiChatCompletions {
+        case .openaiResponses:
+            return try buildRelayResponsesRequest(
+                modelID: modelID, messages: messages, apiKey: apiKey, baseURL: secureBaseURL, stream: true,
+                reasoningMode: .automatic, requestOptions: requestOptions, relayRequested: relayRequested,
+                maxOutputTokens: maxOutputTokens, functionTools: functionTools, keepImageAttachments: true
+            )
+        case .openaiChatCompletions, .auto:
+            return try buildChatCompletionsRequest(
+                modelID: modelID, messages: messages, apiKey: apiKey, stream: true, baseURL: secureBaseURL,
+                reasoningMode: .automatic, requestOptions: requestOptions, relayRequested: relayRequested,
+                validationMaxTokens: maxOutputTokens, functionTools: functionTools, keepImageAttachments: true
+            )
+        case .anthropicMessages, .geminiGenerateContent, .llamacppNative:
+            throw ProviderServiceError.invalidConfiguration(detail: "Capability test does not support this transport here.")
         }
-        let body: [String: Any] = [
-            "model": modelID,
-            "max_tokens": 1,
-            "messages": [["role": "user", "content": "ping"]],
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, response) = try await session.relayData(for: request)
-        try requireSuccessfulRelayPing(
-            data: data, response: response, request: request, transport: .anthropicMessages
-        )
-        return "POST /v1/messages"
-    }
-
-    private func pingRelayGemini(
-        apiKey: String,
-        baseURL: String,
-        modelID: String,
-        relayRequested: RelayRequestedConfig?
-    ) async throws -> String {
-        let resolvedAuth = resolveRelayGeminiAuthMode(relayRequested)
-        let url = try buildRelayEndpointURL(
-            baseURL: baseURL,
-            defaultVersion: "v1beta",
-            acceptedVersions: ["v1", "v1beta"],
-            endpointPath: "/models/\(modelID):generateContent",
-            relayRequested: relayRequested,
-            apiKey: apiKey,
-            authMode: resolvedAuth
-        )
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 30
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        switch resolvedAuth {
-        case .none:
-            break
-        case .bearer:
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        case .xApiKey:
-            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        case .xGoogApiKey:
-            request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
-        case .auto, .queryKey:
-            break
-        }
-        for header in resolvedAuth == .none ? [] : relayRequested?.effectiveHeaders ?? [] {
-            request.setValue(header.value, forHTTPHeaderField: header.key)
-        }
-        let body: [String: Any] = [
-            "contents": [["role": "user", "parts": [["text": "ping"]]]],
-            "generationConfig": ["maxOutputTokens": 1],
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, response) = try await session.relayData(for: request)
-        try requireSuccessfulRelayPing(
-            data: data, response: response, request: request, transport: .geminiGenerateContent
-        )
-        return "POST :generateContent"
     }
 
     private func requireSuccessfulRelayPing(
@@ -2076,12 +2080,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                 isRelay: true, relayTransport: transport
             )
         }
-        guard RelaySuccessResponsePolicy.acceptsGenerationResponse(data: data, response: http) else {
-            throw ProviderServiceError.upstream(
-                statusCode: http.statusCode,
-                detail: "The relay returned an HTML page instead of a generation response."
-            )
-        }
+        try rejectRelayWebPageSuccess(http, data: data)
     }
 
     private func applyRelayOpenAIHeaders(
@@ -2106,10 +2105,11 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             break
         }
         guard resolvedAuth != .none else { return }
-        let resolvedTransport = transport ?? relayRequested?.transport ?? .auto
+        let resolvedTransport = transport ?? RelayEndpointResolver.injectedTransport(relayRequested) ?? .auto
         let codexHeaders = RelayRuntimeSupport.codexIdentityHeaders(
             for: resolvedTransport,
-            codexCompatIdentity: relayRequested?.effectiveCodexCompatIdentity
+            relayRequested: relayRequested,
+            resolvedAuthMode: resolvedAuth
         )
         for (name, value) in codexHeaders {
             request.setValue(value, forHTTPHeaderField: name)
@@ -2118,6 +2118,25 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
            !ua.isEmpty {
             request.setValue(ua, forHTTPHeaderField: "User-Agent")
         }
+    }
+
+    /// The `prompt_cache_key` of a relay Responses request body. It follows the same condition as injecting the
+    /// Codex identity headers in `applyRelayOpenAIHeaders` (auth is not none and `codexIdentityHeaders` is
+    /// non-empty): when the identity headers are not injected this returns nil and the body gets no key.
+    private func relayResponsesPromptCacheKey(
+        relayRequested: RelayRequestedConfig?,
+        model: String,
+        instructions: String,
+        firstUserText: String
+    ) -> String? {
+        guard !RelayRuntimeSupport.codexIdentityHeaders(
+            for: .openaiResponses,
+            relayRequested: relayRequested,
+            resolvedAuthMode: resolveRelayOpenAIAuthMode(relayRequested)
+        ).isEmpty else { return nil }
+        return RelayRuntimeSupport.promptCacheKey(
+            model: model, instructions: instructions, firstUserText: firstUserText
+        )
     }
 
     func validateRelayAPIKeyIfRequired(_ apiKey: String, relayRequested: RelayRequestedConfig?) throws {
@@ -2148,31 +2167,9 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         }
         return relayAuthModeFromRuntime(
             MetadataClient.shared.syncRelayRuntimeConfig()
-                .transportRules[relayEnvelopeKey(for: relayRequested.transport)]?
+                .transportRules[relayEnvelopeKey(for: RelayEndpointResolver.injectedTransport(relayRequested) ?? .openaiChatCompletions)]?
                 .defaultAuthMode
         ) ?? .bearer
-    }
-
-    private func resolveRelayAnthropicAuthMode(_ relayRequested: RelayRequestedConfig?) -> RelayAuthMode {
-        if let relayRequested, relayRequested.authMode != .auto {
-            return relayRequested.authMode
-        }
-        return relayAuthModeFromRuntime(
-            MetadataClient.shared.syncRelayRuntimeConfig()
-                .transportRules[MetadataClient.RelayTransportKey.anthropicMessages]?
-                .defaultAuthMode
-        ) ?? .xApiKey
-    }
-
-    private func resolveRelayGeminiAuthMode(_ relayRequested: RelayRequestedConfig?) -> RelayAuthMode {
-        if let relayRequested, relayRequested.authMode != .auto {
-            return relayRequested.authMode
-        }
-        return relayAuthModeFromRuntime(
-            MetadataClient.shared.syncRelayRuntimeConfig()
-                .transportRules[MetadataClient.RelayTransportKey.geminiGenerateContent]?
-                .defaultAuthMode
-        ) ?? .xGoogApiKey
     }
 
     private func relayEnvelopeKey(for transport: RelayTransport) -> String {
@@ -2195,13 +2192,29 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         }
     }
 
-    private func relayWebSearchToolNameFromRuntime(_ raw: String?) -> RelayWebSearchToolName? {
-        switch raw {
-        case "web_search": return .webSearch
-        case "web_search_preview": return .webSearchPreview
-        case "disabled": return .disabled
-        default: return nil
-        }
+    /// The Responses web-search tool for the official cross-protocol route (the relay builder's old behavior,
+    /// kept for official providers only). Tool name: configured value > value delivered by the runtime config >
+    /// default `web_search`; `disabled` attaches nothing.
+    private func officialForeignResponsesWebTool(relayRequested: RelayRequestedConfig?) -> ResponsesRequest.Tool? {
+        let runtimeName: RelayWebSearchToolName? = {
+            switch MetadataClient.shared.syncRelayRuntimeConfig()
+                .transportRules[MetadataClient.RelayTransportKey.openaiResponses]?.webSearchToolName {
+            case "web_search": return .webSearch
+            case "web_search_preview": return .webSearchPreview
+            case "disabled": return .disabled
+            default: return nil
+            }
+        }()
+        let name = relayRequested?.webSearchToolName ?? runtimeName ?? .webSearch
+        return name == .disabled ? nil : .init(type: name.rawValue)
+    }
+
+    /// Citation stream shape of the official cross-protocol route when web search is on: the webSearch profile the catalog gives this model (the original behavior).
+    private func officialForeignWebSearchShape(modelID: String) -> MetadataClient.StreamShape? {
+        let profile = MetadataClient.shared.syncResolveCatalogModel(
+            modelID: modelID, providerKind: resolveCostProviderKind(modelID: modelID)
+        )?.profiles.webSearch
+        return MetadataClient.shared.syncWebSearchStreamShape(profileName: profile)
     }
 
     private func buildRelayEndpointURL(
@@ -2219,13 +2232,33 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             defaultVersion: defaultVersion,
             acceptedVersions: acceptedVersions
         )
+        return try relayEndpointURL(
+            apiBaseURL: apiBaseURL,
+            endpointPath: endpointPath,
+            relayRequested: relayRequested,
+            apiKey: apiKey,
+            authMode: authMode,
+            invalidURLDetail: "Invalid base URL: \(rawBaseURL)"
+        )
+    }
+
+    /// The endpoint URL once the API root is known: append the path, then add the query key and custom query according to the auth mode.
+    private func relayEndpointURL(
+        apiBaseURL: String,
+        endpointPath: String,
+        relayRequested: RelayRequestedConfig?,
+        apiKey: String,
+        authMode: RelayAuthMode,
+        invalidURLDetail: String? = nil
+    ) throws -> URL {
+        let invalidURLDetail = invalidURLDetail ?? "Invalid base URL: \(apiBaseURL)"
         let endpointURL = try RelayEndpointResolver.endpointURL(
             apiBaseURL: apiBaseURL,
             endpointPath: endpointPath,
             securityMode: relayRequested?.securityMode ?? .remoteHTTPS
         )
         guard var components = URLComponents(url: endpointURL, resolvingAgainstBaseURL: false) else {
-            throw ProviderServiceError.invalidConfiguration(detail: "Invalid base URL: \(rawBaseURL)")
+            throw ProviderServiceError.invalidConfiguration(detail: invalidURLDetail)
         }
         var queryItems = components.queryItems ?? []
         if authMode == .queryKey {
@@ -2237,7 +2270,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         components.queryItems = queryItems.isEmpty ? nil : queryItems
 
         guard let url = components.url else {
-            throw ProviderServiceError.invalidConfiguration(detail: "Invalid base URL: \(rawBaseURL)")
+            throw ProviderServiceError.invalidConfiguration(detail: invalidURLDetail)
         }
         return url
     }
@@ -2249,19 +2282,21 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
     }
 
     private func streamRelayResponses(
-        initialReasoningEffort: String?,
         webSearchShape: MetadataClient.StreamShape?,
         attachmentConnectionID: UUID?,
+        attachmentModelID: String?,
+        attachmentFileOverride: Bool?,
         requestBuilder: @escaping (RelayRetryHints) throws -> URLRequest
     ) -> AsyncThrowingStream<StreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     let firstResult = try await self.pumpRelayResponsesStream(
-                        initialReasoningEffort: initialReasoningEffort,
                         hints: RelayRetryHints(),
                         webSearchShape: webSearchShape,
                         attachmentConnectionID: attachmentConnectionID,
+                        attachmentModelID: attachmentModelID,
+                        attachmentFileOverride: attachmentFileOverride,
                         requestBuilder: requestBuilder,
                         continuation: continuation
                     )
@@ -2289,25 +2324,31 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
 
     /// Stream errors always surface. forbids turning a first-event failure into an automatic
     /// retry without a tool/setting.
+    /// - webSearchShape: the stream shape the caller derived from the web-search fragment merged in for this
+    ///   turn, used by the strategy to parse citations; nil when there is no fragment.
     private func pumpRelayResponsesStream(
-        initialReasoningEffort: String?,
         hints: RelayRetryHints,
         webSearchShape: MetadataClient.StreamShape?,
         attachmentConnectionID: UUID?,
+        attachmentModelID: String?,
+        attachmentFileOverride: Bool?,
         requestBuilder: @escaping (RelayRetryHints) throws -> URLRequest,
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
     ) async throws -> ResponsesStreamPumpResult {
         let bytes: URLSession.AsyncBytes
         // When a relay rejects a native file block before the first event, resend once with the files injected as text (NativeFileFallback).
         let pair = try await NativeFileFallback.run(
-            .relayScope(.openaiResponses, connectionID: attachmentConnectionID)
+            .relayScope(
+                .openaiResponses, connectionID: attachmentConnectionID, modelID: attachmentModelID,
+                fileOverride: attachmentFileOverride
+            )
         ) {
             try await self.executeRelayResponsesStreamRequestWithFallbacks(
-                initialReasoningEffort: initialReasoningEffort,
                 requestBuilder: { _ in try requestBuilder(hints) }
             )
         }
         bytes = pair.0
+        let http = pair.1
 
         var result = ResponsesStreamPumpResult(
             accumulatedText: "",
@@ -2319,9 +2360,12 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         let respStrategy = TransportRegistry.strategy(for: .openaiResponses)
         var respCtx = StreamContext()
         var respLastCitationsCount = 0
+        var bodyStartChecked = false
 
         for try await line in bytes.utf8Lines {
             if Task.isCancelled { break }
+            // The fallback web page's Content-Type is not necessarily html: check the first body line once more before any output.
+            try self.rejectRelayWebPageStreamStart(http, line: line, settled: &bodyStartChecked)
 
             if line.hasPrefix("event: ") {
                 currentEvent = String(line.dropFirst(7))
@@ -2408,15 +2452,13 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
     }
 
     private func streamRelayChatCompletions(
-        initialReasoningEffort: String?,
         webSearchShape: MetadataClient.StreamShape?,
         requestBuilder: @escaping (String?) throws -> URLRequest
     ) -> AsyncThrowingStream<StreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let (bytes, _) = try await self.executeRelayStreamRequestWithXHighRetry(
-                        initialReasoningEffort: initialReasoningEffort,
+                    let (bytes, http) = try await self.executeRelayChatStreamRequest(
                         requestBuilder: requestBuilder
                     )
 
@@ -2424,14 +2466,19 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                     var lastUsage: OpenAIUsage?
                     let chatStrategy = TransportRegistry.strategy(for: .openaiChat)
                     var chatCtx = StreamContext()
+                    // For relay Chat streaming web search the annotations arrive on the delta (the web tool fragment only writes the message path).
+                    chatCtx.readsDeltaCitations = true
                     var chatLastCitationsCount = 0
                     var yieldedAnyEvent = false
+                    var bodyStartChecked = false
                     defer {
                         for ev in OpenAIChatStrategy.flushToolCalls(ctx: &chatCtx) { continuation.yield(ev) }
                     }
 
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
+                        // The fallback web page's Content-Type is not necessarily html: check the first body line once more before any output.
+                        try self.rejectRelayWebPageStreamStart(http, line: line, settled: &bodyStartChecked)
                         guard line.hasPrefix("data: ") else { continue }
                         let payload = String(line.dropFirst(6))
                         if payload == "[DONE]" { break }
@@ -2501,25 +2548,6 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         }
     }
 
-    private func resolveRelayResponsesReasoningEffort(
-        relayRequested: RelayRequestedConfig?,
-        reasoningMode: ReasoningMode
-    ) -> String? {
-        relayRequested?.reasoningEffort
-            .flatMap { $0 == .automatic ? nil : $0.rawValue }
-            ?? Self.relayOpenAIReasoningEffort(reasoningMode)
-    }
-
-    private func resolveRelayChatCompletionsReasoningEffort(
-        relayRequested: RelayRequestedConfig?,
-        reasoningMode: ReasoningMode
-    ) -> String? {
-        if let explicit = relayRequested?.reasoningEffort, explicit != .automatic {
-            return explicit.rawValue
-        }
-        return Self.relayOpenAIReasoningEffort(reasoningMode)
-    }
-
     private static func relayOpenAIReasoningEffort(_ mode: ReasoningMode) -> String? {
         switch mode {
         case .automatic: return nil
@@ -2530,24 +2558,10 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         }
     }
 
-    private static func relaySemanticReasoningMode(
-        _ effort: RelayReasoningEffort?,
-        fallback: ReasoningMode
-    ) -> ReasoningMode {
-        switch effort {
-        case .low: return .fast
-        case .medium: return .balanced
-        case .high: return .deep
-        case .xhigh: return .max
-        case .automatic, nil: return fallback
-        }
-    }
-
-    private func performRelayDataRequestWithXHighRetry(
-        initialReasoningEffort: String?,
+    // A rejected reasoning level is dropped and resent in one place, ChatManager's relay send loop; this only sends once.
+    private func performRelayChatDataRequest(
         requestBuilder: (String?) throws -> URLRequest
     ) async throws -> (Data, HTTPURLResponse) {
-        _ = initialReasoningEffort
         do {
             return try await performRelayRawRequest(
                 requestBuilder(nil), effectiveTransport: .openaiChatCompletions
@@ -2561,10 +2575,8 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
     }
 
     private func performRelayResponsesDataRequestWithFallbacks(
-        initialReasoningEffort: String?,
         requestBuilder: (RelayRetryHints) throws -> URLRequest
     ) async throws -> (Data, HTTPURLResponse) {
-        _ = initialReasoningEffort
         let firstHints = RelayRetryHints()
         do {
             return try await performRelayRawRequest(
@@ -2578,11 +2590,9 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         }
     }
 
-    private func executeRelayStreamRequestWithXHighRetry(
-        initialReasoningEffort: String?,
+    private func executeRelayChatStreamRequest(
         requestBuilder: (String?) throws -> URLRequest
     ) async throws -> (URLSession.AsyncBytes, HTTPURLResponse) {
-        _ = initialReasoningEffort
         do {
             return try await executeRelayStreamRequest(
                 requestBuilder(nil), effectiveTransport: .openaiChatCompletions
@@ -2596,10 +2606,8 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
     }
 
     private func executeRelayResponsesStreamRequestWithFallbacks(
-        initialReasoningEffort: String?,
         requestBuilder: (RelayRetryHints) throws -> URLRequest
     ) async throws -> (URLSession.AsyncBytes, HTTPURLResponse) {
-        _ = initialReasoningEffort
         let firstHints = RelayRetryHints()
         do {
             return try await executeRelayStreamRequest(
@@ -2693,6 +2701,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         statusCode: http.statusCode, data: errorData, effectiveTransport: effectiveTransport
                     )
                 }
+                try rejectRelayWebPageSuccess(http, data: nil)
                 return RelaySelfHealResult(bytes: bytes, response: http)
             } catch let error as ProviderServiceError {
                 throw error
@@ -2724,6 +2733,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                     statusCode: http.statusCode, data: data, effectiveTransport: effectiveTransport
                 )
             }
+            try rejectRelayWebPageSuccess(http, data: data)
             return RelaySelfHealResult(data: data, response: http)
         } catch let error as ProviderServiceError {
             throw error
@@ -2862,24 +2872,6 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         }
         return .openAI
     }
-
-    private func resolveRelayWebSearchShape(
-        modelID: String,
-        relayRequested: RelayRequestedConfig?
-    ) -> MetadataClient.StreamShape? {
-        if let explicit = relayRequested?.webSearchProfile?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !explicit.isEmpty,
-           let shape = MetadataClient.shared.syncWebSearchStreamShape(profileName: explicit) {
-            return shape
-        }
-        let fallback = MetadataClient.shared.syncResolveCatalogModel(
-            modelID: modelID,
-            providerKind: resolveCostProviderKind(modelID: modelID)
-        )?.profiles.webSearch
-        return MetadataClient.shared.syncWebSearchStreamShape(profileName: fallback)
-    }
-
 
     fileprivate func injectResponsesEventType(payload: String, type: String) -> String {
         guard let data = payload.data(using: .utf8),
@@ -3150,6 +3142,8 @@ private struct ResponsesRequest: Encodable {
     var service_tier: String?
     var store: Bool?
     var max_output_tokens: Int?
+    /// Set only for a relay that injects the Codex identity headers; nil is not written to the request body.
+    var prompt_cache_key: String? = nil
 
     struct Tool: Encodable {
         var type: String

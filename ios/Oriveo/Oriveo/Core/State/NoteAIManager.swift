@@ -56,27 +56,17 @@ final class NoteAIManager {
     ) throws -> AsyncThrowingStream<String, Error> {
         let messages = NoteCrosscheckBuilder.messages(prompt: prompt, answer: answer, model: model)
 
-        guard let service = appState.providerManager.service(for: model.providerKind) else {
+        guard let provider = appState.provider(for: model.providerID) else {
             throw CrosscheckError.noProviderService
         }
-
-        let eventStream: AsyncThrowingStream<StreamEvent, Error>
-        if model.providerKind == .relay,
-           let custom = service as? CustomBaseURLProvider,
-           let baseURL = model.baseURL {
-            eventStream = custom.sendMessageStream(
-                apiKey: model.apiKey,
-                modelID: model.modelID,
-                messages: messages,
-                baseURL: baseURL
-            )
-        } else {
-            eventStream = service.sendMessageStream(
-                apiKey: model.apiKey,
-                modelID: model.modelID,
-                messages: messages
-            )
-        }
+        let providerManager = appState.providerManager
+        let eventStream = try Self.crosscheckEventStream(
+            provider: provider,
+            model: model.model,
+            messages: messages,
+            services: providerManager.services,
+            nativeService: { providerManager.service(for: $0) }
+        )
 
         return AsyncThrowingStream<String, Error> { continuation in
             let task = Task {
@@ -105,6 +95,30 @@ final class NoteAIManager {
                 }
             }
             continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// Picks the service for a (provider, model) pair via `ProviderServiceRouter`: relays and official
+    /// providers speaking a different protocol are dispatched by protocol, carrying the configuration resolved
+    /// for that model; everything else uses the native service.
+    static func crosscheckEventStream(
+        provider: Provider,
+        model: AIModel,
+        messages: [ChatMessage],
+        services: ProviderServiceRouter.Services,
+        nativeService: (ProviderKind) -> (any ProviderServiceProtocol)?
+    ) throws -> AsyncThrowingStream<StreamEvent, Error> {
+        let apiKey = ProviderCredentialResolver.apiKey(provider: provider, modelID: model.id)
+        switch ProviderServiceRouter.route(provider: provider, model: model) {
+        case .byProtocol(let route):
+            return services.protocolStream(
+                route, apiKey: apiKey, modelID: model.id, messages: messages,
+                reasoningMode: .automatic, webSearchEnabled: false, supportsImageGen: false,
+                requestOptions: ChatRequestOptions()
+            )
+        case .native(let kind):
+            guard let service = nativeService(kind) else { throw CrosscheckError.noProviderService }
+            return service.sendMessageStream(apiKey: apiKey, modelID: model.id, messages: messages)
         }
     }
 }

@@ -8,6 +8,38 @@ struct ChatScreenContext {
     let provider: Provider
     let model: AIModel?
     let needsConversationRepair: Bool
+    /// Set when the relay conversation's model has been removed: the connection's display name, and the composer shows a banner and sending is disabled.
+    var removedModelConnectionName: String? = nil
+}
+
+/// The banner for a removed conversation model: one sentence plus a "Choose model" button, no title.
+/// Control state is derived only here; structure tests assert on this, not on screenshots.
+struct ChatModelRemovedBanner: Equatable {
+    static let messageKey = "This chat’s model is no longer in %@."
+    static let actionKey = "Choose model"
+
+    let connectionName: String
+
+    var message: String {
+        String(format: L10n.tr(Self.messageKey, table: .chat), connectionName)
+    }
+
+    var actionTitle: String {
+        L10n.tr(Self.actionKey, table: .chat)
+    }
+
+    static func resolve(_ context: ChatScreenContext?) -> ChatModelRemovedBanner? {
+        context?.removedModelConnectionName.map(ChatModelRemovedBanner.init(connectionName:))
+    }
+
+    /// Whether the send button is tappable: never while the banner is showing.
+    static func isSendEnabled(
+        hasComposerContent: Bool,
+        controlsDisabled: Bool,
+        banner: ChatModelRemovedBanner?
+    ) -> Bool {
+        hasComposerContent && !controlsDisabled && banner == nil
+    }
 }
 
 func resolveChatScreenContext(
@@ -15,10 +47,32 @@ func resolveChatScreenContext(
     requestedModelID: String?,
     providers: [Provider],
     activeModel: (provider: Provider, model: AIModel)?,
-    primaryProvider: Provider?
+    primaryProvider: Provider?,
+    lastUsedModelRef: LastUsedModelRef? = nil
 ) -> ChatScreenContext? {
     if let requestedProviderID,
        let provider = providers.first(where: { $0.id == requestedProviderID }) {
+        if provider.kind == .relay {
+            // A relay neither silently replaces nor repairs the conversation's model; an empty conversation model falls back to the default path.
+            if case .removed(let connectionName) = ProviderSelectionSnapshot.conversationModelState(
+                storedModelID: requestedModelID,
+                in: provider
+            ) {
+                return ChatScreenContext(
+                    provider: provider,
+                    model: nil,
+                    needsConversationRepair: false,
+                    removedModelConnectionName: connectionName
+                )
+            }
+            if requestedModelID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
+                return ChatScreenContext(
+                    provider: provider,
+                    model: ProviderSelectionSnapshot.relayFallbackModel(in: provider, lastUsedModelRef: lastUsedModelRef),
+                    needsConversationRepair: false
+                )
+            }
+        }
         let model = ProviderSelectionSnapshot.currentModel(
             storedModelID: requestedModelID,
             in: provider
@@ -48,7 +102,9 @@ func resolveChatScreenContext(
     if let primaryProvider {
         return ChatScreenContext(
             provider: primaryProvider,
-            model: ProviderSelectionSnapshot.defaultModel(in: primaryProvider),
+            model: primaryProvider.kind == .relay
+                ? ProviderSelectionSnapshot.relayFallbackModel(in: primaryProvider, lastUsedModelRef: lastUsedModelRef)
+                : ProviderSelectionSnapshot.defaultModel(in: primaryProvider),
             needsConversationRepair: requestedProviderID != nil
         )
     }
@@ -197,13 +253,21 @@ struct ChatView: View {
         }
     }
 
+    /// The relay protocol the current model actually uses: when the connection default or the model's own protocol changes, capability preferences and pending attachments must be recomputed.
+    private var relayDispatchTransport: RelayTransport? {
+        guard let context = resolvedChatContext, context.provider.kind == .relay else { return nil }
+        guard let model = context.model else { return RelayEndpointResolver.connectionTransport(of: context.provider) }
+        return RelayFirstSendTransport.current(provider: context.provider, model: model)
+    }
+
     private var resolvedChatContext: ChatScreenContext? {
         resolveChatScreenContext(
             requestedProviderID: projection.providerID,
             requestedModelID: projection.modelID,
             providers: appState.providers,
             activeModel: appState.activeModel,
-            primaryProvider: appState.primaryProvider ?? makeHistoricalProviderFallback(projection: projection)
+            primaryProvider: appState.primaryProvider ?? makeHistoricalProviderFallback(projection: projection),
+            lastUsedModelRef: appState.lastUsedModelRef
         )
     }
 
@@ -216,7 +280,7 @@ struct ChatView: View {
     }
 
     private var currentAttachmentImportContext: ChatAttachmentPicker.ImportContext {
-        ChatAttachmentPicker.ImportContext(provider: resolvedChatContext?.provider)
+        ChatAttachmentPicker.ImportContext(provider: resolvedChatContext?.provider, model: resolvedChatContext?.model)
     }
 
     private var currentAttachmentSupport: RelayRuntimeSupport.AttachmentSupport {
@@ -235,10 +299,19 @@ struct ChatView: View {
         provider: Provider,
         model: AIModel
     ) -> CapabilityEvidenceRequestIdentity? {
+        Self.capabilityEvidenceIdentity(provider: provider, model: model, partitionID: appState.sessionPartitionUID)
+    }
+
+    /// Shared by the model options panel and the composer: the same identity, the same projection, the same photo-picker criterion.
+    static func capabilityEvidenceIdentity(
+        provider: Provider,
+        model: AIModel,
+        partitionID: String
+    ) -> CapabilityEvidenceRequestIdentity? {
         if let dispatch = CapabilityEvidenceProductionAdapter.uiDispatchIdentity(
             provider: provider,
             model: model,
-            partitionID: appState.sessionPartitionUID
+            partitionID: partitionID
         ) {
             return dispatch
         }
@@ -246,7 +319,7 @@ struct ChatView: View {
         return CapabilityEvidenceRequestIdentity.make(
             provider: provider,
             model: model,
-            partitionID: appState.sessionPartitionUID,
+            partitionID: partitionID,
             hasExplicitValue: false
         )
     }
@@ -256,10 +329,21 @@ struct ChatView: View {
         model: AIModel,
         explicitKeys: Set<String> = []
     ) -> CapabilityEvidenceProjection {
+        Self.capabilityProjection(
+            provider: provider, model: model, partitionID: appState.sessionPartitionUID, explicitKeys: explicitKeys
+        )
+    }
+
+    static func capabilityProjection(
+        provider: Provider,
+        model: AIModel,
+        partitionID: String,
+        explicitKeys: Set<String> = []
+    ) -> CapabilityEvidenceProjection {
         CapabilityEvidenceProductionAdapter.capabilityProjection(
             provider: provider,
             model: model,
-            identity: capabilityEvidenceIdentity(provider: provider, model: model),
+            identity: capabilityEvidenceIdentity(provider: provider, model: model, partitionID: partitionID),
             keys: Set(["tool_call", "web_search", "vision_input"])
                 .union(Set(ReasoningMode.allCases.filter { $0 != .automatic }
                     .map { "reasoning_level/\($0.rawValue)" })),
@@ -297,6 +381,13 @@ struct ChatView: View {
     private func capabilityControlVisible(
         _ resolution: CapabilityEvidenceFacade.Resolution?
     ) -> Bool {
+        Self.capabilityControlVisible(resolution)
+    }
+
+    /// The single criterion for whether a capability entry is shown; internal so contract tests can call the production criterion directly.
+    static func capabilityControlVisible(
+        _ resolution: CapabilityEvidenceFacade.Resolution?
+    ) -> Bool {
         guard let resolution else { return false }
         if resolution.support == .supported { return true }
         return resolution.support == .unknown
@@ -304,21 +395,70 @@ struct ChatView: View {
             && (resolution.grade == .acceptedUnverified || resolution.grade == .declared)
     }
 
+    /// The set of visible capability entries; internal so contract tests can call the production criterion directly. The vision key goes through `visionControlVisible` instead.
+    static func visibleCapabilityKeys(
+        provider: Provider,
+        model: AIModel,
+        projection: CapabilityEvidenceProjection,
+        negativeCache: RelayNegativeCache = .shared
+    ) -> Set<String> {
+        var keys = Set(projection.resolutions.compactMap { key, resolution in
+            key != "vision_input" && capabilityControlVisible(resolution) ? key : nil
+        })
+        // The vision key does not depend on whether the projection has an entry for it: the projection of a relay auto connection may be empty.
+        if visionControlVisible(provider: provider, model: model, projection: projection, negativeCache: negativeCache) {
+            keys.insert("vision_input")
+        }
+        return keys
+    }
+
+    /// Vision entry: for a relay form, unknown vision (including no candidates) is shown as usual; it is hidden only on negative evidence
+    /// (the protocol envelope does not accept images / the override is false / the local engine declares false) or an unexpired `image` negative cache entry;
+    /// an override of true beats the negative cache; other forms still use the general criterion. The protocol is always the one actually sent first (`RelayFirstSendTransport`, otherwise effectiveTransport),
+    /// the same key as the negative-cache write side; an auto connection does not count as an incomplete identity.
+    static func visionControlVisible(
+        provider: Provider,
+        model: AIModel,
+        projection: CapabilityEvidenceProjection,
+        negativeCache: RelayNegativeCache = .shared
+    ) -> Bool {
+        guard ProviderForm.of(provider) == .relay else {
+            return capabilityControlVisible(projection.resolution(for: "vision_input"))
+        }
+        let transport = RelayFirstSendTransport.current(provider: provider, model: model)
+        let envelope = RelayRuntimeSupport.envelopeCapabilities(
+            transport: transport, runtimeConfig: MetadataClient.shared.syncRelayRuntimeConfig()
+        )
+        guard envelope.contains(.image) else { return false }
+        if let overridden = model.relayCapabilityOverrides?.image { return overridden }
+        if provider.relayRequested?.engineProfile != nil, model.engineDeclaration?.image == false { return false }
+        return !negativeCache.isRejected(
+            connectionID: provider.id.uuidString, modelID: model.id,
+            transport: transport.rawValue, kind: .image
+        )
+    }
+
     private func visibleCapabilityKeys(
+        provider: Provider,
+        model: AIModel,
         from projection: CapabilityEvidenceProjection
     ) -> Set<String> {
-        Set(projection.resolutions.compactMap { key, resolution in
-            capabilityControlVisible(resolution) ? key : nil
-        })
+        Self.visibleCapabilityKeys(provider: provider, model: model, projection: projection)
     }
 
     private var currentSupportsImageAttachment: Bool {
         guard let context = resolvedChatContext, let model = context.model else { return false }
-        return capabilityControlVisible(
-            capabilityProjection(provider: context.provider, model: model)
-                .resolution(for: "vision_input")
+        return Self.photoPickerVisible(provider: context.provider, model: model, partitionID: appState.sessionPartitionUID)
+    }
+
+    /// Whether the composer's photo entry is shown: the vision entry criterion times whether this wire accepts images. The vision card of the model options panel calls it too.
+    static func photoPickerVisible(provider: Provider, model: AIModel, partitionID: String) -> Bool {
+        visionControlVisible(
+            provider: provider,
+            model: model,
+            projection: capabilityProjection(provider: provider, model: model, partitionID: partitionID)
         )
-            && currentAttachmentSupport.image
+            && ChatAttachmentPicker.ImportContext(provider: provider, model: model).attachmentSupport.image
     }
 
     private var currentSupportsVideoAttachment: Bool {
@@ -779,7 +919,7 @@ struct ChatView: View {
             appState.openNoteDetail(noteID: noteID)
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: "chevron.left")
+                Image(systemName: "chevron.backward")
                     .font(.system(size: 13, weight: .semibold))
                 Text(L10n.tr("Back to note", table: .notes))
                     .font(OriveoTheme.Typography.footnote)
@@ -862,7 +1002,14 @@ struct ChatView: View {
             || (capabilityControlVisible(
                 evidenceProjection?.resolution(for: "reasoning_level/\(reasoningMode.rawValue)")
             ) && evidenceProjection?.permitsOutbound("reasoning_level/\(reasoningMode.rawValue)") == true)
-        let webAllowed = evidenceProjection?.permitsOutbound("web_search") == true
+        let webOutboundPermitted = evidenceProjection?.permitsOutbound("web_search") == true
+        // An always-on web search (Grok subscription) is not a choice the user can toggle: the globe stays unlit,
+        // matching the panel, Android and Web.
+        let webAllowed = currentModel.map {
+            CapabilityWebPreferenceLiveness.composerWebPermitted(
+                outboundPermitted: webOutboundPermitted, provider: provider, model: $0
+            )
+        } ?? webOutboundPermitted
         let reasoningVerdict = currentModel.map {
             CapabilityControlResolution.resolve(provider: provider, model: $0, capability: "reasoning")
         }
@@ -877,7 +1024,9 @@ struct ChatView: View {
             reasoningIntentRequested: reasoningIntentSelection,
             reasoningIntentPermitted: reasoningIntentAllowed
         )
-        let composerVisibleCapabilityKeys = evidenceProjection.map(visibleCapabilityKeys(from:)) ?? []
+        let composerVisibleCapabilityKeys = currentModel.flatMap { model in
+            evidenceProjection.map { visibleCapabilityKeys(provider: provider, model: model, from: $0) }
+        } ?? []
         let capabilitySelection = ChatCapabilitySelection(
             reasoningMode: capabilityDecision.reasoningMode,
             webSearchEnabled: capabilityDecision.webSearchEnabled
@@ -962,7 +1111,7 @@ struct ChatView: View {
             restoreCapabilityPreferences(provider: provider, model: currentModel, conversationID: projection.activeConversationID)
             pruneUnsupportedPendingAttachments()
         }
-        .onChange(of: resolvedChatContext?.provider.relayRequested?.transport) { _, _ in
+        .onChange(of: relayDispatchTransport) { _, _ in
             restoreCapabilityPreferences(provider: provider, model: currentModel, conversationID: projection.activeConversationID)
             pruneUnsupportedPendingAttachments()
         }
@@ -1081,6 +1230,7 @@ struct ChatView: View {
             ChatComposerBar(
                 provider: provider,
                 currentModel: currentModel,
+                modelRemovedBanner: ChatModelRemovedBanner.resolve(resolvedChatContext),
                 visibleCapabilityKeys: visibleCapabilityKeys,
                 capabilityEvidenceIdentity: capabilityEvidenceIdentity,
                 generationProjection: currentModel.map {

@@ -178,7 +178,7 @@ struct McpConfirmationSheet: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 6) {
                     Button { fullText = nil } label: {
-                        Image(systemName: "chevron.left")
+                        Image(systemName: "chevron.backward")
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(OriveoTheme.Palette.textPrimary)
                             .frame(width: 44, height: 44, alignment: .leading)

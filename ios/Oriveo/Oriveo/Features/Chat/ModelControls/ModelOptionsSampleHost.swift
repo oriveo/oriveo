@@ -218,7 +218,7 @@ struct ModelOptionsSampleHost: View {
                         .task {
                             guard let delay = ModelOptionsSample.requestedPushDelay else { return }
                             try? await Task.sleep(for: .seconds(delay))
-                            path = [.modelBehavior]
+                            path = [.parameters]
                             try? await Task.sleep(for: .seconds(2.5))
                             path = []
                         }

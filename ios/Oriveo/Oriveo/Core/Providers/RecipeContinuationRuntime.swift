@@ -25,6 +25,8 @@ enum RecipeContinuationRuntime {
         continuationKind: String,
         parser: (String) -> Bool
     ) -> MetadataClient.CapabilityRecipe? {
+        // A recipe whose continuation is none has no continuation runtime (same convention as the Web continuationCapture); decide by kind, not by protocol name.
+        guard continuationKind != "none" else { return nil }
         var candidates: [MetadataClient.CapabilityRecipe] = []
         if webSearchEnabled,
            let recipe = MetadataClient.shared.syncCapabilityRecipe(

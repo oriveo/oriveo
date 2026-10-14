@@ -10,6 +10,8 @@ nonisolated enum ModelOptionCapabilityAction: Hashable, Sendable, CaseIterable {
     case openConnectionProtocol
     /// Switch to another connection.
     case switchConnection
+    /// The relay connection's web search settings page.
+    case openConnectionWebSearch
 }
 
 /// **What to draw** for one capability (web search / thinking) in the model options panel.
@@ -117,6 +119,31 @@ nonisolated enum ModelOptionCapabilityShape: Equatable, Sendable {
         let link: Link
     }
 
+    /// Facts behind a relay connection's web search row (fixture `presentationCases`), supplied by `RelayWebFragments.panelFact`.
+    nonisolated enum RelayWeb: Equatable, Sendable {
+        /// Local engine connection: web search does not apply.
+        case localEngine
+        /// The effective protocol has a saved web search fragment. `probe` is the local probe record for the current
+        /// fragment (nil = never tested, or the fragment hash is stale). On `rejected` chat stops attaching the fragment;
+        /// in every other case it is sent on every turn as usual.
+        case saved(probe: RelayWebProbeRecord.Result?)
+        /// The effective protocol has no fragment.
+        case notSaved
+
+        /// The three states of the web search row (web-probe.v1.json presentationCases.state).
+        nonisolated enum WebState: String, Sendable {
+            case supported, unsupported, unknown
+        }
+
+        var state: WebState {
+            switch self {
+            case .saved(probe: .searched): return .supported
+            case .saved(probe: .rejected): return .unsupported
+            case .saved, .localEngine, .notSaved: return .unknown
+            }
+        }
+    }
+
     nonisolated struct Input: Equatable, Sendable {
         var capability: Capability
         var presentation: CapabilityControlPresentation
@@ -136,6 +163,30 @@ nonisolated enum ModelOptionCapabilityShape: Equatable, Sendable {
         /// Whether this custom connection's protocol applies a chat template (Chat Completions). Other protocols do not
         /// know `chat_template_kwargs`; sending it there may get the request rejected outright, so the toggle is not offered.
         var supportsChatTemplate: Bool = true
+        /// The thinking row of a local connection (one with an engineProfile) follows the write-path table, not the
+        /// protocol. nil = not a local connection, or the table has no entry, so the existing Relay rules apply.
+        var localEngineThinking: LocalEngineThinking? = nil
+        /// Whether the model shows its thinking process (used by read-only thinking rows).
+        var showsThinking: Bool = false
+        /// Facts for the relay web search row; nil = not a relay connection.
+        var relayWeb: RelayWeb? = nil
+    }
+
+    /// Value of `showsThinking`: the catalog's explicit truth wins, and the legacy `capabilities` array is the fallback.
+    static func showsThinking(_ model: AIModel) -> Bool {
+        model.catalogCapabilityTruth?.reasoning ?? model.capabilities.contains(.reasoning)
+    }
+
+    /// How the thinking row of a local connection is written.
+    nonisolated enum LocalEngineThinking: Equatable, Sendable {
+        /// Writable: the chat template thinking switch.
+        case chatTemplateToggle
+        /// Non-Chat channel (native llama.cpp): keep the existing non-Chat explanation.
+        case nonChatNotice
+        /// Cannot be written: show the "use the model default" explanation.
+        case modelDefault
+        /// The engine declares that this model has no thinking.
+        case unsupported
     }
 }
 
@@ -174,14 +225,54 @@ extension ModelOptionCapabilityShape {
         switch presentation {
         case .automaticAvailable, .forceUnsupported:
             return availableIntents.contains(CapabilityWebPreference.force.rawValue) ? .force : .automatic
-        case .customOnly, .pending, .externalConnectorOnly, .unsupported, .unknown:
+        case .alwaysOn, .customOnly, .pending, .externalConnectorOnly, .unsupported, .unknown:
             return selection
+        }
+    }
+
+    /// Write path of the thinking row on a local connection, looked up by engineProfile x channel
+    /// (`engine-expectations.v1.json` `thinking.writePaths`) instead of guessed from the protocol. Only the llama.cpp
+    /// Chat channel applies the chat template thinking switch; on other Chat channels it cannot be written, so a model
+    /// that declares no thinking is reported as unsupported.
+    static func localEngineThinking(provider: Provider, model: AIModel) -> LocalEngineThinking? {
+        guard provider.kind == .relay,
+              let engine = provider.relayRequested?.engineProfile.flatMap(LocalEngineKind.init(rawValue:)) else {
+            return nil
+        }
+        switch RelayEndpointResolver.explicitTransport(provider: provider, model: model) {
+        case .llamacppNative:
+            return .nonChatNotice
+        case .openaiChatCompletions:
+            if engine == .llamacpp { return .chatTemplateToggle }
+            return model.engineDeclaration?.thinking == false ? .unsupported : .modelDefault
+        default:
+            // A channel the table does not know (for example the protocol was changed): hand back to the existing Relay rules.
+            return nil
         }
     }
 
     @MainActor
     static func resolve(_ input: Input) -> Self {
+        // The thinking row of a local connection is decided by the write-path table first, regardless of the catalog
+        // presentation (the same holds when it inherits an official tier set). Android and Web use the same order.
+        if input.connection == .custom, input.capability != .web, let local = input.localEngineThinking {
+            if input.protocolUndecided { return .protocolUndecided(protocolCallout()) }
+            return localEngineThinkingShape(local, input)
+        }
+        // Relay web search depends only on the connection-level fragment, not on the catalog or the chat's web preference.
+        if input.connection == .custom, input.capability == .web, let relayWeb = input.relayWeb {
+            if input.protocolUndecided { return .protocolUndecided(protocolCallout()) }
+            return relayWebShape(relayWeb)
+        }
         switch input.presentation {
+        case .alwaysOn:
+            // Produced only by the web search verdict (`subscription_web_always_on`); the thinking row never gets it.
+            assert(input.capability == .web, "alwaysOn is web-only")
+            // Release fallback: if the thinking row ever gets it, show the current value instead of borrowing web wording.
+            guard input.capability == .web else {
+                return .disclosure(.init(status: currentValueText(input), action: nil))
+            }
+            return alwaysOnWeb()
         case .automaticAvailable, .forceUnsupported:
             // A custom connection that matches an official configuration is handled like an official one.
             if input.protocolUndecided { return .protocolUndecided(protocolCallout()) }
@@ -349,6 +440,64 @@ extension ModelOptionCapabilityShape {
             ],
             selection: input.selectedIntent == force ? force : automatic
         ))
+    }
+
+    /// Searches the web on every turn and the user cannot turn it off: a read-only note that is not tappable.
+    @MainActor
+    private static func alwaysOnWeb() -> Self {
+        .notice(.init(
+            status: L10n.tr("Always on", table: .chat),
+            body: L10n.tr("This subscription always searches the web for this model.", table: .chat),
+            link: nil
+        ))
+    }
+
+    @MainActor
+    private static func relayWebShape(_ relayWeb: RelayWeb) -> Self {
+        switch relayWeb {
+        case .localEngine:
+            return connectionCannot()
+        case .saved(probe: .rejected):
+            // Same shape as "Needs manual setup": a notice plus a link to the connection's web search page. The card shows
+            // the body text, so the body carries the link wording.
+            let retest = L10n.tr("Test again in Web Search", table: .chat)
+            return .notice(.init(
+                status: L10n.tr("This model rejects the web search settings", table: .chat),
+                body: retest,
+                link: .init(title: retest, action: .openConnectionWebSearch)
+            ))
+        case let .saved(probe):
+            let status: String
+            switch probe {
+            case .searched: status = L10n.tr("Search confirmed", table: .chat)
+            case .silent: status = L10n.tr("Didn’t search when tested", table: .chat)
+            case .rejected, nil: status = L10n.tr("Set · not verified", table: .chat)
+            }
+            return .disclosure(.init(status: status, action: .openConnectionWebSearch))
+        case .notSaved:
+            return .notice(.init(
+                status: L10n.tr("Needs manual setup", table: .chat),
+                body: L10n.tr(
+                    "This connection has no standard switch for web search. Set it up in the connection’s web search settings.",
+                    table: .chat
+                ),
+                link: .init(title: L10n.tr("Open web search settings", table: .chat), action: .openConnectionWebSearch)
+            ))
+        }
+    }
+
+    @MainActor
+    private static func localEngineThinkingShape(_ local: LocalEngineThinking, _ input: Input) -> Self {
+        switch local {
+        case .chatTemplateToggle: return chatTemplateThinkingToggle(input)
+        case .nonChatNotice: return manualSetup(.reasoning)
+        case .modelDefault: return noOfficialConfiguration(.reasoning)
+        case .unsupported:
+            return .disclosure(.init(
+                status: L10n.tr("This model has no thinking mode", table: .chat),
+                action: .openSupportedModels
+            ))
+        }
     }
 
     @MainActor

@@ -737,7 +737,7 @@ struct ModelPickerSheet: View {
             onToggle()
         } label: {
             HStack(spacing: 12) {
-                ProviderBadgeIcon(kind: resolvedKind, size: 28, relayKind: resolvedRelay)
+                ConnectionAvatarIcon(provider: provider, kind: resolvedKind, relayKind: resolvedRelay, size: 28)
                     .frame(width: 30, height: 30)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -756,7 +756,7 @@ struct ModelPickerSheet: View {
                 Spacer(minLength: 8)
 
                 if isCollapsible {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.forward")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(OriveoTheme.V2.Colors.textTertiary)
                         .frame(width: 12)
@@ -794,7 +794,7 @@ struct ModelPickerSheet: View {
 
                 Spacer()
 
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(OriveoTheme.V2.Colors.textTertiary)
             }
@@ -869,7 +869,7 @@ private struct ModelPickerVendorGroupHeader: View {
                     .foregroundStyle(OriveoTheme.V2.Colors.textTertiary)
                     .monospacedDigit()
 
-                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.forward")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(OriveoTheme.V2.Colors.textTertiary)
                     .frame(width: 14)
@@ -1348,7 +1348,8 @@ func buildModelPickerSections(
             models.insert(currentModel, at: 0)
         }
         models = models.filter { isModelTransportSupportedForPicker(provider: provider, model: $0) }
-        if !isHome, !provider.kind.usesServerOrderedModels {
+        // Relay connections have no default model; keep the order in which models were enabled.
+        if !isHome, !provider.kind.usesServerOrderedModels, provider.kind != .relay {
             models.sort(by: pickerModelSort)
         }
         guard shouldRenderModelPickerProviderSection(provider: provider, query: "", models: models) else {
@@ -1620,7 +1621,11 @@ struct InlineModelCatalogView: View {
                         onToggleGroup: toggleGroup,
                         onAddModel: { model, _ in
                             ModelEnableFeedback.announce(
-                                appState.enableModel(modelID: model.id, for: providerID)
+                                appState.enableModel(
+                                    modelID: model.id,
+                                    for: providerID,
+                                    lazilyVerifiesRelayTransport: true
+                                )
                             )
                         }
                     )

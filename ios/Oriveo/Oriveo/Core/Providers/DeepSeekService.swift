@@ -290,7 +290,8 @@ final class DeepSeekService: BaseAPIService, ProviderServiceProtocol, BalanceQue
         let capabilityIntent = CapabilityEvidenceProductionAdapter.finalChatIntent(
             messages: requestMessagesInput, request: request, effectiveTransport: resolved?.transport ?? "",
             model: requestOptions.capabilityEvidenceModel,
-            requestedReasoningMode: recipeLegacyInput.reasoningMode, webSearchEnabled: requestOptions.webIntentRequested
+            requestedReasoningMode: recipeLegacyInput.reasoningMode, webSearchEnabled: requestOptions.webIntentRequested,
+            imagePlaceholderText: AttachmentTransport.deepSeekChat.profile.imagePlaceholderText
         )
 
         var apiMessages: [[String: Any]] = []

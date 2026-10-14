@@ -288,14 +288,31 @@ enum CapabilityRecipeRequestCompiler {
                 identity: $0
             )
         } ?? []
-        guard let pointersToOmit = runtimeOwnedOmission(
+        var selectedIntent = selectedIntent
+        let pointersToOmit: Set<String>
+        if let omission = runtimeOwnedOmission(
             dormantPointers: dormantPointers,
             source: .providerRecipe,
             owner: capability.rawValue,
             recipeRef: recipe.id,
             runtimeRevision: runtime.revision,
             descriptor: CapabilityRecipeResendContext.recoveryDescriptor
-        ) else {
+        ) {
+            pointersToOmit = omission
+        } else if capability == .reasoning,
+                  let identity = dispatchIdentity,
+                  let landed = nearestUnrejectedReasoningIntent(
+                    selectedIntent: selectedIntent,
+                    availableIntents: control.availableIntents,
+                    rejected: UnsupportedParamCache.shared.recipeRejectedCapabilityKeys(
+                        providerKind: providerKind, modelID: identity.query.effectiveModelID,
+                        owner: capability.rawValue, recipeRef: recipe.id, identity: identity
+                    )
+                  ) {
+            // Runtime rejection of reasoning is recorded per level: a normal send lands on the nearest level that was not rejected, and the whole recipe compiles as usual.
+            selectedIntent = landed
+            pointersToOmit = []
+        } else {
             return .init(applied: false, reason: "upstream_setting_dormant", redactedPreview: [:])
         }
         let activePointers = Set(
@@ -321,6 +338,29 @@ enum CapabilityRecipeRequestCompiler {
             )
         )
         return compilation
+    }
+
+    /// Lands a rejected level on the nearest usable one (reasoning rejections are recorded per level): if the selected
+    /// level was not rejected it is itself; if it was, go down first and then up, taking the first level in
+    /// `availableIntents` that was not rejected. Nil means the whole item is left out: every level was rejected, the
+    /// selected level is not among the declared ones, or the negative cache holds an untiered record (there is no way to
+    /// tell which level still works, so the whole group goes dormant).
+    static func nearestUnrejectedReasoningIntent(
+        selectedIntent: String?,
+        availableIntents: [String]?,
+        rejected: UnsupportedParamCache.RecipeRejectedCapabilities
+    ) -> String? {
+        let rejectedTiers = rejected.keys.filter { $0.hasPrefix("reasoning_level/") }
+        guard !rejected.hasUntiered, !rejectedTiers.isEmpty,
+              let selected = selectedIntent, ReasoningMode.fromIntent(selected) != nil,
+              let intents = availableIntents,
+              let index = intents.firstIndex(of: selected) else { return nil }
+        let order = [selected] + intents[..<index].reversed() + intents[(index + 1)...]
+        return order.first { intent in
+            guard ReasoningMode.fromIntent(intent) != nil else { return false }
+            return capabilityEvidenceKeys(capability: .reasoning, selectedIntent: intent)
+                .isDisjoint(with: rejectedTiers)
+        }
     }
 
     /// `nil` means the whole owner is dormant for a normal send. A non-empty result is available
@@ -536,7 +576,9 @@ enum CapabilityRecipeRequestCompiler {
     private static func reasoningIntent(_ mode: ReasoningMode) -> String? { mode.intentToken }
 
     /// Maps an owner and its selected intent onto the evidence keys that record upstream
-    /// rejection for it.
+    /// rejection for it. For web search the next normal send leaves the whole item dormant; for
+    /// reasoning the rejection is recorded per level and a normal send lands on the nearest level
+    /// that was not rejected (`nearestUnrejectedReasoningIntent`).
     ///
     /// Reasoning is keyed per level, so a rejection of one level does not quietly disable the
     /// others. Generation returns no key at all: it is governed pointer by pointer through the

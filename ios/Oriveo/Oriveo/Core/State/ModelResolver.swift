@@ -10,6 +10,12 @@ nonisolated enum ModelResolver {
     }
 
     static func matchingModel(modelID: String, in models: [AIModel], providerKind: ProviderKind) -> AIModel? {
+        // A relay matches by the literal ID: no date, canonical or display-name matching
+        if providerKind == .relay {
+            let key = relayIdentityKey(modelID)
+            guard !key.isEmpty else { return nil }
+            return models.first { relayIdentityKey($0.id) == key }
+        }
         let lookupCandidates = normalizedLookupCandidates(for: modelID, providerKind: providerKind)
 
         for candidate in lookupCandidates {
@@ -25,6 +31,43 @@ nonisolated enum ModelResolver {
         }
     }
 
+    /// Resolves a stored value (current selection, conversation model, last used, "removed" checks). For a relay a
+    /// literal hit wins; otherwise, if exactly one enabled model has a canonical equal to the stored value, that
+    /// model is used (this covers canonical values written before identity went literal); otherwise nil.
+    /// Official providers behave like `matchingModel`.
+    static func resolveStoredModel(_ storedModelID: String, in models: [AIModel], providerKind: ProviderKind) -> AIModel? {
+        guard providerKind == .relay else {
+            return matchingModel(modelID: storedModelID, in: models, providerKind: providerKind)
+        }
+        if let literal = matchingModel(modelID: storedModelID, in: models, providerKind: providerKind) {
+            return literal
+        }
+        let key = relayIdentityKey(storedModelID)
+        guard !key.isEmpty else { return nil }
+        let byCanonical = models.filter {
+            ($0.canonicalModelId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "") == key
+        }
+        return byCanonical.count == 1 ? byCanonical[0] : nil
+    }
+
+    /// De-duplicates relay models by literal key, keeping order and the first occurrence.
+    static func relayDeduplicated(_ models: [AIModel]) -> [AIModel] {
+        var seen = Set<String>()
+        return models.filter { seen.insert(relayIdentityKey($0.id)).inserted }
+    }
+
+    /// Relay model identity key: strip the legacy `relay-manual-` prefix, trim, lowercase.
+    static func relayIdentityKey(_ modelID: String) -> String {
+        relayStoredIdentifier(modelID).lowercased()
+    }
+
+    /// The literal ID a relay stores and sends upstream: the legacy prefix stripped, then trimmed.
+    static func relayStoredIdentifier(_ modelID: String) -> String {
+        let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        return resolvedProviderModelIdentifier(trimmed, providerKind: .relay)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// Batch form of `matchingModel(modelID:in:providerKind:)`. Querying the same list repeatedly by scanning it
     /// each time is O(queries x list), and the fuzzy pass runs two regexes for every model it misses. This builds
     /// the index once and each query only checks its candidates. "First match in list order" is preserved by
@@ -35,18 +78,25 @@ nonisolated enum ModelResolver {
         private let providerKind: ProviderKind
         private var firstIndexByID: [String: Int] = [:]
         private var firstIndexByStoredIdentifier: [String: Int]?
+        /// Relay read-compat: trimmed, lowercased canonical -> index of the only model with it; nil when several share it.
+        private var uniqueIndexByCanonical: [String: Int?]?
 
         init(_ models: [AIModel], providerKind: ProviderKind) {
             self.models = models
             self.providerKind = providerKind
             for (index, model) in models.enumerated() {
-                let key = RemoteModelIndex.fold(model.id)
+                let key = providerKind == .relay ? ModelResolver.relayIdentityKey(model.id) : RemoteModelIndex.fold(model.id)
                 if firstIndexByID[key] == nil { firstIndexByID[key] = index }
             }
         }
 
         /// Returns exactly what `matchingModel(modelID:in: models, providerKind:)` returns.
         mutating func match(_ modelID: String) -> AIModel? {
+            if providerKind == .relay {
+                let key = ModelResolver.relayIdentityKey(modelID)
+                guard !key.isEmpty else { return nil }
+                return firstIndexByID[key].map { models[$0] }
+            }
             let lookupCandidates = normalizedLookupCandidates(for: modelID, providerKind: providerKind)
             for candidate in lookupCandidates {
                 if let index = firstIndexByID[RemoteModelIndex.fold(candidate)] {
@@ -60,10 +110,33 @@ nonisolated enum ModelResolver {
             return firstIndex.map { models[$0] }
         }
 
+        /// Returns exactly what `resolveStoredModel(_:in: models, providerKind:)` returns.
+        mutating func resolveStored(_ storedModelID: String) -> AIModel? {
+            if let literal = match(storedModelID) { return literal }
+            guard providerKind == .relay else { return nil }
+            let key = ModelResolver.relayIdentityKey(storedModelID)
+            guard !key.isEmpty else { return nil }
+            let canonicalIndex = uniqueIndexByCanonical ?? buildCanonicalIndex()
+            uniqueIndexByCanonical = canonicalIndex
+            return canonicalIndex[key].flatMap { $0 }.map { models[$0] }
+        }
+
+        private func buildCanonicalIndex() -> [String: Int?] {
+            var index: [String: Int?] = [:]
+            for (position, model) in models.enumerated() {
+                let key = model.canonicalModelId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+                guard !key.isEmpty else { continue }
+                index[key] = index[key] == nil ? .some(position) : .some(nil)
+            }
+            return index
+        }
+
         /// Builds the fuzzy-layer index (two regexes per model) now: call it off the main thread, so later queries on
         /// the main thread are only table lookups.
         mutating func prepareStoredIdentifierIndex() {
-            if firstIndexByStoredIdentifier == nil {
+            if providerKind == .relay {
+                if uniqueIndexByCanonical == nil { uniqueIndexByCanonical = buildCanonicalIndex() }
+            } else if firstIndexByStoredIdentifier == nil {
                 firstIndexByStoredIdentifier = buildStoredIdentifierIndex()
             }
         }
@@ -89,6 +162,9 @@ nonisolated enum ModelResolver {
     }
 
     static func modelsShareSameRemoteModel(_ lhs: AIModel, _ rhs: AIModel, providerKind: ProviderKind) -> Bool {
+        if providerKind == .relay {
+            return relayIdentityKey(lhs.id) == relayIdentityKey(rhs.id)
+        }
         let lhsIdentifier = preferredStoredModelIdentifier(for: lhs, providerKind: providerKind)
         let rhsIdentifier = preferredStoredModelIdentifier(for: rhs, providerKind: providerKind)
 
@@ -121,6 +197,10 @@ nonisolated enum ModelResolver {
         }
 
         mutating func insert(_ model: AIModel) {
+            if providerKind == .relay {
+                identifiers.insert(ModelResolver.relayIdentityKey(model.id))
+                return
+            }
             identifiers.insert(Self.fold(preferredStoredModelIdentifier(for: model, providerKind: providerKind)))
             if providerKind != .openRouter {
                 names.insert(Self.fold(model.name))
@@ -128,6 +208,9 @@ nonisolated enum ModelResolver {
         }
 
         func containsRemoteModel(of model: AIModel) -> Bool {
+            if providerKind == .relay {
+                return identifiers.contains(ModelResolver.relayIdentityKey(model.id))
+            }
             if identifiers.contains(Self.fold(preferredStoredModelIdentifier(for: model, providerKind: providerKind))) {
                 return true
             }
@@ -139,7 +222,12 @@ nonisolated enum ModelResolver {
         }
     }
 
+    /// UI and conversation persistence use the stable canonical model ID, so a provider's snapshot ID is not exposed
+    /// to the page directly. Relays are the exception: they store the literal ID and canonical plays no part.
     static func preferredStoredModelIdentifier(for model: AIModel, providerKind: ProviderKind) -> String {
+        if providerKind == .relay {
+            return relayStoredIdentifier(model.id)
+        }
         let canonical = model.canonicalModelId?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !canonical.isEmpty {
@@ -179,6 +267,10 @@ nonisolated enum ModelResolver {
     static func normalizedLookupCandidates(for modelID: String, providerKind: ProviderKind) -> [String] {
         let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
+        if providerKind == .relay {
+            let literal = relayStoredIdentifier(trimmed)
+            return literal.isEmpty ? [] : [literal]
+        }
 
         let resolved = resolvedProviderModelIdentifier(trimmed, providerKind: providerKind)
         let candidates = [
@@ -224,8 +316,18 @@ nonisolated enum ModelResolver {
         return updatedProvider
     }
 
+    static func clearingDefaultFlags(_ models: [AIModel]) -> [AIModel] {
+        models.map { model in
+            var updatedModel = model
+            updatedModel.isDefault = false
+            return updatedModel
+        }
+    }
+
     static func markDefaultModel(in models: [AIModel], preferredModelID: String?, providerKind: ProviderKind) -> [AIModel] {
         guard !models.isEmpty else { return [] }
+        // A relay has no default model: every new write sets false.
+        guard providerKind != .relay else { return clearingDefaultFlags(models) }
 
         let resolvedDefaultID = preferredModelID.flatMap { preferredModelID in
             matchingModel(modelID: preferredModelID, in: models, providerKind: providerKind)?.id
@@ -239,6 +341,7 @@ nonisolated enum ModelResolver {
     }
 
     static func markDefaultFlag(in models: [AIModel], preferredModelID: String?, providerKind: ProviderKind) -> [AIModel] {
+        guard providerKind != .relay else { return clearingDefaultFlags(models) }
         let resolvedDefaultID = preferredModelID.map { resolvedProviderModelIdentifier($0, providerKind: providerKind) }
 
         return models.map { model in
@@ -262,6 +365,7 @@ nonisolated enum ModelResolver {
                 mergedModels.insert(manualModel, at: 0)
             }
         }
+        guard providerKind != .relay else { return clearingDefaultFlags(mergedModels) }
 
         let resolvedDefaultID = preferredDefaultID.flatMap { defaultID in
             matchingModel(for: defaultID, in: Provider(
@@ -310,7 +414,10 @@ nonisolated enum ModelResolver {
         ) {
             selectedModels = initialEnabledModels(from: catalogModels, providerKind: providerKind)
         } else if resolvedExistingModels.isEmpty {
-            selectedModels = initialEnabledModels(from: catalogModels, providerKind: providerKind)
+            // The relay's enabled list is non-empty and merely absent from the new catalog: the caller keeps the old enabled entries instead of inventing the catalog's first one
+            selectedModels = providerKind == .relay && !existingEnabledModels.isEmpty
+                ? []
+                : initialEnabledModels(from: catalogModels, providerKind: providerKind)
         } else {
             selectedModels = resolvedExistingModels
         }
@@ -320,7 +427,8 @@ nonisolated enum ModelResolver {
             ?? catalogModels.first(where: \.isDefault)?.id
 
         return markDefaultModel(
-            in: selectedModels,
+            // A relay's enabled list is made distinct by literal key: two old enabled entries that differ only in case resolve to the same catalog row
+            in: providerKind == .relay ? relayDeduplicated(selectedModels) : selectedModels,
             preferredModelID: preferredDefaultID,
             providerKind: providerKind
         )

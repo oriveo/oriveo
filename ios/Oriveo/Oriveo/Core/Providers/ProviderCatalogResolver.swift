@@ -331,7 +331,8 @@ enum ProviderCatalogResolver {
         provider: Provider,
         metadataDefaultId: String?
     ) -> ResolvedModel? {
-        if let userDefault = provider.models.first(where: \.isDefault) {
+        // Relays have no default model; the legacy isDefault flag is not read for them.
+        if provider.kind != .relay, let userDefault = provider.models.first(where: \.isDefault) {
             if let match = enabledModels.first(where: {
                 $0.model.id.caseInsensitiveCompare(userDefault.id) == .orderedSame
                 || ModelResolver.modelsShareSameRemoteModel($0.model, userDefault, providerKind: provider.kind)

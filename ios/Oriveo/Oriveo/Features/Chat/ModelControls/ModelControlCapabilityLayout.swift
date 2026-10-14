@@ -24,7 +24,7 @@ nonisolated enum ModelOptionsSeal: Equatable, Sendable, CaseIterable {
         let hasOfficialConfiguration = presentations.contains { presentation in
             switch presentation {
             case .pending, .unknown: return false
-            case .automaticAvailable, .forceUnsupported, .customOnly, .externalConnectorOnly, .unsupported:
+            case .automaticAvailable, .alwaysOn, .forceUnsupported, .customOnly, .externalConnectorOnly, .unsupported:
                 return true
             }
         }
@@ -176,9 +176,17 @@ struct ModelOptionsPanelModel: Equatable {
     let seal: ModelOptionsSeal?
     let banner: Banner?
     let card: Card
+    /// The 2x2 capability tiles; empty when an undecided protocol is collapsed into a callout.
+    let tiles: [ModelOptionsTiles.Tile]
+    /// The items of "this turn will send"; no bar is shown when there are none.
+    let summary: [String]
     let notes: [Note]
+    /// The first row of the parameter card; nil when the model has no temperature parameter.
+    let temperature: ModelOptionsTiles.Temperature?
     let advanced: Advanced
     let scopeUpgrade: ScopeUpgrade?
+
+    var summaryText: String? { ModelOptionsTiles.summaryText(summary) }
 }
 
 /// All inputs of the panel model: facts that are already resolved. The real panel takes them from storage and configuration, the debug samples from fixtures.
@@ -208,6 +216,16 @@ struct ModelOptionsPanelFacts {
     var banner: ModelOptionsPanelModel.Banner?
     var advancedRows: [GenerationParameterRowModel] = []
     var scopeUpgrade: ModelOptionsPanelModel.ScopeUpgrade?
+    /// Whether the composer's photo entry is shown right now (`ChatView.photoPickerVisible`).
+    var visionVisible = false
+    /// A relay form with no positive evidence for vision (`RelayRejectionRecording.imageSupportUnknown`).
+    var visionSupportUnknown = false
+    /// The native file mode resolved by the production wire; nil when the wire cannot be determined.
+    var fileMode: NativeFileMode?
+    var nativeFileMimes: [String] = []
+    var pdfNativeDefault = false
+    /// The relay `file` negative cache has not expired.
+    var relayFileRejected = false
 }
 
 extension ModelOptionsPanelModel {
@@ -216,6 +234,8 @@ extension ModelOptionsPanelModel {
         reasoningInput.chatTemplateThinkingIsOn = facts.chatTemplateThinking == .on
 
         let card: Card
+        var tiles: [ModelOptionsTiles.Tile] = []
+        var summary: [String] = []
         switch ModelOptionCapabilityCard.resolve(web: facts.web, reasoning: reasoningInput) {
         case let .protocolUndecided(callout):
             card = .callout(callout)
@@ -230,11 +250,23 @@ extension ModelOptionsPanelModel {
             )
             let reasoningRow = Row(capability: .reasoning, shape: reasoningShape)
             // On a custom connection only thinking can be changed, so it comes first; otherwise the order is fixed: web search, then thinking.
-            card = .rows(usesChatTemplate ? [reasoningRow, webRow] : [webRow, reasoningRow])
+            let rows = usesChatTemplate ? [reasoningRow, webRow] : [webRow, reasoningRow]
+            card = .rows(rows)
+            tiles = rows.map(ModelOptionsTiles.tile(for:)) + [
+                ModelOptionsTiles.visionTile(ModelOptionsTiles.vision(
+                    isVisible: facts.visionVisible, supportUnknown: facts.visionSupportUnknown
+                )),
+                ModelOptionsTiles.filesTile(ModelOptionsTiles.files(
+                    mode: facts.fileMode, nativeFileMimes: facts.nativeFileMimes,
+                    relayFileRejected: facts.relayFileRejected, pdfNativeDefault: facts.pdfNativeDefault
+                )),
+            ]
+            summary = ModelOptionsTiles.summaryItems(web: webRow.shape, reasoning: reasoningRow.shape)
         }
 
-        let summary = GenerationParameterRowModel.summary(facts.advancedRows)
-        let shown = facts.advancedRows.filter(\.isSentConversationOverride).prefix(summary.chips.count)
+        let (temperature, otherRows) = ModelOptionsTiles.splitTemperature(facts.advancedRows)
+        let chipSummary = GenerationParameterRowModel.summary(otherRows)
+        let shown = otherRows.filter(\.isSentConversationOverride).prefix(chipSummary.chips.count)
 
         return .init(
             title: facts.modelName,
@@ -249,10 +281,13 @@ extension ModelOptionsPanelModel {
             // With a control the user can flip in the panel, the "settings are read-only" banner is not shown: next to a working toggle it would be false.
             banner: card.hasWritableControl ? nil : facts.banner,
             card: card,
+            tiles: tiles,
+            summary: summary,
             notes: notes(facts),
+            temperature: temperature,
             advanced: .init(
                 chips: shown.map { Chip(id: $0.id, title: $0.title, value: $0.displayValue ?? "") },
-                moreCount: summary.moreCount
+                moreCount: chipSummary.moreCount
             ),
             scopeUpgrade: facts.scopeUpgrade
         )
@@ -344,6 +379,14 @@ extension ModelOptionCapabilityShape.Tiers {
 }
 
 extension ModelOptionCapabilityShape {
+    /// The value behind the switch in the card's top-right corner; nil when the shape is not a toggle.
+    var toggleValue: Toggle? {
+        switch self {
+        case let .toggle(toggle), let .toggleWithTiming(toggle, _): return toggle
+        case .tiers, .notice, .disclosure, .protocolUndecided: return nil
+        }
+    }
+
     /// The toggle that writes the chat template's thinking switch in the additional request body.
     var isChatTemplateThinkingToggle: Bool {
         if case let .toggle(toggle) = self { return toggle.target == .chatTemplateThinking }
@@ -362,5 +405,193 @@ extension ModelOptionCapabilityShape {
         case .toggle, .tiers, .toggleWithTiming, .notice, .disclosure, .protocolUndecided:
             return self
         }
+    }
+}
+
+// MARK: - Capability tiles
+
+/// The 2x2 capability tiles, the "this turn will send" summary and the temperature row of the parameter card.
+/// It only lays out shapes and facts that are already resolved: it reads no storage and re-decides no capability.
+/// The vision and file facts come from the production functions via the panel (see `ModelControlsSheet.panelFacts`).
+enum ModelOptionsTiles {
+    typealias Shape = ModelOptionCapabilityShape
+
+    enum Kind: String, Equatable {
+        case web, reasoning, vision, files
+    }
+
+    /// What sits in the top-right corner of a tile.
+    enum Accessory: Equatable {
+        case toggle(isOn: Bool)
+        /// Number of thinking levels ("%lld levels").
+        case levelCount(Int)
+        case check
+        case question
+        case cross
+        /// The whole tile is tappable (an explanation, a status line, or an undecided protocol that carries a way out).
+        case chevron
+        case none
+    }
+
+    enum VisionState: Equatable {
+        case available, unknown, hidden
+    }
+
+    enum FileState: Equatable {
+        case pdfNative, nativeWhenSupported, text
+    }
+
+    struct Tile: Equatable, Identifiable {
+        let kind: Kind
+        let title: String
+        let accessory: Accessory
+        /// The status line under the title; not drawn when nil.
+        let status: String?
+        /// Small text under the status line (the body of an explanation tile).
+        let detail: String?
+        /// The row behind the web and thinking tiles; vision and files are information tiles and have none.
+        let row: ModelOptionsPanelModel.Row?
+
+        var id: String { kind.rawValue }
+
+        /// The whole tile is tappable when an explanation, a status line or an undecided protocol carries a way out.
+        var isTappable: Bool { tapAction != nil }
+
+        var tapAction: ModelOptionCapabilityAction? {
+            switch row?.shape {
+            case let .notice(notice)?: return notice.link?.action
+            case let .disclosure(disclosure)?: return disclosure.action
+            case let .protocolUndecided(callout)?: return callout.link.action
+            default: return nil
+            }
+        }
+
+        var levelCountText: String? {
+            guard case let .levelCount(count) = accessory else { return nil }
+            return String(format: L10n.tr("%lld levels", table: .chat), count)
+        }
+    }
+
+    struct Temperature: Equatable {
+        let title: String
+        let value: String
+    }
+
+    // MARK: Web search and thinking
+
+    static func tile(for row: ModelOptionsPanelModel.Row) -> Tile {
+        let title: String = switch row.capability {
+        case .web: L10n.tr("Web Search", table: .chat)
+        case .reasoning: L10n.tr("Thinking Mode", table: .chat)
+        }
+        let kind: Kind = row.capability == .web ? .web : .reasoning
+        func make(_ accessory: Accessory, _ status: String?, _ detail: String? = nil) -> Tile {
+            Tile(kind: kind, title: title, accessory: accessory, status: status, detail: detail, row: row)
+        }
+        switch row.shape {
+        case let .toggle(toggle):
+            return make(.toggle(isOn: toggle.isOn), toggle.caption)
+        case let .toggleWithTiming(toggle, _):
+            return make(.toggle(isOn: toggle.isOn), toggle.caption)
+        case let .tiers(tiers):
+            // With no level selected, the status line falls back to the top-right sentence the shape provides (mostly "model default").
+            let selected = tiers.options.first { $0.id == tiers.selection }?.label
+            return make(.levelCount(tiers.options.count), selected ?? tiers.headerNote)
+        case let .notice(notice):
+            return make(notice.link == nil ? .none : .chevron, notice.status, notice.body)
+        case let .disclosure(disclosure):
+            return make(disclosure.action == nil ? .none : .chevron, disclosure.status)
+        case let .protocolUndecided(callout):
+            return make(.chevron, callout.title, callout.body)
+        }
+    }
+
+    // MARK: Vision
+
+    /// Entry not visible: unavailable. Visible but a relay connection with no positive evidence: unknown. Otherwise visible: available.
+    static func vision(isVisible: Bool, supportUnknown: Bool) -> VisionState {
+        guard isVisible else { return .hidden }
+        return supportUnknown ? .unknown : .available
+    }
+
+    static func visionTile(_ state: VisionState) -> Tile {
+        let (accessory, status): (Accessory, String) = switch state {
+        case .available: (.check, L10n.tr("Available · photo picker shown", table: .chat))
+        case .unknown: (.question, L10n.tr("Unknown · remembered after sending", table: .chat))
+        case .hidden: (.cross, L10n.tr("Not available · photo picker hidden", table: .chat))
+        }
+        return Tile(
+            kind: .vision, title: L10n.tr("Vision", table: .chat),
+            accessory: accessory, status: status, detail: nil, row: nil
+        )
+    }
+
+    // MARK: Files
+
+    /// Wire mode off (including an undeterminable wire), no native allow-list for the model, or an unexpired relay `file`
+    /// negative cache: converted to text. Otherwise `pdfNativeDefault` means PDF goes native; otherwise supported formats go native.
+    static func files(
+        mode: NativeFileMode?, nativeFileMimes: [String], relayFileRejected: Bool, pdfNativeDefault: Bool
+    ) -> FileState {
+        guard let mode, mode != .off, !nativeFileMimes.isEmpty, !relayFileRejected else { return .text }
+        return pdfNativeDefault ? .pdfNative : .nativeWhenSupported
+    }
+
+    /// All three states show a check: a file can always be delivered, only the way it is delivered differs.
+    static func filesTile(_ state: FileState) -> Tile {
+        let status: String = switch state {
+        case .pdfNative: L10n.tr("PDF native · others as text", table: .chat)
+        case .nativeWhenSupported: L10n.tr("Native when supported · others as text", table: .chat)
+        case .text: L10n.tr("Sent as text", table: .chat)
+        }
+        return Tile(
+            kind: .files, title: L10n.tr("Files", table: .providers),
+            accessory: .check, status: status, detail: nil, row: nil
+        )
+    }
+
+    // MARK: What this turn sends
+
+    /// Lists only the controls that are on right now: web search on, a selected non-automatic thinking level, or the thinking toggle on.
+    static func summaryItems(web: Shape, reasoning: Shape) -> [String] {
+        var items: [String] = []
+        switch web {
+        case let .toggle(toggle) where toggle.isOn, let .toggleWithTiming(toggle, _) where toggle.isOn:
+            items.append(L10n.tr("Web search on", table: .chat))
+        default:
+            break
+        }
+        switch reasoning {
+        case let .tiers(tiers):
+            if let selection = tiers.selection, selection != Shape.automaticIntent,
+               let label = tiers.options.first(where: { $0.id == selection })?.label {
+                items.append(String(format: L10n.tr("Thinking: %@", table: .chat), label))
+            }
+        case let .toggle(toggle) where toggle.isOn, let .toggleWithTiming(toggle, _) where toggle.isOn:
+            items.append(L10n.tr("Thinking on", table: .chat))
+        default:
+            break
+        }
+        return items
+    }
+
+    static func summaryText(_ items: [String]) -> String? {
+        guard !items.isEmpty else { return nil }
+        return String(format: L10n.tr("This turn will send: %@", table: .chat), items.joined(separator: " · "))
+    }
+
+    // MARK: Parameter card
+
+    /// Temperature becomes the first row of the parameter card on its own; the remaining rows go to the "Advanced settings"
+    /// entry row as a capsule summary.
+    static func splitTemperature(
+        _ rows: [GenerationParameterRowModel]
+    ) -> (Temperature?, [GenerationParameterRowModel]) {
+        guard let row = rows.first(where: { $0.id == "temperature" }) else { return (nil, rows) }
+        let temperature = Temperature(
+            title: row.title,
+            value: row.displayValue ?? GenerationParameterPresentationFacts.unsetLabel(parameterID: row.id)
+        )
+        return (temperature, rows.filter { $0.id != "temperature" })
     }
 }

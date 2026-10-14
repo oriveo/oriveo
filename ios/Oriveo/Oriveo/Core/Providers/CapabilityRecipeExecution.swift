@@ -2,11 +2,8 @@ import Foundation
 import CoreFoundation
 
 enum CapabilityRecipeExecution {
-    /// Responses and Interactions are deliberately separate even though this revision uses the same
-    /// field spelling. Keeping the adapters split prevents a future protocol change from becoming a
-    /// silent cross-provider root spread.
+    /// Gemini Interactions does not continue via previous_id (every turn sends the full Step[] with store:false), so only Responses remains here.
     static func openAIResponsesPreviousID(_ id: String?) -> [String: Any] { id.map { ["previous_response_id": $0] } ?? [:] }
-    static func geminiInteractionsPreviousID(_ id: String?) -> [String: Any] { id.map { ["previous_interaction_id": $0] } ?? [:] }
     static func anthropicReplayContentBlocks(_ blocks: [[String: Any]]?) -> [[String: Any]] { blocks ?? [] }
     static func openRouterReplayReasoningDetails(_ details: [[String: Any]]?) -> [String: Any] { details.map { ["reasoning_details": $0] } ?? [:] }
     /// These are wire frames, not display models. Keep every opaque field in the

@@ -70,6 +70,8 @@ struct ModelCapabilityEvidencePresentation {
     private let reasoningControlAvailable: Bool
     private let toolCallDecision: ToolCallCapabilityPolicy.Decision
     private let isSubscriptionLink: Bool
+    /// The relay web badge only looks at the connection-level fragment, using the same verdict as the outbound request and the panel; nil means this is not a relay.
+    private let relayWebFragmentSaved: Bool?
 
     #if DEBUG
     private static let constructionCountsLock = NSLock()
@@ -134,9 +136,13 @@ struct ModelCapabilityEvidencePresentation {
             identity: resolvedIdentity,
             keys: Self.governedKeys
         )
-        webControlAvailable = CapabilityControlResolution.resolve(
+        let webVerdict = CapabilityControlResolution.resolve(
             provider: provider, model: model, capability: "web"
-        ).isAvailable
+        )
+        webControlAvailable = webVerdict.isAvailable
+        relayWebFragmentSaved = ProviderForm.of(provider) == .relay
+            ? webVerdict.reasonCode == "relay_web_fragment_saved"
+            : nil
         reasoningControlAvailable = CapabilityControlResolution.resolve(
             provider: provider, model: model, capability: "reasoning"
         ).isAvailable
@@ -154,6 +160,7 @@ struct ModelCapabilityEvidencePresentation {
         case .image:
             return permitsDisplay("vision_input")
         case .web:
+            if let relayWebFragmentSaved { return relayWebFragmentSaved }
             if isSubscriptionLink { return webControlAvailable }
             return webControlAvailable && permitsDisplay("web_search")
         default:
@@ -513,6 +520,103 @@ struct ProviderBadgeIcon: View {
             .frame(width: size, height: size)
     }
 
+}
+
+/// Avatar for a relay connection: brand image, initial, or the generic relay icon, none with a backing plate or outline.
+/// Used only for relay connections; official providers and local connections still go through `ProviderBadgeIcon`.
+struct RelayAvatarView: View {
+    let avatar: RelayAvatar
+    var size: CGFloat = 44
+
+    init(avatar: RelayAvatar, size: CGFloat = 44) {
+        self.avatar = avatar
+        self.size = size
+    }
+
+    init(provider: Provider, size: CGFloat = 44) {
+        self.init(avatar: RelayAvatarResolver.avatar(for: provider) ?? .generic, size: size)
+    }
+
+    var body: some View {
+        switch avatar {
+        case let .brand(assetName):
+            Image(assetName)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(
+                    width: ProviderBadgeLogoMetrics.brandContentSize(for: size),
+                    height: ProviderBadgeLogoMetrics.brandContentSize(for: size)
+                )
+                .frame(width: size, height: size)
+        case let .initial(text):
+            // Neutral secondary text color; the font size follows the slot size, at the same weight level as the name.
+            Text(verbatim: text)
+                .font(.system(size: size * 0.6, weight: .semibold))
+                .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+                .frame(width: size, height: size)
+                .accessibilityHidden(true)
+        case .generic:
+            Image("ProviderRelay")
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(
+                    width: ProviderBadgeLogoMetrics.relayFallbackContentSize(for: size),
+                    height: ProviderBadgeLogoMetrics.relayFallbackContentSize(for: size)
+                )
+                .frame(width: size, height: size)
+        }
+    }
+}
+
+/// Single entry point for connection avatars: relay connections resolve only through `RelayAvatarResolver`, and a
+/// missing or unrecorded connection uses `.generic`; only local-engine connections and official providers fall
+/// through to `ProviderBadgeIcon`. Call sites no longer hand-roll if-let branches, because missing one would draw
+/// the avatar by protocol type (OpenAI / Anthropic) again, as happened in the chat list on device.
+struct ConnectionAvatarIcon: View {
+    enum Content: Equatable {
+        case relay(RelayAvatar)
+        case badge(kind: ProviderKind, relayKind: RelayKind?)
+    }
+
+    let content: Content
+    var size: CGFloat
+
+    /// Use when a connection object is at hand; a nil provider means the connection no longer exists or was never recorded.
+    /// kind / relayKind only matter when falling through to `ProviderBadgeIcon` (callers may pass the `ProviderLogoResolver` result).
+    init(provider: Provider?, kind: ProviderKind, relayKind: RelayKind? = nil, size: CGFloat = 44) {
+        self.content = Self.content(provider: provider, kind: kind, relayKind: relayKind)
+        self.size = size
+    }
+
+    /// For places that only have the `ModelDisplayLookup.relayAvatar` result, which already decides "connection missing -> generic, local / official -> nil".
+    init(relayAvatar: RelayAvatar?, kind: ProviderKind, relayKind: RelayKind? = nil, size: CGFloat = 44) {
+        self.content = relayAvatar.map(Content.relay) ?? .badge(kind: kind, relayKind: relayKind)
+        self.size = size
+    }
+
+    static func content(provider: Provider?, kind: ProviderKind, relayKind: RelayKind?) -> Content {
+        if let provider {
+            if let avatar = RelayAvatarResolver.avatar(for: provider) {
+                return .relay(avatar)
+            }
+        } else if kind == .relay {
+            return .relay(.generic)
+        }
+        return .badge(kind: kind, relayKind: relayKind)
+    }
+
+    var body: some View {
+        switch content {
+        case let .relay(avatar):
+            RelayAvatarView(avatar: avatar, size: size)
+        case let .badge(kind, relayKind):
+            ProviderBadgeIcon(kind: kind, size: size, relayKind: relayKind)
+        }
+    }
 }
 
 enum ProviderBadgeLogoMetrics {

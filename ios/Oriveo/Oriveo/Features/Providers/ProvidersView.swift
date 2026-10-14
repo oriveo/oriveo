@@ -21,7 +21,7 @@ struct ProvidersView: View {
                 [
                     $0.id.uuidString,
                     $0.kind.rawValue,
-                    $0.apiKey,
+                    ProviderCredentialResolver.apiKey(provider: $0, modelID: nil),
                     $0.baseURLText ?? "",
                 ].joined(separator: "~")
             }
@@ -231,7 +231,7 @@ struct ProvidersView: View {
     private func refreshProviderBalances() async {
         let providers = appState.providers.filter {
             ProviderBalanceCard.isBalanceCapable($0.kind) &&
-                $0.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                ProviderCredentialResolver.apiKey(provider: $0, modelID: nil).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         }
         let validIDs = Set(providers.map(\.id))
         ProviderBalanceStore.shared.removeMissingProviders(validIDs: validIDs)
@@ -242,8 +242,8 @@ struct ProvidersView: View {
         for provider in providers {
             cached[provider.id] = ProviderBalanceStore.shared.cachedBalance(
                 providerID: provider.id,
-                apiKey: provider.apiKey,
-                baseURL: provider.baseURLText
+                apiKey: ProviderCredentialResolver.apiKey(provider: provider, modelID: nil),
+                baseURL: provider.requestBaseURLText()
             )
         }
         if providerBalancesByID != cached {
@@ -254,8 +254,8 @@ struct ProvidersView: View {
             for provider in providers {
                 let providerID = provider.id
                 let kind = provider.kind
-                let apiKey = provider.apiKey
-                let baseURL = provider.baseURLText
+                let apiKey = ProviderCredentialResolver.apiKey(provider: provider, modelID: nil)
+                let baseURL = provider.requestBaseURLText()
                 group.addTask {
                     let balance = await ProviderBalanceStore.shared.loadForDisplay(
                         providerID: providerID,
@@ -462,7 +462,7 @@ private struct ProvidersSummaryStrip: View {
     }
 
     private func countText(format: String, count: Int) -> Text {
-        let full = String(format: format, Int64(count))
+        let full = L10n.format(format, Int64(count))
         let digits = "\(count)"
         guard let range = full.range(of: digits) else {
             return Text(full)

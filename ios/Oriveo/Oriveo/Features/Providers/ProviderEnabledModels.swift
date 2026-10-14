@@ -16,6 +16,10 @@ struct ProviderEnabledModelsSection: View, Equatable {
     let onSetDefault: (AIModel) -> Void
     let onChat: (AIModel) -> Void
     let onRemove: (AIModel) -> Void
+    /// Whole-row tap on a board row: opens "Model > Advanced". Appears only on model library board rows.
+    var onOpenAdvanced: (AIModel) -> Void = { _ in }
+    /// Passed only by the relay / local model library subpage; nil = the existing row look.
+    var catalogBoard: RelayCatalogBoardContext? = nil
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var expandedGroupIDs: Set<String> = []
@@ -24,7 +28,8 @@ struct ProviderEnabledModelsSection: View, Equatable {
         lhs.provider == rhs.provider &&
             lhs.highlightedModelID == rhs.highlightedModelID &&
             lhs.coordinateSpaceName == rhs.coordinateSpaceName &&
-            lhs.enabledModelsFrameBox === rhs.enabledModelsFrameBox
+            lhs.enabledModelsFrameBox === rhs.enabledModelsFrameBox &&
+            lhs.catalogBoard == rhs.catalogBoard
     }
 
     private var capabilityEvidenceRevision: UInt64 {
@@ -46,7 +51,12 @@ struct ProviderEnabledModelsSection: View, Equatable {
     var body: some View {
         VStack(alignment: .leading, spacing: OriveoTheme.Spacing.md) {
             ProviderSectionHeader(
-                title: enabledModelsTitle(for: provider),
+                title: catalogBoard == nil
+                    ? enabledModelsTitle(for: provider)
+                    : String(
+                        format: L10n.tr(RelayCatalogBoardModel.enabledSectionKey, table: .providers),
+                        Int64(provider.models.count)
+                    ),
                 trailing: usesManagedLibrary ? String(format: L10n.tr("%lld models"), provider.enabledModelCount) : nil,
                 helpMessage: L10n.tr("Added models appear in the model picker on the Home screen.", table: .providers)
             )
@@ -81,11 +91,14 @@ struct ProviderEnabledModelsSection: View, Equatable {
         .padding(.horizontal, OriveoTheme.Spacing.lg)
         .padding(.vertical, OriveoTheme.Spacing.xl)
         .background(panelBackground)
-        .overlay(panelBorder)
+        .overlay(panelBorder.opacity(usesFlatPanel ? 0 : 1))
     }
 
     private var groupedModelsPanel: some View {
-        let enabledModels = sortedEnabledModels(for: provider)
+        let enabledModels = sortedEnabledModels(for: provider).filter { model in
+            // The model library subpage's protocol filter applies to this section as well as the catalog section.
+            catalogBoard.map { RelayCatalogBoardModel.matches($0.filter, provider: provider, model: model) } ?? true
+        }
         let catalogMembership = RelayCatalogMembership.Index(provider: provider)
         return LazyVStack(spacing: 0) {
             ForEach(Array(enabledModels.enumerated()), id: \.element.id) { index, model in
@@ -96,11 +109,13 @@ struct ProviderEnabledModelsSection: View, Equatable {
                     isHighlighted: highlightedModelID == model.id,
                     isMissingFromCatalog: catalogMembership.isMissingEnabledModel(model),
                     isLast: index == enabledModels.count - 1,
-                    canSetDefault: !model.isDefault,
+                    canSetDefault: ProviderEnabledModelRow.allowsSetDefault(provider: provider, model: model),
                     canRemove: (usesManagedLibrary || provider.kind == .relay) && provider.models.count > 1,
                     setDefaultAction: { onSetDefault(model) },
                     chatAction: { onChat(model) },
-                    removeAction: { onRemove(model) }
+                    removeAction: { onRemove(model) },
+                    advancedAction: { onOpenAdvanced(model) },
+                    catalogBoard: catalogBoard
                 )
                 .equatable()
                 .transition(.asymmetric(
@@ -110,13 +125,13 @@ struct ProviderEnabledModelsSection: View, Equatable {
             }
         }
         .background(panelBackground)
-        .overlay(panelBorder)
+        .overlay(panelBorder.opacity(usesFlatPanel ? 0 : 1))
         .clipShape(RoundedRectangle(cornerRadius: OriveoTheme.Radius.lg, style: .continuous))
         .shadow(
-            color: OriveoTheme.Palette.shadow.opacity(colorScheme == .dark ? 0.45 : 0.55),
-            radius: 12,
+            color: usesFlatPanel ? .clear : OriveoTheme.Palette.shadow.opacity(colorScheme == .dark ? 0.45 : 0.55),
+            radius: usesFlatPanel ? 0 : 12,
             x: 0,
-            y: 6
+            y: usesFlatPanel ? 0 : 6
         )
     }
 
@@ -156,7 +171,7 @@ struct ProviderEnabledModelsSection: View, Equatable {
 
                             Spacer(minLength: 8)
 
-                            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            Image(systemName: isExpanded ? "chevron.down" : "chevron.forward")
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(OriveoTheme.Palette.textSecondary)
                                 .frame(width: 28, height: 28)
@@ -182,7 +197,7 @@ struct ProviderEnabledModelsSection: View, Equatable {
                                 isHighlighted: highlightedModelID == model.id,
                                 isMissingFromCatalog: catalogMembership.isMissingEnabledModel(model),
                                 isLast: index == group.models.count - 1,
-                                canSetDefault: !model.isDefault,
+                                canSetDefault: ProviderEnabledModelRow.allowsSetDefault(provider: provider, model: model),
                                 canRemove: (usesManagedLibrary || provider.kind == .relay) && provider.models.count > 1,
                                 setDefaultAction: { onSetDefault(model) },
                                 chatAction: { onChat(model) },
@@ -203,6 +218,11 @@ struct ProviderEnabledModelsSection: View, Equatable {
                 )
             }
         }
+    }
+
+    /// On the relay / local model library page the card is drawn like the detail page: no outline, no shadow. Official providers are unchanged.
+    private var usesFlatPanel: Bool {
+        catalogBoard != nil
     }
 
     private var panelBackground: some View {
@@ -242,8 +262,58 @@ struct ProviderEnabledModelRow: View, Equatable {
     var setDefaultAction: () -> Void
     var chatAction: () -> Void
     var removeAction: () -> Void
+    /// Where a whole-row tap on a board row goes: "Model > Advanced".
+    var advancedAction: () -> Void = {}
+    /// Board row of the relay / local model library subpage; nil = the existing row look.
+    var catalogBoard: RelayCatalogBoardContext? = nil
+
+    /// The row menu keeps only set-as-default and remove; capability testing and auto-recovery moved to the advanced page. A board row's "..." is `boardMenu`.
+    enum MenuItem: Equatable {
+        case setDefault, remove
+    }
+
+    static func menuItems(canSetDefault: Bool, canRemove: Bool) -> [MenuItem] {
+        (canSetDefault ? [.setDefault] : []) + (canRemove ? [.remove] : [])
+    }
+
+    /// The two tap areas of a board row: the row itself opens "Model > Advanced", and the trailing chat button starts a new chat.
+    /// Jumping into a chat from a whole row is unexpected on a page for managing models, so starting a chat is an explicit button in the same place as for official providers.
+    enum Tap {
+        case row, trailing
+    }
+
+    /// Where a row tap goes follows the row model's `tapTarget`; a non-board row has no row model and the whole row starts a chat (the same button as on official rows).
+    func perform(_ tap: Tap) {
+        switch tap {
+        case .row:
+            let target = catalogBoard.map { boardRowModel($0).tapTarget }
+            switch target {
+            case .advanced?, .readOnlyAdvanced?: advancedAction()
+            case nil: chatAction()
+            }
+        case .trailing: chatAction()
+        }
+    }
+
+    private func boardRowModel(_ catalogBoard: RelayCatalogBoardContext) -> RelayCatalogBoardModel.Row {
+        RelayCatalogBoardModel.row(
+            provider: provider, model: model, section: .enabled,
+            isMissingFromCatalog: isMissingFromCatalog, partitionID: catalogBoard.partitionID,
+            probeState: catalogBoard.probeStates[model.id]
+        )
+    }
+
+    /// Hit area of a board row's trailing buttons; the circle stays 36.
+    private static let boardHitSize: CGFloat = 44
+
+    /// "Set as default" in the model row menu. A relay / local connection's default model is changed only on the model card of the detail page.
+    static func allowsSetDefault(provider: Provider, model: AIModel) -> Bool {
+        !model.isDefault && ProviderForm.of(provider) != .relay
+    }
 
     @Environment(\.colorScheme) private var colorScheme
+    /// The reason shown by "Unreachable - view reason".
+    @State private var unreachableReason: RelayModelProbeFailure?
 
     /// Updates that touch one or two rows (such as moving the highlight) should not make every other
     /// row redo its capability projection and specs.
@@ -255,7 +325,8 @@ struct ProviderEnabledModelRow: View, Equatable {
             lhs.isMissingFromCatalog == rhs.isMissingFromCatalog &&
             lhs.isLast == rhs.isLast &&
             lhs.canSetDefault == rhs.canSetDefault &&
-            lhs.canRemove == rhs.canRemove
+            lhs.canRemove == rhs.canRemove &&
+            lhs.catalogBoard == rhs.catalogBoard
     }
 
     private var rowBackgroundTint: Color {
@@ -289,60 +360,76 @@ struct ProviderEnabledModelRow: View, Equatable {
         #if DEBUG
         let _ = Self.debugBodyEvaluationCount += 1
         #endif
-        let visibleMetadataCapabilities = model.visibleMetadataCapabilities(provider: provider)
-        let specifications = providerModelSpecifications(for: model)
+        // A board row draws no capability badges or specifications, so it needs no projection.
+        let visibleMetadataCapabilities = catalogBoard == nil ? model.visibleMetadataCapabilities(provider: provider) : []
+        let specifications = catalogBoard == nil ? providerModelSpecifications(for: model) : []
         let hasDetailedSpecifications = !specifications.isEmpty
         ZStack(alignment: .leading) {
             rowBackgroundTint
 
             HStack(alignment: .center, spacing: OriveoTheme.Spacing.sm) {
-                Button(action: chatAction) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(model.name)
-                            .font(OriveoTheme.Typography.title3)
-                            .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                        if isMissingFromCatalog {
-                            StatusPill(title: L10n.tr("No longer in the catalog", table: .providers), tone: .neutral, compact: true)
-                        }
-
-                        LocalModelRuntimeLabel(model: model)
-
-                        if !visibleMetadataCapabilities.isEmpty {
-                            ModelListMetadataRow(
-                                model: model,
-                                provider: provider,
-                                capabilityEvidenceRevision: capabilityEvidenceRevision,
-                                projectedCapabilities: visibleMetadataCapabilities,
-                                compact: true,
-                                showPrice: false
-                            )
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-
-                        if hasDetailedSpecifications {
-                            ProviderModelSpecInline(specifications: specifications)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
+                if let catalogBoard {
+                    let boardRow = boardRowModel(catalogBoard)
+                    // The whole row opens "Model > Advanced", and unavailable models can be opened too; starting a new chat goes through the trailing button.
+                    Button { perform(.row) } label: {
+                        RelayCatalogRowContent(row: boardRow, onShowUnreachableReason: { unreachableReason = $0 })
+                            .contentShape(Rectangle())
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(!model.isAvailable)
-                .opacity(model.isAvailable ? 1 : 0.72)
+                    .buttonStyle(.plain)
+                    .opacity(model.isAvailable ? 1 : 0.72)
+                    .accessibilityValue(RelayCatalogRowContent.accessibilityValue(boardRow))
+                    .accessibilityHint(L10n.tr(RelayModelAdvancedBoard.titleKey))
 
-                if !hasDetailedSpecifications && !model.normalizedPriceTier.isEmpty {
-                    Text(model.normalizedPriceTier)
-                        .font(OriveoTheme.Typography.caption.weight(.medium))
-                        .monospacedDigit()
-                        .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                        .fixedSize()
-                }
+                    boardActions(boardRow)
+                } else {
+                    Button(action: chatAction) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(model.name)
+                                .font(OriveoTheme.Typography.title3)
+                                .foregroundStyle(OriveoTheme.Palette.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
 
-                modelActions
+                            if isMissingFromCatalog {
+                                StatusPill(title: L10n.tr("No longer in the catalog", table: .providers), tone: .neutral, compact: true)
+                            }
+
+                            LocalModelRuntimeLabel(model: model)
+
+                            if !visibleMetadataCapabilities.isEmpty {
+                                ModelListMetadataRow(
+                                    model: model,
+                                    provider: provider,
+                                    capabilityEvidenceRevision: capabilityEvidenceRevision,
+                                    projectedCapabilities: visibleMetadataCapabilities,
+                                    compact: true,
+                                    showPrice: false
+                                )
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+
+                            if hasDetailedSpecifications {
+                                ProviderModelSpecInline(specifications: specifications)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!model.isAvailable)
+                    .opacity(model.isAvailable ? 1 : 0.72)
+
+                    if !hasDetailedSpecifications && !model.normalizedPriceTier.isEmpty {
+                        Text(model.normalizedPriceTier)
+                            .font(OriveoTheme.Typography.caption.weight(.medium))
+                            .monospacedDigit()
+                            .foregroundStyle(OriveoTheme.Palette.textTertiary)
+                            .fixedSize()
+                    }
+
+                    modelActions
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, 14)
@@ -358,52 +445,137 @@ struct ProviderEnabledModelRow: View, Equatable {
             }
         }
         .animation(.easeOut(duration: 0.2), value: isHighlighted)
+        .alert(
+            L10n.tr(RelayCatalogBoardModel.unreachableTitleKey, table: .providers),
+            isPresented: Binding(
+                get: { unreachableReason != nil },
+                set: { if !$0 { unreachableReason = nil } }
+            ),
+            presenting: unreachableReason
+        ) { _ in
+            Button(L10n.tr("OK"), role: .cancel) {}
+        } message: { failure in
+            Text(RelayUnreachableReasonText.message(failure))
+        }
     }
 
     private var modelActions: some View {
         HStack(alignment: .center, spacing: OriveoTheme.Spacing.xs) {
-            Button(action: chatAction) {
-                Image(systemName: "bubble.left.and.bubble.right.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(model.isAvailable ? OriveoTheme.Palette.primary : OriveoTheme.Palette.textTertiary)
-                    .frame(width: 36, height: 36)
-                    .background(
-                        Circle()
-                            .fill(model.isAvailable ? OriveoTheme.Palette.primarySoft : OriveoTheme.Palette.surfaceInset.opacity(0.6))
-                    )
+            chatButton(hitSize: nil, action: chatAction)
+
+            actionsMenu
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    /// The new-chat button: an enabled row of an official provider and a board row share the same icon and the same circle.
+    /// `hitSize` is passed only by board rows: the circle stays the same and the hit area grows to 44; nil = the official row as before.
+    private func chatButton(hitSize: CGFloat?, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            if let hitSize {
+                chatGlyph
+                    .frame(width: hitSize, height: hitSize)
+                    .contentShape(Rectangle())
+            } else {
+                chatGlyph
             }
-            .accessibilityLabel(L10n.tr("New Chat"))
-            .buttonStyle(.plain)
-            .disabled(!model.isAvailable)
-            .opacity(model.isAvailable ? 1 : 0.72)
+        }
+        .accessibilityLabel(L10n.tr("New Chat"))
+        .buttonStyle(.plain)
+        .disabled(!model.isAvailable)
+        .opacity(model.isAvailable ? 1 : 0.72)
+    }
 
-            if canSetDefault || canRemove {
-                Menu {
-                    if canSetDefault {
-                        Button(action: setDefaultAction) {
-                            Label(L10n.tr("Set as Default", table: .providers), systemImage: "star")
-                        }
-                    }
+    private var chatGlyph: some View {
+        Image(systemName: "bubble.left.and.bubble.right.fill")
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(model.isAvailable ? OriveoTheme.Palette.primary : OriveoTheme.Palette.textTertiary)
+            .frame(width: 36, height: 36)
+            .background(
+                Circle()
+                    .fill(model.isAvailable ? OriveoTheme.Palette.primarySoft : OriveoTheme.Palette.surfaceInset.opacity(0.6))
+            )
+    }
 
-                    if canRemove {
-                        Button(role: .destructive, action: removeAction) {
-                            Label(L10n.tr("Remove", table: .providers), systemImage: "trash")
-                        }
+    private var moreGlyph: some View {
+        Image(systemName: "ellipsis")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(OriveoTheme.Palette.textSecondary)
+            .frame(width: 36, height: 36)
+            .background(
+                Circle()
+                    .fill(OriveoTheme.Palette.surfaceInset.opacity(0.6))
+            )
+    }
+
+    private var removeMenuButton: some View {
+        Button(role: .destructive, action: removeAction) {
+            Label(L10n.tr("Remove", table: .providers), systemImage: "trash")
+        }
+    }
+
+    @ViewBuilder
+    private var actionsMenu: some View {
+        let items = Self.menuItems(canSetDefault: canSetDefault, canRemove: canRemove)
+        if !items.isEmpty {
+            Menu {
+                if items.contains(.setDefault) {
+                    Button(action: setDefaultAction) {
+                        Label(L10n.tr("Set as Default", table: .providers), systemImage: "star")
                     }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                        .frame(width: 36, height: 36)
-                        .background(
-                            Circle()
-                                .fill(OriveoTheme.Palette.surfaceInset.opacity(0.6))
-                        )
                 }
-                .accessibilityLabel(L10n.tr("More", table: .chat))
-                .buttonStyle(.plain)
+
+                if items.contains(.remove) {
+                    removeMenuButton
+                }
+            } label: {
+                moreGlyph
+            }
+            .accessibilityLabel(L10n.tr("More", table: .chat))
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: Trailing actions of a board row
+
+    /// Trailing actions are drawn in the order the row model gives: new chat, then "...". Each of the two tap areas is 44;
+    /// a negative padding gives back the extra 4pt so the circles sit where they do on official rows.
+    private func boardActions(_ row: RelayCatalogBoardModel.Row) -> some View {
+        HStack(alignment: .center, spacing: 0) {
+            ForEach(row.trailing, id: \.self) { action in
+                switch action {
+                case .newChat:
+                    chatButton(hitSize: Self.boardHitSize) { perform(.trailing) }
+                case .more:
+                    if let removeItem = row.removeItem {
+                        boardMenu(removeItem)
+                    }
+                case .add, .unavailable:
+                    EmptyView()
+                }
             }
         }
         .fixedSize(horizontal: true, vertical: false)
+        .padding(.horizontal, -(Self.boardHitSize - 36) / 2)
+    }
+
+    /// The "..." of a board row holds only Remove (the default model is changed on the detail page). With a single model left the menu
+    /// stays, Remove is greyed out, and the reason is written in the section title, because a disabled item cannot say why itself.
+    private func boardMenu(_ removeItem: RelayCatalogBoardModel.RemoveItem) -> some View {
+        Menu {
+            if let reasonKey = removeItem.disabledReasonKey {
+                Section(L10n.tr(reasonKey, table: .providers)) {
+                    removeMenuButton.disabled(!removeItem.isEnabled)
+                }
+            } else {
+                removeMenuButton.disabled(!removeItem.isEnabled)
+            }
+        } label: {
+            moreGlyph
+                .frame(width: Self.boardHitSize, height: Self.boardHitSize)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel(L10n.tr("More", table: .chat))
+        .buttonStyle(.plain)
     }
 }

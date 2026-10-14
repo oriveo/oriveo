@@ -230,6 +230,13 @@ enum CatalogModelBuilder {
         return dateSuffixRegex.stringByReplacingMatches(in: id, range: range, withTemplate: "")
     }
 
+    /// Dedup entry for loading and the model-library projection: a relay deduplicates by the literal ID key, keeping order
+    /// and the first one seen (date snapshots and canonical IDs do not take part); other kinds deduplicate by canonical ID.
+    static func deduplicate(_ models: [AIModel], providerKind: ProviderKind) -> [AIModel] {
+        guard providerKind == .relay else { return deduplicateByCanonical(models) }
+        return ModelResolver.relayDeduplicated(models)
+    }
+
     static func deduplicateByCanonical(_ models: [AIModel]) -> [AIModel] {
         var seen = [String: Int]()
         var result: [AIModel] = []

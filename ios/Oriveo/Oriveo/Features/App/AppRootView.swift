@@ -131,6 +131,18 @@ struct AppRootView: View {
         case let .providerDetail(providerID):
             ProviderDetailView(providerID: providerID)
                 .oriveoNavigationChrome()
+        case let .relayModelLibrary(providerID, keyID):
+            ProviderDetailView(providerID: providerID, page: .modelLibrary, keyFilter: keyID)
+                .oriveoNavigationChrome()
+        case let .relayKeys(providerID):
+            RelayKeysPage(providerID: providerID)
+                .oriveoNavigationChrome()
+        case let .relayWebSearch(providerID):
+            RelayWebSearchPage(providerID: providerID)
+                .oriveoNavigationChrome()
+        case let .relayModelAdvanced(providerID, modelID, readOnly):
+            ProviderDetailView(providerID: providerID, page: .modelAdvanced(modelID: modelID, readOnly: readOnly))
+                .oriveoNavigationChrome()
         case let .chat(conversationID):
             ChatView(conversationID: conversationID)
                 .oriveoNavigationChrome()

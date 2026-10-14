@@ -970,6 +970,35 @@ struct MemoryView: View {
         editRevision = 0
     }
 
+    /// Memory draft candidates: the last-used model goes first if it is still valid; every other connection contributes
+    /// a fallback model. Relays (including local) use the first enabled model and are not excluded for lacking a key;
+    /// official providers keep taking the default model, then the first enabled one.
+    static func draftCandidateModels(
+        providers: [Provider],
+        lastUsedModelRef: LastUsedModelRef?
+    ) -> [(provider: Provider, model: AIModel)] {
+        let eligibleProviders = providers.filter {
+            $0.kind == .relay || !ProviderCredentialResolver.apiKey(provider: $0, modelID: nil).isEmpty
+        }
+        let lastUsed: (provider: Provider, model: AIModel)? = lastUsedModelRef.flatMap { ref in
+            guard let provider = eligibleProviders.first(where: { $0.id == ref.providerID }),
+                  let model = ModelResolver.resolveStoredModel(
+                    ref.modelID,
+                    in: provider.models,
+                    providerKind: provider.kind
+                  ) else { return nil }
+            return (provider, model)
+        }
+        // `defaultModel` already branches by kind: relays do not read the legacy isDefault.
+        let others = eligibleProviders
+            .filter { $0.id != lastUsed?.provider.id }
+            .compactMap { provider -> (provider: Provider, model: AIModel)? in
+                guard let model = provider.defaultModel ?? provider.models.first else { return nil }
+                return (provider, model)
+            }
+        return (lastUsed.map { [$0] } ?? []) + others
+    }
+
     private func generateDraft() {
         let requestID = UUID()
         let baselineRevision = editRevision
@@ -977,15 +1006,14 @@ struct MemoryView: View {
         pendingGeneratedDraft = nil
         activeDraftRequestID = requestID
 
-        let candidates = appState.providers
-            .filter { !$0.apiKey.isEmpty }
-            .compactMap { provider -> DraftCandidate? in
-                guard let model = provider.defaultModel ?? provider.models.first else { return nil }
-                return DraftCandidate(provider: provider, model: model)
-            }
+        // Collect candidates, with the last-used model first (see `draftCandidateModels`).
+        let candidates = Self.draftCandidateModels(
+            providers: appState.providers,
+            lastUsedModelRef: appState.lastUsedModelRef
+        ).map { DraftCandidate(provider: $0.provider, model: $0.model) }
 
         guard !candidates.isEmpty else {
-            let hasAnyKey = appState.providers.contains { !$0.apiKey.isEmpty }
+            let hasAnyKey = appState.providers.contains { !ProviderCredentialResolver.apiKey(provider: $0, modelID: nil).isEmpty }
             if hasAnyKey {
                 presentDraftError(
                     title: L10n.tr("No model available", table: .settings),
@@ -1076,23 +1104,17 @@ struct MemoryView: View {
                         state: .delivered
                     )
 
-                    guard let service = Self.makeService(for: candidate.provider.kind) else {
+                    // Pick the service by (provider, model), through the same entry point as chat sending.
+                    guard let result = try await ProviderServiceRouter.Services().sendMessage(
+                        provider: candidate.provider,
+                        model: candidate.model,
+                        messages: [draftMessage]
+                    ) else {
                         lastError = ProviderServiceError.invalidConfiguration(
                             detail: "Provider kind \(candidate.provider.kind.rawValue) cannot generate memory drafts through BYOK provider services."
                         )
                         continue
                     }
-                    let baseURL = ProviderSetupCatalog.current()
-                        .usesConfigurableBaseURL(candidate.provider.kind)
-                        ? candidate.provider.baseURLText
-                        : nil
-
-                    let result = try await service.sendMessage(
-                        apiKey: candidate.provider.apiKey,
-                        modelID: candidate.model.id,
-                        messages: [draftMessage],
-                        baseURL: baseURL
-                    )
 
                     guard activeDraftRequestID == requestID else { return }
 
@@ -1195,27 +1217,6 @@ struct MemoryView: View {
                 )
             }
             .joined(separator: "\n---\n")
-    }
-
-    private static func makeService(for kind: ProviderKind) -> ProviderServiceProtocol? {
-        switch kind {
-        case .openRouter: return OpenRouterService()
-        case .openAI: return OpenAIService()
-        case .deepseek: return DeepSeekService()
-        case .grok: return GrokService()
-        case .anthropic: return AnthropicService()
-        case .gemini: return GeminiService()
-        case .groq: return GroqService()
-        case .together: return TogetherService()
-        case .fireworks: return FireworksService()
-        case .miniMax: return MiniMaxService()
-        case .zhipu: return ZhipuService()
-        case .qwen: return QwenService()
-        case .moonshot: return MoonshotService()
-        case .mistral: return MistralService()
-        case .siliconFlow: return SiliconFlowService()
-        case .relay: return OpenAIService()
-        }
     }
 }
 

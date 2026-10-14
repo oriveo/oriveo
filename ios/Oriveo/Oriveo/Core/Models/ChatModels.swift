@@ -114,6 +114,11 @@ nonisolated enum LocalCustomFragmentModeChange {
 /// non-automatic verdicts have no recipe by contract and must remain explainable from state/reason.
 nonisolated enum CapabilityControlPresentation: Equatable, Sendable {
     case automaticAvailable
+    /// The capability exists and goes out on every turn; the user cannot turn it off (Grok subscription web search).
+    /// Produced only by `auto_available` + `subscription_web_always_on`. Capability presence, official config and
+    /// model-switch candidates behave like `automaticAvailable`; writability, configurability, clamping of stored
+    /// values and the send summary behave like read-only.
+    case alwaysOn
     case forceUnsupported
     case customOnly
     case pending
@@ -127,6 +132,7 @@ nonisolated enum CapabilityControlPresentation: Equatable, Sendable {
         switch state {
         case "auto_available":
             guard exactTransportMatches else { return .unknown }
+            if reasonCode == "subscription_web_always_on" { return .alwaysOn }
             return forceRequested ? .forceUnsupported : .automaticAvailable
         case "custom_only":
             return .customOnly
@@ -179,6 +185,13 @@ nonisolated struct ChatRequestOptions: Hashable, Codable, Sendable {
     var capabilityEvidenceModel: AIModel? = nil
     /// Provider id of the connection this send runs on, used only by the native-file fallback layer to remember that a connection does not accept file blocks. Not encoded and not synced.
     var attachmentConnectionID: UUID? = nil
+    /// Connection-level web fragments for a relay: attached only by the chat send path, never by capability tests
+    /// or auxiliary requests. Not encoded and not synced.
+    var relayWebFragments: RelayWebFragmentSet? = nil
+    /// An official provider's foreign-protocol route going out through the relay builder: web search attaches the
+    /// tool by preference exactly as the official path does, while the relay path does not attach it.
+    /// Written by `ProviderServiceRouter` by route; not encoded and not synced.
+    var officialForeignRoute: Bool = false
     var localContinuationMessageID: UUID? = nil
     /// Only `ChatManager.continueMessage` sets this. A fresh user send never reads sidecar state.
     var localExplicitContinuationMessageID: UUID? = nil
@@ -601,6 +614,9 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
     /// Code of a device-local notice shown with the tool steps (`ToolFallbackNotice`). Stored as a code, not
     /// as text, and never part of the Codable envelope.
     var toolFallbackNotice: String? = nil
+    /// Primary recovery action shown on an error card (for example switching the key or removing an
+    /// unsupported image). Encoded under the key `managedPrimaryAction` to stay interoperable with other builds.
+    var recoveryPrimaryAction: String? = nil
 
     var estimatedCostText: String {
         CostFormatter.format(estimatedCost)
@@ -737,7 +753,8 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         costSource: CostSource? = nil,
         capabilityExecution: CapabilityExecutionResult? = nil,
         unhandledToolCalls: [UnhandledToolCall]? = nil,
-        toolFallbackNotice: String? = nil
+        toolFallbackNotice: String? = nil,
+        recoveryPrimaryAction: String? = nil
     ) {
         self.id = id
         self.role = role
@@ -771,6 +788,7 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         self.capabilityExecution = capabilityExecution
         self.unhandledToolCalls = unhandledToolCalls
         self.toolFallbackNotice = toolFallbackNotice
+        self.recoveryPrimaryAction = recoveryPrimaryAction
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -780,6 +798,7 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         case estimatedCostText, attachments, quoteContext, citations, toolSteps, createdAt
         case inputTokens, outputTokens, cachedInputTokens, cacheCreationInputTokens
         case cacheCreation5mTokens, cacheCreation1hTokens, costSource
+        case recoveryPrimaryAction = "managedPrimaryAction"
     }
 
     init(from decoder: Decoder) throws {
@@ -826,6 +845,7 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         capabilityExecution = nil
         unhandledToolCalls = nil
         toolFallbackNotice = nil
+        recoveryPrimaryAction = try c.decodeIfPresent(String.self, forKey: .recoveryPrimaryAction)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -859,6 +879,7 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         try c.encodeIfPresent(cacheCreation5mTokens, forKey: .cacheCreation5mTokens)
         try c.encodeIfPresent(cacheCreation1hTokens, forKey: .cacheCreation1hTokens)
         try c.encodeIfPresent(costSource, forKey: .costSource)
+        try c.encodeIfPresent(recoveryPrimaryAction, forKey: .recoveryPrimaryAction)
     }
 }
 

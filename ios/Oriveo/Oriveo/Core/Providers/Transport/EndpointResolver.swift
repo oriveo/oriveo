@@ -27,9 +27,15 @@ enum EndpointResolver {
         kind: EndpointKind,
         metadataTransport: MetadataClient.ProviderTransportDefinition?
     ) throws -> ResolvedEndpoint {
-        try resolve(
+        // Official providers compute the address from endpointSource on demand; addresses in the catalog carry no scheme, so https is added as every send entry point does.
+        let requestBase = provider.requestBaseURLText()?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let userBase = requestBase.flatMap { value -> String? in
+            guard !value.isEmpty else { return nil }
+            return value.hasPrefix("http://") || value.hasPrefix("https://") ? value : "https://\(value)"
+        }
+        return try resolve(
             providerKind: provider.kind,
-            userBaseURL: provider.baseURLText,
+            userBaseURL: userBase,
             kind: kind,
             metadataTransport: metadataTransport
         )
@@ -99,7 +105,7 @@ enum EndpointResolver {
         provider: Provider,
         metadataTransport: MetadataClient.ProviderTransportDefinition?
     ) -> String {
-        if let userBase = sanitize(provider.baseURLText) { return userBase }
+        if let userBase = sanitize(provider.requestBaseURLText()) { return userBase }
         if let metaBase = validatedOfficialMetadataBaseURL(
             sanitize(metadataTransport?.baseUrl),
             providerKind: provider.kind
@@ -218,38 +224,21 @@ enum EndpointResolver {
         guard let components = URLComponents(string: baseURL),
               components.scheme?.lowercased() == "https",
               let host = components.host?.lowercased(),
-              allowedMetadataBaseURLDomains(for: providerKind).contains(where: { allowed in
-                  host == allowed || host.hasSuffix(".\(allowed)")
-              }) else {
+              OfficialTrustedHosts.hostMatches(
+                  host,
+                  trusted: OfficialTrustedHosts.effective(
+                      providerKind: providerKind,
+                      delivered: OfficialTrustedHosts.delivered(for: providerKind)
+                  )
+              ) else {
             return nil
         }
         return baseURL
     }
 
-    private static func allowedMetadataBaseURLDomains(for kind: ProviderKind) -> Set<String> {
-        switch kind {
-        case .openAI: return ["openai.com"]
-        case .anthropic: return ["anthropic.com"]
-        case .gemini: return ["googleapis.com"]
-        case .openRouter: return ["openrouter.ai"]
-        case .deepseek: return ["deepseek.com"]
-        case .grok: return ["x.ai"]
-        case .groq: return ["groq.com"]
-        case .together: return ["together.xyz"]
-        case .fireworks: return ["fireworks.ai"]
-        case .miniMax: return ["minimax.io"]
-        case .zhipu: return ["bigmodel.cn"]
-        case .qwen: return ["aliyuncs.com"]
-        case .moonshot: return ["moonshot.ai", "moonshot.cn"]
-        case .mistral: return ["mistral.ai"]
-        case .siliconFlow: return ["siliconflow.cn", "siliconflow.com"]
-        case .relay: return []
-        }
-    }
-
     // MARK: - Built-in fallbacks
 
-    static func fallbackBaseURL(for kind: ProviderKind) -> String {
+    nonisolated static func fallbackBaseURL(for kind: ProviderKind) -> String {
         switch kind {
         case .openAI: return "https://api.openai.com/v1"
         case .anthropic: return "https://api.anthropic.com/v1"

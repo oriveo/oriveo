@@ -23,6 +23,9 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
         let onRegenerate: (ChatMessage) -> Void
         let onEditMessage: (ChatMessage) -> Void
         let onSwitchModel: () -> Void
+        /// Whether a failed message offers "switch to another key"; the caller derives it from the provider's current model state.
+        var offersSwitchKey: (ChatMessage) -> Bool = { _ in false }
+        var onSwitchKey: (ChatMessage) -> Void = { _ in }
         let isSendingMessage: Bool
         let isErrorDismissed: (UUID) -> Bool
         let isRecoveryDetailExpanded: (UUID) -> Bool
@@ -164,6 +167,8 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
             onRegenerate: { context.onRegenerate(message) },
             onEditMessage: { context.onEditMessage(message) },
             onSwitchModelRequested: { context.onSwitchModel() },
+            offersSwitchKey: context.offersSwitchKey(message),
+            onSwitchKeyRequested: { context.onSwitchKey(message) },
             onDismiss: { context.onDismissError(messageID) },
             onTechnicalDetailVisibilityChanged: { expanded in
                 context.onToggleRecoveryDetail(messageID, expanded)

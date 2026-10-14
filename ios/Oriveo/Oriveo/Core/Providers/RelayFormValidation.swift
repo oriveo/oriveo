@@ -80,14 +80,14 @@ nonisolated enum RelayFormValidation {
         FieldDefinition(
             field: .headers,
             group: .advancedHTTP,
-            labelKey: "Custom Headers",
+            labelKey: "Headers",
             placeholder: "X-Internal-Token",
             revalidation: .always
         ),
         FieldDefinition(
             field: .queryParams,
             group: .advancedHTTP,
-            labelKey: "Custom Query Params",
+            labelKey: "Query params",
             placeholder: "tenant",
             revalidation: .always
         ),

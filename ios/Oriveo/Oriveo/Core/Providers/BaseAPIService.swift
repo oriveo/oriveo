@@ -82,6 +82,16 @@ class BaseAPIService {
 
 
     func perform<T: Decodable>(_ request: URLRequest, isRelay: Bool = false) async throws -> T {
+        let data = try await performData(request, isRelay: isRelay)
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw ProviderServiceError.network(detail: "Decoding failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// The same request and error mapping as `perform`, returning the raw 2xx response body: for callers that need both to decode it and to read other fields of the raw text.
+    func performData(_ request: URLRequest, isRelay: Bool = false) async throws -> Data {
         let data: Data
         let response: URLResponse
 
@@ -100,11 +110,7 @@ class BaseAPIService {
             throw mapHTTPError(statusCode: httpResponse.statusCode, data: data, request: request, isRelay: isRelay)
         }
 
-        do {
-            return try decoder.decode(T.self, from: data)
-        } catch {
-            throw ProviderServiceError.network(detail: "Decoding failed: \(error.localizedDescription)")
-        }
+        return data
     }
 
     func performRaw(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
@@ -376,7 +382,10 @@ class BaseAPIService {
         guard let http = response as? HTTPURLResponse else {
             throw ProviderServiceError.network(detail: "Missing HTTPURLResponse.")
         }
-        guard !(200 ..< 300).contains(http.statusCode) else { return (data, http) }
+        guard !(200 ..< 300).contains(http.statusCode) else {
+            if providerKind == .relay { try rejectRelayWebPageSuccess(http, data: data) }
+            return (data, http)
+        }
         if shouldReturnWithoutMapping(http.statusCode, data, request) { return (data, http) }
         let mapped = mapHTTPError(statusCode: http.statusCode, data: data, url: request.url, request: request)
         recordCapabilityUpstreamRejection(
@@ -386,6 +395,28 @@ class BaseAPIService {
             relayEngineProfile: relayEngineProfile, relayDeclaredProfile: relayDeclaredProfile
         )
         throw mapped
+    }
+
+    /// A relay answered 2xx before any output but the content is a web page (the gateway's SPA fallback page, meaning this path is not an API route):
+    /// it is recorded into the relay rejection loop and an error is thrown, so the sender and the probe switch to a candidate protocol. A streaming entry
+    /// can judge only from the response headers, so `data` is nil; the body half is handed by the stream-reading loop to `rejectRelayWebPageStreamStart`.
+    func rejectRelayWebPageSuccess(_ http: HTTPURLResponse, data: Data?) throws {
+        let contentType = http.value(forHTTPHeaderField: "Content-Type") ?? ""
+        guard RelaySuccessResponsePolicy.isWebPage(contentType: contentType, data: data ?? Data()) else { return }
+        RelayPreOutputRejection.current?.record(status: http.statusCode, contentType: contentType, body: data ?? Data())
+        throw ProviderServiceError.upstream(
+            statusCode: http.statusCode,
+            detail: L10n.tr("This connection returned a web page instead of a model response. Check the request URL and the protocol set for this model.", table: .providers)
+        )
+    }
+
+    /// When a streaming response's Content-Type is not html (a gateway may return its fallback page as `text/plain` or even `text/event-stream`),
+    /// the page can be recognized only from the body. The stream-reading loop hands in every line before any output and the first non-blank body line is judged once,
+    /// with the same criterion as at the entry point; `settled` is held by the caller's loop and later lines are ignored once it has judged.
+    func rejectRelayWebPageStreamStart(_ http: HTTPURLResponse, line: String, settled: inout Bool) throws {
+        guard !settled, !line.allSatisfy(\.isWhitespace) else { return }
+        settled = true
+        try rejectRelayWebPageSuccess(http, data: Data(line.utf8))
     }
 
     /// Streaming companion of the single-attempt executor above.
@@ -419,6 +450,7 @@ class BaseAPIService {
             )
             throw mapped
         }
+        if providerKind == .relay { try rejectRelayWebPageSuccess(http, data: nil) }
         return (bytes, response)
     }
 
@@ -505,6 +537,8 @@ class BaseAPIService {
         CapabilityExecutionRuntime.recordUpstreamHTTPFailure(statusCode: statusCode)
         // Also tell the native file fallback layer here: it looks only at the status code, never at the classified error type.
         NativeFileFallback.currentAttempt?.recordRejection(statusCode: statusCode)
+        // Relay rejection loop: the sender uses it to decide the negative cache and protocol fallback. For a non-2xx response only the status code is judged.
+        RelayPreOutputRejection.current?.record(status: statusCode, contentType: "application/json", body: data)
         let upstreamSnippet = decodeErrorMessage(from: data, request: request)
         let detail = upstreamSnippet
             ?? HTTPURLResponse.localizedString(forStatusCode: statusCode)
@@ -704,7 +738,7 @@ class BaseAPIService {
 
         // Codex client identity 403 has two causes:
         // - the request did not use the Responses protocol: Oriveo only sends the Codex identity on
-        //   Responses, so it was never sent -> point to the protocol type;
+        //   Responses, so it was never sent -> point to changing this model's protocol;
         // - it did use Responses (or the call site does not know): the identity was sent and still
         //   rejected -> point to a custom User-Agent / header under Advanced HTTP.
         if statusCode == 403,
@@ -714,7 +748,7 @@ class BaseAPIService {
                 return .upstream(
                     statusCode: 403,
                     detail: Self.relayGuidanceDetail(
-                        L10n.tr("This relay requires Codex client identity. Open Providers → this Relay → Edit → Relay type and switch to “Codex style (Responses)”, then retry.", table: .providers),
+                        L10n.tr("This connection requires a Codex client identity. Open Providers → this connection → Model Library → this model → Advanced and set Protocol to OpenAI Responses, then retry.", table: .providers),
                         upstreamSnippet: upstreamSnippet
                     )
                 )
@@ -722,7 +756,20 @@ class BaseAPIService {
             return .upstream(
                 statusCode: 403,
                 detail: Self.relayGuidanceDetail(
-                    L10n.tr("This relay still rejects Oriveo's Codex client identity. Try setting a custom User-Agent under Edit → Advanced HTTP, or switch to another relay / contact its administrator (the upstream account may be unauthorized or rate-limited).", table: .providers),
+                    L10n.tr("This connection still rejects Oriveo's Codex client identity. Open Providers → this connection → Edit connection → Headers & query params and set a custom User-Agent or header, or switch to another connection.", table: .providers),
+                    upstreamSnippet: upstreamSnippet
+                )
+            )
+        }
+
+        // Official-CLI-gated 403: the group only lets the official Claude CLI through, so changing the protocol
+        // does not help and the key is not invalid -> point to moving the key to a group that allows API access
+        // at the issuing site, or adding another key under this connection's API Keys.
+        if RelayClientGate.isClientGated(status: statusCode, body: data) {
+            return .upstream(
+                statusCode: statusCode,
+                detail: Self.relayGuidanceDetail(
+                    L10n.tr("This key's group only accepts the official Claude CLI. In the account console of the site that issued this key, move the key to a group that allows API access, or create a new key and add it in Providers → this connection → API Keys. Then retry.", table: .providers),
                     upstreamSnippet: upstreamSnippet
                 )
             )
@@ -732,7 +779,7 @@ class BaseAPIService {
             return .upstream(
                 statusCode: 404,
                 detail: Self.relayGuidanceDetail(
-                    L10n.tr("This relay does not offer a dedicated image endpoint. Open Providers → this Relay → Advanced Settings → Transport and switch it to OpenAI Responses. Oriveo will then use the inline image tool path instead.", table: .providers),
+                    L10n.tr("This connection doesn't offer a separate image generation API. Open Providers → this connection → Model Library → this model → Advanced and set Protocol to OpenAI Responses. Oriveo will then generate images inside the chat instead.", table: .providers),
                     upstreamSnippet: upstreamSnippet
                 )
             )
@@ -744,7 +791,7 @@ class BaseAPIService {
             return .upstream(
                 statusCode: 404,
                 detail: Self.relayGuidanceDetail(
-                    L10n.tr("This relay only exposes /v1/responses and rejects /chat/completions. Open Providers → this Relay → Edit → Relay type and switch to “Codex style (Responses)”, then retry.", table: .providers),
+                    L10n.tr("This connection only exposes /v1/responses and rejects /chat/completions. Open Providers → this connection → Model Library → this model → Advanced and set Protocol to OpenAI Responses, then retry.", table: .providers),
                     upstreamSnippet: upstreamSnippet
                 )
             )
@@ -756,7 +803,7 @@ class BaseAPIService {
             return .upstream(
                 statusCode: 400,
                 detail: Self.relayGuidanceDetail(
-                    L10n.tr("This image model does not accept the response_format parameter. Rename the model to start with gpt-image- or chatgpt-image-, or try a different image model ID.", table: .providers),
+                    L10n.tr("This image model doesn't accept the response_format parameter. Try a different image model ID.", table: .providers),
                     upstreamSnippet: upstreamSnippet
                 )
             )
@@ -767,7 +814,7 @@ class BaseAPIService {
             return .upstream(
                 statusCode: 502,
                 detail: Self.relayGuidanceDetail(
-                    L10n.tr("The relay could not reach its upstream provider. This is not your configuration — the relay administrator's upstream account may be invalid, out of credits, or rate-limited. Please switch to another relay or contact its administrator.", table: .providers),
+                    L10n.tr("This connection could not reach its upstream provider. This is not your configuration — its administrator's upstream account may be invalid, out of credits, or rate-limited. Switch to another connection or contact its administrator.", table: .providers),
                     upstreamSnippet: upstreamSnippet
                 )
             )
@@ -779,7 +826,7 @@ class BaseAPIService {
             return .upstream(
                 statusCode: statusCode,
                 detail: Self.relayGuidanceDetail(
-                    L10n.tr("The relay's upstream does not offer this model. Open Providers → this Relay → Edit → Model and change it to one your relay actually supports (e.g. gpt-5.4). You can ask your relay administrator for the exact list of available model IDs.", table: .providers),
+                    L10n.tr("This connection's upstream does not offer this model. Open Providers → this connection → Model Library and enable a model it actually offers. You can ask its administrator for the exact list of available model IDs.", table: .providers),
                     upstreamSnippet: upstreamSnippet
                 )
             )
@@ -790,7 +837,7 @@ class BaseAPIService {
             return .upstream(
                 statusCode: 400,
                 detail: Self.relayGuidanceDetail(
-                    L10n.tr("This relay requires the OpenAI Responses protocol. Open Providers → this Relay → Edit → Relay type and switch to “Codex style (Responses)”, then retry.", table: .providers),
+                    L10n.tr("This connection requires the OpenAI Responses protocol for this model. Open Providers → this connection → Model Library → this model → Advanced and set Protocol to OpenAI Responses, then retry.", table: .providers),
                     upstreamSnippet: upstreamSnippet
                 )
             )
@@ -801,7 +848,7 @@ class BaseAPIService {
             return .upstream(
                 statusCode: 400,
                 detail: Self.relayGuidanceDetail(
-                    L10n.tr("This relay rejects the “store/disable_response_storage” field. Open Providers → this Relay → Edit → Compatibility and turn off “Don't keep responses in the cloud”, then retry.", table: .providers),
+                    L10n.tr("This connection rejects the “store/disable_response_storage” field. Open Providers → this connection → Edit connection → Compatibility and turn off “Don't keep responses in the cloud”, then retry.", table: .providers),
                     upstreamSnippet: upstreamSnippet
                 )
             )
@@ -812,7 +859,7 @@ class BaseAPIService {
             return .upstream(
                 statusCode: 400,
                 detail: Self.relayGuidanceDetail(
-                    L10n.tr("This relay does not accept the current OpenAI service tier value. Open Providers → this Relay → Edit → Compatibility and clear “OpenAI service tier”, then retry.", table: .providers),
+                    L10n.tr("This connection does not accept the current service tier value. Open Providers → this connection → Edit connection → Compatibility and clear “Service Tier”, then retry.", table: .providers),
                     upstreamSnippet: upstreamSnippet
                 )
             )
@@ -823,7 +870,7 @@ class BaseAPIService {
             return .upstream(
                 statusCode: 400,
                 detail: Self.relayGuidanceDetail(
-                    L10n.tr("This relay requires the “max_tokens” parameter. Open the model settings for this relay and set a max_tokens value (e.g. 4096), then retry.", table: .providers),
+                    L10n.tr("This connection requires the “max_tokens” parameter. Open Providers → this connection → Parameters and set “Max Tokens” (e.g. 4096), then retry.", table: .providers),
                     upstreamSnippet: upstreamSnippet
                 )
             )
@@ -834,7 +881,7 @@ class BaseAPIService {
            Self.isAnthropicAuthMismatch(body) {
             return .invalidAPIKey(
                 detail: Self.relayGuidanceDetail(
-                    L10n.tr("This relay expects an Anthropic-style x-api-key header. Open Providers → this Relay → Edit → Auth and switch to “x-api-key”, then retry.", table: .providers),
+                    L10n.tr("This connection expects an Anthropic-style x-api-key header. Open Providers → this connection → Edit connection → Auth Mode and choose “x-api-key”, then retry.", table: .providers),
                     upstreamSnippet: upstreamSnippet
                 )
             )
@@ -845,7 +892,7 @@ class BaseAPIService {
             return .upstream(
                 statusCode: 400,
                 detail: Self.relayGuidanceDetail(
-                    L10n.tr("Image attachments use the wrong schema for this relay's protocol. The model and protocol may not match — open Providers → this Relay → Edit → Relay type and switch to a type that fits your model, then retry.", table: .providers),
+                    L10n.tr("Image attachments use a schema that doesn't match this model's protocol. Open Providers → this connection → Model Library → this model → Advanced and set Protocol to one that fits this model, then retry.", table: .providers),
                     upstreamSnippet: upstreamSnippet
                 )
             )

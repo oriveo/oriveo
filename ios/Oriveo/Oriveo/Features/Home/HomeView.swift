@@ -858,10 +858,11 @@ struct HomeView: View {
         return HStack(spacing: 9) {
             Group {
                 if let active {
-                    ProviderBadgeIcon(
+                    ConnectionAvatarIcon(
+                        provider: active.provider,
                         kind: active.provider.kind,
-                        size: 24,
-                        relayKind: active.provider.relayKind
+                        relayKind: active.provider.relayKind,
+                        size: 24
                     )
                 } else {
                     Image(systemName: "square.dashed")

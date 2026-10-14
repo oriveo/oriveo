@@ -41,7 +41,7 @@ struct McpToolPanelSheet: View {
             Button(action: onManage) {
                 HStack(spacing: 6) {
                     Text(L10n.tr("Manage MCP servers", table: .mcp))
-                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
+                    Image(systemName: "chevron.forward").font(.system(size: 12, weight: .semibold))
                 }
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)

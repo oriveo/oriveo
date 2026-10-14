@@ -120,7 +120,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
 
         // When a relay rejects a native file block, resend once with the files injected as text (NativeFileFallback).
         let (data, _) = try await NativeFileFallback.run(
-            .relayScope(.anthropicMessages, connectionID: requestOptions.attachmentConnectionID)
+            .relayScope(.anthropicMessages, connectionID: requestOptions.attachmentConnectionID, modelID: requestOptions.capabilityEvidenceModel?.id, fileOverride: requestOptions.capabilityEvidenceModel?.relayCapabilityOverrides?.file)
         ) { try await performRawWithUnsupportedParamSelfHeal(
             providerKind: .relay,
             modelID: modelID,
@@ -364,7 +364,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
 
                     // When a relay rejects a native file block before the first event, resend once with the files injected as text (NativeFileFallback).
                     let (request, bytes, response) = try await NativeFileFallback.run(
-                        .relayScope(.anthropicMessages, connectionID: requestOptions.attachmentConnectionID)
+                        .relayScope(.anthropicMessages, connectionID: requestOptions.attachmentConnectionID, modelID: requestOptions.capabilityEvidenceModel?.id, fileOverride: requestOptions.capabilityEvidenceModel?.relayCapabilityOverrides?.file)
                     ) {
                         let request = try self.buildRelayMessagesRequest(
                             modelID: modelID,
@@ -402,15 +402,24 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                     var outputTokens = 0
                     var currentEvent = ""
                     let relayStrategy = TransportRegistry.strategy(for: .anthropicMessages)
-                    let relayShape = self.resolveRelayWebSearchShape(
-                        modelID: modelID,
-                        relayRequested: relayRequested
+                    // The citation profile is derived from the web fragment merged into this turn; with no fragment the strategy's built-in parsing is used.
+                    let relayShape = MetadataClient.shared.syncWebSearchStreamShape(
+                        profileName: requestOptions.officialForeignRoute
+                            // An official provider's foreign-protocol route behaves as before: citations are parsed by the profile the catalog matches.
+                            ? MetadataClient.shared.syncResolveCatalogModel(modelID: modelID, providerKind: .anthropic)?.profiles.webSearch
+                            : RelayWebFragments.citationProfile(
+                                transport: .anthropicMessages,
+                                fragment: requestOptions.relayWebFragments?.object(for: .anthropicMessages)
+                            )
                     )
                     var relayCtx = StreamContext()
                     var relayLastCitationsCount = 0
+                    var bodyStartChecked = false
 
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
+                        // A fallback web page's Content-Type is not always html: recognize it once more on the first body line, before any output.
+                        try self.rejectRelayWebPageStreamStart(httpResponse, line: line, settled: &bodyStartChecked)
 
                         if line.hasPrefix("event: ") {
                             currentEvent = String(line.dropFirst(7))
@@ -488,24 +497,6 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             }
         }
     }
-
-    private func resolveRelayWebSearchShape(
-        modelID: String,
-        relayRequested: RelayRequestedConfig?
-    ) -> MetadataClient.StreamShape? {
-        if let explicit = relayRequested?.webSearchProfile?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !explicit.isEmpty,
-           let shape = MetadataClient.shared.syncWebSearchStreamShape(profileName: explicit) {
-            return shape
-        }
-        let fallback = MetadataClient.shared.syncResolveCatalogModel(
-            modelID: modelID,
-            providerKind: .anthropic
-        )?.profiles.webSearch
-        return MetadataClient.shared.syncWebSearchStreamShape(profileName: fallback)
-    }
-
 
     private func buildMessagesRequest(
         modelID: String,
@@ -634,7 +625,32 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
         return request
     }
 
-    private func buildRelayMessagesRequest(
+    /// The request for "Test capabilities": the same validation and builder as relay streaming chat (`stream: true`),
+    /// with just two extra inputs, the output cap and function tools. It only builds the request and never sends it.
+    func relayCapabilityTestRequest(
+        apiKey: String,
+        modelID: String,
+        messages: [ChatMessage],
+        baseURL: String,
+        requestOptions: ChatRequestOptions,
+        relayRequested: RelayRequestedConfig?,
+        maxOutputTokens: Int,
+        functionTools: [Any]?
+    ) throws -> URLRequest {
+        try validateAPIKey(apiKey)
+        guard !modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ProviderServiceError.invalidConfiguration(detail: "Missing model identifier.")
+        }
+        return try buildRelayMessagesRequest(
+            modelID: modelID, messages: messages, apiKey: apiKey, baseURL: baseURL, stream: true,
+            reasoningMode: .automatic, requestOptions: requestOptions, relayRequested: relayRequested,
+            maxOutputTokens: maxOutputTokens, functionTools: functionTools, keepImageAttachments: true
+        )
+    }
+
+    /// The two "Test capabilities" inputs; chat passes neither and its output is unchanged: `maxOutputTokens` is used directly as `max_tokens`
+    /// (without the thinking-budget floor), and `functionTools` is `tools` in this protocol's shape.
+    func buildRelayMessagesRequest(
         modelID: String,
         messages: [ChatMessage],
         apiKey: String,
@@ -643,7 +659,10 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
         reasoningMode: ReasoningMode,
         requestOptions: ChatRequestOptions = ChatRequestOptions(),
         relayRequested: RelayRequestedConfig? = nil,
-        droppedParams: Set<String> = []
+        droppedParams: Set<String> = [],
+        maxOutputTokens: Int? = nil,
+        functionTools: [Any]? = nil,
+        keepImageAttachments: Bool = false
     ) throws -> URLRequest {
         let baseString = try RelayEndpointResolver.runtimeAPIBaseURL(
             rawBaseURL: baseURL,
@@ -651,7 +670,11 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             defaultVersion: "v1",
             acceptedVersions: ["v1"]
         )
-        let base = try RelayEndpointResolver.endpointURL(apiBaseURL: baseString, endpointPath: "/messages")
+        // Pass the connection's security mode: it defaults to remoteHTTPS, under which a local http connection would be blocked as plaintext.
+        let base = try RelayEndpointResolver.endpointURL(
+            apiBaseURL: baseString, endpointPath: "/messages",
+            securityMode: relayRequested?.securityMode ?? .remoteHTTPS
+        )
 
         let finalURL: URL
         if let relayRequested,
@@ -677,7 +700,8 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             effectiveTransport: RelayTransport.anthropicMessages.rawValue,
             model: requestOptions.capabilityEvidenceModel,
             requestedReasoningMode: reasoningMode,
-            webSearchEnabled: false
+            webSearchEnabled: false,
+            keepImageAttachments: keepImageAttachments
         )
 
         let shouldDropThinking = droppedParams.contains("thinking")
@@ -689,7 +713,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
         let outputConfig = shouldDropOutputConfig ? nil : plan.adaptiveEffort.map { AnthropicChatRequest.OutputConfig(effort: $0) }
 
         let systemPrompt = requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedMaxTokens = max(
+        let resolvedMaxTokens = maxOutputTokens ?? max(
             8192,
             (capabilityIntent.reasoningMode.flatMap(Self.relayAnthropicBudgetTokens) ?? 0) + 4096
         )
@@ -704,6 +728,9 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             messages: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, transport: .relayAnthropicMessages, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) }
         )
         var body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
+        if let functionTools {
+            body["tools"] = functionTools
+        }
         let generationApplication = ProfileParamsResolver.applyGenerationParameters(
             to: &body,
             options: requestOptions,
@@ -713,6 +740,8 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
         ProfileParamsResolver.applyAnthropicThinkingGuard(
             to: &body, application: generationApplication, builderDefaultMaxTokens: resolvedMaxTokens
         )
+        // Relay web fragment: applied after the builder's output and before the additional request body.
+        RelayWebFragments.apply(requestOptions.relayWebFragments, transport: .anthropicMessages, to: &body)
         try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()

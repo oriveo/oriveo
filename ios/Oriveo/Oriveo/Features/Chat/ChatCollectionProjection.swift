@@ -35,6 +35,10 @@ nonisolated struct ChatCollectionProviderMetadata: Sendable {
         return lookup.relayKind(providerID: providerID)
     }
 
+    nonisolated func relayAvatar(for message: ChatMessage) -> RelayAvatar? {
+        lookup.relayAvatar(providerID: message.providerID, providerKind: message.providerKind)
+    }
+
     nonisolated func resolvedContextLength(for message: ChatMessage) -> Int? {
         guard let providerID = message.providerID,
               let modelID = message.modelID,
@@ -85,6 +89,7 @@ nonisolated enum ChatCollectionProjectionBuilder {
         let resolvedProviderName: String?
         let resolvedModelName: String?
         let relayKind: RelayKind?
+        var relayAvatar: RelayAvatar? = nil
         let resolvedContextLength: Int?
         let noteReferences: [NoteSummary]
         let noteBadgePresentation: NoteBadgePresentation
@@ -109,6 +114,8 @@ nonisolated enum ChatCollectionProjectionBuilder {
         let resolvedProviderName: String?
         let resolvedModelName: String?
         let relayKind: RelayKind?
+        /// Avatar of the relay connection; nil means this is not a relay message and the plain relayKind logo is used.
+        let relayAvatar: RelayAvatar?
         let resolvedContextLength: Int?
         let noteReferences: [NoteSummary]
         let noteBadgePresentation: NoteBadgePresentation
@@ -128,6 +135,7 @@ nonisolated enum ChatCollectionProjectionBuilder {
             resolvedProviderName: String?,
             resolvedModelName: String?,
             relayKind: RelayKind?,
+            relayAvatar: RelayAvatar? = nil,
             resolvedContextLength: Int? = nil,
             noteReferences: [NoteSummary] = [],
             noteBadgePresentation: NoteBadgePresentation = .none,
@@ -146,6 +154,7 @@ nonisolated enum ChatCollectionProjectionBuilder {
             self.resolvedProviderName = resolvedProviderName
             self.resolvedModelName = resolvedModelName
             self.relayKind = relayKind
+            self.relayAvatar = relayAvatar
             self.resolvedContextLength = resolvedContextLength
             self.noteReferences = noteReferences
             self.noteBadgePresentation = noteBadgePresentation
@@ -212,6 +221,7 @@ nonisolated enum ChatCollectionProjectionBuilder {
                     resolvedProviderName: metadata.resolvedProviderName(for: message),
                     resolvedModelName: metadata.resolvedModelName(for: message),
                     relayKind: metadata.relayKind(for: message),
+                    relayAvatar: metadata.relayAvatar(for: message),
                     resolvedContextLength: metadata.resolvedContextLength(for: message),
                     noteReferences: noteReferences,
                     noteBadgePresentation: noteBadgePresentation,
@@ -259,6 +269,7 @@ nonisolated enum ChatCollectionProjectionBuilder {
                 resolvedProviderName: row.resolvedProviderName,
                 resolvedModelName: row.resolvedModelName,
                 relayKind: row.relayKind,
+                relayAvatar: row.relayAvatar,
                 resolvedContextLength: row.resolvedContextLength,
                 noteReferences: row.noteReferences,
                 noteBadgePresentation: row.noteBadgePresentation,

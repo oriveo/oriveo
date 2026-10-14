@@ -544,7 +544,7 @@ final class UIKitToolStepRow: UIControl {
         spinner.transform = CGAffineTransform(scaleX: 0.8, y: 0.8)
         stack.addArrangedSubview(spinner)
 
-        disclosure.image = UIImage(systemName: "chevron.right")
+        disclosure.image = UIImage(systemName: "chevron.forward")
         disclosure.tintColor = UIColor(OriveoTheme.Palette.textTertiary)
         disclosure.contentMode = .scaleAspectFit
         disclosure.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)

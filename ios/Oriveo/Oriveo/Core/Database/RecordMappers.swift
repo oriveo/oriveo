@@ -163,7 +163,8 @@ enum RecordMappers {
             costSource: record.costSource.flatMap(CostSource.init(rawValue:)),
             capabilityExecution: capabilityExecution,
             unhandledToolCalls: unhandledToolCalls,
-            toolFallbackNotice: record.toolFallbackNotice
+            toolFallbackNotice: record.toolFallbackNotice,
+            recoveryPrimaryAction: record.recoveryPrimaryAction
         )
     }
 

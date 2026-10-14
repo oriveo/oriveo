@@ -14,7 +14,7 @@ struct ChatAttachmentPicker {
     struct ImportContext: Sendable {
         let attachmentSupport: RelayRuntimeSupport.AttachmentSupport
 
-        init(provider: Provider?) {
+        init(provider: Provider?, model: AIModel?) {
             guard let provider else {
                 attachmentSupport = (image: false, video: false, nativeFile: false, textFileInline: false)
                 return
@@ -23,6 +23,7 @@ struct ChatAttachmentPicker {
             if provider.kind == .relay,
                let runtime = RelayRuntimeSupport.attachmentSupport(
                 for: provider,
+                model: model,
                 runtimeConfig: MetadataClient.shared.syncRelayRuntimeConfig()
                ) {
                 attachmentSupport = runtime

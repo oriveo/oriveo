@@ -1,8 +1,9 @@
 import Foundation
 import OriveoProviderKit
 
-final class TogetherService: BaseAPIService, ProviderServiceProtocol {
-    private let baseURL = "https://api.together.xyz/v1"
+final class TogetherService: BaseAPIService, ProviderServiceProtocol, CustomBaseURLProvider {
+    /// Used only when the caller gave no base address; official request entry points pass the result of the endpoint-source resolver.
+    private let defaultBaseURL = "https://api.together.xyz/v1"
 
 
     func syncProvider(apiKey: String, preferredModelID: String?) async throws -> ProviderSyncResult {
@@ -11,6 +12,10 @@ final class TogetherService: BaseAPIService, ProviderServiceProtocol {
         return ProviderSyncResult(models: [])
     }
 
+
+    func syncProvider(apiKey: String, preferredModelID: String?, baseURL: String) async throws -> ProviderSyncResult {
+        try await syncProvider(apiKey: apiKey, preferredModelID: preferredModelID)
+    }
 
     func sendMessage(
         apiKey: String,
@@ -29,6 +34,7 @@ final class TogetherService: BaseAPIService, ProviderServiceProtocol {
         apiKey: String,
         modelID: String,
         messages: [ChatMessage],
+        baseURL: String? = nil,
         reasoningMode: ReasoningMode = .automatic,
         requestOptions: ChatRequestOptions = ChatRequestOptions()
     ) async throws -> ProviderChatResult {
@@ -41,6 +47,7 @@ final class TogetherService: BaseAPIService, ProviderServiceProtocol {
             modelID: modelID,
             messages: messages,
             apiKey: apiKey,
+            baseURL: baseURL,
             stream: false,
             reasoningMode: reasoningMode,
             requestOptions: requestOptions
@@ -70,6 +77,18 @@ final class TogetherService: BaseAPIService, ProviderServiceProtocol {
     }
 
 
+    func sendMessage(
+        apiKey: String,
+        modelID: String,
+        messages: [ChatMessage],
+        baseURL: String
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(
+            apiKey: apiKey, modelID: modelID, messages: messages, baseURL: Optional(baseURL),
+            reasoningMode: .automatic, requestOptions: ChatRequestOptions()
+        )
+    }
+
     func sendMessageStream(
         apiKey: String,
         modelID: String,
@@ -87,6 +106,19 @@ final class TogetherService: BaseAPIService, ProviderServiceProtocol {
         apiKey: String,
         modelID: String,
         messages: [ChatMessage],
+        baseURL: String
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(
+            apiKey: apiKey, modelID: modelID, messages: messages, baseURL: Optional(baseURL),
+            reasoningMode: .automatic, requestOptions: ChatRequestOptions()
+        )
+    }
+
+    func sendMessageStream(
+        apiKey: String,
+        modelID: String,
+        messages: [ChatMessage],
+        baseURL: String? = nil,
         reasoningMode: ReasoningMode = .automatic,
         requestOptions: ChatRequestOptions = ChatRequestOptions()
     ) -> AsyncThrowingStream<StreamEvent, Error> {
@@ -102,6 +134,7 @@ final class TogetherService: BaseAPIService, ProviderServiceProtocol {
                         modelID: modelID,
                         messages: messages,
                         apiKey: apiKey,
+                        baseURL: baseURL,
                         stream: true,
                         reasoningMode: reasoningMode,
                         requestOptions: requestOptions
@@ -190,11 +223,12 @@ final class TogetherService: BaseAPIService, ProviderServiceProtocol {
         modelID: String,
         messages: [ChatMessage],
         apiKey: String,
+        baseURL: String?,
         stream: Bool,
         reasoningMode: ReasoningMode,
         requestOptions: ChatRequestOptions = ChatRequestOptions()
     ) throws -> URLRequest {
-        var request = URLRequest(url: URL(string: "\(baseURL)/chat/completions")!)
+        var request = URLRequest(url: URL(string: "\(normalizedBaseURL(baseURL, default: defaultBaseURL))/chat/completions")!)
         request.httpMethod = "POST"
         request.timeoutInterval = stream ? 120 : 60
         applyHeaders(to: &request, apiKey: apiKey)

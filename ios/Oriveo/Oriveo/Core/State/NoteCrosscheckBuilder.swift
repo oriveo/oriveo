@@ -60,8 +60,8 @@ enum NoteCrosscheckModels {
                     relayKind: provider.relayKind,
                     providerName: name,
                     model: model,
-                    apiKey: provider.apiKey,
-                    baseURL: provider.baseURLText
+                    apiKey: ProviderCredentialResolver.apiKey(provider: provider, modelID: model.id),
+                    baseURL: provider.requestBaseURLText()
                 ))
             }
         }
@@ -92,7 +92,7 @@ enum NoteCrosscheckModels {
     /// use immediately. Connections authorised through a provider subscription resolve their token
     /// on the send path and are not offered here.
     private static func isEligibleProvider(_ provider: Provider) -> Bool {
-        !provider.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !ProviderCredentialResolver.apiKey(provider: provider, modelID: nil).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 

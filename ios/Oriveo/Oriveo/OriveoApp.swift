@@ -17,7 +17,15 @@ struct OriveoApp: App {
 
     init() {
         let launchConfiguration = AppLaunchConfiguration(isRunningTests: AppRuntime.isRunningTests)
+        #if DEBUG
+        // The relay-family sample pages need demo connections in `providers`. AppState has only this one entry point
+        // that does not persist; without it, any assignment to `providers` would write the session snapshot and Keychain.
+        let state = AppState(
+            seedDemoData: launchConfiguration.shouldSeedDemoData || RelayFamilyDebugShots.isRequested
+        )
+        #else
         let state = AppState(seedDemoData: launchConfiguration.shouldSeedDemoData)
+        #endif
         _appState = State(wrappedValue: state)
         _currentColorScheme = State(wrappedValue: state.preferences.theme.preferredColorScheme)
     }
@@ -86,6 +94,18 @@ struct OriveoApp: App {
                 appState.openChat(conversationID: id)
             }
         }
+
+        // Direct-open sample pages for the relay family: page names, demo data and navigation live in RelayFamilyDebugShots.
+        if let page = debugArgumentValue("-AUTO_OPEN_PAGE"),
+           let shot = RelayFamilyDebugShots.Shot(rawValue: page) {
+            await RelayFamilyDebugShots.open(shot, appState: appState)
+        }
+    }
+
+    private func debugArgumentValue(_ name: String) -> String? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: name), index + 1 < arguments.count else { return nil }
+        return arguments[index + 1]
     }
 
     private func hasDebugArgument(_ name: String) -> Bool {

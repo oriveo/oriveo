@@ -96,42 +96,62 @@ extension CapabilityEvidenceProductionAdapter {
         explicitKeys: Set<String> = []
     ) -> CapabilityEvidenceProjection {
         guard let identity else { return unknownCapabilityProjection(keys: keys, identity: nil) }
-        if provider.kind == .relay {
+        let form = ProviderForm.of(provider)
+        switch form {
+        case .relay:
             return resolveRelayCapabilities(
-                providerKind: provider.kind, model: model, identity: identity,
+                form: form, providerKind: provider.kind, model: model, identity: identity,
+                keys: keys, explicitKeys: explicitKeys,
+                consumesEngineDeclaration: hasEngineProfile(provider),
+                webFragment: relayWebFragment(provider: provider, model: model)
+            )
+        case .subscription:
+            return resolveSubscriptionCapabilities(
+                form: form, providerKind: provider.kind, model: model,
+                catalogModels: provider.catalogModels,
+                transport: CapabilityControlResolution.subscriptionFinalTransport(for: provider, model: model),
+                identity: identity, keys: keys, explicitKeys: explicitKeys
+            )
+        case .official:
+            return resolveOfficialCapabilities(
+                form: form, providerKind: provider.kind, model: model, identity: identity,
                 keys: keys, explicitKeys: explicitKeys
             )
         }
-        let input = MetadataClient.shared.syncCapabilityEvidenceModelInput(
-            modelID: model.id, providerKind: provider.kind
-        )
-        return resolveOfficialCapabilities(
-            providerKind: provider.kind, identity: identity, keys: keys,
-            explicitKeys: explicitKeys, resolved: input.resolved,
-            metadataRevision: input.metadataRevision, reasoningModes: input.reasoningModes,
-            reasoningDefaultLevel: input.reasoningDefaultLevel
-        )
     }
 
+    /// For callers that do not hold the Provider object. The connection identity is already bound by the ChatManager TaskLocal;
+    /// this builds candidates only from the same metadata pair, reads no key and triggers no network. A relay declaration needs the
+    /// connection object, so this entry fails closed for a relay.
+    ///
+    /// The caller has no Provider, so it supplies the form directly; `providerKind` is used only to look up the official metadata.
     static func capabilityProjection(
+        form: ProviderForm,
         providerKind: ProviderKind,
         model: AIModel,
         identity: CapabilityEvidenceRequestIdentity?,
         keys: Set<String>,
         explicitKeys: Set<String> = []
     ) -> CapabilityEvidenceProjection {
-        guard providerKind != .relay, let identity else {
-            return unknownCapabilityProjection(keys: keys, identity: identity)
+        guard let identity else {
+            return unknownCapabilityProjection(keys: keys, identity: nil)
         }
-        let input = MetadataClient.shared.syncCapabilityEvidenceModelInput(
-            modelID: model.id, providerKind: providerKind
-        )
-        return resolveOfficialCapabilities(
-            providerKind: providerKind, identity: identity, keys: keys,
-            explicitKeys: explicitKeys, resolved: input.resolved,
-            metadataRevision: input.metadataRevision, reasoningModes: input.reasoningModes,
-            reasoningDefaultLevel: input.reasoningDefaultLevel
-        )
+        switch form {
+        case .relay:
+            return unknownCapabilityProjection(keys: keys, identity: identity)
+        case .subscription:
+            // Without a Provider the subscription protocol cannot be computed, so the identity transport the caller already settled on is trusted.
+            return resolveSubscriptionCapabilities(
+                form: form, providerKind: providerKind, model: model, catalogModels: nil,
+                transport: identity.query.effectiveTransport,
+                identity: identity, keys: keys, explicitKeys: explicitKeys
+            )
+        case .official:
+            return resolveOfficialCapabilities(
+                form: form, providerKind: providerKind, model: model, identity: identity,
+                keys: keys, explicitKeys: explicitKeys
+            )
+        }
     }
 
     static func uiDispatchIdentity(
@@ -139,41 +159,45 @@ extension CapabilityEvidenceProductionAdapter {
         model: AIModel,
         partitionID: String
     ) -> CapabilityEvidenceRequestIdentity? {
-        guard provider.kind == .relay,
-              let requested = provider.relayRequested,
-              requested.transport != .auto,
+        guard ProviderForm.of(provider) == .relay,
+              let transport = RelayEndpointResolver.explicitTransport(provider: provider, model: model),
+              let requested = RelayEndpointResolver.routedRequested(provider: provider, model: model),
               let rawBaseURL = trimmedNonEmpty(provider.baseURLText),
               trimmedNonEmpty(partitionID) != nil,
               let endpoint = relayChatEndpoint(
-                rawBaseURL: rawBaseURL,
+                apiRoot: RelayEndpointResolver.injectedAPIRoot(requested) ?? rawBaseURL,
                 modelID: ModelResolver.resolvedProviderModelIdentifier(
                     model.id, providerKind: provider.kind
                 ),
+                transport: transport,
                 requested: requested
               ) else { return nil }
 
         let metadataRevision = MetadataClient.shared.syncMetadataETag()
         let localProfile = LocalEngineGenerationProfiles.profile(
-            for: requested.engineProfile, transport: requested.transport
+            for: requested.engineProfile, transport: transport
         )
         let generationRevision = mergeRelayDeclaration(
             localProfile, model.generationProfile
         )?.revision ?? metadataRevision
         return CapabilityEvidenceRequestIdentity.make(
             provider: provider, model: model, partitionID: partitionID,
-            hasExplicitValue: false, effectiveTransport: requested.transport.rawValue,
+            hasExplicitValue: false, effectiveTransport: transport.rawValue,
             metadataETag: metadataRevision
         ).resolvingFinalDispatch(
             endpoint,
-            effectiveTransport: requested.transport.rawValue,
+            effectiveTransport: transport.rawValue,
             metadataRevision: metadataRevision,
             generationRevision: generationRevision
         )
     }
 
+    /// `requested` is a copy of `routedRequested`, the same one the service gets at send time;
+    /// for an existing connection it is the connection config as is, so the endpoint is byte-identical to before per-model routing.
     private static func relayChatEndpoint(
-        rawBaseURL: String,
+        apiRoot: String,
         modelID: String,
+        transport: RelayTransport,
         requested: RelayRequestedConfig
     ) -> URL? {
         let credentials = RelayEndpointPolicy.Credentials(
@@ -183,13 +207,13 @@ extension CapabilityEvidenceProductionAdapter {
             sensitiveQueryKeys: requested.effectiveQueryParams?.map(\.key) ?? []
         )
         guard let configured = try? RelayEndpointPolicy.requireConfigured(
-            requested.resolvedAPIBaseURL ?? rawBaseURL,
+            apiRoot,
             securityMode: requested.securityMode,
             credentials: credentials
         ) else { return nil }
 
         do {
-            switch requested.transport {
+            switch transport {
             case .auto:
                 return nil
             case .llamacppNative:
@@ -198,8 +222,8 @@ extension CapabilityEvidenceProductionAdapter {
                 ) + "/completion")
             case .openaiChatCompletions, .openaiResponses, .anthropicMessages,
                  .geminiGenerateContent:
-                let defaultVersion = requested.transport == .geminiGenerateContent ? "v1beta" : "v1"
-                let acceptedVersions: Set<String> = requested.transport == .geminiGenerateContent
+                let defaultVersion = transport == .geminiGenerateContent ? "v1beta" : "v1"
+                let acceptedVersions: Set<String> = transport == .geminiGenerateContent
                     ? ["v1", "v1beta"] : ["v1"]
                 let apiBaseURL = try RelayEndpointResolver.runtimeAPIBaseURL(
                     rawBaseURL: configured,
@@ -208,7 +232,7 @@ extension CapabilityEvidenceProductionAdapter {
                     acceptedVersions: acceptedVersions
                 )
                 let endpointPath: String
-                switch requested.transport {
+                switch transport {
                 case .openaiChatCompletions:
                     endpointPath = "/chat/completions"
                 case .openaiResponses:
@@ -247,10 +271,14 @@ extension CapabilityEvidenceProductionAdapter {
               CapabilityEvidenceFacade.isConcreteTransport(effectiveTransport) else {
             return unknownCapabilityProjection(keys: keys, identity: nil)
         }
+        let form = ProviderForm.of(provider)
         return finalDispatchIntent(
             request: request, effectiveTransport: effectiveTransport,
-            providerKind: provider.kind, model: model, current: current,
-            keys: keys, explicitKeys: explicitKeys
+            form: form, providerKind: provider.kind, model: model, current: current,
+            keys: keys, explicitKeys: explicitKeys,
+            catalogModels: form == .subscription ? provider.catalogModels : nil,
+            consumesEngineDeclaration: hasEngineProfile(provider),
+            webFragment: relayWebFragment(provider: provider, model: model)
         )
     }
 
@@ -263,6 +291,7 @@ extension CapabilityEvidenceProductionAdapter {
     ) -> CapabilityEvidenceProjection {
         guard let current = CapabilityEvidenceRequestContext.current,
               let providerKind = ProviderKind(rawValue: current.query.providerKind),
+              let authMode = ProviderAuthMode(rawValue: current.query.authMode),
               let model,
               current.query.modelID == model.id,
               CapabilityEvidenceFacade.isConcreteTransport(effectiveTransport) else {
@@ -270,22 +299,29 @@ extension CapabilityEvidenceProductionAdapter {
         }
         return finalDispatchIntent(
             request: request, effectiveTransport: effectiveTransport,
+            form: ProviderForm.of(kind: providerKind, authMode: authMode),
             providerKind: providerKind, model: model, current: current,
-            keys: keys, explicitKeys: explicitKeys
+            keys: keys, explicitKeys: explicitKeys,
+            // No Provider is available: declarations are written only by the local connector, so a model that carries one belongs to a local engine connection.
+            consumesEngineDeclaration: model.engineDeclaration != nil
         )
     }
 
     private static func finalDispatchIntent(
         request: URLRequest,
         effectiveTransport: String,
+        form: ProviderForm,
         providerKind: ProviderKind,
         model: AIModel,
         current: CapabilityEvidenceRequestIdentity,
         keys: Set<String>,
-        explicitKeys: Set<String>
+        explicitKeys: Set<String>,
+        catalogModels: [AIModel]? = nil,
+        consumesEngineDeclaration: Bool = false,
+        webFragment: CapabilityTruthInput.Relay.WebFragment? = nil
     ) -> CapabilityEvidenceProjection {
-
-        if providerKind == .relay {
+        switch form {
+        case .relay:
             let metadataRevision = MetadataClient.shared.syncMetadataETag()
             guard let identity = current.resolvingFinalDispatch(
                 request.url,
@@ -294,39 +330,66 @@ extension CapabilityEvidenceProductionAdapter {
                 generationRevision: current.query.generationRevision ?? metadataRevision
             ) else { return unknownCapabilityProjection(keys: keys, identity: nil) }
             return resolveRelayCapabilities(
-                providerKind: providerKind, model: model, identity: identity,
+                form: form, providerKind: providerKind, model: model, identity: identity,
+                keys: keys, explicitKeys: explicitKeys, consumesEngineDeclaration: consumesEngineDeclaration,
+                webFragment: webFragment
+            )
+
+        case .subscription:
+            // The builder decides the subscription protocol (`subscriptionFinalTransport`); only the transport it already selected is trusted here.
+            let metadataRevision = MetadataClient.shared.syncMetadataETag()
+            guard let identity = current.resolvingFinalDispatch(
+                request.url,
+                effectiveTransport: effectiveTransport,
+                metadataRevision: metadataRevision,
+                generationRevision: current.query.generationRevision ?? metadataRevision
+            ) else { return unknownCapabilityProjection(keys: keys, identity: nil) }
+            return resolveSubscriptionCapabilities(
+                form: form, providerKind: providerKind, model: model,
+                catalogModels: catalogModels, transport: effectiveTransport, identity: identity,
                 keys: keys, explicitKeys: explicitKeys
             )
-        }
 
-        let input = MetadataClient.shared.syncCapabilityEvidenceModelInput(
-            modelID: model.id, providerKind: providerKind
-        )
-        guard let identity = current.resolvingFinalDispatch(
-            request.url,
-            effectiveTransport: effectiveTransport,
-            metadataRevision: input.metadataRevision,
-            generationRevision: input.resolved?.generationProfile?.revision ?? input.metadataRevision
-        ) else { return unknownCapabilityProjection(keys: keys, identity: nil) }
-        return resolveOfficialCapabilities(
-            providerKind: providerKind, identity: identity, keys: keys,
-            explicitKeys: explicitKeys, resolved: input.resolved,
-            metadataRevision: input.metadataRevision, reasoningModes: input.reasoningModes,
-            reasoningDefaultLevel: input.reasoningDefaultLevel
-        )
+        case .official:
+            let input = MetadataClient.shared.syncCapabilityEvidenceModelInput(
+                modelID: model.id, providerKind: providerKind
+            )
+            guard let identity = current.resolvingFinalDispatch(
+                request.url,
+                effectiveTransport: effectiveTransport,
+                metadataRevision: input.metadataRevision,
+                generationRevision: input.resolved?.generationProfile?.revision ?? input.metadataRevision
+            ) else { return unknownCapabilityProjection(keys: keys, identity: nil) }
+            return resolveOfficialCapabilities(
+                form: form, providerKind: providerKind, model: model, identity: identity,
+                keys: keys, explicitKeys: explicitKeys, input: input
+            )
+        }
     }
 
-    private static func resolveOfficialCapabilities(
-        providerKind: ProviderKind,
-        identity: CapabilityEvidenceRequestIdentity,
-        keys: Set<String>,
-        explicitKeys: Set<String>,
+    private typealias OfficialMetadataInput = (
         resolved: MetadataClient.ResolvedModelMetadata?,
         metadataRevision: String?,
         reasoningModes: [ReasoningMode],
         reasoningDefaultLevel: ReasoningMode?
+    )
+
+    /// When the caller passes `input`, the identity and the candidates come from the same metadata read (the final writer needs this);
+    /// otherwise it is read once here.
+    private static func resolveOfficialCapabilities(
+        form: ProviderForm,
+        providerKind: ProviderKind,
+        model: AIModel,
+        identity: CapabilityEvidenceRequestIdentity,
+        keys: Set<String>,
+        explicitKeys: Set<String>,
+        input suppliedInput: OfficialMetadataInput? = nil
     ) -> CapabilityEvidenceProjection {
-        guard let resolved,
+        let input = suppliedInput ?? MetadataClient.shared.syncCapabilityEvidenceModelInput(
+            modelID: model.id, providerKind: providerKind
+        )
+        let metadataRevision = input.metadataRevision
+        guard let resolved = input.resolved,
               identity.query.metadataRevision == metadataRevision,
               CapabilityEvidenceFacade.isConcreteTransport(identity.query.effectiveTransport),
               resolved.transport == identity.query.effectiveTransport else {
@@ -336,30 +399,53 @@ extension CapabilityEvidenceProductionAdapter {
             return unknownCapabilityProjection(keys: keys, identity: identity)
         }
 
-        var candidates = resolved.capabilityEvidenceCandidates
-        for key in keys where isSafeCapabilityKey(key) {
-            guard !resolved.capabilityEvidenceViewMalformed,
-                  !resolved.capabilityEvidenceOwnedKeys.contains(key),
-                  let legacy = officialLegacyCandidate(
-                    key: key, providerKind: providerKind, resolved: resolved,
-                    query: identity.query, metadataRevision: metadataRevision,
-                    reasoningModes: reasoningModes
-                  ) else { continue }
-            candidates.append(legacy)
-        }
+        let candidates = CapabilityTruthRegistry.adapter(for: form).candidates(.init(
+            providerKind: providerKind, model: model,
+            keys: keys.filter(isSafeCapabilityKey), query: identity.query,
+            official: .init(
+                resolved: resolved, metadataRevision: metadataRevision,
+                reasoningModes: input.reasoningModes,
+                webState: {
+                    CapabilityControlResolution.webVerdict(
+                        providerKind: providerKind,
+                        modelID: identity.query.effectiveModelID,
+                        declaresWebCapability: resolved.capabilities.contains(.web),
+                        webSearchProfileName: resolved.profiles.webSearch
+                    ).state
+                }
+            )
+        ))
         return resolvedProjection(
             keys: keys, identity: identity, explicitKeys: explicitKeys,
             candidates: candidates,
-            reasoningDefaultLevel: reasoningDefaultLevel
+            reasoningDefaultLevel: input.reasoningDefaultLevel
         )
     }
 
+    private static func hasEngineProfile(_ provider: Provider) -> Bool {
+        trimmedNonEmpty(provider.relayRequested?.engineProfile) != nil
+    }
+
+    /// Input for relay web-search truth: the fragment decision and the record lookup always use the model's first-send protocol,
+    /// resolved the same way as `RelayWebProbe.chatFragments` / `panelFact`; when a fragment exists it carries the probe record result under the current fragment.
+    private static func relayWebFragment(provider: Provider, model: AIModel) -> CapabilityTruthInput.Relay.WebFragment? {
+        guard ProviderForm.of(provider) == .relay, RelayWebProbe.isEligible(provider: provider, model: model) else { return nil }
+        let fragments = RelayWebFragmentStore.shared.chatFragments(for: provider)
+        guard fragments?.object(for: RelayWebProbe.transport(provider: provider, model: model)) != nil else { return nil }
+        return .init(probe: RelayWebProbe.currentResult(
+            provider: provider, model: model, fragments: fragments, records: .shared
+        ))
+    }
+
     private static func resolveRelayCapabilities(
+        form: ProviderForm,
         providerKind: ProviderKind,
         model: AIModel,
         identity: CapabilityEvidenceRequestIdentity,
         keys: Set<String>,
-        explicitKeys: Set<String>
+        explicitKeys: Set<String>,
+        consumesEngineDeclaration: Bool,
+        webFragment: CapabilityTruthInput.Relay.WebFragment? = nil
     ) -> CapabilityEvidenceProjection {
         guard isCompleteConnectionQuery(identity.query),
               let transport = RelayTransport(rawValue: identity.query.effectiveTransport) else {
@@ -369,19 +455,71 @@ extension CapabilityEvidenceProductionAdapter {
         let envelope = Set(RelayRuntimeSupport.envelopeCapabilities(
             transport: transport, runtimeConfig: runtime
         ))
-        var candidates: [CapabilityEvidenceFacade.Candidate] = []
-        for key in keys where isSafeCapabilityKey(key) {
-            if let candidate = relayDeclarationCandidate(
-                key: key, providerKind: providerKind, model: model,
-                envelopeCapabilities: envelope, query: identity.query
-            ) {
-                candidates.append(candidate)
-            }
-        }
+        let candidates = CapabilityTruthRegistry.adapter(for: form).candidates(.init(
+            providerKind: providerKind, model: model,
+            keys: keys.filter(isSafeCapabilityKey), query: identity.query,
+            relay: .init(
+                envelopeCapabilities: envelope,
+                supportedReasoningModes: {
+                    MetadataClient.shared.syncSupportedReasoningModes(profileName: $0)
+                },
+                consumesEngineDeclaration: consumesEngineDeclaration,
+                webFragment: webFragment
+            )
+        ))
         return resolvedProjection(
             keys: keys, identity: identity, explicitKeys: explicitKeys,
             candidates: candidates,
             reasoningDefaultLevel: nil
+        )
+    }
+
+    /// Subscription (Codex / Grok subscription login): capabilities follow only the upstream `/models` snapshot; the transport comes from
+    /// the link itself (`subscriptionFinalTransport`) and fails closed when it cannot be computed. The level source is injected into the adapter as a closure.
+    private static func resolveSubscriptionCapabilities(
+        form: ProviderForm,
+        providerKind: ProviderKind,
+        model: AIModel,
+        catalogModels: [AIModel]?,
+        transport: String?,
+        identity: CapabilityEvidenceRequestIdentity,
+        keys: Set<String>,
+        explicitKeys: Set<String>
+    ) -> CapabilityEvidenceProjection {
+        guard let transport,
+              let subscriptionIdentity = identity.resolvingCapabilityRuntimeTransport(transport) else {
+            return unknownCapabilityProjection(keys: keys, identity: identity)
+        }
+        let candidates = CapabilityTruthRegistry.adapter(for: form).candidates(.init(
+            providerKind: providerKind, model: model,
+            keys: keys.filter(isSafeCapabilityKey), query: subscriptionIdentity.query,
+            subscription: .init(
+                finalTransport: transport,
+                declaredReasoningLevels: {
+                    CapabilityControlResolution.subscriptionDeclaredReasoningLevels(
+                        providerKind: providerKind, model: $0
+                    )
+                }
+            ),
+            catalogModels: catalogModels
+        ))
+        // Keys the adapter has no ruling for (`tool_call`, and every key when the catalog is empty) stay unknown and are not sent outbound,
+        // as before the adapter was introduced; handing them to the facade would take the "no candidate + user explicit" pass-through,
+        // which would loosen the catalog-backed form.
+        let decided = Set(candidates.map(\.key))
+        let resolutions = Dictionary(uniqueKeysWithValues: keys.map { key in
+            guard decided.contains(key) else {
+                return (key, CapabilityEvidenceFacade.Resolution(
+                    key: key, support: .unknown, source: .none, grade: .none,
+                    requestPolicy: .omitUnknown, reasonCode: .missingEvidence, policyEvidence: nil
+                ))
+            }
+            let itemQuery = query(subscriptionIdentity.query, hasExplicitValue: explicitKeys.contains(key))
+            return (key, CapabilityEvidenceFacade.resolve(key: key, query: itemQuery, candidates: candidates))
+        })
+        return .init(
+            identity: subscriptionIdentity, resolutions: resolutions,
+            declaredReasoningDefaultLevel: nil
         )
     }
 
@@ -399,103 +537,6 @@ extension CapabilityEvidenceProductionAdapter {
         return .init(
             identity: identity, resolutions: resolutions,
             declaredReasoningDefaultLevel: reasoningDefaultLevel
-        )
-    }
-
-    private static func officialLegacyCandidate(
-        key: String,
-        providerKind: ProviderKind,
-        resolved: MetadataClient.ResolvedModelMetadata,
-        query: CapabilityEvidenceFacade.Query,
-        metadataRevision: String?,
-        reasoningModes: [ReasoningMode]
-    ) -> CapabilityEvidenceFacade.Candidate? {
-        let verdict: (CapabilityEvidenceFacade.Support, CapabilityEvidenceFacade.Source, CapabilityEvidenceFacade.Grade)?
-        switch key {
-        case "tool_call":
-            verdict = resolved.toolCall.map {
-                ($0 ? .supported : .unsupported, .legacyMetadata, .legacyUnverified)
-            }
-        case "web_search":
-            switch CapabilityControlResolution.webVerdict(
-                providerKind: providerKind,
-                modelID: query.effectiveModelID,
-                declaresWebCapability: resolved.capabilities.contains(.web),
-                webSearchProfileName: resolved.profiles.webSearch
-            ).state {
-            case .autoAvailable, .managedOnly:
-                verdict = (.supported, .serverProfile, .declared)
-            case .unavailable:
-                verdict = (.unsupported, .serverProfile, .declared)
-            case .customOnly, .unknown:
-                verdict = nil
-            }
-        case "vision_input":
-            verdict = resolved.capabilities.contains(.image)
-                ? (.supported, .legacyMetadata, .legacyUnverified) : nil
-        default:
-            if key.hasPrefix("reasoning_level/"),
-               let rawLevel = trimmedNonEmpty(String(key.dropFirst("reasoning_level/".count))),
-               let mode = ReasoningMode.fromIntent(rawLevel),
-               trimmedNonEmpty(resolved.profiles.reasoning) != nil {
-                verdict = reasoningModes.contains(mode)
-                    ? (.supported, .serverProfile, .effectVerified)
-                    : (.unsupported, .serverProfile, .declared)
-            } else {
-                verdict = nil
-            }
-        }
-        guard let verdict else { return nil }
-        return .init(
-            key: key, support: verdict.0, source: verdict.1, grade: verdict.2,
-            scope: .providerModelTransport, providerKind: providerKind.rawValue,
-            modelID: query.effectiveModelID, transport: query.effectiveTransport,
-            metadataRevision: metadataRevision
-        )
-    }
-
-    private static func relayDeclarationCandidate(
-        key: String,
-        providerKind: ProviderKind,
-        model: AIModel,
-        envelopeCapabilities: Set<ModelCapability>,
-        query: CapabilityEvidenceFacade.Query
-    ) -> CapabilityEvidenceFacade.Candidate? {
-        let support: CapabilityEvidenceFacade.Support
-        switch key {
-        case "tool_call":
-            guard let declared = model.toolCall else { return nil }
-            support = declared ? .unknown : .unsupported
-        case "web_search":
-            if !envelopeCapabilities.contains(.web) { support = .unsupported }
-            else if model.capabilities.contains(.web), trimmedNonEmpty(model.webSearchProfile) != nil { support = .unknown }
-            else { return nil }
-        case "vision_input":
-            if !envelopeCapabilities.contains(.image) { support = .unsupported }
-            else if model.capabilities.contains(.image) { support = .unknown }
-            else { return nil }
-        default:
-            guard key.hasPrefix("reasoning_level/") else { return nil }
-            let rawLevel = String(key.dropFirst("reasoning_level/".count))
-            guard let mode = ReasoningMode.fromIntent(rawLevel) else { return nil }
-            if !envelopeCapabilities.contains(.reasoning) { support = .unsupported }
-            else if trimmedNonEmpty(model.reasoningProfile) != nil,
-                    MetadataClient.shared.syncSupportedReasoningModes(
-                        profileName: model.reasoningProfile
-                    ).contains(mode) { support = .unknown }
-            else { return nil }
-        }
-        return .init(
-            key: key, support: support, source: .relayDeclaration,
-            grade: support == .unsupported ? .declared : .acceptedUnverified,
-            scope: .connectionModelTransport,
-            partitionID: query.partitionID, providerKind: providerKind.rawValue,
-            modelID: query.effectiveModelID, transport: query.effectiveTransport,
-            connectionInstanceID: query.connectionInstanceID,
-            connectionGeneration: query.connectionGeneration,
-            credentialEpoch: query.credentialEpoch,
-            endpointFingerprint: query.endpointFingerprint,
-            metadataRevision: query.metadataRevision
         )
     }
 
@@ -518,31 +559,6 @@ extension CapabilityEvidenceProductionAdapter {
             identity: identity, resolutions: resolutions,
             declaredReasoningDefaultLevel: nil
         )
-    }
-
-    static func visionFilteredOutboundMessages(
-        _ messages: [ChatMessage],
-        request: URLRequest,
-        effectiveTransport: String,
-        model: AIModel?
-    ) -> [ChatMessage] {
-        let hasImages = messages.contains { message in
-            message.attachments?.contains(where: { $0.kind == .image }) == true
-        }
-        guard hasImages else { return messages }
-        let intent = finalDispatchIntent(
-            request: request, effectiveTransport: effectiveTransport, model: model,
-            keys: ["vision_input"], explicitKeys: ["vision_input"]
-        )
-        guard !intent.permitsOutbound("vision_input") else { return messages }
-        return messages.map { message in
-            var copy = message
-            if let attachments = message.attachments {
-                let filtered = attachments.filter { $0.kind != .image }
-                copy.attachments = filtered.isEmpty ? nil : filtered
-            }
-            return copy
-        }
     }
 }
 
@@ -574,13 +590,38 @@ final class CapabilityEvidenceDispatchOnce: @unchecked Sendable {
 }
 
 extension CapabilityEvidenceProductionAdapter {
+    /// When a relay's image understanding is unknown, the image is sent anyway: it is stripped only on negative evidence (an override of false /
+    /// an engine declaration of false / a protocol envelope that does not accept images, all already folded into the resolution's unsupported)
+    /// or when the `image` negative cache for that key has not expired. The adapter is not given an unknown candidate (that would light up the
+    /// model library badge); without a complete connection identity it still fails closed. Other forms are unchanged.
+    static func relayPermitsUnknownImage(
+        projection: CapabilityEvidenceProjection,
+        model: AIModel?,
+        negativeCache: RelayNegativeCache = .shared
+    ) -> Bool {
+        guard let model,
+              let query = projection.identity?.query,
+              let providerKind = ProviderKind(rawValue: query.providerKind),
+              let authMode = ProviderAuthMode(rawValue: query.authMode),
+              ProviderForm.of(kind: providerKind, authMode: authMode) == .relay,
+              isCompleteConnectionQuery(query),
+              CapabilityEvidenceFacade.isConcreteTransport(query.effectiveTransport),
+              projection.resolution(for: "vision_input")?.support != .unsupported else { return false }
+        return !negativeCache.isRejected(
+            connectionID: query.connectionInstanceID, modelID: model.id,
+            transport: query.effectiveTransport, kind: .image
+        )
+    }
+
     static func finalChatIntent(
         messages: [ChatMessage],
         request: URLRequest,
         effectiveTransport: String,
         model: AIModel?,
         requestedReasoningMode: ReasoningMode,
-        webSearchEnabled: Bool
+        webSearchEnabled: Bool,
+        imagePlaceholderText: String? = nil,
+        keepImageAttachments: Bool = false
     ) -> CapabilityEvidenceFinalChatIntent {
         let hasImages = messages.contains { message in
             message.attachments?.contains(where: { $0.kind == .image }) == true
@@ -619,12 +660,22 @@ extension CapabilityEvidenceProductionAdapter {
             return selected
         }()
         let outboundMessages: [ChatMessage]
-        if hasImages, !projection.permitsOutbound("vision_input") {
+        // The image item of "Test capabilities" is itself testing this image, so neither an override of false nor the negative cache may strip it.
+        if hasImages, !keepImageAttachments, !projection.permitsOutbound("vision_input"),
+           !relayPermitsUnknownImage(projection: projection, model: model) {
             outboundMessages = messages.map { message in
                 var copy = message
                 if let attachments = message.attachments {
                     let filtered = attachments.filter { $0.kind != .image }
                     copy.attachments = filtered.isEmpty ? nil : filtered
+                    // On a text-only route, a removed image leaves a placeholder line in the body (the same bytes and position as AttachmentDelivery writes),
+                    // otherwise the model would not know the user attached an image.
+                    let removed = attachments.count - filtered.count
+                    if let imagePlaceholderText, removed > 0 {
+                        copy.text = ([message.text] + Array(repeating: imagePlaceholderText, count: removed))
+                            .filter { !$0.isEmpty }
+                            .joined(separator: "\n\n")
+                    }
                 }
                 return copy
             }

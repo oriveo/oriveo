@@ -51,7 +51,7 @@ struct SettingsRow: View {
             }
 
             if showsChevron {
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(OriveoTheme.Palette.textTertiary)
             }

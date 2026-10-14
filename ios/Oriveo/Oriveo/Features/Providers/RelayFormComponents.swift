@@ -12,6 +12,8 @@ struct RelaySetupStatusRow: View {
 
     let message: String
     let systemImage: String
+    /// When provided, replaces `systemImage` (the edit-connection page uses Phosphor); without it the row looks exactly as before.
+    var phosphorIcon: PhosphorIcon? = nil
     let tone: Tone
     var showsProgress = false
     var actionTitle: String? = nil
@@ -23,6 +25,15 @@ struct RelaySetupStatusRow: View {
                 ProgressView()
                     .controlSize(.small)
                     .frame(minWidth: 24, minHeight: 24)
+            } else if let phosphorIcon {
+                phosphorIcon.image(.regular)
+                    .resizable()
+                    .renderingMode(.template)
+                    .scaledToFit()
+                    .frame(width: 18, height: 18)
+                    .foregroundStyle(accent)
+                    .frame(minWidth: 24, minHeight: 24)
+                    .accessibilityHidden(true)
             } else {
                 Image(systemName: systemImage)
                     .font(.system(size: 15, weight: .semibold))
@@ -74,6 +85,34 @@ struct RelaySetupStatusRow: View {
     }
 }
 
+// MARK: - Soft-fill input slot
+
+/// Input slot surface shared by the endpoint slot and the key-value slots on the edit-connection page. At rest it is
+/// only a soft fill; a stroke appears when focused or when highlighted from outside.
+/// Replaces the system `.roundedBorder`, which was the only grey-white bordered box on the page and looked harsh in dark mode.
+struct RelayFillSlotModifier: ViewModifier {
+    let isFocused: Bool
+    var isHighlighted = false
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: OriveoTheme.Radius.md, style: .continuous)
+        content
+            .background(shape.fill(OriveoTheme.Palette.surfaceInset))
+            .overlay(
+                shape.stroke(
+                    OriveoTheme.Palette.primary.opacity(isFocused || isHighlighted ? 0.8 : 0),
+                    lineWidth: isHighlighted ? 1.5 : 1.25
+                )
+            )
+    }
+}
+
+extension View {
+    func relayFillSlot(isFocused: Bool, isHighlighted: Bool = false) -> some View {
+        modifier(RelayFillSlotModifier(isFocused: isFocused, isHighlighted: isHighlighted))
+    }
+}
+
 
 struct RelayFormIssueNotes: View {
     let issues: [RelayFormValidation.FieldIssue]
@@ -90,6 +129,44 @@ struct RelayFormIssueNotes: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+// MARK: - Failure card reveal
+
+/// The verification failure card and the test-connection result row sit at the end of the scrolling content, so they
+/// land off-screen while the keyboard is still open. The edit-connection page and the "manual setup" step of the add
+/// page share one approach: when a new card or result appears, dismiss the keyboard and scroll it into view.
+enum RelayFailureCardReveal {
+    /// Anchor of the failure card in the scrolling content; a page has at most one.
+    static let anchorID = "relay-failure-card"
+    /// Anchor of the status row (test connection / reconnect) at the end of the edit-connection content.
+    static let statusAnchorID = "relay-status-row"
+
+    /// Only act when a new card or status appears; do not scroll when one is dismissed (input edited or saved).
+    static func shouldReveal<Value: Equatable>(previous: Value?, current: Value?) -> Bool {
+        current != nil && current != previous
+    }
+
+    static func revealIfNeeded<Value: Equatable>(
+        previous: Value?,
+        current: Value?,
+        anchor anchorID: String = RelayFailureCardReveal.anchorID,
+        proxy: ScrollViewProxy
+    ) {
+        guard shouldReveal(previous: previous, current: current) else { return }
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
+        // The card is inserted on this frame; wait for layout before scrolling, otherwise the anchor is not found yet.
+        Task { @MainActor in
+            withAnimation(.snappy(duration: 0.25)) {
+                proxy.scrollTo(anchorID, anchor: .bottom)
+            }
         }
     }
 }

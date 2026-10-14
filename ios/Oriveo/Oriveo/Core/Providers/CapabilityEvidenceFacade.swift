@@ -10,11 +10,19 @@ enum CapabilityEvidenceFacade {
     enum Source: String, Codable, Sendable {
         case serverTyped = "server_typed"
         case serverProfile = "server_profile"
+        /// Per-model declaration from the subscription proxy's `/models` (`SubscriptionTruthAdapter`); produced only locally on the client.
+        case upstreamDeclaration = "upstream_declaration"
+        /// The server `model-facts` (models.dev) dictionary; a second-hand source for subscription tiers on a cold start, produced only locally on the client.
+        case modelFacts = "model_facts"
         case relayVerification = "relay_verification"
         case relayDeclaration = "relay_declaration"
         case runtimeObservation = "runtime_observation"
         case operatorOverride = "operator_override"
         case legacyMetadata = "legacy_metadata"
+        /// The model is not in the authoritative catalog of this form (a subscription catalog produces it). It is not a
+        /// capability conclusion and takes no part in priority ordering; its job is to pin the key at unknown and not send it
+        /// outbound, even when the user turned it on explicitly.
+        case catalogAbsent = "catalog_absent"
         case none
     }
 
@@ -54,6 +62,7 @@ enum CapabilityEvidenceFacade {
         case legacyPayload = "legacy_payload"
         case unsupported
         case supported
+        case catalogAbsent = "catalog_absent"
     }
 
     struct Query: Equatable, Sendable {
@@ -62,6 +71,9 @@ enum CapabilityEvidenceFacade {
         let connectionGeneration: String
         let credentialEpoch: String
         let providerKind: String
+        /// The connection's credential form (the raw value of `ProviderAuthMode`). Form derivation needs it: the same
+        /// providerKind can be an API Key instance or a subscription instance, and an entry that carries only providerKind cannot tell them apart.
+        let authMode: String
         let modelID: String
         let canonicalModelID: String?
         let effectiveTransport: String
@@ -77,6 +89,7 @@ enum CapabilityEvidenceFacade {
             connectionGeneration: String,
             credentialEpoch: String,
             providerKind: String,
+            authMode: String,
             modelID: String,
             canonicalModelID: String? = nil,
             effectiveTransport: String,
@@ -91,6 +104,7 @@ enum CapabilityEvidenceFacade {
             self.connectionGeneration = connectionGeneration
             self.credentialEpoch = credentialEpoch
             self.providerKind = providerKind
+            self.authMode = authMode
             self.modelID = modelID
             self.canonicalModelID = canonicalModelID
             self.effectiveTransport = effectiveTransport
@@ -258,6 +272,14 @@ enum CapabilityEvidenceFacade {
             } else {
                 verdict = unknown(key: key, reason: .missingEvidence)
             }
+        } else if liveCandidates.contains(where: { $0.source == .catalogAbsent }) {
+            // The authoritative catalog does not have this model: this is not "we found no information", so the
+            // explicit escape hatch below does not apply, and it is not sent outbound even if the user turned it on explicitly.
+            // It takes effect only when there is no valid candidate that carries a priority.
+            verdict = Resolution(
+                key: key, support: .unknown, source: .catalogAbsent, grade: .none,
+                requestPolicy: .omitUnknown, reasonCode: .catalogAbsent, policyEvidence: nil
+            )
         } else if sameKey.isEmpty, query.hasExplicitValue, !isGenerationParameterKey(key) {
             // Reached only when nothing at all is on record for this key. Evidence that exists
             // but was filtered out by identity, transport or revision is a real signal
@@ -446,10 +468,12 @@ enum CapabilityEvidenceFacade {
         case .operatorOverride: return 0
         case .serverTyped: return 1
         case .serverProfile: return 2
-        case .relayVerification: return 3
-        case .relayDeclaration: return 4
-        case .legacyMetadata: return 5
-        case .runtimeObservation, .none: return nil
+        case .upstreamDeclaration: return 3
+        case .modelFacts: return 4
+        case .relayVerification: return 5
+        case .relayDeclaration: return 6
+        case .legacyMetadata: return 7
+        case .runtimeObservation, .catalogAbsent, .none: return nil
         }
     }
 

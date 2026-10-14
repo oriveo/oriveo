@@ -34,6 +34,9 @@ struct ChatListViewControllerRepresentable: UIViewControllerRepresentable {
     var onRegenerateMessage: (ChatMessage) -> Void
     var onEditMessage: (ChatMessage) -> Void
     var onSwitchModelRequested: () -> Void
+    /// Whether a failed message offers "switch to another key", and where tapping it goes.
+    var offersSwitchKey: (ChatMessage) -> Bool = { _ in false }
+    var onSwitchKeyRequested: (ChatMessage) -> Void = { _ in }
     var onPendingSearchTargetHandled: () -> Void
     var onDismissComposer: () -> Void
     var onAnchorUserMessageConsumed: (UUID) -> Void
@@ -76,6 +79,8 @@ struct ChatListViewControllerRepresentable: UIViewControllerRepresentable {
             onRegenerate: onRegenerateMessage,
             onEditMessage: onEditMessage,
             onSwitchModel: onSwitchModelRequested,
+            offersSwitchKey: offersSwitchKey,
+            onSwitchKey: onSwitchKeyRequested,
             pendingAnchorUserMessageID: viewModel.pendingAnchorUserMessageID,
             onAnchorUserMessageConsumed: onAnchorUserMessageConsumed,
             scrollToBottomRequest: scrollToBottomRequest,

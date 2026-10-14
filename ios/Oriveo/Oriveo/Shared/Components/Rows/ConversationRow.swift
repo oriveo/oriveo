@@ -38,6 +38,12 @@ struct ConversationRow: View, Equatable {
             lhs.provider?.kind == rhs.provider?.kind
         guard providerEqual else { return false }
 
+        // The relay avatar also depends on the host, protocol type and local engine, so a change in any of them must redraw
+        let avatarEqual = lhs.provider?.baseURLText == rhs.provider?.baseURLText &&
+            lhs.provider?.relayKind == rhs.provider?.relayKind &&
+            lhs.provider?.relayRequested?.engineProfile == rhs.provider?.relayRequested?.engineProfile
+        guard avatarEqual else { return false }
+
         let displayEqual = lhs.folderName == rhs.folderName &&
             lhs.skillIcon == rhs.skillIcon &&
             lhs.grouped == rhs.grouped &&
@@ -195,10 +201,12 @@ struct ConversationRow: View, Equatable {
 
     @ViewBuilder
     private var conversationAvatar: some View {
-        ProviderBadgeIcon(
+        // Relay connections use the unified avatar; a deleted connection falls back to generic. Local engines still need provider.relayKind.
+        ConnectionAvatarIcon(
+            provider: provider,
             kind: conversation.providerKind,
-            size: Self.avatarSize,
-            relayKind: provider?.relayKind
+            relayKind: provider?.relayKind,
+            size: Self.avatarSize
         )
     }
 

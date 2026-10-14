@@ -164,10 +164,11 @@ struct ProviderHeroCard: View {
 
     private var identityColumn: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ProviderBadgeIcon(
+            ConnectionAvatarIcon(
+                provider: provider,
                 kind: resolvedLogoKind,
-                size: logoTileSize,
-                relayKind: resolvedRelayKind
+                relayKind: resolvedRelayKind,
+                size: logoTileSize
             )
             .padding(.all, -ProviderBadgeLogoMetrics.brandInset(for: logoTileSize))
 
@@ -244,7 +245,8 @@ struct ProviderHeroCard: View {
     }
 
     private var primaryModelName: String? {
-        let candidate = provider.models.first(where: { $0.isDefault && $0.isAvailable })
+        // Relay connections have no default model, so the legacy isDefault flag is ignored.
+        let candidate = provider.models.first(where: { $0.isDefault && $0.isAvailable && provider.kind != .relay })
             ?? provider.models.first(where: { $0.isAvailable })
             ?? provider.models.first
         guard let model = candidate else { return nil }

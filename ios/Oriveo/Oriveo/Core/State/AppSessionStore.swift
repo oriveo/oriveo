@@ -58,6 +58,23 @@ nonisolated struct AppSessionSnapshot: Codable {
             } else if !provider.apiKey.isEmpty {
                 ProviderAPIKeyStore.save(apiKey: provider.apiKey, providerID: provider.id, uid: uid)
             }
+            copy.relayKeys = provider.relayKeys.map { keys in
+                keys.enumerated().map { index, key in
+                    var entry = key
+                    guard index > 0 else {
+                        // The primary key's value lives only in provider.apiKey.
+                        entry.apiKey = ""
+                        return entry
+                    }
+                    if let stored = ProviderAPIKeyStore.loadRelayKey(keyID: key.id, providerID: provider.id, uid: uid),
+                       !stored.isEmpty {
+                        entry.apiKey = stored
+                    } else if !key.apiKey.isEmpty {
+                        ProviderAPIKeyStore.persistRelayKey(apiKey: key.apiKey, keyID: key.id, providerID: provider.id, uid: uid)
+                    }
+                    return entry
+                }
+            }
             return copy
         }
         return hydrated
@@ -76,9 +93,21 @@ nonisolated struct AppSessionSnapshot: Codable {
                 )
             }
             copy.apiKey = ""
+            // Non-primary keys are kept like apiKey: the value goes to the Keychain (account `uid:providerUUID#keyID`) and the snapshot stores an empty string.
+            copy.relayKeys = provider.relayKeys.map { keys in
+                keys.enumerated().map { index, key in
+                    if index > 0, !key.apiKey.isEmpty {
+                        ProviderAPIKeyStore.persistRelayKey(apiKey: key.apiKey, keyID: key.id, providerID: provider.id, uid: uid)
+                    }
+                    return key.withoutSecret
+                }
+            }
             return copy
         }
-        ProviderAPIKeyStore.deleteAllExcept(providerIDs: providerIDs, uid: uid)
+        let relayKeyIDs = Dictionary(providers.map { provider in
+            (provider.id, Set((provider.relayKeys ?? []).dropFirst().map(\.id)))
+        }, uniquingKeysWith: { $0.union($1) })
+        ProviderAPIKeyStore.deleteAllExcept(providerIDs: providerIDs, relayKeyIDs: relayKeyIDs, uid: uid)
         return persisted
     }
 }
@@ -86,8 +115,30 @@ nonisolated struct AppSessionSnapshot: Codable {
 enum ProviderAPIKeyStore {
     private static let service = "ai.oriveo.community.provider-api-key"
 
+    /// An unsigned test host cannot reach the Keychain: once testing is turned on, the four access primitives use an in-memory table, and the rest of the logic runs through the production path.
+    private nonisolated static let testingBackendLock = NSLock()
+    nonisolated(unsafe) private static var testingBackend: [String: String]?
+
+    static func useInMemoryBackendForTesting(_ enabled: Bool) {
+        testingBackendLock.withLock { testingBackend = enabled ? [:] : nil }
+    }
+
+    private static func withTestingBackend<T>(_ body: (inout [String: String]) -> T) -> T? {
+        testingBackendLock.withLock {
+            guard var backend = testingBackend else { return nil }
+            let result = body(&backend)
+            testingBackend = backend
+            return result
+        }
+    }
+
     private static func account(providerID: UUID, uid: String) -> String {
         "\(uid):\(providerID.uuidString)"
+    }
+
+    /// Non-primary relay keys: the primary key's account plus `#<keyID>`.
+    private static func relayKeyAccount(keyID: String, providerID: UUID, uid: String) -> String {
+        "\(account(providerID: providerID, uid: uid))#\(keyID)"
     }
 
     static func save(apiKey: String, providerID: UUID, uid: String) {
@@ -101,11 +152,36 @@ enum ProviderAPIKeyStore {
     }
 
     private static func write(apiKey: String, providerID: UUID, uid: String) {
+        write(apiKey: apiKey, account: account(providerID: providerID, uid: uid))
+    }
+
+    /// A non-primary key only carries a value that is already in use, so it does not advance the credential epoch (the capability negative cache has no key dimension).
+    static func persistRelayKey(apiKey: String, keyID: String, providerID: UUID, uid: String) {
+        guard !apiKey.isEmpty else { return }
+        write(apiKey: apiKey, account: relayKeyAccount(keyID: keyID, providerID: providerID, uid: uid))
+    }
+
+    static func loadRelayKey(keyID: String, providerID: UUID, uid: String) -> String? {
+        load(account: relayKeyAccount(keyID: keyID, providerID: providerID, uid: uid))
+    }
+
+    private static func deleteAccount(_ account: String) {
+        if withTestingBackend({ $0[account] = nil }) != nil { return }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        _ = SecItemDelete(query as CFDictionary)
+    }
+
+    private static func write(apiKey: String, account: String) {
+        if withTestingBackend({ $0[account] = apiKey }) != nil { return }
         guard let data = apiKey.data(using: .utf8) else { return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account(providerID: providerID, uid: uid)
+            kSecAttrAccount as String: account
         ]
         let attributes: [String: Any] = [
             kSecValueData as String: data
@@ -119,10 +195,15 @@ enum ProviderAPIKeyStore {
     }
 
     static func load(providerID: UUID, uid: String) -> String? {
+        load(account: account(providerID: providerID, uid: uid))
+    }
+
+    private static func load(account: String) -> String? {
+        if let stored = withTestingBackend({ $0[account] }) { return stored }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account(providerID: providerID, uid: uid),
+            kSecAttrAccount as String: account,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
@@ -136,23 +217,46 @@ enum ProviderAPIKeyStore {
     }
 
     static func delete(providerID: UUID, uid: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account(providerID: providerID, uid: uid)
-        ]
-        _ = SecItemDelete(query as CFDictionary)
+        deleteAccount(account(providerID: providerID, uid: uid))
+        // Non-primary relay keys live under `#keyID` accounts of the same service; remove them with the connection.
+        deleteRelayKeys(providerID: providerID, uid: uid)
         GrokSubscriptionCredentialStore.delete(providerID: providerID, uid: uid)
         OpenAISubscriptionCredentialStore.delete(providerID: providerID, uid: uid)
         ProviderCapabilityIdentityStore.advanceCredentialEpoch(providerID: providerID, partitionID: uid)
     }
 
     static func deleteAll(for uid: String) {
-        deleteAllExcept(providerIDs: Set<UUID>(), uid: uid)
+        deleteAllExcept(providerIDs: Set<UUID>(), relayKeyIDs: [:], uid: uid)
     }
 
-    static func deleteAllExcept(providerIDs: Set<UUID>, uid: String) {
+    /// - relayKeyIDs: the non-primary key ids still in the list for each retained connection; `#keyID` accounts not among them are deleted.
+    static func deleteAllExcept(providerIDs: Set<UUID>, relayKeyIDs: [UUID: Set<String>], uid: String) {
         let prefix = "\(uid):"
+        for account in accounts(withPrefix: prefix) {
+            let rawID = String(account.dropFirst(prefix.count))
+            if let separator = rawID.firstIndex(of: "#") {
+                guard let providerID = UUID(uuidString: String(rawID[..<separator])) else { continue }
+                let keyID = String(rawID[rawID.index(after: separator)...])
+                if !providerIDs.contains(providerID) || relayKeyIDs[providerID]?.contains(keyID) != true {
+                    deleteAccount(account)
+                }
+                continue
+            }
+            guard let providerID = UUID(uuidString: rawID), !providerIDs.contains(providerID) else {
+                continue
+            }
+            delete(providerID: providerID, uid: uid)
+        }
+    }
+
+    private static func deleteRelayKeys(providerID: UUID, uid: String) {
+        for account in accounts(withPrefix: "\(account(providerID: providerID, uid: uid))#") {
+            deleteAccount(account)
+        }
+    }
+
+    private static func accounts(withPrefix prefix: String) -> [String] {
+        if let stored = withTestingBackend({ Array($0.keys) }) { return stored.filter { $0.hasPrefix(prefix) } }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -162,19 +266,9 @@ enum ProviderAPIKeyStore {
         var result: AnyObject?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
               let items = result as? [[String: Any]] else {
-            return
+            return []
         }
-        for item in items {
-            guard let account = item[kSecAttrAccount as String] as? String,
-                  account.hasPrefix(prefix) else {
-                continue
-            }
-            let rawID = String(account.dropFirst(prefix.count))
-            guard let providerID = UUID(uuidString: rawID), !providerIDs.contains(providerID) else {
-                continue
-            }
-            delete(providerID: providerID, uid: uid)
-        }
+        return items.compactMap { $0[kSecAttrAccount as String] as? String }.filter { $0.hasPrefix(prefix) }
     }
 }
 

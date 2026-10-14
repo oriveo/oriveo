@@ -6,6 +6,9 @@ enum TransportKind: String, Sendable, CaseIterable {
     case openaiResponses = "openai_responses"
     case anthropicMessages = "anthropic_messages"
     case geminiGenerate = "gemini_generate"
+    /// Reachable only through a server-side transport override. It is sent by the same GeminiService; whether this turn uses Interactions or
+    /// generateContent is decided by `GeminiService.interactionsRecipe`.
+    case geminiInteractions = "gemini_interactions"
     case dashscopeNative = "dashscope_native"
     case openaiImages = "openai_images"
     case geminiImage = "gemini_image"
@@ -36,6 +39,12 @@ struct StreamContext: Sendable {
     var toolCallAccumulator = OpenAICompatibleToolCallAccumulator(decodesFunctionNames: false)
     var protocolToolCallDecoder: (any ToolCallStreamDecoding)?
     var didFinish: Bool = false
+    /// Evidence that the server really ran a web search (read by the relay web-search probe; chat does not read it, so chat output is unaffected).
+    var webSearchEvidence = WebSearchEvidence()
+    /// Relay Chat streams only: when the stream shape's citation path points at `choices.0.message.*`, also read
+    /// `choices.0.delta.*` from streaming frames (OpenAI Chat streaming puts web-search annotations on the delta).
+    /// Set only by relay streams; direct providers are unchanged.
+    var readsDeltaCitations = false
 
     mutating func ingestProtocolToolCalls(
         frame: [String: Any],
@@ -52,6 +61,22 @@ struct StreamContext: Sendable {
         let calls = decoder.finish()
         protocolToolCallDecoder = decoder
         return calls.isEmpty ? [] : [.toolCallDeltas(calls)]
+    }
+}
+
+/// Web-search evidence recognized by each protocol parser (fixture `web-probe.v1.json`, `evidence`).
+/// `ran` means a search ran but did not necessarily yield citations (a completed Responses web_search_call,
+/// a Messages result array that is present but empty, a non-empty Gemini groundingMetadata);
+/// `urls` holds the citation URLs in arrival order (not de-duplicated).
+struct WebSearchEvidence: Sendable, Equatable {
+    var ran = false
+    var urls: [String] = []
+
+    var isEmpty: Bool { !ran && urls.isEmpty }
+
+    mutating func note(url: String) {
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { urls.append(trimmed) }
     }
 }
 

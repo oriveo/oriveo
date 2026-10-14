@@ -22,7 +22,7 @@ nonisolated enum ChatRequestBuilder {
     private static let maxPromptFileNameChars = 120
 
     static func build(from snapshot: ChatRequestSnapshot) -> ChatRequestBuildResult {
-        var requestMessages = mergeAdjacentSameRole(buildRequestMessages(from: snapshot))
+        var requestMessages = mergeAdjacentSameRole(buildRequestMessages(snapshot.messages, sendPath: snapshot.sendPath))
         let promptContext = buildPromptInjectionContext(
             skill: snapshot.skill,
             preferences: snapshot.preferences,
@@ -273,17 +273,23 @@ nonisolated enum ChatRequestBuilder {
         )
     }
 
-    private static func buildRequestMessages(from snapshot: ChatRequestSnapshot) -> [ChatMessage] {
-        switch snapshot.sendPath {
+    /// The attachment shape of the outbound history: normalized the same way as `build` (filtering, adjacent same-role merge, history attachment budget),
+    /// minus only the plain-text injections that do not touch attachments (the anti-forgetting reminder, citations). The pre-send check of the outbound route uses it.
+    static func outboundAttachmentHistory(_ messages: [ChatMessage], sendPath: ChatRequestSendPath) -> [ChatMessage] {
+        OutboundAttachmentBudget.apply(to: mergeAdjacentSameRole(buildRequestMessages(messages, sendPath: sendPath)))
+    }
+
+    private static func buildRequestMessages(_ messages: [ChatMessage], sendPath: ChatRequestSendPath) -> [ChatMessage] {
+        switch sendPath {
         case .send(let excludingMessageID):
             return filteredMessages(
-                snapshot.messages,
+                messages,
                 excludingMessageID: excludingMessageID,
                 treatingAssistantMessageIDAsDelivered: nil
             )
         case .continueResponse(let assistantMessageID, let instruction):
             var requestMessages = filteredMessages(
-                snapshot.messages,
+                messages,
                 excludingMessageID: nil,
                 treatingAssistantMessageIDAsDelivered: assistantMessageID
             )

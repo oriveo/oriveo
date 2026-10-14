@@ -1,35 +1,21 @@
 import SwiftUI
 
+/// Official connections only: relay and local connections use `RelayDetailBoard`, and
+/// `ProviderSettingsRow.usesSettingsSection` already excludes them.
 struct ProviderSettingsSection: View {
     let provider: Provider
     @Binding var showEditEndpoint: Bool
     @Binding var showConnectionSettings: Bool
     @Binding var showDeleteAlert: Bool
-    @Binding var showEditRelay: Bool
     @Binding var showGenerationParameters: Bool
 
-    private var isRelay: Bool { provider.kind == .relay }
     private var setupCatalog: ProviderSetupCatalog { ProviderSetupCatalog.current() }
     private var setupEndpointOptions: [ProviderEndpointOption] {
         setupCatalog.setupEndpointOptions(for: provider.kind)
     }
 
-    private var relaySettingsPreview: String? {
-        guard isRelay, let req = provider.relayRequested else { return nil }
-        var parts: [String] = []
-        switch req.transport {
-        case .auto: break
-        case .openaiResponses: parts.append("Responses")
-        case .openaiChatCompletions: parts.append("Chat Completions")
-        case .llamacppNative: parts.append(relayTransportLabel(.llamacppNative))
-        case .anthropicMessages: parts.append("Messages")
-        case .geminiGenerateContent: parts.append("generateContent")
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " • ")
-    }
-
     private var rows: [ProviderSettingsRow] {
-        ProviderSettingsRow.rows(hasEndpointOptions: !setupEndpointOptions.isEmpty)
+        ProviderSettingsRow.rows(for: provider, hasEndpointOptions: !setupEndpointOptions.isEmpty)
     }
 
     var body: some View {
@@ -64,9 +50,12 @@ struct ProviderSettingsSection: View {
     private func settingsRow(for row: ProviderSettingsRow) -> some View {
         switch row {
         case .endpoint:
-            let endpoint = setupCatalog.resolvedSetupEndpointOption(
-                for: provider.kind,
-                baseURLText: provider.baseURLText
+            // Current region: prefer the option the endpoint source points to, otherwise look up the stored URL literally in the unfiltered catalog (the trusted table only limits selectable options).
+            let endpoint = ProviderEndpointEditPolicy.currentOption(
+                catalog: setupCatalog,
+                kind: provider.kind,
+                baseURLText: provider.baseURLText,
+                endpointSource: provider.endpointSource
             )
             settingsRow(
                 icon: provider.kind == .qwen ? "location.circle.fill" : row.icon,
@@ -80,19 +69,14 @@ struct ProviderSettingsSection: View {
             settingsRow(
                 icon: row.icon,
                 title: L10n.tr("Connection settings", table: .providers),
-                value: isRelay ? relaySettingsPreview : nil,
-                action: {
-                    if isRelay {
-                        showEditRelay = true
-                    } else {
-                        showConnectionSettings = true
-                    }
-                }
+                value: nil,
+                action: { showConnectionSettings = true }
             )
-        case .modelBehavior:
+        case .parameters:
             settingsRow(
                 icon: row.icon,
-                title: L10n.tr("Advanced Settings"),
+                // The entry name must match the page it opens, otherwise users think they landed somewhere else.
+                title: L10n.tr("Parameters", table: .providers),
                 value: nil,
                 action: { showGenerationParameters = true }
             )
@@ -161,7 +145,7 @@ private struct ProviderManagementRow: View {
 
             Spacer(minLength: 0)
 
-            Image(systemName: "chevron.right")
+            Image(systemName: "chevron.forward")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(OriveoTheme.Palette.textTertiary)
         }
@@ -188,7 +172,7 @@ struct EditAPIKeySheet: View {
     }
 
     private var hasStoredKey: Bool {
-        RelayCredentialPolicy.hasStoredKey(provider?.apiKey)
+        RelayCredentialPolicy.hasStoredKey(provider.map { ProviderCredentialResolver.apiKey(provider: $0, modelID: nil) })
     }
 
     private var credentialState: RelayCredentialPolicy.State {
@@ -234,7 +218,8 @@ struct EditAPIKeySheet: View {
                 if let provider {
                     OriveoCard {
                         HStack(spacing: OriveoTheme.Spacing.md) {
-                            ProviderBadgeIcon(kind: provider.kind)
+                            // The relay keys page (RelayKeysPage) also presents this card, so the avatar must match the list
+                            ConnectionAvatarIcon(provider: provider, kind: provider.kind)
                             VStack(alignment: .leading, spacing: OriveoTheme.Spacing.xs) {
                                 Text(provider.displayName)
                                     .font(OriveoTheme.Typography.title3)
@@ -364,11 +349,29 @@ struct EditProviderEndpointSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedOptionID = ""
+    @State private var setupFieldValues: [String: String] = [:]
     @State private var isSaving = false
     @State private var saveError: OriveoError?
 
     private var provider: Provider? {
         appState.provider(for: providerID)
+    }
+
+    /// nil means a template option with placeholders is selected but its values are invalid, so saving is unavailable.
+    private var detailSave: ProviderEndpointEditPolicy.DetailSave? {
+        guard let provider, !selectedOptionID.isEmpty else { return nil }
+        let catalog = ProviderSetupCatalog.current()
+        return ProviderEndpointEditPolicy.detailSave(
+            catalog: catalog,
+            kind: provider.kind,
+            selectedOptionID: selectedOptionID,
+            current: ProviderEndpointEditPolicy.currentOption(
+                catalog: catalog, kind: provider.kind, baseURLText: provider.baseURLText,
+                endpointSource: provider.endpointSource
+            ),
+            storedBaseURLText: provider.baseURLText,
+            values: setupFieldValues
+        )
     }
 
     var body: some View {
@@ -382,15 +385,17 @@ struct EditProviderEndpointSheet: View {
                     if let provider {
                         OriveoCard {
                             HStack(alignment: .top, spacing: OriveoTheme.Spacing.md) {
-                                ProviderBadgeIcon(kind: provider.kind)
+                                ConnectionAvatarIcon(provider: provider, kind: provider.kind)
                                 VStack(alignment: .leading, spacing: OriveoTheme.Spacing.xs) {
                                     Text(provider.displayName)
                                         .font(OriveoTheme.Typography.title3)
                                         .foregroundStyle(OriveoTheme.Palette.textPrimary)
                                     let catalog = ProviderSetupCatalog.current()
-                                    let currentEndpoint = catalog.resolvedSetupEndpointOption(
-                                        for: provider.kind,
-                                        baseURLText: provider.baseURLText
+                                    let currentEndpoint = ProviderEndpointEditPolicy.currentOption(
+                                        catalog: catalog,
+                                        kind: provider.kind,
+                                        baseURLText: provider.baseURLText,
+                                        endpointSource: provider.endpointSource
                                     )
                                     Text(
                                         String(
@@ -418,8 +423,25 @@ struct EditProviderEndpointSheet: View {
                         ProviderEndpointPicker(
                             kind: provider.kind,
                             setupCatalog: ProviderSetupCatalog.current(),
-                            selectedOptionID: $selectedOptionID
+                            selectedOptionID: $selectedOptionID,
+                            pinnedCurrent: ProviderEndpointEditPolicy.currentOption(
+                                catalog: ProviderSetupCatalog.current(),
+                                kind: provider.kind,
+                                baseURLText: provider.baseURLText,
+                                endpointSource: provider.endpointSource
+                            ),
+                            includesTemplateOptions: true
                         )
+
+                        // Shown only when the selected address template has placeholders, directly below the region picker.
+                        let fieldIDs = ProviderSetupCatalog.current().setupFieldIDs(for: provider.kind, optionID: selectedOptionID)
+                        if !fieldIDs.isEmpty {
+                            ProviderSetupFieldsSection(
+                                fieldIDs: fieldIDs,
+                                values: $setupFieldValues,
+                                isSubmitting: isSaving
+                            )
+                        }
                     }
 
                     if let saveError {
@@ -438,11 +460,12 @@ struct EditProviderEndpointSheet: View {
                     Task { await saveAndSync() }
                 }
                 .buttonStyle(OriveoPrimaryButtonStyle())
-                .disabled(selectedOptionID.isEmpty || isSaving)
-                .opacity(selectedOptionID.isEmpty || isSaving ? 0.4 : 1)
+                .disabled(detailSave == nil || isSaving)
+                .opacity(detailSave == nil || isSaving ? 0.4 : 1)
                 .padding(.horizontal, OriveoTheme.Spacing.xl)
                 .padding(.vertical, OriveoTheme.Spacing.lg)
                 .background(OriveoTheme.Palette.surfaceChrome)
+                .background(OriveoTheme.Palette.background)
                 .overlay(alignment: .top) {
                     Rectangle()
                         .fill(OriveoTheme.Palette.border)
@@ -455,25 +478,31 @@ struct EditProviderEndpointSheet: View {
     private func syncSelectionFromProvider() {
         guard let provider else { return }
         let catalog = ProviderSetupCatalog.current()
-        selectedOptionID = catalog.resolvedSetupEndpointOption(for: provider.kind, baseURLText: provider.baseURLText)?.id
+        selectedOptionID = ProviderEndpointEditPolicy.currentOption(
+            catalog: catalog, kind: provider.kind, baseURLText: provider.baseURLText,
+            endpointSource: provider.endpointSource
+        )?.id
             ?? catalog.defaultSetupEndpointID(for: provider.kind)
             ?? ""
+        setupFieldValues = provider.setupValues ?? [:]
     }
 
     private func saveAndSync() async {
-        guard let provider else { return }
+        guard provider != nil else { return }
 
         isSaving = true
         saveError = nil
 
         do {
-            try await appState.updateBaseURL(
-                providerID: providerID,
-                baseURLText: ProviderSetupCatalog.current().resolvedSetupBaseURLText(
-                    for: provider.kind,
-                    optionID: selectedOptionID
-                )
-            )
+            switch detailSave {
+            case let .baseURL(baseURLText):
+                try await appState.updateBaseURL(providerID: providerID, baseURLText: baseURLText)
+            case let .setup(submission):
+                try await appState.updateEndpointSetup(providerID: providerID, submission: submission)
+            case nil:
+                isSaving = false
+                return
+            }
             isSaving = false
             dismiss()
         } catch {

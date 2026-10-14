@@ -211,6 +211,10 @@ enum DatabaseSchema {
             try db.execute(sql: "ALTER TABLE message ADD COLUMN toolFallbackNotice TEXT")
             try createMcpCleanupTriggers(in: db)
         }
+        migrator.registerMigration("v30_add_message_recovery_action") { db in
+            // Primary recovery action of an error card; nullable, so existing messages stay empty.
+            try db.execute(sql: "ALTER TABLE message ADD COLUMN recoveryPrimaryAction TEXT")
+        }
         return migrator
     }
 

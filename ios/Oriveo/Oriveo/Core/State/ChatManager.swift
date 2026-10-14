@@ -60,6 +60,25 @@ final class ChatManager {
 
     // MARK: - Streaming session state
 
+    /// The route a relay send actually took, carried on the streaming session so the delivered / failed paths can write back what happened.
+    private struct RelayDeliveryRoute {
+        let providerID: UUID
+        let modelID: String
+        let transport: RelayTransport
+        /// The key in effect for this model when the send started: after a success it clears the "no access" mark and records the key status as ok.
+        let keyID: String
+        /// The key value and outbound configuration actually sent: a write-back is dropped if the current state no longer matches them.
+        let keyWriteIdentity: RelayCatalogConnectionIdentity
+        /// The protocol switched to when this message fell back at protocol level.
+        var switchedTo: RelayTransport? = nil
+        /// This message fell back at protocol level. Re-routing the first send (`switchedTo` = the first-send protocol) does not count.
+        var protocolFallback = false
+        /// The protocol the probe record is written under (the first-send protocol) and the hash of the fragment attached on it this turn:
+        /// when the message is delivered, did not fall back, was sent on this protocol and has citations, they are used to record searched / observed.
+        var webTransport: RelayTransport? = nil
+        var webFragmentHash: String? = nil
+    }
+
     private struct StreamingSession {
         var messageID: UUID
         var text: String
@@ -74,6 +93,8 @@ final class ChatManager {
         var reasoningRevision: UInt64 = 0
         var reasoningStartedAt: Date?
         var reasoningEndedAt: Date?
+        /// The protocol this model actually used when the relay send started: on delivery it is used to promote `reachable` to `observed`.
+        var relayDeliveryRoute: RelayDeliveryRoute?
         /// The activity currently observed on this stream. Transient: it lives only in the
         /// session and is never persisted or copied onto a `ChatMessage`. `recordStreamActivity`
         /// is the only place that sets it; it is cleared by the next body delta, the next
@@ -244,6 +265,12 @@ final class ChatManager {
 
     func isBusyStreaming(in conversationID: UUID) -> Bool {
         sessions[conversationID] != nil
+    }
+
+    /// Whether this connection and model can use MCP tools (for the tool panel and the composer chip; the
+    /// same verdict the send path uses).
+    func mcpToolAvailability(provider: Provider, model: AIModel) -> McpToolAvailability {
+        McpToolAvailability.resolve(provider: provider, model: model, memory: toolCallMemory)
     }
 
 #if DEBUG
@@ -552,7 +579,7 @@ final class ChatManager {
             return nil
         }
 
-        let model = appState.currentModel(for: conversations[index]) ?? provider.defaultModel
+        let model = appState.sendableModel(for: conversations[index], provider: provider)
         guard let model else { return nil }
         let modelName = model.name
         let storedModelID = ModelResolver.preferredStoredModelIdentifier(for: model, providerKind: provider.kind)
@@ -682,6 +709,7 @@ final class ChatManager {
         updated.messages[msgIndex].state = .interrupted
         updated.messages[msgIndex].errorTitle = nil
         updated.messages[msgIndex].errorDetail = nil
+        updated.messages[msgIndex].recoveryPrimaryAction = nil
         updated.updatedAt = ConversationListMetadata.computeActivityAt(for: updated)
         ConversationListMetadata.apply(to: &updated)
         appState.upsertConversationProjection(updated)
@@ -760,6 +788,7 @@ final class ChatManager {
         updated.messages[mi].state = .interrupted
         updated.messages[mi].errorTitle = nil
         updated.messages[mi].errorDetail = nil
+        updated.messages[mi].recoveryPrimaryAction = nil
         try? RecipeContinuationRuntime.markInterrupted(messageID: session.messageID)
         updated.updatedAt = ConversationListMetadata.computeActivityAt(for: updated)
         ConversationListMetadata.apply(to: &updated)
@@ -837,7 +866,7 @@ final class ChatManager {
         guard let provider = appState.provider(for: conversations[convIndex].providerID) else { return }
 
         let continuingMessage = conversations[convIndex].messages[msgIndex]
-        let model = appState.currentModel(for: conversations[convIndex]) ?? provider.defaultModel
+        let model = appState.sendableModel(for: conversations[convIndex], provider: provider)
         guard let model else { return }
         let storedModelID = ModelResolver.preferredStoredModelIdentifier(for: model, providerKind: provider.kind)
         guard let resolvedCapabilitySelection = await gatedRecoveryCapabilitySelection(
@@ -861,6 +890,7 @@ final class ChatManager {
         updatedForContinue.messages[msgIndex].state = .generating
         updatedForContinue.messages[msgIndex].errorTitle = nil
         updatedForContinue.messages[msgIndex].errorDetail = nil
+        updatedForContinue.messages[msgIndex].recoveryPrimaryAction = nil
 
         updatedForContinue.updatedAt = ConversationListMetadata.computeActivityAt(for: updatedForContinue)
         let precedingMessages = conversations[convIndex].messages[..<msgIndex]
@@ -902,7 +932,7 @@ final class ChatManager {
         guard let msgIndex = conversations[convIndex].messages.firstIndex(where: { $0.id == messageID }),
               conversations[convIndex].messages[msgIndex].role == .assistant else { return }
         guard let provider = appState.provider(for: conversations[convIndex].providerID) else { return }
-        let model = appState.currentModel(for: conversations[convIndex]) ?? provider.defaultModel
+        let model = appState.sendableModel(for: conversations[convIndex], provider: provider)
         guard let model else { return }
         let storedModelID = ModelResolver.preferredStoredModelIdentifier(for: model, providerKind: provider.kind)
         let originalMessage = conversations[convIndex].messages[msgIndex]
@@ -988,7 +1018,7 @@ final class ChatManager {
             return
         }
         guard let provider = appState.provider(for: conversations[convIndex].providerID) else { return }
-        let model = appState.currentModel(for: conversations[convIndex]) ?? provider.defaultModel
+        let model = appState.sendableModel(for: conversations[convIndex], provider: provider)
         guard let model else { return }
         let storedModelID = ModelResolver.preferredStoredModelIdentifier(for: model, providerKind: provider.kind)
         let originalMessage = conversations[convIndex].messages[msgIndex]
@@ -1009,7 +1039,7 @@ final class ChatManager {
 
         let currentProvider = appState.provider(for: conversations[convIndex].providerID)
         let currentModel = currentProvider.flatMap {
-            appState.currentModel(for: conversations[convIndex]) ?? $0.defaultModel
+            appState.sendableModel(for: conversations[convIndex], provider: $0)
         }
 
         // A persisted descriptor belongs to the failed message's exact runtime identity, not to
@@ -1075,6 +1105,7 @@ final class ChatManager {
         updatedForRetry.messages[msgIndex].state = .generating
         updatedForRetry.messages[msgIndex].errorTitle = nil
         updatedForRetry.messages[msgIndex].errorDetail = nil
+        updatedForRetry.messages[msgIndex].recoveryPrimaryAction = nil
         updatedForRetry.messages[msgIndex].capabilityExecution = nil
         updatedForRetry.messages[msgIndex].unhandledToolCalls = nil
         // The step limit notice goes with the steps it describes.
@@ -1237,7 +1268,7 @@ final class ChatManager {
         let model: AIModel
         if let conversation {
             guard let resolvedProvider = appState.provider(for: conversation.providerID),
-                  let resolvedModel = appState.currentModel(for: conversation) ?? resolvedProvider.defaultModel else {
+                  let resolvedModel = appState.sendableModel(for: conversation, provider: resolvedProvider) else {
                 return nil
             }
             provider = resolvedProvider
@@ -1267,12 +1298,25 @@ final class ChatManager {
             request: .init(
                 webSearchEnabled: selection.webSearchEnabled,
                 webPreferenceIsAutomatic: selection.typedPreferences?.web == .automatic,
-                usesToolLoop: usesToolLoop
+                usesToolLoop: usesToolLoop,
+                historyHasVideo: Self.preflightHistoryHasVideo(
+                    history: conversation?.messages ?? [], pendingText: trimmed, pendingAttachments: attachments
+                )
             )
         ) else { return nil }
         let deliveryModel = AttachmentTransportResolver.deliveryModel(provider: provider, model: model, transport: transport)
         // When this connection is already remembered as not accepting file blocks, sending goes straight to text; the check uses the same premise.
-        let plan = NativeFileFallback.withKnownConnectionState(connectionID: provider.id, transport: transport) {
+        // For a relay, "does not accept file blocks" is remembered in the negative cache per connection x model x protocol.
+        let relayScope: NativeFileFallback.Scope? = provider.kind == .relay
+            ? .relayScope(
+                RelayEndpointResolver.effectiveTransport(provider: provider, model: model),
+                connectionID: provider.id, modelID: model.id,
+                fileOverride: model.relayCapabilityOverrides?.file
+            )
+            : nil
+        let plan = NativeFileFallback.withKnownConnectionState(
+            connectionID: provider.id, transport: transport, relay: relayScope
+        ) {
             AttachmentDelivery.plan(
                 userText: trimmed,
                 attachments: attachments,
@@ -1281,6 +1325,38 @@ final class ChatManager {
             )
         }
         return AttachmentDelivery.overLimitError(for: plan, model: deliveryModel)
+    }
+
+    /// Pre-send check: whether the outbound history of the next send (conversation history plus this turn, normalized the
+    /// same way as for sending) contains a video attachment.
+    /// When this turn has no text and no attachments yet (the model panel's pre-check), placeholder text stands for "the
+    /// next turn always has content". Otherwise normalization would drop it as an empty message, the user message of an
+    /// earlier failed turn would not be replaced by the adjacent-same-role merge, and the pre-check would disagree with
+    /// the real send. The placeholder is only used for the decision and is never sent.
+    nonisolated static func preflightHistoryHasVideo(
+        history: [ChatMessage], pendingText: String, pendingAttachments: [Attachment],
+        outboundHistory: ([ChatMessage]) -> [ChatMessage] = {
+            ChatRequestBuilder.outboundAttachmentHistory($0, sendPath: .send(excludingMessageID: nil))
+        }
+    ) -> Bool {
+        // Normalization can only drop videos, never add them: if neither side has one, skip normalization and the attachment budget (the panel calls this on every evaluation).
+        guard pendingAttachments.contains(where: { $0.kind == .video }) || GeminiService.historyHasVideo(history) else {
+            return false
+        }
+        let trimmed = pendingText.trimmingCharacters(in: .whitespacesAndNewlines)
+        var pending = ChatMessage(
+            id: UUID(), role: .user, text: trimmed.isEmpty && pendingAttachments.isEmpty ? "_" : pendingText,
+            providerKind: .gemini, providerName: "", modelName: "", state: .delivered
+        )
+        pending.attachments = pendingAttachments.isEmpty ? nil : pendingAttachments
+        return GeminiService.historyHasVideo(outboundHistory(history + [pending]))
+    }
+
+    /// Route pre-check for the model panel's file card: judges video from the outbound history of this conversation's next
+    /// send (the draft attachments of this turn are not available to the panel and are not counted).
+    func preflightHistoryHasVideo(conversationID: UUID?) -> Bool {
+        let history = conversationID.flatMap { id in conversations.first(where: { $0.id == id }) }?.messages ?? []
+        return Self.preflightHistoryHasVideo(history: history, pendingText: "", pendingAttachments: [])
     }
 
     private func initialCapabilitySelection(
@@ -1305,10 +1381,11 @@ final class ChatManager {
         capabilityRecoveryDescriptor: CapabilityRecoveryDescriptor? = nil
     ) {
         let providerKind = provider.kind
-        let apiKey = provider.apiKey
+        let apiKey = ProviderCredentialResolver.apiKey(provider: provider, modelID: model.id)
         let resolvedModelID = ModelResolver.resolvedProviderModelIdentifier(model.id, providerKind: providerKind)
         let providerID = provider.id
-        let baseURLText = provider.baseURLText
+        // Official providers compute the address from endpointSource at request time; a relay uses its literal address as is.
+        let baseURLText = provider.requestBaseURLText()
 
         // A replacement send on the same conversation interrupts the previous stream first.
         if let oldSession = sessions[conversationID], oldSession.messageID != assistantMessageID {
@@ -1331,25 +1408,35 @@ final class ChatManager {
             ),
             for: conversationID
         )
+        if providerKind == .relay {
+            sessions[conversationID]?.relayDeliveryRoute = RelayDeliveryRoute(
+                providerID: providerID,
+                modelID: model.id,
+                transport: RelayEndpointResolver.effectiveTransport(provider: provider, model: model),
+                keyID: RelayKeyBinding.effectiveKeyID(provider: provider, modelID: model.id),
+                keyWriteIdentity: ProviderManager.relayKeyWriteIdentity(provider, modelID: model.id)
+            )
+        }
         subject(for: conversationID).send()
         let sendTask = Task(priority: .userInitiated) { [weak self, appStateRetainer = appState as AppState?] in
             guard let self else { return }
             _ = appStateRetainer
-            let openRouterService = OpenRouterService(session: self.providerSession)
-            let openAIService = OpenAIService(session: self.providerSession)
-            let deepSeekService = DeepSeekService(session: self.providerSession)
-            let grokService = GrokService(session: self.providerSession)
-            let geminiService = GeminiService(session: self.providerSession)
-            let anthropicService = AnthropicService(session: self.providerSession)
-            let groqService = GroqService(session: self.providerSession)
-            let togetherService = TogetherService(session: self.providerSession)
-            let fireworksService = FireworksService(session: self.providerSession)
-            let miniMaxService = MiniMaxService(session: self.providerSession)
-            let zhipuService = ZhipuService(session: self.providerSession)
-            let qwenService = QwenService(session: self.providerSession)
-            let moonshotService = MoonshotService(session: self.providerSession)
-            let mistralService = MistralService(session: self.providerSession)
-            let siliconFlowService = SiliconFlowService(session: self.providerSession)
+            let services = ProviderServiceRouter.Services(session: self.providerSession)
+            let openRouterService = services.openRouter
+            let openAIService = services.openAI
+            let deepSeekService = services.deepSeek
+            let grokService = services.grok
+            let geminiService = services.gemini
+            let anthropicService = services.anthropic
+            let groqService = services.groq
+            let togetherService = services.together
+            let fireworksService = services.fireworks
+            let miniMaxService = services.miniMax
+            let zhipuService = services.zhipu
+            let qwenService = services.qwen
+            let moonshotService = services.moonshot
+            let mistralService = services.mistral
+            let siliconFlowService = services.siliconFlow
             let officialImageDispatcher = BaseAPIService(session: self.providerSession)
             var bufferedDelta = ""
             var lastFlushTime = Date().timeIntervalSince1970
@@ -1444,7 +1531,10 @@ final class ChatManager {
                 requestOptions.generationParameters = GenerationParameterSettingsStore.shared.resolve(
                     transient: requestOptions.generationParameters,
                     providerID: provider.id,
-                    modelID: ModelResolver.preferredStoredModelIdentifier(for: model, providerKind: provider.kind),
+                    // A relay goes through the parameter-key entry point: the literal key, plus the legacy canonical keys registered as read-compat aliases
+                    modelID: provider.kind == .relay
+                        ? CapabilityPreferenceRuntimeIdentity.canonicalModelID(provider: provider, model: model)
+                        : ModelResolver.preferredStoredModelIdentifier(for: model, providerKind: provider.kind),
                     conversationID: conversationID,
                     profileFingerprint: GenerationParameterProfileFingerprint.make(provider: provider, model: model),
                     reasoningMode: capabilitySelection.reasoningMode,
@@ -1486,6 +1576,16 @@ final class ChatManager {
             }
             requestOptions.capabilityEvidenceModel = AttachmentTransportResolver.evidenceModel(provider: provider, model: model)
             requestOptions.attachmentConnectionID = provider.id
+            // Relay web-search fragment: sent whenever there is one, independent of the chat's web-search preference.
+            // A protocol whose probe record is `rejected` for the current fragment is not attached.
+            requestOptions.relayWebFragments = RelayWebProbe.chatFragments(provider: provider, model: model)
+            if self.sessions[conversationID]?.relayDeliveryRoute != nil {
+                let webTransport = RelayWebProbe.transport(provider: provider, model: model)
+                if let fragment = requestOptions.relayWebFragments?.object(for: webTransport) {
+                    self.sessions[conversationID]?.relayDeliveryRoute?.webTransport = webTransport
+                    self.sessions[conversationID]?.relayDeliveryRoute?.webFragmentHash = RelayWebProbe.fragmentHash(fragment)
+                }
+            }
             // Built before dispatch, so `endpointFingerprint` is still unknown here. The final
             // endpoint is folded in later, once the production builder has chosen a URL.
             let capabilityEvidenceIdentity = CapabilityEvidenceRequestIdentity.make(
@@ -1542,6 +1642,13 @@ final class ChatManager {
             // task-local scope: `CapabilityExecutionRuntime.current` is nil there. Keep a reference
             // to this send's tracker.
             var sendExecutionTracker: CapabilityExecutionTracker?
+            // Relay rejection loop: the failure path reads the protocol of the last attempt, the rejection before output, and whether the protocol was switched.
+            var relayAttempt: (transport: RelayTransport, rejection: RelayPreOutputRejection?, switched: Bool)?
+            // The "files rejected" hint card looks only at this message's first attempt: whether it carried native file blocks and what the first rejection was.
+            let relayFileProbe = NativeFileFallback.FirstAttemptProbe()
+            var relayFirstRejection: RelayPreOutputRejection?
+            // Judged before any output as "this key has no access to the model": the failure path does not enter the capability-rejection loop.
+            var relayKeyAccessDenied = false
             do {
                 // Remote MCP: tools are assembled only when this conversation has servers turned on and the
                 // connection can carry tools. Otherwise the plan is empty and the send takes the plain path
@@ -1625,7 +1732,19 @@ final class ChatManager {
                     return
                 }
 
-                switch providerKind {
+                // Choose the route by (provider, model): a relay is always dispatched by protocol; an official provider is
+                // dispatched by protocol only when it delivers a non-native-family apiProtocol, the official-only image
+                // route takes precedence, and the native service is unchanged otherwise.
+                let protocolRoute: ProviderServiceRouter.ProtocolRoute?
+                switch ProviderServiceRouter.route(provider: provider, model: model) {
+                case .byProtocol(let route) where providerKind == .relay || providerSpecificImageRoute == nil:
+                    protocolRoute = route
+                default:
+                    protocolRoute = nil
+                }
+                let dispatchKind: ProviderKind = protocolRoute != nil ? .relay : providerKind
+
+                switch dispatchKind {
                 case .openRouter:
                     if providerSpecificImageRoute == .chatAPI {
                         let result = try await openRouterService.sendMessage(
@@ -2221,6 +2340,7 @@ final class ChatManager {
                             apiKey: apiKey,
                             modelID: resolvedModelID,
                             messages: requestMessages,
+                            baseURL: baseURLText,
                             reasoningMode: capabilitySelection.reasoningMode,
                             requestOptions: requestOptions
                         )
@@ -2438,6 +2558,7 @@ final class ChatManager {
                             apiKey: apiKey,
                             modelID: resolvedModelID,
                             messages: requestMessages,
+                            baseURL: baseURLText,
                             reasoningMode: capabilitySelection.reasoningMode,
                             webSearchEnabled: capabilitySelection.webSearchEnabled,
                             requestOptions: requestOptions
@@ -2723,94 +2844,243 @@ final class ChatManager {
                         }
 
                 case .relay:
-                    guard let relayBaseURL = baseURLText else {
+                    guard var initialRelayRoute = protocolRoute else {
                         throw ProviderServiceError.invalidConfiguration(detail: "Relay provider missing base URL.")
                     }
+                    // For a model that has not been verified, pick the first-send protocol with the same candidate order as the lazy
+                    // verification: with the connection on auto, effectiveTransport always lands on Chat, and a Claude-family model
+                    // sent through Chat to a group that only accepts Messages is rejected with "max_tokens required" (a 400 is not a
+                    // route-level rejection, so it does not fall back).
+                    if let first = await self.relayFirstSendTransport(
+                        provider: provider, model: model, current: initialRelayRoute.transport,
+                        attachments: requestMessages.flatMap { $0.attachments ?? [] }
+                    ) {
+                        var firstModel = model
+                        firstModel.relayTransport = first
+                        if case let .byProtocol(rerouted) = ProviderServiceRouter.route(provider: provider, model: firstModel) {
+                            initialRelayRoute = rerouted
+                            // On success this is written back like a protocol fallback: the first-send protocol is remembered as observed ("remembered after sending").
+                            self.sessions[conversationID]?.relayDeliveryRoute?.switchedTo = first
+                        }
+                    }
+                    // Before sending, settle the reasoning level from the relay negative cache (nearest supported level);
+                    // if the level is rejected during this send, change it and resend once.
+                    var relayReasoningMode = RelayReasoningTier.outboundMode(
+                        provider: provider, model: model, transport: initialRelayRoute.transport,
+                        selected: capabilitySelection.reasoningMode
+                    )
+                    var relayTierRetryError: (any Error)?
+                    // One relay send attempt. The outer protocol fallback may switch protocol and call it again;
+                    // the inner native-file fallback (NativeFileFallback) first goes out on the original protocol in each attempt.
+                    @MainActor func sendRelayAttempt(_ route: ProviderServiceRouter.ProtocolRoute) async throws {
+                        let relayBaseURL = route.baseURL
+                        // Injection point: the protocol and root address are resolved per model, and the service only reads this copy.
+                        let relayTransport = route.transport
+                        let relayRequested = route.requested
+                        var relayRequestOptions = requestOptions
+                        relayRequestOptions.relayRequested = relayRequested
 
-                    let relayTransport = provider.relayRequested?.transport ?? .openaiChatCompletions
-                    var relayRequestOptions = requestOptions
-                    relayRequestOptions.relayRequested = provider.relayRequested
+                        // Image generation on a relay depends on the transport. Chat Completions posts
+                        // to the images endpoint, Responses carries an inline `image_generation` tool on
+                        // a streaming chat request, and Gemini asks for an image modality on its normal
+                        // generate call. A dedicated image model cannot drive the Responses request
+                        // itself, so it moves into the tool while a chat model drives the turn.
+                        if providerKind == .relay, RelayRuntimeSupport.dispatchesImageGeneration(model: model) {
+                            let imageRoute = RelayRuntimeSupport.imageRoute(for: relayTransport)
+                            switch imageRoute {
+                            case .unsupported:
+                                throw ProviderServiceError.invalidConfiguration(
+                                    detail: L10n.tr("Image generation is not available on this protocol. Open Providers → this connection → this model → Advanced and set Protocol to OpenAI Responses or Chat Completions.", table: .providers)
+                                )
 
-                    // Image generation on a relay depends on the transport. Chat Completions posts
-                    // to the images endpoint, Responses carries an inline `image_generation` tool on
-                    // a streaming chat request, and Gemini asks for an image modality on its normal
-                    // generate call. A dedicated image model cannot drive the Responses request
-                    // itself, so it moves into the tool while a chat model drives the turn.
-                    if model.capabilities.contains(.imageGen) {
-                        let imageRoute = RelayRuntimeSupport.imageRoute(for: relayTransport)
-                        switch imageRoute {
-                        case .unsupported:
-                            throw ProviderServiceError.invalidConfiguration(
-                                detail: L10n.tr("Image generation is not available on this transport. Open Providers → this Relay → Advanced Settings → Transport and switch it to OpenAI Responses or Chat Completions.", table: .providers)
-                            )
+                            case .imagesEndpoint:
+                                #if DEBUG
+                                AppLog.info(
+                                    "Relay image route: imagesEndpoint, provider=\(provider.id) model=\(resolvedModelID)",
+                                    module: "ImageGen"
+                                )
+                                #endif
+                                let result = try await openAIService.sendMessageViaImagesAPIForRelay(
+                                    apiKey: apiKey,
+                                    modelID: resolvedModelID,
+                                    messages: requestMessages,
+                                    baseURL: relayBaseURL,
+                                    relayRequested: relayRequested
+                                )
+                                await MainActor.run {
+                                    self.applyNonStreamingCompletionIfCurrent(
+                                        taskID: sendTaskID,
+                                        conversationID: conversationID,
+                                        messageID: assistantMessageID,
+                                        result: result,
+                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                        servedModelID: result.servedModelID,
+                                        usageMetrics: ChatDeliveredUsageMetrics(result: result)
+                                    )
+                                }
+                                break
 
-                        case .imagesEndpoint:
-                            #if DEBUG
-                            AppLog.info(
-                                "Relay image route: imagesEndpoint, provider=\(provider.id) model=\(resolvedModelID)",
-                                module: "ImageGen"
-                            )
-                            #endif
-                            let result = try await openAIService.sendMessageViaImagesAPIForRelay(
+                            case .inlineResponsesTool:
+                                // A dedicated image model cannot drive the request, so pick a chat
+                                // model for the turn and pass the image model to the tool instead.
+                                // The request goes out with the image model's effective key; with two or more keys the
+                                // driver model prefers one bound to the same key.
+                                let driverKeyIDs = RelayKeyBinding.keyIDs(provider)
+                                let driverResult = driverKeyIDs.count >= 2
+                                    ? RelayRuntimeSupport.pickChatDriverModelID(
+                                        in: provider,
+                                        currentModel: model,
+                                        currentKeyID: RelayKeyBinding.effectiveKeyID(provider: provider, modelID: model.id),
+                                        keyID: { RelayKeyBinding.effectiveKeyID(provider: provider, modelID: $0.id) }
+                                    )
+                                    : RelayRuntimeSupport.pickChatDriverModelID(
+                                        in: provider,
+                                        currentModel: model
+                                    )
+                                let driverModelID: String
+                                switch driverResult {
+                                case let .success(id):
+                                    driverModelID = id
+                                case .failure(.missingChatDriverModel):
+                                    throw ProviderServiceError.invalidConfiguration(
+                                        detail: L10n.tr("Please add a chat model to this relay before using image generation.", table: .providers)
+                                    )
+                                }
+                                let imageToolID: String? = (driverModelID == resolvedModelID)
+                                    ? nil
+                                    : resolvedModelID
+                                #if DEBUG
+                                AppLog.info(
+                                    "Relay image route: inlineResponsesTool, driver=\(driverModelID) "
+                                    + "tool=\(imageToolID ?? "default")",
+                                    module: "ImageGen"
+                                )
+                                #endif
+                                let stream = openAIService.sendMessageStream(
+                                    apiKey: apiKey,
+                                    modelID: driverModelID,
+                                    messages: requestMessages,
+                                    baseURL: relayBaseURL,
+                                    reasoningMode: relayReasoningMode,
+                                    requestOptions: relayRequestOptions,
+                                    relayRequested: relayRequested,
+                                    webSearchEnabled: capabilitySelection.webSearchEnabled,
+                                    supportsImageGeneration: true,
+                                    imageToolModelID: imageToolID
+                                )
+                                for try await event in stream {
+                                    if Task.isCancelled { break }
+                                    switch event {
+                                    case let .delta(text):
+                                        self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
+                                        bufferedDelta += text
+                                        await flushBufferedDelta()
+                                    case let .reasoning(chunk):
+                                        self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
+                                    case let .citations(citations):
+                                        self.recordCitations(citations, in: conversationID)
+                                    case let .imagePart(attachment):
+                                        await self.handleStreamingImagePart(attachment, in: conversationID)
+                                    case let .toolCallDeltas(calls):
+                                        self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                                    case let .activity(activity):
+                                        // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                                        // next event, the screen is half a sentence short while the search runs, and the late
+                                        // flush would clear the activity just set as if it were the next piece of body text.
+                                        await flushBufferedDelta(force: true)
+                                        self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
+                                    case let .done(result):
+                                        await flushBufferedDelta(force: true)
+                                        let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind)
+                                        await MainActor.run {
+                                            self.reconcileStreamingText(
+                                                with: result.text,
+                                                in: conversationID,
+                                                messageID: assistantMessageID,
+                                                expectedSendTaskID: sendTaskID
+                                            )
+                                            self.completeStreamingMessage(
+                                                conversationID: conversationID,
+                                                messageID: assistantMessageID,
+                                                expectedSendTaskID: sendTaskID,
+                                                estimatedCost: deliveredCost,
+                                                state: .delivered,
+                                                attachments: result.attachments,
+                                                servedModelID: result.servedModelID,
+                                                usageMetrics: ChatDeliveredUsageMetrics(result: result)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                if Task.isCancelled {
+                                    await flushBufferedDelta(force: true)
+                                    await MainActor.run {
+                                        self.completeStreamingMessage(
+                                            conversationID: conversationID,
+                                            messageID: assistantMessageID,
+                                            expectedSendTaskID: sendTaskID,
+                                            state: .interrupted
+                                        )
+                                    }
+                                }
+                                break
+
+                            case .geminiModality:
+                                break
+                            }
+
+                            // Only inlineResponsesTool / imagesEndpoint end this attempt here;
+                            // geminiModality falls through to the dispatch below.
+                            if imageRoute != .geminiModality {
+                                return
+                            }
+                        }
+
+                        let useNonStreamingRelayRuntime =
+                            relayRequested.stream == false
+
+                        if useNonStreamingRelayRuntime {
+                            let result = try await services.protocolSend(
+                                route,
                                 apiKey: apiKey,
                                 modelID: resolvedModelID,
                                 messages: requestMessages,
-                                baseURL: relayBaseURL,
-                                relayRequested: provider.relayRequested
+                                reasoningMode: relayReasoningMode,
+                                webSearchEnabled: capabilitySelection.webSearchEnabled,
+                                supportsImageGen: RelayRuntimeSupport.dispatchesImageGeneration(model: model),
+                                requestOptions: relayRequestOptions
                             )
+
+                            let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind)
                             await MainActor.run {
                                 self.applyNonStreamingCompletionIfCurrent(
                                     taskID: sendTaskID,
                                     conversationID: conversationID,
                                     messageID: assistantMessageID,
                                     result: result,
-                                    estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                    estimatedCost: deliveredCost,
                                     servedModelID: result.servedModelID,
-                                    usageMetrics: ChatDeliveredUsageMetrics(result: result)
+                                    usageMetrics: ChatDeliveredUsageMetrics(result: result),
+                                    provider: provider,
+                                    model: model
                                 )
                             }
-                            break
-
-                        case .inlineResponsesTool:
-                            // A dedicated image model cannot drive the request, so pick a chat
-                            // model for the turn and pass the image model to the tool instead.
-                            let driverResult = RelayRuntimeSupport.pickChatDriverModelID(
-                                in: provider,
-                                currentModel: model
-                            )
-                            let driverModelID: String
-                            switch driverResult {
-                            case let .success(id):
-                                driverModelID = id
-                            case .failure(.missingChatDriverModel):
-                                throw ProviderServiceError.invalidConfiguration(
-                                    detail: L10n.tr("Please add a chat model to this relay before using image generation.", table: .providers)
-                                )
-                            }
-                            let imageToolID: String? = (driverModelID == resolvedModelID)
-                                ? nil
-                                : resolvedModelID
-                            #if DEBUG
-                            AppLog.info(
-                                "Relay image route: inlineResponsesTool, driver=\(driverModelID) "
-                                + "tool=\(imageToolID ?? "default")",
-                                module: "ImageGen"
-                            )
-                            #endif
-                            let stream = openAIService.sendMessageStream(
+                        } else {
+                            let stream = services.protocolStream(
+                                route,
                                 apiKey: apiKey,
-                                modelID: driverModelID,
+                                modelID: resolvedModelID,
                                 messages: requestMessages,
-                                baseURL: relayBaseURL,
-                                reasoningMode: capabilitySelection.reasoningMode,
-                                requestOptions: relayRequestOptions,
-                                relayRequested: provider.relayRequested,
+                                reasoningMode: relayReasoningMode,
                                 webSearchEnabled: capabilitySelection.webSearchEnabled,
-                                supportsImageGeneration: true,
-                                imageToolModelID: imageToolID
+                                supportsImageGen: RelayRuntimeSupport.dispatchesImageGeneration(model: model),
+                                requestOptions: relayRequestOptions
                             )
+
                             for try await event in stream {
                                 if Task.isCancelled { break }
+
                                 switch event {
                                 case let .delta(text):
                                     self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -2853,6 +3123,7 @@ final class ChatManager {
                                     }
                                 }
                             }
+
                             if Task.isCancelled {
                                 await flushBufferedDelta(force: true)
                                 await MainActor.run {
@@ -2864,172 +3135,79 @@ final class ChatManager {
                                     )
                                 }
                             }
-                            break
-
-                        case .geminiModality:
-                            break
-                        }
-
-                        if imageRoute != .geminiModality {
-                            break
                         }
                     }
 
-                    let useNonStreamingRelayRuntime =
-                        provider.relayRequested?.stream == false
-
-                    if useNonStreamingRelayRuntime {
-                        let result: ProviderChatResult
-                        switch relayTransport {
-                        case .anthropicMessages:
-                            result = try await anthropicService.sendMessage(
-                                apiKey: apiKey,
-                                modelID: resolvedModelID,
-                                messages: requestMessages,
-                                baseURL: relayBaseURL,
-                                reasoningMode: capabilitySelection.reasoningMode,
-                                requestOptions: relayRequestOptions,
-                                relayRequested: provider.relayRequested
-                            )
-                        case .geminiGenerateContent:
-                            result = try await geminiService.sendMessage(
-                                apiKey: apiKey,
-                                modelID: resolvedModelID,
-                                messages: requestMessages,
-                                baseURL: relayBaseURL,
-                                reasoningMode: capabilitySelection.reasoningMode,
-                                webSearchEnabled: capabilitySelection.webSearchEnabled,
-                                // Gemini has no separate image endpoint: image output is requested
-                                // as an extra response modality on the normal generate call.
-                                supportsImageGen: model.capabilities.contains(.imageGen),
-                                requestOptions: relayRequestOptions,
-                                relayRequested: provider.relayRequested
-                            )
-                        case .openaiResponses, .openaiChatCompletions, .llamacppNative, .auto:
-                            result = try await openAIService.sendMessage(
-                                apiKey: apiKey,
-                                modelID: resolvedModelID,
-                                messages: requestMessages,
-                                baseURL: relayBaseURL,
-                                reasoningMode: capabilitySelection.reasoningMode,
-                                requestOptions: relayRequestOptions,
-                                relayRequested: provider.relayRequested,
-                                webSearchEnabled: capabilitySelection.webSearchEnabled
-                            )
-                        }
-
-                        let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind)
-                        await MainActor.run {
-                            self.applyNonStreamingCompletionIfCurrent(
-                                taskID: sendTaskID,
-                                conversationID: conversationID,
-                                messageID: assistantMessageID,
-                                result: result,
-                                estimatedCost: deliveredCost,
-                                servedModelID: result.servedModelID,
-                                usageMetrics: ChatDeliveredUsageMetrics(result: result),
-                                provider: provider,
-                                model: model
-                            )
-                        }
-                    } else {
-                        let stream: AsyncThrowingStream<StreamEvent, Error>
-                        switch relayTransport {
-                        case .anthropicMessages:
-                            stream = anthropicService.sendMessageStream(
-                                apiKey: apiKey,
-                                modelID: resolvedModelID,
-                                messages: requestMessages,
-                                baseURL: relayBaseURL,
-                                reasoningMode: capabilitySelection.reasoningMode,
-                                requestOptions: relayRequestOptions,
-                                relayRequested: provider.relayRequested
-                            )
-                        case .geminiGenerateContent:
-                            stream = geminiService.sendMessageStream(
-                                apiKey: apiKey,
-                                modelID: resolvedModelID,
-                                messages: requestMessages,
-                                baseURL: relayBaseURL,
-                                reasoningMode: capabilitySelection.reasoningMode,
-                                webSearchEnabled: capabilitySelection.webSearchEnabled,
-                                // Gemini has no separate image endpoint: image output is requested
-                                // as an extra response modality on the normal generate call.
-                                supportsImageGen: model.capabilities.contains(.imageGen),
-                                requestOptions: relayRequestOptions,
-                                relayRequested: provider.relayRequested
-                            )
-                        case .openaiResponses, .openaiChatCompletions, .llamacppNative, .auto:
-                            stream = openAIService.sendMessageStream(
-                                apiKey: apiKey,
-                                modelID: resolvedModelID,
-                                messages: requestMessages,
-                                baseURL: relayBaseURL,
-                                reasoningMode: capabilitySelection.reasoningMode,
-                                requestOptions: relayRequestOptions,
-                                relayRequested: provider.relayRequested,
-                                webSearchEnabled: capabilitySelection.webSearchEnabled
-                            )
-                        }
-
-                        for try await event in stream {
-                            if Task.isCancelled { break }
-
-                            switch event {
-                            case let .delta(text):
-                                self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                                bufferedDelta += text
-                                await flushBufferedDelta()
-                            case let .reasoning(chunk):
-                                self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                            case let .citations(citations):
-                            self.recordCitations(citations, in: conversationID)
-                            case let .imagePart(attachment):
-                                await self.handleStreamingImagePart(attachment, in: conversationID)
-                            case let .toolCallDeltas(calls):
-                                self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
-                            case let .activity(activity):
-                                // Flush the tail of the preamble into the session first. Otherwise it waits for the
-                                // next event, the screen is half a sentence short while the search runs, and the late
-                                // flush would clear the activity just set as if it were the next piece of body text.
-                                await flushBufferedDelta(force: true)
-                                self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                            case let .done(result):
-                                await flushBufferedDelta(force: true)
-                                let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind)
-                                await MainActor.run {
-                                    self.reconcileStreamingText(
-                                        with: result.text,
-                                        in: conversationID,
-                                        messageID: assistantMessageID,
-                                        expectedSendTaskID: sendTaskID
-                                    )
-                                    self.completeStreamingMessage(
-                                        conversationID: conversationID,
-                                        messageID: assistantMessageID,
-                                        expectedSendTaskID: sendTaskID,
-                                        estimatedCost: deliveredCost,
-                                        state: .delivered,
-                                        attachments: result.attachments,
-                                        servedModelID: result.servedModelID,
-                                        usageMetrics: ChatDeliveredUsageMetrics(result: result)
-                                    )
+                    var relayRoute = initialRelayRoute
+                    var relaySwitched = false
+                    while true {
+                        let recorder = RelayPreOutputRejection.Recorder()
+                        do {
+                            try await RelayPreOutputRejection.$current.withValue(recorder) {
+                                try await NativeFileFallback.$firstAttemptProbe.withValue(relayFileProbe) {
+                                    try await sendRelayAttempt(relayRoute)
                                 }
                             }
-                        }
-
-                        if Task.isCancelled {
-                            await flushBufferedDelta(force: true)
-                            await MainActor.run {
-                                self.completeStreamingMessage(
-                                    conversationID: conversationID,
-                                    messageID: assistantMessageID,
-                                    expectedSendTaskID: sendTaskID,
-                                    state: .interrupted
-                                )
+                            relayAttempt = (relayRoute.transport, recorder.rejection, relaySwitched)
+                            break
+                        } catch {
+                            relayAttempt = (relayRoute.transport, recorder.rejection, relaySwitched)
+                            if !relaySwitched { relayFirstRejection = recorder.rejection }
+                            // A route-level rejection before any output, from a source other than the user, on a message that has not switched yet:
+                            // switch to the next protocol among the candidates and resend once.
+                            // After a switch, a failure reports the second error and writes no negative cache (the failure path reads relayAttempt.switched).
+                            let outputStarted = !bufferedDelta.isEmpty || self.relayOutputStarted(
+                                conversationID: conversationID, messageID: assistantMessageID, initialText: initialText
+                            )
+                            // Judge this key first, before entering the capability-rejection loop: "no access" is recorded on the model,
+                            // writes no negative cache, does not switch protocol and does not resend with another key.
+                            // An invalid or restricted key writes that key's status; everything else is unchanged.
+                            if !outputStarted, let rejection = recorder.rejection {
+                                let access = RelayKeyAccess.classify(rejection)
+                                if access != .none {
+                                    self.appState.providerManager.recordRelayKeyAccessFailure(
+                                        providerID: providerID, modelID: model.id,
+                                        keyID: RelayKeyBinding.effectiveKeyID(provider: provider, modelID: model.id),
+                                        outcome: access, httpStatus: rejection.status,
+                                        sentIdentity: ProviderManager.relayKeyWriteIdentity(provider, modelID: model.id)
+                                    )
+                                }
+                                if access == .modelAccessDenied {
+                                    relayKeyAccessDenied = true
+                                    throw relayTierRetryError ?? error
+                                }
                             }
+                            // Reasoning level rejected: record it in the negative cache and resend once at the nearest level;
+                            // if the resend also fails, report the original error.
+                            if relayTierRetryError == nil, !Task.isCancelled,
+                               let fallback = RelayReasoningTier.recordRejection(
+                                   provider: provider, model: model, transport: relayRoute.transport,
+                                   sent: relayReasoningMode, rejection: recorder.rejection, outputStarted: outputStarted
+                               ) {
+                                relayTierRetryError = error
+                                relayReasoningMode = fallback ?? .automatic
+                                continue
+                            }
+                            guard !Task.isCancelled,
+                                  let rejection = recorder.rejection,
+                                  let next = await self.relayProtocolFallbackTarget(
+                                      provider: provider, model: model, current: relayRoute.transport,
+                                      rejection: rejection, outputStarted: outputStarted, alreadySwitched: relaySwitched,
+                                      attachments: requestMessages.flatMap { $0.attachments ?? [] }
+                                  ) else { throw relayTierRetryError ?? error }
+                            var switchedModel = model
+                            switchedModel.relayTransport = next
+                            guard case let .byProtocol(rerouted) = ProviderServiceRouter.route(
+                                provider: provider, model: switchedModel
+                            ) else { throw relayTierRetryError ?? error }
+                            relaySwitched = true
+                            relayRoute = rerouted
+                            // On success this is written back as observed under the switched-to protocol (the same write-back path as the "already used" promotion).
+                            self.sessions[conversationID]?.relayDeliveryRoute?.switchedTo = next
+                            self.sessions[conversationID]?.relayDeliveryRoute?.protocolFallback = true
                         }
                     }
+
 
                 }
                 }
@@ -3070,6 +3248,41 @@ final class ChatManager {
                         )
                     } else {
                         let providerError = self.appState.providerManager.providerServiceError(from: error)
+                        var recoveryPrimaryAction: String?
+                        // A relay rejected an image before any output, image support was unknown at send time, and this
+                        // message did not switch protocol: record the image negative cache (the entry point is then hidden)
+                        // and change the failure message's recovery card to "doesn't support images" + Switch Model.
+                        // Images get no text fallback and are never resent automatically.
+                        if providerKind == .relay, !relayKeyAccessDenied, let attempt = relayAttempt,
+                           requestMessages.contains(where: { $0.attachments?.contains(where: { $0.kind == .image }) == true }),
+                           RelayRejectionRecording.recordImageRejection(
+                               provider: provider, model: model,
+                               transport: attempt.transport, rejection: attempt.rejection,
+                               outputStarted: self.relayOutputStarted(
+                                   conversationID: conversationID, messageID: assistantMessageID, initialText: initialText
+                               ),
+                               protocolSwitched: attempt.switched
+                           ) {
+                            recoveryPrimaryAction = relayImageUnsupportedRecoveryAction
+                        }
+                        // A relay request carrying native file blocks was rejected the first time, and the fallback chain
+                        // (text resend / protocol fallback) still failed in the end or could not fall back because every file
+                        // is a scan: the recovery card body becomes "doesn't support these files" + Switch Model.
+                        // The error shown is unchanged; when the same message was already judged as not accepting images, the
+                        // image card wins. If the attempt after a fallback or protocol switch had already started output and
+                        // failed later, the problem is not the files, so this is not applied.
+                        if providerKind == .relay, !relayKeyAccessDenied,
+                           recoveryPrimaryAction != relayImageUnsupportedRecoveryAction,
+                           !self.relayOutputStarted(
+                               conversationID: conversationID, messageID: assistantMessageID, initialText: initialText
+                           ),
+                           NativeFileFallback.marksRelayFileUnsupported(
+                               isRelay: true,
+                               firstAttemptCarriedNativeFiles: relayFileProbe.firstAttemptCarriedNativeFiles,
+                               firstRejection: relayFirstRejection
+                           ) {
+                            recoveryPrimaryAction = relayFileUnsupportedRecoveryAction
+                        }
                         let isFatalError = providerError.marksConnectionFailed
                         if isFatalError, var erroredProvider = self.appState.provider(for: providerID) {
                             erroredProvider.status = ProviderConnectionState.issue(providerError.messageKey)
@@ -3135,6 +3348,7 @@ final class ChatManager {
                                     ? "model_control_setting_rejected"
                                     : ChatFailurePresentation.persistedDetail(for: providerError)),
                             errorCode: providerError.diagnosticCode,
+                            recoveryPrimaryAction: recoveryPrimaryAction,
                             terminalExecution: terminalExecution
                         )
 
@@ -3163,12 +3377,6 @@ final class ChatManager {
     }
 
     // MARK: - Remote MCP
-
-    /// Whether this connection and model can use MCP tools (for the tool panel and the composer chip; the
-    /// same verdict the send path uses).
-    func mcpToolAvailability(provider: Provider, model: AIModel) -> McpToolAvailability {
-        McpToolAvailability.resolve(provider: provider, model: model, memory: toolCallMemory)
-    }
 
     /// Test seam: swaps the MCP protocol client for a replayed session, so a test can run the whole
     /// production path starting at `sendMessage`.
@@ -3358,6 +3566,11 @@ final class ChatManager {
             toolCallMemory: toolCallMemory,
             session: providerSession
         )
+        // The protocol this relay leg actually goes out on (the same source as the wire choice); the tool-rejection
+        // negative cache is keyed by it. nil for a non-relay connection.
+        let relaySentTransport: RelayTransport? = provider.kind == .relay
+            ? (RelayEndpointResolver.explicitTransport(provider: provider, model: model) ?? .openaiChatCompletions)
+            : nil
         let messages = McpToolBridge.initialMessages(
             history: try OpenAIChatToolLoopLegRunner.messages(
                 from: requestMessages,
@@ -3414,13 +3627,33 @@ final class ChatManager {
                 }
             }
         } catch let rejected as ToolsRejectedByUpstreamError {
-            // Only a deterministic 4xx on the first leg, before any structured tool call was seen, is
-            // remembered as "this connection does not support tools". The next send then leaves the MCP
-            // tools out; this one fails like any other request.
-            if rejected.qualifiesAsConnectionUnsupported {
-                rememberToolCallCapability(provider: provider, model: model, toolCall: false, reason: .toolsRejected4xx)
+            // Only a deterministic 4xx on the first leg, before any structured tool call was seen, means "this
+            // connection does not support tools": this send resends once without tools, and a connection that
+            // qualifies is recorded as false so the next send's entry point no longer carries MCP tools.
+            // A rejection on a later leg, or after tool_calls were seen, is not a capability fact and fails
+            // like any other request.
+            guard rejected.qualifiesAsConnectionUnsupported else { throw rejected.underlying }
+            try Task.checkCancellation()
+            if recordRelayToolsRejectionKeyDenial(rejected, provider: provider, model: model) {
+                throw rejected.underlying
             }
-            throw rejected.underlying
+            rememberToolCallCapability(
+                provider: provider, model: model, toolCall: false, reason: .toolsRejected4xx,
+                statusCode: rejected.statusCode, sentTransport: relaySentTransport
+            )
+            guard sessions[conversationID]?.messageID == assistantMessageID,
+                  sessions[conversationID]?.sendTaskID == sendTaskID else { throw CancellationError() }
+            let resent = try await resendToolLoopLegWithoutTools(
+                runner: legPair.runner, messages: messages,
+                conversationID: conversationID, assistantMessageID: assistantMessageID,
+                sendTaskID: sendTaskID, initialText: initialText,
+                provider: provider, model: model
+            )
+            result = ToolCallLoop.Result(
+                text: resent.text, legTexts: [resent.text], usage: resent.usage,
+                endedWithoutToolCall: true, stepLimitReached: false,
+                receivedStructuredToolCalls: false, executedToolSteps: 0
+            )
         }
         try Task.checkCancellation()
         guard sessions[conversationID]?.messageID == assistantMessageID,
@@ -3486,14 +3719,174 @@ final class ChatManager {
         appState.upsertConversationProjection(updated)
     }
 
+    /// Connection-level memory write. For a relay, a false result is recorded in the `toolCall` negative cache
+    /// instead (the signal counts only when classify judges it rejected) and no longer written here; the cache key
+    /// is the protocol this leg actually sent on (`sentTransport`), not the first-send protocol.
     private func rememberToolCallCapability(
         provider: Provider,
         model: AIModel,
         toolCall: Bool,
-        reason: ToolCallMemoryReason
+        reason: ToolCallMemoryReason,
+        statusCode: Int? = nil,
+        sentTransport: RelayTransport? = nil
     ) {
-        guard ToolCallCapabilityPolicy.memoryEligible(provider: provider, model: model) else { return }
-        toolCallMemory.record(connectionID: provider.id, modelID: model.id, toolCall: toolCall, reason: reason)
+        RelayRejectionRecording.rememberToolCall(
+            provider: provider, model: model, toolCall: toolCall, reason: reason,
+            statusCode: statusCode, sentTransport: sentTransport, memory: toolCallMemory
+        )
+    }
+
+    /// Whether this assistant message already has output (body or reasoning). When the session is gone it counts
+    /// as "output started": no protocol switch and no negative-cache write.
+    private func relayOutputStarted(conversationID: UUID, messageID: UUID, initialText: String) -> Bool {
+        guard let session = sessions[conversationID], session.messageID == messageID else { return true }
+        return session.text != initialText || !session.reasoningText.isEmpty
+    }
+
+    /// The protocol for the first send of an unverified model. The decision lives in `RelayFirstSendTransport` (the
+    /// negative-cache read/write and the "Auto =" line on the advanced page give the same answer); when it equals the
+    /// current route this returns nil and the send proceeds as before. The family is read only from the table already
+    /// fetched in this session; the first send makes no request for it.
+    /// The rule for falling back to the same protocol when attachments cannot be delivered belongs to sending only, so it stays here.
+    private func relayFirstSendTransport(
+        provider: Provider,
+        model: AIModel,
+        current: RelayTransport,
+        attachments: [Attachment]
+    ) async -> RelayTransport? {
+        // A Chat request body carries no max_tokens, and a relay that converts a Claude-family model to Anthropic answers
+        // 400 "max_tokens required". A 400 is not a route-level rejection and never falls back, so a Claude-family model's
+        // first send goes through Messages.
+        let first = RelayFirstSendTransport.current(provider: provider, model: model)
+        guard first == .anthropicMessages, first != current else { return nil }
+        let files = attachments.filter { $0.kind == .file }
+        if !files.isEmpty, !files.contains(where: NativeFileFallback.hasExtractedText),
+           !AttachmentTransportResolver.relay(first).profile.sendsNativeFiles {
+            return nil
+        }
+        return first
+    }
+
+    /// The target of a protocol-level fallback: the candidates are the same set as the per-model probe
+    /// (`RelayProbeCandidates.candidates`), and the decision is a pure function.
+    private func relayProtocolFallbackTarget(
+        provider: Provider,
+        model: AIModel,
+        current: RelayTransport,
+        rejection: RelayPreOutputRejection,
+        outputStarted: Bool,
+        alreadySwitched: Bool,
+        attachments: [Attachment]
+    ) async -> RelayTransport? {
+        // Rule out first with the conditions that need no candidates, so every failure does not look up the family table.
+        guard RelayProtocolFallback.isEligible(
+            source: model.relayTransportSource, rejection: rejection,
+            outputStarted: outputStarted, alreadySwitched: alreadySwitched
+        ) else { return nil }
+        // The user chose the connection protocol and the model follows it: there is no other candidate, so do not switch protocol.
+        guard !RelayProbeCandidates.followsUserChosenConnection(provider: provider, model: model) else { return nil }
+        let modelID = model.id
+        let candidates = await RelayProbeCandidates.candidates(
+            supportedEndpointTypes: RelayCatalogEndpointTypesCache.shared.endpointTypes(
+                endpoint: provider.baseURLText,
+                modelID: modelID
+            ),
+            family: { await MetadataClient.shared.relayModelFamily(for: modelID) }
+        )
+        guard let next = RelayProtocolFallback.next(
+            current: current, source: model.relayTransportSource, candidates: candidates,
+            rejection: rejection, outputStarted: outputStarted, alreadySwitched: alreadySwitched
+        ) else { return nil }
+        // After a switch the request body is rebuilt by the new protocol's builder and native-file delivery is decided again
+        // for it. If the new protocol does not accept native files and none of the files has extractable text (scanned
+        // documents), there is no text fallback version to send, so do not switch and report the original error.
+        let files = attachments.filter { $0.kind == .file }
+        if !files.isEmpty, !files.contains(where: NativeFileFallback.hasExtractedText),
+           !AttachmentTransportResolver.relay(next).profile.sendsNativeFiles {
+            return nil
+        }
+        return next
+    }
+
+    /// When a relay's "tools rejected" is really this key having no access to the model, returns the status code: do not
+    /// resend without tools and do not write the tool negative cache. The decision uses the raw response body, falling
+    /// back to the message / code fragment `mapHTTPError` leaves behind when the body is unavailable.
+    nonisolated static func relayToolsRejectionKeyDeniedStatus(_ error: any Error, providerKind: ProviderKind) -> Int? {
+        guard providerKind == .relay, let status = toolRejectionStatusCode(error) else { return nil }
+        let body: String
+        if let rejected = error as? ToolsRejectedByUpstreamError {
+            if let rawBody = rejected.rawBody {
+                body = rawBody
+            } else if case let .upstream(_, detail) = rejected.underlying {
+                body = detail
+            } else {
+                body = ""
+            }
+        } else if case let ProviderServiceError.upstream(_, detail) = error {
+            body = detail
+        } else {
+            return nil
+        }
+        return RelayKeyAccess.classify(status: status, body: body) == .modelAccessDenied ? status : nil
+    }
+
+    /// If judged as no access, records the effective key on the model and returns true (the caller then fails with the original error).
+    private func recordRelayToolsRejectionKeyDenial(_ error: any Error, provider: Provider, model: AIModel) -> Bool {
+        guard let status = Self.relayToolsRejectionKeyDeniedStatus(error, providerKind: provider.kind) else { return false }
+        appState.providerManager.recordRelayKeyAccessFailure(
+            providerID: provider.id, modelID: model.id,
+            keyID: RelayKeyBinding.effectiveKeyID(provider: provider, modelID: model.id),
+            outcome: .modelAccessDenied, httpStatus: status,
+            sentIdentity: ProviderManager.relayKeyWriteIdentity(provider, modelID: model.id)
+        )
+        return true
+    }
+
+    /// The upstream status code carried by a "tools unsupported" error (an annotated rejection or a bare `.upstream`).
+    nonisolated static func toolRejectionStatusCode(_ error: any Error) -> Int? {
+        if let rejected = error as? ToolsRejectedByUpstreamError { return rejected.statusCode }
+        if case let ProviderServiceError.upstream(statusCode, _) = error { return statusCode }
+        return nil
+    }
+
+    /// The "tool support unavailable" branch: resend the same leg once with the tools removed (depth = 1).
+    private func resendToolLoopLegWithoutTools(
+        runner: any ToolLoopLegRunning,
+        messages: [ToolLoopMessage],
+        conversationID: UUID,
+        assistantMessageID: UUID,
+        sendTaskID: UUID,
+        initialText: String,
+        provider: Provider,
+        model: AIModel
+    ) async throws -> (text: String, usage: ToolLoopUsage?) {
+        let request = ToolLoopLegRequest(messages: messages, tools: [], toolChoice: .none)
+        var text = ""
+        var usage: ToolLoopUsage?
+        for try await event in runner.run(request: request) {
+            try Task.checkCancellation()
+            switch event {
+            case let .textDelta(delta):
+                text += delta
+                applyToolLoopText(
+                    text, initialText: initialText, conversationID: conversationID,
+                    assistantMessageID: assistantMessageID, sendTaskID: sendTaskID
+                )
+            case let .reasoningDelta(delta):
+                appendReasoning(delta, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
+            case let .usage(value):
+                usage = value
+            case let .toolCallDeltas(deltas):
+                recordUnhandledToolCalls(
+                    deltas.map { ProviderToolCall(providerCallID: $0.id, name: $0.name ?? "", rawArguments: $0.arguments ?? "") },
+                    in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID,
+                    provider: provider, model: model
+                )
+            case .providerReplayBlocks, .providerAssistantReplay:
+                break
+            }
+        }
+        return (text, usage)
     }
 
     // MARK: - Request snapshot
@@ -3680,6 +4073,7 @@ final class ChatManager {
         updated.messages[mi].state = state
         updated.messages[mi].errorTitle = nil
         updated.messages[mi].errorDetail = nil
+        updated.messages[mi].recoveryPrimaryAction = nil
         updated.updatedAt = ConversationListMetadata.computeActivityAt(for: updated)
         ConversationListMetadata.apply(to: &updated)
         appState.upsertConversationProjection(updated)
@@ -3797,8 +4191,10 @@ final class ChatManager {
         // Everything the session holds has to be read out before `removeSession` drops it.
         var carriedReasoningText: String?
         var carriedReasoningDurationMs: Int64?
+        var carriedRelayDeliveryRoute: RelayDeliveryRoute?
         if let session = sessions[conversationID], session.messageID == messageID {
             updated.messages[mi].text = session.text
+            carriedRelayDeliveryRoute = session.relayDeliveryRoute
             let collected = session.attachments
             streamingAttCount = collected.count
             carriedImageData = session.pendingImageData
@@ -3935,6 +4331,30 @@ final class ChatManager {
         }
 
         if state == .delivered {
+            if let route = carriedRelayDeliveryRoute {
+                appState.providerManager.recordRelayDeliveredTransport(
+                    providerID: route.providerID,
+                    modelID: route.modelID,
+                    startedTransport: route.transport,
+                    switchedTo: route.switchedTo
+                )
+                appState.providerManager.recordRelayKeyAccessSuccess(
+                    providerID: route.providerID, modelID: route.modelID, keyID: route.keyID,
+                    sentIdentity: route.keyWriteIdentity
+                )
+                // Passive recording: this turn attached a fragment on the first-send protocol, made no protocol-level
+                // fallback (re-routing the first send does not count), and the production parser produced web
+                // citations -> searched / observed. It writes only the local record and does not upgrade any
+                // message-level execution fact.
+                if !route.protocolFallback, let webTransport = route.webTransport, let hash = route.webFragmentHash,
+                   (route.switchedTo ?? route.transport) == webTransport,
+                   !carriedCitations.isEmpty {
+                    RelayWebProbeStore.shared.record(
+                        connectionID: route.providerID.uuidString, modelID: route.modelID,
+                        transport: webTransport.rawValue, result: .searched, source: .observed, fragmentHash: hash
+                    )
+                }
+            }
             // Persist generated images locally on this device.
             let uid = AppSessionStore.activeUID
             if !imageDiskWrites.isEmpty {
@@ -3982,6 +4402,7 @@ final class ChatManager {
         title: String,
         detail: String,
         errorCode: String = "unknown",
+        recoveryPrimaryAction: String? = nil,
         /// The send task's catch runs outside the tracker's TaskLocal scope and cannot read
         /// `current`, so the caller passes the terminal result in.
         terminalExecution: CapabilityExecutionResult? = nil
@@ -4027,6 +4448,7 @@ final class ChatManager {
         updated.messages[mi].state = .failed
         updated.messages[mi].errorTitle = title
         updated.messages[mi].errorDetail = detail
+        updated.messages[mi].recoveryPrimaryAction = recoveryPrimaryAction
         updated.updatedAt = ConversationListMetadata.computeActivityAt(for: updated)
         ConversationListMetadata.apply(to: &updated)
         appState.upsertConversationProjection(updated)

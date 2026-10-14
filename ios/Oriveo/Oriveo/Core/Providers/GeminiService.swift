@@ -8,89 +8,37 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
     }
 
     /// endpoint_route builder. Selection is exclusively the versioned catalog recipe; there is
-    /// no model-name inference or beta fallback.
+    /// no model-name inference or beta fallback. The endpoint_route recipe is itself the web recipe:
+    /// it supplies the route and the google_search tool op.
     func buildInteractionsRequest(
         modelID: String,
         messages: [ChatMessage],
         apiKey: String,
         stream: Bool,
         recipe: MetadataClient.CapabilityRecipe,
-        previousResponseID: String? = nil,
+        reasoningRecipe: MetadataClient.CapabilityRecipe? = nil,
+        reasoningIntent: String? = nil,
+        reasoningAvailableIntents: [String]? = nil,
         systemPrompt: String = "",
         safeCustomBodyFragments: [SafeCustomBodyFragment] = [],
         additionalRequestBody: AdditionalRequestBodyPayload? = nil,
         capabilityEvidenceModel: AIModel? = nil
     ) throws -> URLRequest {
-        try validateAPIKey(apiKey)
         guard recipe.executionKind == "endpoint_route",
               recipe.providerKind == "gemini",
               recipe.transport.protocolName == "gemini_interactions",
-              recipe.route?.protocolName == "gemini_interactions",
-              recipe.route?.endpointClass == "interactions",
-              recipe.route?.requestMapper == "gemini_interactions_v1",
-              recipe.route?.path == "/v1/interactions" else {
+              let route = recipe.route else {
             throw ProviderServiceError.invalidConfiguration(detail: "Invalid Gemini Interactions recipe.")
         }
-        guard var endpoint = URLComponents(string: baseURL) else {
-            throw ProviderServiceError.invalidConfiguration(detail: "Invalid Gemini Interactions endpoint.")
-        }
-        // The historical generateContent base ends at `/v1beta`; GA Interactions is origin-rooted.
-        endpoint.path = recipe.route?.path ?? ""
-        endpoint.query = nil
-        endpoint.fragment = nil
-        guard let url = endpoint.url else {
-            throw ProviderServiceError.invalidConfiguration(detail: "Invalid Gemini Interactions endpoint.")
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = stream ? 120 : 60
-        applyHeaders(to: &request, apiKey: apiKey)
-        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
-        var body: [String: Any] = [
-            "model": modelID,
-            "stream": stream,
-            // Files go through text injection (this route has no native file blocks); images are not sent, and the route's placeholder tells the model an image was not delivered.
-            "input": try AttachmentDelivery.mapTurns(
-                Array(previousResponseID == nil ? messages : messages.suffix(1)),
-                isChatSend: capabilityEvidenceModel != nil
-            ) { message, isOutgoingTurn in
-                let text = try AttachmentDelivery.deliver(
-                    isOutgoingTurn: isOutgoingTurn,
-                    userText: message.text,
-                    attachments: message.attachments ?? [],
-                    transport: .geminiInteractions,
-                    model: capabilityEvidenceModel
-                ).injectedText
-                return ["role": message.role == .assistant ? "model" : message.role.rawValue, "parts": [["text": text]]]
-            },
-        ]
-        let trimmedSystem = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedSystem.isEmpty {
-            body["system_instruction"] = trimmedSystem
-        }
-        let compilation = CapabilityRecipeRequestCompiler.compile(
-            recipe: recipe, to: &body, providerKind: "gemini", transport: "gemini_interactions",
-            capability: "web", selectedIntent: nil
+        return try buildInteractionsRequest(
+            modelID: modelID, messages: messages, apiKey: apiKey, stream: stream,
+            route: route, webRecipe: recipe,
+            reasoningRecipe: reasoningRecipe, reasoningIntent: reasoningIntent,
+            reasoningAvailableIntents: reasoningAvailableIntents,
+            systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments,
+            additionalRequestBody: additionalRequestBody, capabilityEvidenceModel: capabilityEvidenceModel
         )
-        guard compilation.applied else {
-            throw ProviderServiceError.invalidConfiguration(detail: "Gemini Interactions recipe rejected: \(compilation.reason ?? "unknown")")
-        }
-        CapabilityRecipeRequestCompiler.recordBuilderOwnedDelta(
-            recipe: recipe, providerKind: .gemini, modelID: modelID, transport: "gemini_interactions",
-            deltaRootKeys: Set(compilation.redactedPreview.keys)
-        )
-        // `redactedPreview` is audit-only. The inout body above is the sole production wire.
-        body.merge(CapabilityRecipeExecution.geminiInteractionsPreviousID(previousResponseID)) { _, latest in latest }
-        try CapabilityRecipeExecution.applySafeCustomFragments(
-            safeCustomBodyFragments, to: &body,
-            providerKind: .gemini, modelID: modelID, transport: "gemini_interactions"
-        )
-        try AdditionalRequestBody.apply(additionalRequestBody, to: &body)
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        CapabilityExecutionRuntime.confirmFinalWireEncoded()
-        return request
     }
-
 
     func syncProvider(apiKey: String, preferredModelID: String?) async throws -> ProviderSyncResult {
         try validateAPIKey(apiKey)
@@ -128,15 +76,15 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             throw ProviderServiceError.invalidConfiguration(detail: "Missing model identifier.")
         }
 
-        if let recipe = Self.interactionsRecipe(modelID: modelID, webSearchEnabled: webSearchEnabled) {
+        if let recipe = Self.interactionsRecipe(
+            modelID: modelID, webSearchEnabled: webSearchEnabled, historyHasVideo: Self.historyHasVideo(messages)
+        ) {
             return try await sendInteractions(
                 apiKey: apiKey, modelID: modelID, messages: messages, stream: false, recipe: recipe,
-                systemPrompt: requestOptions.systemPrompt,
+                reasoningMode: reasoningMode, systemPrompt: requestOptions.systemPrompt,
                 safeCustomBodyFragments: requestOptions.localSafeCustomBodyFragments,
                 additionalRequestBody: requestOptions.localAdditionalRequestBody,
-                capabilityEvidenceModel: requestOptions.capabilityEvidenceModel,
-                producerMessageID: requestOptions.localContinuationMessageID,
-                explicitMessageID: requestOptions.localExplicitContinuationMessageID
+                capabilityEvidenceModel: requestOptions.capabilityEvidenceModel
             )
         }
 
@@ -213,7 +161,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
 
         // When a relay rejects a native file block, resend once with the files injected as text (NativeFileFallback).
         let (data, _) = try await NativeFileFallback.run(
-            .relayScope(.geminiGenerateContent, connectionID: requestOptions.attachmentConnectionID)
+            .relayScope(.geminiGenerateContent, connectionID: requestOptions.attachmentConnectionID, modelID: requestOptions.capabilityEvidenceModel?.id, fileOverride: requestOptions.capabilityEvidenceModel?.relayCapabilityOverrides?.file)
         ) { try await performRawWithUnsupportedParamSelfHeal(
             providerKind: .relay,
             modelID: modelID,
@@ -296,15 +244,17 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                         throw ProviderServiceError.invalidConfiguration(detail: "Missing model identifier.")
                     }
 
-                    if let recipe = Self.interactionsRecipe(modelID: modelID, webSearchEnabled: webSearchEnabled) {
+                    if let recipe = Self.interactionsRecipe(
+                        modelID: modelID, webSearchEnabled: webSearchEnabled,
+                        historyHasVideo: Self.historyHasVideo(messages)
+                    ) {
                         try await self.streamInteractions(
                             apiKey: apiKey, modelID: modelID, messages: messages, recipe: recipe,
-                            systemPrompt: requestOptions.systemPrompt,
+                            reasoningMode: reasoningMode, systemPrompt: requestOptions.systemPrompt,
                             safeCustomBodyFragments: requestOptions.localSafeCustomBodyFragments,
                             additionalRequestBody: requestOptions.localAdditionalRequestBody,
                             capabilityEvidenceModel: requestOptions.capabilityEvidenceModel,
-                            producerMessageID: requestOptions.localContinuationMessageID,
-                            explicitMessageID: requestOptions.localExplicitContinuationMessageID, continuation: continuation
+                            continuation: continuation
                         )
                         continuation.finish()
                         return
@@ -451,7 +401,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
 
                     // When a relay rejects a native file block before the first event, resend once with the files injected as text (NativeFileFallback).
                     let (request, bytes, response) = try await NativeFileFallback.run(
-                        .relayScope(.geminiGenerateContent, connectionID: requestOptions.attachmentConnectionID)
+                        .relayScope(.geminiGenerateContent, connectionID: requestOptions.attachmentConnectionID, modelID: requestOptions.capabilityEvidenceModel?.id, fileOverride: requestOptions.capabilityEvidenceModel?.relayCapabilityOverrides?.file)
                     ) {
                         let request = try self.buildRelayGenerateContentRequest(
                             modelID: modelID,
@@ -488,16 +438,25 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
 
                     var accumulatedText = ""
                     var lastUsage: GeminiUsageMetadata?
+                    // The citation profile is derived from the web fragment merged into this turn.
                     let relayStrategy = TransportRegistry.strategy(for: .geminiGenerate)
-                    let relayShape = self.resolveRelayWebSearchShape(
-                        modelID: modelID,
-                        relayRequested: relayRequested
+                    let relayShape = MetadataClient.shared.syncWebSearchStreamShape(
+                        profileName: requestOptions.officialForeignRoute
+                            // An official provider's foreign-protocol route behaves as before: citations are parsed by the profile the catalog matches.
+                            ? MetadataClient.shared.syncResolveCatalogModel(modelID: modelID, providerKind: .gemini)?.profiles.webSearch
+                            : RelayWebFragments.citationProfile(
+                                transport: .geminiGenerateContent,
+                                fragment: requestOptions.relayWebFragments?.object(for: .geminiGenerateContent)
+                            )
                     )
                     var relayCtx = StreamContext()
                     var relayLastCitationsCount = 0
+                    var bodyStartChecked = false
 
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
+                        // A fallback web page's Content-Type is not always html: recognize it once more on the first body line, before any output.
+                        try self.rejectRelayWebPageStreamStart(httpResponse, line: line, settled: &bodyStartChecked)
 
                         guard line.hasPrefix("data: ") else { continue }
                         let payload = String(line.dropFirst(6))
@@ -568,29 +527,156 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         }
     }
 
-    private func resolveRelayWebSearchShape(
-        modelID: String,
-        relayRequested: RelayRequestedConfig?
-    ) -> MetadataClient.StreamShape? {
-        if let explicit = relayRequested?.webSearchProfile?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !explicit.isEmpty,
-           let shape = MetadataClient.shared.syncWebSearchStreamShape(profileName: explicit) {
-            return shape
+    // MARK: - Gemini Interactions (`/interactions`, path from recipe)
+
+    /// Attachment tier: preActivation = what the route currently declares (images become a placeholder, files arrive as text), always used in production;
+    /// activated = typed image / document tiers promoted only after a real provider verification, passed in by tests only for now.
+    enum InteractionsAttachmentProfile { case preActivation, activated }
+
+    /// The recipe's route.path accepts only these two; anything else is a configuration error and is not built and tried.
+    private static let interactionsPaths: Set<String> = ["/v1/interactions", "/v1beta/interactions"]
+
+    /// Split-parameter builder: the route comes from the endpoint_route recipe; when web search is off no web recipe is passed;
+    /// the reasoning recipe goes through the generic compiler (last-specific-wins), and the automatic level also compiles with selectedIntent=nil,
+    /// landing only the base op that has no intent. Every turn sends the full Step[], never previous_interaction_id, and store is always false.
+    func buildInteractionsRequest(
+        modelID: String, messages: [ChatMessage], apiKey: String, stream: Bool,
+        route: MetadataClient.CapabilityRecipeRoute,
+        webRecipe: MetadataClient.CapabilityRecipe?,
+        reasoningRecipe: MetadataClient.CapabilityRecipe? = nil,
+        reasoningIntent: String? = nil,
+        reasoningAvailableIntents: [String]? = nil,
+        attachmentProfile: InteractionsAttachmentProfile = .preActivation,
+        systemPrompt: String = "",
+        safeCustomBodyFragments: [SafeCustomBodyFragment] = [],
+        additionalRequestBody: AdditionalRequestBodyPayload? = nil,
+        capabilityEvidenceModel: AIModel? = nil
+    ) throws -> URLRequest {
+        try validateAPIKey(apiKey)
+        guard route.protocolName == "gemini_interactions",
+              route.endpointClass == "interactions",
+              route.requestMapper == "gemini_interactions_v1",
+              Self.interactionsPaths.contains(route.path) else {
+            throw ProviderServiceError.invalidConfiguration(detail: "Invalid Gemini Interactions route.")
         }
-        let fallback = MetadataClient.shared.syncResolveCatalogModel(
-            modelID: modelID,
-            providerKind: .gemini
-        )?.profiles.webSearch
-        return MetadataClient.shared.syncWebSearchStreamShape(profileName: fallback)
+        guard var endpoint = URLComponents(string: baseURL) else {
+            throw ProviderServiceError.invalidConfiguration(detail: "Invalid Gemini Interactions endpoint.")
+        }
+        // The generateContent base ends in `/v1beta`; the Interactions path carries its own version segment, so the base's version segment is removed first.
+        var basePath = endpoint.path
+        for suffix in ["/v1beta", "/v1"] where basePath.hasSuffix(suffix) {
+            basePath.removeLast(suffix.count)
+            break
+        }
+        endpoint.path = basePath + route.path
+        endpoint.query = nil
+        endpoint.fragment = nil
+        guard let url = endpoint.url else {
+            throw ProviderServiceError.invalidConfiguration(detail: "Invalid Gemini Interactions endpoint.")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = stream ? 120 : 60
+        applyHeaders(to: &request, apiKey: apiKey)
+        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+        var body: [String: Any] = [
+            "model": modelID,
+            "stream": stream,
+            "store": false,
+            // An assistant turn whose body is empty after trimming (failed or interrupted before any text was written) does not replay an empty model_output; the user turns before and after it each become their own step.
+            "input": try AttachmentDelivery.mapTurns(
+                messages.filter { $0.role == .user || !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty },
+                isChatSend: capabilityEvidenceModel != nil
+            ) { message, isOutgoingTurn in
+                // The assistant replays only the body text, never thoughts or signatures.
+                guard message.role == .user else {
+                    return ["type": "model_output", "content": [["type": "text", "text": message.text]]]
+                }
+                return [
+                    "type": "user_input",
+                    "content": try Self.interactionsUserContent(
+                        message, isOutgoingTurn: isOutgoingTurn, profile: attachmentProfile, model: capabilityEvidenceModel
+                    ),
+                ]
+            },
+        ]
+        let trimmedSystem = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedSystem.isEmpty {
+            body["system_instruction"] = trimmedSystem
+        }
+        for (recipe, capability, intent, intents) in [
+            (webRecipe, "web", nil as String?, nil as [String]?),
+            (reasoningRecipe, "reasoning", reasoningIntent, reasoningAvailableIntents),
+        ] {
+            guard let recipe else { continue }
+            let compilation = CapabilityRecipeRequestCompiler.compile(
+                recipe: recipe, to: &body, providerKind: "gemini", transport: "gemini_interactions",
+                capability: capability, selectedIntent: intent, availableIntents: intents
+            )
+            guard compilation.applied else {
+                throw ProviderServiceError.invalidConfiguration(
+                    detail: "Gemini Interactions \(capability) recipe rejected: \(compilation.reason ?? "unknown")"
+                )
+            }
+            CapabilityRecipeRequestCompiler.recordBuilderOwnedDelta(
+                recipe: recipe, providerKind: .gemini, modelID: modelID, transport: "gemini_interactions",
+                deltaRootKeys: Set(compilation.redactedPreview.keys)
+            )
+        }
+        // `redactedPreview` is audit-only. The inout body above is the sole production wire.
+        try CapabilityRecipeExecution.applySafeCustomFragments(
+            safeCustomBodyFragments, to: &body,
+            providerKind: .gemini, modelID: modelID, transport: "gemini_interactions"
+        )
+        try AdditionalRequestBody.apply(additionalRequestBody, to: &body)
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        // This is the final wire boundary of this chat request; a builder that does not go through
+        // BaseAPIService.encodeChatBody must confirm it itself, otherwise the "requested" fact is never
+        // established (`requested` is recorded by confirmRequestDispatched only after finalWireEncoded).
+        CapabilityExecutionRuntime.confirmFinalWireEncoded()
+        return request
     }
 
-    // MARK: - Gemini Interactions (GA `/v1/interactions`)
+    /// The content of one user turn: within the turn, text comes first and media after.
+    /// preActivation uses the route's existing delivery (images become a placeholder, files become xml-v1 text), and no media bytes enter the body.
+    private static func interactionsUserContent(
+        _ message: ChatMessage, isOutgoingTurn: Bool, profile: InteractionsAttachmentProfile, model: AIModel?
+    ) throws -> [[String: Any]] {
+        let attachments = message.attachments ?? []
+        switch profile {
+        case .preActivation:
+            let text = try AttachmentDelivery.deliver(
+                isOutgoingTurn: isOutgoingTurn, userText: message.text, attachments: attachments,
+                transport: .geminiInteractions, model: model
+            ).injectedText
+            return [["type": "text", "text": text]]
+        case .activated:
+            var content: [[String: Any]] = message.text.isEmpty ? [] : [["type": "text", "text": message.text]]
+            for attachment in attachments {
+                switch attachment.kind {
+                case .image:
+                    content.append(["type": "image", "data": attachment.resolvedBase64Data, "mime_type": attachment.mimeType])
+                case .file:
+                    content.append([
+                        "type": "document",
+                        "data": attachment.originalBase64Data ?? attachment.resolvedBase64Data,
+                        "mime_type": attachment.mimeType,
+                    ])
+                case .video:
+                    continue
+                }
+            }
+            return content
+        }
+    }
 
-    /// Whether this turn goes through Interactions: only when web search is on and the catalog recipe points this model's web search at that endpoint.
+    /// Whether this turn goes through Interactions: only when web search is on, the catalog recipe points this model's web search at that endpoint,
+    /// and the whole request history (including this turn) has no video attachment (video is delivered as generateContent inlineData).
     /// Streaming and non-streaming dispatch and the pre-send attachment route resolution read the same function.
-    static func interactionsRecipe(modelID: String, webSearchEnabled: Bool) -> MetadataClient.CapabilityRecipe? {
-        guard webSearchEnabled,
+    static func interactionsRecipe(
+        modelID: String, webSearchEnabled: Bool, historyHasVideo: Bool
+    ) -> MetadataClient.CapabilityRecipe? {
+        guard webSearchEnabled, !historyHasVideo,
               let recipe = MetadataClient.shared.syncCapabilityRecipe(
                   modelID: modelID, providerKind: .gemini, capability: "web"
               ), recipe.executionKind == "endpoint_route",
@@ -598,17 +684,50 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         return recipe
     }
 
+    static func historyHasVideo(_ messages: [ChatMessage]) -> Bool {
+        messages.contains { $0.attachments?.contains { $0.kind == .video } == true }
+    }
+
+    /// The production-side reasoning input: only a reasoning recipe issued by the server whose transport is gemini_interactions is accepted
+    /// (generateContent's reasoning recipe is not borrowed); without one, no generation_config is sent.
+    private static func interactionsReasoning(
+        modelID: String, reasoningMode: ReasoningMode
+    ) -> (recipe: MetadataClient.CapabilityRecipe, intent: String?, intents: [String]?)? {
+        guard let recipe = MetadataClient.shared.syncCapabilityRecipe(
+            modelID: modelID, providerKind: .gemini, capability: "reasoning"
+        ), recipe.executionKind == "request_overlay",
+              recipe.transport.protocolName == "gemini_interactions" else { return nil }
+        let intents = MetadataClient.shared.syncCapabilityRecipeRuntime(
+            modelID: modelID, providerKind: .gemini
+        ).controls?["reasoning"]?.availableIntents
+        return (recipe, reasoningMode.intentToken, intents)
+    }
+
+    private func buildProductionInteractionsRequest(
+        modelID: String, messages: [ChatMessage], apiKey: String, stream: Bool,
+        recipe: MetadataClient.CapabilityRecipe, reasoningMode: ReasoningMode, systemPrompt: String,
+        safeCustomBodyFragments: [SafeCustomBodyFragment], additionalRequestBody: AdditionalRequestBodyPayload?,
+        capabilityEvidenceModel: AIModel?
+    ) throws -> URLRequest {
+        let reasoning = Self.interactionsReasoning(modelID: modelID, reasoningMode: reasoningMode)
+        return try buildInteractionsRequest(
+            modelID: modelID, messages: messages, apiKey: apiKey, stream: stream, recipe: recipe,
+            reasoningRecipe: reasoning?.recipe, reasoningIntent: reasoning?.intent,
+            reasoningAvailableIntents: reasoning?.intents,
+            systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments,
+            additionalRequestBody: additionalRequestBody, capabilityEvidenceModel: capabilityEvidenceModel
+        )
+    }
+
     private func sendInteractions(
         apiKey: String, modelID: String, messages: [ChatMessage], stream: Bool,
-        recipe: MetadataClient.CapabilityRecipe, systemPrompt: String,
+        recipe: MetadataClient.CapabilityRecipe, reasoningMode: ReasoningMode, systemPrompt: String,
         safeCustomBodyFragments: [SafeCustomBodyFragment], additionalRequestBody: AdditionalRequestBodyPayload?,
-        capabilityEvidenceModel: AIModel?,
-        producerMessageID: UUID?, explicitMessageID: UUID?
+        capabilityEvidenceModel: AIModel?
     ) async throws -> ProviderChatResult {
-        let previousID = try Self.loadExplicitInteractionID(explicitMessageID)
-        let request = try buildInteractionsRequest(
+        let request = try buildProductionInteractionsRequest(
             modelID: modelID, messages: messages, apiKey: apiKey, stream: stream, recipe: recipe,
-            previousResponseID: previousID, systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments,
+            reasoningMode: reasoningMode, systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments,
             additionalRequestBody: additionalRequestBody, capabilityEvidenceModel: capabilityEvidenceModel
         )
         // This route uses the session directly, bypassing BaseAPIService's send wrapper, so it records the requested fact itself.
@@ -625,34 +744,31 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         if webEvidence.searchExecuted {
             CapabilityExecutionRuntime.recordParserEvent(.toolResult, nonEmpty: true)
         }
-        // A completed interaction ID is valid opaque continuation state even if this leg contains
-        // no displayable text (for example a tool-only completion).
-        if let messageID = producerMessageID, let interactionID = Self.completedInteractionID(from: data) {
-            try RecipeContinuationRuntime.save(
-                messageID: messageID, recipe: recipe, state: ["previousResponseId": .string(interactionID)]
-            )
-        }
+        // The root of a non-streaming response is the Interaction resource itself: it gets the same terminal-state judgment and usage as the streaming interaction.completed.
+        var terminal = InteractionsStreamParser(redacting: [apiKey], receivedText: text)
+        try terminal.consumeInteraction((try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:])
+        try terminal.finish()
         guard !text.isEmpty else { throw ProviderServiceError.emptyResponse }
+        let breakdown = terminal.usage?.breakdown ?? UsageBreakdown()
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: UsageBreakdown(), modelID: modelID, providerKind: .gemini
+            breakdown: breakdown, modelID: modelID, providerKind: .gemini
         )
-        return ProviderChatResult(text: text, promptTokens: 0, completionTokens: 0,
-                                  estimatedCost: cost, usageBreakdown: UsageBreakdown(), costSource: source,
+        return ProviderChatResult(text: text, promptTokens: breakdown.totalInputTokens,
+                                  completionTokens: breakdown.completionTokens,
+                                  estimatedCost: cost, usageBreakdown: breakdown, costSource: source,
                                   citations: webEvidence.citations.isEmpty ? nil : webEvidence.citations)
     }
 
     private func streamInteractions(
         apiKey: String, modelID: String, messages: [ChatMessage], recipe: MetadataClient.CapabilityRecipe,
-        systemPrompt: String, safeCustomBodyFragments: [SafeCustomBodyFragment],
+        reasoningMode: ReasoningMode, systemPrompt: String, safeCustomBodyFragments: [SafeCustomBodyFragment],
         additionalRequestBody: AdditionalRequestBodyPayload?,
         capabilityEvidenceModel: AIModel?,
-        producerMessageID: UUID?, explicitMessageID: UUID?,
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
     ) async throws {
-        let previousID = try Self.loadExplicitInteractionID(explicitMessageID)
-        let request = try buildInteractionsRequest(
+        let request = try buildProductionInteractionsRequest(
             modelID: modelID, messages: messages, apiKey: apiKey, stream: true, recipe: recipe,
-            previousResponseID: previousID, systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments,
+            reasoningMode: reasoningMode, systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments,
             additionalRequestBody: additionalRequestBody, capabilityEvidenceModel: capabilityEvidenceModel
         )
         // Same as above: this route confirms the dispatch itself because it uses the session directly.
@@ -665,53 +781,168 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             var data = Data(); for try await byte in bytes { data.append(byte) }
             throw mapHTTPError(statusCode: http.statusCode, data: data)
         }
-        var text = ""
-        var completedInteractionID: String?
-        var citations = CitationAccumulator()
+        var parser = InteractionsStreamParser(redacting: [apiKey])
         for try await line in bytes.utf8Lines {
+            // A user cancellation goes through ChatManager's existing cancel wrap-up and does not go through the terminal-state judgment.
             guard !Task.isCancelled else { return }
-            let payload = line.hasPrefix("data:")
-                ? String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
-                : line
-            guard !payload.isEmpty, payload != "[DONE]", let data = payload.data(using: .utf8) else { continue }
-            // Interactions reports in-stream errors as `{"event_type":"error","error":{...}}` (the ErrorEvent in the Interactions API reference).
-            try Self.throwIfStreamErrorFrame(data, beforeAnyContent: text.isEmpty, redacting: [apiKey])
-            completedInteractionID = Self.completedInteractionID(from: data) ?? completedInteractionID
-            // Web evidence and body text arrive in different deltas: google_search_result means the search
-            // ran, while text_annotation_delta carries the sources attached to the body text.
-            let webEvidence = Self.interactionsWebEvidence(from: data)
-            if webEvidence.searchExecuted {
-                CapabilityExecutionRuntime.recordParserEvent(.toolResult, nonEmpty: true)
-            }
-            if !webEvidence.citations.isEmpty {
-                let before = citations.citations
-                citations.ingest(webEvidence.citations)
-                if citations.citations != before { continuation.yield(.citations(citations.citations)) }
-            }
-            // GA stream events carry nested `step.delta`; do not reuse the legacy
-            // generateContent candidates/content parser.
-            let delta = Self.interactionsText(from: data)
-            guard !delta.isEmpty else { continue }
-            text += delta
-            continuation.yield(.delta(delta))
+            for event in try parser.consume(line: line) { continuation.yield(event) }
         }
+        guard !Task.isCancelled else { return }
+        try parser.finish()
+        let breakdown = parser.usage?.breakdown ?? UsageBreakdown()
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: UsageBreakdown(), modelID: modelID, providerKind: .gemini
+            breakdown: breakdown, modelID: modelID, providerKind: .gemini
         )
-        if let messageID = producerMessageID, let completedInteractionID {
-            try RecipeContinuationRuntime.save(
-                messageID: messageID, recipe: recipe, state: ["previousResponseId": .string(completedInteractionID)]
-            )
-        }
         continuation.yield(.done(ProviderChatResult(
-            text: text.trimmingCharacters(in: .whitespacesAndNewlines), promptTokens: 0,
-            completionTokens: 0, estimatedCost: cost, usageBreakdown: UsageBreakdown(), costSource: source
+            text: parser.text.trimmingCharacters(in: .whitespacesAndNewlines),
+            promptTokens: breakdown.totalInputTokens, completionTokens: breakdown.completionTokens,
+            estimatedCost: cost, usageBreakdown: breakdown, costSource: source
         )))
     }
 
-    /// Interactions keeps text under completed `steps` for non-streaming responses and under
-    /// `step.delta` for SSE. Keep the parser structurally narrow: only semantic `text` fields
-    /// under those containers are surfaced, never IDs, signatures, or arbitrary metadata.
+    /// The three totals of `interaction.usage` (official Interactions API reference).
+    struct InteractionsUsage: Equatable {
+        var inputTokens: Int
+        var cachedTokens: Int
+        var outputTokens: Int
+        var thoughtTokens: Int
+
+        init?(_ raw: Any?) {
+            guard let usage = raw as? [String: Any] else { return nil }
+            inputTokens = usage["total_input_tokens"] as? Int ?? 0
+            cachedTokens = usage["total_cached_tokens"] as? Int ?? 0
+            outputTokens = usage["total_output_tokens"] as? Int ?? 0
+            thoughtTokens = usage["total_thought_tokens"] as? Int ?? 0
+        }
+
+        /// The same criterion as generateContent's parseUsage: output and thought are two independent items, and completion is their sum.
+        var breakdown: UsageBreakdown {
+            UsageBreakdown(
+                promptTokens: max(0, inputTokens - cachedTokens),
+                cachedInputTokens: cachedTokens,
+                completionTokens: outputTokens + thoughtTokens,
+                reasoningTokens: thoughtTokens,
+                cacheReadObserved: cachedTokens > 0
+            )
+        }
+    }
+
+    /// The production parser of the Interactions SSE stream. Lines are fed in one at a time and dispatched on `data.event_type`;
+    /// `event:` lines and `[DONE]` are not parsed. Terminal states: completed / incomplete finish normally (incomplete is handled like
+    /// generateContent's MAX_TOKENS); an error frame, status=failed / requires_action / cancelled, or a stream that ends without
+    /// interaction.completed all throw an upstream error. When text or thinking has already arrived, the caller marks the message failed and keeps what was received.
+    struct InteractionsStreamParser {
+        private(set) var text = ""
+        private(set) var thinking = ""
+        private(set) var searchEvidenceCount = 0
+        private(set) var usage: InteractionsUsage?
+        private var citations = CitationAccumulator()
+        private var completed = false
+        private let credentials: [String]
+
+        init(redacting credentials: [String] = [], receivedText: String = "") {
+            self.credentials = credentials
+            self.text = receivedText
+        }
+
+        private var beforeAnyContent: Bool { text.isEmpty && thinking.isEmpty }
+
+        mutating func consume(line: String) throws -> [StreamEvent] {
+            guard let data = BaseAPIService.sseDataPayload(line),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
+            switch object["event_type"] as? String {
+            case "step.delta":
+                return consumeDelta(object["delta"] as? [String: Any] ?? [:])
+            case "interaction.completed":
+                try consumeInteraction(object["interaction"] as? [String: Any] ?? [:])
+                return []
+            case "error":
+                let error = object["error"] as? [String: Any] ?? [:]
+                throw streamError(
+                    code: (error["code"] as? String) ?? "interaction_error",
+                    message: error["message"] as? String
+                )
+            case "interaction.created", "interaction.status_update", "step.start", "step.stop":
+                return []
+            default:
+                #if DEBUG
+                print("[GeminiInteractions] ignoring unknown event_type: \(object["event_type"] ?? "nil")")
+                #endif
+                return []
+            }
+        }
+
+        /// The terminal state of an Interaction resource (shared by streaming interaction.completed and the non-streaming root object).
+        mutating func consumeInteraction(_ interaction: [String: Any]) throws {
+            switch interaction["status"] as? String {
+            case "completed", "incomplete":
+                completed = true
+                usage = InteractionsUsage(interaction["usage"])
+            case "failed":
+                throw streamError(code: "interaction_failed", message: nil)
+            case "requires_action":
+                throw streamError(code: "interaction_requires_action", message: nil)
+            case "cancelled":
+                throw streamError(code: "interaction_cancelled", message: nil)
+            default:
+                // A status with no terminal meaning does not count as completion; at wrap-up it is handled as interaction_stream_closed.
+                break
+            }
+        }
+
+        /// Called when the connection closes: a stream with neither interaction.completed nor an error is treated as interrupted (an upstream error).
+        mutating func finish() throws {
+            guard completed else { throw streamError(code: "interaction_stream_closed", message: nil) }
+        }
+
+        private mutating func consumeDelta(_ delta: [String: Any]) -> [StreamEvent] {
+            switch delta["type"] as? String {
+            case "text":
+                guard let chunk = delta["text"] as? String, !chunk.isEmpty else { return [] }
+                text += chunk
+                return [.delta(chunk)]
+            case "thought_summary":
+                guard let chunk = (delta["content"] as? [String: Any])?["text"] as? String, !chunk.isEmpty else { return [] }
+                thinking += chunk
+                return [.reasoning(chunk)]
+            case "text_annotation_delta":
+                let incoming = GeminiService.interactionsURLCitations(delta["annotations"])
+                guard !incoming.isEmpty else { return [] }
+                let before = citations.citations
+                citations.ingest(incoming)
+                return citations.citations == before ? [] : [.citations(citations.citations)]
+            case "google_search_result":
+                // The official stream samples carry no result: anything whose is_error is not true counts as one piece of evidence.
+                guard delta["is_error"] as? Bool != true else { return [] }
+                searchEvidenceCount += 1
+                CapabilityExecutionRuntime.recordParserEvent(.toolResult, nonEmpty: true)
+                return []
+            case "thought_signature", "google_search_call":
+                return []
+            default:
+                #if DEBUG
+                print("[GeminiInteractions] ignoring unknown delta.type: \(delta["type"] ?? "nil")")
+                #endif
+                return []
+            }
+        }
+
+        /// The code is a string (an official URI-style identifier or an interaction_* synthesized by this client) and is also written into the technical details.
+        private func streamError(code: String, message: String?) -> ProviderServiceError {
+            let upstream = message.flatMap { $0.isEmpty ? nil : $0 }
+                .map { RelayErrorSnippet.truncate(RelayRequestSecurity.redactingCredentials($0, credentials: credentials), maxBytes: 2048) }
+            let detail = upstream.map { "\(code): \($0)" } ?? "Gemini Interactions stream ended with \(code)."
+            let error = BaseAPIService.mapStreamError(type: code, message: detail)
+            if beforeAnyContent, case .upstream = error {
+                CapabilityExecutionRuntime.recordStreamRejectionBeforeEvents()
+            }
+            return error
+        }
+    }
+
+    /// Interactions keeps text under completed `steps` for non-streaming responses. Keep the parser
+    /// structurally narrow: only semantic `text` fields under model_output steps are surfaced,
+    /// never IDs, signatures, or arbitrary metadata.
     private static func interactionsText(from data: Data) -> String {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return "" }
         func texts(_ value: Any) -> [String] {
@@ -724,16 +955,6 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                 if let nested = dictionary[key] { result.append(contentsOf: texts(nested)) }
             }
             return result
-        }
-        if object["event_type"] as? String == "step.delta",
-           let delta = object["delta"] as? [String: Any],
-           delta["type"] as? String == "text" {
-            return (delta["text"] as? String) ?? ""
-        }
-        if object["event_type"] as? String == "step.delta",
-           let step = object["step"] as? [String: Any],
-           step["type"] as? String == "model_output", let delta = step["delta"] {
-            return texts(delta).joined()
         }
         if let steps = object["steps"] as? [[String: Any]] {
             return steps.compactMap { step -> String? in
@@ -751,51 +972,41 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         var searchExecuted = false
     }
 
-    /// Web evidence in Interactions (official Interactions API reference):
-    /// - `google_search_result`: a non-empty `result` with `is_error` not true means the search really ran and returned results;
-    /// - `{url, title}` of an annotation with `type: "url_citation"` in the body text is a source.
-    /// When streaming, both live in the `delta` of `step.delta` (the latter has type `text_annotation_delta`);
-    /// when not streaming, they are in the completed `steps`. Other annotation types (file / place) are not web sources.
+    /// An annotation of `type: "url_citation"` with `{url, title, start_index, end_index}`;
+    /// other annotation types (file / place) are not web sources. The indexes are passed through as they are, and the client does not slice by them.
+    static func interactionsURLCitations(_ value: Any?) -> [Citation] {
+        ((value as? [[String: Any]]) ?? []).compactMap { annotation in
+            guard annotation["type"] as? String == "url_citation",
+                  let url = annotation["url"] as? String,
+                  !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            return Citation(
+                url: url, title: annotation["title"] as? String, snippet: nil, faviconUrl: nil, index: nil,
+                startIndex: annotation["start_index"] as? Int, endIndex: annotation["end_index"] as? Int
+            )
+        }
+    }
+
+    /// Web evidence of a non-streaming Interaction (official Interactions API reference), found in the completed `steps`:
+    /// - a `google_search_result` whose `is_error` is not true means the search ran (`result` may be absent);
+    /// - a url_citation in the annotations of a model_output body is a source.
     static func interactionsWebEvidence(from data: Data) -> InteractionsWebEvidence {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return .init() }
         var evidence = InteractionsWebEvidence()
-        func isExecutedSearch(_ node: [String: Any]) -> Bool {
-            node["type"] as? String == "google_search_result"
-                && node["is_error"] as? Bool != true
-                && (node["result"] as? [Any])?.isEmpty == false
-        }
         func collectURLCitations(_ value: Any) {
             if let array = value as? [Any] { array.forEach(collectURLCitations); return }
             guard let dictionary = value as? [String: Any] else { return }
-            for annotation in (dictionary["annotations"] as? [[String: Any]]) ?? [] {
-                guard annotation["type"] as? String == "url_citation",
-                      let url = annotation["url"] as? String,
-                      !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
-                evidence.citations.append(Citation(
-                    url: url, title: annotation["title"] as? String, snippet: nil, faviconUrl: nil, index: nil,
-                    startIndex: annotation["start_index"] as? Int, endIndex: annotation["end_index"] as? Int
-                ))
-            }
+            evidence.citations.append(contentsOf: interactionsURLCitations(dictionary["annotations"]))
             for key in ["content", "parts", "output"] {
                 if let nested = dictionary[key] { collectURLCitations(nested) }
             }
         }
-        if object["event_type"] as? String == "step.delta", let delta = object["delta"] as? [String: Any] {
-            if isExecutedSearch(delta) { evidence.searchExecuted = true }
-            if delta["type"] as? String == "text_annotation_delta" { collectURLCitations(delta) }
-        }
         for step in (object["steps"] as? [[String: Any]]) ?? [] {
-            if isExecutedSearch(step) { evidence.searchExecuted = true }
+            if step["type"] as? String == "google_search_result", step["is_error"] as? Bool != true {
+                evidence.searchExecuted = true
+            }
             if step["type"] as? String == "model_output" { collectURLCitations(step) }
         }
         return evidence
-    }
-
-    private static func completedInteractionID(from data: Data) -> String? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-        let interaction = (object["interaction"] as? [String: Any]) ?? object
-        guard interaction["status"] as? String == "completed" else { return nil }
-        return interaction["id"] as? String
     }
 
     /// Preserve the exact model content block supplied by Gemini, including a part's opaque
@@ -810,10 +1021,6 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             return content
         }
         return blocks.isEmpty ? nil : blocks
-    }
-
-    private static func loadExplicitInteractionID(_ messageID: UUID?) throws -> String? {
-        RecipeContinuationRuntime.previousResponseID(explicitMessageID: messageID)
     }
 
 
@@ -908,13 +1115,18 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
 
         let resolved = MetadataClient.shared.syncResolveCatalogModel(modelID: modelID, providerKind: .gemini)
+        // Decide by the route actually used this turn: when the model's transport is judged gemini_interactions but this turn did not
+        // select Interactions, what goes out is still generateContent, so a recipe whose protocol is gemini_interactions does not enter the body
+        // and is not recorded as requested, because the route does not match.
+        let wireTransport = resolved?.transport == "gemini_interactions"
+            ? "gemini_generate_content" : resolved?.transport
         let recipeLegacyInput = CapabilityRecipeRequestCompiler.legacyInput(
             providerKind: .gemini, modelID: modelID,
             webSearchEnabled: webSearchEnabled, reasoningMode: reasoningMode
         )
         let capabilityIntent = CapabilityEvidenceProductionAdapter.finalChatIntent(
             messages: messages, request: request,
-            effectiveTransport: resolved?.transport ?? "",
+            effectiveTransport: wireTransport ?? "",
             model: requestOptions.capabilityEvidenceModel,
             // Image-generation requests remain on their separate legacy image contract until
             // that contract is versioned; only makes text-chat model controls runtime-owned.
@@ -997,17 +1209,17 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             options: requestOptions,
             profile: resolved?.generationProfile,
             finalRequest: request,
-            effectiveTransport: resolved?.transport
+            effectiveTransport: wireTransport
         )
         CapabilityRecipeRequestCompiler.apply(
             to: &body, providerKind: .gemini, modelID: modelID,
-            transport: resolved?.transport ?? "", webSearchEnabled: webSearchEnabled,
+            transport: wireTransport ?? "", webSearchEnabled: webSearchEnabled,
             reasoningMode: reasoningMode, capabilityPreferences: requestOptions.capabilityPreferences
         )
         try CapabilityRecipeExecution.applySafeCustomFragments(
             requestOptions.localSafeCustomBodyFragments, to: &body,
             providerKind: .gemini, modelID: modelID,
-            transport: resolved?.transport ?? "gemini_generate_content"
+            transport: wireTransport ?? "gemini_generate_content"
         )
         try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -1015,18 +1227,46 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         return request
     }
 
-    private func buildRelayGenerateContentRequest(
+    /// The request for "Test capabilities": the same validation and builder as relay streaming chat (`stream: true`),
+    /// with just two extra inputs, the output cap and function tools. It only builds the request and never sends it.
+    func relayCapabilityTestRequest(
+        apiKey: String,
+        modelID: String,
+        messages: [ChatMessage],
+        baseURL: String,
+        requestOptions: ChatRequestOptions,
+        relayRequested: RelayRequestedConfig?,
+        maxOutputTokens: Int,
+        functionTools: [Any]?
+    ) throws -> URLRequest {
+        try validateAPIKey(apiKey)
+        guard !modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ProviderServiceError.invalidConfiguration(detail: "Missing model identifier.")
+        }
+        return try buildRelayGenerateContentRequest(
+            modelID: modelID, messages: messages, apiKey: apiKey, baseURL: baseURL, stream: true,
+            reasoningMode: .automatic, supportsImageGen: false, requestOptions: requestOptions, relayRequested: relayRequested,
+            maxOutputTokens: maxOutputTokens, functionTools: functionTools, keepImageAttachments: true
+        )
+    }
+
+    /// The two "Test capabilities" inputs; chat passes neither and its output is unchanged: `maxOutputTokens` is written to `generationConfig.maxOutputTokens`;
+    /// when `functionTools` is passed, this request's `tools` contains only that one.
+    func buildRelayGenerateContentRequest(
         modelID: String,
         messages: [ChatMessage],
         apiKey: String,
         baseURL: String,
         stream: Bool,
         reasoningMode: ReasoningMode,
-        webSearchEnabled: Bool,
+        webSearchEnabled: Bool = false,
         supportsImageGen: Bool,
         requestOptions: ChatRequestOptions = ChatRequestOptions(),
         relayRequested: RelayRequestedConfig? = nil,
-        droppedParams: Set<String> = []
+        droppedParams: Set<String> = [],
+        maxOutputTokens: Int? = nil,
+        functionTools: [Any]? = nil,
+        keepImageAttachments: Bool = false
     ) throws -> URLRequest {
         let normalizedBase = try RelayEndpointResolver.runtimeAPIBaseURL(
             rawBaseURL: baseURL,
@@ -1036,7 +1276,11 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         )
         let endpoint = stream ? "streamGenerateContent" : "generateContent"
         let path = "/models/\(modelID):\(endpoint)"
-        let endpointURL = try RelayEndpointResolver.endpointURL(apiBaseURL: normalizedBase, endpointPath: path)
+        // Pass the connection's security mode: it defaults to remoteHTTPS, under which a local http connection would be blocked as plaintext.
+        let endpointURL = try RelayEndpointResolver.endpointURL(
+            apiBaseURL: normalizedBase, endpointPath: path,
+            securityMode: relayRequested?.securityMode ?? .remoteHTTPS
+        )
         guard var components = URLComponents(url: endpointURL, resolvingAgainstBaseURL: false) else {
             throw ProviderServiceError.invalidConfiguration(detail: "Invalid base URL: \(baseURL)")
         }
@@ -1070,7 +1314,9 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             effectiveTransport: RelayTransport.geminiGenerateContent.rawValue,
             model: requestOptions.capabilityEvidenceModel,
             requestedReasoningMode: reasoningMode,
-            webSearchEnabled: webSearchEnabled
+            // Only an official provider's foreign-protocol route still expresses a web search intent; a relay's web search looks only at the connection-level fragment.
+            webSearchEnabled: requestOptions.officialForeignRoute && webSearchEnabled,
+            keepImageAttachments: keepImageAttachments
         )
         let contents = try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildContent($0, transport: .relayGeminiGenerateContent, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) }
         let modalities = supportsImageGen ? ["TEXT", "IMAGE"] : ["TEXT"]
@@ -1091,27 +1337,42 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             : nil
         let config = GeminiGenerateContentRequest.GenerationConfig(
             responseModalities: modalities,
-            thinkingConfig: thinkingConfig
+            thinkingConfig: thinkingConfig,
+            maxOutputTokens: maxOutputTokens
         )
         let systemPrompt = requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let systemInstruction: GeminiGenerateContentRequest.SystemInstruction? = systemPrompt.isEmpty ? nil : .init(parts: [.init(text: systemPrompt)])
         let payload = GeminiGenerateContentRequest(
             contents: contents,
             systemInstruction: systemInstruction,
-            tools: capabilityIntent.webSearchEnabled ? [.init(googleSearch: .init())] : nil,
+            // A relay no longer adds googleSearch automatically from the chat preference; it is merged below only when the connection stores a Gemini web fragment.
+            // An official provider's foreign-protocol route keeps the original behavior.
+            tools: Self.officialForeignGoogleSearch(requestOptions: requestOptions, webSearchEnabled: capabilityIntent.webSearchEnabled),
             generationConfig: config
         )
         var body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
+        if let functionTools {
+            body["tools"] = functionTools
+        }
         ProfileParamsResolver.applyGenerationParameters(
             to: &body,
             options: requestOptions,
             finalRequest: request,
             effectiveTransport: RelayTransport.geminiGenerateContent.rawValue
         )
+        // Relay web fragment: applied after the builder's output and before the additional request body.
+        RelayWebFragments.apply(requestOptions.relayWebFragments, transport: .geminiGenerateContent, to: &body)
         try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
         return request
+    }
+
+    /// The googleSearch of an official provider's foreign-protocol route (the original relay builder behavior, kept only for official providers).
+    private static func officialForeignGoogleSearch(
+        requestOptions: ChatRequestOptions, webSearchEnabled: Bool
+    ) -> [GeminiGenerateContentRequest.Tool]? {
+        requestOptions.officialForeignRoute && webSearchEnabled ? [.init(googleSearch: .init())] : nil
     }
 
     private static func relayGeminiThinkingBudget(_ mode: ReasoningMode, for modelID: String) -> Int? {
@@ -1303,6 +1564,8 @@ private struct GeminiGenerateContentRequest: Encodable {
     struct GenerationConfig: Encodable {
         var responseModalities: [String]?
         var thinkingConfig: ThinkingConfig?
+        /// Passed only by "Test capabilities"; nil is not encoded, so chat output is unchanged.
+        var maxOutputTokens: Int? = nil
 
         struct ThinkingConfig: Encodable {
             var thinkingBudget: Int?

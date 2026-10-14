@@ -15,6 +15,8 @@ struct AssistantMessageView: View {
     var resolvedProviderName: String?
     var resolvedModelName: String?
     var relayKind: RelayKind?
+    /// Unified avatar for relay connections; when non-nil, relayKind is ignored.
+    var relayAvatar: RelayAvatar?
     var renderHint: MarkdownRenderHint?
     var onContentHeightDidChange: ((CGFloat) -> Void)?
     var onRetry: (() -> Void)?
@@ -35,10 +37,11 @@ struct AssistantMessageView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: OriveoTheme.Spacing.md) {
-            ProviderBadgeIcon(
+            ConnectionAvatarIcon(
+                relayAvatar: relayAvatar,
                 kind: message.providerKind,
-                size: 28,
-                relayKind: relayKind
+                relayKind: relayKind,
+                size: 28
             )
 
             VStack(alignment: .leading, spacing: OriveoTheme.Spacing.xs) {

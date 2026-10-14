@@ -176,17 +176,23 @@ nonisolated enum RelayEndpointPolicy {
 }
 
 enum RelaySuccessResponsePolicy {
-    static func acceptsGenerationResponse(data: Data, response: HTTPURLResponse) -> Bool {
-        let contentType = response.value(forHTTPHeaderField: "Content-Type")?.lowercased() ?? ""
+    nonisolated static func acceptsGenerationResponse(data: Data, response: HTTPURLResponse) -> Bool {
+        !isWebPage(contentType: response.value(forHTTPHeaderField: "Content-Type"), data: data)
+    }
+
+    /// Whether the response is a web page (a gateway's SPA fallback page). Callers that have only the status code, type and body at hand (the Relay rejection loop) use it directly;
+    /// the recognition rule exists only here.
+    nonisolated static func isWebPage(contentType rawContentType: String?, data: Data) -> Bool {
+        let contentType = rawContentType?.lowercased() ?? ""
         if contentType.contains("text/html") || contentType.contains("application/xhtml+xml") {
-            return false
+            return true
         }
-        guard let body = String(data: data, encoding: .utf8) else { return true }
+        guard let body = String(data: data, encoding: .utf8) else { return false }
         let trimSet = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "\u{FEFF}"))
         let prefix = body.trimmingCharacters(in: trimSet).lowercased()
-        return !prefix.hasPrefix("<!doctype html")
-            && !prefix.hasPrefix("<html")
-            && !prefix.hasPrefix("<head")
-            && !prefix.hasPrefix("<body")
+        return prefix.hasPrefix("<!doctype html")
+            || prefix.hasPrefix("<html")
+            || prefix.hasPrefix("<head")
+            || prefix.hasPrefix("<body")
     }
 }

@@ -17,7 +17,8 @@ struct NoteSourceBadge: View {
     var body: some View {
         HStack(spacing: 5) {
             if let providerKind {
-                ProviderBadgeIcon(kind: providerKind, size: size)
+                // Notes do not remember the connection: relay sources are always generic
+                ConnectionAvatarIcon(provider: nil, kind: providerKind, size: size)
             }
             if !label.isEmpty {
                 Text(label)

@@ -82,6 +82,8 @@ enum NativeFileUploadSwitch {
     static let openAIResponses = NativeFileMode.always
     /// Not verified against the real provider: the subscription route uses the ChatGPT backend, whose accepted part types may differ from the official API.
     static let codexSubscription = NativeFileMode.alwaysWithTextFallback
+    /// Not verified against the real provider: the Grok subscription goes through the cli-chat-proxy Responses endpoint, whose accepted part types may differ from the official API.
+    static let grokSubscription = NativeFileMode.alwaysWithTextFallback
     /// Not verified against the real provider: whether a relay passes input_file through varies by site.
     static let relayOpenAIResponses = NativeFileMode.alwaysWithTextFallback
     static let anthropicMessages = NativeFileMode.always
@@ -116,7 +118,7 @@ enum AttachmentTransport: Hashable {
     // Gemini
     case geminiGenerateContent
     case relayGeminiGenerateContent
-    /// Gemini Interactions (`/v1/interactions`): each message is a single text part with no native file blocks; images arrive as a placeholder.
+    /// Gemini Interactions: each message is a single text part with no native file blocks; images arrive as a placeholder.
     case geminiInteractions
     // OpenRouter
     case openRouterChat
@@ -173,8 +175,10 @@ enum AttachmentTransport: Hashable {
         case .openRouterChat:
             return .init(provider: .openRouter, wrapper: .xmlV1, supportsNativeFiles: true, nativeFiles: NativeFileUploadSwitch.openRouterChat)
 
-        case .grokChat, .grokResponses, .grokSubscription:
+        case .grokChat, .grokResponses:
             return .init(provider: .grok, wrapper: .xmlV1)
+        case .grokSubscription:
+            return .init(provider: .grok, wrapper: .xmlV1, supportsNativeFiles: true, nativeFiles: NativeFileUploadSwitch.grokSubscription)
 
         case .miniMaxChat, .miniMaxAnthropicWeb:
             // Both routes' builders only send a string content.
@@ -206,7 +210,16 @@ enum AttachmentTransport: Hashable {
         case .toolLoop(.openRouter):
             return .init(provider: .openRouter, wrapper: .xmlV1, supportsNativeFiles: true, nativeFiles: NativeFileUploadSwitch.openRouterToolLoop)
         case .toolLoop(let provider):
-            return .init(provider: provider, wrapper: AttachmentWrapperVersion.resolve(provider: provider))
+            // The tool leg also goes out over that provider's Chat route: when that route sends text only, images get the same placeholder it declares.
+            let chatRoute: AttachmentTransport? = switch provider {
+            case .deepseek: .deepSeekChat
+            case .miniMax: .miniMaxChat
+            default: nil
+            }
+            return .init(
+                provider: provider, wrapper: AttachmentWrapperVersion.resolve(provider: provider),
+                imagePlaceholderText: chatRoute?.profile.imagePlaceholderText
+            )
         }
     }
 }

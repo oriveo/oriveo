@@ -42,24 +42,4 @@ enum RelayFamilyHeuristics {
         }
         return nil
     }
-
-    static func compatibleRelayKinds(for family: RelayModelFamily?) -> Set<RelayKind> {
-        guard let family else { return [] }
-        switch family {
-        case .anthropic: return [.anthropicCompatible]
-        case .google: return [.geminiCompatible]
-        case .openai: return [.openaiCompatible, .codexStyle]
-        case .deepseek, .qwen, .xai, .meta, .mistral: return []
-        }
-    }
-
-    static func suggestedRelayKind(for family: RelayModelFamily?) -> RelayKind? {
-        guard let family else { return nil }
-        switch family {
-        case .anthropic: return .anthropicCompatible
-        case .google: return .geminiCompatible
-        case .openai: return .openaiCompatible
-        case .deepseek, .qwen, .xai, .meta, .mistral: return nil
-        }
-    }
 }

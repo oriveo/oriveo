@@ -3,7 +3,11 @@ import OriveoProviderKit
 
 /// `transport=gemini_generate`:Gemini `generateContent` / `streamGenerateContent`.
 struct GeminiGenerateStrategy: TransportStrategy {
-    let kind: TransportKind = .geminiGenerate
+    let kind: TransportKind
+
+    init(kind: TransportKind = .geminiGenerate) {
+        self.kind = kind
+    }
 
     func parseStreamLine(
         _ raw: String,
@@ -29,6 +33,18 @@ struct GeminiGenerateStrategy: TransportStrategy {
                 } else {
                     ctx.accumulatedText += text
                     events.append(.delta(text))
+                }
+            }
+        }
+
+        // Web-search evidence: groundingMetadata with non-empty webSearchQueries or groundingChunks.
+        if let grounding = first["groundingMetadata"] as? [String: Any] {
+            let queries = grounding["webSearchQueries"] as? [Any] ?? []
+            let chunks = grounding["groundingChunks"] as? [Any] ?? []
+            if !queries.isEmpty || !chunks.isEmpty { ctx.webSearchEvidence.ran = true }
+            for case let chunk as [String: Any] in chunks {
+                if let url = StreamPathExtractor.extractString(chunk, path: "web.uri") ?? (chunk["uri"] as? String) {
+                    ctx.webSearchEvidence.note(url: url)
                 }
             }
         }

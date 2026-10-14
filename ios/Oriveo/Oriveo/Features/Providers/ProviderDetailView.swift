@@ -1,7 +1,16 @@
 import SwiftUI
 
 struct ProviderDetailView: View {
+    /// The three layers one detail hosts: detail, model library and model advanced are each an `AppRoute` pushed onto the `NavigationStack`.
+    /// The model library reuses the detail page's add-animation coordinate space, undo banner and capability test sheet, so it is still this view, rendered per page.
+    enum Page: Hashable {
+        case detail
+        case modelLibrary
+        case modelAdvanced(modelID: String, readOnly: Bool)
+    }
+
     let providerID: UUID
+    let page: Page
 
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -16,14 +25,40 @@ struct ProviderDetailView: View {
     @State private var showGenerationParameters = false
     @State private var modelSearchText = ""
     @State private var expandedLibraryGroups = Set<String>()
+    /// Protocol filter of the model library subpage.
+    @State private var catalogFilter: RelayCatalogBoardModel.Filter = .all
     @State private var enabledModelsFrameBox = ProviderDetailFrameBox()
     @State private var activeAddFeedbacks: [ProviderModelAddFeedbackState] = []
     @State private var highlightedEnabledModelID: String?
     @State private var pendingRemovalBanner: ProviderModelRemovalBannerState?
     @State private var addFeedbackTrigger = 0
     @State private var dismissedHealthBanner = false
+    /// A one-time notice carried over after adding or manual setup completes; taken from AppState when the page appears.
+    @State private var setupNotice: ProviderDetailNotice.Kind?
+    /// Bottom sheet for testing capabilities.
+    @State private var capabilityTest = RelayCapabilityTestController()
+    /// Relay / local: state of the re-detect button.
+    @State private var redetectRunner = RelayRedetectRunner()
+    /// "Re-verify" on the recovery card: each tap is a real request, so it cannot be tapped again while running.
+    @State private var reverifyRunner = RelayRedetectRunner()
 
     private let providerDetailCoordinateSpace = "providerDetailCoordinateSpace"
+
+    /// Filter of the model library's first frame: when entered through a key (id) it is that key's filter, otherwise All.
+    let initialCatalogFilter: RelayCatalogBoardModel.Filter
+
+    init(providerID: UUID, page: Page = .detail, keyFilter: String? = nil) {
+        self.providerID = providerID
+        self.page = page
+        let initial: RelayCatalogBoardModel.Filter = keyFilter.map { .key($0) } ?? .all
+        initialCatalogFilter = initial
+        _catalogFilter = State(initialValue: initial)
+    }
+
+    /// `startsInModelLibrary` only matters for relay / local connections: it lands directly on the model library page (the mount-cost test uses it to measure model rows).
+    init(providerID: UUID, startsInModelLibrary: Bool) {
+        self.init(providerID: providerID, page: startsInModelLibrary ? .modelLibrary : .detail)
+    }
 
     private var provider: Provider? {
         appState.provider(for: providerID)
@@ -62,6 +97,7 @@ struct ProviderDetailView: View {
             )
             Group {
                 if let provider {
+                    let board = RelayDetailBoardModel.make(provider, lastUsedModelRef: appState.lastUsedModelRef)
                     ZStack(alignment: .topLeading) {
                         ScrollView {
                             // The outer stack must be lazy. The enabled models and the model library are each a
@@ -71,90 +107,164 @@ struct ProviderDetailView: View {
                             // depth (150 enabled models: 470ms per tap on a simulator, past the 2s watchdog on an
                             // iPhone 13). With a lazy outer stack it is about 150ms.
                             LazyVStack(alignment: .leading, spacing: OriveoTheme.Spacing.lg) {
-                                topBar()
-
-                                if let disabled = subscriptionDisabledNotice(for: provider) {
-                                    SubscriptionDisabledNotice(
-                                        notice: disabled.notice,
-                                        fallback: disabled.fallback
-                                    )
-                                }
-
-                                if isProviderUnhealthy(provider), !dismissedHealthBanner {
-                                    ProviderConnectionIssueRecoveryCard(
-                                        provider: provider,
-                                        onUpdateAPIKey: {
-                                            if provider.authMode == .subscription {
-                                                if provider.kind == .openAI {
-                                                    showOpenAIReauthorization = true
-                                                } else {
-                                                    showGrokReauthorization = true
-                                                }
-                                            } else {
-                                                showEditAPIKey = true
-                                            }
-                                        },
-                                        onRetryConnection: {
-                                            Task { await runResync(providerID: provider.id) }
-                                        },
-                                        onCheckEndpoint: setupCatalog.setupEndpointOptions(for: provider.kind).isEmpty ? nil : {
-                                            showEditEndpoint = true
-                                        },
-                                        onDismiss: {
-                                            withAnimation(.easeOut(duration: 0.2)) {
-                                                dismissedHealthBanner = true
-                                            }
-                                        }
-                                    )
-                                        .transition(.opacity.combined(with: .move(edge: .top)))
-                                }
-
-                                ProviderDetailBrandHeroCard(
-                                    provider: provider,
-                                    onStartChat: {
-                                        appState.startNewChat(preferredProviderID: provider.id)
-                                    },
-                                    onResync: {
-                                        Task { await runResync(providerID: provider.id) }
-                                    },
-                                    onEditAPIKey: {
-                                        if provider.authMode == .subscription {
-                                            if provider.kind == .openAI {
-                                                showOpenAIReauthorization = true
-                                            } else {
-                                                showGrokReauthorization = true
-                                            }
-                                        } else {
-                                            showEditAPIKey = true
-                                        }
-                                    },
-                                    onEditName: {
-                                        showRenameProvider = true
-                                    },
-                                    onRemoveResidualAPIKey: {
-                                        appState.providerManager.removeStoredRelayCredential(providerID: provider.id)
+                                if board != nil, case let .modelAdvanced(modelID, readOnly) = page {
+                                    // Read-only advanced (entered from a catalog row) looks up the catalog entry; the read-only form of its content belongs to the model library card.
+                                    if let model = provider.models.first(where: { $0.id == modelID })
+                                        ?? (readOnly ? provider.catalogModels.first(where: { $0.id == modelID }) : nil) {
+                                        RelayModelAdvancedPage(
+                                            provider: provider,
+                                            model: model,
+                                            partitionID: appState.sessionPartitionUID,
+                                            onBack: { appState.pop() },
+                                            onTestCapabilities: {
+                                                capabilityTest.start(appState: appState, providerID: provider.id, modelID: model.id)
+                                            },
+                                            readOnly: readOnly
+                                        )
+                                    } else {
+                                        // The model has been removed: keep only the back button.
+                                        topBar()
                                     }
-                                )
-
-                                if ProviderBalanceCard.isBalanceCapable(provider.kind) {
-                                    ProviderBalanceCard(provider: provider)
-                                }
-
-                                modelsContent(for: provider, viewportSize: proxy.size)
-
-                                VStack(alignment: .leading, spacing: OriveoTheme.Spacing.md) {
-                                    ProviderSectionHeader(title: L10n.tr("Settings"))
-
-                                    ProviderSettingsSection(
+                                } else if board != nil, page == .modelLibrary {
+                                    RelayModelLibraryPage(
                                         provider: provider,
-                                        showEditEndpoint: $showEditEndpoint,
-                                        showConnectionSettings: $showConnectionSettings,
-                                        showDeleteAlert: $showDeleteAlert,
-                                        showEditRelay: $showEditRelay,
-                                        showGenerationParameters: $showGenerationParameters,
-                                    )
-                                }
+                                        isRefreshing: appState.relayCatalogRefreshingProviderIDs.contains(provider.id),
+                                        onBack: { appState.pop() },
+                                        onRefresh: { Task { await refreshRelayCatalog(providerID: provider.id) } }
+                                    ) {
+                                        modelsContent(for: provider, viewportSize: proxy.size)
+                                    }
+                                } else {
+                                    topBar()
 
+                                    if let setupNotice {
+                                        ProviderDetailSetupNoticeBanner(kind: setupNotice)
+                                    }
+
+                                    if let disabled = subscriptionDisabledNotice(for: provider) {
+                                        SubscriptionDisabledNotice(
+                                            notice: disabled.notice,
+                                            fallback: disabled.fallback
+                                        )
+                                    }
+
+                                    if !dismissedHealthBanner, let recovery = RelayDetailBoardModel.recoveryCard(
+                                        for: provider,
+                                        isReverifying: reverifyRunner.isRunning,
+                                        omitsDetail: Self.noticeCoversRecoveryDetail(setupNotice)
+                                    ) {
+                                        // Relay / local: a failed connection is mostly a wrong address, so offer editing the connection; changing the key goes to the keys page.
+                                        RelayDetailRecoveryCard(
+                                            card: recovery,
+                                            handlers: .init(
+                                                editConnection: { showEditRelay = true },
+                                                apiKeys: { appState.openRelayKeys(providerID: provider.id) },
+                                                reverify: {
+                                                    reverifyRunner.tap {
+                                                        await runResync(providerID: provider.id)
+                                                        return true
+                                                    }
+                                                }
+                                            ),
+                                            onDismiss: {
+                                                withAnimation(.easeOut(duration: 0.2)) {
+                                                    dismissedHealthBanner = true
+                                                }
+                                            }
+                                        )
+                                            .transition(.opacity.combined(with: .move(edge: .top)))
+                                    } else if isProviderUnhealthy(provider), !dismissedHealthBanner {
+                                        ProviderConnectionIssueRecoveryCard(
+                                            provider: provider,
+                                            onUpdateAPIKey: {
+                                                if provider.authMode == .subscription {
+                                                    if provider.kind == .openAI {
+                                                        showOpenAIReauthorization = true
+                                                    } else {
+                                                        showGrokReauthorization = true
+                                                    }
+                                                } else {
+                                                    showEditAPIKey = true
+                                                }
+                                            },
+                                            onRetryConnection: {
+                                                Task { await runResync(providerID: provider.id) }
+                                            },
+                                            onCheckEndpoint: setupCatalog.setupEndpointOptions(for: provider.kind).isEmpty ? nil : {
+                                                showEditEndpoint = true
+                                            },
+                                            onDismiss: {
+                                                withAnimation(.easeOut(duration: 0.2)) {
+                                                    dismissedHealthBanner = true
+                                                }
+                                            }
+                                        )
+                                            .transition(.opacity.combined(with: .move(edge: .top)))
+                                    }
+
+                                    if let board {
+                                        RelayDetailBoardView(
+                                            provider: provider,
+                                            board: board,
+                                            isDetecting: redetectRunner.isRunning,
+                                            onRename: { showRenameProvider = true },
+                                            onEditConnection: { showEditRelay = true },
+                                            onOpenKeys: { appState.openRelayKeys(providerID: provider.id) },
+                                            onRemoveResidualAPIKey: {
+                                                appState.providerManager.removeStoredRelayCredential(providerID: provider.id)
+                                            },
+                                            onOpenModelLibrary: { appState.openRelayModelLibrary(providerID: provider.id) },
+                                            onOpenWebSearch: { appState.openRelayWebSearch(providerID: provider.id) },
+                                            onOpenParameters: { showGenerationParameters = true },
+                                            onDetectAgain: { detectAgain(providerID: provider.id) },
+                                            onDelete: { showDeleteAlert = true }
+                                        )
+                                    } else {
+                                        ProviderDetailBrandHeroCard(
+                                            provider: provider,
+                                            onStartChat: {
+                                                appState.startNewChat(preferredProviderID: provider.id)
+                                            },
+                                            onResync: {
+                                                Task { await runResync(providerID: provider.id) }
+                                            },
+                                            onEditAPIKey: {
+                                                if provider.authMode == .subscription {
+                                                    if provider.kind == .openAI {
+                                                        showOpenAIReauthorization = true
+                                                    } else {
+                                                        showGrokReauthorization = true
+                                                    }
+                                                } else {
+                                                    showEditAPIKey = true
+                                                }
+                                            },
+                                            onEditName: {
+                                                showRenameProvider = true
+                                            }
+                                        )
+
+                                        if ProviderBalanceCard.isBalanceCapable(provider.kind) {
+                                            ProviderBalanceCard(provider: provider)
+                                        }
+
+                                        modelsContent(for: provider, viewportSize: proxy.size)
+                                    }
+
+                                    if ProviderSettingsRow.usesSettingsSection(for: provider) {
+                                        VStack(alignment: .leading, spacing: OriveoTheme.Spacing.md) {
+                                            ProviderSectionHeader(title: L10n.tr("Settings"))
+
+                                            ProviderSettingsSection(
+                                                provider: provider,
+                                                showEditEndpoint: $showEditEndpoint,
+                                                showConnectionSettings: $showConnectionSettings,
+                                                showDeleteAlert: $showDeleteAlert,
+                                                showGenerationParameters: $showGenerationParameters
+                                            )
+                                        }
+                                    }
+                                }
                             }
                             .frame(width: contentWidth, alignment: .leading)
                             .padding(.horizontal, OriveoTheme.Spacing.xl)
@@ -170,7 +280,10 @@ struct ProviderDetailView: View {
                         ConnectionSettingsSheet(
                             selectedKind: provider.kind,
                             setupCatalog: setupCatalog,
-                            selectedEndpointOption: setupCatalog.resolvedSetupEndpointOption(
+                            selectedEndpointOption: setupCatalog.sourcedEndpointOption(
+                                for: provider.kind,
+                                endpointSource: provider.endpointSource
+                            ) ?? setupCatalog.resolvedSetupEndpointOption(
                                 for: provider.kind,
                                 baseURLText: provider.baseURLText
                             ),
@@ -244,9 +357,18 @@ struct ProviderDetailView: View {
                     } message: {
                         Text(L10n.tr("This deletes the connection, API key, enabled models, model library, and model behavior settings. It does not delete conversations; message history stays, and models used there are marked unavailable. This cannot be undone.", table: .providers))
                     }
+                    .sheet(isPresented: capabilityTestPresented) {
+                        RelayCapabilityTestSheet(controller: capabilityTest)
+                    }
                     .onChange(of: provider.effectiveStatusKind) { _, newKind in
                         if newKind == .connected || newKind == .syncing {
                             dismissedHealthBanner = false
+                        }
+                    }
+                    .onAppear {
+                        guard page == .detail else { return }
+                        if setupNotice == nil, let notice = appState.consumeProviderDetailNotice(for: provider.id) {
+                            setupNotice = notice
                         }
                     }
                 } else {
@@ -261,6 +383,30 @@ struct ProviderDetailView: View {
 
     @ViewBuilder
     private func modelsContent(for provider: Provider, viewportSize: CGSize) -> some View {
+        // The model library of relay / local connections uses the board; official providers do not pass it and look the same as before.
+        let catalogFilters = ProviderForm.of(provider) == .relay
+            ? RelayCatalogBoardModel.filters(
+                provider: provider, models: provider.models + provider.catalogModels, current: catalogFilter
+            )
+            : []
+        let catalogBoard: RelayCatalogBoardContext? = ProviderForm.of(provider) == .relay
+            ? RelayCatalogBoardContext(
+                partitionID: appState.sessionPartitionUID,
+                filter: RelayCatalogBoardModel.effectiveFilter(catalogFilter, available: catalogFilters),
+                probeStates: appState.relayModelProbeStates[provider.id] ?? [:]
+            )
+            : nil
+
+        if let catalogBoard, !catalogFilters.isEmpty {
+            RelayCatalogFilterChips(
+                filters: catalogFilters,
+                selected: catalogBoard.filter,
+                keyTitle: { RelayCatalogBoardModel.keyFilterTitle(provider: provider, keyID: $0) ?? $0 }
+            ) { filter in
+                catalogFilter = filter
+            }
+        }
+
         ProviderEnabledModelsSection(
             provider: provider,
             highlightedModelID: highlightedEnabledModelID,
@@ -274,7 +420,11 @@ struct ProviderDetailView: View {
             },
             onRemove: { model in
                 handleEnabledModelRemove(model, for: provider)
-            }
+            },
+            onOpenAdvanced: { model in
+                appState.openRelayModelAdvanced(providerID: provider.id, modelID: model.id, readOnly: false)
+            },
+            catalogBoard: catalogBoard
         )
         .equatable()
 
@@ -306,7 +456,15 @@ struct ProviderDetailView: View {
                 onAddManualModel: {
                     appState.openManualModelEntry(providerID: provider.id, context: .providerDetail)
                 },
-                isCatalogRefreshing: appState.relayCatalogRefreshingProviderIDs.contains(provider.id)
+                isCatalogRefreshing: appState.relayCatalogRefreshingProviderIDs.contains(provider.id),
+                catalogBoard: catalogBoard,
+                onRetryCatalogKey: { keyID in
+                    Task { _ = await appState.providerManager.refreshRelayCatalog(providerID: provider.id, onlyKeyID: keyID) }
+                },
+                onOpenCatalogModel: { model in
+                    // Tapping a catalog row opens read-only advanced with no request; enabling goes only through the trailing plus.
+                    appState.openRelayModelAdvanced(providerID: provider.id, modelID: model.id, readOnly: true)
+                }
             )
         }
 
@@ -325,6 +483,10 @@ struct ProviderDetailView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+
+        if catalogBoard != nil {
+            RelayCatalogLegend()
+        }
     }
 
     // MARK: - Top Bar
@@ -338,6 +500,12 @@ struct ProviderDetailView: View {
 
             Spacer()
         }
+    }
+
+    /// The title of the "saved without verification" notice is the same reason the recovery card would give, plus the original failure text; while it is shown the recovery card does not repeat it.
+    static func noticeCoversRecoveryDetail(_ notice: ProviderDetailNotice.Kind?) -> Bool {
+        if case .unverifiedSave = notice { return true }
+        return false
     }
 
     private func isProviderUnhealthy(_ provider: Provider) -> Bool {
@@ -379,6 +547,19 @@ struct ProviderDetailView: View {
                 String(format: L10n.tr("Connection check failed: %@", table: .providers), detail),
                 style: .error
             )
+        }
+    }
+
+    /// Re-detect: calls the domain function, and the button cannot be tapped again while it runs; a failure reuses the existing catalog failure message.
+    private func detectAgain(providerID: UUID) {
+        let manager = appState.providerManager
+        redetectRunner.tap {
+            let succeeded = await manager.redetectRelayModels(providerID: providerID)
+            if !succeeded, let message = manager.provider(for: providerID)?.lastError?
+                .trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty {
+                ToastManager.shared.show(ProviderIssueMessage.localized(message), style: .warning)
+            }
+            return succeeded
         }
     }
 
@@ -426,7 +607,7 @@ struct ProviderDetailView: View {
 
         var enableResult: ProviderManager.EnableModelResult = .notFound
         withAnimation(.snappy) {
-            enableResult = appState.enableModel(modelID: model.id, for: provider.id)
+            enableResult = appState.enableModel(modelID: model.id, for: provider.id, lazilyVerifiesRelayTransport: true)
             highlightedEnabledModelID = model.id
         }
 
@@ -454,6 +635,13 @@ struct ProviderDetailView: View {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             clearHighlightIfNeeded(for: model.id)
         }
+    }
+
+    private var capabilityTestPresented: Binding<Bool> {
+        Binding(
+            get: { capabilityTest.isPresented },
+            set: { if !$0 { capabilityTest.dismiss() } }
+        )
     }
 
     private func handleEnabledModelRemove(_ model: AIModel, for provider: Provider) {
@@ -598,6 +786,7 @@ private struct SubscriptionDisabledNotice: View {
     }
 }
 
+/// The connection-issue card for official providers. Under the same criterion (`isWarning`), relay / local connections use `RelayDetailBoardModel.recoveryCard` and never reach here.
 private struct ProviderConnectionIssueRecoveryCard: View {
     let provider: Provider
     let onUpdateAPIKey: () -> Void
@@ -676,16 +865,11 @@ private struct ProviderConnectionIssueRecoveryCard: View {
 
     @ViewBuilder
     private var recoveryButtons: some View {
-        if provider.kind != .relay || RelayCredentialPolicy.editAction(
-            authMode: provider.relayRequested?.authMode,
-            hasStoredKey: RelayCredentialPolicy.hasStoredKey(provider.apiKey)
-        ) == .rotate {
-            Button(action: onUpdateAPIKey) {
-                Label(L10n.tr("Edit API Key", table: .providers), systemImage: "key.fill")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(ProviderRecoveryPrimaryButtonStyle())
+        Button(action: onUpdateAPIKey) {
+            Label(L10n.tr("Edit API Key", table: .providers), systemImage: "key.fill")
+                .frame(maxWidth: .infinity)
         }
+        .buttonStyle(ProviderRecoveryPrimaryButtonStyle())
 
         if let onCheckEndpoint {
             Button(action: onCheckEndpoint) {
@@ -781,4 +965,57 @@ private struct RenameProviderSheet: View {
 #Preview {
     ProviderDetailView(providerID: AppState.preview.providers.first!.id)
         .environment(AppState.preview)
+}
+
+extension ProviderDetailNotice.Kind {
+    /// Title of the "saved without verification" notice: the same sentence as this connection's status row, no longer worded as "could not get the model catalog".
+    static let unverifiedSaveTitleKey = ProviderIssueMessage.unverifiedConnectionKey
+}
+
+/// The one-time notice at the top of the detail page: how many models were enabled after adding, or why a manual setup was saved even though its probe failed.
+private struct ProviderDetailSetupNoticeBanner: View {
+    let kind: ProviderDetailNotice.Kind
+
+    var body: some View {
+        HStack(alignment: .top, spacing: OriveoTheme.Spacing.sm) {
+            Image(systemName: isWarning ? "info.circle.fill" : "checkmark.circle.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(isWarning ? OriveoTheme.Palette.warning : OriveoTheme.Palette.success)
+                .padding(.top, 1)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                switch kind {
+                case .addedModels(let count):
+                    Text(String(
+                        format: L10n.tr("Added %lld models. You can add more in the model library.", table: .providers),
+                        count
+                    ))
+                    .font(OriveoTheme.Typography.footnote)
+                    .foregroundStyle(OriveoTheme.Palette.textPrimary)
+                case .unverifiedSave(let reason):
+                    Text(ProviderIssueMessage.localized(ProviderDetailNotice.Kind.unverifiedSaveTitleKey))
+                        .font(OriveoTheme.Typography.footnote.weight(.semibold))
+                        .foregroundStyle(OriveoTheme.Palette.textPrimary)
+                    Text(reason)
+                        .font(OriveoTheme.Typography.caption)
+                        .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(OriveoTheme.Spacing.md)
+        .oriveoRoundedSurface(
+            fill: isWarning ? OriveoTheme.Palette.warningSoft : OriveoTheme.Palette.successSoft,
+            border: (isWarning ? OriveoTheme.Palette.warning : OriveoTheme.Palette.success).opacity(0.3),
+            radius: OriveoTheme.Radius.md,
+            shadow: .none
+        )
+        .accessibilityElement(children: .combine)
+    }
+
+    private var isWarning: Bool {
+        if case .unverifiedSave = kind { return true }
+        return false
+    }
 }

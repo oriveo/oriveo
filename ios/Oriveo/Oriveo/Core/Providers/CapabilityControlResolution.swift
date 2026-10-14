@@ -23,8 +23,54 @@ enum CapabilityControlResolution {
         model: AIModel,
         capability: String
     ) -> Verdict {
+        let verdict = resolveAutomatic(provider: provider, model: model, capability: capability)
+        // A relay model-level reasoning-level override only narrows the automatic set; other capabilities such as web search are unaffected.
+        guard capability == "reasoning", ProviderForm.of(provider) == .relay,
+              let levels = model.relayCapabilityOverrides?.reasoningLevels else { return verdict }
+        return Verdict(
+            state: verdict.state,
+            intents: RelayReasoningLevelOverride.narrowed(verdict.intents, levels: levels),
+            reasonCode: verdict.reasonCode,
+            viaLegacyProfile: verdict.viaLegacyProfile
+        )
+    }
+
+    /// The verdict that ignores the relay level override: the Advanced page takes its "automatic available set" from this one, and an override can only narrow within it.
+    static func resolveAutomatic(
+        provider: Provider,
+        model: AIModel,
+        capability: String
+    ) -> Verdict {
         if isSubscriptionLink(provider) {
             return subscriptionVerdict(provider: provider, model: model, capability: capability)
+        }
+        if capability == "web", ProviderForm.of(provider) == .relay {
+            // A relay does not derive web search from the official recipe: only the connection-level fragment counts. The fragment is a
+            // restricted field the user saved explicitly and takes effect on save, with no switch in chat, so it is custom_only rather than auto_available.
+            // When the probe record under the current fragment is rejected, it is treated as having no effective fragment (the same criterion as the chat attachment `RelayWebProbe.chatFragments`).
+            let saved = RelayWebFragmentStore.shared.hasEffectiveFragment(
+                provider: provider, transport: RelayEndpointResolver.effectiveTransport(provider: provider, model: model)
+            ) && RelayWebProbe.currentResult(
+                provider: provider, model: model,
+                fragments: RelayWebFragmentStore.shared.chatFragments(for: provider), records: .shared
+            ) != .rejected
+            return Verdict(
+                state: saved ? .customOnly : .unknown, intents: [],
+                reasonCode: saved ? "relay_web_fragment_saved" : "relay_web_fragment_missing",
+                viaLegacyProfile: false
+            )
+        }
+        if capability == "reasoning", ProviderForm.of(provider) == .relay, provider.relayRequested?.engineProfile == nil {
+            // Relay reasoning levels come from the server model-facts; when they cannot be had, fall back to the current behavior below
+            // (a chat-template switch / manual configuration needed). A local-engine connection still follows the write-path table and does not come here.
+            let tiers = RelayReasoningTier.tiers(efforts: relayModelFactsReasoningEfforts(provider: provider, model: model))
+            if !tiers.isEmpty {
+                return Verdict(
+                    state: .autoAvailable,
+                    intents: [ModelOptionCapabilityShape.automaticIntent] + tiers.compactMap(\.intentToken),
+                    reasonCode: relayModelFactsReasoningCode, viaLegacyProfile: false
+                )
+            }
         }
         if capability == "web" {
             return webVerdict(
@@ -49,6 +95,25 @@ enum CapabilityControlResolution {
             )
         }
         return Verdict(state: .unknown, intents: [], reasonCode: control?.reasonCode, viaLegacyProfile: false)
+    }
+
+    static let relayModelFactsReasoningCode = "relay_reasoning_model_facts"
+
+    /// The model-facts reasoning-effort words of a relay model: the family is the one the official catalog matches; only when none matches
+    /// is the `model-facts?view=by-model` entry already cached in this session used (no request is made for it). If neither is available the result is empty.
+    static func relayModelFactsReasoningEfforts(provider: Provider, model: AIModel) -> [String] {
+        let metadata = MetadataClient.shared
+        if let match = metadata.syncResolveCatalogModelAcrossProvidersWithProvider(
+            modelID: model.id, transportPriority: RelayRuntimeSupport.transportProviderKind(for: provider, model: model)
+        ) {
+            return metadata.syncModelFacts(providerKind: match.matchedProviderKind, modelID: model.id)?.reasoningEfforts
+                ?? metadata.syncModelFacts(
+                    providerKind: match.matchedProviderKind, modelID: match.canonicalModelId
+                )?.reasoningEfforts
+                ?? []
+        }
+        guard let key = metadata.cachedRelayModelFactsKeyNow(for: model.id) else { return [] }
+        return metadata.syncModelFacts(providerKind: key.providerKind, modelID: key.modelID)?.reasoningEfforts ?? []
     }
 
     static func webVerdict(
@@ -118,9 +183,17 @@ enum CapabilityControlResolution {
                     reasonCode: "model_capability_absent", viaLegacyProfile: false
                 )
             }
+            // A Grok subscription always sends web_search outbound (the proxy has no notion of turning search off; see GrokService),
+            // so the only level is automatic. The reason code is marked separately so the panel draws a read-only "Always on"
+            // instead of a switch that has no effect.
+            if provider.kind == .grok {
+                return Verdict(
+                    state: .autoAvailable, intents: ["automatic"],
+                    reasonCode: "subscription_web_always_on", viaLegacyProfile: false
+                )
+            }
             return Verdict(
-                state: .autoAvailable,
-                intents: provider.kind == .grok ? ["automatic"] : ["off", "automatic"],
+                state: .autoAvailable, intents: ["off", "automatic"],
                 reasonCode: "subscription_upstream_declared", viaLegacyProfile: false
             )
         case "reasoning":
@@ -184,6 +257,8 @@ enum CapabilityControlPresentationResolver {
             reasonCode: verdict.reasonCode,
             exactTransportMatches: verdict.viaLegacyProfile
                 || CapabilityControlResolution.isSubscriptionLink(provider)
+                // Relay model-facts levels likewise have no recipe: the outbound mapping is decided by the protocol.
+                || verdict.reasonCode == CapabilityControlResolution.relayModelFactsReasoningCode
                 || hasExactTransportRecipe(provider: provider, model: model, capability: capability)
         )
     }
@@ -212,7 +287,20 @@ enum CapabilityWebPreferenceLiveness {
     static func reachesTheWire(
         status: CapabilityControlPresentation, customIsActive: Bool
     ) -> Bool {
+        // Always-on (.alwaysOn) counts as read-only: it is not the user's choice, so a stored preference does not light up with it;
+        // Grok still always sends web_search outbound, which has nothing to do with this.
         status == .automaticAvailable || customIsActive
+    }
+
+    /// The "web permitted" value for the composer globe and the outbound decision: besides the verdict allowing outbound, an always-on
+    /// (`.alwaysOn`) capability is not a dialable user choice either, matching Android `hasWebSelection` and Web `modelControlWebReachesTheWire`.
+    /// A Grok subscription always sends web_search outbound and does not read this value (`GrokService.buildSubscriptionResponsesRequest`).
+    static func composerWebPermitted(
+        outboundPermitted: Bool, provider: Provider, model: AIModel
+    ) -> Bool {
+        outboundPermitted && CapabilityControlPresentationResolver.presentation(
+            provider: provider, model: model, capability: "web"
+        ) != .alwaysOn
     }
 
     static func reachesTheWire(
@@ -234,5 +322,54 @@ enum CapabilityWebPreferenceLiveness {
                 : nil
         ).mode == .custom
         return reachesTheWire(status: status, customIsActive: customIsActive)
+    }
+}
+
+/// Relay model-level reasoning-level override (`relayCapabilityOverrides.reasoningLevels`).
+///
+/// The five slots are contract vocabulary = the raw `ReasoningMode` values (automatic / fast / balanced / deep / max), and the override stores raw values;
+/// conversion to v2 intents: `automatic` <-> `"automatic"`, the rest via `ReasoningMode.intentToken` / `fromIntent`.
+/// `off` is a switch rather than a level: it is not one of the five slots and is not removed by an override.
+enum RelayReasoningLevelOverride {
+    static func intent(of mode: ReasoningMode) -> String? {
+        mode == .automatic ? ModelOptionCapabilityShape.automaticIntent : mode.intentToken
+    }
+
+    static func mode(ofIntent intent: String) -> ReasoningMode? {
+        intent == ModelOptionCapabilityShape.automaticIntent ? .automatic : ReasoningMode.fromIntent(intent)
+    }
+
+    /// The automatic available set: the slots resolved from the existing reasoning control (the reasoning intents of `resolveAutomatic`), in the order of the five slots.
+    static func automaticModes(provider: Provider, model: AIModel) -> [ReasoningMode] {
+        let intents = CapabilityControlResolution.resolveAutomatic(
+            provider: provider, model: model, capability: "reasoning"
+        ).intents
+        let present = Set(intents.compactMap(mode(ofIntent:)))
+        return ReasoningMode.allCases.filter(present.contains)
+    }
+
+    /// Consumption point: available intents = automatic ∩ override; an intent that is not one of the five slots (such as `off`) is kept as is.
+    static func narrowed(_ intents: [String], levels: [String]) -> [String] {
+        let allowed = Set(levels)
+        return intents.filter { intent in
+            guard let mode = mode(ofIntent: intent) else { return true }
+            return allowed.contains(mode.rawValue)
+        }
+    }
+
+    /// Normalization before writing: keeps only slots in the automatic set (narrowing only), in the order of the five slots; an empty set cannot be written (returns `.reject`),
+    /// and a set equal to the automatic set deletes the override (returns `.clear`).
+    enum Normalized: Equatable {
+        case reject
+        case clear
+        case store([String])
+    }
+
+    static func normalized(_ levels: [String], automatic: [ReasoningMode]) -> Normalized {
+        let requested = Set(levels)
+        let kept = automatic.filter { requested.contains($0.rawValue) }
+        if kept.isEmpty { return .reject }
+        if kept == automatic { return .clear }
+        return .store(kept.map(\.rawValue))
     }
 }

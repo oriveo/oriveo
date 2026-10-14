@@ -77,6 +77,7 @@ extension AppState {
                 regionID: DeterministicProviderID.regionID(
                     for: p.kind,
                     baseURLText: p.baseURLText,
+                    endpointSource: p.endpointSource,
                     setupCatalog: setupCatalog
                 )
             )

@@ -15,15 +15,16 @@ enum DeterministicProviderID {
         return makeV5(name: name)
     }
 
+    /// The region segment of the deterministic id (shared by registration and migration grouping): looks only at the frozen identity table.
+    /// A `region:<id>` source whose id is in the table wins; otherwise the baseURLText is normalized and looked up
+    /// (falling back to the first entry on a miss); a provider outside the table returns an empty string.
     static func regionID(
         for kind: ProviderKind,
         baseURLText: String?,
+        endpointSource: ProviderEndpointSource? = nil,
         setupCatalog: ProviderSetupCatalog
     ) -> String {
-        guard let option = setupCatalog.resolvedSetupEndpointOption(for: kind, baseURLText: baseURLText) else {
-            return ""
-        }
-        return option.id
+        setupCatalog.identityRegionID(for: kind, baseURLText: baseURLText, endpointSource: endpointSource)
     }
 
     // MARK: - UUIDv5(SHA-1)

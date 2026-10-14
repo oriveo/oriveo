@@ -453,4 +453,15 @@ enum L10n {
     static func tr(_ key: String, table: Table) -> String {
         bundle.localizedString(forKey: key, value: key, table: table.rawValue)
     }
+
+    /// Formats by the in-app language: `String.localizedStringWithFormat` picks plural forms from the
+    /// system `Locale.current`, which selects the wrong form when the app language differs (e.g. ru 5 falls into other).
+    static func format(_ format: String, _ arguments: CVarArg...) -> String {
+        String(format: format, locale: AppLocalization.currentLocale, arguments: arguments)
+    }
+
+    /// Same, with an explicit locale (for tests and known target languages).
+    static func format(_ format: String, locale: Locale, _ arguments: CVarArg...) -> String {
+        String(format: format, locale: locale, arguments: arguments)
+    }
 }

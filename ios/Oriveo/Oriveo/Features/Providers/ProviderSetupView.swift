@@ -21,6 +21,8 @@ struct ProviderSetupView: View {
     @State private var setupError: OriveoError?
     @State private var providerSelectionIsManual = false
     @State private var selectedEndpointID = ""
+    /// Values typed into address-template placeholders, keyed by field id; cleared when the provider changes.
+    @State private var setupFieldValues: [String: String] = [:]
     @State private var hasAppliedPreselection = false
     @State private var didHandOffToRelay = false
     @State private var isAdditionalInstance = false
@@ -132,7 +134,18 @@ struct ProviderSetupView: View {
                                         ProviderEndpointPicker(
                                             kind: selectedKind,
                                             setupCatalog: setupCatalog,
-                                            selectedOptionID: $selectedEndpointID
+                                            selectedOptionID: $selectedEndpointID,
+                                            includesTemplateOptions: true
+                                        )
+                                    }
+
+                                    // Shown only when the selected address template has placeholders, directly below the region picker.
+                                    let fieldIDs = setupCatalog.setupFieldIDs(for: selectedKind, optionID: selectedEndpointID)
+                                    if !fieldIDs.isEmpty {
+                                        ProviderSetupFieldsSection(
+                                            fieldIDs: fieldIDs,
+                                            values: $setupFieldValues,
+                                            isSubmitting: isSubmitting
                                         )
                                     }
                                 }
@@ -195,6 +208,7 @@ struct ProviderSetupView: View {
                     .padding(.bottom, OriveoTheme.Spacing.lg)
                     .oriveoContentWidth()
                     .background(OriveoTheme.Palette.surfaceChrome)
+                    .background(OriveoTheme.Palette.background)
                 }
             }
         }
@@ -343,6 +357,12 @@ struct ProviderSetupView: View {
             && selectedKind != nil
             && !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !isSubmitting
+            // The primary button is disabled while a template placeholder lacks a valid value; no error text is shown.
+            && selectedKind.map { setupSubmission(for: $0) != nil } ?? false
+    }
+
+    private func setupSubmission(for kind: ProviderKind) -> ProviderSetupSubmission? {
+        setupCatalog.setupSubmission(for: kind, optionID: selectedEndpointID, values: setupFieldValues)
     }
 
     private var grokSubscriptionConfig: GrokSubscriptionAuthConfig? {
@@ -393,6 +413,7 @@ struct ProviderSetupView: View {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
             selectedKind = kind
             selectedEndpointID = setupCatalog.defaultSetupEndpointID(for: kind) ?? ""
+            setupFieldValues = [:]
         }
     }
 
@@ -417,9 +438,8 @@ struct ProviderSetupView: View {
             setupError = ProviderKeyInput.illegalCharsError()
             return
         }
-        let endpointOverride = setupCatalog.usesConfigurableBaseURL(selectedKind)
-            ? setupCatalog.resolvedSetupBaseURLText(for: selectedKind, optionID: selectedEndpointID)
-            : setupCatalog.defaultBaseURLText(for: selectedKind)
+        guard let submission = setupSubmission(for: selectedKind) else { return }
+        let endpointOverride = submission.baseURLText
 
         setupError = nil
         inlineStatusText = L10n.tr("Validating connection and syncing models...", table: .providers)
@@ -430,7 +450,9 @@ struct ProviderSetupView: View {
                 kind: selectedKind,
                 apiKey: trimmedKey,
                 baseURLText: endpointOverride,
-                isAdditionalInstance: isAdditionalInstance
+                isAdditionalInstance: isAdditionalInstance,
+                endpointSource: submission.endpointSource,
+                setupValues: submission.setupValues
             )
 
             if Task.isCancelled {
@@ -892,7 +914,7 @@ private struct CustomProviderEntry: View {
 
                 Spacer(minLength: 0)
 
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(OriveoTheme.Palette.textTertiary)
             }
@@ -1123,9 +1145,18 @@ struct ProviderEndpointPicker: View {
     let kind: ProviderKind
     let setupCatalog: ProviderSetupCatalog
     @Binding var selectedOptionID: String
+    /// The saved connection's current region: still listed when it is not among the selectable options, but it cannot be newly selected (`ProviderEndpointEditPolicy`).
+    var pinnedCurrent: ProviderEndpointOption? = nil
+    /// Template options with placeholders: listed on both the setup page and the official detail page (the detail page applies its own rule, see `detailPickerOptions`).
+    var includesTemplateOptions: Bool = false
 
-    private var options: [ProviderEndpointOption] {
-        setupCatalog.setupEndpointOptions(for: kind)
+    private var picker: (options: [ProviderEndpointOption], lockedIDs: Set<String>) {
+        ProviderEndpointEditPolicy.pickerOptions(
+            catalog: setupCatalog,
+            kind: kind,
+            current: pinnedCurrent,
+            includesTemplates: includesTemplateOptions
+        )
     }
 
     private let columns = [
@@ -1148,21 +1179,66 @@ struct ProviderEndpointPicker: View {
             }
 
             LazyVGrid(columns: columns, spacing: OriveoTheme.Spacing.md) {
-                ForEach(options) { option in
+                let picker = picker
+                ForEach(picker.options) { option in
                     let isSelected = selectedOptionID == option.id
+                    let isLocked = picker.lockedIDs.contains(option.id)
                     ProviderEndpointOptionCard(
                         kind: kind,
                         option: option,
                         isSelected: isSelected
                     )
+                    .opacity(isLocked && !isSelected ? 0.4 : 1)
                     .contentShape(Rectangle())
                     .onTapGesture {
+                        guard !isLocked else { return }
                         withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
                             selectedOptionID = option.id
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+/// Input slots for address-template placeholders, shared by the setup page and the official detail page. An invalid value only disables the primary button; no error text is shown.
+struct ProviderSetupFieldsSection: View {
+    let fieldIDs: [String]
+    @Binding var values: [String: String]
+    let isSubmitting: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: OriveoTheme.Spacing.md) {
+            ForEach(fieldIDs, id: \.self) { fieldID in
+                OriveoLabeledField(
+                    title: Self.title(for: fieldID),
+                    text: Binding(
+                        get: { values[fieldID] ?? "" },
+                        set: { values[fieldID] = $0 }
+                    ),
+                    placeholder: "",
+                    footnote: Self.footnote(for: fieldID),
+                    isEnabled: !isSubmitting
+                )
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            }
+        }
+    }
+
+    /// Field ids are a closed set (`ProviderSetupFieldDefinition.knownIDs`), and each id has its own copy.
+    private static func title(for fieldID: String) -> String {
+        switch fieldID {
+        case "workspaceId": return L10n.tr("Workspace ID", table: .providers)
+        default: return fieldID
+        }
+    }
+
+    private static func footnote(for fieldID: String) -> String? {
+        switch fieldID {
+        case "workspaceId": return L10n.tr("Copy it from your account console.", table: .providers)
+        default: return nil
         }
     }
 }

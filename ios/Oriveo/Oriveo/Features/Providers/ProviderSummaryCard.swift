@@ -31,16 +31,6 @@ struct ProviderDetailBrandHeroCard: View {
     let onResync: () -> Void
     let onEditAPIKey: () -> Void
     var onEditName: (() -> Void)? = nil
-    var onRemoveResidualAPIKey: (() -> Void)? = nil
-
-    private var credentialEditAction: RelayCredentialPolicy.EditAction {
-        provider.kind == .relay
-            ? RelayCredentialPolicy.editAction(
-                authMode: provider.relayRequested?.authMode,
-                hasStoredKey: RelayCredentialPolicy.hasStoredKey(provider.apiKey)
-            )
-            : .rotate
-    }
 
     private var canStartChat: Bool {
         provider.defaultModel != nil
@@ -213,10 +203,11 @@ struct ProviderDetailBrandHeroCard: View {
 
     private var topRow: some View {
         HStack(alignment: .center, spacing: 12) {
-            ProviderBadgeIcon(
+            ConnectionAvatarIcon(
+                provider: provider,
                 kind: resolvedLogoKind,
-                size: 48,
-                relayKind: resolvedRelayKind
+                relayKind: resolvedRelayKind,
+                size: 48
             )
 
             Spacer(minLength: 0)
@@ -300,72 +291,61 @@ struct ProviderDetailBrandHeroCard: View {
 
     @ViewBuilder
     private var apiKeyRow: some View {
-        if credentialEditAction == .rotate {
-            Button(action: onEditAPIKey) {
-                let isSubscription = provider.authMode == .subscription
-                HStack(spacing: 12) {
-                    Image(systemName: isSubscription ? "person.badge.key.fill" : "key.fill")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 30, height: 30)
-                        .background(Circle().fill(Color.white.opacity(0.22)))
-                        .overlay(Circle().stroke(Color.white.opacity(0.30), lineWidth: 0.6))
+        Button(action: onEditAPIKey) {
+            let isSubscription = provider.authMode == .subscription
+            HStack(spacing: 12) {
+                Image(systemName: isSubscription ? "person.badge.key.fill" : "key.fill")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(Color.white.opacity(0.22)))
+                    .overlay(Circle().stroke(Color.white.opacity(0.30), lineWidth: 0.6))
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(isSubscription
-                             ? L10n.tr("Subscription", table: .providers)
-                             : L10n.tr("API Key", table: .providers))
-                            .font(.system(size: 10.5, weight: .semibold))
-                            .tracking(0.6)
-                            .textCase(.uppercase)
-                            .foregroundStyle(.white.opacity(0.62))
-                            .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(isSubscription
+                         ? L10n.tr("Subscription", table: .providers)
+                         : L10n.tr("API Key", table: .providers))
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .tracking(0.6)
+                        .textCase(.uppercase)
+                        .foregroundStyle(.white.opacity(0.62))
+                        .lineLimit(1)
 
-                        Text(isSubscription
-                             ? (provider.kind == .openAI
-                                ? L10n.tr("Signed in with ChatGPT", table: .providers)
-                                : L10n.tr("Signed in with x.ai", table: .providers))
-                             : apiKeyDisplayValue)
-                            .font(.system(
-                                size: 13.5,
-                                weight: .semibold,
-                                design: isSubscription ? .default : .monospaced
-                            ))
-                            .foregroundStyle(isSubscription ? Color.white : apiKeyTextColor)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                            .monospacedDigit()
-                    }
-
-                    Spacer(minLength: 0)
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.55))
+                    Text(isSubscription
+                         ? (provider.kind == .openAI
+                            ? L10n.tr("Signed in with ChatGPT", table: .providers)
+                            : L10n.tr("Signed in with x.ai", table: .providers))
+                         : apiKeyDisplayValue)
+                        .font(.system(
+                            size: 13.5,
+                            weight: .semibold,
+                            design: isSubscription ? .default : .monospaced
+                        ))
+                        .foregroundStyle(isSubscription ? Color.white : apiKeyTextColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .monospacedDigit()
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(Color.white.opacity(0.18))
-                )
-                .overlay(
-                    Capsule(style: .continuous)
-                        .stroke(Color.white.opacity(0.22), lineWidth: 0.5)
-                )
-                .contentShape(Capsule(style: .continuous))
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.forward")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.55))
             }
-            .buttonStyle(.plain)
-        } else if provider.kind == .relay,
-                  credentialEditAction == .removeResidual,
-                  let onRemoveResidualAPIKey {
-            Button(action: onRemoveResidualAPIKey) {
-                Label(L10n.tr("Remove stored key", table: .providers), systemImage: "key.slash")
-                    .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.9))
-            }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.white.opacity(0.18))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(Color.white.opacity(0.22), lineWidth: 0.5)
+            )
+            .contentShape(Capsule(style: .continuous))
         }
+        .buttonStyle(.plain)
     }
 
     private var apiKeyDisplayValue: String {

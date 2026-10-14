@@ -8,6 +8,9 @@ struct LocalEngineConnection: Sendable {
     let runtimeMetadata: [String: LocalModelRuntimeMetadata]
     let selectedModelID: String
     let requested: RelayRequestedConfig
+    /// Context window: taken only from responses already received at connect time (llama.cpp `/props`, LM Studio `/api/v0/models`),
+    /// with no extra request made for it; nil for other engines or when the response lacks it (the UI shows "N/A", never 0).
+    var contextLength: Int? = nil
 }
 
 enum LocalEngineConnectionError: LocalizedError, Equatable {
@@ -47,8 +50,93 @@ enum LocalEngineConnector {
         modelHint: String? = nil,
         apiKey: String = "",
         certificateFingerprint: String? = nil,
+        channel: RelayTransport? = nil,
         session: URLSession = .shared
     ) async throws -> LocalEngineConnection {
+        let inspection = try await inspect(
+            engine: engine,
+            endpoint: rawEndpoint,
+            securityMode: securityMode,
+            modelHint: modelHint,
+            apiKey: apiKey,
+            certificateFingerprint: certificateFingerprint,
+            channel: channel,
+            session: session
+        )
+        let endpoint = inspection.endpoint
+        let requested = inspection.requested
+        let selected = inspection.selected
+        do {
+            _ = try await OpenAIService(session: session).pingRelay(
+                apiKey: apiKey,
+                baseURL: requested.resolvedAPIBaseURL ?? endpoint,
+                modelID: selected,
+                relayRequested: requested
+            )
+        } catch {
+            throw classifyNetworkError(error)
+        }
+        var connectionMetadata: [String: LocalModelRuntimeMetadata] = inspection.runtimeMetadata.isEmpty
+            ? [selected: .init(loadState: .unknown, executionLocality: executionLocality(engine: engine, modelID: selected))]
+            : inspection.runtimeMetadata
+        for modelID in connectionMetadata.keys {
+            connectionMetadata[modelID]?.engineDeclaration = inspection.declarations[modelID]
+        }
+        return LocalEngineConnection(
+            engine: engine,
+            endpoint: endpoint,
+            apiBaseURL: requested.resolvedAPIBaseURL ?? endpoint,
+            modelIDs: catalogModelIDs(discovered: inspection.discovered, selected: selected),
+            runtimeMetadata: connectionMetadata,
+            selectedModelID: selected,
+            requested: requested,
+            contextLength: inspection.contextLength
+        )
+    }
+
+    /// Re-detect the local connection: only re-reads each model's engine declaration. No 1-token generation check and no protocol probing.
+    static func readDeclarations(
+        engine: LocalEngineKind,
+        endpoint: String,
+        securityMode: RelayConnectionSecurityMode,
+        modelHint: String? = nil,
+        apiKey: String = "",
+        certificateFingerprint: String? = nil,
+        session: URLSession = .shared
+    ) async throws -> [String: EngineDeclaration] {
+        try await inspect(
+            engine: engine,
+            endpoint: endpoint,
+            securityMode: securityMode,
+            modelHint: modelHint,
+            apiKey: apiKey,
+            certificateFingerprint: certificateFingerprint,
+            channel: nil,
+            session: session
+        ).declarations
+    }
+
+    private struct Inspection {
+        let endpoint: String
+        let requested: RelayRequestedConfig
+        let discovered: [String]
+        let runtimeMetadata: [String: LocalModelRuntimeMetadata]
+        let selected: String
+        let declarations: [String: EngineDeclaration]
+        let contextLength: Int?
+    }
+
+    /// Probe liveness, fetch the catalog, verify the engine identity, and parse declarations: shared by `connect` and re-detection; the generation check is not done here.
+    private static func inspect(
+        engine: LocalEngineKind,
+        endpoint rawEndpoint: String,
+        securityMode: RelayConnectionSecurityMode,
+        modelHint: String?,
+        apiKey: String,
+        certificateFingerprint: String?,
+        channel: RelayTransport?,
+        session: URLSession
+    ) async throws -> Inspection {
         guard supports(securityMode: securityMode) else {
             throw LocalEngineConnectionError.invalidEndpoint
         }
@@ -74,12 +162,20 @@ enum LocalEngineConnector {
         guard let template = LocalEngineTemplate.all[engine] else {
             throw LocalEngineConnectionError.wrongEngine
         }
+        // The channel is connection-level, so only that engine's channel set may be taken (passed in when the add page manually picks the llama.cpp native channel).
+        let transport = channel ?? engine.defaultTransport
+        guard LocalEngineChannelCandidates.candidates(engineProfile: engine.rawValue).contains(transport) else {
+            throw LocalEngineConnectionError.wrongEngine
+        }
+        let chatBase = apiBaseURL(for: endpoint, engine: engine)
         let requested = RelayRequestedConfig(
-            transport: engine.defaultTransport,
+            transport: transport,
             authMode: authPolicy.authMode,
             securityMode: securityMode,
             stream: true,
-            resolvedAPIBaseURL: apiBaseURL(for: endpoint, engine: engine),
+            resolvedAPIBaseURL: transport == .llamacppNative
+                ? LlamaCppChannelMigration.nativeRoot(fromBase: chatBase)
+                : chatBase,
             engineProfile: engine.rawValue,
             certificateFingerprint: certificateFingerprint
         )
@@ -123,28 +219,96 @@ enum LocalEngineConnector {
         guard introspectionMatches(engine: engine, snapshot: introspection) else {
             throw LocalEngineConnectionError.wrongEngine
         }
-
-        do {
-            _ = try await OpenAIService(session: session).pingRelay(
-                apiKey: apiKey,
-                baseURL: requested.resolvedAPIBaseURL ?? endpoint,
-                modelID: selected,
-                relayRequested: requested
-            )
-        } catch {
-            throw classifyNetworkError(error)
-        }
-        return LocalEngineConnection(
-            engine: engine,
-            endpoint: endpoint,
-            apiBaseURL: requested.resolvedAPIBaseURL ?? endpoint,
-            modelIDs: catalogModelIDs(discovered: discovered, selected: selected),
-            runtimeMetadata: runtimeMetadata.isEmpty
-                ? [selected: .init(loadState: .unknown, executionLocality: executionLocality(engine: engine, modelID: selected))]
-                : runtimeMetadata,
-            selectedModelID: selected,
-            requested: requested
+        let declarations = LocalEngineDeclarations.parse(
+            engine: engine, catalogJSON: catalog.json, introspectionJSON: introspection.json
         )
+        return Inspection(
+            endpoint: endpoint,
+            requested: requested,
+            discovered: discovered,
+            runtimeMetadata: runtimeMetadata,
+            selected: selected,
+            declarations: declarations,
+            contextLength: contextLength(
+                engine: engine,
+                catalogJSON: catalog.json,
+                introspectionJSON: introspection.json,
+                selectedModelID: selected
+            )
+        )
+    }
+
+    /// Value of the "Context" cell on the add page's detection card: for llama.cpp take `n_ctx` from `/props`
+    /// or `default_generation_settings.n_ctx`; for LM Studio take `max_context_length` from the default model's row in `/api/v0/models`;
+    /// nil for other engines. Any non-positive value is treated as absent.
+    nonisolated static func contextLength(
+        engine: LocalEngineKind,
+        catalogJSON: Any?,
+        introspectionJSON: Any?,
+        selectedModelID: String
+    ) -> Int? {
+        func positive(_ value: Any?) -> Int? {
+            guard let number = value as? NSNumber, number.intValue > 0 else { return nil }
+            return number.intValue
+        }
+        switch engine {
+        case .llamacpp:
+            let props = introspectionJSON as? [String: Any]
+            return positive(props?["n_ctx"])
+                ?? positive((props?["default_generation_settings"] as? [String: Any])?["n_ctx"])
+        case .lmstudio:
+            let rows = (catalogJSON as? [String: Any])?["data"] as? [[String: Any]] ?? []
+            return positive(rows.first { $0["id"] as? String == selectedModelID }?["max_context_length"])
+        case .ollama, .vllm, .openwebui:
+            return nil
+        }
+    }
+
+    /// Auto-detection: send five read-only GETs to the endpoint and decide with `LocalEngineFingerprint`.
+    /// It uses the same secure executor as `connect`; a failure on any one request only means that probe did not match, and an invalid address or nothing reachable falls to manual.
+    static func fingerprint(
+        endpoint rawEndpoint: String,
+        securityMode: RelayConnectionSecurityMode,
+        certificateFingerprint: String? = nil,
+        session: URLSession = .shared
+    ) async -> LocalEngineFingerprintOutcome {
+        guard supports(securityMode: securityMode),
+              let endpoint = try? RelayEndpointPolicy.requireConfigured(
+                  rawEndpoint,
+                  securityMode: securityMode,
+                  credentials: .init(authMode: .none, hasKey: false)
+              ) else {
+            return .manual
+        }
+        let requested = RelayRequestedConfig(
+            transport: .openaiChatCompletions,
+            authMode: .none,
+            securityMode: securityMode,
+            stream: true,
+            certificateFingerprint: certificateFingerprint
+        )
+        let objects = await withTaskGroup(of: (String, FingerprintObject?).self) { group in
+            for path in LocalEngineFingerprint.requestPaths {
+                group.addTask {
+                    guard let snapshot = try? await get(
+                        endpoint: endpoint, path: path, requested: requested, apiKey: "", session: session
+                    ), (200..<300).contains(snapshot.status),
+                    let object = snapshot.json as? [String: Any] else { return (path, nil) }
+                    return (path, FingerprintObject(value: object))
+                }
+            }
+            var result: [String: [String: Any]] = [:]
+            for await (path, object) in group {
+                if let object { result[path] = object.value }
+            }
+            return result
+        }
+        return LocalEngineFingerprint.evaluate(objects)
+    }
+
+    /// A read-only object produced by JSONSerialization, passed across tasks only once inside the task group.
+    private struct FingerprintObject: @unchecked Sendable {
+        let value: [String: Any]
     }
 
     nonisolated static func catalogModelIDs(discovered: [String], selected: String) -> [String] {
@@ -306,7 +470,9 @@ enum LocalEngineConnector {
             raw = (object["data"] as? [[String: Any]] ?? object["models"] as? [[String: Any]] ?? [])
                 .compactMap { $0["id"] as? String ?? $0["name"] as? String }
         } else {
-            raw = (object["data"] as? [[String: Any]] ?? []).compactMap { $0["id"] as? String }
+            raw = (object["data"] as? [[String: Any]] ?? [])
+                .filter { LocalEngineDeclarations.isChatCatalogRow(engine: engine, row: $0) }
+                .compactMap { $0["id"] as? String }
         }
         return raw.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }

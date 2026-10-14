@@ -57,6 +57,188 @@ enum RelayReasoningEffort: String, Codable, Hashable, Sendable {
     case xhigh
 }
 
+// MARK: - Relay 2.0 model-level fields
+
+/// Who decided the model-level protocol. Meaningful only when `AIModel.relayTransport` is non-nil.
+/// `reachable` = a 1-token probe passed; `observed` = a real send succeeded; `user` = the user picked it by hand.
+/// Old values `gateway` / `facts` / `probed` are unknown on decode, so the protocol and source are dropped together (follow the connection).
+nonisolated enum RelayTransportSource: String, Codable, Hashable, Sendable, CaseIterable {
+    case user
+    case observed
+    case reachable
+}
+
+/// Override of a single model capability. The wire shape is `{key: {value, source}}`, and `source` accepts only `user` / `tested`.
+///
+/// Decoding is tolerant item by item: an unknown key, an unknown `source` or a `value` of the wrong shape is dropped on its own,
+/// so one bad item never drags down the whole table, let alone fails the whole model decode.
+nonisolated struct RelayCapabilityOverrides: Hashable, Sendable, Codable {
+    /// `CaseIterable` is deliberate: the cross-platform fixture `modelFields.capabilityOverrideKeys` reconciles against it.
+    enum Key: String, CodingKey, CaseIterable {
+        case image, file, imageGeneration, toolCall, reasoningLevels, web
+    }
+
+    /// `CaseIterable` is deliberate: the cross-platform fixture `modelFields.capabilityOverrideSources` reconciles against it.
+    enum Source: String, Codable, Hashable, Sendable, CaseIterable {
+        case user, tested
+    }
+
+    var image: Bool?
+    var file: Bool?
+    var imageGeneration: Bool?
+    var toolCall: Bool?
+    var reasoningLevels: [String]?
+    /// Relay web search: written as `tested` only by the web probe, or set by the user.
+    var web: Bool?
+    /// The source of each item; encoded as `user` when absent.
+    var sources: [Key: Source] = [:]
+
+    init(
+        image: Bool? = nil,
+        file: Bool? = nil,
+        imageGeneration: Bool? = nil,
+        toolCall: Bool? = nil,
+        reasoningLevels: [String]? = nil,
+        web: Bool? = nil,
+        source: Source = .user
+    ) {
+        self.image = image
+        self.file = file
+        self.imageGeneration = imageGeneration
+        self.toolCall = toolCall
+        self.reasoningLevels = reasoningLevels
+        self.web = web
+        for key in Key.allCases where hasValue(for: key) {
+            sources[key] = source
+        }
+    }
+
+    private func hasValue(for key: Key) -> Bool {
+        switch key {
+        case .image: image != nil
+        case .file: file != nil
+        case .imageGeneration: imageGeneration != nil
+        case .toolCall: toolCall != nil
+        case .reasoningLevels: reasoningLevels != nil
+        case .web: web != nil
+        }
+    }
+
+    var isEmpty: Bool {
+        image == nil && file == nil && imageGeneration == nil && toolCall == nil && reasoningLevels == nil && web == nil
+    }
+
+    /// The value of the five boolean keys; `reasoningLevels` is not a boolean and is always nil.
+    func value(for key: Key) -> Bool? {
+        switch key {
+        case .image: image
+        case .file: file
+        case .imageGeneration: imageGeneration
+        case .toolCall: toolCall
+        case .web: web
+        case .reasoningLevels: nil
+        }
+    }
+
+    /// Writes one boolean key; nil removes the source along with the value. `reasoningLevels` does not go through here.
+    mutating func setValue(_ value: Bool?, for key: Key, source: Source) {
+        switch key {
+        case .image: image = value
+        case .file: file = value
+        case .imageGeneration: imageGeneration = value
+        case .toolCall: toolCall = value
+        case .web: web = value
+        case .reasoningLevels: return
+        }
+        sources[key] = value == nil ? nil : source
+    }
+
+    private struct Entry<Value: Codable>: Codable {
+        let value: Value
+        let source: String
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Key.self)
+        image = Self.decodeEntry(in: c, for: .image, sources: &sources)
+        file = Self.decodeEntry(in: c, for: .file, sources: &sources)
+        imageGeneration = Self.decodeEntry(in: c, for: .imageGeneration, sources: &sources)
+        toolCall = Self.decodeEntry(in: c, for: .toolCall, sources: &sources)
+        reasoningLevels = Self.decodeEntry(in: c, for: .reasoningLevels, sources: &sources)
+        web = Self.decodeEntry(in: c, for: .web, sources: &sources)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Key.self)
+        try encodeEntry(image, into: &c, for: .image)
+        try encodeEntry(file, into: &c, for: .file)
+        try encodeEntry(imageGeneration, into: &c, for: .imageGeneration)
+        try encodeEntry(toolCall, into: &c, for: .toolCall)
+        try encodeEntry(reasoningLevels, into: &c, for: .reasoningLevels)
+        try encodeEntry(web, into: &c, for: .web)
+    }
+
+    private static func decodeEntry<Value: Codable>(
+        in container: KeyedDecodingContainer<Key>,
+        for key: Key,
+        sources: inout [Key: Source]
+    ) -> Value? {
+        guard let entry = try? container.decodeIfPresent(Entry<Value>.self, forKey: key),
+              let source = Source(rawValue: entry.source) else { return nil }
+        sources[key] = source
+        return entry.value
+    }
+
+    private func encodeEntry<Value: Codable>(
+        _ value: Value?,
+        into container: inout KeyedEncodingContainer<Key>,
+        for key: Key
+    ) throws {
+        guard let value else { return }
+        let source = sources[key] ?? .user
+        try container.encode(Entry(value: value, source: source.rawValue), forKey: key)
+    }
+}
+
+/// A local engine's capability declaration for a single model. Written only by the local engine connector and stored only on this device.
+///
+/// Every key is an optional boolean: a missing key = unknown (left to the relay's unknown-capability rule), not "unsupported".
+/// Decoding is tolerant key by key: an unknown key or a non-boolean value is dropped on its own and never fails the whole model decode.
+nonisolated struct EngineDeclaration: Hashable, Sendable, Codable {
+    /// `CaseIterable` is deliberate: the cross-platform fixture `modelFields.engineDeclarationKeys` reconciles against it.
+    enum Key: String, CodingKey, CaseIterable {
+        case image, toolCall, thinking
+    }
+
+    var image: Bool?
+    var toolCall: Bool?
+    var thinking: Bool?
+
+    init(image: Bool? = nil, toolCall: Bool? = nil, thinking: Bool? = nil) {
+        self.image = image
+        self.toolCall = toolCall
+        self.thinking = thinking
+    }
+
+    var isEmpty: Bool {
+        image == nil && toolCall == nil && thinking == nil
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Key.self)
+        image = (try? c.decodeIfPresent(Bool.self, forKey: .image)) ?? nil
+        toolCall = (try? c.decodeIfPresent(Bool.self, forKey: .toolCall)) ?? nil
+        thinking = (try? c.decodeIfPresent(Bool.self, forKey: .thinking)) ?? nil
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Key.self)
+        try c.encodeIfPresent(image, forKey: .image)
+        try c.encodeIfPresent(toolCall, forKey: .toolCall)
+        try c.encodeIfPresent(thinking, forKey: .thinking)
+    }
+}
+
 enum RelayKind: String, Codable, Hashable, Sendable, CaseIterable {
     case openaiCompatible = "openai_compatible"
     case codexStyle = "codex_style"
@@ -67,6 +249,11 @@ enum RelayKind: String, Codable, Hashable, Sendable, CaseIterable {
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
         self = RelayKind(rawValue: raw) ?? .custom
+    }
+
+    /// Infers the relay kind from the connection config (no config is treated as `auto`).
+    init(requested: RelayRequestedConfig?) {
+        self.init(transport: requested?.transport ?? .auto)
     }
 
     init(transport: RelayTransport) {
@@ -121,6 +308,10 @@ nonisolated struct RelayRequestedConfig: Hashable, Sendable {
     /// `anthropic_messages` or `gemini_generate_content`.
     var transportKind: String?
     var resolvedAPIBaseURL: String?
+    /// Exact API roots stored per protocol (Relay 2.0): the keys are the wire values of `RelayTransport`.
+    /// This device keeps the keys it read as they are (including protocols this version does not know); the outbound copy keeps only known protocols.
+    /// Reads go only through `RelayEndpointResolver.effectiveAPIRoot(provider:model:)`.
+    var resolvedAPIBaseURLs: [String: String]?
     /// Explicit local engine profile. nil for every existing/cloud Relay.
     var engineProfile: String?
     /// SHA-256 leaf certificate pin for explicit TOFU HTTPS mode.
@@ -149,6 +340,7 @@ nonisolated struct RelayRequestedConfig: Hashable, Sendable {
         webSearchProfile: String? = nil,
         transportKind: String? = nil,
         resolvedAPIBaseURL: String? = nil,
+        resolvedAPIBaseURLs: [String: String]? = nil,
         engineProfile: String? = nil,
         certificateFingerprint: String? = nil
     ) {
@@ -174,6 +366,7 @@ nonisolated struct RelayRequestedConfig: Hashable, Sendable {
         self.webSearchProfile = webSearchProfile
         self.transportKind = transportKind
         self.resolvedAPIBaseURL = resolvedAPIBaseURL
+        self.resolvedAPIBaseURLs = resolvedAPIBaseURLs
         self.engineProfile = engineProfile
         self.certificateFingerprint = certificateFingerprint
     }
@@ -194,6 +387,8 @@ extension RelayRequestedConfig: Codable {
         case imageSize, imageQuality, imageStyle, imageCount, imageResponseFormat
         case webSearchToolName
         case hasWebSearch, webSearchProfile, transportKind, resolvedAPIBaseURL, engineProfile, certificateFingerprint
+        // Relay 2.0
+        case resolvedAPIBaseURLs
     }
 
     init(from decoder: Decoder) throws {
@@ -220,6 +415,8 @@ extension RelayRequestedConfig: Codable {
         self.webSearchProfile = try c.decodeIfPresent(String.self, forKey: .webSearchProfile)
         self.transportKind = try c.decodeIfPresent(String.self, forKey: .transportKind)
         self.resolvedAPIBaseURL = try c.decodeIfPresent(String.self, forKey: .resolvedAPIBaseURL)
+        // Tolerant via try?: a malformed table drops only itself and never fails the whole config decode; the keys are strings, so unknown protocols are kept.
+        self.resolvedAPIBaseURLs = (try? c.decodeIfPresent([String: String].self, forKey: .resolvedAPIBaseURLs)) ?? nil
         self.engineProfile = try c.decodeIfPresent(String.self, forKey: .engineProfile)
         self.certificateFingerprint = try c.decodeIfPresent(String.self, forKey: .certificateFingerprint)
     }
@@ -248,6 +445,7 @@ extension RelayRequestedConfig: Codable {
         try c.encodeIfPresent(webSearchProfile, forKey: .webSearchProfile)
         try c.encodeIfPresent(transportKind, forKey: .transportKind)
         try c.encodeIfPresent(resolvedAPIBaseURL, forKey: .resolvedAPIBaseURL)
+        try c.encodeIfPresent(resolvedAPIBaseURLs, forKey: .resolvedAPIBaseURLs)
         try c.encodeIfPresent(engineProfile, forKey: .engineProfile)
         try c.encodeIfPresent(certificateFingerprint, forKey: .certificateFingerprint)
     }
@@ -259,8 +457,25 @@ extension RelayRequestedConfig {
         "stream", "disableResponseStorage", "codexCompatIdentity",
         "imageSize", "imageQuality", "imageStyle", "imageCount", "imageResponseFormat",
         "webSearchToolName", "hasWebSearch", "webSearchProfile", "transportKind",
-        "resolvedAPIBaseURL", "engineProfile",
+        "resolvedAPIBaseURL", "resolvedAPIBaseURLs", "engineProfile",
     ]
+
+    /// Drops the model used for probing: a relay has no default model, so neither persistence nor sync writes modelID.
+    nonisolated var withoutModelID: RelayRequestedConfig {
+        var copy = self
+        copy.modelID = nil
+        return copy
+    }
+
+    /// For landing a remote copy: a remote copy never carries the four device-only items, so they are filled back from the local values (Android / Web merge remote copies the same way).
+    nonisolated func keepingLocalOnlyFields(from local: RelayRequestedConfig?) -> RelayRequestedConfig {
+        var copy = self
+        copy.headers = local?.headers
+        copy.queryParams = local?.queryParams
+        copy.customUserAgent = local?.customUserAgent
+        copy.certificateFingerprint = local?.certificateFingerprint
+        return copy
+    }
 
     nonisolated func credentialFreePortableCopy() -> RelayRequestedConfig {
         var copy = RelayRequestedConfig(
@@ -283,9 +498,33 @@ extension RelayRequestedConfig {
             webSearchProfile: webSearchProfile,
             transportKind: transportKind
         )
-        copy.resolvedAPIBaseURL = Self.credentialFreeEndpoint(resolvedAPIBaseURL)
+        copy.resolvedAPIBaseURL = Self.credentialFreeAPIRoot(resolvedAPIBaseURL)
+        copy.resolvedAPIBaseURLs = Self.credentialFreeEndpoints(resolvedAPIBaseURLs)
         copy.engineProfile = engineProfile
         return copy
+    }
+
+    /// Outbound cleaning for the per-protocol root table: keeps only entries whose key is a known protocol
+    /// (`auto` is not a landable protocol) and whose value parses; values go through the same cleaner as the single root,
+    /// and the whole key is omitted when nothing is left.
+    nonisolated static func credentialFreeEndpoints(_ raw: [String: String]?) -> [String: String]? {
+        guard let raw else { return nil }
+        var cleaned: [String: String] = [:]
+        for (key, value) in raw {
+            guard let transport = RelayTransport(rawValue: key), transport != .auto,
+                  let endpoint = credentialFreeAPIRoot(value) else { continue }
+            cleaned[key] = endpoint
+        }
+        return cleaned.isEmpty ? nil : cleaned
+    }
+
+    /// Outbound cleaning for an exact API root: on top of `credentialFreeEndpoint` it requires both a scheme and a host.
+    /// On newer systems `URLComponents(string:)` percent-escapes `not a URL` into a relative path instead of failing,
+    /// so it alone cannot tell "unparseable"; a root written by a probe always has a scheme and a host.
+    nonisolated static func credentialFreeAPIRoot(_ raw: String?) -> String? {
+        guard let raw, let components = URLComponents(string: raw),
+              components.scheme?.isEmpty == false, components.host?.isEmpty == false else { return nil }
+        return credentialFreeEndpoint(raw)
     }
 
     nonisolated static func credentialFreeEndpoint(_ raw: String?) -> String? {
@@ -298,6 +537,68 @@ extension RelayRequestedConfig {
     }
 }
 
+// MARK: - Decoding point for the legacy web search declaration
+//
+// `hasWebSearch` / `webSearchProfile` are read and written only in this file: the fields, coding, the outbound
+// allowlist, the read-time mapping, carrying them over on edit, and clearing them when the web settings page saves.
+// Every other file goes through the functions here.
+
+extension RelayRequestedConfig {
+    /// The protocol each legacy profile belongs to (fixture `profileTransport`).
+    nonisolated static let legacyWebProfileTransport: [String: RelayTransport] = [
+        "oai_responses_web": .openaiResponses,
+        "grok_responses_web": .openaiResponses,
+        "ant_web_tool": .anthropicMessages,
+        "gem_web": .geminiGenerateContent,
+        "gem_web_retrieval": .geminiGenerateContent,
+        "or_web": .openaiChatCompletions,
+        "qwen_web": .openaiChatCompletions,
+        "zhipu_web": .openaiChatCompletions,
+        "oai_web_tool": .openaiChatCompletions,
+        "kimi_web_search": .openaiChatCompletions,
+    ]
+
+    /// Read-time mapping of a stored `hasWebSearch == true` (fixture `legacyCases`); the result is not written back.
+    /// `profiles` = metadata `profiles.webSearch[<name>].mergeParams`; fetched only when an old marker really exists (the badge calls this per model).
+    nonisolated func legacyWebFragments(profiles: () -> [String: [String: Any]]) -> [String: [String: Any]] {
+        guard hasWebSearch == true else { return [:] }
+        let profile = webSearchProfile?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !profile.isEmpty, let mergeParams = profiles()[profile] {
+            // Metadata has this profile but we do not know which protocol it belongs to: do not map it.
+            guard let transport = Self.legacyWebProfileTransport[profile] else { return [:] }
+            // Kimi needs a tool loop to search, so a single fragment is useless.
+            guard profile != "kimi_web_search" else { return [:] }
+            var fragment = mergeParams
+            for key in RelayWebFragments.forbiddenTopLevelKeys { fragment[key] = nil }
+            return fragment.isEmpty ? [:] : [transport.rawValue: fragment]
+        }
+        // No profile (or metadata does not have it): the only builders that can send web search today are Responses and Gemini.
+        var out: [String: [String: Any]] = [
+            RelayTransport.geminiGenerateContent.rawValue: ["tools": [["googleSearch": [String: Any]()]]],
+        ]
+        if webSearchToolName != .disabled {
+            let toolType = (webSearchToolName ?? .webSearch).rawValue
+            out[RelayTransport.openaiResponses.rawValue] = ["tools": [["type": toolType]]]
+        }
+        return out
+    }
+
+    /// When editing a connection, carries the two legacy fields over to the new config unchanged (the UI no longer has an entry for them, and a single save must not clear them).
+    nonisolated func carryingLegacyWebSearch(from previous: RelayRequestedConfig?) -> RelayRequestedConfig {
+        var copy = self
+        copy.hasWebSearch = previous?.hasWebSearch
+        copy.webSearchProfile = previous?.webSearchProfile
+        return copy
+    }
+
+    /// Saving from the web settings page: from then on only the stored fragments are trusted.
+    nonisolated func clearingLegacyWebSearch() -> RelayRequestedConfig {
+        var copy = self
+        copy.hasWebSearch = nil
+        copy.webSearchProfile = nil
+        return copy
+    }
+}
 
 enum RelayKindDefaults {
 
@@ -328,7 +629,8 @@ enum RelayKindDefaults {
                 hasWebSearch: preserve?.hasWebSearch,
                 webSearchProfile: preserve?.webSearchProfile,
                 transportKind: preserve?.transportKind,
-                resolvedAPIBaseURL: preserve?.resolvedAPIBaseURL
+                resolvedAPIBaseURL: preserve?.resolvedAPIBaseURL,
+                resolvedAPIBaseURLs: preserve?.resolvedAPIBaseURLs
             )
         case .codexStyle:
             return RelayRequestedConfig(
@@ -352,7 +654,8 @@ enum RelayKindDefaults {
                 hasWebSearch: preserve?.hasWebSearch,
                 webSearchProfile: preserve?.webSearchProfile,
                 transportKind: preserve?.transportKind,
-                resolvedAPIBaseURL: preserve?.resolvedAPIBaseURL
+                resolvedAPIBaseURL: preserve?.resolvedAPIBaseURL,
+                resolvedAPIBaseURLs: preserve?.resolvedAPIBaseURLs
             )
         case .anthropicCompatible:
             return RelayRequestedConfig(
@@ -376,7 +679,8 @@ enum RelayKindDefaults {
                 hasWebSearch: preserve?.hasWebSearch,
                 webSearchProfile: preserve?.webSearchProfile,
                 transportKind: preserve?.transportKind,
-                resolvedAPIBaseURL: preserve?.resolvedAPIBaseURL
+                resolvedAPIBaseURL: preserve?.resolvedAPIBaseURL,
+                resolvedAPIBaseURLs: preserve?.resolvedAPIBaseURLs
             )
         case .geminiCompatible:
             return RelayRequestedConfig(
@@ -400,7 +704,8 @@ enum RelayKindDefaults {
                 hasWebSearch: preserve?.hasWebSearch,
                 webSearchProfile: preserve?.webSearchProfile,
                 transportKind: preserve?.transportKind,
-                resolvedAPIBaseURL: preserve?.resolvedAPIBaseURL
+                resolvedAPIBaseURL: preserve?.resolvedAPIBaseURL,
+                resolvedAPIBaseURLs: preserve?.resolvedAPIBaseURLs
             )
         case .custom:
             return RelayRequestedConfig(
@@ -424,34 +729,9 @@ enum RelayKindDefaults {
                 hasWebSearch: preserve?.hasWebSearch,
                 webSearchProfile: preserve?.webSearchProfile,
                 transportKind: preserve?.transportKind,
-                resolvedAPIBaseURL: preserve?.resolvedAPIBaseURL
+                resolvedAPIBaseURL: preserve?.resolvedAPIBaseURL,
+                resolvedAPIBaseURLs: preserve?.resolvedAPIBaseURLs
             )
         }
     }
-
-    static func inferKind(
-        from requested: RelayRequestedConfig?,
-        baseURL: String?
-    ) -> RelayKind {
-        guard let requested else { return .custom }
-        switch requested.transport {
-        case .openaiChatCompletions, .auto, .llamacppNative:
-            return .openaiCompatible
-        case .openaiResponses:
-            if requested.codexCompatIdentity == true { return .codexStyle }
-            if let host = baseURL?.lowercased(),
-               codexHostHeuristics.contains(where: host.contains) {
-                return .codexStyle
-            }
-            return .codexStyle
-        case .anthropicMessages:
-            return .anthropicCompatible
-        case .geminiGenerateContent:
-            return .geminiCompatible
-        }
-    }
-
-    /// A host that names Codex most likely speaks the Responses protocol. This only seeds the
-    /// initial relay kind for display; an explicit `codexCompatIdentity` always wins over it.
-    private static let codexHostHeuristics: [String] = ["codex"]
 }

@@ -125,7 +125,8 @@ struct FolderRow: View {
                         )
                 }
 
-                Image(systemName: "chevron.right")
+                // The angle is not negated by layout direction: SwiftUI rotation mirrors under RTL, so a left-pointing arrow is likewise rotated to point down.
+                Image(systemName: "chevron.forward")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(AuroraTheme.Colors.textTertiary)
                     .rotationEffect(.degrees(isExpanded ? 90 : 0))

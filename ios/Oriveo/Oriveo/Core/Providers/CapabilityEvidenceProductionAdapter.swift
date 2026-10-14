@@ -139,7 +139,7 @@ struct CapabilityEvidenceRequestIdentity: Sendable, Equatable {
             connectionInstanceID: provider.id.uuidString,
             connectionGeneration: identity.connectionGeneration,
             credentialEpoch: identity.credentialEpoch,
-            providerKind: provider.kind.rawValue,
+            providerKind: provider.kind.rawValue, authMode: provider.authMode.rawValue,
             modelID: model.id,
             canonicalModelID: metadataInput.resolved?.canonicalModelId ?? model.canonicalModelId,
             effectiveTransport: transport,
@@ -162,7 +162,8 @@ struct CapabilityEvidenceRequestIdentity: Sendable, Equatable {
         return .init(query: .init(
             partitionID: query.partitionID, connectionInstanceID: query.connectionInstanceID,
             connectionGeneration: query.connectionGeneration, credentialEpoch: query.credentialEpoch,
-            providerKind: query.providerKind, modelID: query.modelID, canonicalModelID: query.canonicalModelID,
+            providerKind: query.providerKind, authMode: query.authMode,
+            modelID: query.modelID, canonicalModelID: query.canonicalModelID,
             effectiveTransport: effectiveTransport, endpointFingerprint: fingerprint,
             metadataRevision: metadataRevision, generationRevision: generationRevision,
             now: Int64(Date().timeIntervalSince1970 * 1_000), hasExplicitValue: query.hasExplicitValue
@@ -186,7 +187,7 @@ struct CapabilityEvidenceRequestIdentity: Sendable, Equatable {
             connectionInstanceID: query.connectionInstanceID,
             connectionGeneration: query.connectionGeneration,
             credentialEpoch: query.credentialEpoch,
-            providerKind: query.providerKind,
+            providerKind: query.providerKind, authMode: query.authMode,
             modelID: query.modelID,
             canonicalModelID: query.canonicalModelID,
             effectiveTransport: trimmed,
@@ -368,7 +369,7 @@ enum CapabilityEvidenceProductionAdapter {
 
         if provider.kind == .relay {
             let schemaTransport = identity?.query.effectiveTransport
-                ?? provider.relayRequested?.transport.rawValue
+                ?? RelayEndpointResolver.explicitTransport(provider: provider, model: persistedModel)?.rawValue
                 ?? ""
             guard CapabilityEvidenceFacade.isConcreteTransport(schemaTransport),
                   let relayTransport = RelayTransport(rawValue: schemaTransport) else {
@@ -402,8 +403,9 @@ enum CapabilityEvidenceProductionAdapter {
             }
             baseQuery = .init(
                 partitionID: "", connectionInstanceID: "", connectionGeneration: "", credentialEpoch: "",
-                providerKind: provider.kind.rawValue, modelID: persistedModel.id,
-                canonicalModelID: metadataInput.resolved?.canonicalModelId, effectiveTransport: transport,
+                providerKind: provider.kind.rawValue, authMode: provider.authMode.rawValue,
+                modelID: persistedModel.id, canonicalModelID: metadataInput.resolved?.canonicalModelId,
+                effectiveTransport: transport,
                 metadataRevision: metadataInput.metadataRevision,
                 generationRevision: profile?.revision ?? metadataInput.metadataRevision,
                 now: Int64(Date().timeIntervalSince1970 * 1_000), hasExplicitValue: false
@@ -586,7 +588,8 @@ enum CapabilityEvidenceProductionAdapter {
         .init(
             partitionID: source.partitionID, connectionInstanceID: source.connectionInstanceID,
             connectionGeneration: source.connectionGeneration, credentialEpoch: source.credentialEpoch,
-            providerKind: source.providerKind, modelID: source.modelID, canonicalModelID: source.canonicalModelID,
+            providerKind: source.providerKind, authMode: source.authMode,
+            modelID: source.modelID, canonicalModelID: source.canonicalModelID,
             effectiveTransport: source.effectiveTransport, endpointFingerprint: source.endpointFingerprint,
             metadataRevision: source.metadataRevision, generationRevision: source.generationRevision,
             now: Int64(Date().timeIntervalSince1970 * 1_000), hasExplicitValue: hasExplicitValue
