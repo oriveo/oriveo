@@ -89,7 +89,7 @@ function applyMetadataPatch(config: RawConfig, patch: Record<string, unknown>): 
   return next;
 }
 
-/** Section E-3: a string = metadataPresets name (a key without a dot is replaced wholesale); "absent" = no metadata. */
+/** Endpoint source section: a string = metadataPresets name (a key without a dot is replaced wholesale); "absent" = no metadata. */
 function caseMetadata(configName: string, patch: MetadataPatch): RawConfig | null {
   const base = fixture.configs[configName]!;
   if (patch === 'absent') return null;
@@ -125,7 +125,7 @@ async function loadMetadata(config: RawConfig | null) {
   return { metadata, endpointSource, resolver };
 }
 
-/** Production modules used by the E-3 section; loaded only in the new cases, leaving the module graph of old cases unchanged. */
+/** Production modules used by the endpoint source section; loaded only in the new cases, leaving the module graph of old cases unchanged. */
 async function loadE3(config: RawConfig | null) {
   const loaded = await loadMetadata(config);
   const catalog = await import('../../../../app/providers/new/provider-config-catalog');
@@ -221,7 +221,7 @@ describe('endpoint-source.v1 fixture', () => {
       }
     });
   }
-  // -- Section E-3 --------------------------------------------------
+  // -- Endpoint source section --------------------
 
   for (const testCase of fixture.reconcileCases) {
     it(`ENDPOINT-SOURCE-${testCase.caseId}`, async () => {

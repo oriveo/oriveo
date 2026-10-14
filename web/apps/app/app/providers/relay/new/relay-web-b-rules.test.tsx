@@ -270,7 +270,7 @@ describe('C10 in-family channel name / web search section title use the full Ope
   });
 });
 
-describe('R-7 default protocol value and options use the family protocol proper names (same row in edit / manual setup)', () => {
+describe('default protocol value and options use the family protocol proper names (same row in edit / manual setup)', () => {
   it('the selected protocol value, options and the protocol name in the footnote are all the full OpenAI name', () => {
     const row = relayEditDefaultProtocolRow('openai_responses');
     expect(row.value).toEqual({ literal: 'OpenAI Responses' });

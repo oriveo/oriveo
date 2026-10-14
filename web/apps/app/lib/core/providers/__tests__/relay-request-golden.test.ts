@@ -217,7 +217,7 @@ let golden: GoldenFile | null = null;
 function check(record: GoldenRecord) {
   const allowed = D33_ALLOWED_URL_CHANGE[record.caseId];
   if (allowed) {
-    expect('url' in record ? record.url : undefined, `${record.caseId} D-33 URL`).toBe(allowed.after);
+    expect('url' in record ? record.url : undefined, `${record.caseId} URL`).toBe(allowed.after);
   }
   const codexChange = CODEX_IDENTITY_ALLOWED_CHANGE[record.caseId];
   if (codexChange) {

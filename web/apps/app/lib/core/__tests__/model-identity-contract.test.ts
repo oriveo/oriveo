@@ -30,7 +30,7 @@ interface DedupeCase {
   expectedModelIds: string[];
 }
 
-// Relay section (D-81): literal ID identity; date snapshots, canonical id and display name never match.
+// Relay section: literal ID identity; date snapshots, canonical id and display name never match.
 interface RelayCases {
   providerKind: Provider['kind'];
   sameRemoteCases: { id: string; left: ContractModel; right: ContractModel; expected: boolean }[];

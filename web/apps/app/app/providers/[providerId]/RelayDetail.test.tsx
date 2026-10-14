@@ -623,7 +623,7 @@ describe('RelayDetail', () => {
     expect(screen.queryByText('capabilities.title')).toBeNull();
   });
 
-  it('has no default model picker on the board even with legacy isDefault data (D-68)', () => {
+  it('has no default model picker on the board even with legacy isDefault data', () => {
     mockActionState.catalogLoadState = 'loaded';
     render(<RelayDetail provider={{
       ...provider,

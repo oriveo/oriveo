@@ -306,7 +306,7 @@ class EndpointSourceContractTest {
         TogetherService(client, json)
     }
 
-    // ── E-3 helpers ──
+    // ── Endpoint source helpers ──
 
     private fun reconcileCase(caseId: String) {
         val case = case("reconcileCases", caseId)

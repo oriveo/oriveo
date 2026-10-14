@@ -118,7 +118,7 @@ const svgOf = (ui: Parameters<typeof render>[0]) => {
   return html;
 };
 
-describe('D-56 parameters page board', () => {
+describe('parameters page board', () => {
   beforeEach(() => {
     localStorage.clear();
     // With a local identity present: relay-declared parameters are adjustable in session scope, and "clear learned capabilities" also has a real target to clear.

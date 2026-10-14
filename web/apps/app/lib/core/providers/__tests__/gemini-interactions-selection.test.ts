@@ -165,7 +165,7 @@ describe('Gemini Interactions selection — attachment line follows the same vid
     expect((await line([[video], [], [file]]))?.transport).toBe('gemini_generate');
   });
 
-  it('video without loaded bytes still counts as video (D-101 ⑩)', async () => {
+  it('video without loaded bytes still counts as video', async () => {
     expect((await line([[videoWithoutData], [], [file]]))?.transport).toBe('gemini_generate');
   });
 });

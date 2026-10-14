@@ -443,7 +443,7 @@ describe('RL2-LAYOUT-ROW in-row layout (production component DOM)', () => {
   });
 });
 
-describe('R-7 layout and behavior', () => {
+describe('relay layout and behavior', () => {
   it('RL2-LAYOUT-ROW-07 the model library header subtitle is at most 2 lines with tail truncation (no longer a single-line ellipsis)', () => {
     render(<RelayDetail provider={twoKeyProvider()} />);
     openLibrary();

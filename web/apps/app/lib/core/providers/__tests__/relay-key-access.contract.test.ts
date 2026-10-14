@@ -251,7 +251,7 @@ describe('KEY-ACCESS send paths (fixture sendCases, production send chain)', () 
     expect(store.getState().providers[0]!.models[0]!.relayDeniedKeyID).toBe('k-claude');
   });
 
-  it('KEY-REDACT-send_and_ping_failure_mask_all_connection_keys（D-69 ⑨）', async () => {
+  it('KEY-REDACT-send_and_ping_failure_mask_all_connection_keys', async () => {
     const model = relayModel('gpt-5', { relayKeyID: 'initial' });
     const { provider } = setup([model], true);
     // Send: the upstream echoed another key's value.

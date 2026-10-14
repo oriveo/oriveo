@@ -69,7 +69,7 @@ struct EndpointSourceContractTests {
         return config
     }
 
-    /// `metadataPatch` of the E-3 group: `"absent"` = no metadata (nil); any other string = a `metadataPresets` name that replaces the whole key; an object works as above.
+    /// `metadataPatch` of the endpoint source group: `"absent"` = no metadata (nil); any other string = a `metadataPresets` name that replaces the whole key; an object works as above.
     static func currentConfig(_ item: [String: Any], _ config: [String: Any]) throws -> [String: Any]? {
         switch item["metadataPatch"] {
         case let name as String where name == "absent":

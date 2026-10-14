@@ -65,7 +65,6 @@ const BUILT_BODY: Record<string, () => unknown> = {
     buildMiniMaxAnthropicMessagesRequest(params('miniMax'), MINIMAX_ANTHROPIC_ROUTE as never).body,
   gemini_interactions: () =>
     buildGeminiInteractionsRequest(params('gemini'), GEMINI_INTERACTIONS_ROUTE as never).body,
-  oriveo_free: () => freeProxyBody(IMAGE_MESSAGE),
 };
 
 const IMAGE_BLOCK_KEYS = new Set(['image_url', 'inlineData', 'inline_data', 'image', 'input_image']);
