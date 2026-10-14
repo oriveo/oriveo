@@ -188,6 +188,7 @@ export {
   isIgnorableCloudflareChallengeError,
   isIgnorableMobileBrowserInjection,
   isHydrationErrorEvent,
+  isResizeObserverLoopNotice,
   isRscNotFoundInvariantEvent,
   THIRD_PARTY_IFRAME_REPLAY_BLOCK_SELECTORS,
   type SentryEventHintLike,

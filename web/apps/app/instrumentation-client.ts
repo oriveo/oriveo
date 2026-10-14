@@ -5,6 +5,7 @@ import {
   isIgnorableCloudflareChallengeError,
   isIgnorableMobileBrowserInjection,
   THIRD_PARTY_IFRAME_REPLAY_BLOCK_SELECTORS,
+  isResizeObserverLoopNotice,
 } from "@oriveo/shared";
 import { installDetachedHoistableGuard } from "@oriveo/shared/browser/detached-hoistable-guard";
 import * as Sentry from "@sentry/nextjs";
@@ -70,6 +71,9 @@ Sentry.init({
     if (isIgnorableCloudflareChallengeError(event)) return null;
     if (isIgnorableMicrosoftTranslatorHydration(event)) return null;
     if (isIgnorableMobileBrowserInjection(event)) return null;
+    // The browser's ResizeObserver deferral notice in its older Chrome wording, which the SDK's
+    // default ignore list does not cover.
+    if (isResizeObserverLoopNotice(event)) return null;
     if (isIgnorableBrowserNoiseError(event)) return null;
     return redactSentryEvent(liftProviderErrorDetail(event, hint));
   },
