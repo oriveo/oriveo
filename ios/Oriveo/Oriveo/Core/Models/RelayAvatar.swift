@@ -1,13 +1,89 @@
 import Foundation
 
-/// Avatar of a relay connection. Neither the brand image nor the initial gets a backing plate or an outline.
+/// Avatar of a relay connection. Neither the brand image, the initial nor the default icon gets a backing plate or an outline.
 nonisolated enum RelayAvatar: Hashable, Sendable {
     /// Aggregator brand: an existing official brand asset name.
     case brand(String)
     /// The first letter or digit of the display name (the domain if empty).
     case initial(String)
+    /// The default icon, or the icon the user picked on this device (fixture `relay-avatar-icon.v1.json`).
+    case icon(RelayAvatarIcon)
     /// Nothing could be extracted: the existing relay icon.
     case generic
+}
+
+/// The 10 Phosphor duotone icons for default relay avatars; the order is the fixture's `icons` order (modulo index and picker cell order).
+nonisolated enum RelayAvatarIcon: String, CaseIterable, Hashable, Sendable {
+    case planet
+    case compass
+    case sailboat
+    case lighthouse
+    case mountains
+    case sunHorizon = "sun-horizon"
+    case flame
+    case treeEvergreen = "tree-evergreen"
+    case moonStars = "moon-stars"
+    case butterfly
+
+    /// Fixture `icons[].id`, also the choice value stored on device.
+    var id: String { rawValue }
+
+    /// Fixture `icons[].palette`: an existing color token (dark 400 / light 600, following the theme) that the renderer tints with.
+    var paletteToken: String {
+        switch self {
+        case .planet: return "detailRow.indigo"
+        case .compass: return "detailRow.teal"
+        case .sailboat: return "detailRow.cyan"
+        case .lighthouse: return "capability.attachment"
+        case .mountains: return "capability.webSearch"
+        case .sunHorizon: return "detailRow.orange"
+        case .flame: return "detailRow.rose"
+        case .treeEvergreen: return "capability.vision"
+        case .moonStars: return "capability.reasoning"
+        case .butterfly: return "capability.tools"
+        }
+    }
+
+    /// Label of the picker cell (Providers table, English source text as the key).
+    var titleKey: String {
+        switch self {
+        case .planet: return "Planet"
+        case .compass: return "Compass"
+        case .sailboat: return "Sailboat"
+        case .lighthouse: return "Lighthouse"
+        case .mountains: return "Mountains"
+        case .sunHorizon: return "Sunrise"
+        case .flame: return "Flame"
+        case .treeEvergreen: return "Pine"
+        case .moonStars: return "Moon & stars"
+        case .butterfly: return "Butterfly"
+        }
+    }
+}
+
+/// One cell of the "Change icon" sheet: brand (only when the base layer matched a brand) -> the 10 icons -> initial (only when the base layer can get one).
+nonisolated enum RelayAvatarPickerCell: Hashable, Sendable {
+    case brand(RelayAvatarResolver.Brand)
+    case icon(RelayAvatarIcon)
+    case letter(String)
+
+    /// The value to store when this cell is picked; nil = delete the stored choice (brand cell).
+    var storedChoice: String? {
+        switch self {
+        case .brand: return nil
+        case let .icon(icon): return icon.id
+        case .letter: return RelayAvatarResolver.letterChoice
+        }
+    }
+
+    /// The avatar this cell draws.
+    var avatar: RelayAvatar {
+        switch self {
+        case let .brand(brand): return .brand(brand.assetName)
+        case let .icon(icon): return .icon(icon)
+        case let .letter(text): return .initial(text)
+        }
+    }
 }
 
 /// The single resolver shared by the model picker group header, the chat top bar, the message header, the detail header and the provider list.
@@ -16,7 +92,7 @@ nonisolated enum RelayAvatar: Hashable, Sendable {
 /// first hit wins; if an exclusion word (the app's own name) matches, brand matching is skipped. Model id and protocol type never take part --
 /// inferring from the model id used to draw ordinary relays as OpenAI / Anthropic. Local connections do not go through this function.
 nonisolated enum RelayAvatarResolver {
-    struct Brand: Sendable {
+    struct Brand: Hashable, Sendable {
         let id: String
         let keywords: [String]
         let kind: ProviderKind
@@ -34,6 +110,11 @@ nonisolated enum RelayAvatarResolver {
 
     static let excludeKeywords = ["oriveo"]
 
+    /// Storing this value on device = use the initial (fixture `letterChoice`).
+    static let letterChoice = "letter"
+
+    /// Base layer (`relay-avatar.v1.json`: brand -> initial -> generic). Places that draw avatars do not call it directly;
+    /// they go through `resolve(providerID:name:urlString:choice:)` / `avatar(for:choice:)`.
     static func resolve(name: String, urlString: String) -> RelayAvatar {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let host = host(of: urlString)
@@ -49,10 +130,78 @@ nonisolated enum RelayAvatarResolver {
         return .generic
     }
 
-    /// nil = not a relay connection (official provider / local); the caller uses the original logo.
+    /// Icon layer (fixture `relay-avatar-icon.v1.json`): on-device choice -> base-layer brand -> default icon picked by connection id.
+    /// With an empty connection id, the base-layer result is returned as is.
+    static func resolve(providerID: String, name: String, urlString: String, choice: String?) -> RelayAvatar {
+        let key = normalizedHashKey(providerID)
+        guard !key.isEmpty else { return resolve(name: name, urlString: urlString) }
+        if let choice {
+            if let icon = RelayAvatarIcon(rawValue: choice) {
+                return .icon(icon)
+            }
+            if choice == letterChoice {
+                // The initial skips brand matching; without an initial it falls to the default icon (never back to the brand).
+                if let text = initial(name: name, urlString: urlString) {
+                    return .initial(text)
+                }
+                return .icon(defaultIcon(normalizedKey: key))
+            }
+        }
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let brand = brand(name: trimmedName, host: host(of: urlString)) {
+            return .brand(brand.assetName)
+        }
+        return .icon(defaultIcon(normalizedKey: key))
+    }
+
+    /// Cells of the "Change icon" sheet, ordered as in the fixture's `pickerCases`.
+    static func pickerCells(name: String, urlString: String) -> [RelayAvatarPickerCell] {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        var cells: [RelayAvatarPickerCell] = []
+        if let brand = brand(name: trimmedName, host: host(of: urlString)) {
+            cells.append(.brand(brand))
+        }
+        cells += RelayAvatarIcon.allCases.map(RelayAvatarPickerCell.icon)
+        if let text = initial(name: name, urlString: urlString) {
+            cells.append(.letter(text))
+        }
+        return cells
+    }
+
+    static func pickerCells(for provider: Provider) -> [RelayAvatarPickerCell] {
+        pickerCells(name: provider.customName ?? "", urlString: provider.baseURLText ?? "")
+    }
+
+    /// Default icon assigned stably by connection id: 32-bit FNV-1a (over the UTF-8 bytes after trimming ASCII whitespace and lowercasing A-Z) modulo 10.
+    static func defaultIcon(providerID: String) -> RelayAvatarIcon {
+        defaultIcon(normalizedKey: normalizedHashKey(providerID))
+    }
+
+    static func fnv1a32(_ key: String) -> UInt32 {
+        var hash: UInt32 = 0x811c9dc5
+        for byte in key.utf8 {
+            hash ^= UInt32(byte)
+            hash = hash &* 0x01000193
+        }
+        return hash
+    }
+
+    /// Base layer: nil = not a relay connection (official provider / local). Draw avatars with `avatar(for:choice:)`.
     static func avatar(for provider: Provider) -> RelayAvatar? {
         guard provider.kind == .relay, !isLocalEngine(provider) else { return nil }
         return resolve(name: provider.customName ?? "", urlString: provider.baseURLText ?? "")
+    }
+
+    /// Shared by every place that draws a relay avatar: nil = not a relay connection (official provider / local); the caller uses the original logo.
+    /// `choice` is the choice stored on device (`RelayAvatarChoiceStore`), or nil if there is none.
+    static func avatar(for provider: Provider, choice: String?) -> RelayAvatar? {
+        guard provider.kind == .relay, !isLocalEngine(provider) else { return nil }
+        return resolve(
+            providerID: provider.id.uuidString,
+            name: provider.customName ?? "",
+            urlString: provider.baseURLText ?? "",
+            choice: choice
+        )
     }
 
     /// For places that still read `ProviderKind` (list brand color, cost card): the brand a relay connection matched, or nil if none.
@@ -69,6 +218,29 @@ nonisolated enum RelayAvatarResolver {
     }
 
     // MARK: - Private
+
+    /// The base layer's initial rule (skipping brand matching): the first letter or digit of the display name, otherwise of the domain without api. / www.
+    private static func initial(name: String, urlString: String) -> String? {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let initial = firstLetterOrDigit(trimmedName) { return initial }
+        if let host = host(of: urlString) { return firstLetterOrDigit(strippedHost(host)) }
+        return nil
+    }
+
+    /// Only trims leading and trailing ASCII whitespace and only lowercases ASCII A-Z; every other byte is left alone.
+    private static func normalizedHashKey(_ providerID: String) -> String {
+        let asciiSpaces: Set<UInt8> = [0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D]
+        var bytes = Array(providerID.utf8)
+        while let first = bytes.first, asciiSpaces.contains(first) { bytes.removeFirst() }
+        while let last = bytes.last, asciiSpaces.contains(last) { bytes.removeLast() }
+        let lowered = bytes.map { (0x41...0x5A).contains($0) ? $0 + 0x20 : $0 }
+        return String(decoding: lowered, as: UTF8.self)
+    }
+
+    private static func defaultIcon(normalizedKey: String) -> RelayAvatarIcon {
+        let icons = RelayAvatarIcon.allCases
+        return icons[Int(fnv1a32(normalizedKey) % UInt32(icons.count))]
+    }
 
     private static func brand(name: String, host: String?) -> Brand? {
         let haystacks = [name.lowercased(), host ?? ""].filter { !$0.isEmpty }

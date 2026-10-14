@@ -533,8 +533,11 @@ struct RelayAvatarView: View {
         self.size = size
     }
 
-    init(provider: Provider, size: CGFloat = 44) {
-        self.init(avatar: RelayAvatarResolver.avatar(for: provider) ?? .generic, size: size)
+    init(provider: Provider, choices: RelayAvatarChoiceStore = .shared, size: CGFloat = 44) {
+        self.init(
+            avatar: RelayAvatarResolver.avatar(for: provider, choice: choices.choice(for: provider.id)) ?? .generic,
+            size: size
+        )
     }
 
     var body: some View {
@@ -558,6 +561,15 @@ struct RelayAvatarView: View {
                 .minimumScaleFactor(0.5)
                 .frame(width: size, height: size)
                 .accessibilityHidden(true)
+        case let .icon(icon):
+            // Duotone fills the avatar frame, tinted with an existing token (dark 400 / light 600), with no backing plate or outline.
+            icon.phosphor.image(.duotone)
+                .resizable()
+                .renderingMode(.template)
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .foregroundStyle(icon.tint)
+                .accessibilityHidden(true)
         case .generic:
             Image("ProviderRelay")
                 .resizable()
@@ -572,6 +584,39 @@ struct RelayAvatarView: View {
     }
 }
 
+extension RelayAvatarIcon {
+    var phosphor: PhosphorIcon {
+        switch self {
+        case .planet: return .planet
+        case .compass: return .compass
+        case .sailboat: return .sailboat
+        case .lighthouse: return .lighthouse
+        case .mountains: return .mountains
+        case .sunHorizon: return .sunHorizon
+        case .flame: return .flame
+        case .treeEvergreen: return .treeEvergreen
+        case .moonStars: return .moonStars
+        case .butterfly: return .butterfly
+        }
+    }
+
+    /// The existing color token that `paletteToken` names.
+    var tint: Color {
+        switch self {
+        case .planet: return DetailRowPalette.indigo
+        case .compass: return DetailRowPalette.teal
+        case .sailboat: return DetailRowPalette.cyan
+        case .lighthouse: return CapabilityPalette.attachment
+        case .mountains: return CapabilityPalette.webSearch
+        case .sunHorizon: return DetailRowPalette.orange
+        case .flame: return DetailRowPalette.rose
+        case .treeEvergreen: return CapabilityPalette.vision
+        case .moonStars: return CapabilityPalette.reasoning
+        case .butterfly: return CapabilityPalette.tools
+        }
+    }
+}
+
 /// Single entry point for connection avatars: relay connections resolve only through `RelayAvatarResolver`, and a
 /// missing or unrecorded connection uses `.generic`; only local-engine connections and official providers fall
 /// through to `ProviderBadgeIcon`. Call sites no longer hand-roll if-let branches, because missing one would draw
@@ -582,25 +627,45 @@ struct ConnectionAvatarIcon: View {
         case badge(kind: ProviderKind, relayKind: RelayKind?)
     }
 
-    let content: Content
+    private enum Source {
+        case connection(Provider?, kind: ProviderKind, relayKind: RelayKind?)
+        case resolved(Content)
+    }
+
+    private let source: Source
     var size: CGFloat
 
     /// Use when a connection object is at hand; a nil provider means the connection no longer exists or was never recorded.
     /// kind / relayKind only matter when falling through to `ProviderBadgeIcon` (callers may pass the `ProviderLogoResolver` result).
+    /// The relay avatar is resolved in body from the on-device choice (`RelayAvatarChoiceStore`), so a new choice shows up immediately.
     init(provider: Provider?, kind: ProviderKind, relayKind: RelayKind? = nil, size: CGFloat = 44) {
-        self.content = Self.content(provider: provider, kind: kind, relayKind: relayKind)
+        self.source = .connection(provider, kind: kind, relayKind: relayKind)
         self.size = size
     }
 
     /// For places that only have the `ModelDisplayLookup.relayAvatar` result, which already decides "connection missing -> generic, local / official -> nil".
     init(relayAvatar: RelayAvatar?, kind: ProviderKind, relayKind: RelayKind? = nil, size: CGFloat = 44) {
-        self.content = relayAvatar.map(Content.relay) ?? .badge(kind: kind, relayKind: relayKind)
+        self.source = .resolved(relayAvatar.map(Content.relay) ?? .badge(kind: kind, relayKind: relayKind))
         self.size = size
     }
 
-    static func content(provider: Provider?, kind: ProviderKind, relayKind: RelayKind?) -> Content {
+    var content: Content {
+        switch source {
+        case let .connection(provider, kind, relayKind):
+            return Self.content(provider: provider, kind: kind, relayKind: relayKind)
+        case let .resolved(content):
+            return content
+        }
+    }
+
+    static func content(
+        provider: Provider?,
+        kind: ProviderKind,
+        relayKind: RelayKind?,
+        choices: RelayAvatarChoiceStore = .shared
+    ) -> Content {
         if let provider {
-            if let avatar = RelayAvatarResolver.avatar(for: provider) {
+            if let avatar = RelayAvatarResolver.avatar(for: provider, choice: choices.choice(for: provider.id)) {
                 return .relay(avatar)
             }
         } else if kind == .relay {

@@ -57,11 +57,17 @@ nonisolated struct ModelDisplayLookup: Sendable {
         self.metadata = metadata
     }
 
-    nonisolated init(providers: [Provider], metadata: MetadataClient = .shared) {
+    /// `relayAvatarChoices`: a snapshot of the on-device relay avatar choices (`RelayAvatarChoiceStore.choices`); message headers draw from it.
+    nonisolated init(
+        providers: [Provider],
+        metadata: MetadataClient = .shared,
+        relayAvatarChoices: [String: String] = [:]
+    ) {
         self.metadata = metadata
         self.entriesByProviderID = ModelDisplayLookupBuilder.makeEntries(
             providers: providers,
-            metadata: metadata
+            metadata: metadata,
+            relayAvatarChoices: relayAvatarChoices
         )
     }
 
@@ -69,10 +75,16 @@ nonisolated struct ModelDisplayLookup: Sendable {
 
     nonisolated static func fingerprint(
         providers: [Provider],
-        metadata: MetadataClient = .shared
+        metadata: MetadataClient = .shared,
+        relayAvatarChoices: [String: String] = [:]
     ) -> Int {
         var hasher = Hasher()
         hasher.combine(metadata.syncMetadataSnapshotVersion() ?? -1)
+        // A changed avatar choice also forces a rebuild, so message headers keep up.
+        for key in relayAvatarChoices.keys.sorted() {
+            hasher.combine(key)
+            hasher.combine(relayAvatarChoices[key])
+        }
         hasher.combine(providers.count)
         for provider in providers {
             hasher.combine(provider.id)
@@ -225,7 +237,8 @@ nonisolated struct ModelDisplayLookup: Sendable {
 private enum ModelDisplayLookupBuilder {
     nonisolated static func makeEntries(
         providers: [Provider],
-        metadata: MetadataClient
+        metadata: MetadataClient,
+        relayAvatarChoices: [String: String]
     ) -> [UUID: ModelDisplayLookup.Entry] {
         Dictionary(uniqueKeysWithValues: providers.map { provider in
             (
@@ -245,7 +258,10 @@ private enum ModelDisplayLookupBuilder {
                         metadata: metadata
                     ),
                     relayKind: provider.kind == .relay ? provider.relayKind : nil,
-                    relayAvatar: RelayAvatarResolver.avatar(for: provider),
+                    relayAvatar: RelayAvatarResolver.avatar(
+                        for: provider,
+                        choice: relayAvatarChoices[provider.id.uuidString]
+                    ),
                     enabledModels: provider.models,
                     enabledModelIndex: ModelDisplayLookup.SharedMatchingModelIndex(
                         provider.models,

@@ -22,7 +22,8 @@ struct RelayAvatarCoverageTests {
         #expect(content == .relay(.brand("ProviderOpenRouter")))
     }
 
-    @Test("RL2-AVATAR-COVER-02 a relay with a name -> first letter")
+    /// Previously "has a name -> first letter"; since the default avatar icon contract (`relay-avatar-icon.v1.json`), a relay that matches no brand gets a default icon picked by connection id.
+    @Test("RL2-AVATAR-COVER-02 a relay that matches no brand -> the default icon picked by connection id")
     func relayWithNameUsesInitial() {
         var relay = TestFactories.makeProvider(
             kind: .relay,
@@ -32,7 +33,7 @@ struct RelayAvatarCoverageTests {
         )
         relay.relayKind = .anthropicCompatible
         let content = ConnectionAvatarIcon.content(provider: relay, kind: .relay, relayKind: relay.relayKind)
-        #expect(content == .relay(.initial("P")))
+        #expect(content == .relay(.icon(RelayAvatarResolver.defaultIcon(providerID: relay.id.uuidString))))
     }
 
     @Test("RL2-AVATAR-COVER-03 the relay connection is gone / no connection recorded -> generic, not drawn from the protocol type")

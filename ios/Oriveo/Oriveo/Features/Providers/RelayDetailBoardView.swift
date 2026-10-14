@@ -22,6 +22,7 @@ struct RelayDetailBoardView: View {
     let onDelete: () -> Void
 
     @ScaledMetric(relativeTo: .title) private var heroIconSize: CGFloat = 40
+    @State private var showAvatarPicker = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: OriveoTheme.Spacing.lg) {
@@ -51,9 +52,17 @@ struct RelayDetailBoardView: View {
 
     private var header: some View {
         HStack(alignment: .top, spacing: OriveoTheme.Spacing.md) {
-            if let avatar = board.avatar {
-                RelayAvatarView(avatar: avatar, size: heroIconSize)
-                    .accessibilityHidden(true)
+            if let avatar = board.avatar, board.canChangeAvatar {
+                // The avatar itself is a button: it opens the "Change icon" sheet, and a pick takes effect immediately.
+                Button(action: { showAvatarPicker = true }) {
+                    RelayAvatarView(avatar: avatar, size: heroIconSize)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.tr(RelayDetailBoardModel.changeIconKey, table: .providers))
+                .sheet(isPresented: $showAvatarPicker) {
+                    RelayAvatarPickerSheet(provider: provider)
+                }
             } else {
                 PhosphorIcon.hardDrives.image(.duotone)
                     .resizable()

@@ -2503,6 +2503,8 @@ final class ProviderManager {
         RelayWebFragmentStore.shared.deleteConnection(providerID)
         // Web probe records live in the same layer as the negative cache and go with the connection.
         RelayWebProbeStore.shared.clearConnection(providerID.uuidString)
+        // The on-device relay avatar choice goes away with the connection.
+        RelayAvatarChoiceStore.shared.deleteConnection(providerID)
         ProviderAPIKeyStore.delete(providerID: providerID, uid: appState.sessionPartitionUID)
         return true
     }

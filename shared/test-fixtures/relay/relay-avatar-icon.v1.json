@@ -1,0 +1,42 @@
+{
+  "$comment": "Relay avatar icon layer on top of relay-avatar.v1.json (that file stays the base: brand -> initial -> generic). Final avatar for a relay connection with a non-empty provider id: (1) stored local choice, if it is one of `icons[].id` -> that icon; if it is \"letter\" -> the initial from the base initial rule (first letter or digit of the trimmed name, else of the host without api./www.; brand matching is skipped), and when there is none fall through to (3); any other value is ignored; (2) base brand match -> brand; (3) default icon = icons[fnv1a32(key) % 10] where key = provider id with ASCII whitespace trimmed and ASCII A-Z lowered (other bytes untouched), hashed as UTF-8 bytes, FNV-1a 32-bit (offset 0x811c9dc5, prime 0x01000193). Empty provider id -> base result unchanged. The choice lives only on this device (never synced); picking the brand cell deletes the stored choice. Picker cells: brand (only when base matched a brand), then the ten icons in this order, then letter (only when the base initial rule yields one). Icons render as Phosphor duotone tinted with `palette` (dark 400 / light 600 tokens), no plate, no stroke. Case id is used as RELAY-AVATAR-ICON-<id> in all ends.",
+  "version": 1,
+  "icons": [
+    { "id": "planet", "phosphor": "planet", "palette": "detailRow.indigo" },
+    { "id": "compass", "phosphor": "compass", "palette": "detailRow.teal" },
+    { "id": "sailboat", "phosphor": "sailboat", "palette": "detailRow.cyan" },
+    { "id": "lighthouse", "phosphor": "lighthouse", "palette": "capability.attachment" },
+    { "id": "mountains", "phosphor": "mountains", "palette": "capability.webSearch" },
+    { "id": "sun-horizon", "phosphor": "sun-horizon", "palette": "detailRow.orange" },
+    { "id": "flame", "phosphor": "flame", "palette": "detailRow.rose" },
+    { "id": "tree-evergreen", "phosphor": "tree-evergreen", "palette": "capability.vision" },
+    { "id": "moon-stars", "phosphor": "moon-stars", "palette": "capability.reasoning" },
+    { "id": "butterfly", "phosphor": "butterfly", "palette": "capability.tools" }
+  ],
+  "letterChoice": "letter",
+  "cases": [
+    { "id": "default_uuid_upper", "providerId": "3F2504E0-4F89-11D3-9A0C-0305E82C3301", "name": "myrelay.dev", "url": "https://api.myrelay.dev/v1", "hash": "0x5e8d41a0", "expected": { "kind": "icon", "icon": "planet" } },
+    { "id": "default_uuid_lower_same", "providerId": "3f2504e0-4f89-11d3-9a0c-0305e82c3301", "name": "myrelay.dev", "url": "https://api.myrelay.dev/v1", "expected": { "kind": "icon", "icon": "planet" } },
+    { "id": "default_trims_ascii_space", "providerId": " 3f2504e0-4f89-11d3-9a0c-0305e82c3301 ", "name": "", "url": "", "expected": { "kind": "icon", "icon": "planet" } },
+    { "id": "default_relay_1", "providerId": "relay-1", "name": "Relay one", "url": "https://r1.example.com", "hash": "0xa2d2e3e4", "expected": { "kind": "icon", "icon": "sailboat" } },
+    { "id": "default_relay_4", "providerId": "relay-4", "name": "", "url": "https://p.example.com/v1", "hash": "0x9fd2df2b", "expected": { "kind": "icon", "icon": "sun-horizon" } },
+    { "id": "default_relay_10", "providerId": "relay-10", "name": "Proxy", "url": "https://p.example.com/v1", "hash": "0x25fca6bc", "expected": { "kind": "icon", "icon": "moon-stars" } },
+    { "id": "default_non_ascii_id", "providerId": "中转-1", "name": "公司内网中转", "url": "http://10.0.0.2:3000/v1", "hash": "0x22d1c5cb", "expected": { "kind": "icon", "icon": "lighthouse" } },
+    { "id": "default_when_base_generic", "providerId": "relay-7", "name": "", "url": "", "hash": "0xa0d2e0be", "expected": { "kind": "icon", "icon": "mountains" } },
+    { "id": "brand_beats_default", "providerId": "relay-2", "name": "My backup", "url": "https://openrouter.ai/api/v1", "expected": { "kind": "brand", "brand": "openrouter" } },
+    { "id": "choice_icon_beats_brand", "providerId": "relay-2", "name": "My backup", "url": "https://openrouter.ai/api/v1", "choice": "flame", "expected": { "kind": "icon", "icon": "flame" } },
+    { "id": "choice_icon_beats_default", "providerId": "relay-1", "name": "Relay one", "url": "https://r1.example.com", "choice": "butterfly", "expected": { "kind": "icon", "icon": "butterfly" } },
+    { "id": "choice_letter", "providerId": "中转-1", "name": "公司内网中转", "url": "http://10.0.0.2:3000/v1", "choice": "letter", "expected": { "kind": "initial", "text": "公" } },
+    { "id": "choice_letter_beats_brand", "providerId": "relay-2", "name": "My backup", "url": "https://openrouter.ai/api/v1", "choice": "letter", "expected": { "kind": "initial", "text": "M" } },
+    { "id": "choice_letter_without_initial", "providerId": "relay-6", "name": "", "url": "", "choice": "letter", "hash": "0xa1d2e251", "expected": { "kind": "icon", "icon": "lighthouse" } },
+    { "id": "unknown_choice_ignored", "providerId": "relay-1", "name": "Relay one", "url": "https://r1.example.com", "choice": "sparkles", "expected": { "kind": "icon", "icon": "sailboat" } },
+    { "id": "brand_value_not_a_choice", "providerId": "relay-1", "name": "Relay one", "url": "https://r1.example.com", "choice": "brand", "expected": { "kind": "icon", "icon": "sailboat" } },
+    { "id": "empty_id_keeps_base", "providerId": "", "name": "myrelay.dev", "url": "https://api.myrelay.dev", "expected": { "kind": "initial", "text": "M" } },
+    { "id": "empty_id_keeps_base_generic", "providerId": "", "name": "", "url": "", "expected": { "kind": "generic" } }
+  ],
+  "pickerCases": [
+    { "id": "picker_with_brand", "name": "My backup", "url": "https://openrouter.ai/api/v1", "cells": ["brand:openrouter", "planet", "compass", "sailboat", "lighthouse", "mountains", "sun-horizon", "flame", "tree-evergreen", "moon-stars", "butterfly", "letter:M"] },
+    { "id": "picker_no_brand", "name": "公司内网中转", "url": "http://10.0.0.2:3000/v1", "cells": ["planet", "compass", "sailboat", "lighthouse", "mountains", "sun-horizon", "flame", "tree-evergreen", "moon-stars", "butterfly", "letter:公"] },
+    { "id": "picker_no_letter", "name": "", "url": "", "cells": ["planet", "compass", "sailboat", "lighthouse", "mountains", "sun-horizon", "flame", "tree-evergreen", "moon-stars", "butterfly"] }
+  ]
+}

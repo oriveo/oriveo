@@ -15,8 +15,8 @@ struct RelayModelLibraryPage<Content: View>: View {
             HStack(spacing: OriveoTheme.Spacing.sm) {
                 OriveoBackButton(action: onBack)
                     .padding(.leading, -OriveoBackButton.edgeInset)
-                if let avatar = RelayAvatarResolver.avatar(for: provider) {
-                    RelayAvatarView(avatar: avatar, size: 32)
+                if RelayAvatarResolver.avatar(for: provider) != nil {
+                    ConnectionAvatarIcon(provider: provider, kind: .relay, size: 32)
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(L10n.tr("Model Library", table: .providers))

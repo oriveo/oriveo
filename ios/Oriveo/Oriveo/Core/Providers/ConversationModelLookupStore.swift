@@ -34,6 +34,8 @@ final class ConversationModelLookupStore {
     }
 
     func refresh(providers: [Provider], metadata: MetadataClient = .shared) {
+        // Snapshot the on-device avatar choices on the main thread; they go into the background build together with the fingerprint.
+        let avatarChoices = RelayAvatarChoiceStore.shared.choices
         generation &+= 1
         let requested = generation
         let previous = refreshTask
@@ -42,9 +44,17 @@ final class ConversationModelLookupStore {
             guard let self, self.generation == requested else { return }
             let committed = self.fingerprint
             let built = await Task.detached(priority: .userInitiated) { () -> Built? in
-                let fingerprint = ModelDisplayLookup.fingerprint(providers: providers, metadata: metadata)
+                let fingerprint = ModelDisplayLookup.fingerprint(
+                    providers: providers,
+                    metadata: metadata,
+                    relayAvatarChoices: avatarChoices
+                )
                 guard fingerprint != committed else { return nil }
-                let lookup = ModelDisplayLookup(providers: providers, metadata: metadata)
+                let lookup = ModelDisplayLookup(
+                    providers: providers,
+                    metadata: metadata,
+                    relayAvatarChoices: avatarChoices
+                )
                 lookup.prewarm()
                 return Built(fingerprint: fingerprint, lookup: lookup)
             }.value

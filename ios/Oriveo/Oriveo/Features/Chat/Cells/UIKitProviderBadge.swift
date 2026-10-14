@@ -63,6 +63,11 @@ final class UIKitProviderBadge: UIView {
                 initialLabel.text = text
                 initialLabel.font = .systemFont(ofSize: size * 0.6, weight: .semibold)
                 initialLabel.isHidden = false
+            case let .icon(icon):
+                // The duotone template image fills the badge, tinted with an existing token (a dynamic color that follows the theme), with no backing plate or outline.
+                logoImageView.image = UIImage(named: icon.phosphor.assetName(.duotone))?.withRenderingMode(.alwaysTemplate)
+                logoImageView.tintColor = UIColor(icon.tint)
+                updateLogoPadding(0)
             case .generic:
                 logoImageView.image = UIImage(named: "ProviderRelay")
                 updateLogoPadding((size - ProviderBadgeLogoMetrics.relayFallbackContentSize(for: size)) / 2)

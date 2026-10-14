@@ -97,7 +97,11 @@ struct ProviderDetailView: View {
             )
             Group {
                 if let provider {
-                    let board = RelayDetailBoardModel.make(provider, lastUsedModelRef: appState.lastUsedModelRef)
+                    let board = RelayDetailBoardModel.make(
+                        provider,
+                        lastUsedModelRef: appState.lastUsedModelRef,
+                        avatarChoice: RelayAvatarChoiceStore.shared.choice(for: provider.id)
+                    )
                     ZStack(alignment: .topLeading) {
                         ScrollView {
                             // The outer stack must be lazy. The enabled models and the model library are each a

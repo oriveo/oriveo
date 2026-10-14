@@ -419,6 +419,10 @@ struct ChatMessageList: View, Equatable {
         .onChange(of: appState.conversationModelLookupStore.revision) { _, _ in
             refreshCachedRows()
         }
+        // A relay avatar changed: rebuild the lookup; once merged, message headers refresh by revision above.
+        .onChange(of: RelayAvatarChoiceStore.shared.revision) { _, _ in
+            refreshConversationModelLookup()
+        }
         .onChange(of: appState.notesVersion) { _, _ in
             refreshCachedRows()
         }

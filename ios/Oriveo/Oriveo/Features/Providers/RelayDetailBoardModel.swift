@@ -120,6 +120,8 @@ struct RelayDetailBoardModel: Equatable, Sendable {
     static let inlineKeyLimit = 3
     /// Rename pencil next to the name.
     static let renameIcon: PhosphorIcon = .pencilSimple
+    /// Accessibility label of the detail header avatar button = title of the avatar picker sheet (Providers table).
+    static let changeIconKey = "Change icon"
     static let checkedAtKey = "Checked %@"
     static let connectionSectionKey = "Connection"
     static let modelsSectionKey = "Models"
@@ -200,6 +202,9 @@ struct RelayDetailBoardModel: Equatable, Sendable {
     let deleteKey: String
     let footnoteKey: String
 
+    /// A relay connection's detail header avatar opens the "Change icon" sheet; a local connection's header shows the engine icon and cannot be changed.
+    var canChangeAvatar: Bool { avatar != nil }
+
     /// Actions this detail page carries: rename in the header is always there, the rest derive from the rows and the bottom buttons.
     var actions: [Action] {
         var out: [Action] = [.rename]
@@ -215,7 +220,12 @@ struct RelayDetailBoardModel: Equatable, Sendable {
     }
 
     /// nil means this is not a custom LLM family and the detail page keeps its original layout.
-    static func make(_ provider: Provider, lastUsedModelRef: LastUsedModelRef? = nil) -> Self? {
+    /// `avatarChoice`: the on-device choice for the relay avatar (`RelayAvatarChoiceStore`).
+    static func make(
+        _ provider: Provider,
+        lastUsedModelRef: LastUsedModelRef? = nil,
+        avatarChoice: String? = nil
+    ) -> Self? {
         guard ProviderForm.of(provider) == .relay else { return nil }
         let engineProfile = provider.relayRequested?.engineProfile?.trimmingCharacters(in: .whitespacesAndNewlines)
         let form: Form = (engineProfile?.isEmpty == false) ? .local : .relay
@@ -322,7 +332,7 @@ struct RelayDetailBoardModel: Equatable, Sendable {
 
         return Self(
             form: form,
-            avatar: RelayAvatarResolver.avatar(for: provider),
+            avatar: RelayAvatarResolver.avatar(for: provider, choice: avatarChoice),
             // The status line's model count is the number of distinct ids across enabled models and the catalog, matching "enabled + addable" on the model-library rows.
             modelCount: enabledIDs.union(provider.catalogModels.map(\.id)).count,
             checkedAt: provider.lastCheckedAt,
