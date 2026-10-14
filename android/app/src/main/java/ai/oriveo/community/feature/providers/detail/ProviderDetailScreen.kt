@@ -208,6 +208,7 @@ fun ProviderDetailScreen(
     var highlightedModelID: String? by remember { mutableStateOf(null) }
     var showConnectionSettingsSheet by remember { mutableStateOf(false) }
     var showGenerationParameters by remember { mutableStateOf(false) }
+    var showAvatarPicker by remember { mutableStateOf(false) }
     var renameProvider: Provider? by remember { mutableStateOf(null) }
     // Sub-page layers of the relay / local board: detail -> model library -> advanced, and detail -> keys page.
     // A saveable stack: restored as is after rotation or process recreation; one BackHandler pops one layer at a time.
@@ -296,6 +297,7 @@ fun ProviderDetailScreen(
                         RelayDetailAction.OpenParameters -> showGenerationParameters = true
                         RelayDetailAction.Redetect -> viewModel.redetectRelayModels()
                         RelayDetailAction.Reverify -> viewModel.resync()
+                        RelayDetailAction.ChangeIcon -> showAvatarPicker = true
                         RelayDetailAction.Delete -> viewModel.showDeleteConfirm = true
                     }
                 }
@@ -560,7 +562,14 @@ fun ProviderDetailScreen(
                             detailSection(key = "relay_detail_board") {
                                 // Read the revision once: after web search settings are saved the row state must re-read local storage.
                                 viewModel.relayWebFragmentsRevision
-                                val board = RelayDetailBoardModel.build(currentProvider, viewModel.isRedetecting, viewModel.lastUsedModelRefSnapshot)
+                                // Subscribe to the on-device avatar choice: tapping a picker cell redraws the detail header in the same frame.
+                                val avatarChoices by ai.oriveo.community.core.model.RelayAvatarChoiceStore.choices.collectAsStateWithLifecycle()
+                                val board = RelayDetailBoardModel.build(
+                                    currentProvider,
+                                    viewModel.isRedetecting,
+                                    viewModel.lastUsedModelRefSnapshot,
+                                    avatarChoice = avatarChoices[ai.oriveo.community.core.model.RelayAvatarResolver.choiceKey(currentProvider.id)],
+                                )
                                 RelayDetailBoardView(
                                     provider = currentProvider,
                                     board = board,
@@ -970,6 +979,11 @@ fun ProviderDetailScreen(
             }
         }
 
+        if (showAvatarPicker) {
+            provider?.let { target ->
+                RelayAvatarPickerSheet(provider = target, onDismiss = { showAvatarPicker = false })
+            } ?: run { showAvatarPicker = false }
+        }
         if (showGenerationParameters) {
             OriveoModalBottomSheet(
                 onDismissRequest = { showGenerationParameters = false },

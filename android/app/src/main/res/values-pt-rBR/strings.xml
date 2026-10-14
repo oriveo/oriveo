@@ -2097,4 +2097,16 @@
     <string name="relay_catalog_enable_hint_explicit">Toque em um modelo do catálogo para ver “Avançado” antes; nenhuma solicitação é enviada.</string>
     <string name="relay_model_advanced_changes_apply">As alterações são aplicadas na hora e ficam salvas só neste dispositivo.</string>
     <string name="relay_model_advanced_auto_equals_connection">Automático = protocolo padrão desta conexão (%1$s)</string>
+    <string name="relay_avatar_change_icon">Alterar ícone</string>
+    <string name="relay_avatar_letter">Inicial</string>
+    <string name="relay_avatar_icon_planet">Planeta</string>
+    <string name="relay_avatar_icon_compass">Bússola</string>
+    <string name="relay_avatar_icon_sailboat">Veleiro</string>
+    <string name="relay_avatar_icon_lighthouse">Farol</string>
+    <string name="relay_avatar_icon_mountains">Montanhas</string>
+    <string name="relay_avatar_icon_sun_horizon">Nascer do sol</string>
+    <string name="relay_avatar_icon_flame">Chama</string>
+    <string name="relay_avatar_icon_tree_evergreen">Pinheiro</string>
+    <string name="relay_avatar_icon_moon_stars">Lua e estrelas</string>
+    <string name="relay_avatar_icon_butterfly">Borboleta</string>
 </resources>

@@ -22,7 +22,7 @@ class ConnectionAvatarCoverageTest {
     }
 
     @Test
-    fun `RL2-AVATAR-COVER-02 relay connection without brand draws initial not protocol logo`() {
+    fun `RL2-AVATAR-COVER-02 relay connection without brand draws its default icon not protocol logo`() {
         val relay = Provider(
             id = "r",
             kind = ProviderKind.Relay,
@@ -30,14 +30,22 @@ class ConnectionAvatarCoverageTest {
             baseUrlText = "https://api.myrelay.dev/v1",
             relayKind = RelayKind.OpenAICompatible,
         )
-        assertEquals(ConnectionAvatarSpec.Relay(RelayAvatarResult.Initial("M")), ConnectionAvatarSpec.of(relay, ProviderKind.Relay))
+        // Icon layer (relay-avatar-icon.v1.json): without a brand match the default is the icon assigned by connection id; only choosing "Letter" draws the initial.
+        assertEquals(
+            ConnectionAvatarSpec.Relay(RelayAvatarResolver.resolve(relay.id, relay.customName.orEmpty(), relay.baseUrlText.orEmpty(), null)),
+            ConnectionAvatarSpec.of(relay, ProviderKind.Relay, choice = null),
+        )
+        assertTrue((ConnectionAvatarSpec.of(relay, ProviderKind.Relay, choice = null) as ConnectionAvatarSpec.Relay).result is RelayAvatarResult.Icon)
+        assertEquals(ConnectionAvatarSpec.Relay(RelayAvatarResult.Initial("M")), ConnectionAvatarSpec.of(relay, ProviderKind.Relay, choice = RelayAvatarChoiceStore.LETTER))
     }
 
     @Test
     fun `RL2-AVATAR-COVER-03 missing relay connection draws generic`() {
         assertEquals(ConnectionAvatarSpec.Relay(RelayAvatarResult.Generic), ConnectionAvatarSpec.of(null, ProviderKind.Relay))
-        val nameless = Provider(id = "r", kind = ProviderKind.Relay, customName = "", baseUrlText = "")
-        assertEquals(ConnectionAvatarSpec.Relay(RelayAvatarResult.Generic), ConnectionAvatarSpec.of(nameless, ProviderKind.Relay))
+        // The connection still exists but name / address are both empty: the icon layer gives the default icon by id (fixture default_when_base_generic); only an empty id stays generic.
+        val nameless = Provider(id = "relay-7", kind = ProviderKind.Relay, customName = "", baseUrlText = "")
+        assertEquals(ConnectionAvatarSpec.Relay(RelayAvatarResult.Icon(RelayAvatarIcon.Mountains)), ConnectionAvatarSpec.of(nameless, ProviderKind.Relay, choice = null))
+        assertEquals(ConnectionAvatarSpec.Relay(RelayAvatarResult.Generic), ConnectionAvatarSpec.of(nameless.copy(id = ""), ProviderKind.Relay))
     }
 
     @Test

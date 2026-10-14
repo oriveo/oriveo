@@ -2101,4 +2101,16 @@
     <string name="relay_catalog_enable_hint_explicit">Нажмите на модель в каталоге, чтобы сначала открыть «Дополнительно», — запрос при этом не отправляется.</string>
     <string name="relay_model_advanced_changes_apply">Изменения применяются сразу и сохраняются только на этом устройстве.</string>
     <string name="relay_model_advanced_auto_equals_connection">Авто = протокол по умолчанию для этого подключения (%1$s)</string>
+    <string name="relay_avatar_change_icon">Сменить значок</string>
+    <string name="relay_avatar_letter">Буква</string>
+    <string name="relay_avatar_icon_planet">Планета</string>
+    <string name="relay_avatar_icon_compass">Компас</string>
+    <string name="relay_avatar_icon_sailboat">Парусник</string>
+    <string name="relay_avatar_icon_lighthouse">Маяк</string>
+    <string name="relay_avatar_icon_mountains">Горы</string>
+    <string name="relay_avatar_icon_sun_horizon">Рассвет</string>
+    <string name="relay_avatar_icon_flame">Пламя</string>
+    <string name="relay_avatar_icon_tree_evergreen">Ель</string>
+    <string name="relay_avatar_icon_moon_stars">Луна и звёзды</string>
+    <string name="relay_avatar_icon_butterfly">Бабочка</string>
 </resources>

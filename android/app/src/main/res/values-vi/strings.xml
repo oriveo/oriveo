@@ -2011,4 +2011,16 @@
     <string name="relay_catalog_enable_hint_explicit">Chạm vào một mô hình trong danh mục để xem “Nâng cao” trước mà không gửi yêu cầu nào.</string>
     <string name="relay_model_advanced_changes_apply">Thay đổi có hiệu lực ngay và chỉ được lưu trên thiết bị này.</string>
     <string name="relay_model_advanced_auto_equals_connection">Tự động = giao thức mặc định của kết nối này (%1$s)</string>
+    <string name="relay_avatar_change_icon">Đổi biểu tượng</string>
+    <string name="relay_avatar_letter">Chữ cái</string>
+    <string name="relay_avatar_icon_planet">Hành tinh</string>
+    <string name="relay_avatar_icon_compass">La bàn</string>
+    <string name="relay_avatar_icon_sailboat">Thuyền buồm</string>
+    <string name="relay_avatar_icon_lighthouse">Hải đăng</string>
+    <string name="relay_avatar_icon_mountains">Núi non</string>
+    <string name="relay_avatar_icon_sun_horizon">Bình minh</string>
+    <string name="relay_avatar_icon_flame">Ngọn lửa</string>
+    <string name="relay_avatar_icon_tree_evergreen">Cây thông</string>
+    <string name="relay_avatar_icon_moon_stars">Trăng sao</string>
+    <string name="relay_avatar_icon_butterfly">Bướm</string>
 </resources>

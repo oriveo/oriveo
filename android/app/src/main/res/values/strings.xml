@@ -2098,4 +2098,16 @@
     <string name="relay_catalog_enable_hint_explicit">Tap a model in the catalog to view Advanced first. No request is sent.</string>
     <string name="relay_model_advanced_changes_apply">Changes apply right away and are saved only on this device.</string>
     <string name="relay_model_advanced_auto_equals_connection">Auto = this connection\'s default protocol (%1$s)</string>
+    <string name="relay_avatar_change_icon">Change icon</string>
+    <string name="relay_avatar_letter">Letter</string>
+    <string name="relay_avatar_icon_planet">Planet</string>
+    <string name="relay_avatar_icon_compass">Compass</string>
+    <string name="relay_avatar_icon_sailboat">Sailboat</string>
+    <string name="relay_avatar_icon_lighthouse">Lighthouse</string>
+    <string name="relay_avatar_icon_mountains">Mountains</string>
+    <string name="relay_avatar_icon_sun_horizon">Sunrise</string>
+    <string name="relay_avatar_icon_flame">Flame</string>
+    <string name="relay_avatar_icon_tree_evergreen">Pine</string>
+    <string name="relay_avatar_icon_moon_stars">Moon &amp; stars</string>
+    <string name="relay_avatar_icon_butterfly">Butterfly</string>
 </resources>

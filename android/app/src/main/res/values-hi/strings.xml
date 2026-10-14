@@ -2041,4 +2041,16 @@
     <string name="relay_catalog_enable_hint_explicit">पहले “उन्नत” देखने के लिए कैटलॉग में किसी मॉडल पर टैप करें, इससे कोई अनुरोध नहीं भेजा जाता।</string>
     <string name="relay_model_advanced_changes_apply">बदलाव तुरंत लागू होते हैं और सिर्फ़ इसी डिवाइस पर सेव होते हैं।</string>
     <string name="relay_model_advanced_auto_equals_connection">ऑटो = इस कनेक्शन का डिफ़ॉल्ट प्रोटोकॉल (%1$s)</string>
+    <string name="relay_avatar_change_icon">आइकन बदलें</string>
+    <string name="relay_avatar_letter">अक्षर</string>
+    <string name="relay_avatar_icon_planet">ग्रह</string>
+    <string name="relay_avatar_icon_compass">कम्पास</string>
+    <string name="relay_avatar_icon_sailboat">पाल नाव</string>
+    <string name="relay_avatar_icon_lighthouse">प्रकाशस्तंभ</string>
+    <string name="relay_avatar_icon_mountains">पहाड़</string>
+    <string name="relay_avatar_icon_sun_horizon">सूर्योदय</string>
+    <string name="relay_avatar_icon_flame">लौ</string>
+    <string name="relay_avatar_icon_tree_evergreen">देवदार</string>
+    <string name="relay_avatar_icon_moon_stars">चाँद-तारे</string>
+    <string name="relay_avatar_icon_butterfly">तितली</string>
 </resources>

@@ -2097,4 +2097,16 @@
     <string name="relay_catalog_enable_hint_explicit">Touchez un modèle du catalogue pour consulter d’abord « Avancé » : aucune requête n’est envoyée.</string>
     <string name="relay_model_advanced_changes_apply">Les modifications s’appliquent immédiatement et sont enregistrées uniquement sur cet appareil.</string>
     <string name="relay_model_advanced_auto_equals_connection">Automatique = protocole par défaut de cette connexion (%1$s)</string>
+    <string name="relay_avatar_change_icon">Changer l’icône</string>
+    <string name="relay_avatar_letter">Lettre</string>
+    <string name="relay_avatar_icon_planet">Planète</string>
+    <string name="relay_avatar_icon_compass">Boussole</string>
+    <string name="relay_avatar_icon_sailboat">Voilier</string>
+    <string name="relay_avatar_icon_lighthouse">Phare</string>
+    <string name="relay_avatar_icon_mountains">Montagnes</string>
+    <string name="relay_avatar_icon_sun_horizon">Lever du soleil</string>
+    <string name="relay_avatar_icon_flame">Flamme</string>
+    <string name="relay_avatar_icon_tree_evergreen">Sapin</string>
+    <string name="relay_avatar_icon_moon_stars">Lune et étoiles</string>
+    <string name="relay_avatar_icon_butterfly">Papillon</string>
 </resources>

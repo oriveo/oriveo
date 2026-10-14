@@ -396,7 +396,8 @@ class RelayDetailBoardStructureTest {
         val provider = relay()
         val board = RelayDetailBoardModel.build(provider, isRedetecting = false)
         assertEquals(ai.oriveo.community.core.model.RelayAvatarResolver.resolve(provider), board.avatar)
-        assertEquals(ai.oriveo.community.core.model.RelayAvatarResult.Initial("M"), board.avatar)
+        // Icon layer (relay-avatar-icon.v1.json): a relay without a brand match draws the icon assigned by connection id by default, no longer the initial.
+        assertTrue(board.avatar is ai.oriveo.community.core.model.RelayAvatarResult.Icon)
         assertTrue(board.showsRenamePencil)
         // Enabled ∪ catalog, deduplicated: 2 enabled + 2 catalog-only.
         assertEquals(4, board.modelCount)
@@ -409,6 +410,58 @@ class RelayDetailBoardStructureTest {
         assertTrue("pencil next to the name", view.contains("R.drawable.ph_pencil_simple"))
         assertTrue("model count in the status line uses plurals", view.contains("R.plurals.relay_detail_models_count"))
         assertFalse(view.contains("R.string.provider_detail_available_models"))
+    }
+
+    // ── BOARD-AVATAR-PICKER: changing the detail header avatar icon ──
+
+    @Test
+    fun `BOARD-AVATAR-PICKER-01 relay header avatar is a button that opens the change icon sheet`() {
+        val board = RelayDetailBoardModel.build(relay(), isRedetecting = false)
+        assertTrue("the relay avatar is tappable", board.avatarPickable)
+        assertFalse("local header is unchanged", RelayDetailBoardModel.build(local("llamacpp", RelayTransport.OpenAIChatCompletions), isRedetecting = false).avatarPickable)
+
+        val header = repoFile("feature/providers/detail/RelayDetailBoardView.kt").readText()
+            .substringAfter("private fun BoardHeader(").substringBefore("\n}\n")
+        assertTrue("tapping the avatar sends ChangeIcon", header.contains("onAction(RelayDetailAction.ChangeIcon)"))
+        assertTrue("the avatar accessibility label is Change icon", header.contains("R.string.relay_avatar_change_icon"))
+        assertTrue("the avatar is exposed with button semantics", header.contains("Role.Button"))
+        val screen = repoFile("feature/providers/detail/ProviderDetailScreen.kt").readText()
+        assertTrue("ChangeIcon opens the sheet", Regex("""RelayDetailAction\.ChangeIcon\s*->\s*showAvatarPicker\s*=\s*true""").containsMatchIn(screen))
+        assertTrue("the sheet is hosted by the detail screen", screen.contains("RelayAvatarPickerSheet("))
+        val sheet = repoFile("feature/providers/detail/RelayAvatarPickerSheet.kt").readText()
+        assertTrue("title Change icon", sheet.contains("stringResource(R.string.relay_avatar_change_icon)"))
+        assertTrue("trailing Done reuses the existing key", sheet.contains("stringResource(R.string.done)"))
+        assertTrue("cells come from the production pickerCells", sheet.contains("RelayAvatarResolver.pickerCells("))
+        assertTrue("4-column grid", sheet.contains("chunked(RelayAvatarPickerColumns)") && sheet.contains("RelayAvatarPickerColumns = 4"))
+    }
+
+    @Test
+    fun `BOARD-AVATAR-PICKER-02 tapping a cell changes the detail header avatar at once`() {
+        val store = ai.oriveo.community.core.model.RelayAvatarChoiceStore
+        store.configurePersistenceForTesting(emptyMap()) { _, _ -> }
+        try {
+            val provider = relay()
+            val before = RelayDetailBoardModel.build(provider, isRedetecting = false)
+            assertTrue("the default is an icon, no longer the initial", before.avatar is ai.oriveo.community.core.model.RelayAvatarResult.Icon)
+            val cell = before.avatarPickerCells
+                .filterIsInstance<ai.oriveo.community.core.model.RelayAvatarPickerCell.Icon>()
+                .first { it.preview != before.avatar }
+            assertEquals("the current avatar matches exactly one picker cell (selected state)", 1, before.avatarPickerCells.count { it.preview == before.avatar })
+
+            RelayDetailBoardModel.pickAvatar(provider, cell)
+
+            val after = RelayDetailBoardModel.build(provider, isRedetecting = false)
+            assertEquals(cell.preview, after.avatar)
+            assertEquals(cell.icon.id, store.choice(provider.id))
+            // The detail header draws the board result directly and the screen subscribes to the choice store, so a tapped cell rebuilds the board in the same frame.
+            val header = repoFile("feature/providers/detail/RelayDetailBoardView.kt").readText()
+                .substringAfter("private fun BoardHeader(").substringBefore("\n}\n")
+            assertTrue(header.contains("RelayAvatar(result = avatar"))
+            val screen = repoFile("feature/providers/detail/ProviderDetailScreen.kt").readText()
+            assertTrue(screen.contains("RelayAvatarChoiceStore.choices.collectAsStateWithLifecycle()"))
+        } finally {
+            store.resetForTesting()
+        }
     }
 
     // ── BOARD-DETAIL-04: single entry point for actions ──

@@ -2057,4 +2057,16 @@
     <string name="relay_catalog_enable_hint_explicit">카탈로그에서 모델을 탭하면 요청 없이 “고급”을 먼저 볼 수 있습니다.</string>
     <string name="relay_model_advanced_changes_apply">변경하면 바로 적용되며 이 기기에만 저장됩니다.</string>
     <string name="relay_model_advanced_auto_equals_connection">자동 = 이 연결의 기본 프로토콜(%1$s)</string>
+    <string name="relay_avatar_change_icon">아이콘 변경</string>
+    <string name="relay_avatar_letter">첫 글자</string>
+    <string name="relay_avatar_icon_planet">행성</string>
+    <string name="relay_avatar_icon_compass">나침반</string>
+    <string name="relay_avatar_icon_sailboat">돛단배</string>
+    <string name="relay_avatar_icon_lighthouse">등대</string>
+    <string name="relay_avatar_icon_mountains">산</string>
+    <string name="relay_avatar_icon_sun_horizon">일출</string>
+    <string name="relay_avatar_icon_flame">불꽃</string>
+    <string name="relay_avatar_icon_tree_evergreen">소나무</string>
+    <string name="relay_avatar_icon_moon_stars">달과 별</string>
+    <string name="relay_avatar_icon_butterfly">나비</string>
 </resources>

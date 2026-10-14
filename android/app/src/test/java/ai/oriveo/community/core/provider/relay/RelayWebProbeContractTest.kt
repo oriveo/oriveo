@@ -555,6 +555,29 @@ class RelayWebProbeContractTest {
     }
 
     @Test
+    fun `RELAY-AVATAR-STORE-03 deleting a connection clears its local avatar choice`() {
+        val store = ai.oriveo.community.core.model.RelayAvatarChoiceStore
+        val written = mutableMapOf<String, String?>()
+        store.configurePersistenceForTesting(emptyMap()) { key, value -> written[key] = value }
+        try {
+            val harness = Harness(RelayTransport.OpenAIChatCompletions, null)
+            val other = "relay-keep"
+            store.select(connectionID, "flame")
+            store.select(other, "letter")
+
+            runBlocking { harness.repository.deleteProvider(connectionID) }
+
+            assertNull(store.choice(connectionID))
+            assertEquals("letter", store.choice(other))
+            val key = ai.oriveo.community.core.model.RelayAvatarResolver.choiceKey(connectionID)
+            assertTrue(written.containsKey(key))
+            assertNull(written[key])
+        } finally {
+            store.resetForTesting()
+        }
+    }
+
+    @Test
     fun `RL2-WEBPROBE-WIRE-enable probes once after lazy verification passes and does not probe on failure or if it did not run`() {
         val transport = RelayTransport.OpenAIChatCompletions
 

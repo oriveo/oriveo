@@ -2056,4 +2056,16 @@
     <string name="relay_catalog_enable_hint_explicit">カタログのモデルをタップすると、リクエストを送らずに先に「詳細」を確認できます。</string>
     <string name="relay_model_advanced_changes_apply">変更はすぐに反映され、このデバイスにのみ保存されます。</string>
     <string name="relay_model_advanced_auto_equals_connection">自動 = この接続のデフォルトのプロトコル（%1$s）</string>
+    <string name="relay_avatar_change_icon">アイコンを変更</string>
+    <string name="relay_avatar_letter">頭文字</string>
+    <string name="relay_avatar_icon_planet">惑星</string>
+    <string name="relay_avatar_icon_compass">コンパス</string>
+    <string name="relay_avatar_icon_sailboat">ヨット</string>
+    <string name="relay_avatar_icon_lighthouse">灯台</string>
+    <string name="relay_avatar_icon_mountains">山並み</string>
+    <string name="relay_avatar_icon_sun_horizon">日の出</string>
+    <string name="relay_avatar_icon_flame">炎</string>
+    <string name="relay_avatar_icon_tree_evergreen">モミの木</string>
+    <string name="relay_avatar_icon_moon_stars">月と星</string>
+    <string name="relay_avatar_icon_butterfly">蝶</string>
 </resources>

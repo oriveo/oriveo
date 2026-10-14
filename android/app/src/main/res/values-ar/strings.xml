@@ -2201,4 +2201,16 @@
     <string name="relay_catalog_enable_hint_explicit">اضغط على نموذج في الكتالوج لعرض «متقدم» أولًا، ولن يُرسَل أي طلب.</string>
     <string name="relay_model_advanced_changes_apply">تُطبَّق التغييرات فورًا وتُحفَظ على هذا الجهاز فقط.</string>
     <string name="relay_model_advanced_auto_equals_connection">تلقائي = البروتوكول الافتراضي لهذا الاتصال (%1$s)</string>
+    <string name="relay_avatar_change_icon">تغيير الأيقونة</string>
+    <string name="relay_avatar_letter">حرف</string>
+    <string name="relay_avatar_icon_planet">كوكب</string>
+    <string name="relay_avatar_icon_compass">بوصلة</string>
+    <string name="relay_avatar_icon_sailboat">مركب شراعي</string>
+    <string name="relay_avatar_icon_lighthouse">منارة</string>
+    <string name="relay_avatar_icon_mountains">جبال</string>
+    <string name="relay_avatar_icon_sun_horizon">شروق الشمس</string>
+    <string name="relay_avatar_icon_flame">لهب</string>
+    <string name="relay_avatar_icon_tree_evergreen">صنوبر</string>
+    <string name="relay_avatar_icon_moon_stars">قمر ونجوم</string>
+    <string name="relay_avatar_icon_butterfly">فراشة</string>
 </resources>

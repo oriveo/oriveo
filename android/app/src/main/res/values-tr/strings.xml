@@ -2041,4 +2041,16 @@
     <string name="relay_catalog_enable_hint_explicit">Önce “Gelişmiş” bölümüne bakmak için katalogdaki bir modele dokunun; bu sırada istek gönderilmez.</string>
     <string name="relay_model_advanced_changes_apply">Değişiklikler hemen uygulanır ve yalnızca bu cihazda saklanır.</string>
     <string name="relay_model_advanced_auto_equals_connection">Otomatik = bu bağlantının varsayılan protokolü (%1$s)</string>
+    <string name="relay_avatar_change_icon">Simgeyi değiştir</string>
+    <string name="relay_avatar_letter">Harf</string>
+    <string name="relay_avatar_icon_planet">Gezegen</string>
+    <string name="relay_avatar_icon_compass">Pusula</string>
+    <string name="relay_avatar_icon_sailboat">Yelkenli</string>
+    <string name="relay_avatar_icon_lighthouse">Deniz feneri</string>
+    <string name="relay_avatar_icon_mountains">Dağlar</string>
+    <string name="relay_avatar_icon_sun_horizon">Gün doğumu</string>
+    <string name="relay_avatar_icon_flame">Alev</string>
+    <string name="relay_avatar_icon_tree_evergreen">Çam</string>
+    <string name="relay_avatar_icon_moon_stars">Ay ve yıldızlar</string>
+    <string name="relay_avatar_icon_butterfly">Kelebek</string>
 </resources>

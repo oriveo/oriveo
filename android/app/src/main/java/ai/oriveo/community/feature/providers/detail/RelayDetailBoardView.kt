@@ -33,6 +33,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -241,9 +243,26 @@ private fun BoardHeader(
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.md),
     ) {
-        // The relay avatar goes through the unified resolver; the local header is unchanged.
-        if (board.avatar != null && RelayAvatarResolver.appliesTo(provider)) {
-            RelayAvatar(provider = provider, size = 40.dp)
+        // The relay avatar goes through the unified resolver and doubles as the "Change icon" button; the local header is unchanged.
+        val avatar = board.avatar
+        if (avatar != null && RelayAvatarResolver.appliesTo(provider)) {
+            val changeIconLabel = stringResource(R.string.relay_avatar_change_icon)
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .then(
+                        if (board.avatarPickable) {
+                            Modifier
+                                .clickable(role = Role.Button, onClickLabel = changeIconLabel) { onAction(RelayDetailAction.ChangeIcon) }
+                                // Screen readers announce only "Change icon", not the name of the icon inside.
+                                .clearAndSetSemantics { contentDescription = changeIconLabel }
+                        } else {
+                            Modifier
+                        },
+                    ),
+            ) {
+                RelayAvatar(result = avatar, size = 40.dp)
+            }
         } else {
             Icon(
                 painter = painterResource(R.drawable.ph_hard_drives_duotone),

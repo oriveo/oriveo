@@ -6,6 +6,8 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.model.LastUsedModelRef
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.model.RelayAvatarChoiceStore
+import ai.oriveo.community.core.model.RelayAvatarPickerCell
 import ai.oriveo.community.core.model.RelayAvatarResolver
 import ai.oriveo.community.core.model.RelayAvatarResult
 import ai.oriveo.community.core.model.ProviderKind
@@ -35,6 +37,8 @@ enum class RelayDetailAction {
     Rename, EditConnection, EditKey, OpenKeys, RemoveStoredKey, OpenModelLibrary, OpenWebSearch, OpenParameters, Redetect, Delete,
     /** Recovery card "Re-verify": uses the existing re-sync path and opens no page. */
     Reverify,
+    /** Tapping the detail header avatar: opens the "Change icon" picker (relays only). */
+    ChangeIcon,
 }
 
 enum class RelayDetailRowId { RequestUrl, ApiKey, DefaultProtocol, BasePaths, EngineAddress, Engine, Channel, ModelLibrary, WebSearch, Thinking, Parameters }
@@ -143,6 +147,10 @@ data class RelayDetailBoard(
     val modelRows: List<RelayDetailRow>,
     val buttons: List<RelayDetailButton>,
     @StringRes val footnoteRes: Int,
+    /** Whether the detail header avatar opens the "Change icon" picker: relays only; the local header is unchanged. */
+    val avatarPickable: Boolean = false,
+    /** Picker cells (brand? -> ten icons -> letter?); the one cell equal to [avatar] is the selected state. */
+    val avatarPickerCells: List<RelayAvatarPickerCell> = emptyList(),
 )
 
 object RelayDetailBoardModel {
@@ -155,6 +163,10 @@ object RelayDetailBoardModel {
     /** "Set as default" in the model row menu: in board form the default model is changed only in the model card. */
     fun offersSetDefaultInModelMenu(provider: Provider): Boolean = !appliesTo(provider)
 
+    /** Tapping a picker cell: writes the on-device choice (brand cell = remove); avatars subscribed to the store redraw immediately. */
+    fun pickAvatar(provider: Provider, cell: RelayAvatarPickerCell) =
+        RelayAvatarChoiceStore.select(provider.id, cell.choice)
+
     fun isLocal(provider: Provider): Boolean = !provider.relayRequested?.engineProfile.isNullOrBlank()
 
     fun build(
@@ -162,6 +174,7 @@ object RelayDetailBoardModel {
         isRedetecting: Boolean,
         lastUsedModelRef: LastUsedModelRef? = null,
         webFragmentStore: RelayWebFragmentStore = RelayWebFragmentStore.shared,
+        avatarChoice: String? = RelayAvatarChoiceStore.choice(provider.id),
     ): RelayDetailBoard {
         val local = isLocal(provider)
         val requested = provider.relayRequested
@@ -242,7 +255,13 @@ object RelayDetailBoardModel {
 
         return RelayDetailBoard(
             isLocal = local,
-            avatar = if (local) null else RelayAvatarResolver.resolve(provider),
+            avatar = if (local) null else RelayAvatarResolver.resolve(provider, avatarChoice),
+            avatarPickable = !local,
+            avatarPickerCells = if (local) {
+                emptyList()
+            } else {
+                RelayAvatarResolver.pickerCells(provider.customName.orEmpty(), provider.baseUrlText.orEmpty())
+            },
             showsRenamePencil = !local,
             modelCount = catalogTotal,
             lastCheckedAt = provider.lastCheckedAt,

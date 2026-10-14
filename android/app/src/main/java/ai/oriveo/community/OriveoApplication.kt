@@ -51,11 +51,13 @@ class OriveoApplication : Application() {
         super.onCreate()
         GenerationParameterDiagnosticStore.configure(this)
         ModelControlRejectionCache.configure(this)
+        ai.oriveo.community.core.model.RelayAvatarChoiceStore.configure(this)
         ai.oriveo.community.core.provider.relay.RelayNegativeCache.configure(this)
         ai.oriveo.community.core.provider.relay.RelayWebFragmentStore.configure(this)
         ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore.configure(this)
         ai.oriveo.community.core.provider.relay.RelayWebProbeAutoHistory.configure(this)
         appScope.launch { ModelControlRejectionCache.prewarm() }
+        appScope.launch { ai.oriveo.community.core.model.RelayAvatarChoiceStore.prewarm() }
         ComposeFoundationFlags.isNewContextMenuEnabled = false
         PDFBoxResourceLoader.init(applicationContext)
         ai.oriveo.community.core.performance.PageTrace.begin("AppLaunch")

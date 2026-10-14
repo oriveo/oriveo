@@ -96,7 +96,9 @@ class RelayAvatarResolverTest {
         )
         assertTrue(RelayAvatarResolver.appliesTo(relay))
         // When the name is empty use the host, not the "Relay (host)" display name as a fallback, and do not look at relayKind / model id either.
-        assertEquals(RelayAvatarResult.Initial("M"), RelayAvatarResolver.resolve(relay))
+        assertEquals(RelayAvatarResult.Initial("M"), RelayAvatarResolver.resolve(relay.customName.orEmpty(), relay.baseUrlText.orEmpty()))
+        // The connection-level entry point adds the icon layer (relay-avatar-icon.v1.json): without a brand match it draws the default icon by connection id.
+        assertTrue(RelayAvatarResolver.resolve(relay, choice = null) is RelayAvatarResult.Icon)
         val local = relay.copy(relayRequested = RelayRequestedConfig(engineProfile = "ollama"))
         assertTrue("a local connection does not use this function", !RelayAvatarResolver.appliesTo(local))
         assertTrue("an official provider does not use this function", !RelayAvatarResolver.appliesTo(Provider(id = "o", kind = ProviderKind.OpenAI)))
@@ -106,7 +108,7 @@ class RelayAvatarResolverTest {
     @Test
     fun `BOARD-AVATAR-01 five surfaces draw the same resolver result`() {
         val avatarSource = source("core/model/RelayAvatar.kt")
-        assertTrue("the Composable obtains its result only through the resolver function", "RelayAvatarResolver.resolve(provider)" in avatarSource)
+        assertTrue("the Composable obtains its result only through the resolver function", "RelayAvatarResolver.resolve(provider, choice)" in avatarSource)
         mapOf(
             "feature/modelpicker/ModelPickerSheet.kt" to "model picker group header",
             "feature/chat/components/ChatToolbar.kt" to "chat top bar",

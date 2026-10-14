@@ -1987,6 +1987,8 @@ class ProviderRepository(
         relayWebProbeRecords.clearConnection(normalizedId)
         relayWebProbeAutoHistory.clearConnection(normalizedId)
         relayWebFragmentStore.remove(normalizedId)
+        // The relay avatar choice lives only on this device; clear it when the connection is deleted.
+        ai.oriveo.community.core.model.RelayAvatarChoiceStore.remove(normalizedId)
     }
 
     /**
