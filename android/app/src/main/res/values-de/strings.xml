@@ -2088,14 +2088,14 @@
     <string name="relay_model_advanced_auto_equals_connection">Automatisch = Standardprotokoll dieser Verbindung (%1$s)</string>
     <string name="relay_avatar_change_icon">Symbol ändern</string>
     <string name="relay_avatar_letter">Buchstabe</string>
-    <string name="relay_avatar_icon_planet">Planet</string>
-    <string name="relay_avatar_icon_compass">Kompass</string>
-    <string name="relay_avatar_icon_sailboat">Segelboot</string>
-    <string name="relay_avatar_icon_lighthouse">Leuchtturm</string>
-    <string name="relay_avatar_icon_mountains">Berge</string>
-    <string name="relay_avatar_icon_sun_horizon">Sonnenaufgang</string>
-    <string name="relay_avatar_icon_flame">Flamme</string>
-    <string name="relay_avatar_icon_tree_evergreen">Tanne</string>
-    <string name="relay_avatar_icon_moon_stars">Mond &amp; Sterne</string>
-    <string name="relay_avatar_icon_butterfly">Schmetterling</string>
+    <string name="relay_avatar_icon_paper_plane">Papierflieger</string>
+    <string name="relay_avatar_icon_signal_tower">Funkturm</string>
+    <string name="relay_avatar_icon_relay_bell">Glocke</string>
+    <string name="relay_avatar_icon_satellite">Satellit</string>
+    <string name="relay_avatar_icon_signpost">Wegweiser</string>
+    <string name="relay_avatar_icon_arch_bridge">Brücke</string>
+    <string name="relay_avatar_icon_kite">Drachen</string>
+    <string name="relay_avatar_icon_message_bottle">Flaschenpost</string>
+    <string name="relay_avatar_icon_pennant">Wimpel</string>
+    <string name="relay_avatar_icon_hot_air_balloon">Heißluftballon</string>
 </resources>

@@ -2099,14 +2099,14 @@
     <string name="relay_model_advanced_auto_equals_connection">Automático = protocolo predeterminado de esta conexión (%1$s)</string>
     <string name="relay_avatar_change_icon">Cambiar icono</string>
     <string name="relay_avatar_letter">Inicial</string>
-    <string name="relay_avatar_icon_planet">Planeta</string>
-    <string name="relay_avatar_icon_compass">Brújula</string>
-    <string name="relay_avatar_icon_sailboat">Velero</string>
-    <string name="relay_avatar_icon_lighthouse">Faro</string>
-    <string name="relay_avatar_icon_mountains">Montañas</string>
-    <string name="relay_avatar_icon_sun_horizon">Amanecer</string>
-    <string name="relay_avatar_icon_flame">Llama</string>
-    <string name="relay_avatar_icon_tree_evergreen">Pino</string>
-    <string name="relay_avatar_icon_moon_stars">Luna y estrellas</string>
-    <string name="relay_avatar_icon_butterfly">Mariposa</string>
+    <string name="relay_avatar_icon_paper_plane">Avión de papel</string>
+    <string name="relay_avatar_icon_signal_tower">Antena</string>
+    <string name="relay_avatar_icon_relay_bell">Campana</string>
+    <string name="relay_avatar_icon_satellite">Satélite</string>
+    <string name="relay_avatar_icon_signpost">Señal</string>
+    <string name="relay_avatar_icon_arch_bridge">Puente</string>
+    <string name="relay_avatar_icon_kite">Cometa</string>
+    <string name="relay_avatar_icon_message_bottle">Botella</string>
+    <string name="relay_avatar_icon_pennant">Banderín</string>
+    <string name="relay_avatar_icon_hot_air_balloon">Globo</string>
 </resources>

@@ -103,15 +103,18 @@ class RelayAvatarIconTest {
     }
 
     @Test
-    fun `RELAY-AVATAR-ICON icon table matches the fixture order, drawables and palette tokens`() {
+    fun `RELAY-AVATAR-GLYPH-01 icon table matches the fixture order, original drawables and palette tokens`() {
         val icons = fixture.getValue("icons").jsonArray.map { it.jsonObject }
         assertEquals(
-            icons.map { Triple(it.text("id"), it.text("phosphor"), it.text("palette")) },
-            RelayAvatarIcon.entries.map { Triple(it.id, it.phosphor, it.palette) },
+            icons.map { it.text("id") to it.text("palette") },
+            RelayAvatarIcon.entries.map { it.id to it.palette },
         )
         RelayAvatarIcon.entries.forEach { icon ->
-            val name = "ph_${icon.phosphor.replace('-', '_')}_duotone"
+            // Every id resolves to its original icon resource, and the enum references exactly that resource.
+            val name = "relay_avatar_${icon.id.replace('-', '_')}"
             assertEquals(name, R.drawable::class.java.getField(name).getInt(null), icon.drawable)
+            val label = "relay_avatar_icon_${icon.id.replace('-', '_')}"
+            assertEquals(label, R.string::class.java.getField(label).getInt(null), icon.labelRes)
         }
         assertEquals(fixture.text("letterChoice"), RelayAvatarChoiceStore.LETTER)
     }
@@ -119,18 +122,18 @@ class RelayAvatarIconTest {
     @Test
     fun `RELAY-AVATAR-STORE-01 picking an icon makes the same connection resolve to it`() {
         val relay = Provider(id = "relay-1", kind = ProviderKind.Relay, customName = "Relay one", baseUrlText = "https://r1.example.com")
-        assertEquals(RelayAvatarResult.Icon(RelayAvatarIcon.Sailboat), RelayAvatarResolver.resolve(relay))
-        val flame = RelayAvatarResolver.pickerCells(relay.customName.orEmpty(), relay.baseUrlText.orEmpty())
-            .single { it.token == "flame" }
-        RelayAvatarChoiceStore.select(relay.id, flame.choice)
-        assertEquals(RelayAvatarResult.Icon(RelayAvatarIcon.Flame), RelayAvatarResolver.resolve(relay))
+        assertEquals(RelayAvatarResult.Icon(RelayAvatarIcon.RelayBell), RelayAvatarResolver.resolve(relay))
+        val kite = RelayAvatarResolver.pickerCells(relay.customName.orEmpty(), relay.baseUrlText.orEmpty())
+            .single { it.token == "kite" }
+        RelayAvatarChoiceStore.select(relay.id, kite.choice)
+        assertEquals(RelayAvatarResult.Icon(RelayAvatarIcon.Kite), RelayAvatarResolver.resolve(relay))
         // The same id with different case / surrounding whitespace reads the same choice; the unified entry point follows too.
-        assertEquals("flame", RelayAvatarChoiceStore.choices.value[RelayAvatarResolver.choiceKey(" RELAY-1 ")])
+        assertEquals("kite", RelayAvatarChoiceStore.choices.value[RelayAvatarResolver.choiceKey(" RELAY-1 ")])
         assertEquals(
-            ConnectionAvatarSpec.Relay(RelayAvatarResult.Icon(RelayAvatarIcon.Flame)),
+            ConnectionAvatarSpec.Relay(RelayAvatarResult.Icon(RelayAvatarIcon.Kite)),
             ConnectionAvatarSpec.of(relay, ProviderKind.Relay),
         )
-        assertEquals(mapOf("relay-1" to "flame"), persisted)
+        assertEquals(mapOf("relay-1" to "kite"), persisted)
 
         val letter = RelayAvatarResolver.pickerCells(relay.customName.orEmpty(), relay.baseUrlText.orEmpty()).last()
         RelayAvatarChoiceStore.select(relay.id, letter.choice)
@@ -141,8 +144,8 @@ class RelayAvatarIconTest {
     @Test
     fun `RELAY-AVATAR-STORE-02 picking the brand cell deletes the stored choice`() {
         val relay = Provider(id = "relay-2", kind = ProviderKind.Relay, customName = "My backup", baseUrlText = "https://openrouter.ai/api/v1")
-        RelayAvatarChoiceStore.select(relay.id, "flame")
-        assertEquals(RelayAvatarResult.Icon(RelayAvatarIcon.Flame), RelayAvatarResolver.resolve(relay))
+        RelayAvatarChoiceStore.select(relay.id, "kite")
+        assertEquals(RelayAvatarResult.Icon(RelayAvatarIcon.Kite), RelayAvatarResolver.resolve(relay))
         val brand = RelayAvatarResolver.pickerCells(relay.customName.orEmpty(), relay.baseUrlText.orEmpty()).first()
         assertEquals("brand:openrouter", brand.token)
         assertNull(brand.choice)

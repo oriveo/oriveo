@@ -44,7 +44,7 @@ class ConnectionAvatarCoverageTest {
         assertEquals(ConnectionAvatarSpec.Relay(RelayAvatarResult.Generic), ConnectionAvatarSpec.of(null, ProviderKind.Relay))
         // The connection still exists but name / address are both empty: the icon layer gives the default icon by id (fixture default_when_base_generic); only an empty id stays generic.
         val nameless = Provider(id = "relay-7", kind = ProviderKind.Relay, customName = "", baseUrlText = "")
-        assertEquals(ConnectionAvatarSpec.Relay(RelayAvatarResult.Icon(RelayAvatarIcon.Mountains)), ConnectionAvatarSpec.of(nameless, ProviderKind.Relay, choice = null))
+        assertEquals(ConnectionAvatarSpec.Relay(RelayAvatarResult.Icon(RelayAvatarIcon.Signpost)), ConnectionAvatarSpec.of(nameless, ProviderKind.Relay, choice = null))
         assertEquals(ConnectionAvatarSpec.Relay(RelayAvatarResult.Generic), ConnectionAvatarSpec.of(nameless.copy(id = ""), ProviderKind.Relay))
     }
 

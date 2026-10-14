@@ -433,6 +433,10 @@ class RelayDetailBoardStructureTest {
         assertTrue("trailing Done reuses the existing key", sheet.contains("stringResource(R.string.done)"))
         assertTrue("cells come from the production pickerCells", sheet.contains("RelayAvatarResolver.pickerCells("))
         assertTrue("4-column grid", sheet.contains("chunked(RelayAvatarPickerColumns)") && sheet.contains("RelayAvatarPickerColumns = 4"))
+        assertTrue(
+            "cell labels wrap to at most 2 centered lines",
+            Regex("""textAlign = TextAlign\.Center,\s*(//[^\n]*\n\s*)?maxLines = 2,""").containsMatchIn(sheet),
+        )
     }
 
     @Test

@@ -2013,14 +2013,14 @@
     <string name="relay_model_advanced_auto_equals_connection">Tự động = giao thức mặc định của kết nối này (%1$s)</string>
     <string name="relay_avatar_change_icon">Đổi biểu tượng</string>
     <string name="relay_avatar_letter">Chữ cái</string>
-    <string name="relay_avatar_icon_planet">Hành tinh</string>
-    <string name="relay_avatar_icon_compass">La bàn</string>
-    <string name="relay_avatar_icon_sailboat">Thuyền buồm</string>
-    <string name="relay_avatar_icon_lighthouse">Hải đăng</string>
-    <string name="relay_avatar_icon_mountains">Núi non</string>
-    <string name="relay_avatar_icon_sun_horizon">Bình minh</string>
-    <string name="relay_avatar_icon_flame">Ngọn lửa</string>
-    <string name="relay_avatar_icon_tree_evergreen">Cây thông</string>
-    <string name="relay_avatar_icon_moon_stars">Trăng sao</string>
-    <string name="relay_avatar_icon_butterfly">Bướm</string>
+    <string name="relay_avatar_icon_paper_plane">Máy bay giấy</string>
+    <string name="relay_avatar_icon_signal_tower">Tháp tín hiệu</string>
+    <string name="relay_avatar_icon_relay_bell">Chuông</string>
+    <string name="relay_avatar_icon_satellite">Vệ tinh</string>
+    <string name="relay_avatar_icon_signpost">Biển chỉ đường</string>
+    <string name="relay_avatar_icon_arch_bridge">Cây cầu</string>
+    <string name="relay_avatar_icon_kite">Diều</string>
+    <string name="relay_avatar_icon_message_bottle">Thư trong chai</string>
+    <string name="relay_avatar_icon_pennant">Cờ đuôi nheo</string>
+    <string name="relay_avatar_icon_hot_air_balloon">Khinh khí cầu</string>
 </resources>

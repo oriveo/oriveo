@@ -46,32 +46,32 @@ sealed interface RelayAvatarResult {
     /** Nothing could be resolved: the existing relay icon. */
     data object Generic : RelayAvatarResult
 
-    /** Phosphor duotone icon (the default icon or a choice saved on this device): tinted by [RelayAvatarIcon.palette], no backing plate or stroke. */
+    /** Original icon (the default icon or a choice saved on this device): tinted by [RelayAvatarIcon.palette], no backing plate or stroke. */
     data class Icon(val icon: RelayAvatarIcon) : RelayAvatarResult
 }
 
 /**
- * The ten duotone icons for relay avatars; the order is both the modulo order of default assignment and the order of the picker cells.
+ * The ten original relay avatar icons (24×24 grid, single color plus a 0.4-opacity layer for shading); the order is both the modulo order of default assignment and the order of the picker cells.
  * Sourced from `icons` in `shared/test-fixtures/relay/relay-avatar-icon.v1.json` (pinned entry by entry by tests).
  */
 enum class RelayAvatarIcon(
     val id: String,
-    val phosphor: String,
+    /** Original icon resource `relay_avatar_<id with underscores>`; layer opacity is baked into the vector. */
     @param:DrawableRes val drawable: Int,
     /** Color token: `detailRow.*` reads [DetailRowPalette], `capability.*` reads [CapabilityPalette]. */
     val palette: String,
     @param:StringRes val labelRes: Int,
 ) {
-    Planet("planet", "planet", R.drawable.ph_planet_duotone, "detailRow.indigo", R.string.relay_avatar_icon_planet),
-    Compass("compass", "compass", R.drawable.ph_compass_duotone, "detailRow.teal", R.string.relay_avatar_icon_compass),
-    Sailboat("sailboat", "sailboat", R.drawable.ph_sailboat_duotone, "detailRow.cyan", R.string.relay_avatar_icon_sailboat),
-    Lighthouse("lighthouse", "lighthouse", R.drawable.ph_lighthouse_duotone, "capability.attachment", R.string.relay_avatar_icon_lighthouse),
-    Mountains("mountains", "mountains", R.drawable.ph_mountains_duotone, "capability.webSearch", R.string.relay_avatar_icon_mountains),
-    SunHorizon("sun-horizon", "sun-horizon", R.drawable.ph_sun_horizon_duotone, "detailRow.orange", R.string.relay_avatar_icon_sun_horizon),
-    Flame("flame", "flame", R.drawable.ph_flame_duotone, "detailRow.rose", R.string.relay_avatar_icon_flame),
-    TreeEvergreen("tree-evergreen", "tree-evergreen", R.drawable.ph_tree_evergreen_duotone, "capability.vision", R.string.relay_avatar_icon_tree_evergreen),
-    MoonStars("moon-stars", "moon-stars", R.drawable.ph_moon_stars_duotone, "capability.reasoning", R.string.relay_avatar_icon_moon_stars),
-    Butterfly("butterfly", "butterfly", R.drawable.ph_butterfly_duotone, "capability.tools", R.string.relay_avatar_icon_butterfly),
+    PaperPlane("paper-plane", R.drawable.relay_avatar_paper_plane, "detailRow.indigo", R.string.relay_avatar_icon_paper_plane),
+    SignalTower("signal-tower", R.drawable.relay_avatar_signal_tower, "detailRow.teal", R.string.relay_avatar_icon_signal_tower),
+    RelayBell("relay-bell", R.drawable.relay_avatar_relay_bell, "capability.attachment", R.string.relay_avatar_icon_relay_bell),
+    Satellite("satellite", R.drawable.relay_avatar_satellite, "capability.reasoning", R.string.relay_avatar_icon_satellite),
+    Signpost("signpost", R.drawable.relay_avatar_signpost, "capability.vision", R.string.relay_avatar_icon_signpost),
+    ArchBridge("arch-bridge", R.drawable.relay_avatar_arch_bridge, "capability.webSearch", R.string.relay_avatar_icon_arch_bridge),
+    Kite("kite", R.drawable.relay_avatar_kite, "detailRow.rose", R.string.relay_avatar_icon_kite),
+    MessageBottle("message-bottle", R.drawable.relay_avatar_message_bottle, "detailRow.cyan", R.string.relay_avatar_icon_message_bottle),
+    Pennant("pennant", R.drawable.relay_avatar_pennant, "detailRow.orange", R.string.relay_avatar_icon_pennant),
+    HotAirBalloon("hot-air-balloon", R.drawable.relay_avatar_hot_air_balloon, "capability.tools", R.string.relay_avatar_icon_hot_air_balloon),
     ;
 
     /** The color under the current theme (dark 400 / light 600); color values live only in the palette file. */

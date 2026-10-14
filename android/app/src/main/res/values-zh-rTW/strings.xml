@@ -2069,14 +2069,14 @@
     <string name="relay_model_advanced_auto_equals_connection">自動 = 這條連線的預設協議（%1$s）</string>
     <string name="relay_avatar_change_icon">更換圖示</string>
     <string name="relay_avatar_letter">首字母</string>
-    <string name="relay_avatar_icon_planet">星球</string>
-    <string name="relay_avatar_icon_compass">羅盤</string>
-    <string name="relay_avatar_icon_sailboat">帆船</string>
-    <string name="relay_avatar_icon_lighthouse">燈塔</string>
-    <string name="relay_avatar_icon_mountains">群山</string>
-    <string name="relay_avatar_icon_sun_horizon">日出</string>
-    <string name="relay_avatar_icon_flame">火焰</string>
-    <string name="relay_avatar_icon_tree_evergreen">松樹</string>
-    <string name="relay_avatar_icon_moon_stars">星月</string>
-    <string name="relay_avatar_icon_butterfly">蝴蝶</string>
+    <string name="relay_avatar_icon_paper_plane">紙飛機</string>
+    <string name="relay_avatar_icon_signal_tower">訊號塔</string>
+    <string name="relay_avatar_icon_relay_bell">驛鈴</string>
+    <string name="relay_avatar_icon_satellite">衛星</string>
+    <string name="relay_avatar_icon_signpost">路牌</string>
+    <string name="relay_avatar_icon_arch_bridge">拱橋</string>
+    <string name="relay_avatar_icon_kite">風箏</string>
+    <string name="relay_avatar_icon_message_bottle">漂流瓶</string>
+    <string name="relay_avatar_icon_pennant">驛旗</string>
+    <string name="relay_avatar_icon_hot_air_balloon">熱氣球</string>
 </resources>

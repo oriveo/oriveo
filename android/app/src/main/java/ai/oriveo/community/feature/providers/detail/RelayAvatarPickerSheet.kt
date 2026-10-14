@@ -136,7 +136,8 @@ private fun PickerCell(cell: RelayAvatarPickerCell, selected: Boolean, onClick: 
             fontSize = 12.sp,
             color = if (selected) colors.textPrimary else colors.textSecondary,
             textAlign = TextAlign.Center,
-            maxLines = 1,
+            // Long labels (such as "Bouteille à la mer") wrap to two centered lines before truncating.
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
     }

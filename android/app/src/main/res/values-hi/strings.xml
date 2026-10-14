@@ -2043,14 +2043,14 @@
     <string name="relay_model_advanced_auto_equals_connection">ऑटो = इस कनेक्शन का डिफ़ॉल्ट प्रोटोकॉल (%1$s)</string>
     <string name="relay_avatar_change_icon">आइकन बदलें</string>
     <string name="relay_avatar_letter">अक्षर</string>
-    <string name="relay_avatar_icon_planet">ग्रह</string>
-    <string name="relay_avatar_icon_compass">कम्पास</string>
-    <string name="relay_avatar_icon_sailboat">पाल नाव</string>
-    <string name="relay_avatar_icon_lighthouse">प्रकाशस्तंभ</string>
-    <string name="relay_avatar_icon_mountains">पहाड़</string>
-    <string name="relay_avatar_icon_sun_horizon">सूर्योदय</string>
-    <string name="relay_avatar_icon_flame">लौ</string>
-    <string name="relay_avatar_icon_tree_evergreen">देवदार</string>
-    <string name="relay_avatar_icon_moon_stars">चाँद-तारे</string>
-    <string name="relay_avatar_icon_butterfly">तितली</string>
+    <string name="relay_avatar_icon_paper_plane">कागज़ का हवाई जहाज़</string>
+    <string name="relay_avatar_icon_signal_tower">सिग्नल टावर</string>
+    <string name="relay_avatar_icon_relay_bell">घंटी</string>
+    <string name="relay_avatar_icon_satellite">उपग्रह</string>
+    <string name="relay_avatar_icon_signpost">दिशा-सूचक</string>
+    <string name="relay_avatar_icon_arch_bridge">पुल</string>
+    <string name="relay_avatar_icon_kite">पतंग</string>
+    <string name="relay_avatar_icon_message_bottle">बोतल में संदेश</string>
+    <string name="relay_avatar_icon_pennant">झंडी</string>
+    <string name="relay_avatar_icon_hot_air_balloon">गर्म हवा का गुब्बारा</string>
 </resources>

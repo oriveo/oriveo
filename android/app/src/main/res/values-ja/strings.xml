@@ -2058,14 +2058,14 @@
     <string name="relay_model_advanced_auto_equals_connection">自動 = この接続のデフォルトのプロトコル（%1$s）</string>
     <string name="relay_avatar_change_icon">アイコンを変更</string>
     <string name="relay_avatar_letter">頭文字</string>
-    <string name="relay_avatar_icon_planet">惑星</string>
-    <string name="relay_avatar_icon_compass">コンパス</string>
-    <string name="relay_avatar_icon_sailboat">ヨット</string>
-    <string name="relay_avatar_icon_lighthouse">灯台</string>
-    <string name="relay_avatar_icon_mountains">山並み</string>
-    <string name="relay_avatar_icon_sun_horizon">日の出</string>
-    <string name="relay_avatar_icon_flame">炎</string>
-    <string name="relay_avatar_icon_tree_evergreen">モミの木</string>
-    <string name="relay_avatar_icon_moon_stars">月と星</string>
-    <string name="relay_avatar_icon_butterfly">蝶</string>
+    <string name="relay_avatar_icon_paper_plane">紙飛行機</string>
+    <string name="relay_avatar_icon_signal_tower">電波塔</string>
+    <string name="relay_avatar_icon_relay_bell">ベル</string>
+    <string name="relay_avatar_icon_satellite">人工衛星</string>
+    <string name="relay_avatar_icon_signpost">道しるべ</string>
+    <string name="relay_avatar_icon_arch_bridge">アーチ橋</string>
+    <string name="relay_avatar_icon_kite">凧</string>
+    <string name="relay_avatar_icon_message_bottle">ボトルメール</string>
+    <string name="relay_avatar_icon_pennant">三角旗</string>
+    <string name="relay_avatar_icon_hot_air_balloon">気球</string>
 </resources>

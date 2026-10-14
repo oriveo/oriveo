@@ -2071,14 +2071,14 @@
     <string name="relay_model_advanced_auto_equals_connection">自动 = 这条连接的默认协议（%1$s）</string>
     <string name="relay_avatar_change_icon">更换图标</string>
     <string name="relay_avatar_letter">首字母</string>
-    <string name="relay_avatar_icon_planet">星球</string>
-    <string name="relay_avatar_icon_compass">罗盘</string>
-    <string name="relay_avatar_icon_sailboat">帆船</string>
-    <string name="relay_avatar_icon_lighthouse">灯塔</string>
-    <string name="relay_avatar_icon_mountains">群山</string>
-    <string name="relay_avatar_icon_sun_horizon">日出</string>
-    <string name="relay_avatar_icon_flame">火焰</string>
-    <string name="relay_avatar_icon_tree_evergreen">松树</string>
-    <string name="relay_avatar_icon_moon_stars">星月</string>
-    <string name="relay_avatar_icon_butterfly">蝴蝶</string>
+    <string name="relay_avatar_icon_paper_plane">纸飞机</string>
+    <string name="relay_avatar_icon_signal_tower">信号塔</string>
+    <string name="relay_avatar_icon_relay_bell">驿铃</string>
+    <string name="relay_avatar_icon_satellite">卫星</string>
+    <string name="relay_avatar_icon_signpost">路牌</string>
+    <string name="relay_avatar_icon_arch_bridge">拱桥</string>
+    <string name="relay_avatar_icon_kite">风筝</string>
+    <string name="relay_avatar_icon_message_bottle">漂流瓶</string>
+    <string name="relay_avatar_icon_pennant">驿旗</string>
+    <string name="relay_avatar_icon_hot_air_balloon">热气球</string>
 </resources>

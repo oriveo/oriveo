@@ -2013,14 +2013,14 @@
     <string name="relay_model_advanced_auto_equals_connection">Otomatis = protokol bawaan koneksi ini (%1$s)</string>
     <string name="relay_avatar_change_icon">Ubah ikon</string>
     <string name="relay_avatar_letter">Huruf</string>
-    <string name="relay_avatar_icon_planet">Planet</string>
-    <string name="relay_avatar_icon_compass">Kompas</string>
-    <string name="relay_avatar_icon_sailboat">Perahu layar</string>
-    <string name="relay_avatar_icon_lighthouse">Mercusuar</string>
-    <string name="relay_avatar_icon_mountains">Pegunungan</string>
-    <string name="relay_avatar_icon_sun_horizon">Matahari terbit</string>
-    <string name="relay_avatar_icon_flame">Nyala api</string>
-    <string name="relay_avatar_icon_tree_evergreen">Pohon pinus</string>
-    <string name="relay_avatar_icon_moon_stars">Bulan &amp; bintang</string>
-    <string name="relay_avatar_icon_butterfly">Kupu-kupu</string>
+    <string name="relay_avatar_icon_paper_plane">Pesawat kertas</string>
+    <string name="relay_avatar_icon_signal_tower">Menara sinyal</string>
+    <string name="relay_avatar_icon_relay_bell">Lonceng</string>
+    <string name="relay_avatar_icon_satellite">Satelit</string>
+    <string name="relay_avatar_icon_signpost">Papan penunjuk</string>
+    <string name="relay_avatar_icon_arch_bridge">Jembatan</string>
+    <string name="relay_avatar_icon_kite">Layang-layang</string>
+    <string name="relay_avatar_icon_message_bottle">Pesan dalam botol</string>
+    <string name="relay_avatar_icon_pennant">Panji</string>
+    <string name="relay_avatar_icon_hot_air_balloon">Balon udara</string>
 </resources>

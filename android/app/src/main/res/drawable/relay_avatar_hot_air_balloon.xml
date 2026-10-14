@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Relay connection default avatar glyph. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FF000000"
+        android:fillAlpha="0.4"
+        android:pathData="M12 2.5 C16.4 2.5 19 5.7 19 9.5 C19 13 15.6 15.3 14.3 17 H9.7 C8.4 15.3 5 13 5 9.5 C5 5.7 7.6 2.5 12 2.5 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M12 2.5 C9.2 3.6 8.4 8 8.8 11 C9.1 13.4 9.6 15.5 9.7 17 H14.3 C14.4 15.5 14.9 13.4 15.2 11 C15.6 8 14.8 3.6 12 2.5 Z" />
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round"
+        android:pathData="M10.4 17.2 L10.8 18.9 M13.6 17.2 L13.2 18.9" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M10.7 18.9 H13.3 A0.7 0.7 0 0 1 14 19.6 V21.1 A0.7 0.7 0 0 1 13.3 21.8 H10.7 A0.7 0.7 0 0 1 10 21.1 V19.6 A0.7 0.7 0 0 1 10.7 18.9 Z" />
+</vector>

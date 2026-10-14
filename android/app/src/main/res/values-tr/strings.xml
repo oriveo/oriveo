@@ -2043,14 +2043,14 @@
     <string name="relay_model_advanced_auto_equals_connection">Otomatik = bu bağlantının varsayılan protokolü (%1$s)</string>
     <string name="relay_avatar_change_icon">Simgeyi değiştir</string>
     <string name="relay_avatar_letter">Harf</string>
-    <string name="relay_avatar_icon_planet">Gezegen</string>
-    <string name="relay_avatar_icon_compass">Pusula</string>
-    <string name="relay_avatar_icon_sailboat">Yelkenli</string>
-    <string name="relay_avatar_icon_lighthouse">Deniz feneri</string>
-    <string name="relay_avatar_icon_mountains">Dağlar</string>
-    <string name="relay_avatar_icon_sun_horizon">Gün doğumu</string>
-    <string name="relay_avatar_icon_flame">Alev</string>
-    <string name="relay_avatar_icon_tree_evergreen">Çam</string>
-    <string name="relay_avatar_icon_moon_stars">Ay ve yıldızlar</string>
-    <string name="relay_avatar_icon_butterfly">Kelebek</string>
+    <string name="relay_avatar_icon_paper_plane">Kâğıt uçak</string>
+    <string name="relay_avatar_icon_signal_tower">Sinyal kulesi</string>
+    <string name="relay_avatar_icon_relay_bell">Çan</string>
+    <string name="relay_avatar_icon_satellite">Uydu</string>
+    <string name="relay_avatar_icon_signpost">Yön tabelası</string>
+    <string name="relay_avatar_icon_arch_bridge">Köprü</string>
+    <string name="relay_avatar_icon_kite">Uçurtma</string>
+    <string name="relay_avatar_icon_message_bottle">Şişedeki mektup</string>
+    <string name="relay_avatar_icon_pennant">Flama</string>
+    <string name="relay_avatar_icon_hot_air_balloon">Sıcak hava balonu</string>
 </resources>

@@ -562,7 +562,7 @@ class RelayWebProbeContractTest {
         try {
             val harness = Harness(RelayTransport.OpenAIChatCompletions, null)
             val other = "relay-keep"
-            store.select(connectionID, "flame")
+            store.select(connectionID, "kite")
             store.select(other, "letter")
 
             runBlocking { harness.repository.deleteProvider(connectionID) }

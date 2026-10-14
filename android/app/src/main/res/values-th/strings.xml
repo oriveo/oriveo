@@ -2013,14 +2013,14 @@
     <string name="relay_model_advanced_auto_equals_connection">อัตโนมัติ = โปรโตคอลเริ่มต้นของการเชื่อมต่อนี้ (%1$s)</string>
     <string name="relay_avatar_change_icon">เปลี่ยนไอคอน</string>
     <string name="relay_avatar_letter">ตัวอักษร</string>
-    <string name="relay_avatar_icon_planet">ดาวเคราะห์</string>
-    <string name="relay_avatar_icon_compass">เข็มทิศ</string>
-    <string name="relay_avatar_icon_sailboat">เรือใบ</string>
-    <string name="relay_avatar_icon_lighthouse">ประภาคาร</string>
-    <string name="relay_avatar_icon_mountains">ภูเขา</string>
-    <string name="relay_avatar_icon_sun_horizon">พระอาทิตย์ขึ้น</string>
-    <string name="relay_avatar_icon_flame">เปลวไฟ</string>
-    <string name="relay_avatar_icon_tree_evergreen">ต้นสน</string>
-    <string name="relay_avatar_icon_moon_stars">จันทร์และดาว</string>
-    <string name="relay_avatar_icon_butterfly">ผีเสื้อ</string>
+    <string name="relay_avatar_icon_paper_plane">เครื่องบินกระดาษ</string>
+    <string name="relay_avatar_icon_signal_tower">เสาสัญญาณ</string>
+    <string name="relay_avatar_icon_relay_bell">กระดิ่ง</string>
+    <string name="relay_avatar_icon_satellite">ดาวเทียม</string>
+    <string name="relay_avatar_icon_signpost">ป้ายบอกทาง</string>
+    <string name="relay_avatar_icon_arch_bridge">สะพาน</string>
+    <string name="relay_avatar_icon_kite">ว่าว</string>
+    <string name="relay_avatar_icon_message_bottle">ขวดจดหมาย</string>
+    <string name="relay_avatar_icon_pennant">ธงสามเหลี่ยม</string>
+    <string name="relay_avatar_icon_hot_air_balloon">บอลลูน</string>
 </resources>

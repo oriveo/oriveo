@@ -2100,14 +2100,14 @@
     <string name="relay_model_advanced_auto_equals_connection">Auto = this connection\'s default protocol (%1$s)</string>
     <string name="relay_avatar_change_icon">Change icon</string>
     <string name="relay_avatar_letter">Letter</string>
-    <string name="relay_avatar_icon_planet">Planet</string>
-    <string name="relay_avatar_icon_compass">Compass</string>
-    <string name="relay_avatar_icon_sailboat">Sailboat</string>
-    <string name="relay_avatar_icon_lighthouse">Lighthouse</string>
-    <string name="relay_avatar_icon_mountains">Mountains</string>
-    <string name="relay_avatar_icon_sun_horizon">Sunrise</string>
-    <string name="relay_avatar_icon_flame">Flame</string>
-    <string name="relay_avatar_icon_tree_evergreen">Pine</string>
-    <string name="relay_avatar_icon_moon_stars">Moon &amp; stars</string>
-    <string name="relay_avatar_icon_butterfly">Butterfly</string>
+    <string name="relay_avatar_icon_paper_plane">Paper plane</string>
+    <string name="relay_avatar_icon_signal_tower">Signal tower</string>
+    <string name="relay_avatar_icon_relay_bell">Bell</string>
+    <string name="relay_avatar_icon_satellite">Satellite</string>
+    <string name="relay_avatar_icon_signpost">Signpost</string>
+    <string name="relay_avatar_icon_arch_bridge">Bridge</string>
+    <string name="relay_avatar_icon_kite">Kite</string>
+    <string name="relay_avatar_icon_message_bottle">Bottle</string>
+    <string name="relay_avatar_icon_pennant">Pennant</string>
+    <string name="relay_avatar_icon_hot_air_balloon">Balloon</string>
 </resources>

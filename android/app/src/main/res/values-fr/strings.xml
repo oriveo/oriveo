@@ -2099,14 +2099,14 @@
     <string name="relay_model_advanced_auto_equals_connection">Automatique = protocole par défaut de cette connexion (%1$s)</string>
     <string name="relay_avatar_change_icon">Changer l’icône</string>
     <string name="relay_avatar_letter">Lettre</string>
-    <string name="relay_avatar_icon_planet">Planète</string>
-    <string name="relay_avatar_icon_compass">Boussole</string>
-    <string name="relay_avatar_icon_sailboat">Voilier</string>
-    <string name="relay_avatar_icon_lighthouse">Phare</string>
-    <string name="relay_avatar_icon_mountains">Montagnes</string>
-    <string name="relay_avatar_icon_sun_horizon">Lever du soleil</string>
-    <string name="relay_avatar_icon_flame">Flamme</string>
-    <string name="relay_avatar_icon_tree_evergreen">Sapin</string>
-    <string name="relay_avatar_icon_moon_stars">Lune et étoiles</string>
-    <string name="relay_avatar_icon_butterfly">Papillon</string>
+    <string name="relay_avatar_icon_paper_plane">Avion en papier</string>
+    <string name="relay_avatar_icon_signal_tower">Antenne</string>
+    <string name="relay_avatar_icon_relay_bell">Cloche</string>
+    <string name="relay_avatar_icon_satellite">Satellite</string>
+    <string name="relay_avatar_icon_signpost">Panneau</string>
+    <string name="relay_avatar_icon_arch_bridge">Pont</string>
+    <string name="relay_avatar_icon_kite">Cerf-volant</string>
+    <string name="relay_avatar_icon_message_bottle">Bouteille à la mer</string>
+    <string name="relay_avatar_icon_pennant">Fanion</string>
+    <string name="relay_avatar_icon_hot_air_balloon">Montgolfière</string>
 </resources>
