@@ -92,31 +92,34 @@ class CapabilityMatrixRelayTest {
     // ── WEB ──
 
     @Test
-    fun CAP_RELAY_WEB_01_saved_fragment_is_merged_into_every_chat_request_of_that_protocol() = runTest {
+    fun CAP_RELAY_WEB_01_saved_fragment_is_merged_when_the_chat_web_toggle_is_on() = runTest {
         val store = RelayWebFragmentStore(RelayWebFragmentStore.MemoryStore())
         val responses = relay(RelayTransport.OpenAIResponses)
         val responsesTemplate = template("openai_responses")
         assertTrue(store.save(responses.id, RelayTransport.OpenAIResponses, responsesTemplate.toString()) is RelayWebFragments.Validation.Ok)
 
-        val body = send(responses, store, webSearchEnabled = false)
+        // Web search is a chat switch: when it is off, no fragment is carried.
+        val off = send(responses, store, webSearchEnabled = false)
+        assertFalse("switch off: no fragment: $off", off.toString().contains("\"web_search\""))
+        val body = send(responses, store, webSearchEnabled = true)
 
         val tools = body.getValue("tools").jsonArray
         assertEquals("Segment tool is appended after the builder tools: $body", responsesTemplate.getValue("tools").jsonArray.single(), tools.last())
         assertTrue("The builder's own image_generation is still first: $body", tools.dropLast(1).any { it.toString().contains("image_generation") })
 
-        // Chat protocol: non-tools keys in the segment are added to the request body per mergeCases, and are always sent even when the chat web preference is off.
+        // Chat protocol: non-tools keys in the segment are added to the request body per mergeCases.
         val chat = relay(RelayTransport.OpenAIChatCompletions)
         val plugins = mergeCase("chat_plugins_are_added").getValue("fragment").jsonObject
         assertTrue(store.save(chat.id, RelayTransport.OpenAIChatCompletions, plugins.toString()) is RelayWebFragments.Validation.Ok)
-        val chatBody = send(chat, store, webSearchEnabled = false)
+        val chatBody = send(chat, store, webSearchEnabled = true)
         assertEquals(chatBody.toString(), plugins.getValue("plugins"), chatBody["plugins"])
     }
 
     @Test
-    fun CAP_RELAY_WEB_02_no_fragment_and_no_legacy_field_sends_no_web_fields() = runTest {
+    fun CAP_RELAY_WEB_02_no_saved_fragment_sends_nothing_when_off_and_only_the_template_when_on() = runTest {
         val store = RelayWebFragmentStore(RelayWebFragmentStore.MemoryStore())
         listOf(RelayTransport.OpenAIResponses, RelayTransport.GeminiGenerateContent, RelayTransport.OpenAIChatCompletions).forEach { transport ->
-            // Chat web preference on and the model inheriting the official web profile still carry no web field.
+            // Web switch off and the model inheriting the official web profile still carry no web field.
             val provider = relay(
                 transport,
                 model = AIModel(
@@ -126,10 +129,21 @@ class CapabilityMatrixRelayTest {
                     webSearchProfile = "oai_responses_web",
                 ),
             )
-            val body = send(provider, store, webSearchEnabled = true).toString()
+            val body = send(provider, store, webSearchEnabled = false).toString()
             assertFalse("$transport must not carry web_search: $body", body.contains("web_search"))
             assertFalse("$transport must not carry googleSearch: $body", body.contains("googleSearch") || body.contains("google_search"))
             assertFalse("$transport must not carry plugins: $body", body.contains("\"plugins\""))
+            // Switch on: with no stored fragment the protocol's template is sent, and no field is compiled from the official web profile.
+            val on = send(provider, store, webSearchEnabled = true)
+            RelayWebFragments.template(transport)!!.forEach { (key, value) ->
+                val sent = on.getValue(key)
+                if (key == "tools") {
+                    assertEquals("$transport template tool is appended last: $on", value.jsonArray.single(), sent.jsonArray.last())
+                } else {
+                    assertEquals("$transport template key: $on", value, sent)
+                }
+            }
+            assertFalse("$transport must not carry plugins: $on", on.toString().contains("\"plugins\""))
         }
     }
 
@@ -139,7 +153,7 @@ class CapabilityMatrixRelayTest {
         val legacy = RelayRequestedConfig(transport = RelayTransport.OpenAIResponses, hasWebSearch = true)
         val provider = relay(RelayTransport.OpenAIResponses, requested = legacy)
 
-        val body = send(provider, store, webSearchEnabled = false)
+        val body = send(provider, store, webSearchEnabled = true)
 
         assertEquals(
             "Responses segment mapped from the legacy connection = template: $body",

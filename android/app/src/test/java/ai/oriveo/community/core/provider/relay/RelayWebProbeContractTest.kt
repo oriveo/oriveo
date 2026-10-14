@@ -8,6 +8,7 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayCapabilityOverrides
+import ai.oriveo.community.core.model.resolvedForRequest
 import ai.oriveo.community.core.model.RelayKind
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
@@ -33,6 +34,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import io.ktor.utils.io.writeStringUtf8
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -94,7 +97,7 @@ class RelayWebProbeContractTest {
     // ── SHAPE ──
 
     @Test
-    fun `RL2-WEBPROBE-SHAPE probe request body = chat builder + fragment + fixed prompt + output cap`() {
+    fun `RL2-WEBPROBE-03 SHAPE probe request body = chat builder + fragment + fixed prompt + output cap`() {
         val request = fixture.getValue("request").jsonObject
         val prompt = request.string("prompt")
         val limit = request.getValue("outputLimit").jsonPrimitive.content.toInt()
@@ -142,7 +145,7 @@ class RelayWebProbeContractTest {
     // ── EV / GW ──
 
     @Test
-    fun `RL2-WEBPROBE-EV verdict depends only on evidence from the production parser`() {
+    fun `RL2-WEBPROBE-04 EV verdict depends only on evidence from the production parser`() {
         checkAll(
             "RL2-WEBPROBE-EV-",
             fixture.cases("evidenceCases").map { case ->
@@ -160,7 +163,7 @@ class RelayWebProbeContractTest {
     }
 
     @Test
-    fun `RL2-WEBPROBE-GW recorded gateway traffic through the production parser`() {
+    fun `RL2-WEBPROBE-09 GW recorded gateway traffic through the production parser`() {
         checkAll(
             "RL2-WEBPROBE-GW-",
             fixture.getValue("gatewayRecordings").jsonObject.entries.map { (key, value) ->
@@ -186,6 +189,73 @@ class RelayWebProbeContractTest {
                 }
             },
         )
+    }
+
+    // -- EARLY: judge searched as soon as evidence appears and cancel the request, without waiting for the stream to end --
+
+    @Test
+    fun `RL2-WEBPROBE-EARLY fixture caseIds map one-to-one to the per-case tests here`() {
+        assertEquals(
+            listOf(
+                "messages_search_ran_then_stall",
+                "chat_citation_then_stall",
+                "no_evidence_then_close_is_silent",
+                "no_evidence_then_stall_times_out",
+                "error_frame_before_evidence_is_undetermined",
+                "messages_invalid_request_before_evidence_is_rejected",
+            ),
+            fixture.getValue("earlyStopCases").jsonObject.cases("cases").map { it.string("caseId") },
+        )
+    }
+
+    @Test fun `RL2-WEBPROBE-EARLY-messages_search_ran_then_stall`() = earlyCase("messages_search_ran_then_stall")
+    @Test fun `RL2-WEBPROBE-EARLY-chat_citation_then_stall`() = earlyCase("chat_citation_then_stall")
+    @Test fun `RL2-WEBPROBE-EARLY-no_evidence_then_close_is_silent`() = earlyCase("no_evidence_then_close_is_silent")
+    @Test fun `RL2-WEBPROBE-EARLY-no_evidence_then_stall_times_out`() = earlyCase("no_evidence_then_stall_times_out")
+    @Test fun `RL2-WEBPROBE-EARLY-error_frame_before_evidence_is_undetermined`() = earlyCase("error_frame_before_evidence_is_undetermined")
+    @Test fun `RL2-WEBPROBE-EARLY-messages_invalid_request_before_evidence_is_rejected`() = earlyCase("messages_invalid_request_before_evidence_is_rejected")
+
+    /**
+     * Goes through the production [ProviderRepository.runRelayWebProbe] -> the [RelayService] probe send site against a fake upstream: events are written into the streaming reply one by one,
+     * `stall` = do not close after writing (never ends). Cases that see evidence get a generous deadline ([EARLY_DEADLINE_MILLIS]) and must still yield searched while the stream does not end;
+     * timeout cases use a short deadline. `cancelled` = the probe cancelled the request before the stream ended (the reply channel was closed with a cause).
+     */
+    private fun earlyCase(caseId: String) {
+        val case = fixture.getValue("earlyStopCases").jsonObject.cases("cases").single { it.string("caseId") == caseId }
+        val expect = case.getValue("expect").jsonObject
+        val transport = transportOf(case.string("transport"))
+        val harness = Harness(transport, RelayWebFragments.template(transport)!!)
+        val channel = io.ktor.utils.io.ByteChannel(autoFlush = true)
+        harness.respondWith(Reply(200, "text/event-stream", "", stream = channel))
+        val stall = case.string("then") == "stall"
+        val deadline = if (expect.string("reason") == "timeout") SHORT_DEADLINE_MILLIS else EARLY_DEADLINE_MILLIS
+        val outcome = runBlocking {
+            val writer = launch(Dispatchers.IO) {
+                runCatching {
+                    case.getValue("events").jsonArray.forEach { event ->
+                        channel.writeStringUtf8("data: ${event.jsonPrimitive.content}\n\n")
+                    }
+                    if (!stall) channel.flushAndClose()
+                }
+            }
+            val result = harness.repository.runRelayWebProbe(connectionID, modelID, deadlineMillis = deadline)
+            writer.join()
+            result
+        }
+        val completed = outcome as? RelayWebProbeOutcome.Completed ?: throw AssertionError("$caseId: $outcome")
+        assertEquals("$caseId result", expect.string("result"), completed.result.wire)
+        assertEquals("$caseId reason", expect.string("reason"), completed.reason.wire)
+        expect.getValue("urlsInclude").jsonArray.map { it.jsonPrimitive.content }.forEach { url ->
+            assertTrue("$caseId urls ${completed.evidenceUrls}", url in completed.evidenceUrls)
+        }
+        val cancelled = channel.closedCause != null
+        assertEquals("$caseId cancelled (closedCause=${channel.closedCause})", expect.string("cancelled").toBooleanStrict(), cancelled)
+        assertEquals("$caseId one attempt", 1, harness.sent.size)
+        // Judged as soon as evidence is seen: the record and the override are written by the usual rules.
+        if (completed.result == RelayWebProbeResult.Searched) {
+            assertEquals("$caseId record", RelayWebProbeResult.Searched, harness.records.read(harness.key)?.result)
+            assertEquals("$caseId override web", true, harness.current().models.single().relayCapabilityOverrides?.web)
+        }
     }
 
     private fun assertExpect(expect: JsonObject, outcome: RelayWebProbeOutcome, harness: Harness) {
@@ -222,7 +292,7 @@ class RelayWebProbeContractTest {
     // ── HASH ──
 
     @Test
-    fun `RL2-WEBPROBE-HASH fragment hash = SHA-256 of the canonical JSON`() {
+    fun `RL2-WEBPROBE-05 HASH fragment hash = SHA-256 of the canonical JSON`() {
         checkAll(
             "RL2-WEBPROBE-HASH-",
             fixture.getValue("fragmentHash").jsonObject.cases("cases").map { case ->
@@ -238,7 +308,7 @@ class RelayWebProbeContractTest {
     // ── MERGE ──
 
     @Test
-    fun `RL2-WEBPROBE-MERGE same hash merges by rule and a different hash replaces the whole record`() {
+    fun `RL2-WEBPROBE-06 MERGE same hash merges by rule and a different hash replaces the whole record`() {
         fun recordOf(element: JsonObject, at: Long) = RelayWebProbeRecord(
             result = RelayWebProbeResult.entries.single { it.wire == element.string("result") },
             source = RelayWebProbeSource.entries.single { it.wire == element.string("source") },
@@ -279,7 +349,7 @@ class RelayWebProbeContractTest {
     // ── FORMS ──
 
     @Test
-    fun `RL2-WEBPROBE-FORMS only RELAY is probed and without a fragment nothing is listed and zero requests are sent`() {
+    fun `RL2-WEBPROBE-13 FORMS only RELAY is probed and without a fragment nothing is listed and zero requests are sent`() {
         val forms = fixture.getValue("forms").jsonObject
         assertEquals(listOf("RELAY"), forms.getValue("probe").jsonArray.map { it.jsonPrimitive.content })
         val byForm = mapOf(
@@ -311,7 +381,7 @@ class RelayWebProbeContractTest {
     // ── OVERRIDE ──
 
     @Test
-    fun `RL2-WEBPROBE-OVERRIDE searched and rejected write web (tested) and a user-set web is untouched`() {
+    fun `RL2-WEBPROBE-10 OVERRIDE searched and rejected write web (tested) and a user-set web is untouched`() {
         fun probe(result: RelayWebProbeResult) =
             RelayWebProbeOutcome.Completed(result, RelayCapabilityTestReason.Ok, 200, emptyList(), "h", NOW)
 
@@ -353,7 +423,7 @@ class RelayWebProbeContractTest {
     // ── CHAT ──
 
     @Test
-    fun `RL2-WEBPROBE-CHAT-01 chat does not attach the fragment when the record is rejected under the current fragment and attaches it otherwise`() {
+    fun `RL2-WEBPROBE-09 CHAT-01 with the web switch on, a record rejected under the current fragment attaches no fragment, otherwise it is attached as usual`() {
         val transport = RelayTransport.OpenAIChatCompletions
         val fragment = RelayWebFragments.template(transport)!!
         val currentHash = RelayWebProbe.fragmentHash(fragment)
@@ -388,7 +458,7 @@ class RelayWebProbeContractTest {
     }
 
     @Test
-    fun `RL2-WEBPROBE-CHAT-02 relay chat delivered with citations writes searched observed and without citations or on error writes nothing`() {
+    fun `RL2-WEBPROBE-09 CHAT-02 relay chat delivered with citations writes searched observed and without citations or on error writes nothing`() {
         val evidence = fixture.cases("evidenceCases").associateBy { it.string("caseId") }
         val transport = RelayTransport.OpenAIChatCompletions
         val fragment = RelayWebFragments.template(transport)!!
@@ -420,10 +490,10 @@ class RelayWebProbeContractTest {
                     assertNull("nothing recorded", chat.records.read(chat.key))
                 },
                 "no_fragment_with_citation" to {
-                    // This turn carried no fragment: citations are not probe evidence.
+                    // This turn carried no fragment (web switch off): citations are not probe evidence.
                     val chat = ChatHarness(transport, fragment = null)
                     chat.respondWith(evidenceResponse(evidence.getValue("chat_url_citation_searched")))
-                    chat.send()
+                    chat.send(webSearchEnabled = false)
                     assertTrue("sent", chat.sent.isNotEmpty())
                     assertNull("nothing recorded", chat.records.read(chat.key))
                 },
@@ -431,10 +501,126 @@ class RelayWebProbeContractTest {
         )
     }
 
+    /**
+     * The web switch decides the request body: off -> none; on with nothing stored -> the first-send protocol's template; on with a stored fragment -> the stored one;
+     * a user override off or a currently rejected record -> none. Goes through the production [ChatRepository.sendMessage] -> the [RelayService] builder.
+     */
+    @Test
+    fun `RL2-WEBPROBE-02 switch decides the request body - off no fragment, on without saved sends template, on with saved sends saved, override off or rejected sends nothing`() {
+        val transport = RelayTransport.OpenAIChatCompletions
+        val template = RelayWebFragments.template(transport)!!
+        val saved = JsonObject(mapOf("web_search_options" to JsonObject(mapOf("search_context_size" to JsonPrimitive("low")))))
+        fun body(chat: ChatHarness): JsonObject = chat.sent.first().body.jsonObject
+        checkAll(
+            "RL2-WEBPROBE-02-",
+            listOf(
+                "off_sends_nothing" to {
+                    val chat = ChatHarness(transport, saved)
+                    chat.respondWith(sseResponse(listOf("data: [DONE]", "")))
+                    chat.send(webSearchEnabled = false)
+                    assertFalse("off: no fragment ${body(chat)}", body(chat).containsKey("web_search_options"))
+                },
+                "on_without_saved_sends_template" to {
+                    val chat = ChatHarness(transport, fragment = null)
+                    chat.respondWith(sseResponse(listOf("data: [DONE]", "")))
+                    chat.send(webSearchEnabled = true)
+                    assertEquals(template.getValue("web_search_options"), body(chat)["web_search_options"])
+                },
+                "on_with_saved_sends_saved" to {
+                    val chat = ChatHarness(transport, saved)
+                    chat.respondWith(sseResponse(listOf("data: [DONE]", "")))
+                    chat.send(webSearchEnabled = true)
+                    assertEquals(saved.getValue("web_search_options"), body(chat)["web_search_options"])
+                },
+                "user_off_sends_nothing" to {
+                    val chat = ChatHarness(transport, saved, overrides = RelayCapabilityOverrides(web = false))
+                    chat.respondWith(sseResponse(listOf("data: [DONE]", "")))
+                    chat.send(webSearchEnabled = true)
+                    assertFalse(body(chat).containsKey("web_search_options"))
+                },
+                "template_rejected_sends_nothing" to {
+                    val chat = ChatHarness(transport, fragment = null)
+                    chat.records.record(chat.key, RelayWebProbeRecord(RelayWebProbeResult.Rejected, RelayWebProbeSource.Tested, NOW, RelayWebProbe.fragmentHash(template)))
+                    chat.respondWith(sseResponse(listOf("data: [DONE]", "")))
+                    chat.send(webSearchEnabled = true)
+                    assertFalse(body(chat).containsKey("web_search_options"))
+                    // Switch on + current record rejected: the "web this round" flag handed to the service is also false, the same verdict as the request body.
+                    assertEquals(listOf(false), chat.serviceWebFlags.toList())
+                },
+                "on_flag_follows_sent_fragment" to {
+                    val chat = ChatHarness(transport, fragment = null)
+                    chat.respondWith(sseResponse(listOf("data: [DONE]", "")))
+                    chat.send(webSearchEnabled = true)
+                    assertEquals(listOf(true), chat.serviceWebFlags.toList())
+                },
+                "user_on_beats_rejected" to {
+                    val chat = ChatHarness(transport, fragment = null, overrides = RelayCapabilityOverrides(web = true))
+                    chat.records.record(chat.key, RelayWebProbeRecord(RelayWebProbeResult.Rejected, RelayWebProbeSource.Tested, NOW, RelayWebProbe.fragmentHash(template)))
+                    chat.respondWith(sseResponse(listOf("data: [DONE]", "")))
+                    chat.send(webSearchEnabled = true)
+                    assertEquals(template.getValue("web_search_options"), body(chat)["web_search_options"])
+                },
+            ),
+        )
+    }
+
+    /**
+     * RL2-WEBPROBE-14 nometa: for a relay model whose metadata did not load and that is not in the official catalog, the web switch can still be saved,
+     * reads back as on after re-entering, and the request body carries the fragment. The identity goes through the production resolver (relay fallback revision),
+     * the preference through the production store (the same backend rebuilt once = re-entering).
+     */
+    @Test
+    fun `RL2-WEBPROBE-14 nometa relay model without a metadata identity can save, read and send the switch`() {
+        val transport = RelayTransport.OpenAIChatCompletions
+        val template = RelayWebFragments.template(transport)!!
+        val chat = ChatHarness(transport, fragment = null)
+        val model = chat.provider.models.single()
+        val metadata = ai.oriveo.community.core.data.remote.MetadataClient()
+        assertNull("precondition: metadata has no runtime revision", metadata.currentCapabilityRuntimeRevision())
+        val identity = ai.oriveo.community.core.provider.ModelControlRuntimeIdentityResolver.resolve(chat.provider, model, metadata)
+        assertEquals(
+            "relay fallback revision",
+            ai.oriveo.community.core.provider.ModelControlRuntimeIdentityResolver.RELAY_FALLBACK_RUNTIME_REVISION,
+            identity?.runtimeRevision,
+        )
+        var backing: String? = null
+        fun store() = ai.oriveo.community.core.model.CapabilityPreferenceStore(read = { backing }, write = { backing = it })
+        val conversationID = "conversation-web-probe"
+        store().setConversation(
+            ai.oriveo.community.core.model.CapabilityPreferenceValues(web = ai.oriveo.community.core.model.CapabilityWebPreference.Automatic),
+            chat.provider.id,
+            identity!!.canonicalModelId,
+            conversationID,
+            identity.storageIdentity,
+        )
+        // Re-enter the chat: a new store instance reads the same backend.
+        val chatWeb = RelayWebChat.of(chat.provider, model)!!
+        fun read(target: ai.oriveo.community.core.model.CapabilityPreferenceStore) =
+            target.resolvedForRequest(
+                providerID = chat.provider.id,
+                providerKind = chat.provider.kind,
+                modelID = identity.canonicalModelId,
+                conversationID = conversationID,
+                skillID = null,
+                transportIdentity = identity.storageIdentity,
+                webDefault = chatWeb.defaultPreference,
+            ).web
+        val reread = read(store())
+        assertEquals(ai.oriveo.community.core.model.CapabilityWebPreference.Automatic, reread)
+        assertTrue("the switch reads back as on", chatWeb.isOn(reread))
+        chat.respondWith(sseResponse(listOf("data: [DONE]", "")))
+        chat.send(webSearchEnabled = reread != ai.oriveo.community.core.model.CapabilityWebPreference.Off)
+        assertEquals(template.getValue("web_search_options"), chat.sent.first().body.jsonObject["web_search_options"])
+    }
+
     /** Production [ChatRepository.sendMessage] -> production [RelayService] against a fake upstream; fragments and probe records use the production store (in-memory backend). */
-    private inner class ChatHarness(transport: RelayTransport, fragment: JsonObject?) {
+    private inner class ChatHarness(
+        transport: RelayTransport,
+        fragment: JsonObject?,
+        overrides: RelayCapabilityOverrides? = null,
+    ) {
         val sent: MutableList<SentRequest> = Collections.synchronizedList(mutableListOf())
-        private val model = AIModel(id = modelID, name = modelID, isDefault = true)
+        private val model = AIModel(id = modelID, name = modelID, isDefault = true, relayCapabilityOverrides = overrides)
         val provider = Provider(
             id = connectionID,
             kind = ProviderKind.Relay,
@@ -447,6 +633,8 @@ class RelayWebProbeContractTest {
             catalogModels = listOf(model),
         )
         val records = RelayWebProbeRecordStore(RelayWebProbeRecordStore.MemoryStore()) { NOW }
+        /** The "web this round" flag the repository hands to the service (one per sendMessageStream). */
+        val serviceWebFlags: MutableList<Boolean> = Collections.synchronizedList(mutableListOf())
         private val fragments = RelayWebFragmentStore(RelayWebFragmentStore.MemoryStore()).also { store ->
             fragment?.let { store.replace(connectionID, mapOf(transport to it)) }
         }
@@ -461,9 +649,17 @@ class RelayWebProbeContractTest {
             respond(current.body, HttpStatusCode.fromValue(current.status), headersOf(HttpHeaders.ContentType, current.contentType))
         })
 
-        fun send() = runBlocking {
+        /** The resolved web switch (the webSearchEnabled the chat send coordinator hands to the repository); CHAT-01 / 02 run with it on. */
+        fun send(webSearchEnabled: Boolean = true) = runBlocking {
             val providerRepository = mockk<ProviderRepository>(relaxed = true).also {
-                every { it.serviceFor(any<Provider>(), any()) } returns RelayService(client, json, TransportRegistry(json))
+                val service = io.mockk.spyk(RelayService(client, json, TransportRegistry(json)))
+                every {
+                    service.sendMessageStream(any(), any(), any(), any(), any(), any(), any(), any())
+                } answers {
+                    serviceWebFlags += arg<Boolean>(6)
+                    callOriginal()
+                }
+                every { it.serviceFor(any<Provider>(), any()) } returns service
                 every { it.toolCallMemoryVerdict(any(), any()) } returns null
                 every { it.currentCapabilityPartitionId() } returns "u1"
             }
@@ -489,7 +685,7 @@ class RelayWebProbeContractTest {
                     modelID = modelID,
                     existingMessages = emptyList(),
                     reasoningMode = ai.oriveo.community.core.model.ReasoningMode.Automatic,
-                    webSearchEnabled = false,
+                    webSearchEnabled = webSearchEnabled,
                     requestOptions = ai.oriveo.community.core.model.ChatRequestOptions(),
                     outputs = ai.oriveo.community.core.streaming.ConversationStreamingOutputs(
                         streamingText = MutableStateFlow(""),
@@ -515,7 +711,7 @@ class RelayWebProbeContractTest {
     private fun Harness.catalogOverridesOf(id: String): RelayCapabilityOverrides? = current().catalogModels.single { it.id == id }.relayCapabilityOverrides
 
     @Test
-    fun `RL2-WEBPROBE-WIRE-save after saving probes serially by selection and writes records and history and untested sends zero requests`() {
+    fun `RL2-WEBPROBE-11 WIRE-save after saving probes serially by selection and writes records and history and untested sends zero requests`() {
         val transport = RelayTransport.OpenAIChatCompletions
         val fragment = requireNotNull(RelayWebFragments.template(transport))
         val hash = RelayWebProbe.fragmentHash(fragment)
@@ -578,7 +774,7 @@ class RelayWebProbeContractTest {
     }
 
     @Test
-    fun `RL2-WEBPROBE-WIRE-enable probes once after lazy verification passes and does not probe on failure or if it did not run`() {
+    fun `RL2-WEBPROBE-11 WIRE-enable probes once after lazy verification passes and does not probe on failure or if it did not run`() {
         val transport = RelayTransport.OpenAIChatCompletions
 
         fun enableHarness(pin: RelayTransport?, pingOk: Boolean): Harness {
@@ -625,7 +821,7 @@ class RelayWebProbeContractTest {
     private fun variantOf(fragment: JsonObject): JsonObject = JsonObject(fragment + ("x-variant" to JsonPrimitive("b")))
 
     @Test
-    fun `RL2-WEBPROBE-REFRAG-01 fragment changed mid-run so the result writes no record or override and returns stopped fragment`() {
+    fun `RL2-WEBPROBE-10 REFRAG-01 fragment changed mid-run so the result writes no record or override and returns stopped fragment`() {
         val transport = RelayTransport.OpenAIChatCompletions
         val fragment = requireNotNull(RelayWebFragments.template(transport))
         val harness = Harness(transport, fragment)
@@ -641,7 +837,7 @@ class RelayWebProbeContractTest {
     }
 
     @Test
-    fun `RL2-WEBPROBE-REFRAG-02 saving A then B means A's remaining models are not sent and write no history and B probes with the new fragment`() {
+    fun `RL2-WEBPROBE-10 REFRAG-02 saving A then B means A's remaining models are not sent and write no history and B probes with the new fragment`() {
         val transport = RelayTransport.OpenAIChatCompletions
         val fragmentA = requireNotNull(RelayWebFragments.template(transport))
         val fragmentB = variantOf(fragmentA)
@@ -679,7 +875,7 @@ class RelayWebProbeContractTest {
     }
 
     @Test
-    fun `RL2-WEBPROBE-OVERRIDE-clear after a fragment change or merge silent clears tested web and undetermined is kept and user is untouched`() {
+    fun `RL2-WEBPROBE-10 OVERRIDE-clear after a fragment change or merge silent clears tested web and undetermined is kept and user is untouched`() {
         val transport = RelayTransport.OpenAIChatCompletions
         val tested = RelayCapabilityOverrides(web = true, image = true, testedKeys = setOf("web"))
         val user = RelayCapabilityOverrides(web = false)
@@ -750,6 +946,8 @@ class RelayWebProbeContractTest {
         val contentType: String,
         val body: String,
         val hang: Boolean = false,
+        /** A streaming reply pushed event by event (EARLY): the test writes events into it, stall = do not close. */
+        val stream: io.ktor.utils.io.ByteReadChannel? = null,
     )
 
     private fun sseResponse(lines: List<String>, status: Int = 200) =
@@ -837,6 +1035,9 @@ class RelayWebProbeContractTest {
             onProbe()
             val current = reply
             if (current.hang) awaitCancellation()
+            current.stream?.let { stream ->
+                return@MockEngine respond(stream, HttpStatusCode.fromValue(current.status), headersOf(HttpHeaders.ContentType, current.contentType))
+            }
             respond(current.body, HttpStatusCode.fromValue(current.status), headersOf(HttpHeaders.ContentType, current.contentType))
         }
 
@@ -894,6 +1095,8 @@ class RelayWebProbeContractTest {
             RelayTransport.GeminiGenerateContent to listOf("generationConfig", "maxOutputTokens"),
         )
         const val SHORT_DEADLINE_MILLIS = 300L
+        /** The deadline of evidence cases: far longer than the time to receive a few events, so while the stream does not end only judging on evidence can yield searched in time. */
+        const val EARLY_DEADLINE_MILLIS = 5_000L
         const val NOW = 1_791_900_000_000L
     }
 }

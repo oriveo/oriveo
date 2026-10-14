@@ -43,7 +43,7 @@ class RelayWebProbeTriggerTest {
     }
 
     @Test
-    fun `RL2-WEBPROBE-TRIG per-case selection`() {
+    fun `RL2-WEBPROBE-07 TRIG per-case selection`() {
         val failures = mutableListOf<String>()
         val cases = fixture.getValue("triggerCases").jsonArray.map { it.jsonObject }
         cases.forEach { case ->

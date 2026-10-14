@@ -36,6 +36,9 @@ import ai.oriveo.community.feature.providers.relay.RelayBoardProtocol
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonArray
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -165,6 +168,7 @@ class RelayModelAdvancedBoardTest {
                 RelayAdvancedCapability.File,
                 RelayAdvancedCapability.ImageGeneration,
                 RelayAdvancedCapability.ToolCall,
+                RelayAdvancedCapability.Web,
             ),
             remote.capabilities.map { it.capability },
         )
@@ -185,7 +189,10 @@ class RelayModelAdvancedBoardTest {
         assertEquals(R.string.relay_transport_openai_chat_completions, ollama.channel?.valueRes)
         assertFalse("single-channel engine shows no footnote", ollama.channel!!.showsHint)
         assertEquals(listOf(RelayAdvancedSource.Engine, RelayAdvancedSource.User), ollama.legend)
-        assertEquals(4, ollama.capabilities.size)
+        assertEquals(5, ollama.capabilities.size)
+        // The web row of a local engine shows unknown with no source.
+        assertEquals(R.string.relay_model_advanced_unknown, ollama.row(RelayAdvancedCapability.Web).statusRes)
+        assertNull(ollama.row(RelayAdvancedCapability.Web).source)
 
         val llama = board(local("llamacpp", listOf(model), channel = RelayTransport.LlamaCppNative))
         assertEquals(R.string.relay_transport_llamacpp_native, llama.channel?.valueRes)
@@ -886,5 +893,107 @@ class RelayModelAdvancedBoardTest {
         val direct = File("src/main/java/ai/oriveo/community/$relative")
         if (direct.exists()) return direct.readText()
         return File("app/src/main/java/ai/oriveo/community/$relative").readText()
+    }
+
+    /**
+     * RL2-WEBPROBE-15: the "Web search" row after tool calling on the advanced page capability card; status and source come from the fixture
+     * `web-probe.v1.json` presentationCases `advanced`; Auto / On / Off write the web override (user source, Auto = clear), and "Restore all to Auto" clears it too.
+     */
+    @Test
+    fun `RL2-WEBPROBE-15 advanced web row status and source per presentationCases, writes and restore`() {
+        val fixture = readFixture("shared/test-fixtures/relay/web-probe.v1.json")
+        val cases = fixture.getValue("presentationCases").jsonObject.getValue("cases").jsonArray.map { it.jsonObject }
+        val transport = RelayTransport.OpenAIChatCompletions
+        val template = ai.oriveo.community.core.provider.relay.RelayWebFragments.template(transport)!!
+        val saved = kotlinx.serialization.json.buildJsonObject {
+            put("web_search_options", kotlinx.serialization.json.buildJsonObject { put("search_context_size", kotlinx.serialization.json.JsonPrimitive("low")) })
+        }
+        assertEquals(12, cases.size)
+        cases.forEach { case ->
+            val caseId = case.getValue("caseId").jsonPrimitive.content
+            val hasSaved = case.getValue("savedFragment").jsonPrimitive.content == "true"
+            val userOverride = (case.getValue("userOverride") as? kotlinx.serialization.json.JsonPrimitive)
+                ?.takeUnless { it is kotlinx.serialization.json.JsonNull }?.content?.toBooleanStrict()
+            val model = AIModel(id = "m", name = "m", relayCapabilityOverrides = userOverride?.let { RelayCapabilityOverrides(web = it) })
+            val provider = relay(listOf(model), transport = transport)
+            val fragments = ai.oriveo.community.core.provider.relay.RelayWebFragmentStore(ai.oriveo.community.core.provider.relay.RelayWebFragmentStore.MemoryStore())
+            if (hasSaved) fragments.save(provider.id, transport, saved.toString())
+            val records = ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore(ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore.MemoryStore()) { 1L }
+            (case["record"] as? kotlinx.serialization.json.JsonObject)?.let { record ->
+                records.record(
+                    ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore.Key(provider.id, model.id, transport.value),
+                    ai.oriveo.community.core.provider.relay.RelayWebProbeRecord(
+                        ai.oriveo.community.core.provider.relay.RelayWebProbeResult.entries.single { it.wire == record.getValue("result").jsonPrimitive.content },
+                        ai.oriveo.community.core.provider.relay.RelayWebProbeSource.Tested,
+                        1L,
+                        if (record.getValue("fragmentHash").jsonPrimitive.content == "current") {
+                            ai.oriveo.community.core.provider.relay.RelayWebProbe.fragmentHash(if (hasSaved) saved else template)
+                        } else {
+                            "0".repeat(64)
+                        },
+                    ),
+                )
+            }
+            val negativeCache = cache()
+            val row = RelayModelAdvancedBoard.build(
+                provider = provider,
+                model = model,
+                nowSeconds = nowSeconds,
+                probe = null,
+                facts = RelayCatalogCapabilityFacts(metadata = metadata, negativeCache = negativeCache, identityFor = { identity(provider) }, toolMemoryFor = { null }),
+                negativeCache = negativeCache,
+                toolMemory = null,
+                automaticReasoning = emptyList(),
+                webFragments = fragments,
+                webRecords = records,
+            ).row(RelayAdvancedCapability.Web)
+            val expect = case.getValue("expect").jsonObject.getValue("advanced").jsonObject
+            val message = "RL2-WEBPROBE-15-$caseId: $row"
+            assertEquals(message, expect.getValue("statusId").jsonPrimitive.content, row.webStatus?.wire)
+            val source = (expect.getValue("source") as? kotlinx.serialization.json.JsonPrimitive)?.takeUnless { it is kotlinx.serialization.json.JsonNull }?.content
+            assertEquals(message, source, row.source?.let { if (it == RelayAdvancedSource.User) "user" else if (it == RelayAdvancedSource.Tested) "tested" else it.name })
+            assertEquals(
+                message,
+                when (userOverride) { true -> RelayAdvancedControl.On; false -> RelayAdvancedControl.Off; null -> RelayAdvancedControl.Auto },
+                row.control,
+            )
+            assertEquals(message, ModelOptionsRenderStatus.of(row.webStatus!!), row.statusRes)
+        }
+
+        // The control follows the other capability rows: tested true -> On, tested false -> Off (the source is still Tested by record / override).
+        listOf(true to RelayAdvancedControl.On, false to RelayAdvancedControl.Off).forEach { (value, control) ->
+            val mirrored = AIModel(id = "m", name = "m", relayCapabilityOverrides = RelayCapabilityOverrides(web = value, testedKeys = setOf("web")))
+            assertEquals("RL2-WEBPROBE-15 tested $value", control, board(relay(listOf(mirrored))).row(RelayAdvancedCapability.Web).control)
+        }
+
+        // Writes: On / Off write a user-source override (clearing the tested mark), Auto deletes the key; restoring all to Auto clears it too.
+        val tested = AIModel(id = "m", name = "m", relayCapabilityOverrides = RelayCapabilityOverrides(web = true, testedKeys = setOf("web")))
+        val provider = relay(listOf(tested))
+        val off = RelayModelAdvancedEdits.settingCapabilityOverride(provider, "m", RelayAdvancedCapability.Web, false, cache())
+        val offOverrides = off.models.single().relayCapabilityOverrides
+        assertEquals(false, offOverrides?.web)
+        assertEquals(RelayCapabilityOverrides.SOURCE_USER, offOverrides?.sourceOf("web"))
+        assertEquals("a catalog model with the same id is written the same", offOverrides, off.catalogModels.single().relayCapabilityOverrides)
+        val auto = RelayModelAdvancedEdits.settingCapabilityOverride(off, "m", RelayAdvancedCapability.Web, null, cache())
+        assertNull(auto.models.single().relayCapabilityOverrides?.web)
+        val on = RelayModelAdvancedEdits.settingCapabilityOverride(auto, "m", RelayAdvancedCapability.Web, true, cache())
+        assertEquals(true, on.models.single().relayCapabilityOverrides?.web)
+        assertNull(RelayModelAdvancedEdits.restoringAllAutomatic(on, "m").models.single().relayCapabilityOverrides?.web)
+    }
+
+    /** The status sentence of the advanced page web row uses the same mapping as the chat model options status line. */
+    private object ModelOptionsRenderStatus {
+        fun of(status: ai.oriveo.community.core.provider.relay.RelayWebChat.Status): Int =
+            ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsRender.relayWebStatusRes(status)
+    }
+
+    private fun readFixture(relative: String): kotlinx.serialization.json.JsonObject {
+        var dir: File? = File(System.getProperty("user.dir")).absoluteFile
+        while (dir != null) {
+            val file = File(dir, relative)
+            if (file.isFile) return json.parseToJsonElement(file.readText()).jsonObject
+            dir = dir.parentFile
+        }
+        error("fixture not found: $relative")
     }
 }

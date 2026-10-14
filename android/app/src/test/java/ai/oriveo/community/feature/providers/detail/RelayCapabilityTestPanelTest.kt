@@ -8,6 +8,7 @@ import ai.oriveo.community.core.provider.relay.RelayCapabilityTestKind
 import ai.oriveo.community.core.provider.relay.RelayCapabilityTestReason
 import ai.oriveo.community.core.provider.relay.RelayCapabilityTestStopReason
 import ai.oriveo.community.core.provider.relay.RelayCapabilityVerdict
+import ai.oriveo.community.core.provider.relay.RelayWebSource
 import java.nio.file.Files
 import java.nio.file.Paths
 import kotlinx.serialization.json.Json
@@ -65,6 +66,12 @@ class RelayCapabilityTestPanelTest {
     @Test fun `RD4-PANEL-completed_web_rejected`() = check("completed_web_rejected")
     @Test fun `RD4-PANEL-text_failed_web_not_run`() = check("text_failed_web_not_run")
 
+    // With no stored fragment the web item is tested with the protocol template, which is the effective fragment.
+    @Test fun `RD4-PANEL-running_web_template`() = check("running_web_template")
+    @Test fun `RD4-PANEL-completed_web_template_searched`() = check("completed_web_template_searched")
+    @Test fun `RD4-PANEL-completed_web_template_silent`() = check("completed_web_template_silent")
+    @Test fun `RD4-PANEL-completed_web_template_rejected`() = check("completed_web_template_rejected")
+
     @Test
     fun `RD4-PANEL every fixture case has a named test`() {
         val ids = fixture.getValue("panelCases").jsonObject.getValue("cases").jsonArray.map { it.jsonObject.getValue("caseId").jsonPrimitive.content }
@@ -109,6 +116,8 @@ class RelayCapabilityTestPanelTest {
             runningElapsedMs = running?.getValue("elapsedMs")?.jsonPrimitive?.content?.toLong() ?: 0L,
             written = case["written"].stringOrNull()?.toBooleanStrict() ?: false,
             stopReason = case["stopReason"].stringOrNull()?.let { wire -> RelayCapabilityTestStopReason.entries.single { it.wire == wire } },
+            // Default = saved.
+            webSource = case["webSource"].stringOrNull()?.let { wire -> RelayWebSource.entries.single { it.wire == wire } } ?: RelayWebSource.Saved,
         )
         val actual = RelayCapabilityTestPanelModel.present(input)
         val expect = case.getValue("expect").jsonObject
@@ -149,6 +158,8 @@ class RelayCapabilityTestPanelTest {
                 is RelayCapTestTrailing.Running -> "running:${t.tenths / 10}.${t.tenths % 10}"
             }
             assertEquals("$label: trailing", row["trailing"].stringOrNull(), trailing)
+            // The panel's "turn on web search" is gone: fixture rows no longer have action / note.
+            assertTrue("$label: no action / note", "action" !in row && "note" !in row)
         }
 
         val footer = expect.getValue("footer").jsonObject

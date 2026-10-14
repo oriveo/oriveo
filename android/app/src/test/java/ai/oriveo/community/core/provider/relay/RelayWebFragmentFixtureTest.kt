@@ -17,6 +17,7 @@ import java.io.File
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
@@ -159,17 +160,6 @@ class RelayWebFragmentFixtureTest {
                 "disclosure" -> {
                     val disclosure = shape as? ModelOptionCapabilityShape.Disclosure
                     assertEquals(message, statusRes(expect.string("status")), disclosure?.status?.let(ModelOptionsRender::disclosureRes))
-                    if (expect["action"] != null) {
-                        assertTrue(message, disclosure != null && ModelOptionsRender.disclosureTappable(disclosure.status))
-                        assertEquals(message, ModelOptionCapabilityShape.DisclosureStatus.RelayWebUnverified, disclosure?.status)
-                    }
-                }
-                "notice" -> {
-                    val notice = shape as? ModelOptionCapabilityShape.Notice
-                    assertEquals(message, statusRes(expect.string("status")), notice?.status?.let(ModelOptionsRender::noticeStatusRes))
-                    assertEquals(message, R.string.model_options_relay_web_manual_body, notice?.body?.let(ModelOptionsRender::noticeBodyRes))
-                    assertEquals(message, ModelOptionCapabilityShape.Escape.ConnectionWebSearch, notice?.escape)
-                    assertEquals(message, R.string.model_options_relay_web_open_settings, notice?.escape?.let(ModelOptionsRender::escapeRes))
                 }
                 else -> error("unknown shape in $caseId")
             }
@@ -177,97 +167,116 @@ class RelayWebFragmentFixtureTest {
     }
 
     /**
-     * Fixture `web-probe.v1.json` presentationCases: the web-search row shows 4 states based on the local probe record,
-     * records are written through the production record store and read through the production panel entry by the current fragment hash; sendsFragment uses the same filter function as chat.
+     * Fixture `web-probe.v1.json` presentationCases: relay web search = a chat switch.
+     * Fragments and records are written through the production stores and read through the production panel entry [ModelOptionsPanelInput.relayWeb] (RL2-WEBPROBE-14: row / isOn default /
+     * statusId / retestLink); sendsFragment / sentFragment go through the same [RelayWebChat.sentFragment] as chat (RL2-WEBPROBE-08).
      */
     @Test
-    fun `RL2-WEBPROBE-PRES fixture caseIds map one-to-one to the per-case tests here`() {
+    fun `RL2-WEBPROBE-08 PRES fixture caseIds map one-to-one to the per-case tests here`() {
         assertEquals(PRES_CASE_IDS, presCases().map { it.string("caseId") })
     }
 
-    @Test fun `RL2-WEBPROBE-PRES-fragment_searched_supported`() = presCase("fragment_searched_supported")
-    @Test fun `RL2-WEBPROBE-PRES-fragment_rejected_unsupported`() = presCase("fragment_rejected_unsupported")
-    @Test fun `RL2-WEBPROBE-PRES-fragment_silent_unknown`() = presCase("fragment_silent_unknown")
-    @Test fun `RL2-WEBPROBE-PRES-fragment_untested_unknown`() = presCase("fragment_untested_unknown")
-    @Test fun `RL2-WEBPROBE-PRES-fragment_stale_record_is_untested`() = presCase("fragment_stale_record_is_untested")
-    @Test fun `RL2-WEBPROBE-PRES-no_fragment_needs_setup`() = presCase("no_fragment_needs_setup")
+    @Test fun `RL2-WEBPROBE-PRES-template_untested_default_off`() = presCase("template_untested_default_off")
+    @Test fun `RL2-WEBPROBE-PRES-template_untested_toggled_on_sends_template`() = presCase("template_untested_toggled_on_sends_template")
+    @Test fun `RL2-WEBPROBE-PRES-template_searched_is_current`() = presCase("template_searched_is_current")
+    @Test fun `RL2-WEBPROBE-PRES-template_silent_unknown`() = presCase("template_silent_unknown")
+    @Test fun `RL2-WEBPROBE-PRES-template_rejected_keeps_toggle_on`() = presCase("template_rejected_keeps_toggle_on")
+    @Test fun `RL2-WEBPROBE-PRES-saved_default_on_keeps_old_behaviour`() = presCase("saved_default_on_keeps_old_behaviour")
+    @Test fun `RL2-WEBPROBE-PRES-saved_toggled_off_sends_nothing`() = presCase("saved_toggled_off_sends_nothing")
+    @Test fun `RL2-WEBPROBE-PRES-saved_rejected_links_web_search_page`() = presCase("saved_rejected_links_web_search_page")
+    @Test fun `RL2-WEBPROBE-PRES-stale_record_is_untested`() = presCase("stale_record_is_untested")
+    @Test fun `RL2-WEBPROBE-PRES-user_off_wins`() = presCase("user_off_wins")
+    @Test fun `RL2-WEBPROBE-PRES-user_on_wins_over_rejected`() = presCase("user_on_wins_over_rejected")
+    @Test fun `RL2-WEBPROBE-PRES-template_rejected_toggled_off_no_notice`() = presCase("template_rejected_toggled_off_no_notice")
 
     private fun presCases(): List<JsonObject> = readJson("shared/test-fixtures/relay/web-probe.v1.json")
         .getValue("presentationCases").jsonObject.getValue("cases").jsonArray.map { it.jsonObject }
 
     private fun presCase(caseId: String) {
         val transport = RelayTransport.OpenAIChatCompletions
-        val fragment = RelayWebFragments.template(transport)!!
+        val template = RelayWebFragments.template(transport)!!
+        val saved = buildJsonObject { put("web_search_options", buildJsonObject { put("search_context_size", "low") }) }
         val case = presCases().single { it.string("caseId") == caseId }
         val message = "RL2-WEBPROBE-PRES-$caseId"
-        run {
-            val model = AIModel(id = "probe-model", name = "probe-model")
-            val provider = Provider(
-                id = "relay-pres-$caseId",
-                kind = ProviderKind.Relay,
-                relayRequested = RelayRequestedConfig(transport = transport),
-                models = listOf(model),
-            )
-            val fragments = RelayWebFragmentStore(RelayWebFragmentStore.MemoryStore())
-            if (case.getValue("hasFragment").jsonPrimitive.content == "true") {
-                assertTrue(fragments.save(provider.id, transport, fragment.toString()) is RelayWebFragments.Validation.Ok)
-            }
-            val records = RelayWebProbeRecordStore(RelayWebProbeRecordStore.MemoryStore()) { 1L }
-            (case["record"] as? JsonObject)?.let { record ->
-                records.record(
-                    RelayWebProbeRecordStore.Key(provider.id, model.id, transport.value),
-                    RelayWebProbeRecord(
-                        result = RelayWebProbeResult.entries.single { it.wire == record.string("result") },
-                        source = RelayWebProbeSource.Tested,
-                        at = 1L,
-                        fragmentHash = if (record.string("fragmentHash") == "current") RelayWebProbe.fragmentHash(fragment) else "0".repeat(64),
-                    ),
-                )
-            }
-            val shape = ModelOptionCapabilityShape.resolve(
-                ModelOptionCapabilityShape.Input(
-                    capability = ModelOptionCapabilityShape.Capability.Web,
-                    presentation = CapabilityControlPresentation.Unknown,
-                    availableIntents = emptyList(),
-                    selectedIntent = null,
-                    connection = ModelOptionCapabilityShape.ConnectionCategory.CustomLLM,
-                    relayWeb = ModelOptionsPanelInput.relayWeb(provider, model, fragments, records),
+        val hasSaved = case.getValue("savedFragment").jsonPrimitive.content == "true"
+        val effective = if (hasSaved) saved else template
+        val userOverride = (case.getValue("userOverride") as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content?.toBooleanStrict()
+        val model = AIModel(
+            id = "probe-model",
+            name = "probe-model",
+            relayCapabilityOverrides = userOverride?.let { ai.oriveo.community.core.model.RelayCapabilityOverrides(web = it) },
+        )
+        val provider = Provider(
+            id = "relay-pres-$caseId",
+            kind = ProviderKind.Relay,
+            relayRequested = RelayRequestedConfig(transport = transport),
+            models = listOf(model),
+        )
+        val fragments = RelayWebFragmentStore(RelayWebFragmentStore.MemoryStore())
+        if (hasSaved) assertTrue(fragments.save(provider.id, transport, saved.toString()) is RelayWebFragments.Validation.Ok)
+        val records = RelayWebProbeRecordStore(RelayWebProbeRecordStore.MemoryStore()) { 1L }
+        (case["record"] as? JsonObject)?.let { record ->
+            records.record(
+                RelayWebProbeRecordStore.Key(provider.id, model.id, transport.value),
+                RelayWebProbeRecord(
+                    result = RelayWebProbeResult.entries.single { it.wire == record.string("result") },
+                    source = RelayWebProbeSource.Tested,
+                    at = 1L,
+                    fragmentHash = if (record.string("fragmentHash") == "current") RelayWebProbe.fragmentHash(effective) else "0".repeat(64),
                 ),
             )
-            val expect = case.getValue("expect").jsonObject
-            val detail = "$message：$shape"
-            val sends = records.sendable(provider.id, model.id, fragments.effective(provider)).containsKey(transport.value)
-            assertEquals("$detail sendsFragment", expect.string("sendsFragment") == "true", sends)
-            when (val statusId = expect.string("statusId")) {
-                "web_probe_searched", "web_probe_silent", "web_probe_unverified" -> {
-                    val disclosure = shape as? ModelOptionCapabilityShape.Disclosure
-                    val res = mapOf(
-                        "web_probe_searched" to R.string.model_options_relay_web_search_confirmed,
-                        "web_probe_silent" to R.string.model_options_relay_web_no_search_in_test,
-                        "web_probe_unverified" to R.string.model_options_relay_web_set_unverified,
-                    ).getValue(statusId)
-                    assertEquals(detail, res, disclosure?.status?.let(ModelOptionsRender::disclosureRes))
-                    // Has a fragment and not rejected: the whole row is tappable and goes to that connection's web-search settings page.
-                    assertTrue(detail, disclosure != null && ModelOptionsRender.disclosureTappable(disclosure.status))
-                }
-                "web_probe_rejected" -> {
-                    val notice = shape as? ModelOptionCapabilityShape.Notice
-                    assertEquals(detail, R.string.model_options_relay_web_rejected, notice?.status?.let(ModelOptionsRender::noticeStatusRes))
-                    assertEquals(detail, R.string.model_options_relay_web_retest, notice?.body?.let(ModelOptionsRender::noticeBodyRes))
-                    assertEquals(detail, "openConnectionWebSearch", expect.string("retestLink"))
-                    // The only destination: tapping the row opens that connection's web-search settings page, and there is no separate "Open web search settings" entry.
-                    assertEquals(detail, ModelOptionCapabilityShape.Escape.RelayWebRetest, notice?.escape)
-                    assertEquals(detail, R.string.model_options_relay_web_retest, notice?.escape?.let(ModelOptionsRender::escapeRes))
-                    assertTrue(detail, ModelOptionsTiles.capabilityTile(ModelOptionCapabilityShape.Capability.Web, shape).tappable)
-                }
-                "needs_manual_setup" -> {
-                    val notice = shape as? ModelOptionCapabilityShape.Notice
-                    assertEquals(detail, R.string.model_options_needs_manual_setup, notice?.status?.let(ModelOptionsRender::noticeStatusRes))
-                    assertEquals(detail, ModelOptionCapabilityShape.Escape.ConnectionWebSearch, notice?.escape)
-                }
-                else -> error("unknown statusId $statusId")
-            }
         }
+        val webPreference = when ((case.getValue("webPreference") as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content) {
+            "on" -> ai.oriveo.community.core.model.CapabilityWebPreference.Automatic
+            "off" -> ai.oriveo.community.core.model.CapabilityWebPreference.Off
+            else -> null
+        }
+        val shape = ModelOptionCapabilityShape.resolve(
+            ModelOptionCapabilityShape.Input(
+                capability = ModelOptionCapabilityShape.Capability.Web,
+                presentation = CapabilityControlPresentation.Unknown,
+                availableIntents = emptyList(),
+                selectedIntent = null,
+                connection = ModelOptionCapabilityShape.ConnectionCategory.CustomLLM,
+                relayWeb = ModelOptionsPanelInput.relayWeb(provider, model, fragments, records, webPreference),
+            ),
+        )
+        val expect = case.getValue("expect").jsonObject
+        val detail = "$message: $shape"
+        val row = shape as? ModelOptionCapabilityShape.RelayWebToggle ?: error("$detail is not a web switch")
+        // RL2-WEBPROBE-14: row / isOn / statusId / retestLink.
+        assertEquals("$detail row", expect.string("row"), if (row.enabled) "toggle" else "toggleDisabled")
+        assertEquals("$detail isOn", expect.string("isOn").toBooleanStrict(), row.isOn)
+        assertEquals("$detail statusId", expect.string("statusId"), row.status.wire)
+        assertEquals("$detail retestLink", (expect["retestLink"] as? JsonPrimitive)?.content, row.retest?.wire)
+        // Status line copy: the four existing ones + two new ones + the source badge "Set by you".
+        val statusRes = mapOf(
+            "web_probe_searched" to R.string.model_options_relay_web_search_confirmed,
+            "web_probe_silent" to R.string.model_options_relay_web_no_search_in_test,
+            "web_probe_rejected" to R.string.model_options_relay_web_rejected,
+            "web_probe_unverified" to R.string.model_options_relay_web_set_unverified,
+            "web_probe_untested" to R.string.model_options_relay_web_untested,
+            "web_user_off" to R.string.model_options_relay_web_user_off,
+            "web_user_on" to R.string.relay_catalog_status_set_by_you,
+        ).getValue(expect.string("statusId"))
+        val tile = ModelOptionsTiles.capabilityTile(ModelOptionCapabilityShape.Capability.Web, shape)
+        assertEquals(detail, statusRes, tile.statusRes)
+        assertEquals(detail, ModelOptionsTiles.Corner.Switch, tile.corner)
+        assertEquals("$detail no longer has \"Needs manual setup\"", null, tile.bodyRes)
+        // The default layer when unset is the same one as in the preference store (provider_default): a stored fragment -> on.
+        val chat = RelayWebChat.of(provider, model, fragments, records)!!
+        if (webPreference == null) {
+            val resolved = ai.oriveo.community.core.model.CapabilityScopeValues().displaySelection(chat.defaultPreference).web
+            assertEquals("$detail default layer", row.isOn, chat.isOn(resolved))
+        }
+        // RL2-WEBPROBE-08: whether the request carries a fragment, and which one, go through the same function as chat.
+        val sent = chat.sentFragment(row.isOn)
+        assertEquals("$detail sendsFragment", expect.string("sendsFragment").toBooleanStrict(), sent != null)
+        (expect["sentFragment"] as? JsonPrimitive)?.content?.let { which ->
+            assertEquals("$detail sentFragment", if (which == "saved") saved else template, sent)
+        }
+        // Switch on but this request carries no fragment -> reply notice web_not_used; switch off or a fragment carried -> none.
+        assertEquals("$detail replyNotice", (expect["replyNotice"] as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content, chat.replyNotice(row.isOn)?.wire)
     }
 
     /** The panel's record lookup and the probe's record write use the same protocol resolution: for a model whose first send on an auto connection is Messages, a Messages record of searched -> Search confirmed. */
@@ -309,8 +318,8 @@ class RelayWebFragmentFixtureTest {
             )
             assertEquals(
                 "RL2-WEBPROBE-PRES-auto_first_send_messages：$shape",
-                R.string.model_options_relay_web_search_confirmed,
-                (shape as? ModelOptionCapabilityShape.Disclosure)?.status?.let(ModelOptionsRender::disclosureRes),
+                RelayWebChat.Status.Searched,
+                (shape as? ModelOptionCapabilityShape.RelayWebToggle)?.status,
             )
         } finally {
             field.set(lookup, previous)
@@ -319,19 +328,23 @@ class RelayWebFragmentFixtureTest {
 
     private companion object {
         val PRES_CASE_IDS = listOf(
-            "fragment_searched_supported",
-            "fragment_rejected_unsupported",
-            "fragment_silent_unknown",
-            "fragment_untested_unknown",
-            "fragment_stale_record_is_untested",
-            "no_fragment_needs_setup",
+            "template_untested_default_off",
+            "template_untested_toggled_on_sends_template",
+            "template_searched_is_current",
+            "template_silent_unknown",
+            "template_rejected_keeps_toggle_on",
+            "saved_default_on_keeps_old_behaviour",
+            "saved_toggled_off_sends_nothing",
+            "saved_rejected_links_web_search_page",
+            "stale_record_is_untested",
+            "user_off_wins",
+            "user_on_wins_over_rejected",
+            "template_rejected_toggled_off_no_notice",
         )
     }
 
     private fun statusRes(english: String): Int = when (english) {
         "This connection can’t do this" -> R.string.model_options_connection_cannot
-        "Set · not verified" -> R.string.model_options_relay_web_set_unverified
-        "Needs manual setup" -> R.string.model_options_needs_manual_setup
         else -> error("unmapped status $english")
     }
 

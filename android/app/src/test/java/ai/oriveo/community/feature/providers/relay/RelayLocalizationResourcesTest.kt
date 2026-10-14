@@ -37,6 +37,8 @@ class RelayLocalizationResourcesTest {
         "relay_cap_test_elapsed_running",
         // Key status: French "Active" (clé active) is identical to English.
         "relay_key_status_ok",
+        // Default avatar icon name: French "Satellite" is spelled the same as English.
+        "relay_avatar_icon_satellite",
         // Edit connection (taken verbatim from the iOS final copy): User-Agent is an HTTP header name, identical
         // in every language; "Headers" is a loanword in es / pt-BR.
         "relay_edit_user_agent",

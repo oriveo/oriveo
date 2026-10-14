@@ -349,10 +349,35 @@ class RelayLayoutRulesTest {
     fun `RL2-LAYOUT-ROW-05 menu row keeps value and chevron in one trailing column and footnote inline`() {
         val body = functionBody(source("feature/providers/relay/RelayAdvancedSettingsSheet.kt"), "private fun EditRowBody(")
         val trailing = innermostBlock(body, body.indexOf("trailing()"), "Row(")
-        assertTrue("Value and chevron are in the same trailing column of the row", trailing != null && "text = value" in trailing.block && "RowTitle(" !in trailing.block)
-        // Left column = icon + title (RowTitle) on the first line + footnote.
-        val left = innermostBlock(body, body.indexOf("RowTitle("), "Column(")
+        assertTrue("Value and chevron are in the same trailing column of the row", trailing != null && "text = value" in trailing.block && "RowIcon(" !in trailing.block)
+        // Left column = an icon column + a "title + footnote" block (no longer goes through RowTitle since ROW-10).
+        val left = innermostBlock(body, body.indexOf("text = title"), "Column(")
         assertTrue("Footnote is in the left column (inline)", left != null && "footnote" in left.block)
+    }
+
+    @Test
+    fun `RL2-LAYOUT-ROW-10 leading icon centers on title plus footnote unless marked row-lead top`() {
+        // 1. Root-cause signature: indenting a footnote / description by the icon width (padding start = textInset(...)) pins the icon to the title line; row-lead: top must appear within the 3 preceding lines.
+        var exceptions = 0
+        val offenders = familyFiles().flatMap { file ->
+            val lines = file.readLines()
+            lines.indices
+                .filter { i -> "textInset(" in lines[i] && "fun textInset(" !in lines[i] }
+                .onEach { exceptions++ }
+                .filter { i -> lines.subList(maxOf(0, i - 3), i + 1).none { ROW_LEAD_TOP in it } }
+                .map { i -> "${file.name}:${i + 1}" }
+        }
+        assertTrue("a footnote indented by the icon width must be marked $ROW_LEAD_TOP (only for blocks with an input below): $offenders", offenders.isEmpty())
+        // Lower bound: the only exception is the address row shared by edit / manual setup, so the gate cannot silently go green if the scan breaks.
+        assertEquals("number of row-lead: top exceptions", 1, exceptions)
+
+        // 2. Row body: the innermost Row wrapping RowIcon is centered on the whole block and contains the footnote.
+        val body = functionBody(source("feature/providers/relay/RelayAdvancedSettingsSheet.kt"), "private fun EditRowBody(")
+        val lead = innermostBlock(body, body.indexOf("RowIcon("), "Row(")
+        assertTrue("the Row holding the icon is missing in the row body", lead != null)
+        assertTrue("the Row holding the icon must be CenterVertically", "verticalAlignment = Alignment.CenterVertically" in lead!!.args)
+        assertTrue("the icon and the footnote are in the same block", "footnote" in lead.block)
+        assertFalse("the row body no longer goes through RowTitle (which pins the icon to the title line)", "RowTitle(" in body)
     }
 
     @Test
@@ -571,6 +596,7 @@ class RelayLayoutRulesTest {
 
     private companion object {
         const val ANCHOR = "whole-row vertical centering"
+        const val ROW_LEAD_TOP = "row-lead: top"
         val ROW_CALL = Regex("""(?<![A-Za-z0-9])Row\(""")
         val DOWN_ICON = Regex("""ExpandMore|ph_caret_down|KeyboardArrowDown|ArrowDropDown""")
         val RIGHT_ICON = Regex("""ph_caret_right|ChevronRight""")

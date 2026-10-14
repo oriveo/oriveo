@@ -359,7 +359,7 @@ class RelayWebSearchBoardTest {
     }
 
     @Test
-    fun `disclosure row, rejected group lists only enabled models whose current record is rejected in enabled order, retest uses the manual probe, only one runs at a time, and the row disappears after searched or silent`() =
+    fun `RL2-WEBPROBE-12 RETEST rejected group lists enabled rejected models in order, retests by manual probe one at a time, and clears after searched or silent`() =
         runTest(dispatcher) {
             // The disclosure row sits above the Save button.
             assertEquals(R.string.relay_web_search_probe_disclosure, board(responsesOnly, empty()).disclosureRes)

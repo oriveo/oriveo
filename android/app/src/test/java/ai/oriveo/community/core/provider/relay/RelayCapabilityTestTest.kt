@@ -216,8 +216,12 @@ class RelayCapabilityTestTest {
 
         val expect = scenario.getValue("expect").jsonObject
         val expectedKinds = expect.getValue("requests").jsonArray.map { it.jsonPrimitive.content }
-        assertEquals("$caseId: requests", expectedKinds, harness.sent.map { it.kind })
-        expect["totalHttpRequests"]?.let { assertEquals("$caseId: total HTTP requests", it.jsonPrimitive.content.toInt(), harness.sent.size) }
+        // Every testable relay model lists the 4th web item (a built-in template when no fragment is stored); scenarios only measure the first three items,
+        // and the web item is measured by RD4-WEB / RL2-WEBPROBE. Here we only require that the web request (if any) comes last.
+        val capabilitySent = harness.sent.filter { it.kind != "web" }
+        assertTrue("$caseId: web item comes last only", harness.sent.dropWhile { it.kind != "web" }.all { it.kind == "web" })
+        assertEquals("$caseId: requests", expectedKinds, capabilitySent.map { it.kind })
+        expect["totalHttpRequests"]?.let { assertEquals("$caseId: total HTTP requests", it.jsonPrimitive.content.toInt(), capabilitySent.size) }
         if (slow) assertTrue("$caseId: cut off by overall deadline ($wallMillis ms)", wallMillis < 5_000L)
 
         val shape = fixture.getValue("requestShapes").jsonObject.getValue(short).jsonObject
@@ -225,7 +229,7 @@ class RelayCapabilityTestTest {
         val bodyExtra = expect["bodyExtra"]?.jsonObject.orEmpty()
         val mustContain = fixture.getValue("mustContain").jsonObject
         val mustNotContain = fixture.getValue("mustNotContain").jsonObject
-        for (sent in harness.sent) {
+        for (sent in capabilitySent) {
             val label = "$caseId/${sent.kind}"
             assertEquals("$label: path", expectedPath, sent.path)
             shape["query"]?.jsonObject?.forEach { (key, value) ->
@@ -569,7 +573,8 @@ class RelayCapabilityTestTest {
         val first = requireNotNull(vm.relayCapabilityTest) { "tapping the button opens the panel" }
         assertEquals(RelayCapTestPhase.Running, first.phase)
         val presentation = RelayCapabilityTestPanelModel.present(first.panelInput(first.runningStartedAtMillis))
-        assertEquals(RelayCapTestHeader.Progress(1, 3), presentation.header)
+        // The 4th web item is listed even without a stored fragment.
+        assertEquals(RelayCapTestHeader.Progress(1, 4), presentation.header)
         assertEquals(RelayCapTestButton.Cancel, presentation.button)
         assertFalse("cannot dismiss while running", presentation.dismissible)
         assertEquals("Claude \u5206\u7ec4", presentation.keyName)
@@ -600,16 +605,12 @@ class RelayCapabilityTestTest {
         assertTrue(RelayCapabilityTest.offersTest(remote, remote.models.single()))
         assertFalse(RelayCapabilityTest.offersTest(native, native.models.single()))
         fun userSet(text: String) = remote.models.single().copy(relayCapabilityOverrides = overrides(Json.parseToJsonElement(text)))
-        assertFalse(RelayCapabilityTest.offersTest(remote, userSet("""{"image":{"value":true,"source":"user"},"toolCall":{"value":false,"source":"user"}}""")))
         assertTrue(RelayCapabilityTest.offersTest(remote, userSet("""{"image":{"value":true,"source":"user"}}""")))
-        // Vision and tools both set manually, but the first-send transport has a saved web fragment (web item listable): the entry is still shown.
+        // Vision and tools both set manually: the web item is listed as soon as the first-send transport is known (a stored fragment is no longer required), so the entry is still shown.
         val bothUser = userSet("""{"image":{"value":true,"source":"user"},"toolCall":{"value":false,"source":"user"}}""")
-        val withWeb = RelayWebFragmentStore(RelayWebFragmentStore.MemoryStore()).also {
-            it.replace(remote.id, mapOf(RelayTransport.OpenAIChatCompletions to RelayWebFragments.template(RelayTransport.OpenAIChatCompletions)!!))
-        }
-        assertTrue(RelayCapabilityTest.listsWeb(remote, bothUser, withWeb))
-        assertTrue(RelayCapabilityTest.offersTest(remote, bothUser, withWeb))
-        assertFalse(RelayCapabilityTest.offersTest(remote, bothUser, RelayWebFragmentStore(RelayWebFragmentStore.MemoryStore())))
+        assertTrue(RelayCapabilityTest.listsWeb(remote, bothUser))
+        assertTrue(RelayCapabilityTest.offersTest(remote, bothUser))
+        assertFalse(RelayCapabilityTest.listsWeb(native, native.models.single()))
         assertTrue(RelayCapabilityTest.offersTest(remote, userSet("""{"image":{"value":true,"source":"user"},"toolCall":{"value":false,"source":"tested"}}""")))
 
         // "Restore automatic" entry: Relay form, no engineProfile, has tested items; the effective transport need not be one of the four.
@@ -686,7 +687,8 @@ class RelayCapabilityTestTest {
 
                 assertNull(run.stopReason)
                 assertFalse(run.textFailed)
-                assertEquals(listOf("text", "image", "tool"), harness.sent.map { it.kind })
+                // The 4th web item also follows the first-send transport and carries the Messages template.
+                assertEquals(listOf("text", "image", "tool", "web"), harness.sent.map { it.kind })
                 assertTrue("test request sent via Messages: ${harness.sent.map { it.path }}", harness.sent.all { it.path == "/v1/messages" })
                 assertTrue("Messages key cleared", cache.entries().none { it.key == messagesKey })
                 assertEquals(
@@ -713,7 +715,7 @@ class RelayCapabilityTestTest {
         val run = harness.repository.runRelayCapabilityTest(connectionID, modelID)
 
         assertNull(run.stopReason)
-        assertEquals(listOf("text", "image", "tool"), harness.sent.map { it.kind })
+        assertEquals(listOf("text", "image", "tool", "web"), harness.sent.map { it.kind })
         assertTrue(harness.sent.all { it.path == "/v1/chat/completions" })
         assertTrue("effective = first-send key cleared", cache.entries().none { it.key == chatKey })
     }
@@ -881,12 +883,45 @@ class RelayCapabilityTestTest {
     }
 
     @Test
-    fun `RD4-WEB-03 no fragment for the first-send transport means web is not listed and not sent`() = runBlocking {
-        val harness = webHarness(fragment = null) { "ok" }
+    fun `RL2-WEBPROBE-01 no fragment lists web and probes with the transport template and writes the override like a saved fragment, a saved fragment wins`() = runBlocking {
+        val chat = RelayTransport.OpenAIChatCompletions
+        val template = requireNotNull(RelayWebFragments.template(chat))
+        val harness = webHarness(fragment = null) { kind -> if (kind == "web") "web_searched" else "ok" }
+        harness.extraResponses["web_searched"] = webProbeReply("chat_url_citation_searched")
+        val model = harness.current().models.single()
+        // Listing condition: a relay + testable + the first-send protocol is known; a stored fragment is no longer required.
+        assertTrue("web is listed even without a fragment", RelayCapabilityTest.listsWeb(harness.current(), model))
+        assertEquals(RelayWebSource.Template, RelayCapabilityTest.webSource(harness.current(), model, harness.fragments))
+
         val run = harness.repository.runRelayCapabilityTest(connectionID, WEB_MODEL)
-        assertEquals(listOf("text", "image", "tool"), run.planned.map { it.wire })
-        assertEquals(listOf("text", "image", "tool"), harness.sent.map { it.kind })
-        assertNull(harness.webRecord())
+
+        assertNull(run.stopReason)
+        assertEquals(listOf("text", "image", "tool", "web"), run.planned.map { it.wire })
+        assertEquals(listOf("text", "image", "tool", "web"), harness.sent.map { it.kind })
+        assertEquals(RelayWebSource.Template, run.webSource)
+        val body = harness.sent.single { it.kind == "web" }.body.jsonObject
+        assertEquals("the request body carries the protocol template via the production builder", template.getValue("web_search_options"), body["web_search_options"])
+        assertEquals("searched", run.items.single { it.kind.wire == "web" }.verdict.wire)
+        // The template is the effective fragment: the web override (tested) is written as usual and counts as written.
+        assertTrue("a template probe writes the web override, written = true", run.written)
+        assertEquals(true, harness.current().models.single().relayCapabilityOverrides?.web)
+        assertEquals("tested", harness.current().models.single().relayCapabilityOverrides?.sourceOf("web"))
+        val record = harness.records.read(RelayWebProbeRecordStore.Key(connectionID, WEB_MODEL, chat.value))
+        assertEquals(RelayWebProbeResult.Searched, record?.result)
+        assertEquals("record hash = canonical hash of the template", RelayWebProbe.fragmentHash(template), record?.fragmentHash)
+        assertTrue("a temporary probe does not save a fragment", harness.fragments.stored(connectionID).isEmpty())
+        assertTrue("a manual probe does not enter the automatic history", harness.history.entries().isEmpty())
+
+        // The first-send protocol has a stored fragment: use it instead of the template.
+        val saved = JsonObject(template + ("x-variant" to JsonPrimitive("saved")))
+        val withSaved = webHarness(saved) { kind -> if (kind == "web") "web_searched" else "ok" }
+        withSaved.extraResponses["web_searched"] = webProbeReply("chat_url_citation_searched")
+        val savedRun = withSaved.repository.runRelayCapabilityTest(connectionID, WEB_MODEL)
+        assertNull(savedRun.stopReason)
+        assertEquals(RelayWebSource.Saved, savedRun.webSource)
+        assertEquals(JsonPrimitive("saved"), withSaved.sent.single { it.kind == "web" }.body.jsonObject["x-variant"])
+        assertTrue(savedRun.written)
+        assertEquals(true, withSaved.current().models.single().relayCapabilityOverrides?.web)
     }
 
     @Test
@@ -946,9 +981,12 @@ class RelayCapabilityTestTest {
         )
     }
 
-    private fun detailViewModel(harness: Harness): ProviderDetailViewModel {
+    private fun detailViewModel(harness: Harness, saves: MutableList<Job>? = null): ProviderDetailViewModel {
         val repository = mockk<ProviderRepository>()
         every { repository.observeById(connectionID) } returns MutableStateFlow(harness.current())
+        every { repository.relayWebFragmentsSaved(any(), any()) } answers {
+            harness.repository.relayWebFragmentsSaved(arg(0), arg(1)).also { saves?.add(it) }
+        }
         coEvery { repository.runRelayCapabilityTest(any(), any(), any(), any()) } coAnswers {
             vmRuns += currentCoroutineContext().job
             harness.repository.runRelayCapabilityTest(arg(0), arg(1), arg(2), arg(3))
