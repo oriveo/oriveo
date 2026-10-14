@@ -11,6 +11,11 @@
         <exclude domain="sharedpref" path="oriveo_auto_backup_keys.xml" />
         <!-- Access and refresh tokens of remote MCP servers: each device signs in on its own. -->
         <exclude domain="sharedpref" path="oriveo_mcp_credentials.xml" />
+        <!-- Relay upstream-rejection negative cache and web-probe records: observed on this device, not carried over by backup or device transfer. -->
+        <exclude domain="sharedpref" path="relay_negative_cache.v1.xml" />
+        <exclude domain="sharedpref" path="relay_web_fragments.v1.xml" />
+        <exclude domain="sharedpref" path="relay_web_probe_records.v1.xml" />
+        <exclude domain="sharedpref" path="relay_web_probe_auto_history.v1.xml" />
         <exclude domain="database" path="message_continuations.db" />
         <exclude domain="database" path="message_continuations.db-wal" />
         <exclude domain="database" path="message_continuations.db-shm" />
@@ -21,6 +26,11 @@
         <exclude domain="sharedpref" path="oriveo_auto_backup_keys.xml" />
         <!-- Access and refresh tokens of remote MCP servers: each device signs in on its own. -->
         <exclude domain="sharedpref" path="oriveo_mcp_credentials.xml" />
+        <!-- Relay upstream-rejection negative cache and web-probe records: observed on this device, not carried over by backup or device transfer. -->
+        <exclude domain="sharedpref" path="relay_negative_cache.v1.xml" />
+        <exclude domain="sharedpref" path="relay_web_fragments.v1.xml" />
+        <exclude domain="sharedpref" path="relay_web_probe_records.v1.xml" />
+        <exclude domain="sharedpref" path="relay_web_probe_auto_history.v1.xml" />
         <exclude domain="database" path="message_continuations.db" />
         <exclude domain="database" path="message_continuations.db-wal" />
         <exclude domain="database" path="message_continuations.db-shm" />
