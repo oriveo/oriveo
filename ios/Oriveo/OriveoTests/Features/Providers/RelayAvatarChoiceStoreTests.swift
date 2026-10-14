@@ -35,7 +35,7 @@ struct RelayAvatarChoiceStoreTests {
         let defaultIcon = RelayAvatarResolver.defaultIcon(providerID: provider.id.uuidString)
         #expect(Self.content(provider, store) == .relay(.icon(defaultIcon)))
 
-        let picked: RelayAvatarIcon = defaultIcon == .flame ? .butterfly : .flame
+        let picked: RelayAvatarIcon = defaultIcon == .kite ? .hotAirBalloon : .kite
         let revision = store.revision
         store.select(.icon(picked), for: provider.id)
         #expect(store.choice(for: provider.id) == picked.id)
@@ -61,8 +61,8 @@ struct RelayAvatarChoiceStoreTests {
     func store02PickBrandDeletesChoice() throws {
         let (store, defaults) = Self.makeStore()
         let provider = Self.relay(url: "https://openrouter.ai/api/v1", name: "My backup")
-        store.select(.icon(.flame), for: provider.id)
-        #expect(Self.content(provider, store) == .relay(.icon(.flame)))
+        store.select(.icon(.kite), for: provider.id)
+        #expect(Self.content(provider, store) == .relay(.icon(.kite)))
 
         let brandCell = try #require(RelayAvatarPicker.cells(for: provider).first)
         #expect(brandCell == .brand(try #require(RelayAvatarResolver.brands.first { $0.id == "openrouter" })))
@@ -85,12 +85,12 @@ struct RelayAvatarChoiceStoreTests {
         let state = AppState(seedDemoData: false, sessionUID: "relay-avatar-choice-\(UUID().uuidString)")
         Self.retainedStates.append(state)
         state.providers = [provider, other]
-        store.select(.icon(.planet), for: provider.id)
-        store.select(.icon(.compass), for: other.id)
+        store.select(.icon(.paperPlane), for: provider.id)
+        store.select(.icon(.signalTower), for: other.id)
 
         #expect(state.providerManager.removeProvider(provider.id))
         #expect(store.choice(for: provider.id) == nil)
-        #expect(store.choice(for: other.id) == "compass")
+        #expect(store.choice(for: other.id) == "signal-tower")
     }
 
     // MARK: - BOARD-AVATAR-PICKER
@@ -133,13 +133,13 @@ struct RelayAvatarChoiceStoreTests {
         let cells = RelayAvatarPicker.cells(for: provider)
         #expect(RelayAvatarPicker.selectedCell(in: cells, provider: provider, choices: store) == cells.first)
 
-        let butterfly = RelayAvatarPickerCell.icon(.butterfly)
-        RelayAvatarPicker.select(butterfly, provider: provider, choices: store)
-        #expect(RelayAvatarPicker.selectedCell(in: cells, provider: provider, choices: store) == butterfly)
+        let balloon = RelayAvatarPickerCell.icon(.hotAirBalloon)
+        RelayAvatarPicker.select(balloon, provider: provider, choices: store)
+        #expect(RelayAvatarPicker.selectedCell(in: cells, provider: provider, choices: store) == balloon)
         // The detail header draws what the unified entry resolves from the on-device choice; the board model follows the same rule.
-        #expect(Self.content(provider, store) == .relay(.icon(.butterfly)))
+        #expect(Self.content(provider, store) == .relay(.icon(.hotAirBalloon)))
         let board = try #require(RelayDetailBoardModel.make(provider, avatarChoice: store.choice(for: provider.id)))
-        #expect(board.avatar == .icon(.butterfly))
+        #expect(board.avatar == .icon(.hotAirBalloon))
 
         let letter = try #require(cells.last)
         #expect(letter == .letter("M"))

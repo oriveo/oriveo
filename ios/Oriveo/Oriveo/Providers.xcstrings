@@ -65989,1012 +65989,1012 @@
         }
       }
     },
-    "Planet" : {
+    "Paper plane" : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "كوكب"
+            "value" : "طائرة من ورق"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Planet"
+            "value" : "Papierflieger"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Planet"
+            "value" : "Paper plane"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Planeta"
+            "value" : "Avión de papel"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Planète"
+            "value" : "Avion en papier"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ग्रह"
+            "value" : "कागज़ का हवाई जहाज़"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Planet"
+            "value" : "Pesawat kertas"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "惑星"
+            "value" : "紙飛行機"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "행성"
+            "value" : "종이비행기"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Planeta"
+            "value" : "Avião de papel"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Планета"
+            "value" : "Бумажный самолётик"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ดาวเคราะห์"
+            "value" : "เครื่องบินกระดาษ"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gezegen"
+            "value" : "Kâğıt uçak"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hành tinh"
+            "value" : "Máy bay giấy"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "星球"
+            "value" : "纸飞机"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "星球"
+            "value" : "紙飛機"
           }
         }
       }
     },
-    "Compass" : {
+    "Signal tower" : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "بوصلة"
+            "value" : "برج إرسال"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kompass"
+            "value" : "Funkturm"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Compass"
+            "value" : "Signal tower"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Brújula"
+            "value" : "Antena"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Boussole"
+            "value" : "Antenne"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "कम्पास"
+            "value" : "सिग्नल टावर"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kompas"
+            "value" : "Menara sinyal"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "コンパス"
+            "value" : "電波塔"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "나침반"
+            "value" : "송신탑"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bússola"
+            "value" : "Antena"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Компас"
+            "value" : "Радиовышка"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "เข็มทิศ"
+            "value" : "เสาสัญญาณ"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pusula"
+            "value" : "Sinyal kulesi"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La bàn"
+            "value" : "Tháp tín hiệu"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "罗盘"
+            "value" : "信号塔"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "羅盤"
+            "value" : "訊號塔"
           }
         }
       }
     },
-    "Sailboat" : {
+    "Bell" : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "مركب شراعي"
+            "value" : "جرس"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Segelboot"
+            "value" : "Glocke"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sailboat"
+            "value" : "Bell"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Velero"
+            "value" : "Campana"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Voilier"
+            "value" : "Cloche"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "पाल नाव"
+            "value" : "घंटी"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Perahu layar"
+            "value" : "Lonceng"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ヨット"
+            "value" : "ベル"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "돛단배"
+            "value" : "종"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Veleiro"
+            "value" : "Sino"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Парусник"
+            "value" : "Колокольчик"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "เรือใบ"
+            "value" : "กระดิ่ง"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Yelkenli"
+            "value" : "Çan"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Thuyền buồm"
+            "value" : "Chuông"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "帆船"
+            "value" : "驿铃"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "帆船"
+            "value" : "驛鈴"
           }
         }
       }
     },
-    "Lighthouse" : {
+    "Satellite" : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "منارة"
+            "value" : "قمر صناعي"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Leuchtturm"
+            "value" : "Satellit"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lighthouse"
+            "value" : "Satellite"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Faro"
+            "value" : "Satélite"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Phare"
+            "value" : "Satellite"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रकाशस्तंभ"
+            "value" : "उपग्रह"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mercusuar"
+            "value" : "Satelit"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "灯台"
+            "value" : "人工衛星"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "등대"
+            "value" : "인공위성"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Farol"
+            "value" : "Satélite"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Маяк"
+            "value" : "Спутник"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ประภาคาร"
+            "value" : "ดาวเทียม"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Deniz feneri"
+            "value" : "Uydu"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hải đăng"
+            "value" : "Vệ tinh"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "灯塔"
+            "value" : "卫星"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "燈塔"
+            "value" : "衛星"
           }
         }
       }
     },
-    "Mountains" : {
+    "Signpost" : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "جبال"
+            "value" : "لافتة طريق"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Berge"
+            "value" : "Wegweiser"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mountains"
+            "value" : "Signpost"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Montañas"
+            "value" : "Señal"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Montagnes"
+            "value" : "Panneau"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "पहाड़"
+            "value" : "दिशा-सूचक"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pegunungan"
+            "value" : "Papan penunjuk"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "山並み"
+            "value" : "道しるべ"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "산"
+            "value" : "이정표"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Montanhas"
+            "value" : "Placa"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Горы"
+            "value" : "Указатель"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ภูเขา"
+            "value" : "ป้ายบอกทาง"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dağlar"
+            "value" : "Yön tabelası"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Núi non"
+            "value" : "Biển chỉ đường"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "群山"
+            "value" : "路牌"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "群山"
+            "value" : "路牌"
           }
         }
       }
     },
-    "Sunrise" : {
+    "Bridge" : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "شروق الشمس"
+            "value" : "جسر"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sonnenaufgang"
+            "value" : "Brücke"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sunrise"
+            "value" : "Bridge"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Amanecer"
+            "value" : "Puente"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lever du soleil"
+            "value" : "Pont"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "सूर्योदय"
+            "value" : "पुल"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Matahari terbit"
+            "value" : "Jembatan"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "日の出"
+            "value" : "アーチ橋"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "일출"
+            "value" : "아치교"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nascer do sol"
+            "value" : "Ponte"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Рассвет"
+            "value" : "Мост"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "พระอาทิตย์ขึ้น"
+            "value" : "สะพาน"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gün doğumu"
+            "value" : "Köprü"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bình minh"
+            "value" : "Cây cầu"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "日出"
+            "value" : "拱桥"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "日出"
+            "value" : "拱橋"
           }
         }
       }
     },
-    "Flame" : {
+    "Kite" : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "لهب"
+            "value" : "طائرة ورقية"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Flamme"
+            "value" : "Drachen"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Flame"
+            "value" : "Kite"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Llama"
+            "value" : "Cometa"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Flamme"
+            "value" : "Cerf-volant"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "लौ"
+            "value" : "पतंग"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nyala api"
+            "value" : "Layang-layang"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "炎"
+            "value" : "凧"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "불꽃"
+            "value" : "연"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chama"
+            "value" : "Pipa"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Пламя"
+            "value" : "Воздушный змей"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "เปลวไฟ"
+            "value" : "ว่าว"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Alev"
+            "value" : "Uçurtma"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ngọn lửa"
+            "value" : "Diều"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "火焰"
+            "value" : "风筝"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "火焰"
+            "value" : "風箏"
           }
         }
       }
     },
-    "Pine" : {
+    "Bottle" : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "صنوبر"
+            "value" : "رسالة في زجاجة"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tanne"
+            "value" : "Flaschenpost"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pine"
+            "value" : "Bottle"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pino"
+            "value" : "Botella"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sapin"
+            "value" : "Bouteille à la mer"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "देवदार"
+            "value" : "बोतल में संदेश"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pohon pinus"
+            "value" : "Pesan dalam botol"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "モミの木"
+            "value" : "ボトルメール"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "소나무"
+            "value" : "유리병 편지"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pinheiro"
+            "value" : "Garrafa"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ель"
+            "value" : "Бутылка с письмом"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ต้นสน"
+            "value" : "ขวดจดหมาย"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Çam"
+            "value" : "Şişedeki mektup"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cây thông"
+            "value" : "Thư trong chai"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "松树"
+            "value" : "漂流瓶"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "松樹"
+            "value" : "漂流瓶"
           }
         }
       }
     },
-    "Moon & stars" : {
+    "Pennant" : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "قمر ونجوم"
+            "value" : "راية"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mond & Sterne"
+            "value" : "Wimpel"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Moon & stars"
+            "value" : "Pennant"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Luna y estrellas"
+            "value" : "Banderín"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lune et étoiles"
+            "value" : "Fanion"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "चाँद-तारे"
+            "value" : "झंडी"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bulan & bintang"
+            "value" : "Panji"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "月と星"
+            "value" : "三角旗"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "달과 별"
+            "value" : "삼각기"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lua e estrelas"
+            "value" : "Flâmula"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Луна и звёзды"
+            "value" : "Вымпел"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "จันทร์และดาว"
+            "value" : "ธงสามเหลี่ยม"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ay ve yıldızlar"
+            "value" : "Flama"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Trăng sao"
+            "value" : "Cờ đuôi nheo"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "星月"
+            "value" : "驿旗"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "星月"
+            "value" : "驛旗"
           }
         }
       }
     },
-    "Butterfly" : {
+    "Balloon" : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "فراشة"
+            "value" : "منطاد"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Schmetterling"
+            "value" : "Heißluftballon"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Butterfly"
+            "value" : "Balloon"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mariposa"
+            "value" : "Globo"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Papillon"
+            "value" : "Montgolfière"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "तितली"
+            "value" : "गर्म हवा का गुब्बारा"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kupu-kupu"
+            "value" : "Balon udara"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "蝶"
+            "value" : "気球"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "나비"
+            "value" : "열기구"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Borboleta"
+            "value" : "Balão"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Бабочка"
+            "value" : "Воздушный шар"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ผีเสื้อ"
+            "value" : "บอลลูน"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kelebek"
+            "value" : "Sıcak hava balonu"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bướm"
+            "value" : "Khinh khí cầu"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "蝴蝶"
+            "value" : "热气球"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "蝴蝶"
+            "value" : "熱氣球"
           }
         }
       }

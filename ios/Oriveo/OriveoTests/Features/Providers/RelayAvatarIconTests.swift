@@ -122,7 +122,7 @@ struct RelayAvatarIconTests {
 
     // MARK: - Fixture consistency
 
-    @Test("RELAY-AVATAR-ICON every fixture case has a test of the same name; the icon table matches the fixture item by item, and the assets are existing Phosphor duotone")
+    @Test("RELAY-AVATAR-ICON every fixture case has a test of the same name; the icon table matches the fixture item by item")
     func fixtureCoveredAndIconTableMatches() throws {
         let root = try Self.fixture()
         #expect(Set(try Self.items("cases").compactMap { $0["id"] as? String }) == [
@@ -139,9 +139,19 @@ struct RelayAvatarIconTests {
         let icons = try Self.items("icons")
         #expect(RelayAvatarIcon.allCases.map(\.id) == icons.compactMap { $0["id"] as? String })
         #expect(RelayAvatarIcon.allCases.map(\.paletteToken) == icons.compactMap { $0["palette"] as? String })
-        #expect(RelayAvatarIcon.allCases.map(\.phosphor.rawValue) == icons.compactMap { $0["phosphor"] as? String })
-        for icon in RelayAvatarIcon.allCases {
-            #expect(UIImage(named: icon.phosphor.assetName(.duotone)) != nil, "\(icon.id) is missing its duotone asset")
+    }
+
+    @Test("RELAY-AVATAR-GLYPH-01 all 10 original icons resolve a RelayAvatar/<id> asset; the enum matches the fixture icons in order, id and palette")
+    func glyph01AssetsExistAndMatchFixture() throws {
+        let icons = try Self.items("icons")
+        let fixtureIDs = icons.compactMap { $0["id"] as? String }
+        #expect(fixtureIDs.count == 10)
+        #expect(RelayAvatarIcon.allCases.map(\.id) == fixtureIDs)
+        #expect(RelayAvatarIcon.allCases.map(\.paletteToken) == icons.compactMap { $0["palette"] as? String })
+        for id in fixtureIDs {
+            let icon = try #require(RelayAvatarIcon(rawValue: id), "icon table is missing \(id)")
+            #expect(icon.assetName == "RelayAvatar/\(id)")
+            #expect(UIImage(named: icon.assetName) != nil, "\(id) is missing its RelayAvatar asset")
         }
     }
 }

@@ -64,8 +64,8 @@ final class UIKitProviderBadge: UIView {
                 initialLabel.font = .systemFont(ofSize: size * 0.6, weight: .semibold)
                 initialLabel.isHidden = false
             case let .icon(icon):
-                // The duotone template image fills the badge, tinted with an existing token (a dynamic color that follows the theme), with no backing plate or outline.
-                logoImageView.image = UIImage(named: icon.phosphor.assetName(.duotone))?.withRenderingMode(.alwaysTemplate)
+                // The original icon's template image fills the badge in one color from an existing token (a dynamic color that follows the theme); the asset carries its own layer opacities. No backing plate or outline.
+                logoImageView.image = UIImage(named: icon.assetName)?.withRenderingMode(.alwaysTemplate)
                 logoImageView.tintColor = UIColor(icon.tint)
                 updateLogoPadding(0)
             case .generic:

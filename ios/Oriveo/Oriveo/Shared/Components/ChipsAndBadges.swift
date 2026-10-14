@@ -562,8 +562,8 @@ struct RelayAvatarView: View {
                 .frame(width: size, height: size)
                 .accessibilityHidden(true)
         case let .icon(icon):
-            // Duotone fills the avatar frame, tinted with an existing token (dark 400 / light 600), with no backing plate or outline.
-            icon.phosphor.image(.duotone)
+            // The original icon's template image fills the avatar frame in one color from an existing token (dark 400 / light 600); the asset carries its own layer opacities. No backing plate or outline.
+            Image(icon.assetName)
                 .resizable()
                 .renderingMode(.template)
                 .scaledToFit()
@@ -585,34 +585,19 @@ struct RelayAvatarView: View {
 }
 
 extension RelayAvatarIcon {
-    var phosphor: PhosphorIcon {
-        switch self {
-        case .planet: return .planet
-        case .compass: return .compass
-        case .sailboat: return .sailboat
-        case .lighthouse: return .lighthouse
-        case .mountains: return .mountains
-        case .sunHorizon: return .sunHorizon
-        case .flame: return .flame
-        case .treeEvergreen: return .treeEvergreen
-        case .moonStars: return .moonStars
-        case .butterfly: return .butterfly
-        }
-    }
-
     /// The existing color token that `paletteToken` names.
     var tint: Color {
         switch self {
-        case .planet: return DetailRowPalette.indigo
-        case .compass: return DetailRowPalette.teal
-        case .sailboat: return DetailRowPalette.cyan
-        case .lighthouse: return CapabilityPalette.attachment
-        case .mountains: return CapabilityPalette.webSearch
-        case .sunHorizon: return DetailRowPalette.orange
-        case .flame: return DetailRowPalette.rose
-        case .treeEvergreen: return CapabilityPalette.vision
-        case .moonStars: return CapabilityPalette.reasoning
-        case .butterfly: return CapabilityPalette.tools
+        case .paperPlane: return DetailRowPalette.indigo
+        case .signalTower: return DetailRowPalette.teal
+        case .relayBell: return CapabilityPalette.attachment
+        case .satellite: return CapabilityPalette.reasoning
+        case .signpost: return CapabilityPalette.vision
+        case .archBridge: return CapabilityPalette.webSearch
+        case .kite: return DetailRowPalette.rose
+        case .messageBottle: return DetailRowPalette.cyan
+        case .pennant: return DetailRowPalette.orange
+        case .hotAirBalloon: return CapabilityPalette.tools
         }
     }
 }

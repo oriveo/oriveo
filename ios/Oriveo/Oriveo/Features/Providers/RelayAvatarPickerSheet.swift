@@ -37,7 +37,7 @@ enum RelayAvatarPicker {
     }
 }
 
-/// The sheet opened from the detail header avatar: a 4-column grid, each cell a 32pt icon plus a 12pt label; the selected cell gets a light highlight (a selection state, not an avatar backing plate).
+/// The sheet opened from the detail header avatar: a 4-column grid, each cell a 32pt icon plus a 12pt label (up to 2 lines, centered); the selected cell gets a light highlight (a selection state, not an avatar backing plate).
 struct RelayAvatarPickerSheet: View {
     let provider: Provider
 
@@ -79,7 +79,8 @@ struct RelayAvatarPickerSheet: View {
                 Text(verbatim: title)
                     .font(.system(size: 12))
                     .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                    .lineLimit(1)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
                     .minimumScaleFactor(0.75)
             }
             .frame(maxWidth: .infinity)

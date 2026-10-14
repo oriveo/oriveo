@@ -12,51 +12,54 @@ nonisolated enum RelayAvatar: Hashable, Sendable {
     case generic
 }
 
-/// The 10 Phosphor duotone icons for default relay avatars; the order is the fixture's `icons` order (modulo index and picker cell order).
+/// The 10 original icons for default relay avatars (asset `RelayAvatar/<id>`, template rendering); the order is the fixture's `icons` order (modulo index and picker cell order).
 nonisolated enum RelayAvatarIcon: String, CaseIterable, Hashable, Sendable {
-    case planet
-    case compass
-    case sailboat
-    case lighthouse
-    case mountains
-    case sunHorizon = "sun-horizon"
-    case flame
-    case treeEvergreen = "tree-evergreen"
-    case moonStars = "moon-stars"
-    case butterfly
+    case paperPlane = "paper-plane"
+    case signalTower = "signal-tower"
+    case relayBell = "relay-bell"
+    case satellite
+    case signpost
+    case archBridge = "arch-bridge"
+    case kite
+    case messageBottle = "message-bottle"
+    case pennant
+    case hotAirBalloon = "hot-air-balloon"
 
     /// Fixture `icons[].id`, also the choice value stored on device.
     var id: String { rawValue }
 
+    /// Namespaced asset name in the asset catalog (`Assets.xcassets/RelayAvatar/<id>`, template rendering; the asset carries its own layer opacities).
+    var assetName: String { "RelayAvatar/\(rawValue)" }
+
     /// Fixture `icons[].palette`: an existing color token (dark 400 / light 600, following the theme) that the renderer tints with.
     var paletteToken: String {
         switch self {
-        case .planet: return "detailRow.indigo"
-        case .compass: return "detailRow.teal"
-        case .sailboat: return "detailRow.cyan"
-        case .lighthouse: return "capability.attachment"
-        case .mountains: return "capability.webSearch"
-        case .sunHorizon: return "detailRow.orange"
-        case .flame: return "detailRow.rose"
-        case .treeEvergreen: return "capability.vision"
-        case .moonStars: return "capability.reasoning"
-        case .butterfly: return "capability.tools"
+        case .paperPlane: return "detailRow.indigo"
+        case .signalTower: return "detailRow.teal"
+        case .relayBell: return "capability.attachment"
+        case .satellite: return "capability.reasoning"
+        case .signpost: return "capability.vision"
+        case .archBridge: return "capability.webSearch"
+        case .kite: return "detailRow.rose"
+        case .messageBottle: return "detailRow.cyan"
+        case .pennant: return "detailRow.orange"
+        case .hotAirBalloon: return "capability.tools"
         }
     }
 
     /// Label of the picker cell (Providers table, English source text as the key).
     var titleKey: String {
         switch self {
-        case .planet: return "Planet"
-        case .compass: return "Compass"
-        case .sailboat: return "Sailboat"
-        case .lighthouse: return "Lighthouse"
-        case .mountains: return "Mountains"
-        case .sunHorizon: return "Sunrise"
-        case .flame: return "Flame"
-        case .treeEvergreen: return "Pine"
-        case .moonStars: return "Moon & stars"
-        case .butterfly: return "Butterfly"
+        case .paperPlane: return "Paper plane"
+        case .signalTower: return "Signal tower"
+        case .relayBell: return "Bell"
+        case .satellite: return "Satellite"
+        case .signpost: return "Signpost"
+        case .archBridge: return "Bridge"
+        case .kite: return "Kite"
+        case .messageBottle: return "Bottle"
+        case .pennant: return "Pennant"
+        case .hotAirBalloon: return "Balloon"
         }
     }
 }
