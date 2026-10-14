@@ -9,6 +9,11 @@ vi.mock('../../metadata/metadata-client', async (importOriginal) => ({
 }));
 
 import { capabilityRejectionState, recordCapabilityRejection } from '../capability-recovery-runtime';
+import { presentCapabilityControl } from '../capability-control-presentation';
+import { resolveModelControlStatus } from '../model-control-capability-layout';
+import { RELAY_WEB_FRAGMENT_TEMPLATES } from '@oriveo/shared/relay/web-fragments';
+import { relayWebFragmentHash } from '@oriveo/core/providers/relay-web-probe';
+import { relayWebModelOptionFacts, writeRelayWebProbeRecord } from '../relay-web-probe-records';
 import type { ModelOptionCapabilityInput } from '../model-option-capability-shape';
 import { resolveGenerationParameterOverridesWithSources, saveGenerationParameterOverrides } from '../generation-parameter-settings';
 import { generationParameterRows } from '../generation-parameter-rows';
@@ -76,6 +81,28 @@ describe('status mark', () => {
     expect(modelOptionsPanelModel(custom({
       reasoning: capability({ status: 'automaticAvailable', connection: 'custom', availableIntents: ['off', 'low'] }),
     })).mark).toBe('official');
+  });
+
+  it('relay web search whose current record is rejected (the switch is not greyed out, production control state is unknown) -> still unverified, not an official configuration', () => {
+    const relay = {
+      id: 'relay-mark', kind: 'relay', status: { kind: 'connected' }, models: [], catalogModels: [], apiKey: 'sk', apiKeyPreview: '••',
+      baseURLText: 'https://relay.example/v1', relayKind: 'openai_compatible',
+      relayRequested: { transport: 'openai_chat_completions', authMode: 'auto' },
+    } as unknown as Provider;
+    const model = { id: 'rm', name: 'rm', capabilities: ['text'], reasoningModeAvailable: false, isAvailable: true, isDefault: true, priceTier: '' } as unknown as AIModel;
+    const template = RELAY_WEB_FRAGMENT_TEMPLATES.openai_chat_completions;
+    writeRelayWebProbeRecord({ connectionId: relay.id, modelId: model.id, transport: 'openai_chat_completions' }, {
+      result: 'rejected', source: 'tested', at: '2026-10-14T12:00:00.000Z', fragmentHash: relayWebFragmentHash(template),
+    });
+    const web = presentCapabilityControl(relay, model, 'web');
+    expect(web.state).toBe('unknown');
+    const out = modelOptionsPanelModel(custom({
+      web: capability({
+        capability: 'web', status: resolveModelControlStatus(web), connection: 'custom',
+        relayWeb: relayWebModelOptionFacts(relay, model),
+      }),
+    }));
+    expect(out.mark).toBe('unverified');
   });
 
   it('custom connection with neither cataloged → unverified', () => {

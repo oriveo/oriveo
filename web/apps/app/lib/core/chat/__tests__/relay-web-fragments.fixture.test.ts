@@ -7,7 +7,18 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Chat web preferences are stored by runtime identity; this file has no metadata snapshot, so a revision is added. The nometa case sets null (no-metadata identity).
+const runtimeMock = vi.hoisted(() => ({ revision: 'runtime-relay-web' as string | null }));
+vi.mock('../../metadata/metadata-client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../metadata/metadata-client')>();
+  return {
+    ...actual,
+    getCapabilityRuntime: () => actual.getCapabilityRuntime()
+      ?? (runtimeMock.revision ? ({ revision: runtimeMock.revision } as never) : null),
+  };
+});
 import type { AIModel, Provider, RelayRequestedConfig } from '@oriveo/shared';
 import { relayWebFragmentHash } from '@oriveo/core/providers/relay-web-probe';
 import {
@@ -25,7 +36,7 @@ import {
   effectiveRelayWebFragments,
 } from '@oriveo/shared/relay/legacy-web-search';
 import { resolveModelOptionCapabilityShape, type ModelOptionCapabilityInput } from '../model-option-capability-shape';
-import { modelOptionDisclosureStatusCopy, MODEL_OPTION_NOTICE_STATUS_KEYS, modelOptionNoticeBodyCopy, MODEL_OPTION_LINK_KEYS } from '../model-options-copy';
+import { modelOptionDisclosureStatusCopy, modelOptionsTileStatusCopy, MODEL_OPTION_LINK_KEYS } from '../model-options-copy';
 import {
   RELAY_WEB_FRAGMENTS_STORAGE_KEY,
   clearRelayWebFragment,
@@ -35,11 +46,23 @@ import {
   saveRelayWebFragment,
 } from '../relay-web-fragments';
 import {
-  relayWebFragmentForChat,
   relayWebModelOptionFacts,
+  relayWebPreferenceDefaultFor,
+  resolveRelayWebPresentation,
+  relayWebProviderDefault,
   writeRelayWebProbeRecord,
+  type RelayWebStatusId,
 } from '../relay-web-probe-records';
-import { buildProviderStreamOptions } from '../stream-options';
+import { buildProviderStreamOptions, buildStreamOptionsFromIntent, filterRequestCapabilityIntent } from '../stream-options';
+import {
+  RELAY_PREFERENCE_FALLBACK_REVISION,
+  capabilityPreferenceIdentity,
+  capabilityRuntimeIdentity,
+  displayCapabilityPreferences,
+  resolveCapabilityPreferences,
+  saveCapabilityPreferences,
+} from '../capability-preference-settings';
+import { webPreferenceReachesTheWire } from '../capability-control-presentation';
 import { sendWithRelayRejectionLoop } from '../relay-rejection-loop';
 import { createAppStore } from '../../store/app-store';
 import type { StreamOptions } from '@oriveo/core/providers/types';
@@ -190,12 +213,6 @@ describe('RELAY-WEBFRAG-presentation', () => {
         expect(en(modelOptionDisclosureStatusCopy(shape.status, 'web').key), item.caseId).toBe(item.expect.status);
         if (item.expect.action) expect(shape.link, item.caseId).toBe(item.expect.action);
       }
-      if (shape.kind === 'notice') {
-        expect(en(MODEL_OPTION_NOTICE_STATUS_KEYS[shape.status]), item.caseId).toBe(item.expect.status);
-        expect(shape.link, item.caseId).toBe(item.expect.link);
-        expect(modelOptionNoticeBodyCopy(shape.body).key).toBe('common.modelOptionsRelayWebManualBody');
-        expect(MODEL_OPTION_LINK_KEYS[shape.link!]).toBe('common.modelOptionsRelayWebOpenSettings');
-      }
     });
   }
 });
@@ -233,13 +250,23 @@ describe('RELAY-WEBFRAG local storage (oriveo.relay-web-fragments.v1)', () => {
   });
 });
 
-/* ── The local probe record drives the web row and whether chat attaches the fragment (shared/test-fixtures/relay/web-probe.v1.json presentationCases) ── */
+/* -- Web search is a chat switch (shared/test-fixtures/relay/web-probe.v1.json presentationCases) -- */
 
 type WebProbePresentationCase = {
   caseId: string;
-  hasFragment: boolean;
+  savedFragment: boolean;
   record: { result: 'searched' | 'rejected' | 'silent'; fragmentHash: 'current' | 'other' } | null;
-  expect: { state: string; statusId: string; sendsFragment: boolean; retestLink?: string };
+  userOverride: boolean | null;
+  webPreference: 'on' | 'off' | null;
+  expect: {
+    row: 'toggle' | 'toggleDisabled';
+    isOn: boolean;
+    statusId: RelayWebStatusId;
+    retestLink?: 'openConnectionWebSearch' | 'testCapabilities';
+    sendsFragment: boolean;
+    sentFragment?: 'saved' | 'template';
+    replyNotice?: 'web_not_used' | null;
+  };
 };
 
 const webProbePresentation: WebProbePresentationCase[] = (() => {
@@ -254,8 +281,11 @@ const webProbePresentation: WebProbePresentationCase[] = (() => {
 })();
 
 const PROBE_CONNECTION = 'relay-web-probe-1';
+const PROBE_CONVERSATION = 'conv-relay-web-1';
 const PROBE_TRANSPORT: RelayWebTransport = 'openai_chat_completions';
-const PROBE_FRAGMENT = fixture.templates[PROBE_TRANSPORT];
+const TEMPLATE_FRAGMENT = fixture.templates[PROBE_TRANSPORT];
+/** A stored fragment that differs from the template, so the request body shows which one was sent. */
+const SAVED_FRAGMENT: Json = { web_search_options: { search_context_size: 'high' } };
 const OTHER_FRAGMENT: Json = { web_search_options: { search_context_size: 'low' } };
 const probeModel: AIModel = {
   id: 'probe-model', name: 'probe-model', capabilities: ['text'], reasoningModeAvailable: false, isAvailable: true, isDefault: true, priceTier: '',
@@ -267,96 +297,168 @@ const probeProvider = {
 } as unknown as Provider;
 const probeKey = { connectionId: PROBE_CONNECTION, modelId: probeModel.id, transport: PROBE_TRANSPORT };
 
-/** State id -> en copy and form. */
-const STATUS_COPY: Record<string, { shape: 'disclosure' | 'notice'; status: string; body?: string }> = {
-  web_probe_searched: { shape: 'disclosure', status: 'Search confirmed' },
-  web_probe_silent: { shape: 'disclosure', status: 'Didn’t search when tested' },
-  web_probe_unverified: { shape: 'disclosure', status: 'Set · not verified' },
-  web_probe_rejected: { shape: 'notice', status: 'This model rejects the web search settings', body: 'Test again in Web Search' },
-  needs_manual_setup: { shape: 'notice', status: 'Needs manual setup' },
+/** State id -> en copy (web_user_on = the source badge "Set by you"). */
+const STATUS_COPY: Record<RelayWebStatusId, string> = {
+  web_probe_searched: 'Search confirmed',
+  web_probe_silent: 'Didn’t search when tested',
+  web_probe_rejected: 'This model rejects the web search settings',
+  web_probe_unverified: 'Set · not verified',
+  web_probe_untested: 'Not tested yet',
+  web_user_off: 'Turned off in this model’s Advanced settings',
+  web_user_on: 'Set by you',
 };
 
-function arrangeProbeCase(item: Pick<WebProbePresentationCase, 'hasFragment' | 'record'>): void {
+type ProbeArrangement = Pick<WebProbePresentationCase, 'savedFragment' | 'record' | 'userOverride' | 'webPreference'>;
+
+/** Lands the fixture input in production storage: fragment, record (current = hash of the effective fragment), user override, this session's chat web preference; returns the model. */
+function arrangeProbeCase(item: ProbeArrangement): { provider: Provider; model: AIModel } {
   localStorage.clear();
-  replaceRelayWebFragments(PROBE_CONNECTION, item.hasFragment ? { [PROBE_TRANSPORT]: PROBE_FRAGMENT } : {});
+  replaceRelayWebFragments(PROBE_CONNECTION, item.savedFragment ? { [PROBE_TRANSPORT]: SAVED_FRAGMENT } : {});
+  const effective = item.savedFragment ? SAVED_FRAGMENT : TEMPLATE_FRAGMENT;
   if (item.record) {
     writeRelayWebProbeRecord(probeKey, {
       result: item.record.result,
       source: 'tested',
       at: '2026-10-13T12:00:00.000Z',
-      fragmentHash: relayWebFragmentHash(item.record.fragmentHash === 'current' ? PROBE_FRAGMENT : OTHER_FRAGMENT),
+      fragmentHash: relayWebFragmentHash(item.record.fragmentHash === 'current' ? effective : OTHER_FRAGMENT),
     });
   }
+  const model: AIModel = item.userOverride === null
+    ? probeModel
+    : { ...probeModel, relayCapabilityOverrides: { web: { value: item.userOverride, source: 'user' } } };
+  const provider = { ...probeProvider, models: [model] } as Provider;
+  if (item.webPreference !== null) {
+    const identity = capabilityPreferenceIdentity(provider, model)!;
+    saveCapabilityPreferences(
+      { ...identity, scope: 'conversation_connection_model', conversationId: PROBE_CONVERSATION },
+      { web: item.webPreference === 'on' ? 'automatic' : 'off' },
+    );
+  }
+  return { provider, model };
 }
 
-describe('RL2-WEBPROBE-PRES', () => {
+/** The chat web preference the panel reads: the same read as ChatView's restored state (ladder + relay default layer). */
+function displayedWebPreference(provider: Provider, model: AIModel): string {
+  const defaultWeb = relayWebPreferenceDefaultFor(provider, model);
+  return displayCapabilityPreferences({
+    ...capabilityPreferenceIdentity(provider, model)!, conversationId: PROBE_CONVERSATION, ...(defaultWeb ? { defaultWeb } : {}),
+  }).web;
+}
+
+function relayWebRow(provider: Provider, model: AIModel) {
+  return resolveModelOptionCapabilityShape({
+    capability: 'web',
+    status: 'unknown',
+    availableIntents: [],
+    selectedIntent: displayedWebPreference(provider, model),
+    connection: 'custom',
+    isWritable: true,
+    protocolUndecided: false,
+    rejectedIntents: [],
+    chatTemplateThinkingIsOn: false,
+    supportsChatTemplate: false,
+    relayWeb: relayWebModelOptionFacts(provider, model),
+  });
+}
+
+/** Production send construction (same order as operations-send): ladder resolves the preference -> outbound gate -> final options -> relay request body. */
+function productionChatBody(provider: Provider, model: AIModel, streamOptions?: StreamOptions): Json {
+  const identity = capabilityPreferenceIdentity(provider, model)!;
+  const preferences = resolveCapabilityPreferences({
+    ...identity, conversationId: PROBE_CONVERSATION, providerDefault: relayWebProviderDefault(provider, model),
+  });
+  const preliminary = buildProviderStreamOptions(provider, buildStreamOptionsFromIntent(model, undefined, undefined, undefined, preferences), model);
+  const intent = filterRequestCapabilityIntent({
+    provider, model, reasoningMode: 'automatic', webSearchEnabled: undefined,
+    webReachesTheWire: webPreferenceReachesTheWire({ provider, model, transportIdentity: identity.transportIdentity }),
+    streamOptions: preliminary,
+  });
+  const options = streamOptions ?? buildProviderStreamOptions(
+    provider,
+    buildStreamOptionsFromIntent(model, intent.reasoning, intent.supportsWebSearch, undefined, intent.capabilityPreferences),
+    model,
+  );
+  const request = buildRelayChatRequest('sk-relay', model.id, [{ role: 'user', content: 'hi' }], provider.baseURLText, options);
+  return JSON.parse(request.body) as Json;
+}
+
+describe('RL2-WEBPROBE-14 model options web row', () => {
   beforeEach(() => localStorage.clear());
 
   for (const item of webProbePresentation) {
-    it(`RL2-WEBPROBE-PRES-${item.caseId}`, () => {
-      arrangeProbeCase(item);
-      const shape = resolveModelOptionCapabilityShape({
-        capability: 'web',
-        status: 'unknown',
-        availableIntents: [],
-        connection: 'custom',
-        isWritable: true,
-        protocolUndecided: false,
-        rejectedIntents: [],
-        chatTemplateThinkingIsOn: false,
-        supportsChatTemplate: false,
-        relayWeb: relayWebModelOptionFacts(probeProvider, probeModel),
-      });
-      const expected = STATUS_COPY[item.expect.statusId]!;
-      expect(shape.kind, item.caseId).toBe(expected.shape);
-      if (shape.kind === 'disclosure') {
-        expect(en(modelOptionDisclosureStatusCopy(shape.status, 'web').key), item.caseId).toBe(expected.status);
-        // There is a fragment and it is not rejected: the whole row taps through to the web search page of that connection.
-        expect(shape.link, item.caseId).toBe('openConnectionWebSearch');
+    it(`RL2-WEBPROBE-14 PRES-${item.caseId}`, () => {
+      const { provider, model } = arrangeProbeCase(item);
+      const shape = relayWebRow(provider, model);
+      // Reply notice: switch on but no fragment sent -> web_not_used, otherwise null.
+      expect(resolveRelayWebPresentation(relayWebModelOptionFacts(provider, model), displayedWebPreference(provider, model) as 'off' | 'automatic').replyNotice ?? null, item.caseId)
+        .toBe(item.expect.replyNotice ?? null);
+      expect(shape.kind, item.caseId).toBe('toggle');
+      if (shape.kind !== 'toggle') return;
+      expect(shape.disabled === true ? 'toggleDisabled' : 'toggle', item.caseId).toBe(item.expect.row);
+      expect(shape.isOn, item.caseId).toBe(item.expect.isOn);
+      expect(shape.relayStatus, item.caseId).toBe(item.expect.statusId);
+      expect(shape.link, item.caseId).toBe(item.expect.retestLink);
+      const status = modelOptionsTileStatusCopy({ kind: 'capability', capability: 'web', row: shape, corner: 'switch' });
+      expect(en(status!.key), item.caseId).toBe(STATUS_COPY[item.expect.statusId]);
+      // Retest link copy: a rejected stored fragment -> Test again in Web Search; a rejected template -> Test capabilities.
+      if (shape.link) {
+        expect(en(MODEL_OPTION_LINK_KEYS[shape.link]), item.caseId)
+          .toBe(shape.link === 'openConnectionWebSearch' ? 'Test again in Web Search' : 'Test capabilities');
       }
-      if (shape.kind === 'notice') {
-        expect(en(MODEL_OPTION_NOTICE_STATUS_KEYS[shape.status]), item.caseId).toBe(expected.status);
-        expect(shape.link, item.caseId).toBe('openConnectionWebSearch');
-        if (expected.body) expect(en(modelOptionNoticeBodyCopy(shape.body).key), item.caseId).toBe(expected.body);
-      }
-      if (item.expect.retestLink) {
-        expect(shape.kind, item.caseId).toBe('notice');
-        expect(shape.kind === 'notice' && shape.link, item.caseId).toBe(item.expect.retestLink);
-      }
-      expect(relayWebFragmentForChat(probeProvider, probeModel, PROBE_TRANSPORT) !== undefined, item.caseId).toBe(item.expect.sendsFragment);
     });
   }
-});
 
-describe('RL2-WEBPROBE-CHAT-01', () => {
-  beforeEach(() => localStorage.clear());
-
-  function chatBody(): Json {
-    const options = buildProviderStreamOptions(probeProvider, undefined, probeModel);
-    const request = buildRelayChatRequest('sk-relay', probeModel.id, [{ role: 'user', content: 'hi' }], probeProvider.baseURLText, options);
-    return JSON.parse(request.body) as Json;
-  }
-  const fragmentKeys = Object.keys(PROBE_FRAGMENT);
-
-  it('RL2-WEBPROBE-CHAT-01 rejected record under the current fragment: the production chat request body does not contain the fragment', () => {
-    arrangeProbeCase({ hasFragment: true, record: { result: 'rejected', fragmentHash: 'current' } });
-    const body = chatBody();
-    for (const key of fragmentKeys) expect(body).not.toHaveProperty(key);
+  it('RL2-WEBPROBE-14 nometa no-metadata identity: the switch can be stored, read back after re-entering, and the request body carries the fragment', () => {
+    runtimeMock.revision = null;
+    try {
+      const { provider, model } = arrangeProbeCase({ savedFragment: false, record: null, userOverride: null, webPreference: null });
+      expect(capabilityRuntimeIdentity(provider, model)).toBeNull();
+      const identity = capabilityPreferenceIdentity(provider, model)!;
+      expect(identity.runtimeRevision).toBe(RELAY_PREFERENCE_FALLBACK_REVISION);
+      // Template, never set: off by default, no fragment sent.
+      expect(relayWebRow(provider, model)).toMatchObject({ kind: 'toggle', isOn: false });
+      expect(productionChatBody(provider, model)).not.toHaveProperty('web_search_options');
+      // Turn it on (same write as ChatView: conversation scope) -> reading again still gives on -> the request body carries the template.
+      saveCapabilityPreferences({ ...identity, scope: 'conversation_connection_model', conversationId: PROBE_CONVERSATION }, { web: 'automatic' });
+      expect(displayedWebPreference(provider, model)).toBe('automatic');
+      expect(relayWebRow(provider, model)).toMatchObject({ kind: 'toggle', isOn: true });
+      expect(productionChatBody(provider, model)).toHaveProperty('web_search_options', TEMPLATE_FRAGMENT.web_search_options);
+    } finally {
+      runtimeMock.revision = 'runtime-relay-web';
+    }
   });
 
-  const attaches: Array<[string, WebProbePresentationCase['record']]> = [
-    ['silent', { result: 'silent', fragmentHash: 'current' }],
-    ['untested', null],
-    ['stale rejected', { result: 'rejected', fragmentHash: 'other' }],
-    ['searched', { result: 'searched', fragmentHash: 'current' }],
-  ];
-  for (const [label, record] of attaches) {
-    it(`RL2-WEBPROBE-CHAT-01 ${label}: the fragment is attached as usual`, () => {
-      arrangeProbeCase({ hasFragment: true, record });
-      const body = chatBody();
-      for (const key of fragmentKeys) expect(body, label).toHaveProperty(key, (PROBE_FRAGMENT as Json)[key]);
+  it('no longer shows "Needs manual setup" or "configure in web search settings"', () => {
+    for (const item of webProbePresentation) {
+      const { provider, model } = arrangeProbeCase(item);
+      const shape = relayWebRow(provider, model);
+      expect(shape.kind, item.caseId).not.toBe('notice');
+    }
+  });
+});
+
+describe('RL2-WEBPROBE-02 the switch decides the request body (production builder)', () => {
+  beforeEach(() => localStorage.clear());
+  const webKeys = Object.keys(TEMPLATE_FRAGMENT);
+
+  for (const item of webProbePresentation) {
+    it(`RL2-WEBPROBE-02 BODY-${item.caseId}`, () => {
+      const { provider, model } = arrangeProbeCase(item);
+      const body = productionChatBody(provider, model);
+      if (!item.expect.sendsFragment) {
+        for (const key of webKeys) expect(body, item.caseId).not.toHaveProperty(key);
+        return;
+      }
+      const sent = item.expect.sentFragment === 'saved' ? SAVED_FRAGMENT : TEMPLATE_FRAGMENT;
+      for (const key of Object.keys(sent)) expect(body, item.caseId).toHaveProperty(key, sent[key]);
     });
   }
+
+  it('RL2-WEBPROBE-02 the library / MCP path (singleSend web off) carries no fragment', () => {
+    const { provider, model } = arrangeProbeCase({ savedFragment: true, record: null, userOverride: null, webPreference: 'on' });
+    const options = buildProviderStreamOptions(provider, buildStreamOptionsFromIntent(model, undefined, false), model);
+    expect(options?.relayWebFragment).toBeUndefined();
+  });
 });
 
 describe('RL2-WEBPROBE panel / chat use the same protocol as the probe (the first-send protocol of the model)', () => {
@@ -376,7 +478,7 @@ describe('RL2-WEBPROBE panel / chat use the same protocol as the probe (the firs
   });
   afterEach(() => rememberRelayCatalogEndpointTypes(AUTO_CONNECTION, undefined));
 
-  it('RL2-WEBPROBE-PRES first-send anthropic_messages: after writing searched the panel shows Search confirmed', () => {
+  it('RL2-WEBPROBE-14 first-send anthropic_messages: after writing searched the web row status is Search confirmed', () => {
     // Precondition: effectiveTransport is not the first-send protocol, so the case can tell the two apart.
     expect(effectiveTransport(autoProvider, claude)).not.toBe('anthropic_messages');
     writeRelayWebProbeRecord(messagesKey, {
@@ -387,28 +489,36 @@ describe('RL2-WEBPROBE panel / chat use the same protocol as the probe (the firs
       rejectedIntents: [], chatTemplateThinkingIsOn: false, supportsChatTemplate: false,
       relayWeb: relayWebModelOptionFacts(autoProvider, claude),
     });
-    expect(shape.kind).toBe('disclosure');
-    expect(shape.kind === 'disclosure' && en(modelOptionDisclosureStatusCopy(shape.status, 'web').key)).toBe('Search confirmed');
+    expect(shape.kind).toBe('toggle');
+    expect(shape.kind === 'toggle' && shape.relayStatus).toBe('web_probe_searched');
+    // The first-send protocol has a stored fragment and nothing was ever set: on by default.
+    expect(relayWebPreferenceDefaultFor(autoProvider, claude)).toBe('automatic');
   });
 
-  it('RL2-WEBPROBE-CHAT-01 first-send anthropic_messages: after rejected the chat request body does not contain the fragment', () => {
+  it('RL2-WEBPROBE-02 first-send anthropic_messages: with the switch on, the Messages fragment is carried after the first send switches protocol; after rejected it is not', () => {
+    const sendOnce = () => {
+      const sent: Array<StreamOptions | undefined> = [];
+      sendWithRelayRejectionLoop({
+        store: createAppStore({ providers: [autoProvider] }),
+        provider: autoProvider,
+        model: claude,
+        history: [{ role: 'user', content: 'hi' }] as never,
+        streamOptions: buildProviderStreamOptions(autoProvider, buildStreamOptionsFromIntent(claude, undefined, true), claude),
+        send: (_history, options) => {
+          sent.push(options);
+          return { stream: new ReadableStream({ start: (ctrl) => ctrl.close() }), abort: () => {} } as never;
+        },
+      });
+      return sent[0];
+    };
+    expect(sendOnce()?.relayTransport).toBe('anthropic_messages');
+    expect(sendOnce()?.relayWebFragment).toEqual(messagesFragment);
+
     writeRelayWebProbeRecord(messagesKey, {
       result: 'rejected', source: 'tested', at: '2026-10-13T12:00:00.000Z', fragmentHash: relayWebFragmentHash(messagesFragment),
     });
     // Production send loop: after the first send switches protocol, options are re-resolved with the first-send protocol, and the fragment decision follows the first-send protocol.
-    const sent: Array<StreamOptions | undefined> = [];
-    sendWithRelayRejectionLoop({
-      store: createAppStore({ providers: [autoProvider] }),
-      provider: autoProvider,
-      model: claude,
-      history: [{ role: 'user', content: 'hi' }] as never,
-      streamOptions: buildProviderStreamOptions(autoProvider, undefined, claude),
-      send: (_history, options) => {
-        sent.push(options);
-        return { stream: new ReadableStream({ start: (ctrl) => ctrl.close() }), abort: () => {} } as never;
-      },
-    });
-    expect(sent[0]?.relayTransport).toBe('anthropic_messages');
-    expect(sent[0]?.relayWebFragment).toBeUndefined();
+    expect(sendOnce()?.relayTransport).toBe('anthropic_messages');
+    expect(sendOnce()?.relayWebFragment).toBeUndefined();
   });
 });

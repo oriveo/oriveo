@@ -30,6 +30,12 @@ import {
 } from '../../../lib/core/providers/capability-evidence-identity';
 import { getActiveUIDSync } from '../../../lib/infra/storage/partition';
 import { rememberRelayCatalogEndpointTypes } from '../../../lib/core/providers/relay-probe-candidates';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { RELAY_WEB_FRAGMENT_TEMPLATES } from '@oriveo/shared/relay/web-fragments';
+import { relayWebFragmentHash } from '@oriveo/core/providers/relay-web-probe';
+import { replaceRelayWebFragments } from '../../../lib/core/chat/relay-web-fragments';
+import { writeRelayWebProbeRecord } from '../../../lib/core/chat/relay-web-probe-records';
 
 /**
  * Model > Advanced: asserts the output of relayModelAdvancedBoard, the on-disk result of the write functions,
@@ -245,13 +251,13 @@ afterEach(() => {
 /* ── Cases ── */
 
 describe('BOARD-ADVANCED-01 page structure', () => {
-  it('BOARD-ADVANCED-01 Relay: five protocol segments, four capability rows, appliesNow at the page end, four legend items', () => {
+  it('BOARD-ADVANCED-01 Relay: five protocol segments, five capability rows (web search after tool calling), appliesNow at the page end, four legend items', () => {
     const b = board(relayProvider([model('gpt-5.4')]), 'gpt-5.4');
     expect(b.header).toEqual({ modelName: 'gpt-5.4', host: 'api.myrelay.dev' });
     expect(RELAY_ADVANCED_SEGMENTS).toEqual(['auto', 'openai_chat_completions', 'openai_responses', 'anthropic_messages', 'gemini_generate_content']);
     expect(b.protocolRow.kind).toBe('relay');
-    expect(RELAY_ADVANCED_CAPS).toEqual(['image', 'file', 'imageGeneration', 'toolCall']);
-    expect(b.capabilityRows.map((row) => row.cap)).toEqual(['image', 'file', 'imageGeneration', 'toolCall']);
+    expect(RELAY_ADVANCED_CAPS).toEqual(['image', 'file', 'imageGeneration', 'toolCall', 'web']);
+    expect(b.capabilityRows.map((row) => row.cap)).toEqual(['image', 'file', 'imageGeneration', 'toolCall', 'web']);
     // An empty automatic set shows no thinking card (ADVANCED-15); the footer becomes "changes apply immediately" (ADVANCED-16).
     expect(b.thinking).toBeNull();
     expect(b.legend).toEqual(['catalog', 'detected', 'tested', 'user']);
@@ -263,7 +269,9 @@ describe('BOARD-ADVANCED-01 page structure', () => {
     expect(ollama.protocolRow).toMatchObject({ kind: 'local', channelHint: false });
     expect(ollama.thinking).toBeNull();
     expect(ollama.legend).toEqual(['engine', 'user']);
-    expect(ollama.capabilityRows).toHaveLength(4);
+    expect(ollama.capabilityRows).toHaveLength(5);
+    // A local engine has no web search: the web row shows Unknown.
+    expect(rowOf(ollama, 'web')).toMatchObject({ state: 'unknown', stateKey: RELAY_ADVANCED_TEXT.imageGenerationUnknown, source: null });
 
     const llama = board(localProvider([model('gemma')], 'llamacpp'), 'gemma');
     expect(llama.protocolRow).toMatchObject({ kind: 'local', channelHint: true });
@@ -275,7 +283,7 @@ describe('BOARD-ADVANCED-01 page structure', () => {
     expect(sections).toEqual(['protocol', 'capabilities']);
     expect(container.querySelectorAll('[data-advanced-segment]')).toHaveLength(5);
     expect([...container.querySelectorAll('[data-advanced-cap]')].map((el) => el.getAttribute('data-advanced-cap')))
-      .toEqual(['image', 'file', 'imageGeneration', 'toolCall']);
+      .toEqual(['image', 'file', 'imageGeneration', 'toolCall', 'web']);
     expect(screen.getByText(RELAY_ADVANCED_TEXT.appliesNow)).toBeTruthy();
   });
 
@@ -379,6 +387,7 @@ describe('BOARD-ADVANCED-04 four automatic-status rows and source order', () => 
       ['file', 'unknown', null, 'auto'],
       ['imageGeneration', 'unknown', null, 'auto'],
       ['toolCall', 'unknown', null, 'auto'],
+      ['web', 'unknown', null, 'auto'],
     ]);
     expect(rowOf(b, 'imageGeneration').stateKey).toBe(RELAY_ADVANCED_TEXT.imageGenerationUnknown);
     expect(rowOf(b, 'image').stateKey).toBe(RELAY_ADVANCED_TEXT.state.unknown);
@@ -421,6 +430,7 @@ describe('BOARD-ADVANCED-04 four automatic-status rows and source order', () => 
       ['file', 'supported', 'user', 'on'],
       ['imageGeneration', 'unsupported', 'user', 'off'],
       ['toolCall', 'unsupported', 'user', 'off'],
+      ['web', 'unknown', null, 'auto'],
     ]);
   });
 
@@ -930,5 +940,93 @@ describe('Single probe after a manually chosen protocol writes key status', () =
     expect(stored(store, provider.id, 'm').provider.relayKeys).toEqual([
       { id: 'initial', apiKey: '', status: { state: 'ok', checkedAt: expect.any(String) } },
     ]);
+  });
+});
+
+/* -- Advanced page web row (shared/test-fixtures/relay/web-probe.v1.json presentationCases advanced) -- */
+
+type WebAdvancedCase = {
+  caseId: string;
+  savedFragment: boolean;
+  record: { result: 'searched' | 'rejected' | 'silent'; fragmentHash: 'current' | 'other' } | null;
+  userOverride: boolean | null;
+  expect: { advanced: { statusId: string; source: 'tested' | 'user' | null } };
+};
+
+const webAdvancedCases: WebAdvancedCase[] = (() => {
+  let dir = __dirname;
+  for (;;) {
+    const candidate = path.join(dir, 'shared', 'test-fixtures', 'relay', 'web-probe.v1.json');
+    if (existsSync(candidate)) return (JSON.parse(readFileSync(candidate, 'utf8')) as { presentationCases: { cases: WebAdvancedCase[] } }).presentationCases.cases;
+    const parent = path.dirname(dir);
+    if (parent === dir) throw new Error('web-probe.v1.json not found');
+    dir = parent;
+  }
+})();
+
+describe('RL2-WEBPROBE-15 Advanced page web row', () => {
+  const SAVED = { web_search_options: { search_context_size: 'high' } };
+  const TEMPLATE = RELAY_WEB_FRAGMENT_TEMPLATES.openai_chat_completions;
+  const OTHER = { web_search_options: { search_context_size: 'low' } };
+
+  for (const item of webAdvancedCases) {
+    it(`RL2-WEBPROBE-15 ADV-${item.caseId}`, () => {
+      const overrides = item.userOverride === null ? {} : { relayCapabilityOverrides: { web: { value: item.userOverride, source: 'user' as const } } };
+      const provider = relayProvider([model('web-m', overrides)]);
+      replaceRelayWebFragments(provider.id, item.savedFragment ? { openai_chat_completions: SAVED } : {});
+      if (item.record) {
+        writeRelayWebProbeRecord({ connectionId: provider.id, modelId: 'web-m', transport: 'openai_chat_completions' }, {
+          result: item.record.result, source: 'tested', at: '2026-10-14T12:00:00.000Z',
+          fragmentHash: relayWebFragmentHash(item.record.fragmentHash === 'current' ? (item.savedFragment ? SAVED : TEMPLATE) : OTHER),
+        });
+      }
+      const row = rowOf(board(provider, 'web-m'), 'web');
+      expect({ statusId: row.webStatusId, source: row.source }, item.caseId).toEqual(item.expect.advanced);
+      expect(row.control, item.caseId).toBe(item.userOverride === null ? 'auto' : item.userOverride ? 'on' : 'off');
+    });
+  }
+
+  it('RL2-WEBPROBE-15 same-card convention for the control: tested true -> On, tested false -> Off, no value -> Auto', () => {
+    const tested = (value: boolean) => model('t', { relayCapabilityOverrides: { web: { value, source: 'tested' } } });
+    const provider = relayProvider([tested(true)]);
+    replaceRelayWebFragments(provider.id, {});
+    writeRelayWebProbeRecord({ connectionId: provider.id, modelId: 't', transport: 'openai_chat_completions' }, {
+      result: 'searched', source: 'tested', at: '2026-10-14T12:00:00.000Z', fragmentHash: relayWebFragmentHash(TEMPLATE),
+    });
+    expect(rowOf(board(provider, 't'), 'web')).toMatchObject({ webStatusId: 'web_probe_searched', source: 'tested', control: 'on' });
+    expect(rowOf(board(relayProvider([tested(false)]), 't'), 'web').control).toBe('off');
+    expect(rowOf(board(relayProvider([model('t')]), 't'), 'web').control).toBe('auto');
+  });
+
+  it('RL2-WEBPROBE-15 On / Off write the web override (user); Auto clears it (both user and tested); restoring everything to automatic clears it too', () => {
+    const provider = relayProvider([model('m', { relayCapabilityOverrides: { web: { value: true, source: 'tested' } } })]);
+    const store = storeWith(provider);
+    expect(setRelayCapabilityOverride(store, provider.id, 'm', 'web', false)).toBe(true);
+    let state = stored(store, provider.id, 'm');
+    for (const entry of [state.model, state.catalog]) expect(entry.relayCapabilityOverrides).toEqual({ web: { value: false, source: 'user' } });
+    expect(rowOf(board(store.getState().providers[0]!, 'm'), 'web')).toMatchObject({ source: 'user', control: 'off' });
+
+    setRelayCapabilityOverride(store, provider.id, 'm', 'web', null);
+    state = stored(store, provider.id, 'm');
+    expect('relayCapabilityOverrides' in state.model).toBe(false);
+
+    setRelayCapabilityOverride(store, provider.id, 'm', 'web', true);
+    expect(restoreAllRelayAutomatic(store, provider.id, 'm')).toBe(true);
+    expect('relayCapabilityOverrides' in stored(store, provider.id, 'm').model).toBe(false);
+  });
+
+  it('RL2-WEBPROBE-15 undecided protocol -> Unknown', () => {
+    const provider = relayProvider([model('auto-m')]);
+    provider.relayRequested = { ...provider.relayRequested!, transport: 'auto' };
+    const row = rowOf(board(provider, 'auto-m'), 'web');
+    expect(row).toMatchObject({ state: 'unknown', stateKey: RELAY_ADVANCED_TEXT.imageGenerationUnknown, source: null, control: 'auto' });
+    expect(row.webStatusId).toBeUndefined();
+  });
+
+  it('RL2-WEBPROBE-15 production component: the web row follows tool calling, titled Web search', () => {
+    const { container } = openAdvanced(relayProvider([model('gpt-5.4')]));
+    const web = container.querySelector('[data-advanced-cap="web"]')!;
+    expect(web).toBeTruthy();
+    expect(within(web as HTMLElement).getByText(RELAY_ADVANCED_TEXT.capTitle.web)).toBeTruthy();
   });
 });

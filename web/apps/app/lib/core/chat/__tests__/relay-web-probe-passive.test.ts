@@ -15,6 +15,11 @@ const mocks = vi.hoisted(() => ({
   sendStream: vi.fn(),
   buildChatHistory: vi.fn(),
   store: null as unknown,
+  trackEvent: vi.fn(),
+}));
+vi.mock('../../telemetry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../telemetry')>()),
+  trackEvent: (...args: unknown[]) => mocks.trackEvent(...args),
 }));
 
 vi.mock('../../../../providers/StoreProvider', () => ({ getVanillaStore: () => mocks.store }));
@@ -100,12 +105,13 @@ function newStore(p: Provider = provider, m: AIModel = model) {
   return store;
 }
 
-async function send(p: Provider = provider, m: AIModel = model) {
+async function send(p: Provider = provider, m: AIModel = model, webOn = true) {
   const store = newStore(p, m);
   const conv = store.getState().conversations[0];
   await sendMessage(
     { store, appendChunk: (chunk: string) => batchAppendStreaming('conv-1', chunk), te: (k: string) => k },
-    { text: 'What is the top news today?', prevMessages: [], conversation: conv, provider: p, model: m, reasoningMode: 'automatic' },
+    // The chat web switch is on (the fragment is attached only while the switch is on).
+    { text: 'What is the top news today?', prevMessages: [], conversation: conv, provider: p, model: m, reasoningMode: 'automatic', webSearchEnabled: webOn },
   ).done;
   return store.getState().conversations[0].messages.find((m) => m.role === 'assistant')!;
 }
@@ -136,7 +142,7 @@ afterEach(() => {
 });
 
 describe('RL2-WEBPROBE-CHAT-02 delivered and citations resolved -> searched / observed', () => {
-  it('RL2-WEBPROBE-CHAT-02 chat_url_citation_searched writes searched / observed (hash = fragment of this turn)', async () => {
+  it('RL2-WEBPROBE-09 CHAT-02 chat_url_citation_searched writes searched / observed (hash = fragment of this turn)', async () => {
     replaceRelayWebFragments(provider.id, { [TRANSPORT]: FRAGMENT });
     respond = replay(evidence('chat_url_citation_searched'));
     const assistant = await send();
@@ -154,6 +160,31 @@ describe('RL2-WEBPROBE-CHAT-02 delivered and citations resolved -> searched / ob
     respond = replay(evidence('chat_url_citation_searched'));
     await send();
     expect(readRelayWebProbeRecord(key)).toMatchObject({ result: 'searched', source: 'observed' });
+  });
+});
+
+describe('RL2-WEBPROBE-02 telemetry matches what was actually sent', () => {
+  const webUsed = () => mocks.trackEvent.mock.calls.filter(([name]) => name === 'web_search_used').length;
+
+  it('RL2-WEBPROBE-02 switch on + current record rejected: web_search_used is not reported and the request body has no fragment', async () => {
+    replaceRelayWebFragments(provider.id, { [TRANSPORT]: FRAGMENT });
+    writeRelayWebProbeRecord(key, {
+      result: 'rejected', source: 'tested', at: '2026-10-14T12:00:00.000Z', fragmentHash: relayWebFragmentHash(FRAGMENT),
+    });
+    respond = replay(evidence('chat_text_only_silent'));
+    mocks.trackEvent.mockClear();
+    await send();
+    expect(sentBodies[0]).not.toHaveProperty('web_search_options');
+    expect(webUsed()).toBe(0);
+  });
+
+  it('RL2-WEBPROBE-02 switch on, untested: the fragment is attached and web_search_used is reported once', async () => {
+    replaceRelayWebFragments(provider.id, { [TRANSPORT]: FRAGMENT });
+    respond = replay(evidence('chat_text_only_silent'));
+    mocks.trackEvent.mockClear();
+    await send();
+    expect(sentBodies[0]).toMatchObject(FRAGMENT);
+    expect(webUsed()).toBe(1);
   });
 });
 
@@ -176,9 +207,9 @@ describe('RL2-WEBPROBE-CHAT-02 cases where nothing is written', () => {
     }
   });
 
-  it('RL2-WEBPROBE-CHAT-02 this turn carried no fragment: even with citations nothing is written', async () => {
+  it('RL2-WEBPROBE-CHAT-02 this turn carried no fragment (web switch off): even with citations nothing is written', async () => {
     respond = replay(evidence('chat_url_citation_searched'));
-    const assistant = await send();
+    const assistant = await send(provider, model, false);
     expect(assistant.state).toBe('delivered');
     expect(sentBodies[0]).not.toHaveProperty('web_search_options');
     expect(readRelayWebProbeRecord(key)).toBeUndefined();
@@ -206,7 +237,7 @@ describe('RL2-WEBPROBE-CHAT-02 uses the same protocol as the probe (the first-se
     expect(readRelayWebProbeRecord({ connectionId: autoProvider.id, modelId: claude.id, transport: TRANSPORT })).toBeUndefined();
   });
 
-  it('RL2-WEBPROBE-CHAT-02 first-send protocol rejected, after falling back to another protocol citations appear: this turn switched protocol, nothing written', async () => {
+  it('RL2-WEBPROBE-09 CHAT-02 first-send protocol rejected, citations appear after falling back to another protocol: searched / observed is written for the protocol actually used', async () => {
     rememberRelayCatalogEndpointTypes(autoProvider.id, { [claude.id]: ['anthropic', 'openai'] });
     replaceRelayWebFragments(autoProvider.id, { anthropic_messages: messagesFragment, openai_chat_completions: FRAGMENT });
     const queue = [replay(evidence('messages_415_rejected')), replay(evidence('chat_url_citation_searched'))];
@@ -216,9 +247,11 @@ describe('RL2-WEBPROBE-CHAT-02 uses the same protocol as the probe (the first-se
     // The fallback really happens: Messages is rejected first, then Chat delivers and brings back citations.
     expect(sentBodies).toHaveLength(2);
     expect(sentBodies[0]).toMatchObject(messagesFragment);
+    // The fallback recomputes for the target protocol: Chat carries Chat's effective fragment.
     expect(sentBodies[1]).toMatchObject(FRAGMENT);
     expect(assistant.citations?.length ?? 0).toBeGreaterThan(0);
     expect(readRelayWebProbeRecord({ connectionId: autoProvider.id, modelId: claude.id, transport: 'anthropic_messages' })).toBeUndefined();
-    expect(readRelayWebProbeRecord({ connectionId: autoProvider.id, modelId: claude.id, transport: TRANSPORT })).toBeUndefined();
+    expect(readRelayWebProbeRecord({ connectionId: autoProvider.id, modelId: claude.id, transport: TRANSPORT }))
+      .toMatchObject({ result: 'searched', source: 'observed', fragmentHash: relayWebFragmentHash(FRAGMENT) });
   });
 });

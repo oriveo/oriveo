@@ -8,7 +8,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIModel, Provider, RelayCapabilityOverrides, RelayModelTransport } from '@oriveo/shared';
-import type { RelayWebFragment } from '@oriveo/shared/relay/web-fragments';
+import { RELAY_WEB_FRAGMENT_TEMPLATES, type RelayWebFragment } from '@oriveo/shared/relay/web-fragments';
 import { relayWebFragmentHash } from '@oriveo/core/providers/relay-web-probe';
 import { createAppStore } from '../store/app-store';
 
@@ -26,7 +26,7 @@ import { saveRelayWebSearchSettings } from '../provider-ops';
 import { clearRelayLazyProbeStates, enableProviderModelWithProbe } from '../relay-model-probe-ops';
 import { runRelayWebProbe } from '../relay-web-probe-ops';
 import { __relayWebAutoProbesSettledForTest } from '../relay-web-probe-auto';
-import { replaceRelayWebFragments } from '../chat/relay-web-fragments';
+import { readStoredRelayWebFragments, replaceRelayWebFragments } from '../chat/relay-web-fragments';
 import {
   appendRelayWebProbeAutoHistory,
   readRelayWebProbeAutoHistory,
@@ -182,7 +182,7 @@ afterEach(async () => {
 /* ── RL2-WEBPROBE-WIRE-save ── */
 
 describe('relay web probe runs automatically after saving fragments', () => {
-  it('RL2-WEBPROBE-WIRE-save', async () => {
+  it('RL2-WEBPROBE-11 WIRE-save', async () => {
     const ids = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7'];
     const store = storeWith(makeProvider('openai_chat_completions', ids.map((id) => makeModel(id))));
     const hash = relayWebFragmentHash(CHAT_FRAGMENT);
@@ -256,7 +256,7 @@ describe('relay web probe runs once after the lazy verify passed', () => {
     });
   }
 
-  it('RL2-WEBPROBE-WIRE-enable lazy verify passed: one probe', async () => {
+  it('RL2-WEBPROBE-11 WIRE-enable lazy verify passed: one probe', async () => {
     replaceRelayWebFragments(PROVIDER_ID, { openai_chat_completions: CHAT_FRAGMENT });
     const store = storeWith(makeProvider('auto', [], [makeModel(MODEL)]));
     const probes = installFakeRelay({
@@ -299,7 +299,7 @@ describe('relay web probe runs once after the lazy verify passed', () => {
 /* ── RL2-WEBPROBE-OVERRIDE-clear ── */
 
 describe('tested web override mirrors the current record', () => {
-  it('RL2-WEBPROBE-OVERRIDE-clear a fragment change drops tested web, user-set kept', async () => {
+  it('RL2-WEBPROBE-10 OVERRIDE-clear a fragment change drops tested web, user-set kept', async () => {
     replaceRelayWebFragments(PROVIDER_ID, { openai_chat_completions: CHAT_FRAGMENT });
     const store = storeWith(makeProvider('openai_chat_completions', [
       makeModel('m1', { web: { value: true, source: 'tested' }, image: { value: true, source: 'user' } }),
@@ -378,5 +378,28 @@ describe('tested web override mirrors the current record', () => {
     expect(readRelayWebProbeRecord(chatKey('m1'))?.result).toBe('rejected');
     expect(overridesOf(store, 'm1')).toEqual({ web: { value: false, source: 'tested' } });
     expect(overridesOf(store, 'm2')).toEqual({ web: { value: true, source: 'user' } });
+  });
+});
+
+/* -- The template is the effective fragment -- */
+
+describe('saving a fragment equal to the template', () => {
+  const TEMPLATE = RELAY_WEB_FRAGMENT_TEMPLATES.openai_chat_completions;
+
+  it('RL2-WEBPROBE-02 the template-probe override survives saving the same fragment; probes still run for saved fragments', async () => {
+    const store = storeWith(makeProvider('openai_chat_completions', ['m1', 'm2'].map((id) => makeModel(id))));
+    const probes = installFakeRelay({ probe: evidence('chat_url_citation_searched') });
+
+    // Manual probe from the panel (template): writes the record and tested web.
+    const run = await runRelayWebProbe(store, PROVIDER_ID, 'm2', { now });
+    expect(run).toMatchObject({ outcome: 'completed', result: 'searched', webSource: 'template', overrideWritten: true });
+    expect(overridesOf(store, 'm2')).toEqual({ web: { value: true, source: 'tested' } });
+
+    // The web settings page saves the same fragment as the template: the effective fragment did not change, so tested web is not removed; saving is still one automatic event (the same-hash record already exists and is not deduplicated, per the selection rule).
+    expect(await saveRelayWebSearchSettings(store, store.getState().providers[0]!, { openai_chat_completions: TEMPLATE }, { now })).toBe(true);
+    expect(overridesOf(store, 'm2')).toEqual({ web: { value: true, source: 'tested' } });
+    await __relayWebAutoProbesSettledForTest();
+    expect(probes.map((item) => item.modelId)).toEqual(['m2', 'm1', 'm2']);
+    expect(overridesOf(store, 'm1')).toEqual({ web: { value: true, source: 'tested' } });
   });
 });

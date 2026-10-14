@@ -222,6 +222,50 @@ describe('relay shots shared sample manifest', () => {
     expect(Number.isFinite(Date.parse(stored.entries[0].at))).toBe(true);
   });
 
+  /** Builds the plan, writes it into the in-memory store and applies it; returns the web facts and presentation that production functions compute for the shot connection x page model. */
+  async function relayWebShot(page: string) {
+    const fence = await import('./relay-shots-fence');
+    uninstall = fence.installRelayShotsFence();
+    const data = await import('./relay-shots-data');
+    const { safeLocalStorage } = await import('../../../lib/infra/storage/web-storage');
+    const records = await import('../../../lib/core/chat/relay-web-probe-records');
+    const prefs = await import('../../../lib/core/chat/capability-preference-settings');
+    const manifest = loadManifest();
+    const plan = data.relayShotPlan(page as never, manifest);
+    for (const [key, value] of Object.entries(plan.localStorage)) safeLocalStorage.setItem(key, value);
+    data.applyRelayShotPlan(plan, fakeStore());
+    const relay = plan.providers[0]!;
+    const model = relay.models.find((item) => item.id === 'gpt-5.6-sol')!;
+    const facts = records.relayWebModelOptionFacts(relay, model);
+    const identity = prefs.capabilityPreferenceIdentity(relay, model)!;
+    const defaultWeb = records.relayWebPreferenceDefaultFor(relay, model);
+    const preference = prefs.displayRelayWebPreference({ ...(prefs.relayWebPreferenceIdentity(relay, model) ?? identity), ...(defaultWeb ? { defaultWeb } : {}) });
+    return { plan, manifest, model, facts, preference, presentation: records.resolveRelayWebPresentation(facts, preference) };
+  }
+
+  it('shotsManifestModelOptionsWeb: production panel host, a searched record under the template hash + preference on -> switch on, Search confirmed', async () => {
+    const { plan, manifest, facts, preference, presentation } = await relayWebShot('relayModelOptionsWeb');
+    expect(plan.target).toEqual({ kind: 'modelOptions', providerId: manifest.relay.id, modelId: 'gpt-5.6-sol' });
+    expect(facts).toMatchObject({ hasFragment: false, probe: 'searched' });
+    expect(preference).toBe('automatic');
+    expect(presentation).toMatchObject({ row: 'toggle', isOn: true, statusId: 'web_probe_searched' });
+  });
+
+  it('shotsManifestModelOptionsWebRejected: rejected under the template hash, preference unset -> switch is tappable and off, rejection copy, Test capabilities', async () => {
+    const { plan, facts, presentation } = await relayWebShot('relayModelOptionsWebRejected');
+    expect(plan.webPreferences).toEqual([]);
+    expect(facts).toMatchObject({ hasFragment: false, probe: 'rejected' });
+    expect(presentation).toMatchObject({ row: 'toggle', isOn: false, statusId: 'web_probe_rejected', retestLink: 'testCapabilities', replyNotice: null });
+  });
+
+  it('shotsManifestAdvancedWeb: relayAdvanced under the template hash with searched + tested override -> Search confirmed · Tested', async () => {
+    const { plan, model, presentation } = await relayWebShot('relayAdvanced');
+    expect(plan.target).toMatchObject({ kind: 'detail', query: '?view=advanced&model=gpt-5.6-sol' });
+    expect(model.relayCapabilityOverrides?.web).toEqual({ value: true, source: 'tested' });
+    expect(model.relayCapabilityOverrides?.image).toEqual({ value: true, source: 'tested' });
+    expect(presentation.advanced).toEqual({ statusId: 'web_probe_searched', source: 'tested' });
+  });
+
   it('shotsManifestValuesFollowManifest', async () => {
     const fence = await import('./relay-shots-fence');
     uninstall = fence.installRelayShotsFence();

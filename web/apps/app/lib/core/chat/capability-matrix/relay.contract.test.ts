@@ -31,6 +31,7 @@ vi.mock('../../metadata/metadata-client', async (importOriginal) => {
 import { __resetMetadataClientForTest, DEFAULT_RELAY_RUNTIME_CONFIG, lookupModelFamilyByModel } from '../../metadata/metadata-client';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent, filterRequestCapabilityIntent } from '../stream-options';
 import { RELAY_WEB_FRAGMENTS_STORAGE_KEY, saveRelayWebFragment } from '../relay-web-fragments';
+import { RELAY_WEB_FRAGMENT_TEMPLATES } from '@oriveo/shared/relay/web-fragments';
 import { relayCapabilityTestStreamOptions } from '../../relay-capability-test-ops';
 import { presentCapabilityControl } from '../capability-control-presentation';
 import { additionalBodyScope, withAdditionalBody } from '../additional-body-settings';
@@ -128,35 +129,52 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('RELAY x web search (connection-level fragment)', () => {
-  it('CAP-RELAY-WEB-01 fragment stored -> the production path request body merges into the fragment per mergeCases (independent of the chat web search preference)', async () => {
+/** The chat web switch is on (the web intent after the outbound gate). */
+const WEB_ON = { supportsWebSearch: true } as StreamOptions;
+
+describe('RELAY x web search (chat switch + effective fragment)', () => {
+  it('CAP-RELAY-WEB-01 fragment stored -> with the switch on, the production path request body merges the fragment per mergeCases; with it off, nothing is carried', async () => {
     const chat = relayProvider('relay-web-01', { transport: 'openai_chat_completions' });
     expect(saveRelayWebFragment(chat.id, 'openai_chat_completions', '{"plugins":[{"id":"web","max_results":5}]}').ok).toBe(true);
-    const chatBody = await outboundBody(chat, relayModel(), { supportsWebSearch: false });
+    const chatBody = await outboundBody(chat, relayModel(), WEB_ON);
     expect(chatBody.plugins).toEqual([{ id: 'web', max_results: 5 }]);
     expect(chatBody.model).toBe('relay-model');
+    expect(await outboundBody(chat, relayModel(), { supportsWebSearch: false })).not.toHaveProperty('plugins');
 
     const responses = relayProvider('relay-web-01b', { transport: 'openai_responses' });
     expect(saveRelayWebFragment(responses.id, 'openai_responses', '{"tools":[{"type":"web_search"}]}').ok).toBe(true);
-    const responsesBody = await outboundBody(responses, relayModel());
+    const responsesBody = await outboundBody(responses, relayModel(), WEB_ON);
     // tools are appended after the builder's own tools.
     expect(responsesBody.tools).toEqual([{ type: 'image_generation' }, { type: 'web_search' }]);
   });
 
-  it('CAP-RELAY-WEB-02 no fragment and no legacy field -> the request body has no web search fields (even with the preference on and the model inheriting the official web profile)', async () => {
+  it('CAP-RELAY-WEB-02 no stored fragment and no legacy field: switch off -> no web search fields at all; switch on -> only the template of that protocol (even when the model inherits the official web profile)', async () => {
     const inherited = relayModel({ capabilities: ['text', 'web'], webSearchProfile: 'oai_responses_web' });
     const wantsWeb: StreamOptions = { supportsWebSearch: true, capabilityPreferences: { web: 'automatic' } } as StreamOptions;
+    const noWeb: StreamOptions = { supportsWebSearch: false, capabilityPreferences: { web: 'off' } } as StreamOptions;
     for (const transport of ['openai_responses', 'gemini_generate_content', 'openai_chat_completions', 'anthropic_messages'] as const) {
-      const body = await outboundBody(relayProvider(`relay-web-02-${transport}`, { transport }), inherited, wantsWeb);
-      expect(webToolsOf(body), transport).toEqual([]);
-      for (const field of WEB_FIELDS) expect(body, `${transport}.${field}`).not.toHaveProperty(field);
+      const off = await outboundBody(relayProvider(`relay-web-02-${transport}`, { transport }), inherited, noWeb);
+      expect(webToolsOf(off), transport).toEqual([]);
+      for (const field of WEB_FIELDS) expect(off, `${transport}.${field}`).not.toHaveProperty(field);
+
+      const on = await outboundBody(relayProvider(`relay-web-02-${transport}`, { transport }), inherited, wantsWeb);
+      const template = RELAY_WEB_FRAGMENT_TEMPLATES[transport] as Record<string, unknown>;
+      for (const [key, value] of Object.entries(template)) {
+        if (Array.isArray(value)) {
+          expect(on[key], `${transport}.${key}`).toEqual(expect.arrayContaining(value));
+          // Only the template's web tool is present; the official web profile is not injected on top.
+          expect(webToolsOf(on).length, transport).toBe(value.length);
+        } else {
+          expect(on[key], `${transport}.${key}`).toEqual(value);
+        }
+      }
     }
   });
 
   it('CAP-RELAY-WEB-03 legacy connection hasWebSearch=true, no profile, Responses -> request body same as the template, and the stored connection config is not rewritten', async () => {
     const provider = relayProvider('relay-web-03', { transport: 'openai_responses', hasWebSearch: true });
     const before = structuredClone(provider.relayRequested);
-    const body = await outboundBody(provider, relayModel());
+    const body = await outboundBody(provider, relayModel(), WEB_ON);
     expect(body.tools).toEqual([{ type: 'image_generation' }, { type: 'web_search' }]);
     expect(provider.relayRequested).toEqual(before);
     expect(localStorage.getItem(RELAY_WEB_FRAGMENTS_STORAGE_KEY)).toBeNull();
@@ -165,14 +183,14 @@ describe('RELAY x web search (connection-level fragment)', () => {
   it('test-capability requests do not carry the connection-level fragment', () => {
     const provider = relayProvider('relay-web-test', { transport: 'openai_chat_completions' });
     saveRelayWebFragment(provider.id, 'openai_chat_completions', '{"web_search_options":{}}');
-    expect(buildProviderStreamOptions(provider, undefined, relayModel())?.relayWebFragment).toEqual({ web_search_options: {} });
+    expect(buildProviderStreamOptions(provider, WEB_ON, relayModel())?.relayWebFragment).toEqual({ web_search_options: {} });
     expect(relayCapabilityTestStreamOptions(provider, relayModel(), 'toolCall').relayWebFragment).toBeUndefined();
   });
 
   it('local engine connections do not read the fragment', () => {
     const provider = relayProvider('relay-web-local', { transport: 'openai_chat_completions', engineProfile: 'ollama' });
     saveRelayWebFragment(provider.id, 'openai_chat_completions', '{"web_search_options":{}}');
-    expect(buildProviderStreamOptions(provider, undefined, relayModel())?.relayWebFragment).toBeUndefined();
+    expect(buildProviderStreamOptions(provider, WEB_ON, relayModel())?.relayWebFragment).toBeUndefined();
   });
 });
 

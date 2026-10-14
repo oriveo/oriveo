@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIModel, Provider, RelayCapabilityOverrides, RelayModelTransport } from '@oriveo/shared';
-import type { RelayWebTransport } from '@oriveo/shared/relay/web-fragments';
+import { RELAY_WEB_FRAGMENT_TEMPLATES, type RelayWebTransport } from '@oriveo/shared/relay/web-fragments';
 import { relayWebFragmentHash } from '@oriveo/core/providers/relay-web-probe';
 import { createAppStore } from '../store/app-store';
 
@@ -13,8 +13,9 @@ vi.mock('../sync', async (importOriginal) => ({
   getSyncAdapter: () => mockGetSyncAdapter(),
 }));
 
-import { runRelayWebProbe } from '../relay-web-probe-ops';
-import { replaceRelayWebFragments } from '../chat/relay-web-fragments';
+import { relayWebProbeSource, runRelayWebProbe } from '../relay-web-probe-ops';
+import { relayCapabilityTestPlan } from '../relay-capability-test-ops';
+import { readStoredRelayWebFragments, replaceRelayWebFragments } from '../chat/relay-web-fragments';
 import {
   clearRelayWebProbeRecordsConnection,
   currentRelayWebProbeRecord,
@@ -162,7 +163,7 @@ afterEach(() => {
 
 describe('relay web probe request (one streaming request, chat builder + saved fragment)', () => {
   for (const shape of fixture.requestShapes) {
-    it(`RL2-WEBPROBE-SHAPE-${shape.caseId}`, async () => {
+    it(`RL2-WEBPROBE-03 SHAPE-${shape.caseId}`, async () => {
       replaceRelayWebFragments(PROVIDER_ID, { [shape.transport]: shape.fragment });
       const store = storeWith(makeProvider(shape.transport, makeModel(MODEL_ID)));
       const searched = fixture.evidenceCases.find((item) => item.transport === shape.transport && item.caseId.endsWith('_searched'))!;
@@ -181,22 +182,58 @@ describe('relay web probe request (one streaming request, chat builder + saved f
       expect(request.body.stream ?? true).toBe(true);
     });
   }
+});
 
-  it('RL2-WEBPROBE-SHAPE no fragment for the effective transport: not listed, zero requests', async () => {
+/* -- When the first-send protocol has no stored fragment, the panel web item probes with that protocol's built-in template; the template is the effective fragment, so the record and web override are written and no fragment is stored -- */
+
+describe('relay web probe with the default settings (template)', () => {
+  const key = { connectionId: PROVIDER_ID, modelId: MODEL_ID, transport: 'openai_chat_completions' };
+  const TEMPLATE = RELAY_WEB_FRAGMENT_TEMPLATES.openai_chat_completions;
+
+  it('RL2-WEBPROBE-01 no saved fragment: web listed, request carries the template, web override written', async () => {
+    // Fragments of other protocols do not count.
     replaceRelayWebFragments(PROVIDER_ID, { anthropic_messages: { tools: [{ type: 'web_search_20250305', name: 'web_search' }] } });
-    const store = storeWith(makeProvider('openai_chat_completions', makeModel(MODEL_ID)));
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const store = storeWith(makeProvider('openai_chat_completions', makeModel(MODEL_ID, { image: { value: true, source: 'user' } })));
+    const provider = store.getState().providers[0]!;
+    expect(relayCapabilityTestPlan(savedModel(store), provider)).toEqual(['text', 'toolCall', 'web']);
+    expect(relayWebProbeSource(provider, savedModel(store))).toBe('template');
+    const captured = installFakeRelay(evidenceCase('chat_url_citation_searched'));
 
     const run = await runRelayWebProbe(store, PROVIDER_ID, MODEL_ID, { now });
 
-    expect(run.outcome).toBe('not_listed');
-    expect(fetchSpy).not.toHaveBeenCalled();
-    expect(readRelayWebProbeRecord({ connectionId: PROVIDER_ID, modelId: MODEL_ID, transport: 'openai_chat_completions' })).toBeUndefined();
+    expect(run).toMatchObject({ outcome: 'completed', result: 'searched', webSource: 'template', overrideWritten: true });
+    expect(captured).toHaveLength(1);
+    expect(isSubset(TEMPLATE, captured[0]!.body)).toBe(true);
+    expect(captured[0]!.body.web_search_options).toEqual({});
+    expect(captured[0]!.raw.includes(fixture.request.prompt)).toBe(true);
+    // Record hash = the template's canonical hash; the template is the effective fragment, so this is the current record; the web override is written from it (tested) and no fragment is stored.
+    const record = { result: 'searched', source: 'tested', at: NOW_ISO, fragmentHash: relayWebFragmentHash(TEMPLATE) };
+    expect(readRelayWebProbeRecord(key)).toEqual(record);
+    expect(currentRelayWebProbeRecord(key, TEMPLATE)).toEqual(record);
+    expect(savedModel(store).relayCapabilityOverrides).toEqual({
+      image: { value: true, source: 'user' }, web: { value: true, source: 'tested' },
+    });
+    expect(readStoredRelayWebFragments(PROVIDER_ID).openai_chat_completions).toBeUndefined();
+  });
+
+  it('RL2-WEBPROBE-01 a saved fragment is used instead of the template', async () => {
+    const saved = { web_search_options: { search_context_size: 'low' } };
+    replaceRelayWebFragments(PROVIDER_ID, { openai_chat_completions: saved });
+    const store = storeWith(makeProvider('openai_chat_completions', makeModel(MODEL_ID)));
+    expect(relayWebProbeSource(store.getState().providers[0]!, savedModel(store))).toBe('saved');
+    const captured = installFakeRelay(evidenceCase('chat_url_citation_searched'));
+
+    const run = await runRelayWebProbe(store, PROVIDER_ID, MODEL_ID, { now });
+
+    expect(run).toMatchObject({ outcome: 'completed', result: 'searched', webSource: 'saved', overrideWritten: true });
+    expect(captured[0]!.body.web_search_options).toEqual({ search_context_size: 'low' });
+    expect(readRelayWebProbeRecord(key)?.fragmentHash).toBe(relayWebFragmentHash(saved));
+    expect(savedModel(store).relayCapabilityOverrides).toEqual({ web: { value: true, source: 'tested' } });
   });
 });
 
 describe('relay web probe forms', () => {
-  it('RL2-WEBPROBE-FORMS no probe outside RELAY', async () => {
+  it('RL2-WEBPROBE-13 FORMS no probe outside RELAY', async () => {
     expect(fixture.forms.probe).toEqual(['RELAY']);
     const nonRelay: Record<string, Partial<Provider>> = {
       BYOK: { kind: 'openai', relayKind: undefined },
@@ -227,7 +264,7 @@ describe('relay web probe override and record', () => {
     return { run, store };
   }
 
-  it('RL2-WEBPROBE-OVERRIDE searched writes web {true, tested} and a tested record', async () => {
+  it('RL2-WEBPROBE-10 OVERRIDE searched writes web {true, tested} and a tested record', async () => {
     const { run, store } = await probe('chat_url_citation_searched', { image: { value: true, source: 'user' } });
     expect(run.result).toBe('searched');
     expect(run.evidenceUrls).toEqual(['https://news.example.com/top']);

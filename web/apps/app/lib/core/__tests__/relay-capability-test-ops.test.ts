@@ -154,6 +154,11 @@ function installFakeRelay(s: Scenario, onRequest?: (kind: Kind) => void): Captur
   const captured: Captured[] = [];
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const raw = String(init?.body ?? '');
+    // The first-send protocol being decided is enough to list the web item (the template is used when no fragment is stored). This group only measures text / vision / tools,
+    // the web probe answers 500 (undecidable: no record, no override change) and is not counted in requests; the web item is covered separately in RD4-WEB.
+    if (raw.includes(webFixture.request.prompt)) {
+      return new Response('{"error":{"message":"down"}}', { status: 500, headers: { 'Content-Type': 'application/json' } });
+    }
     const kind = kindOf(raw);
     captured.push({ kind, url: upstreamOf(input, init), raw, body: JSON.parse(raw), headers: headersOf(init) });
     onRequest?.(kind);
@@ -288,9 +293,11 @@ describe('RL2-PROBE-06 T3 capability test executor (streaming, same path as chat
 
     const result = await runRelayCapabilityTest(store, PROVIDER_ID, s.model, { onProgress: (event) => progress.push(event) });
 
-    expect(result.plan).toEqual(['text', 'image', 'toolCall']);
-    expect(progress.map((event) => event.running)).toEqual(['text', null, 'image', null, 'toolCall', null]);
-    expect(Object.keys(progress.at(-1)!.results)).toEqual(['text', 'image', 'toolCall']);
+    // The web item (listed once the first-send protocol is decided; the template is used when no fragment is stored) goes last.
+    expect(result.plan).toEqual(['text', 'image', 'toolCall', 'web']);
+    expect(result.webSource).toBe('template');
+    expect(progress.map((event) => event.running)).toEqual(['text', null, 'image', null, 'toolCall', null, 'web', null]);
+    expect(Object.keys(progress.at(-1)!.results)).toEqual(['text', 'image', 'toolCall', 'web']);
     expect(result.results.text).toMatchObject({ verdict: 'accepted', reason: 'ok', status: 200 });
     expect(typeof result.results.text?.elapsedMs).toBe('number');
     expect(result.written).toBe(true);
@@ -322,11 +329,11 @@ describe('RL2-PROBE-06 T3 capability test executor (streaming, same path as chat
     expect(canTestRelayModelCapabilities(local, model)).toBe(false);
   });
 
-  it('RL2-PROBE-06 both items are user overrides, or the effective protocol is not one of the four: no entry', () => {
+  it('RL2-PROBE-06 the effective protocol is not one of the four: no entry; when both items are user overrides the web item can still be listed: entry remains', () => {
     const allUser = makeModel('m', { image: { value: true, source: 'user' }, toolCall: { value: false, source: 'user' } });
     const oneUser = makeModel('m', { image: { value: true, source: 'user' } });
     const llama = { ...makeModel('m'), relayTransport: 'llamacpp_native' as const, relayTransportSource: 'user' as const };
-    expect(canTestRelayModelCapabilities(makeProvider('openai_chat_completions', allUser), allUser)).toBe(false);
+    expect(canTestRelayModelCapabilities(makeProvider('openai_chat_completions', allUser), allUser)).toBe(true);
     expect(canTestRelayModelCapabilities(makeProvider('openai_chat_completions', oneUser), oneUser)).toBe(true);
     expect(canTestRelayModelCapabilities(makeProvider('openai_chat_completions', llama), llama)).toBe(false);
     expect(canTestRelayModelCapabilities(makeProvider('llamacpp_native', makeModel('m')), makeModel('m'))).toBe(false);
@@ -671,28 +678,26 @@ describe('RD4-WEB test panel 4th item: web', () => {
     return readRelayWebProbeAutoHistory();
   }
 
-  it('RD4-WEB-01 first-send protocol has a stored fragment: the web column is listed last; no fragment, not listed', () => {
+  it('RD4-WEB-01 the web item is listed once the first-send protocol is decided (last); listed whether or not a fragment is stored (the template is used when none is)', () => {
     const model = makeModel('m');
     const provider = makeProvider('openai_chat_completions', model);
-    expect(relayCapabilityTestPlan(model, provider)).toEqual(['text', 'image', 'toolCall']);
+    expect(relayCapabilityTestPlan(model, provider)).toEqual(['text', 'image', 'toolCall', 'web']);
     replaceRelayWebFragments(PROVIDER_ID, { openai_chat_completions: WEB_CHAT_FRAGMENT });
     expect(relayCapabilityTestPlan(model, provider)).toEqual(['text', 'image', 'toolCall', 'web']);
     const allUser = makeModel('m', { image: { value: true, source: 'user' }, toolCall: { value: false, source: 'user' } });
     expect(relayCapabilityTestPlan(allUser, makeProvider('openai_chat_completions', allUser))).toEqual(['text', 'web']);
-    // Fragments of other protocols do not count.
+    // Only another protocol has a fragment: still listed (this protocol's template is used).
     replaceRelayWebFragments(PROVIDER_ID, { openai_responses: { tools: [{ type: 'web_search' }] } });
-    expect(relayCapabilityTestPlan(model, provider)).toEqual(['text', 'image', 'toolCall']);
+    expect(relayCapabilityTestPlan(model, provider)).toEqual(['text', 'image', 'toolCall', 'web']);
   });
 
-  it('RD4-WEB-01b vision and tools are both set by the user but web can still be listed (first-send protocol has a stored fragment): entry remains; without a fragment there is none', () => {
+  it('RD4-WEB-01b vision and tools are both set by the user: the entry remains as long as web can be listed (first-send protocol decided)', () => {
     const allUser = makeModel('m', { image: { value: true, source: 'user' }, toolCall: { value: false, source: 'user' } });
     const provider = makeProvider('openai_chat_completions', allUser);
-    expect(canTestRelayModelCapabilities(provider, allUser)).toBe(false);
-    replaceRelayWebFragments(PROVIDER_ID, { openai_chat_completions: WEB_CHAT_FRAGMENT });
     expect(canTestRelayModelCapabilities(provider, allUser)).toBe(true);
     expect(relayCapabilityTestPlan(allUser, provider)).toEqual(['text', 'web']);
-    replaceRelayWebFragments(PROVIDER_ID, { openai_responses: { tools: [{ type: 'web_search' }] } });
-    expect(canTestRelayModelCapabilities(provider, allUser)).toBe(false);
+    replaceRelayWebFragments(PROVIDER_ID, { openai_chat_completions: WEB_CHAT_FRAGMENT });
+    expect(canTestRelayModelCapabilities(provider, allUser)).toBe(true);
   });
 
   it('RD4-WEB-02 step 4 runs the manual web probe: not in auto history, not blocked by cap / dedupe, searched writes the web override and counts as written', async () => {

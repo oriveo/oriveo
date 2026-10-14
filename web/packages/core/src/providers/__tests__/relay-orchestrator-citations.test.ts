@@ -90,7 +90,7 @@ describe('relay orchestrator citations (web-probe evidence)', () => {
   });
 
   for (const c of streamCases) {
-    it(`RL2-WEBPROBE-CITE-${c.caseId}`, async () => {
+    it(`RL2-WEBPROBE-09 CITE-${c.caseId}`, async () => {
       const body = `${(c.sse ?? []).join('\n')}\n`;
       const urls = await citedUrls(c.transport, body);
       expect(urls).toEqual(c.expect.result === 'silent' ? [] : c.expect.evidenceUrls ?? []);

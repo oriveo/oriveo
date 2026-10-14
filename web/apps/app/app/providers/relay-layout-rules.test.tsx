@@ -195,6 +195,58 @@ describe('RL2-LAYOUT-TRAILING whole-row vertical-center anchor', () => {
   });
 });
 
+function walkTSX(dir: string): string[] {
+  const out: string[] = [];
+  for (const name of readdirSync(path.join(ROOT, dir))) {
+    const rel = path.posix.join(dir, name);
+    if (statSync(path.join(ROOT, rel)).isDirectory()) out.push(...walkTSX(rel));
+    else if (name.endsWith('.tsx') && !name.includes('.test.')) out.push(rel);
+  }
+  return out;
+}
+
+describe('RL2-LAYOUT-ROW-10 the leading icon is vertically centered against the whole "title + footnote" block', () => {
+  it('RL2-LAYOUT-ROW-10 a horizontal left column (icon + text) uses align-items: center and no flex-start; data-row-lead="top" is exempt', () => {
+    const problems: string[] = [];
+    const checked: string[] = [];
+    let leads = 0;
+    let paired = 0;
+    for (const file of SCOPE_DIRS.flatMap(walkTSX)) {
+      const source = read(file);
+      leads += [...source.matchAll(/data-row-lead(?![-\w])/g)].length;
+      const imports = new Map(
+        [...source.matchAll(/import\s+(\w+)\s+from\s+'([^']+\.module\.css)'/g)].map((m) => [m[1]!, m[2]!]),
+      );
+      for (const m of source.matchAll(/className=\{(\w+)\.(\w+)\}\s+data-row-lead(="top")?(?![-\w])/g)) {
+        paired += 1;
+        if (m[3]) continue;
+        const cssPath = imports.get(m[1]!);
+        if (!cssPath) {
+          problems.push(`${file}: ${m[1]}.${m[2]} style import not found`);
+          continue;
+        }
+        const cssFile = path.posix.join(path.posix.dirname(file), cssPath);
+        const body = cssRule(read(cssFile), `.${m[2]}`);
+        if (!body) {
+          problems.push(`${cssFile}: missing standalone rule for .${m[2]}`);
+          continue;
+        }
+        // A vertical left column (only title / value lines, no leading icon) is out of scope for this gate.
+        if (/flex-direction:\s*column/.test(body)) continue;
+        checked.push(`${cssFile} .${m[2]}`);
+        if (!/align-items:\s*center\s*;/.test(body) || /flex-start/.test(body)) {
+          problems.push(`${cssFile}: .${m[2]} pins the leading icon to the title row (use align-items: center, or mark data-row-lead="top" in the TSX)`);
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+    // Every data-row-lead must be recognized by the pattern above, so a broken scan cannot go silently green.
+    expect(paired).toBe(leads);
+    // Lower bound: the edit-connection .rowLead and the connection-security .lead.
+    expect(checked.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
 describe('RL2-LAYOUT-ROW in-row layout (production component DOM)', () => {
   /*
    * jsdom does no layout, and the earlier version only asserted DOM ownership: at 430 width the `.modelRow` flex-wrap still wrapped the trailing column onto a third line

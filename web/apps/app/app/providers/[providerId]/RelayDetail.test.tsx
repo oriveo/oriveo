@@ -1110,11 +1110,12 @@ describe('RelayDetail', () => {
       );
       expect(screen.queryByText('capabilityTest.confirmMessage')).toBeNull();
       const dialog = panelDialog();
-      expect(within(dialog).getByText('capabilityTest.panel.progress({"current":1,"total":3})')).toBeTruthy();
+      // The web item is listed as soon as the first-send protocol is decided: 4 items, and the footer uses the copy that includes web search.
+      expect(within(dialog).getByText('capabilityTest.panel.progress({"current":1,"total":4})')).toBeTruthy();
       expect(within(dialog).getByText('capabilityTest.panel.runningText')).toBeTruthy();
-      expect(within(dialog).getByText('capabilityTest.panel.info({"count":3})')).toBeTruthy();
+      expect(within(dialog).getByText('capabilityTest.panel.infoWeb({"count":4})')).toBeTruthy();
       expect(within(dialog).getByText('Chat')).toBeTruthy();
-      expect(within(dialog).getAllByText('capabilityTest.panel.waiting')).toHaveLength(2);
+      expect(within(dialog).getAllByText('capabilityTest.panel.waiting')).toHaveLength(3);
 
       fireEvent.click(dialog.querySelector('[data-captest-backdrop]')!);
       fireEvent.keyDown(document, { key: 'Escape' });
@@ -1149,7 +1150,32 @@ describe('RelayDetail', () => {
       expect(screen.queryByRole('dialog')).toBeNull();
     });
 
-    it('text did not pass: the remaining items read "Not tested: text did not pass"', async () => {
+    it('RD4-PANEL default settings find search: the override is written, no "turn on web search" action', async () => {
+      mockRunRelayCapabilityTest.mockReset();
+      mockRunRelayCapabilityTest.mockResolvedValue({
+        outcome: 'completed',
+        plan: ['text', 'image', 'toolCall', 'web'],
+        webSource: 'template',
+        items: { image: 'undetermined', toolCall: 'undetermined' },
+        results: {
+          text: { verdict: 'accepted', reason: 'ok', status: 200, elapsedMs: 500 },
+          image: { verdict: 'undetermined', reason: 'rate_limited', status: 429, elapsedMs: 300 },
+          toolCall: { verdict: 'undetermined', reason: 'rate_limited', status: 429, elapsedMs: 300 },
+          web: { verdict: 'searched', reason: 'ok', status: 200, elapsedMs: 4100 },
+        },
+        written: true,
+      });
+      render(<RelayDetail provider={{ ...provider, models: [relayModel] }} />);
+      openAdvancedPage();
+      fireEvent.click(screen.getByRole('button', { name: 'capabilityTest.action' }));
+
+      const done = await screen.findByText('capabilityTest.panel.footerSaved');
+      expect(done).toBeTruthy();
+      expect(within(panelDialog()).getByText('modelOptionsRelayWebSearchConfirmed')).toBeTruthy();
+      expect(within(panelDialog()).queryAllByRole('button').map((button) => button.textContent)).toEqual(['done']);
+    });
+
+    it('RL2-PROBE-06 text did not pass: the remaining items read "Not tested: text did not pass"', async () => {
       mockRunRelayCapabilityTest.mockReset();
       mockRunRelayCapabilityTest.mockResolvedValue({
         outcome: 'text_failed',
@@ -1180,7 +1206,7 @@ describe('RelayDetail', () => {
       expect(signal.aborted).toBe(true);
       expect(within(panelDialog()).getByText('capabilityTest.panel.stoppedBadge')).toBeTruthy();
       expect(within(panelDialog()).getByText('capabilityTest.panel.stopped({"reason":"capabilityTest.panel.stopCancelled"})')).toBeTruthy();
-      expect(within(panelDialog()).getAllByText('capabilityTest.panel.notTested')).toHaveLength(3);
+      expect(within(panelDialog()).getAllByText('capabilityTest.panel.notTested')).toHaveLength(4);
 
       await act(async () => {
         finish({ outcome: 'completed', plan: ['text', 'image', 'toolCall'], items: {}, results: {}, written: true });
@@ -1243,14 +1269,14 @@ describe('RelayDetail', () => {
       expect(screen.getByRole('button', { name: 'done' })).toBeTruthy();
     });
 
-    it('vision and tools both already have a user override: no test-capability entry', () => {
+    it('RL2-PROBE-06 vision and tools both already have a user override: the web item is still listed (first-send protocol decided), so the entry remains', () => {
       const userModel: AIModel = {
         ...relayModel,
         relayCapabilityOverrides: { image: { value: true, source: 'user' }, toolCall: { value: true, source: 'user' } },
       };
       render(<RelayDetail provider={{ ...provider, models: [userModel] }} />);
       openAdvancedPage();
-      expect(screen.queryByRole('button', { name: 'capabilityTest.action' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'capabilityTest.action' })).not.toBeNull();
     });
 
     // A local-engine connection gets no entry: the entry condition is canTestRelayModelCapabilities, and the scope assertion lives in relay-capability-test-ops.test.ts.

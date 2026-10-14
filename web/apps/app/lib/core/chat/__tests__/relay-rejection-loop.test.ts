@@ -51,6 +51,7 @@ import {
 } from '../../providers/capability-evidence-identity';
 import { getActiveUIDSync } from '../../../infra/storage/partition';
 import { relayModelAdvancedBoard } from '../../../../app/providers/[providerId]/relay-model-advanced-board';
+import { replaceRelayWebFragments } from '../relay-web-fragments';
 
 /** The cached by-model family table (the first-send protocol reads only it); models not registered go through the production lookup as usual. */
 const families = vi.hoisted(() => new Map<string, string>());
@@ -190,8 +191,8 @@ function userMessage(attachments?: Attachment[]): ChatMessage {
 
 const imageAttachment = { id: 'img-1', kind: 'image', mimeType: 'image/png', base64Data: IMAGE_B64 } as Attachment;
 
-function streamOptionsFor(provider: Provider, relayModel: AIModel) {
-  return buildProviderStreamOptions(provider, buildStreamOptionsFromIntent(relayModel, 'automatic', false), relayModel);
+function streamOptionsFor(provider: Provider, relayModel: AIModel, webOn = false) {
+  return buildProviderStreamOptions(provider, buildStreamOptionsFromIntent(relayModel, 'automatic', webOn), relayModel);
 }
 
 async function drain(stream: ReadableStream<StreamEvent>): Promise<StreamEvent[]> {
@@ -209,8 +210,9 @@ async function sendRelay(
   provider: Provider,
   relayModel: AIModel,
   message: ChatMessage,
+  webOn = false,
 ) {
-  const streamOptions = streamOptionsFor(provider, relayModel);
+  const streamOptions = streamOptionsFor(provider, relayModel, webOn);
   const messages = withoutUnreceivableImages([message], provider, relayModel, streamOptions);
   const history = await buildOutboundChatHistory({}, { messages, provider, model: relayModel, streamOptions });
   // Same decision as the send / continue send paths: computed from the original attachments before entering the loop (attachment criteria).
@@ -872,6 +874,24 @@ describe('RL2-FIRSTSEND first send of an unverified model goes through the first
     expect(sent[0]!.url).toMatch(/\/messages$/);
     expect(errorsOf(result.events)).toEqual([expect.objectContaining({ status: 400 })]);
     expect(other.store.getState().providers[0]!.models[0]!.relayTransport).toBeUndefined();
+  });
+
+  it('RL2-WEBPROBE-02 with web search on: the first send on Messages carries the Messages fragment; falling back to Chat carries the effective fragment of Chat', async () => {
+    const relayModel = model('claude-web-fallback');
+    families.set(relayModel.id, 'anthropic');
+    const { store, provider } = setup([relayModel], AUTO);
+    const messagesFragment = { tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }] };
+    replaceRelayWebFragments(provider.id, {
+      anthropic_messages: messagesFragment,
+      openai_chat_completions: { web_search_options: { search_context_size: 'high' } },
+    });
+    responders = [reject(404), chatOk('SWITCHED')];
+    const { events } = await sendRelay(store, provider, relayModel, userMessage(), true);
+    expect(textOf(events)).toBe('SWITCHED');
+    expect(sent.map((item) => item.url)).toEqual([expect.stringMatching(/\/messages$/), expect.stringMatching(/\/chat\/completions$/)]);
+    expect((JSON.parse(sent[0]!.body) as { tools?: unknown[] }).tools).toEqual(expect.arrayContaining(messagesFragment.tools));
+    expect(JSON.parse(sent[1]!.body)).toHaveProperty('web_search_options', { search_context_size: 'high' });
+    replaceRelayWebFragments(provider.id, {});
   });
 
   it('RL2-FIRSTSEND-03 unknown family -> /chat/completions, success does not write the protocol', async () => {

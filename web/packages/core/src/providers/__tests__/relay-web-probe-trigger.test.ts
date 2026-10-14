@@ -87,7 +87,7 @@ describe('relay web probe automatic trigger selection', () => {
   });
 
   for (const c of fixture.triggerCases) {
-    it(`RL2-WEBPROBE-TRIG-${c.caseId}`, () => {
+    it(`RL2-WEBPROBE-07 TRIG-${c.caseId}`, () => {
       const selection = selectRelayWebProbes({
         form: c.form,
         event: toEvent(c.event),

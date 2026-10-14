@@ -56,7 +56,7 @@ const fixture = JSON.parse(readFileSync(FIXTURE_PATH, 'utf8')) as WebProbeFixtur
 
 describe('relay web probe judgement (web-probe.v1.json)', () => {
   for (const c of fixture.evidenceCases) {
-    it(`RL2-WEBPROBE-EV-${c.caseId}`, async () => {
+    it(`RL2-WEBPROBE-04 EV-${c.caseId}`, async () => {
       const verdict = await judgeRelayWebProbeResponse(
         c.transport,
         c.status === null
@@ -72,7 +72,7 @@ describe('relay web probe judgement (web-probe.v1.json)', () => {
   }
 
   for (const [key, recording] of Object.entries(fixture.gatewayRecordings)) {
-    it(`RL2-WEBPROBE-GW-${key}`, async () => {
+    it(`RL2-WEBPROBE-09 GW-${key}`, async () => {
       // The gateway's verbatim output has only data lines with no blank lines between them: each line becomes its own frame.
       const body = recording.response.sse.map((line) => `${line}\n\n`).join('');
       const verdict = await judgeRelayWebProbeResponse(recording.expect.transport, {
@@ -88,7 +88,7 @@ describe('relay web probe judgement (web-probe.v1.json)', () => {
 
 describe('relay web fragment hash', () => {
   for (const c of fixture.fragmentHash.cases) {
-    it(`RL2-WEBPROBE-HASH-${c.caseId}`, () => {
+    it(`RL2-WEBPROBE-05 HASH-${c.caseId}`, () => {
       expect(canonicalRelayWebFragmentJSON(c.fragment)).toBe(c.canonical);
       expect(relayWebFragmentHash(c.fragment)).toBe(c.sha256);
     });
@@ -98,7 +98,7 @@ describe('relay web fragment hash', () => {
 describe('relay web probe record merge', () => {
   const AT = '2026-10-13T12:00:00.000Z';
   for (const c of fixture.record.mergeCases) {
-    it(`RL2-WEBPROBE-MERGE-${c.caseId}`, () => {
+    it(`RL2-WEBPROBE-06 MERGE-${c.caseId}`, () => {
       const merged = mergeRelayWebProbeRecord(
         c.existing ? { ...c.existing, at: '2026-10-12T12:00:00.000Z' } : null,
         { ...c.incoming, at: AT },

@@ -430,7 +430,7 @@ describe('RL2-WEBPROBE-RETEST rejected area and re-test', () => {
     probe.run.mockReset();
   });
 
-  it('RL2-WEBPROBE-RETEST lists only enabled models recorded as rejected under the current snippet, in enable order; row = model name + Test again', () => {
+  it('RL2-WEBPROBE-12 RETEST lists only enabled models recorded as rejected under the current fragment, in enable order; row = model name + Test again', () => {
     const { container } = renderPage(seed('ws-rt1'));
     const section = container.querySelector('[data-relay-web-rejected]') as HTMLElement;
     expect(section).toBeTruthy();

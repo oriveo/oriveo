@@ -19,6 +19,7 @@ interface PanelCase {
   running?: RelayCapabilityTestPanelInput['running'];
   written?: boolean;
   stopReason?: RelayCapabilityTestPanelInput['stopReason'];
+  webSource?: RelayCapabilityTestPanelInput['webSource'];
   expect: Record<string, unknown>;
 }
 
@@ -85,6 +86,8 @@ const ANDROID_TO_WEB: Record<string, string> = {
   model_options_relay_web_search_confirmed: 'common:modelOptionsRelayWebSearchConfirmed',
   model_options_relay_web_no_search_in_test: 'common:modelOptionsRelayWebNoSearchInTest',
   model_options_relay_web_rejected: 'common:modelOptionsRelayWebRejected',
+  // Running subtitle of the default-settings web item.
+  relay_cap_test_running_web_default: 'capabilityTest.panel.runningWebDefault',
 };
 const WEB_TO_ANDROID = Object.fromEntries(Object.entries(ANDROID_TO_WEB).map(([android, web]) => [web, android]));
 
@@ -121,6 +124,7 @@ describe('Capability test panel: pure presentation', () => {
       running: item.running ?? null,
       written: item.written ?? false,
       stopReason: item.stopReason ?? null,
+      ...(item.webSource !== undefined ? { webSource: item.webSource } : {}),
     });
 
     const header = panel.header.kind === 'progress' ? { progress: [panel.header.current, panel.header.total] } : panel.header.kind === 'done' ? 'done' : 'stopped';
@@ -138,6 +142,7 @@ describe('Capability test panel: pure presentation', () => {
             : `${row.trailing.kind}:${row.trailing.seconds.toFixed(1)}`,
       };
     });
+    const expected = item.expect as { rows: Array<Record<string, unknown>> };
     const footerValues = panel.footer.values ?? {};
     const footer = {
       key: androidID(qualified(panel.footer)),
@@ -154,7 +159,7 @@ describe('Capability test panel: pure presentation', () => {
       footer,
       button: panel.button,
       dismissible: panel.dismissible,
-    }).toEqual(item.expect);
+    }).toEqual(expected);
   });
 });
 

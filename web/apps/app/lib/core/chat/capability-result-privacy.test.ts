@@ -50,8 +50,9 @@ describe('capability result privacy boundary', () => {
     // intent, and the only attributes are the registered provider_kind / model_id. Both outbound
     // paths, first send and continue, use the same gate and the same shape; the behavioural
     // assertions live in __tests__/chat-lifecycle-telemetry.test.ts.
-    expect(send).toMatch(/if \(relayStreamOptions\?\.supportsWebSearch\) \{/);
-    expect(continueAnswer).toMatch(/if \(providerStreamOptions\?\.supportsWebSearch\) \{/);
+    // The gate is webSearchDispatched(final outbound options): for a relay it checks whether the effective fragment was merged, otherwise supportsWebSearch.
+    expect(send).toMatch(/if \(webSearchDispatched\(provider, relayStreamOptions\)\) \{/);
+    expect(continueAnswer).toMatch(/if \(webSearchDispatched\(provider, providerStreamOptions\)\) \{/);
     // No dual-path fork remains: none of the three helpers may emit a bare lifecycle event without attributes
     const bareLifecycleEvent =
       /trackEvent\(\s*['"](chat_started|chat_message_sent|chat_message_completed|chat_message_failed)['"]\s*\)/;
