@@ -1,5 +1,5 @@
 {
-  "$comment": "Relay web search probe (RELAY web search capability). Relay form only: BYOK / FREE / MANAGED / SUB never send a probe. The probe is the 4th capability-test item and the only kind that may run automatically (see triggers). A probe request is built by the ordinary chat builder of the model's effective transport, with the connection's saved fragment for that transport merged exactly as in chat (web-fragment.v1.json mergeCases), the fixed prompt below as the only user message, streaming, the output limit below in whatever field that builder already uses, one attempt, no fallback, no retry, total timeout timeoutSeconds. No fragment for the effective transport = the item is not listed and zero web requests are sent. The result is decided only from evidence emitted by that transport's production stream parser; HTTP 2xx alone is never evidence. Results live in a device-local record store (the only source for whether chat attaches the fragment) keyed connection × model × transport (never synced, never written into a Server recipe, deleted with the connection) and never upgrade message-level execution facts (custom fragment messages stay `unconfirmed`). gatewayRecordings holds real gateway output recorded on this machine (via the repository's recording script); each recording carries its own expect and must go through the production parser like evidenceCases. Test names (each end): RL2-WEBPROBE-SHAPE-<requestShapes caseId>, RL2-WEBPROBE-EV-<evidenceCases caseId>, RL2-WEBPROBE-GW-<gatewayRecordings key>, RL2-WEBPROBE-HASH-<fragmentHash caseId>, RL2-WEBPROBE-MERGE-<mergeCases caseId>, RL2-WEBPROBE-PRES-<presentationCases caseId>, RL2-WEBPROBE-FORMS (no probe outside RELAY), RL2-WEBPROBE-CHAT-01 (chat omits the fragment while the current record is rejected), RL2-WEBPROBE-CHAT-02 (a delivered chat whose parser emitted a citation writes searched / observed; no evidence or an error writes nothing), RL2-WEBPROBE-OVERRIDE (searched / rejected map to override web, source tested; a user-set web override is kept). Further tests: RL2-WEBPROBE-TRIG-<triggerCases caseId> (the pure selection with an injected clock), RL2-WEBPROBE-STATE-<presentationCases caseId> (capability truth / globe state for web_search = expect.state, and the composer control sends the fragment iff expect.sendsFragment), RL2-WEBPROBE-WIRE-save (saving fragments runs the selected automatic probes serially through the production probe and writes records; untested models get no request), RL2-WEBPROBE-WIRE-enable (one probe after the lazy verify passed; none when it failed or did not run), RL2-WEBPROBE-OVERRIDE-clear (a fragment change, or a probe result of silent / undetermined after a lift, drops a tested web override; user-set kept), RL2-WEBPROBE-RETEST (the web search page lists models whose current record is rejected; its retest is a manual probe that does not count toward the cap), RD4-PANEL-<capability-test.v1.json panelCases caseId> for the web item.",
+  "$comment": "Relay web search probe. Relay form only: BYOK / FREE / MANAGED / SUB never send a probe. The probe is the 4th capability-test item and the only kind that may run automatically (see triggers). A probe request is built by the ordinary chat builder of the model's effective transport, with the connection's saved fragment for that transport merged exactly as in chat (web-fragment.v1.json mergeCases), the fixed prompt below as the only user message, streaming, the output limit below in whatever field that builder already uses, one attempt, no fallback, no retry, total timeout timeoutSeconds. No fragment for the effective transport = the item is not listed and zero web requests are sent. The result is decided only from evidence emitted by that transport's production stream parser; HTTP 2xx alone is never evidence. Results live in a device-local record store (the only source for whether chat attaches the fragment) keyed connection × model × transport (never synced, never written into a Server recipe, deleted with the connection) and never upgrade message-level execution facts (custom fragment messages stay `unconfirmed`). gatewayRecordings holds real gateway output recorded on this machine (by a recording script); each recording carries its own expect and must go through the production parser like evidenceCases. Test names (each end): RL2-WEBPROBE-SHAPE-<requestShapes caseId>, RL2-WEBPROBE-EV-<evidenceCases caseId>, RL2-WEBPROBE-GW-<gatewayRecordings key>, RL2-WEBPROBE-HASH-<fragmentHash caseId>, RL2-WEBPROBE-MERGE-<mergeCases caseId>, RL2-WEBPROBE-PRES-<presentationCases caseId>, RL2-WEBPROBE-FORMS (no probe outside RELAY), RL2-WEBPROBE-CHAT-01 (chat omits the fragment while the current record is rejected), RL2-WEBPROBE-CHAT-02 (a delivered chat whose parser emitted a citation writes searched / observed; no evidence or an error writes nothing), RL2-WEBPROBE-OVERRIDE (searched / rejected map to override web, source tested; a user-set web override is kept). RL2-WEBPROBE-KEY-<preferenceIdentity caseId> (the relay web switch preference lives under one fixed identity on every end). RL2-WEBPROBE-EARLY-<earlyStopCases caseId> (the probe decides searched at the first evidence and cancels the rest of the stream). RL2-WEBPROBE-SEND-<chatCases caseId> (one chat send through the production send path: which fragment each attempt carries, the reply notice and the record writes). RL2-WEBPROBE-TRIG-<triggerCases caseId> (the pure selection with an injected clock), RL2-WEBPROBE-STATE-<presentationCases caseId> (capability truth / globe state for web_search = expect.state, and the composer control sends the fragment iff expect.sendsFragment), RL2-WEBPROBE-WIRE-save (saving fragments runs the selected automatic probes serially through the production probe and writes records; untested models get no request), RL2-WEBPROBE-WIRE-enable (one probe after the lazy verify passed; none when it failed or did not run), RL2-WEBPROBE-OVERRIDE-clear (a fragment change, or a probe result of silent / undetermined after a lift, drops a tested web override; user-set kept), RL2-WEBPROBE-RETEST (the web search page lists models whose current record is rejected; its retest is a manual probe that does not count toward the cap), RD4-PANEL-<capability-test.v1.json panelCases caseId> for the web item.",
   "version": 1,
   "forms": {
     "probe": [
@@ -18,7 +18,7 @@
     "timeoutSeconds": 30,
     "stream": true,
     "attempts": 1,
-    "$comment": "mustContain is checked on the JSON body actually sent; mustNotContain uses capability-test.v1.json builtins (the probe never carries the image or the tool). mustContain is a subset match: objects need every expected key, arrays need every expected element to be present (the chat builder may add its own entries, e.g. the Responses builder already sends an image_generation tool next to the fragment web_search tool)."
+    "$comment": "mustContain is checked on the JSON body actually sent; mustNotContain uses capability-test.v1.json builtins (the probe never carries the image or the tool). mustContain is a subset match: objects need every expected key, arrays need every expected element to be present (the chat builder may add its own entries, e.g. the Responses builder already sends an image_generation tool next to the fragment web_search tool). The total timeout is a deadline for a verdict, not for the last byte: a streaming 2xx is fed to the production parser event by event and the first evidence ends the probe as searched (the request is cancelled)."
   },
   "requestShapes": [
     {
@@ -583,7 +583,7 @@
     }
   ],
   "triggers": {
-    "$comment": "Automatic probes: after saving a fragment for a transport (enabled models on that transport, serially, in enabled-list order, at most perSave); after enabling a model on a transport that already has a fragment, once its lazy verify passed (1). Never on add connection, re-detect, key add / swap, catalog refresh, or app launch. Retest: the web search page offers a retest for models whose record is rejected (and the panel's web item is the same manual probe). Manual: the capability-test panel lists web as the 4th item only when the model's effective transport has a fragment; manual runs ignore perSave, the daily cap and dedupe, and do not count toward the daily cap. One save is one automatic event: candidates are the enabled models whose first-send transport has a non-empty saved fragment after the save, in enabled-list order, and perSave applies to the whole save (not per transport), so the page can promise \"up to perSave models\". Enable: only after a lazy verify that actually ran and passed; when no lazy verify runs (transport already known or fixed by the user) nothing is sent automatically. Automatic probes run in the background after the page closes, one at a time.",
+    "$comment": "Automatic probes: after saving a fragment for a transport (enabled models on that transport, serially, in enabled-list order, at most perSave); after enabling a model on a transport that already has a fragment, once its lazy verify passed (1). Never on add connection, re-detect, key add / swap, catalog refresh, or app launch. Retest: the web search page offers a retest for models whose record is rejected (and the panel's web item is the same manual probe). Manual: the capability-test panel lists web as the 4th item only when the model's effective transport has a fragment; manual runs ignore perSave, the daily cap and dedupe, and do not count toward the daily cap. One save is one automatic event: candidates are the enabled models whose first-send transport has a non-empty saved fragment after the save, in enabled-list order, and perSave applies to the whole save (not per transport), so the page can promise \"up to perSave models\". Enable: only after a lazy verify that actually ran and passed; when no lazy verify runs (transport already known or fixed by the user) nothing is sent automatically. Automatic probes run in the background after the page closes, one at a time. Manual probe without a saved fragment: the capability-test panel lists web whenever the first-send transport is decided and probes with the effective fragment (saved, else templates[transport]); its record is current because the template is the effective fragment, so it maps to the web override like any other probe. Templates never trigger automatic probes (automatic triggers need a saved fragment).",
     "perSave": 5,
     "perConnectionPerWindow": 10,
     "windowSeconds": 86400,
@@ -1949,7 +1949,7 @@
     }
   ],
   "record": {
-    "$comment": "{result: searched|rejected|silent, source: tested|observed, at, fragmentHash}. A record whose fragmentHash differs from the current fragment of its transport is ignored (treated as untested), and so is the web override it produced. Merge rules for the same hash: an incoming rejected (tested) replaces anything; an incoming searched (tested or observed) replaces anything; an incoming silent replaces silent or rejected but never searched (absence of a search does not refute one). A retest of a rejected model is a manual probe, so its searched / silent result lifts the rejection and chat attaches the fragment again. Passive: a real chat that carried the fragment and whose production parser emitted evidence writes searched with source observed (no extra request); a chat with no evidence or with an error writes nothing. searched / rejected also map to the model override web (source tested, restorable to automatic; a user-set override wins); the override key is implemented on all three ends.",
+    "$comment": "{result: searched|rejected|silent, source: tested|observed, at, fragmentHash}. A record whose fragmentHash differs from the current fragment of its transport is ignored (treated as untested), and so is the web override it produced. Merge rules for the same hash: an incoming rejected (tested) replaces anything; an incoming searched (tested or observed) replaces anything; an incoming silent replaces silent or rejected but never searched (absence of a search does not refute one). A retest of a rejected model is a manual probe, so its searched / silent result lifts the rejection and chat attaches the fragment again. Passive: a real chat that carried the fragment and whose production parser emitted evidence writes searched with source observed (no extra request); a chat with no evidence or with an error writes nothing. searched / rejected also map to the model override web (source tested, restorable to automatic; a user-set override wins). \"current fragment\" means the effective fragment of the transport: the saved one, else web-fragment.v1.json templates[transport].",
     "mergeCases": [
       {
         "caseId": "silent_does_not_erase_searched",
@@ -2069,79 +2069,260 @@
     ]
   },
   "presentationCases": {
-    "$comment": "Web row of the model options panel for a RELAY model; replaces web-fragment.v1.json presentationCases rows that say \"Set by you\" once this lands. status is a state id; each end maps it to its own copy (copy is defined per end). protocolUndecided and local engine rows are unchanged from web-fragment.v1.json.",
+    "$comment": "The RELAY web row of the model options panel, the chat request, the capability truth (badge, library globe) and the model Advanced page web row, for a Relay-form model whose first-send transport is decided and that is not a local engine (those two rows: web-fragment.v1.json presentationCases). Transport = first-send transport everywhere. Inputs: savedFragment = the connection has a non-empty saved fragment for that transport (else the effective fragment is templates[transport]); record = probe record of connection × model × transport, fragmentHash current = hash of the effective fragment, other = stale (ignored); userOverride = model override web with source user (true / false / null); webPreference = resolved chat web preference for this conversation × connection × model (official CapabilityWebPreference store and scope ladder; on = any value other than off, relay has no timing), null = never set. Default when null: on if savedFragment (keeps earlier behaviour for connections that saved one), else off. Precedence: userOverride false > userOverride true > current record rejected > rest. The switch only follows the user — a current rejected record never disables the row or shows it off; it keeps statusId web_probe_rejected and the retest link, the request carries no fragment, and the reply gets replyNotice web_not_used while the switch is on. Outputs: row = toggle | toggleDisabled; isOn; statusId (each end maps to copy: web_probe_searched Search confirmed / web_probe_silent Didn’t search when tested / web_probe_rejected This model rejects the web search settings / web_probe_unverified Set · not verified / web_probe_untested Not tested yet / web_user_off Turned off in this model’s Advanced settings / web_user_on = the source label Set by you); retestLink (openConnectionWebSearch when a saved fragment was rejected, testCapabilities otherwise); sendsFragment = row toggle and isOn and not (current record rejected and userOverride is not true); replyNotice = web_not_used when isOn but no fragment is sent, else null; and the request body then carries the effective fragment (saved or template); truth = supported | unsupported | unknown (badge, globe); advanced = the Advanced page web row {statusId, source: tested | user | null}, its control Auto / On / Off writes override web with source user (Auto clears it), and Restore all to automatic clears it too.",
     "cases": [
       {
-        "caseId": "fragment_searched_supported",
-        "hasFragment": true,
+        "caseId": "template_untested_default_off",
+        "savedFragment": false,
+        "record": null,
+        "userOverride": null,
+        "webPreference": null,
+        "expect": {
+          "row": "toggle",
+          "isOn": false,
+          "statusId": "web_probe_untested",
+          "sendsFragment": false,
+          "truth": "unknown",
+          "advanced": {
+            "statusId": "web_probe_untested",
+            "source": null
+          }
+        }
+      },
+      {
+        "caseId": "template_untested_toggled_on_sends_template",
+        "savedFragment": false,
+        "record": null,
+        "userOverride": null,
+        "webPreference": "on",
+        "expect": {
+          "row": "toggle",
+          "isOn": true,
+          "statusId": "web_probe_untested",
+          "sendsFragment": true,
+          "sentFragment": "template",
+          "truth": "unknown",
+          "advanced": {
+            "statusId": "web_probe_untested",
+            "source": null
+          }
+        }
+      },
+      {
+        "caseId": "template_searched_is_current",
+        "savedFragment": false,
         "record": {
           "result": "searched",
           "fragmentHash": "current"
         },
+        "userOverride": null,
+        "webPreference": "on",
         "expect": {
-          "state": "supported",
+          "row": "toggle",
+          "isOn": true,
           "statusId": "web_probe_searched",
-          "sendsFragment": true
+          "sendsFragment": true,
+          "sentFragment": "template",
+          "truth": "supported",
+          "advanced": {
+            "statusId": "web_probe_searched",
+            "source": "tested"
+          }
         }
       },
       {
-        "caseId": "fragment_rejected_unsupported",
-        "hasFragment": true,
-        "record": {
-          "result": "rejected",
-          "fragmentHash": "current"
-        },
-        "expect": {
-          "state": "unsupported",
-          "statusId": "web_probe_rejected",
-          "sendsFragment": false,
-          "retestLink": "openConnectionWebSearch"
-        }
-      },
-      {
-        "caseId": "fragment_silent_unknown",
-        "hasFragment": true,
+        "caseId": "template_silent_unknown",
+        "savedFragment": false,
         "record": {
           "result": "silent",
           "fragmentHash": "current"
         },
+        "userOverride": null,
+        "webPreference": "off",
         "expect": {
-          "state": "unknown",
+          "row": "toggle",
+          "isOn": false,
           "statusId": "web_probe_silent",
-          "sendsFragment": true
+          "sendsFragment": false,
+          "truth": "unknown",
+          "advanced": {
+            "statusId": "web_probe_silent",
+            "source": null
+          }
         }
       },
       {
-        "caseId": "fragment_untested_unknown",
-        "hasFragment": true,
-        "record": null,
+        "caseId": "template_rejected_keeps_toggle_on",
+        "savedFragment": false,
+        "record": {
+          "result": "rejected",
+          "fragmentHash": "current"
+        },
+        "userOverride": null,
+        "webPreference": "on",
         "expect": {
-          "state": "unknown",
-          "statusId": "web_probe_unverified",
-          "sendsFragment": true
+          "row": "toggle",
+          "isOn": true,
+          "statusId": "web_probe_rejected",
+          "retestLink": "testCapabilities",
+          "sendsFragment": false,
+          "truth": "unsupported",
+          "advanced": {
+            "statusId": "web_probe_rejected",
+            "source": "tested"
+          },
+          "replyNotice": "web_not_used"
         }
       },
       {
-        "caseId": "fragment_stale_record_is_untested",
-        "hasFragment": true,
+        "caseId": "saved_default_on_keeps_old_behaviour",
+        "savedFragment": true,
+        "record": null,
+        "userOverride": null,
+        "webPreference": null,
+        "expect": {
+          "row": "toggle",
+          "isOn": true,
+          "statusId": "web_probe_unverified",
+          "sendsFragment": true,
+          "sentFragment": "saved",
+          "truth": "unknown",
+          "advanced": {
+            "statusId": "web_probe_unverified",
+            "source": null
+          }
+        }
+      },
+      {
+        "caseId": "saved_toggled_off_sends_nothing",
+        "savedFragment": true,
+        "record": {
+          "result": "searched",
+          "fragmentHash": "current"
+        },
+        "userOverride": null,
+        "webPreference": "off",
+        "expect": {
+          "row": "toggle",
+          "isOn": false,
+          "statusId": "web_probe_searched",
+          "sendsFragment": false,
+          "truth": "supported",
+          "advanced": {
+            "statusId": "web_probe_searched",
+            "source": "tested"
+          }
+        }
+      },
+      {
+        "caseId": "saved_rejected_links_web_search_page",
+        "savedFragment": true,
+        "record": {
+          "result": "rejected",
+          "fragmentHash": "current"
+        },
+        "userOverride": null,
+        "webPreference": "on",
+        "expect": {
+          "row": "toggle",
+          "isOn": true,
+          "statusId": "web_probe_rejected",
+          "retestLink": "openConnectionWebSearch",
+          "sendsFragment": false,
+          "truth": "unsupported",
+          "advanced": {
+            "statusId": "web_probe_rejected",
+            "source": "tested"
+          },
+          "replyNotice": "web_not_used"
+        }
+      },
+      {
+        "caseId": "stale_record_is_untested",
+        "savedFragment": true,
         "record": {
           "result": "rejected",
           "fragmentHash": "other"
         },
+        "userOverride": null,
+        "webPreference": "on",
         "expect": {
-          "state": "unknown",
+          "row": "toggle",
+          "isOn": true,
           "statusId": "web_probe_unverified",
-          "sendsFragment": true
+          "sendsFragment": true,
+          "sentFragment": "saved",
+          "truth": "unknown",
+          "advanced": {
+            "statusId": "web_probe_unverified",
+            "source": null
+          }
         }
       },
       {
-        "caseId": "no_fragment_needs_setup",
-        "hasFragment": false,
-        "record": null,
+        "caseId": "user_off_wins",
+        "savedFragment": true,
+        "record": {
+          "result": "searched",
+          "fragmentHash": "current"
+        },
+        "userOverride": false,
+        "webPreference": "on",
         "expect": {
-          "state": "unknown",
-          "statusId": "needs_manual_setup",
-          "sendsFragment": false
+          "row": "toggleDisabled",
+          "isOn": false,
+          "statusId": "web_user_off",
+          "sendsFragment": false,
+          "truth": "unsupported",
+          "advanced": {
+            "statusId": "web_probe_searched",
+            "source": "user"
+          }
+        }
+      },
+      {
+        "caseId": "user_on_wins_over_rejected",
+        "savedFragment": false,
+        "record": {
+          "result": "rejected",
+          "fragmentHash": "current"
+        },
+        "userOverride": true,
+        "webPreference": "on",
+        "expect": {
+          "row": "toggle",
+          "isOn": true,
+          "statusId": "web_user_on",
+          "sendsFragment": true,
+          "sentFragment": "template",
+          "truth": "supported",
+          "advanced": {
+            "statusId": "web_probe_rejected",
+            "source": "user"
+          }
+        }
+      },
+      {
+        "caseId": "template_rejected_toggled_off_no_notice",
+        "savedFragment": false,
+        "record": {
+          "result": "rejected",
+          "fragmentHash": "current"
+        },
+        "userOverride": null,
+        "webPreference": "off",
+        "expect": {
+          "row": "toggle",
+          "isOn": false,
+          "statusId": "web_probe_rejected",
+          "retestLink": "testCapabilities",
+          "sendsFragment": false,
+          "replyNotice": null,
+          "truth": "unsupported",
+          "advanced": {
+            "statusId": "web_probe_rejected",
+            "source": "tested"
+          }
         }
       }
     ]
@@ -2366,5 +2547,556 @@
         ]
       }
     }
+  },
+  "chatCases": {
+    "$comment": "One chat send with the web switch resolved to webOn, through each end's production send path (builders, protocol fallback, retry). firstTransport = the model's first-send transport. savedFragments lists transports with a saved fragment (others use templates[transport]). records = current-hash probe records per transport. attempts = the upstream answers in order; each attempt's transport is decided by the production path and must equal expect.attempts[i].transport. expect.attempts[i].fragment = saved | template | null (the effective fragment of THAT attempt's transport merged as web-fragment.v1.json mergeCases, or none). Rules: an attempt carries its transport's effective fragment iff webOn and userOverride is not false and (that transport's current record is not rejected or userOverride is true). A protocol fallback re-decides for the target transport. An attempt that carried a fragment and got a pre-output 400 / 422 that is neither a route-level rejection nor model_access_denied is resent once on the same transport without the fragment; if that resend succeeds, write that transport's record rejected (source tested, current hash). Route-level rejections (404 / 405 / HTML page) go to protocol fallback as before. model_access_denied: no resend of any kind. replyNotice web_not_used = webOn and the delivered attempt carried no fragment; null otherwise (also null when the send fails). A delivered attempt whose production parser emitted a citation writes searched / observed for the transport actually used. panelAfter = the model options web row after the send (row, isOn).",
+    "cases": [
+      {
+        "caseId": "fallback_carries_target_template",
+        "webOn": true,
+        "userOverride": null,
+        "firstTransport": "anthropic_messages",
+        "savedFragments": [],
+        "records": {},
+        "attempts": [
+          {
+            "status": 404,
+            "body": "{\"error\":{\"message\":\"Invalid URL (POST /v1/messages)\"}}"
+          },
+          {
+            "status": 200,
+            "sse": "plain_text"
+          }
+        ],
+        "expect": {
+          "attempts": [
+            {
+              "transport": "anthropic_messages",
+              "fragment": "template"
+            },
+            {
+              "transport": "openai_chat_completions",
+              "fragment": "template"
+            }
+          ],
+          "replyNotice": null,
+          "recordWrites": [],
+          "panelAfter": {
+            "row": "toggle",
+            "isOn": true
+          }
+        }
+      },
+      {
+        "caseId": "fallback_carries_target_saved",
+        "webOn": true,
+        "userOverride": null,
+        "firstTransport": "anthropic_messages",
+        "savedFragments": [
+          "openai_chat_completions"
+        ],
+        "records": {},
+        "attempts": [
+          {
+            "status": 404,
+            "body": "{\"error\":{\"message\":\"Invalid URL (POST /v1/messages)\"}}"
+          },
+          {
+            "status": 200,
+            "sse": "plain_text"
+          }
+        ],
+        "expect": {
+          "attempts": [
+            {
+              "transport": "anthropic_messages",
+              "fragment": "template"
+            },
+            {
+              "transport": "openai_chat_completions",
+              "fragment": "saved"
+            }
+          ],
+          "replyNotice": null,
+          "recordWrites": [],
+          "panelAfter": {
+            "row": "toggle",
+            "isOn": true
+          }
+        }
+      },
+      {
+        "caseId": "fallback_target_rejected_skips_with_notice",
+        "webOn": true,
+        "userOverride": null,
+        "firstTransport": "anthropic_messages",
+        "savedFragments": [],
+        "records": {
+          "openai_chat_completions": "rejected"
+        },
+        "attempts": [
+          {
+            "status": 404,
+            "body": "{\"error\":{\"message\":\"Invalid URL (POST /v1/messages)\"}}"
+          },
+          {
+            "status": 200,
+            "sse": "plain_text"
+          }
+        ],
+        "expect": {
+          "attempts": [
+            {
+              "transport": "anthropic_messages",
+              "fragment": "template"
+            },
+            {
+              "transport": "openai_chat_completions",
+              "fragment": null
+            }
+          ],
+          "replyNotice": "web_not_used",
+          "recordWrites": [],
+          "panelAfter": {
+            "row": "toggle",
+            "isOn": true
+          }
+        }
+      },
+      {
+        "caseId": "fallback_with_citation_writes_searched",
+        "webOn": true,
+        "userOverride": null,
+        "firstTransport": "anthropic_messages",
+        "savedFragments": [],
+        "records": {},
+        "attempts": [
+          {
+            "status": 404,
+            "body": "{\"error\":{\"message\":\"Invalid URL (POST /v1/messages)\"}}"
+          },
+          {
+            "status": 200,
+            "sse": "chat_url_citation"
+          }
+        ],
+        "expect": {
+          "attempts": [
+            {
+              "transport": "anthropic_messages",
+              "fragment": "template"
+            },
+            {
+              "transport": "openai_chat_completions",
+              "fragment": "template"
+            }
+          ],
+          "replyNotice": null,
+          "recordWrites": [
+            {
+              "transport": "openai_chat_completions",
+              "result": "searched",
+              "source": "observed"
+            }
+          ],
+          "panelAfter": {
+            "row": "toggle",
+            "isOn": true
+          }
+        }
+      },
+      {
+        "caseId": "fragment_400_resends_without_fragment",
+        "webOn": true,
+        "userOverride": null,
+        "firstTransport": "anthropic_messages",
+        "savedFragments": [],
+        "records": {},
+        "attempts": [
+          {
+            "status": 400,
+            "body": "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"tools.0: Input tag 'web_search_20250305' found using 'type' does not match any of the expected tags\"}}"
+          },
+          {
+            "status": 200,
+            "sse": "plain_text"
+          }
+        ],
+        "expect": {
+          "attempts": [
+            {
+              "transport": "anthropic_messages",
+              "fragment": "template"
+            },
+            {
+              "transport": "anthropic_messages",
+              "fragment": null
+            }
+          ],
+          "replyNotice": "web_not_used",
+          "recordWrites": [
+            {
+              "transport": "anthropic_messages",
+              "result": "rejected",
+              "source": "tested"
+            }
+          ],
+          "panelAfter": {
+            "row": "toggle",
+            "isOn": true
+          }
+        }
+      },
+      {
+        "caseId": "fragment_400_resend_also_fails",
+        "webOn": true,
+        "userOverride": null,
+        "firstTransport": "anthropic_messages",
+        "savedFragments": [],
+        "records": {},
+        "attempts": [
+          {
+            "status": 400,
+            "body": "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"max_tokens: must be at least 1\"}}"
+          },
+          {
+            "status": 400,
+            "body": "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"max_tokens: must be at least 1\"}}"
+          }
+        ],
+        "expect": {
+          "attempts": [
+            {
+              "transport": "anthropic_messages",
+              "fragment": "template"
+            },
+            {
+              "transport": "anthropic_messages",
+              "fragment": null
+            }
+          ],
+          "replyNotice": null,
+          "recordWrites": [],
+          "sendFails": true,
+          "panelAfter": {
+            "row": "toggle",
+            "isOn": true
+          }
+        }
+      },
+      {
+        "caseId": "access_denied_never_resends",
+        "webOn": true,
+        "userOverride": null,
+        "firstTransport": "anthropic_messages",
+        "savedFragments": [],
+        "records": {},
+        "attempts": [
+          {
+            "status": 403,
+            "classification": "model_access_denied"
+          }
+        ],
+        "expect": {
+          "attempts": [
+            {
+              "transport": "anthropic_messages",
+              "fragment": "template"
+            }
+          ],
+          "replyNotice": null,
+          "recordWrites": [],
+          "sendFails": true,
+          "panelAfter": {
+            "row": "toggle",
+            "isOn": true
+          }
+        }
+      },
+      {
+        "caseId": "known_rejected_skips_with_notice",
+        "webOn": true,
+        "userOverride": null,
+        "firstTransport": "anthropic_messages",
+        "savedFragments": [],
+        "records": {
+          "anthropic_messages": "rejected"
+        },
+        "attempts": [
+          {
+            "status": 200,
+            "sse": "plain_text"
+          }
+        ],
+        "expect": {
+          "attempts": [
+            {
+              "transport": "anthropic_messages",
+              "fragment": null
+            }
+          ],
+          "replyNotice": "web_not_used",
+          "recordWrites": [],
+          "panelAfter": {
+            "row": "toggle",
+            "isOn": true
+          }
+        }
+      },
+      {
+        "caseId": "user_override_true_sends_despite_rejected",
+        "webOn": true,
+        "userOverride": true,
+        "firstTransport": "anthropic_messages",
+        "savedFragments": [],
+        "records": {
+          "anthropic_messages": "rejected"
+        },
+        "attempts": [
+          {
+            "status": 200,
+            "sse": "plain_text"
+          }
+        ],
+        "expect": {
+          "attempts": [
+            {
+              "transport": "anthropic_messages",
+              "fragment": "template"
+            }
+          ],
+          "replyNotice": null,
+          "recordWrites": [],
+          "panelAfter": {
+            "row": "toggle",
+            "isOn": true
+          }
+        }
+      },
+      {
+        "caseId": "web_off_sends_nothing_no_notice",
+        "webOn": false,
+        "userOverride": null,
+        "firstTransport": "anthropic_messages",
+        "savedFragments": [],
+        "records": {
+          "anthropic_messages": "rejected"
+        },
+        "attempts": [
+          {
+            "status": 200,
+            "sse": "plain_text"
+          }
+        ],
+        "expect": {
+          "attempts": [
+            {
+              "transport": "anthropic_messages",
+              "fragment": null
+            }
+          ],
+          "replyNotice": null,
+          "recordWrites": [],
+          "panelAfter": {
+            "row": "toggle",
+            "isOn": false
+          }
+        }
+      }
+    ],
+    "scenario": {
+      "$comment": "RL2-WEBPROBE-SEND-first_chat_toggle_survives: the user's report. A new conversation (no conversation id yet) on an auto relay connection with an unverified Claude-family model; the user turns web on in the model options before the first send; the send creates the conversation, the first attempt (anthropic_messages, template) gets the route-level 404 above, the fallback (openai_chat_completions, template) is delivered and the model's transport becomes openai_chat_completions. After the send, and again after reopening the model options panel and after reopening the conversation, the web row is a toggle and isOn is true; the second send's first attempt is openai_chat_completions carrying the template. Assert through the production composer / panel state and the production send path, not a hand-built resolver call.",
+      "expect": {
+        "panelAfter": {
+          "row": "toggle",
+          "isOn": true
+        },
+        "secondSendFirstAttempt": {
+          "transport": "openai_chat_completions",
+          "fragment": "template"
+        }
+      }
+    }
+  },
+  "earlyStopCases": {
+    "$comment": "Each case is a streaming 2xx (status 200, text/event-stream) delivered event by event; `events` are the SSE data payloads in order; `then` = what the connection does after the last listed event: `close` (stream ends normally) or `stall` (stays open, never sends another byte). Drive the production probe with an injected transport and a virtual clock where the end supports one; deadline = request.timeoutSeconds. expect.result / reason as the probe outcome; expect.decidedAfterEventAtMost = the verdict must be fixed no later than after this 1-based event index (the parser may report evidence on an earlier event; null = decided by close or by the deadline); expect.cancelled = the probe cancelled the request before the stream ended. Evidence = what the transport's production parser reports (search ran or a citation URL), same as evidenceCases. An error frame before any output / evidence is split by error.type — overloaded_error / api_error / server_error / rate_limit_error = undetermined (server); anything else (invalid_request_error, an untyped {\"error\":…}, response.failed) = rejected, same as capability-test.v1.json classifyCases. When the parser only reports that a search ran and no URL yet, the probe may keep reading until a URL, the end or the deadline, and the deadline then still yields searched.",
+    "cases": [
+      {
+        "caseId": "messages_search_ran_then_stall",
+        "transport": "anthropic_messages",
+        "events": [
+          "{\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"m\",\"content\":[],\"usage\":{\"input_tokens\":10,\"output_tokens\":1}}}",
+          "{\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"server_tool_use\",\"id\":\"srvtoolu_1\",\"name\":\"web_search\",\"input\":{}}}",
+          "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"query\\\":\\\"top news today\\\"}\"}}",
+          "{\"type\":\"content_block_stop\",\"index\":0}",
+          "{\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"web_search_tool_result\",\"tool_use_id\":\"srvtoolu_1\",\"content\":[{\"type\":\"web_search_result\",\"url\":\"https://example.com/news\",\"title\":\"News\",\"encrypted_content\":\"x\"}]}}"
+        ],
+        "then": "stall",
+        "expect": {
+          "result": "searched",
+          "reason": "ok",
+          "cancelled": true,
+          "decidedAfterEventAtMost": 5,
+          "urlsInclude": [
+            "https://example.com/news"
+          ]
+        }
+      },
+      {
+        "caseId": "chat_citation_then_stall",
+        "transport": "openai_chat_completions",
+        "events": [
+          "{\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"Top story\"}}]}",
+          "{\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"annotations\":[{\"type\":\"url_citation\",\"url_citation\":{\"url\":\"https://example.com/a\",\"title\":\"A\",\"start_index\":0,\"end_index\":9}}]}}]}"
+        ],
+        "then": "stall",
+        "expect": {
+          "result": "searched",
+          "reason": "ok",
+          "cancelled": true,
+          "decidedAfterEventAtMost": 2,
+          "urlsInclude": [
+            "https://example.com/a"
+          ]
+        }
+      },
+      {
+        "caseId": "no_evidence_then_close_is_silent",
+        "transport": "openai_chat_completions",
+        "events": [
+          "{\"id\":\"c2\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"I can't browse the web.\"}}]}",
+          "{\"id\":\"c2\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}"
+        ],
+        "then": "close",
+        "expect": {
+          "result": "silent",
+          "reason": "ok",
+          "cancelled": false,
+          "decidedAfterEventAtMost": null,
+          "urlsInclude": []
+        }
+      },
+      {
+        "caseId": "no_evidence_then_stall_times_out",
+        "transport": "openai_chat_completions",
+        "events": [
+          "{\"id\":\"c3\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"Let me\"}}]}"
+        ],
+        "then": "stall",
+        "expect": {
+          "result": "undetermined",
+          "reason": "timeout",
+          "cancelled": true,
+          "decidedAfterEventAtMost": null,
+          "urlsInclude": []
+        }
+      },
+      {
+        "caseId": "error_frame_before_evidence_is_undetermined",
+        "transport": "anthropic_messages",
+        "events": [
+          "{\"type\":\"message_start\",\"message\":{\"id\":\"msg_2\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"m\",\"content\":[],\"usage\":{\"input_tokens\":10,\"output_tokens\":1}}}",
+          "{\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}"
+        ],
+        "then": "close",
+        "expect": {
+          "result": "undetermined",
+          "reason": "server",
+          "cancelled": false,
+          "decidedAfterEventAtMost": null,
+          "urlsInclude": []
+        }
+      },
+      {
+        "caseId": "messages_invalid_request_before_evidence_is_rejected",
+        "transport": "anthropic_messages",
+        "events": [
+          "{\"type\":\"message_start\",\"message\":{\"id\":\"msg_3\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"m\",\"content\":[],\"usage\":{\"input_tokens\":10,\"output_tokens\":1}}}",
+          "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"tools.0: web_search is not supported\"}}"
+        ],
+        "then": "close",
+        "expect": {
+          "result": "rejected",
+          "reason": "upstream_rejected",
+          "cancelled": false,
+          "decidedAfterEventAtMost": null,
+          "urlsInclude": []
+        }
+      }
+    ]
+  },
+  "preferenceIdentity": {
+    "$comment": "The relay (non local engine) web switch preference record uses ONE fixed identity on every end: finalTransport `relay`, runtimeRevision `relay-web`, wire `r1.<base64url(finalTransport)>.<base64url(runtimeRevision)>` without padding; canonicalModelId = the model's stored literal id (same as the relay generation-parameter key). The scope ladder is the official one (conversation > skill > connection x model > connection). It never depends on the model's transport (decided or not) or on the metadata revision. Read compatibility: when the fixed identity has no record in a scope, take the newest web value in that same scope for the same connection x model under any older identity and write it once under the fixed identity (web only; reasoning stays on its transport identity). A new conversation's draft-scope record moves to the real conversation on the first send. Cases drive the production read / write functions of the switch.",
+    "fixedTransport": "relay",
+    "fixedRevision": "relay-web",
+    "wire": "r1.cmVsYXk.cmVsYXktd2Vi",
+    "cases": [
+      {
+        "caseId": "identity_ignores_transport",
+        "modelId": "claude-opus-5-5",
+        "transports": [
+          null,
+          "anthropic_messages",
+          "openai_chat_completions"
+        ],
+        "expect": {
+          "wire": "r1.cmVsYXk.cmVsYXktd2Vi",
+          "canonicalModelId": "claude-opus-5-5",
+          "sameRecordForAll": true
+        }
+      },
+      {
+        "caseId": "write_before_transport_decided_reads_after",
+        "modelId": "claude-opus-5-5",
+        "steps": [
+          {
+            "transport": null,
+            "write": "on",
+            "conversation": "draft"
+          },
+          {
+            "firstSend": true,
+            "conversation": "c1",
+            "transportAfter": "openai_chat_completions"
+          }
+        ],
+        "expect": {
+          "readConversation": "c1",
+          "isOn": true
+        }
+      },
+      {
+        "caseId": "legacy_transport_record_is_read_and_moved",
+        "modelId": "claude-opus-5-5",
+        "legacyRecord": {
+          "finalTransport": "anthropic_messages",
+          "runtimeRevision": "rev-1",
+          "scope": "connection_model",
+          "web": "automatic"
+        },
+        "expect": {
+          "isOn": true,
+          "fixedRecordWritten": true
+        }
+      },
+      {
+        "caseId": "fixed_record_wins_over_legacy",
+        "modelId": "claude-opus-5-5",
+        "legacyRecord": {
+          "finalTransport": "anthropic_messages",
+          "runtimeRevision": "rev-1",
+          "scope": "connection_model",
+          "web": "automatic"
+        },
+        "fixedRecord": {
+          "scope": "connection_model",
+          "web": "off"
+        },
+        "expect": {
+          "isOn": false,
+          "fixedRecordWritten": false
+        }
+      }
+    ]
   }
 }

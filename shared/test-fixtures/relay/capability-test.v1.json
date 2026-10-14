@@ -1,5 +1,5 @@
 {
-  "$comment": "Relay user-triggered capability test (manual per-model capability test). Runs only when the user taps the button on a model; never automatic. Each item (text -> image -> tool) is ONE streaming request built by the same production builders an ordinary chat send uses for the model's current effective transport (same URL root, same headers, same session / transport, key from the per-model key entry), with a synthetic user message from `builtins` and output capped at builtins.maxOutputTokens through the builder's own max-tokens channel; the tool item adds `tools` in the same per-protocol function-tool wire shape the chat tool legs use. No protocol fallback, no parameter self-heal, no retry, no negative-cache write: exactly one request per item. Every item has a TOTAL deadline of deadline.perItemSeconds (connect to last byte, not an idle timeout); hitting it = undetermined with reason `timeout`. `requestShapes[<short transport>]` lists what each request must satisfy: `path` (and `query` when present) after replacing \"{{model}}\"; `bodySubset` and `bodySubsetByKind[kind]` must be subset-matched (objects: every expected key present with a subset-matching value; arrays: same length, element-wise subset); `mustContain[kind]` strings appear verbatim in the body ({{png}} = builtins.imagePNGBase64; a JSON-escaped `\\/` form also counts); `mustNotContain[kind]` never appear. Each end additionally asserts its text request equals what its chat builder produces for the same message and options (RD4-PATH-01). The text request is the baseline: unless it is `accepted`, nothing else is sent and nothing is written. An item whose override already has source \"user\" is not tested and its request is skipped. `classifyCases` define accepted / rejected / undetermined plus a `reason` for one HTTP response (the full body read to stream end); scenarios use the response kinds in `responses`. Only `rejected` writes false and only `accepted` writes true; `undetermined` writes nothing and keeps any earlier value. Written values carry source \"tested\". SSE bodies (contentType text/event-stream): each `data:` payload that parses as JSON is an event; the stream is `rejected` when some event is an error event (non-null top-level `error`, or `type` equal to \"error\" or \"response.failed\") and no event carries output (non-null `choices` / `candidates` / `delta` / `output` / `content` / `content_block`, or a `type` starting with \"response.output\"); otherwise accepted. Reasons: ok, upstream_rejected (400 / 415 / 422 / 2xx error body), not_found (404), unauthorized (401), forbidden (403), rate_limited (429), html (2xx text/html), server (5xx), http (any other status), network, timeout. Scenario setup: a relay connection with baseURL \"https://relay.example.com\", default transport = the scenario transport (full wire value via `transports`), authMode auto, apiKey \"sk-test\", and one enabled model `model` with no model-level transport. Tests inject a short deadline (for example 300 ms) for the `hang` / `drip` kinds and separately assert the production value equals deadline.perItemSeconds. A scenario `connection` object overrides the default connection fields; `expect.bodyExtra` keys are added to every request body subset of that scenario (Responses requests carry store:false when the connection disables response storage). A body key counts as content only when present and not null. Each end runs every classify case and scenario under the same caseId inside tests named after RL2-PROBE-06, and every `panelCases` entry inside tests named RD4-PANEL-<caseId>. Evidence: an image or tool item whose response classifies as `accepted` is then fed through the production stream parser of its transport; the item is `accepted` only with evidence — image: the parser's visible text contains builtins.imageExpectedAnswer as a whole word, case-insensitive (the built-in PNG is solid red); tool: the parser emitted a function call named builtins.tool.name (arguments may be truncated by the output cap). Without evidence the item verdict is `notObserved` with reason `not_observed`: nothing is written and any earlier value is kept (like undetermined). The text item needs no evidence. Response kinds `image_ok` / `tool_ok` carry the evidence; `ok` carries plain text only.",
+  "$comment": "Relay user-triggered capability test. Runs only when the user taps the button on a model; never automatic. Each item (text -> image -> tool) is ONE streaming request built by the same production builders an ordinary chat send uses for the model's current effective transport (same URL root, same headers, same session / transport, key from the per-model key entry), with a synthetic user message from `builtins` and output capped at builtins.maxOutputTokens through the builder's own max-tokens channel; the tool item adds `tools` in the same per-protocol function-tool wire shape the chat tool legs use. No protocol fallback, no parameter self-heal, no retry, no negative-cache write: exactly one request per item. Every item has a TOTAL deadline of deadline.perItemSeconds (connect to last byte, not an idle timeout); hitting it = undetermined with reason `timeout`. `requestShapes[<short transport>]` lists what each request must satisfy: `path` (and `query` when present) after replacing \"{{model}}\"; `bodySubset` and `bodySubsetByKind[kind]` must be subset-matched (objects: every expected key present with a subset-matching value; arrays: same length, element-wise subset); `mustContain[kind]` strings appear verbatim in the body ({{png}} = builtins.imagePNGBase64; a JSON-escaped `\\/` form also counts); `mustNotContain[kind]` never appear. Each end additionally asserts its text request equals what its chat builder produces for the same message and options (RD4-PATH-01). The text request is the baseline: unless it is `accepted`, nothing else is sent and nothing is written. An item whose override already has source \"user\" is not tested and its request is skipped. `classifyCases` define accepted / rejected / undetermined plus a `reason` for one HTTP response (the full body read to stream end); scenarios use the response kinds in `responses`. Only `rejected` writes false and only `accepted` writes true; `undetermined` writes nothing and keeps any earlier value. Written values carry source \"tested\". SSE bodies (contentType text/event-stream): each `data:` payload that parses as JSON is an event; the stream is `rejected` when some event is an error event (non-null top-level `error`, or `type` equal to \"error\" or \"response.failed\") and no event carries output (non-null `choices` / `candidates` / `delta` / `output` / `content` / `content_block`, or a `type` starting with \"response.output\"); otherwise accepted. Reasons: ok, upstream_rejected (400 / 415 / 422 / 2xx error body), not_found (404), unauthorized (401), forbidden (403), rate_limited (429), html (2xx text/html), server (5xx), http (any other status), network, timeout. Scenario setup: a relay connection with baseURL \"https://relay.example.com\", default transport = the scenario transport (full wire value via `transports`), authMode auto, apiKey \"sk-test\", and one enabled model `model` with no model-level transport. Tests inject a short deadline (for example 300 ms) for the `hang` / `drip` kinds and separately assert the production value equals deadline.perItemSeconds. A scenario `connection` object overrides the default connection fields; `expect.bodyExtra` keys are added to every request body subset of that scenario (Responses requests carry store:false when the connection disables response storage). A body key counts as content only when present and not null. Each end runs every classify case and scenario under the same caseId inside tests named after RL2-PROBE-06, and every `panelCases` entry inside tests named RD4-PANEL-<caseId>. Evidence: an image or tool item whose response classifies as `accepted` is then fed through the production stream parser of its transport; the item is `accepted` only with evidence — image: the parser's visible text contains builtins.imageExpectedAnswer as a whole word, case-insensitive (the built-in PNG is solid red); tool: the parser emitted a function call named builtins.tool.name (arguments may be truncated by the output cap). Without evidence the item verdict is `notObserved` with reason `not_observed`: nothing is written and any earlier value is kept (like undetermined). The text item needs no evidence. Response kinds `image_ok` / `tool_ok` carry the evidence; `ok` carries plain text only. Every testable relay model also lists the web item (template when no fragment is saved); `scenarios` measure only the text / image / toolCall requests and their write-back: each end excludes the web probe from `requests` (or answers it with a status that writes nothing), and asserts it separately under RL2-WEBPROBE-01 / -02.",
   "version": 1,
   "builtins": {
     "maxOutputTokens": 16,
@@ -1272,10 +1272,10 @@
     ]
   },
   "noAutomaticRequests": {
-    "$comment": "Adding a connection, enabling a model and re-detecting must send zero text / image / tool capability-test requests: the image and tool bodies above never leave the device unless the user taps the button. Each end asserts this on its existing add / enable / re-detect fake-server tests by checking no request body contains builtins.imagePNGBase64 or builtins.tool.name. The web search probe is the only capability check that may run automatically, and only per the trigger table in web-probe.v1.json (after saving a fragment, after enabling a model on a transport that has one; never on add or re-detect; capped and deduped there)."
+    "$comment": "Adding a connection, enabling a model and re-detecting must send zero text / image / tool capability-test requests: the image and tool bodies above never leave the device unless the user taps the button. Each end asserts this on its existing add / enable / re-detect fake-server tests by checking no request body contains builtins.imagePNGBase64 or builtins.tool.name. The web search probe is the only capability check that may run automatically, and only per the trigger table in web-probe.v1.json (after saving a fragment, after enabling a model on a transport that has one; never on add or re-detect; capped and deduped there). The default-settings web item is part of the manual panel only: it never runs automatically, and adding / enabling / re-detecting never probes with a template."
   },
   "panelCases": {
-    "$comment": "Pure presentation of the bottom panel (capability test panel). Input: `items` = the kinds that will be sent in order (text always first; image / toolCall only when not user-set), `keyName` = bound key name when the connection has 2+ keys (null = 1 key: no key chip, info line without a name), `phase` running | completed | stopped, `results` per finished kind (verdict, reason, status, elapsedMs), `running` = the kind in flight and its elapsed time, `written` = write-back happened (completed only), `stopReason` cancelled | connection | protocol | unavailable. Output: header {progress:[current,total]} while running (current = 1-based index of the running kind), \"done\" when completed, \"stopped\" when stopped; progressFraction = [finished items, total] (completed = total); chips = protocol short name + key name or null; rows in `items` order with icon waiting | running | accepted | rejected | undetermined | notRun, subtitle = a string id (Android resource name; each end maps it to its own key) or null, subtitleArg = a string id used as the %@ argument, a status code as text, or \"<id>:<code>\" for an id that itself takes the code; trailing = \"waiting\", \"elapsed:<seconds with one decimal, rounded half up>\", \"running:<same>\", or null; footer = info line while running (count = items length), saved / nothing when completed, stopped line with reason id when stopped; button cancel | done; dismissible = the panel can be swiped / clicked away (false only while running). Subtitle rules: text accepted -> text_ok; text rejected not_found -> text_not_found; text rejected other -> text_rejected with the status; undetermined -> undetermined with reason id (server / http reasons carry the status); image / toolCall accepted -> supported_saved when written, else the existing relay_capability_test_supported; notObserved -> icon undetermined with relay_cap_test_image_not_observed / relay_cap_test_tool_not_observed (no subtitleArg); rejected -> image_rejected / tool_rejected when written, else relay_capability_test_unsupported; kinds after a failed text check -> not_run; kinds never finished when stopped -> not_tested. Web item: `web` is listed last, only when the model's first-send transport has a saved web search fragment (web-probe.v1.json triggers: the manual probe, no cap, no dedupe, not counted); it runs after the text check like image / toolCall and is not_run when the text check failed. Its verdict is the probe result: searched -> icon accepted + model_options_relay_web_search_confirmed; silent -> icon undetermined + model_options_relay_web_no_search_in_test; rejected -> icon rejected + model_options_relay_web_rejected (no subtitleArg, whether or not written); undetermined -> as the other kinds. Running subtitle relay_cap_test_running_web. While running and web is listed, the info footer uses relay_cap_test_info_web / relay_cap_test_info_web_named_key (same count / keyName). `written` also counts the web override write (searched / rejected).",
+    "$comment": "Pure presentation of the bottom panel. Input: `items` = the kinds that will be sent in order (text always first; image / toolCall only when not user-set), `keyName` = bound key name when the connection has 2+ keys (null = 1 key: no key chip, info line without a name), `phase` running | completed | stopped, `results` per finished kind (verdict, reason, status, elapsedMs), `running` = the kind in flight and its elapsed time, `written` = write-back happened (completed only), `stopReason` cancelled | connection | protocol | unavailable. Output: header {progress:[current,total]} while running (current = 1-based index of the running kind), \"done\" when completed, \"stopped\" when stopped; progressFraction = [finished items, total] (completed = total); chips = protocol short name + key name or null; rows in `items` order with icon waiting | running | accepted | rejected | undetermined | notRun, subtitle = a string id (Android resource name; each end maps it to its own key) or null, subtitleArg = a string id used as the %@ argument, a status code as text, or \"<id>:<code>\" for an id that itself takes the code; trailing = \"waiting\", \"elapsed:<seconds with one decimal, rounded half up>\", \"running:<same>\", or null; footer = info line while running (count = items length), saved / nothing when completed, stopped line with reason id when stopped; button cancel | done; dismissible = the panel can be swiped / clicked away (false only while running). Subtitle rules: text accepted -> text_ok; text rejected not_found -> text_not_found; text rejected other -> text_rejected with the status; undetermined -> undetermined with reason id (server / http reasons carry the status); image / toolCall accepted -> supported_saved when written, else the existing relay_capability_test_supported; notObserved -> icon undetermined with relay_cap_test_image_not_observed / relay_cap_test_tool_not_observed (no subtitleArg); rejected -> image_rejected / tool_rejected when written, else relay_capability_test_unsupported; kinds after a failed text check -> not_run; kinds never finished when stopped -> not_tested. Web item: `web` is listed last, only when the model's first-send transport has a saved web search fragment (web-probe.v1.json triggers: the manual probe, no cap, no dedupe, not counted); it runs after the text check like image / toolCall and is not_run when the text check failed. Its verdict is the probe result: searched -> icon accepted + model_options_relay_web_search_confirmed; silent -> icon undetermined + model_options_relay_web_no_search_in_test; rejected -> icon rejected + model_options_relay_web_rejected (no subtitleArg, whether or not written); undetermined -> as the other kinds. Running subtitle relay_cap_test_running_web. While running and web is listed, the info footer uses relay_cap_test_info_web / relay_cap_test_info_web_named_key (same count / keyName). `written` also counts the web override write (searched / rejected). Default-settings web item: when the model's first-send transport has no saved fragment, `web` is still listed (first-send transport must be decided) and the probe carries web-fragment.v1.json templates[transport]; input `webSource` = saved | template (absent = saved) only changes the running subtitle (relay_cap_test_running_web_default for template). The template is the effective fragment, so the result maps to the web override and counts toward `written` exactly like a saved fragment. There is no enable action: web search is turned on with the chat toggle (web-probe.v1.json presentationCases).",
     "cases": [
       {
         "caseId": "running_second_of_three",
@@ -2373,6 +2373,233 @@
           ],
           "footer": {
             "key": "relay_cap_test_footer_nothing"
+          },
+          "button": "done",
+          "dismissible": true
+        }
+      },
+      {
+        "caseId": "running_web_template",
+        "transport": "chat",
+        "items": [
+          "text",
+          "web"
+        ],
+        "keyName": null,
+        "phase": "running",
+        "webSource": "template",
+        "results": {
+          "text": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 600,
+            "status": 200
+          }
+        },
+        "running": {
+          "kind": "web",
+          "elapsedMs": 1200
+        },
+        "expect": {
+          "header": {
+            "progress": [
+              2,
+              2
+            ]
+          },
+          "progressFraction": [
+            1,
+            2
+          ],
+          "chips": {
+            "transport": "chat",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_text_ok",
+              "trailing": "elapsed:0.6"
+            },
+            {
+              "kind": "web",
+              "icon": "running",
+              "subtitle": "relay_cap_test_running_web_default",
+              "trailing": "running:1.2"
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_info_web",
+            "count": 2
+          },
+          "button": "cancel",
+          "dismissible": false
+        }
+      },
+      {
+        "caseId": "completed_web_template_searched",
+        "transport": "chat",
+        "items": [
+          "text",
+          "web"
+        ],
+        "keyName": null,
+        "phase": "completed",
+        "webSource": "template",
+        "results": {
+          "text": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 600,
+            "status": 200
+          },
+          "web": {
+            "verdict": "searched",
+            "reason": "ok",
+            "elapsedMs": 4100,
+            "status": 200
+          }
+        },
+        "written": true,
+        "expect": {
+          "header": "done",
+          "progressFraction": [
+            2,
+            2
+          ],
+          "chips": {
+            "transport": "chat",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_text_ok",
+              "trailing": "elapsed:0.6"
+            },
+            {
+              "kind": "web",
+              "icon": "accepted",
+              "subtitle": "model_options_relay_web_search_confirmed",
+              "trailing": "elapsed:4.1"
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_footer_saved"
+          },
+          "button": "done",
+          "dismissible": true
+        }
+      },
+      {
+        "caseId": "completed_web_template_silent",
+        "transport": "chat",
+        "items": [
+          "text",
+          "web"
+        ],
+        "keyName": null,
+        "phase": "completed",
+        "webSource": "template",
+        "results": {
+          "text": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 600,
+            "status": 200
+          },
+          "web": {
+            "verdict": "silent",
+            "reason": "ok",
+            "elapsedMs": 3100,
+            "status": 200
+          }
+        },
+        "written": false,
+        "expect": {
+          "header": "done",
+          "progressFraction": [
+            2,
+            2
+          ],
+          "chips": {
+            "transport": "chat",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_text_ok",
+              "trailing": "elapsed:0.6"
+            },
+            {
+              "kind": "web",
+              "icon": "undetermined",
+              "subtitle": "model_options_relay_web_no_search_in_test",
+              "trailing": "elapsed:3.1"
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_footer_nothing"
+          },
+          "button": "done",
+          "dismissible": true
+        }
+      },
+      {
+        "caseId": "completed_web_template_rejected",
+        "transport": "chat",
+        "items": [
+          "text",
+          "web"
+        ],
+        "keyName": null,
+        "phase": "completed",
+        "webSource": "template",
+        "results": {
+          "text": {
+            "verdict": "accepted",
+            "reason": "ok",
+            "elapsedMs": 600,
+            "status": 200
+          },
+          "web": {
+            "verdict": "rejected",
+            "reason": "upstream_rejected",
+            "elapsedMs": 400,
+            "status": 400
+          }
+        },
+        "written": true,
+        "expect": {
+          "header": "done",
+          "progressFraction": [
+            2,
+            2
+          ],
+          "chips": {
+            "transport": "chat",
+            "key": null
+          },
+          "rows": [
+            {
+              "kind": "text",
+              "icon": "accepted",
+              "subtitle": "relay_cap_test_text_ok",
+              "trailing": "elapsed:0.6"
+            },
+            {
+              "kind": "web",
+              "icon": "rejected",
+              "subtitle": "model_options_relay_web_rejected",
+              "trailing": "elapsed:0.4"
+            }
+          ],
+          "footer": {
+            "key": "relay_cap_test_footer_saved"
           },
           "button": "done",
           "dismissible": true

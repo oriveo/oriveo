@@ -1,5 +1,5 @@
 {
-  "$comment": "Relay connection-level web search fragments. One JSON object per wire protocol per connection, stored on this device only (iOS UserDefaults / Android SharedPreferences `relay_web_fragments.v1`, Web localStorage `oriveo.relay-web-fragments.v1`, keyed by connection id). A saved fragment is sent on every chat request of that connection whose effective protocol matches (text / image / tool capability-test items and auxiliary requests never carry it; the web search probe item does, see web-probe.v1.json). effectiveFragments(stored, relayRequested, profiles) = stored when it has at least one entry, otherwise legacyCases mapping (read-time only, never written back). Saving on the web search page clears the two legacy fields.",
+  "$comment": "Relay connection-level web search fragments. One JSON object per wire protocol per connection, stored on this device only (iOS UserDefaults / Android SharedPreferences `relay_web_fragments.v1`, Web localStorage `oriveo.relay-web-fragments.v1`, keyed by connection id). A fragment is sent only when the chat web toggle is on (web-probe.v1.json presentationCases); the effective fragment of a transport is the saved one, else templates[transport]. Earlier versions sent a saved fragment on every chat request of that connection whose effective protocol matches (text / image / tool capability-test items and auxiliary requests never carry it; the web search probe item does, see web-probe.v1.json). effectiveFragments(stored, relayRequested, profiles) = stored when it has at least one entry, otherwise legacyCases mapping (read-time only, never written back). Saving on the web search page clears the two legacy fields.",
   "version": 1,
   "transports": [
     "openai_chat_completions",
@@ -911,7 +911,7 @@
   ],
   "presentationCases": [
     {
-      "$comment": "Web row of the model options panel for a Relay-form model. effectiveFragments already folds in legacy mapping. With a fragment for the effective transport the status follows the device-local web probe record (web-probe.v1.json presentationCases): no record = \"Set · not verified\" (disclosure, action openConnectionWebSearch); searched = \"Search confirmed\" and silent = \"Didn’t search when tested\" (same disclosure shape); rejected = notice \"This model rejects the web search settings\" with link \"Test again in Web Search\" to openConnectionWebSearch, and chat omits the fragment.",
+      "$comment": "Web row of the model options panel for a Relay-form model: only the two rows that do not depend on the web toggle stay here (local engine; protocol undecided). Every other row (toggle, status, sends, truth) is web-probe.v1.json presentationCases: web search is a chat toggle like official providers, the fragment is sent only when the toggle is on, and with no saved fragment the transport template is the effective fragment.",
       "caseId": "local_engine_connection_cannot",
       "engineProfile": "ollama",
       "protocolUndecided": false,
@@ -934,58 +934,6 @@
       },
       "expect": {
         "shape": "protocolUndecided"
-      }
-    },
-    {
-      "caseId": "fragment_for_effective_transport_is_set_by_you",
-      "engineProfile": null,
-      "protocolUndecided": false,
-      "effectiveTransport": "openai_responses",
-      "fragments": {
-        "openai_responses": {
-          "tools": [
-            {
-              "type": "web_search"
-            }
-          ]
-        }
-      },
-      "expect": {
-        "shape": "disclosure",
-        "status": "Set · not verified",
-        "action": "openConnectionWebSearch"
-      }
-    },
-    {
-      "caseId": "fragment_only_for_another_transport_needs_setup",
-      "engineProfile": null,
-      "protocolUndecided": false,
-      "effectiveTransport": "anthropic_messages",
-      "fragments": {
-        "openai_responses": {
-          "tools": [
-            {
-              "type": "web_search"
-            }
-          ]
-        }
-      },
-      "expect": {
-        "shape": "notice",
-        "status": "Needs manual setup",
-        "link": "openConnectionWebSearch"
-      }
-    },
-    {
-      "caseId": "no_fragment_needs_setup",
-      "engineProfile": null,
-      "protocolUndecided": false,
-      "effectiveTransport": "gemini_generate_content",
-      "fragments": {},
-      "expect": {
-        "shape": "notice",
-        "status": "Needs manual setup",
-        "link": "openConnectionWebSearch"
       }
     }
   ]

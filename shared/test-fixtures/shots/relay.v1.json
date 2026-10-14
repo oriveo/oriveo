@@ -1,5 +1,5 @@
 {
-  "$comment": "Shared sample-screen manifest for the relay family (sample-screen tool). One source for page names, demo data, per-page presets and the clock across iOS (RelayFamilyDebugShots.swift), Android debug (RelayFamilyShots*) and Web dev (/dev/relay-shots). All three ends render the same values (iOS is the gold reference); every end builds its in-memory demo connections from this file through production model builders; mechanics (navigation, injection hooks, network stubs, wait loops) stay in each end. Keys starting with '$' are documentation and ignored by readers. Lint: every page listed here must be implemented by all three ends and registered in the sample-screen page list. Preset webFragments = saved web search fragments by transport (stored before the page opens); webProbeRecords = device-local web probe records written with the hash of the current fragment of their transport.",
+  "$comment": "Shared sample-screen manifest for the relay family. One source for page names, demo data, per-page presets and the clock across iOS (RelayFamilyDebugShots.swift), Android debug (RelayFamilyShots*) and Web dev (/dev/relay-shots). All three ends render the same values (iOS is the gold reference); every end builds its in-memory demo connections from this file through production model builders; mechanics (navigation, injection hooks, network stubs, wait loops) stay in each end. Keys starting with '$' are documentation and ignored by readers. Lint: a manifest linter checks that every page here is implemented by all three ends and registered in the shared page list. Preset webFragments = saved web search fragments by transport (stored before the page opens); webProbeRecords = device-local web probe records written with the hash of the effective fragment of their transport (the saved fragment, else that transport's template); webOverrides = model capability overrides for web (value + source user/tested) stored on the enabled model; webPreference = chat web search preference ('on') written to the capability preference store for the shots conversation; view modelOptions = the production chat model options panel for the page model.",
   "schema": "oriveo-shots-manifest/v1",
   "family": "relay",
   "clock": {
@@ -100,7 +100,17 @@
     { "name": "relayLibrary", "host": "relay", "view": "library", "preset": { "expandedGroups": ["openai"] } },
     { "name": "relayLibraryLast", "host": "relay", "view": "library", "connection": { "enabled": ["gpt-5.6-sol"] } },
     { "name": "relayLibraryByKey", "host": "relay", "view": "library", "preset": { "keyFilter": "backup" } },
-    { "name": "relayAdvanced", "host": "relay", "view": "advanced", "model": "gpt-5.6-sol" },
+    {
+      "$comment": "The model's Web search row on the advanced page reads 'Search confirmed · Tested': a searched record under the Responses template hash (no saved fragment) plus the tested web override the probe writes.",
+      "name": "relayAdvanced",
+      "host": "relay",
+      "view": "advanced",
+      "model": "gpt-5.6-sol",
+      "preset": {
+        "webProbeRecords": [{ "model": "gpt-5.6-sol", "transport": "openai_responses", "result": "searched", "source": "tested" }],
+        "webOverrides": [{ "model": "gpt-5.6-sol", "value": true, "source": "tested" }]
+      }
+    },
     {
       "name": "relayAdvancedFixed",
       "host": "relay",
@@ -158,6 +168,27 @@
       "preset": {
         "webFragments": { "openai_chat_completions": { "web_search_options": {} } },
         "webProbeRecords": [{ "model": "claude-sonnet-5", "transport": "openai_chat_completions", "result": "rejected", "source": "tested" }]
+      }
+    },
+    {
+      "$comment": "Production chat model options panel for gpt-5.6-sol (first-send transport openai_responses, no saved fragment, so the effective fragment is the template): a searched record under the template hash and the chat web preference set on, so the Web search toggle is on with 'Search confirmed'.",
+      "name": "relayModelOptionsWeb",
+      "host": "relay",
+      "view": "modelOptions",
+      "model": "gpt-5.6-sol",
+      "preset": {
+        "webProbeRecords": [{ "model": "gpt-5.6-sol", "transport": "openai_responses", "result": "searched", "source": "tested" }],
+        "webPreference": "on"
+      }
+    },
+    {
+      "$comment": "Same panel with a rejected record under the template hash and no chat web preference: the toggle is disabled, the status reads 'This model rejects the web search settings' and the retest link is 'Test capabilities'.",
+      "name": "relayModelOptionsWebRejected",
+      "host": "relay",
+      "view": "modelOptions",
+      "model": "gpt-5.6-sol",
+      "preset": {
+        "webProbeRecords": [{ "model": "gpt-5.6-sol", "transport": "openai_responses", "result": "rejected", "source": "tested" }]
       }
     },
     { "name": "relayEdit", "host": "relay", "view": "detail", "preset": { "editConnection": true } },
