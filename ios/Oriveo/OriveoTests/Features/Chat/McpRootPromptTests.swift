@@ -77,7 +77,8 @@ struct McpRootPromptTests {
         let appRoot = try String(contentsOf: features.appendingPathComponent("App/AppRootView.swift"), encoding: .utf8)
         let chat = try String(contentsOf: features.appendingPathComponent("Chat/ChatView.swift"), encoding: .utf8)
         let sheet = try String(contentsOf: features.appendingPathComponent("Chat/MCP/McpConfirmationSheet.swift"), encoding: .utf8)
-        #expect(appRoot.contains(".mcpReauthorizationPresenter(appState: appState)"))
+        // The host is still the app root; with several windows it presents only in the active window (isActiveWindow).
+        #expect(appRoot.contains(".mcpReauthorizationPresenter(appState: appState, isActiveWindow: isActiveWindow)"))
         #expect(!chat.contains(".mcpReauthorizationPresenter("), "if it were attached to the chat page only, nothing would present it once the user leaves that page")
         #expect(chat.contains(".mcpReauthorizationInlineHost(conversationID:"))
         #expect(

@@ -277,9 +277,11 @@ struct RelayWebSearchBoardTests {
     @Test("BOARD-WEBSEARCH-06 the route hides the system navigation bar, so the page no longer hangs its title and Save on it: a custom header plus a bottom action bar")
     func BOARD_WEBSEARCH_06_page_does_not_depend_on_system_navigation_bar() throws {
         // Premise: this page's route is wrapped in `oriveoNavigationChrome()`, which hides the back button and the whole navigation bar.
+        // The route destination lives in AppRouteDestination (shared by the outer stack and the wide-screen right column); the modifier is still defined in AppRootView.
+        let routes = try Self.source("Features/App/AppRouteDestination.swift")
         let root = try Self.source("Features/App/AppRootView.swift")
-        let route = try #require(root.range(of: "RelayWebSearchPage(providerID: providerID)"))
-        let afterRoute = root[route.upperBound...].drop { $0.isWhitespace }
+        let route = try #require(routes.range(of: "RelayWebSearchPage(providerID: providerID)"))
+        let afterRoute = routes[route.upperBound...].drop { $0.isWhitespace }
         #expect(afterRoute.hasPrefix(".oriveoNavigationChrome()"))
         let chrome = try #require(root.range(of: "func oriveoNavigationChrome() -> some View {"))
         let chromeBody = root[chrome.upperBound...].prefix(160)

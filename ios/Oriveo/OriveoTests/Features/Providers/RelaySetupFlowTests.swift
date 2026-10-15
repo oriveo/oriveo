@@ -477,8 +477,9 @@ struct RelaySetupFlowTests {
 
     @Test("Custom Entries Route To The Shared Shell")
     func customEntriesRouteToTheSharedShell() throws {
+        // The route destination shared by the outer stack and the wide-screen right column lives in AppRouteDestination.
         let root = try String(
-            contentsOf: projectRoot.appendingPathComponent("Oriveo/Features/App/AppRootView.swift"),
+            contentsOf: projectRoot.appendingPathComponent("Oriveo/Features/App/AppRouteDestination.swift"),
             encoding: .utf8
         )
         let entry = try String(

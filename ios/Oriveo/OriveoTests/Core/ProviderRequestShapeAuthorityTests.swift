@@ -948,7 +948,13 @@ struct ProviderRequestShapeAuthorityTests {
         #expect(toolMessage["tool_call_id"] as? String == "t-1")
         #expect(toolMessage["name"] as? String == "$web_search")
         #expect(toolMessage["content"] as? String == "{}")
-        #expect(messages.contains { ($0["role"] as? String) == "system" && (($0["content"] as? String) ?? "").contains("limit was reached") })
+        // The loop notice no longer borrows system: it is plain user text after this leg's tool results, and system only comes from the start.
+        let toolIndex = try #require(messages.firstIndex { $0["role"] as? String == "tool" })
+        let noticeIndex = try #require(messages.firstIndex {
+            ($0["role"] as? String) == "user" && (($0["content"] as? String) ?? "").contains("limit was reached")
+        })
+        #expect(noticeIndex > toolIndex)
+        #expect(!messages.dropFirst().contains { ($0["role"] as? String) == "system" })
         #expect(unhandled.map(\.name) == ["$web_search"])
         #expect(doneText == "")
     }

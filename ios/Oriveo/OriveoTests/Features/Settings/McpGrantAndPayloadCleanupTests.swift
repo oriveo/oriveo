@@ -112,7 +112,8 @@ struct McpGrantAndPayloadCleanupTests {
             .appendingPathComponent("Oriveo/Features", isDirectory: true)
         let appRoot = try String(contentsOf: root.appendingPathComponent("App/AppRootView.swift"), encoding: .utf8)
         let chat = try String(contentsOf: root.appendingPathComponent("Chat/ChatView.swift"), encoding: .utf8)
-        #expect(appRoot.contains(".mcpConfirmationPresenter(appState: appState)"))
+        // With several windows it is presented only in the active window (isActiveWindow).
+        #expect(appRoot.contains(".mcpConfirmationPresenter(appState: appState, isActiveWindow: isActiveWindow)"))
         #expect(!chat.contains(".mcpConfirmationPresenter("), "if it were attached to the chat page only, nothing would present it once the user leaves that page")
 
         let coordinator = McpConfirmationCoordinator()

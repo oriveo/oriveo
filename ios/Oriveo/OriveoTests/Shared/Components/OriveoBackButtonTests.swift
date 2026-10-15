@@ -89,8 +89,12 @@ struct OriveoBackButtonTests {
             let source = try String(contentsOf: root.appendingPathComponent(file), encoding: .utf8)
             #expect(source.contains(component), "\(file) does not use the shared component: \(component)")
         }
+        // With vertical bars on the Duo the chat page's back button must be a system toolbar item (icon + title)
+        // for the system to put it in the vertical bar; the shared OriveoBackButton is a custom view and cannot go
+        // there. So ChatToolbar allows exactly this one chevron, written exactly this way.
         let toolbar = try String(contentsOf: root.appendingPathComponent("Features/Chat/ChatToolbar.swift"), encoding: .utf8)
-        #expect(!toolbar.contains("\"chevron.backward\""), "ChatToolbar.swift still draws its own back chevron")
+        #expect(toolbar.components(separatedBy: "\"chevron.backward\"").count - 1 == 1, "ChatToolbar.swift may only have the chevron of the vertical bar's system item")
+        #expect(toolbar.contains("Label(L10n.tr(\"Back\"), systemImage: \"chevron.backward\")"), "The vertical bar's back button must be a system toolbar item")
     }
 
     private func findElement(labeled label: String, in root: NSObject) -> NSObject? {

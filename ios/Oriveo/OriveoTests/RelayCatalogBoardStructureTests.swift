@@ -1259,8 +1259,8 @@ struct RelayCatalogBoardStructureTests {
         state.openRelayModelLibrary(providerID: provider.id)
         #expect(state.navigation.path.last == .relayModelLibrary(providerID: provider.id, keyID: nil))
 
-        // The route branch hands keyID to the detail page; the page's initial filter is that, so the very first board frame already shows that filter.
-        let root = try Self.productionSource("Features/App/AppRootView.swift")
+        // The route branch (in AppRouteDestination, shared by the outer stack and the wide-screen right column) hands keyID to the detail page; the page's initial filter is that, so the very first board frame already shows that filter.
+        let root = try Self.productionSource("Features/App/AppRouteDestination.swift")
         #expect(root.contains("case let .relayModelLibrary(providerID, keyID):"))
         #expect(root.contains("ProviderDetailView(providerID: providerID, page: .modelLibrary, keyFilter: keyID)"))
         let view = ProviderDetailView(providerID: provider.id, page: .modelLibrary, keyFilter: "k-claude")

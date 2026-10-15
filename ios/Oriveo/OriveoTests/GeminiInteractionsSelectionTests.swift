@@ -284,43 +284,33 @@ struct GeminiInteractionsSelectionTests {
         #expect(calls == 1)
     }
 
-    @Test func GI_PREFLIGHT_USES_OUTBOUND_HISTORY() async throws {
-        let modelID = try await Self.loadMetadata(try Self.fixture())
-        var early = ChatMessage(
-            id: UUID(), role: .user, text: "What happens in this clip?", providerKind: .gemini,
-            providerName: "Gemini", modelName: modelID, state: .delivered
-        )
-        early.attachments = [Oriveo.Attachment(
-            id: UUID(), kind: .video, fileName: "clip.mp4", mimeType: "video/mp4", base64Data: "AAAAIGZ0eXBpc29t"
-        )]
-        let failed = ChatMessage(
-            id: UUID(), role: .assistant, text: "Request failed.", providerKind: .gemini,
-            providerName: "Gemini", modelName: modelID, state: .failed
-        )
-        let history = [early, failed]
-        let pendingText = "And then?"
+    /// Invariant: the pre-send check == whether the production outbound history has video; the route matches `AttachmentTransportResolver.resolve(historyHasVideo: preflight)`
+    /// and the real outbound request takes that route.
+    private static func expectPreflightMatchesOutbound(
+        history: [ChatMessage], pendingText: String, modelID: String, expectVideo: Bool, label: String
+    ) async throws {
         let pending = ChatMessage(
             id: UUID(), role: .user, text: pendingText, providerKind: .gemini,
             providerName: "Gemini", modelName: modelID, state: .delivered
         )
-
         // Pre-send check (the same function ChatManager.composerAttachmentOverLimit uses).
         let preflightVideo = ChatManager.preflightHistoryHasVideo(
             history: history, pendingText: pendingText, pendingAttachments: []
         )
-        #expect(!preflightVideo, "The pre-check counted early video that outbound would trim")
-        let model = TestFactories.makeModel(id: modelID, capabilities: [.text])
-        #expect(AttachmentTransportResolver.resolve(
-            provider: TestFactories.makeProvider(kind: .gemini, models: [model]), model: model,
-            request: .init(webSearchEnabled: true, historyHasVideo: preflightVideo)
-        ) == .geminiInteractions)
-
         // Outbound: the history normalized by the production ChatRequestBuilder is handed to the production dispatch.
         let outbound = ChatRequestBuilder.build(from: ChatRequestSnapshot(
             conversation: ChatRequestConversationSnapshot(id: UUID(), useMemory: false, skillID: nil),
             messages: history + [pending], preferences: ChatRequestPreferencesSnapshot(), skill: nil,
             sendPath: .send(excludingMessageID: nil)
         )).requestMessages
+        #expect(GeminiService.historyHasVideo(outbound) == expectVideo, "\(label): outbound history video does not match the expectation")
+        #expect(preflightVideo == GeminiService.historyHasVideo(outbound), "\(label): the pre-check disagrees with the outbound history")
+        let model = TestFactories.makeModel(id: modelID, capabilities: [.text])
+        let transport = AttachmentTransportResolver.resolve(
+            provider: TestFactories.makeProvider(kind: .gemini, models: [model]), model: model,
+            request: .init(webSearchEnabled: true, historyHasVideo: preflightVideo)
+        )
+        #expect(transport == (expectVideo ? .geminiGenerateContent : .geminiInteractions), "\(label): the pre-check picked the wrong route")
         SelectionCaptureProtocol.reset()
         do {
             for try await _ in GeminiService(session: SelectionCaptureProtocol.session()).sendMessageStream(
@@ -329,6 +319,50 @@ struct GeminiInteractionsSelectionTests {
             ) {}
         } catch {}
         let path = try #require(SelectionCaptureProtocol.first()?.url?.path)
-        #expect(path.hasSuffix("/v1beta/interactions"), "The outbound path should go through Interactions, actually \(path)")
+        if transport == .geminiInteractions {
+            #expect(path.hasSuffix("/v1beta/interactions"), "\(label): outbound should go through Interactions, actually \(path)")
+        } else {
+            #expect(path.contains(":streamGenerateContent"), "\(label): outbound should go through generateContent, actually \(path)")
+        }
+    }
+
+    @Test func GI_PREFLIGHT_USES_OUTBOUND_HISTORY() async throws {
+        let modelID = try await Self.loadMetadata(try Self.fixture())
+        func clip() -> Oriveo.Attachment {
+            Oriveo.Attachment(id: UUID(), kind: .video, fileName: "clip.mp4", mimeType: "video/mp4", base64Data: "AAAAIGZ0eXBpc29t")
+        }
+
+        // Negative case: the video is on an assistant message (a video the model generated); outbound normalization strips assistant media,
+        // so the raw history has video and the outbound one does not — the pre-check must not count it and should pick Interactions.
+        let ask = ChatMessage(
+            id: UUID(), role: .user, text: "Make a short clip.", providerKind: .gemini,
+            providerName: "Gemini", modelName: modelID, state: .delivered
+        )
+        var generated = ChatMessage(
+            id: UUID(), role: .assistant, text: "Here is the clip.", providerKind: .gemini,
+            providerName: "Gemini", modelName: modelID, state: .delivered
+        )
+        generated.attachments = [clip()]
+        #expect(GeminiService.historyHasVideo([ask, generated]))
+        try await Self.expectPreflightMatchesOutbound(
+            history: [ask, generated], pendingText: "And then?", modelID: modelID,
+            expectVideo: false, label: "assistant video"
+        )
+
+        // Positive case: an early user turn with video + a failed assistant + a new user turn; adjacent user turns merge into the unanswered envelope,
+        // attachments are concatenated in order and the video stays in the outbound history — the pre-check should be true and pick generateContent.
+        var early = ChatMessage(
+            id: UUID(), role: .user, text: "What happens in this clip?", providerKind: .gemini,
+            providerName: "Gemini", modelName: modelID, state: .delivered
+        )
+        early.attachments = [clip()]
+        let failed = ChatMessage(
+            id: UUID(), role: .assistant, text: "Request failed.", providerKind: .gemini,
+            providerName: "Gemini", modelName: modelID, state: .failed
+        )
+        try await Self.expectPreflightMatchesOutbound(
+            history: [early, failed], pendingText: "And then?", modelID: modelID,
+            expectVideo: true, label: "unanswered envelope video"
+        )
     }
 }
