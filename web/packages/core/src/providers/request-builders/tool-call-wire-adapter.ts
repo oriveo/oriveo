@@ -236,16 +236,26 @@ function responsesInput(messages: ProxyMessage[]): {
 
 function anthropicMessages(messages: ProxyMessage[]): { system?: string; messages: unknown[] } {
   const system = messages.filter((message) => message.role === 'system').map(textContent).filter(Boolean);
-  const output: unknown[] = [];
+  const output: Array<{ role: string; content: unknown[] }> = [];
+  // Whether the trailing user turn holds tool_result blocks: every result of the same leg and the host
+  // loop notice that follows them go into this one user turn, so no adjacent user turns are produced.
+  let openToolTurn: { role: string; content: unknown[] } | undefined;
   for (const message of messages) {
     if (message.role === 'system') continue;
     if (message.role === 'tool') {
-      output.push({
-        role: 'user',
-        content: [{ type: 'tool_result', tool_use_id: message.tool_call_id, content: textContent(message) }],
-      });
+      const block = { type: 'tool_result', tool_use_id: message.tool_call_id, content: textContent(message) };
+      if (openToolTurn) openToolTurn.content.push(block);
+      else {
+        openToolTurn = { role: 'user', content: [block] };
+        output.push(openToolTurn);
+      }
       continue;
     }
+    if (message.role === 'user' && openToolTurn && typeof message.content === 'string') {
+      if (message.content) openToolTurn.content.push({ type: 'text', text: message.content });
+      continue;
+    }
+    openToolTurn = undefined;
     const replay = replayBlocks(message.providerContinuation, 'anthropic_messages');
     const content = replay ?? [
       ...(textContent(message) ? [{ type: 'text', text: textContent(message) }] : []),
@@ -266,18 +276,27 @@ function geminiContents(messages: ProxyMessage[]): {
     for (const call of message.tool_calls ?? []) callNames.set(call.id, call.function.name);
   }
   const contents: unknown[] = [];
+  // Same as Anthropic: the leg's functionResponse parts and the host loop notice after them share one user content.
+  let openToolTurn: { role: string; parts: unknown[] } | undefined;
   for (const message of messages) {
     if (message.role === 'system') continue;
     if (message.role === 'tool') {
-      contents.push({
-        role: 'user',
-        parts: [{ functionResponse: {
-          name: callNames.get(message.tool_call_id ?? '') ?? 'unknown_tool',
-          response: jsonObject(textContent(message)),
-        } }],
-      });
+      const part = { functionResponse: {
+        name: callNames.get(message.tool_call_id ?? '') ?? 'unknown_tool',
+        response: jsonObject(textContent(message)),
+      } };
+      if (openToolTurn) openToolTurn.parts.push(part);
+      else {
+        openToolTurn = { role: 'user', parts: [part] };
+        contents.push(openToolTurn);
+      }
       continue;
     }
+    if (message.role === 'user' && openToolTurn && typeof message.content === 'string') {
+      if (message.content) openToolTurn.parts.push({ text: message.content });
+      continue;
+    }
+    openToolTurn = undefined;
     const replay = replayBlocks(message.providerContinuation, 'gemini_generate_content');
     if (replay) {
       contents.push(...replay);

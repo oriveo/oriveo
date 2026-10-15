@@ -24,14 +24,14 @@ import { deepMerge } from '../merge-utils';
 import { resolveRelayAnthropicThinking } from '../../request-builders/anthropic-thinking';
 import { parseUsageAnthropic } from '../usage-parsers';
 import { nativeToolCallEvents } from '../../tool-call-protocol';
+import { markRelayAnthropicCacheBreakpoint } from '../../relay-adapter';
 
 /**
- * Anthropic prompt caching is enabled automatically.
- * Native PDF and image content blocks carry cache_control: ephemeral (5 min TTL).
- * Asking 5 questions about a 100-page PDF costs $7 instead of $25, a 72% saving.
- * The dedupe key is derived server-side from a content hash, so the client does not manage it.
+ * Image and document blocks carry no cache_control of their own: Anthropic allows at most 4 breakpoints
+ * per request, so marking every block would exceed the limit with many attachments. The single
+ * block-level breakpoint is placed by markRelayAnthropicCacheBreakpoint on the last block of the last
+ * user message.
  */
-const ANTHROPIC_CACHE_CONTROL = { type: 'ephemeral' } as const;
 
 function convertToAnthropicParts(parts: ContentPart[]): Array<Record<string, unknown>> {
   return parts.map((p) => {
@@ -45,7 +45,6 @@ function convertToAnthropicParts(parts: ContentPart[]): Array<Record<string, unk
         return {
           type: 'image',
           source: { type: 'base64', media_type: match[1], data: match[2] },
-          cache_control: ANTHROPIC_CACHE_CONTROL,
         };
       }
       return { type: 'text', text: `[image: ${url}]` };
@@ -61,7 +60,6 @@ function convertToAnthropicParts(parts: ContentPart[]): Array<Record<string, unk
           return {
             type: 'document',
             source: { type: 'base64', media_type: match[1], data: match[2] },
-            cache_control: ANTHROPIC_CACHE_CONTROL,
           };
         }
       }
@@ -85,11 +83,13 @@ const DEFAULT_SNIPPET_FIELD = 'cited_text';
 export const anthropicMessagesStrategy: TransportStrategy = {
   kind: 'anthropic_messages',
   buildRequestBody(input: BuildRequestInput): Record<string, unknown> {
-    let systemText: string | undefined;
+    // Join every system message into the top-level system with a blank line; never keep only the last one.
+    const systemTexts: string[] = [];
     const apiMessages: Array<Record<string, unknown>> = [];
     for (const m of input.messages) {
       if (m.role === 'system') {
-        systemText = typeof m.content === 'string' ? m.content : extractText(m.content);
+        const text = typeof m.content === 'string' ? m.content : extractText(m.content);
+        if (text) systemTexts.push(text);
         continue;
       }
       apiMessages.push({
@@ -105,7 +105,8 @@ export const anthropicMessagesStrategy: TransportStrategy = {
       stream: true,
       messages: apiMessages,
     };
-    if (systemText) body.system = systemText;
+    markRelayAnthropicCacheBreakpoint(apiMessages);
+    if (systemTexts.length > 0) body.system = systemTexts.join('\n\n');
 
     // As in openai-chat, the local budget mapping is a Relay-only exception: official Anthropic uses the
     // metadata profile's params[level] (ant_budget / ant_adaptive*). Without that gate an official model

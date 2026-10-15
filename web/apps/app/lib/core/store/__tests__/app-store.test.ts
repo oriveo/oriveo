@@ -246,12 +246,5 @@ describe('AppStore', () => {
       const c2 = store.getState().conversations.find((c) => c.id === 'c2');
       expect(c2?.useMemory).toBeUndefined();
     });
-
-    it('incrementMemoryUsageCount - increments the counter', () => {
-      expect(store.getState().memoryUsageCount).toBe(0);
-      store.getState().incrementMemoryUsageCount();
-      store.getState().incrementMemoryUsageCount();
-      expect(store.getState().memoryUsageCount).toBe(2);
-    });
   });
 });

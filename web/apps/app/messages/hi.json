@@ -1517,10 +1517,7 @@
       "manualWrite": "मैन्युअल रूप से लिखें",
       "save": "सहेजें",
       "saved": "मेमोरी सहेजी गई",
-      "usageCount": "{count} वार्तालापों में उपयोग किया जाता है",
       "charCount": "{count} / {max} अक्षर (लगभग {tokens} टोकन)",
-      "antiForgetSection": "लंबी बातचीत विस्मृति रोधी",
-      "antiForgetDescription": "बातचीत के 10 दौर के बाद, संदेशों के अंत में स्वचालित रूप से एक सारांश अनुस्मारक जोड़ें।",
       "privacyWarning": "प्रत्येक AI अनुरोध के साथ मेमोरी सामग्री आपके चुने हुए प्रोवाइडर को भेजी जाती है। पासवर्ड या अन्य संवेदनशील जानकारी दर्ज न करें।",
       "indicatorTitle": "यह वार्तालाप स्मृति का उपयोग कर रहा है",
       "indicatorViewEdit": "पूर्ण मेमोरी देखें/संपादित करें",
@@ -1533,7 +1530,6 @@
       "close": "बंद करें",
       "heroChipAuto": "ऑटो",
       "heroChipReady": "Ready",
-      "antiForgetBadge": "विरोधी भूल मोड",
       "charactersUnit": "अक्षर",
       "unsavedBarTitle": "बिना सहेजे बदलाव",
       "draftReadyTitle": "जनरेट किया गया ड्राफ्ट तैयार है",
@@ -1550,8 +1546,7 @@
       "errorGenericTitle": "जनरेशन विफल, कृपया मैन्युअल रूप से लिखें",
       "errorAggregated": "{count} प्रोवाइडरों को आजमाया, सभी विफल रहे।",
       "errorAggregatedWithDetail": "{count} प्रोवाइडरों को आजमाया, सभी विफल रहे। अंतिम त्रुटि: {error}",
-      "backToSettings": "सेटिंग्स पर वापस जाएं",
-      "usageCountLabel": "उपयोग किए गए वार्तालाप"
+      "backToSettings": "सेटिंग्स पर वापस जाएं"
     }
   },
   "capability": {

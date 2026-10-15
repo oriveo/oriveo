@@ -15,35 +15,19 @@ function applyMemoryInjection(
   chatHistory: ChatHistoryMsg[],
   prefs: Pick<AppPreference, 'memoryText' | 'memoryAntiForgetEnabled' | 'memoryAntiForgetText'>,
   conversationUseMemory: boolean | undefined,
-): { injected: boolean; antiForgetAppended: boolean } {
+): { injected: boolean } {
   const memoryText = prefs.memoryText?.trim();
   const useMemory = conversationUseMemory !== false;
 
   let injected = false;
-  let antiForgetAppended = false;
 
   if (memoryText && useMemory) {
     chatHistory.unshift({ role: 'system', content: memoryText });
     injected = true;
 
-    if (prefs.memoryAntiForgetEnabled) {
-      const userMsgCount = chatHistory.filter((m) => m.role === 'user').length;
-      const summaryText = prefs.memoryAntiForgetText?.trim();
-      if (userMsgCount >= 10 && summaryText) {
-        for (let i = chatHistory.length - 1; i >= 0; i--) {
-          if (chatHistory[i].role === 'user') {
-            const original = chatHistory[i].content;
-            const textContent = typeof original === 'string' ? original : original.map((p) => p.type === 'text' ? p.text : '').join('');
-            chatHistory[i] = { ...chatHistory[i], content: `${textContent}\n\n[Reminder: ${summaryText}]` };
-            antiForgetAppended = true;
-            break;
-          }
-        }
-      }
-    }
   }
 
-  return { injected, antiForgetAppended };
+  return { injected };
 }
 
 function makeUserMessages(count: number): ChatHistoryMsg[] {
@@ -57,50 +41,22 @@ function makeUserMessages(count: number): ChatHistoryMsg[] {
 
 // ── Contract constants ────────────────────────────────────────
 
-describe('Contract: anti-forget format', () => {
-  it('appends the anti-forget reminder as "\\n\\n[Reminder: ...]", not [Context: ...]', () => {
+// ── Anti-forget reminder is no longer injected ─────────────────────
+
+describe('anti-forget reminder is no longer appended', () => {
+  it('preference on + >= 10 turns + summary present: the last outbound user message has no [Reminder:', () => {
     const chatHistory = makeUserMessages(10);
-    chatHistory.push({ role: 'user', content: 'Latest' });
+    chatHistory.push({ role: 'user', content: 'Latest question' });
 
     applyMemoryInjection(chatHistory, {
-      memoryText: 'Memory',
+      memoryText: 'I am an engineer',
       memoryAntiForgetEnabled: true,
-      memoryAntiForgetText: 'Be concise',
+      memoryAntiForgetText: 'Prefer Go code',
     }, undefined);
 
     const lastUser = [...chatHistory].reverse().find((m) => m.role === 'user');
-    // Must use the [Reminder: ...] shape
-    expect(lastUser?.content).toContain('\n\n[Reminder: Be concise]');
-    // Must not use the [Context: ...] shape
-    expect(lastUser?.content).not.toContain('[Context:');
-  });
-});
-
-describe('Contract: anti-forget threshold', () => {
-  it('triggers at exactly 10 user messages', () => {
-    const chatHistory = makeUserMessages(9);
-    chatHistory.push({ role: 'user', content: 'Tenth' });
-
-    const result = applyMemoryInjection(chatHistory, {
-      memoryText: 'Ctx',
-      memoryAntiForgetEnabled: true,
-      memoryAntiForgetText: 'Summary',
-    }, undefined);
-
-    expect(result.antiForgetAppended).toBe(true);
-  });
-
-  it('does not trigger at 9 user messages', () => {
-    const chatHistory = makeUserMessages(8);
-    chatHistory.push({ role: 'user', content: 'Ninth' });
-
-    const result = applyMemoryInjection(chatHistory, {
-      memoryText: 'Ctx',
-      memoryAntiForgetEnabled: true,
-      memoryAntiForgetText: 'Summary',
-    }, undefined);
-
-    expect(result.antiForgetAppended).toBe(false);
+    expect(lastUser?.content).toBe('Latest question');
+    expect(JSON.stringify(chatHistory)).not.toContain('[Reminder:');
   });
 });
 

@@ -223,21 +223,25 @@ export class ToolCallLoop {
       history.push(assistantMessage);
 
       // Tool results are fed back in the upstream's proposal order (misses in a mixed leg are not moved
-      // to the front as a group); appended system sentences come after all results.
+      // to the front as a group); host loop notices come after all results.
+      // Host loop notices are always plain-text role:'user' messages: appending a system message mid-loop
+      // would change the top-level system / instructions / systemInstruction of every later leg and
+      // invalidate the whole prefix cache. The wire adapter folds the notice into the same user turn as
+      // the tool results.
       const resultsByCallID = new Map<string, ProxyMessage>();
-      const trailingSystemMessages: ProxyMessage[] = [];
+      const trailingNotices: ProxyMessage[] = [];
       const feed = (message: ProxyMessage): void => {
         if (message.tool_call_id) resultsByCallID.set(message.tool_call_id, message);
       };
-      const appendSystem = (content: string): void => {
-        trailingSystemMessages.push({ role: 'system', content });
+      const appendNotice = (content: string): void => {
+        trailingNotices.push({ role: 'user', content });
       };
       const commitLeg = (): void => {
         const ordered = leg.toolCalls.flatMap((call) => {
           const message = resultsByCallID.get(call.id);
           return message ? [message] : [];
         });
-        history.push(...ordered, ...trailingSystemMessages);
+        history.push(...ordered, ...trailingNotices);
       };
 
       // The protocol requires a tool message for every tool_call: the misses of a mixed leg get an
@@ -265,7 +269,7 @@ export class ToolCallLoop {
             }),
           );
         }
-        appendSystem(this.prompts.tokenBudgetReached);
+        appendNotice(this.prompts.tokenBudgetReached);
         forceSynthesis = true;
         commitLeg();
         break;
@@ -314,7 +318,7 @@ export class ToolCallLoop {
             }),
           );
           if (outcome.stopReason !== undefined) {
-            appendSystem(outcome.stopReason);
+            appendNotice(outcome.stopReason);
             const stoppedMessage = outcome.stoppedMessage ?? outcome.stopReason;
             for (const skipped of accepted.slice(callIndex + 1)) {
               feed(
@@ -383,7 +387,7 @@ export class ToolCallLoop {
               }),
             );
           }
-          appendSystem(this.prompts.stepLimitReached);
+          appendNotice(this.prompts.stepLimitReached);
           forceSynthesis = true;
           stepLimitReached = true;
           break;
@@ -395,8 +399,9 @@ export class ToolCallLoop {
     }
 
     if (!forceSynthesis) {
-      // Legs exhausted: the same "limit reached" as the step limit.
-      history.push({ role: 'system', content: this.prompts.stepLimitReached });
+      // Legs exhausted: the same "limit reached" as the step limit. Also appended as a host loop
+      // notice (user), leaving system untouched.
+      history.push({ role: 'user', content: this.prompts.stepLimitReached });
       stepLimitReached = true;
     }
     // The synthesis leg is a real upstream request too: if the user pressed stop while the last tool was

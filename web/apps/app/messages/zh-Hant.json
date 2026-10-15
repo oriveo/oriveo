@@ -1517,10 +1517,7 @@
       "manualWrite": "手動編寫",
       "save": "儲存",
       "saved": "記憶已儲存",
-      "usageCount": "已在 {count} 個對話中使用",
       "charCount": "{count} / {max} 字元（約 {tokens} tokens）",
-      "antiForgetSection": "長對話防遺忘",
-      "antiForgetDescription": "對話超過 10 輪後，自動在訊息末尾追加摘要提醒。",
       "privacyWarning": "記憶內容會隨每次 AI 請求傳送至你選擇的供應商。請勿輸入密碼或其他敏感資訊。",
       "indicatorTitle": "此對話正在使用記憶",
       "indicatorViewEdit": "查看/編輯完整記憶",
@@ -1533,7 +1530,6 @@
       "close": "關閉",
       "heroChipAuto": "自動",
       "heroChipReady": "可用",
-      "antiForgetBadge": "防遺忘模式",
       "charactersUnit": "字元",
       "unsavedBarTitle": "未儲存的修改",
       "draftReadyTitle": "生成的草稿已就緒",
@@ -1550,8 +1546,7 @@
       "errorGenericTitle": "生成失敗，請手動編寫",
       "errorAggregated": "已嘗試 {count} 個供應商，皆失敗。",
       "errorAggregatedWithDetail": "已嘗試 {count} 個供應商，皆失敗。最後錯誤：{error}",
-      "backToSettings": "返回設定",
-      "usageCountLabel": "已使用對話"
+      "backToSettings": "返回設定"
     }
   },
   "capability": {

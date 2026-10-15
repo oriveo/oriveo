@@ -1517,10 +1517,7 @@
       "manualWrite": "الكتابة يدويًا",
       "save": "حفظ",
       "saved": "تم حفظ الذاكرة",
-      "usageCount": "مستخدم في {count} محادثة",
       "charCount": "{count} / {max} حرف (تقريبًا {tokens} رمز)",
-      "antiForgetSection": "مكافحة النسيان في المحادثات الطويلة",
-      "antiForgetDescription": "بعد 10 جولات من المحادثة، يُضاف تلقائيًا ملخص تذكيري في نهاية الرسائل.",
       "privacyWarning": "يتم إرسال محتوى الذاكرة مع كل طلب ذكاء اصطناعي إلى المزود المختار. لا تدخل كلمات المرور أو معلومات حساسة أخرى.",
       "indicatorTitle": "هذه المحادثة تستخدم الذاكرة",
       "indicatorViewEdit": "عرض/تعديل الذاكرة الكاملة",
@@ -1533,7 +1530,6 @@
       "close": "إغلاق",
       "heroChipAuto": "تلقائي",
       "heroChipReady": "متاح",
-      "antiForgetBadge": "وضع مكافحة النسيان",
       "charactersUnit": "حرف",
       "unsavedBarTitle": "تغييرات غير محفوظة",
       "draftReadyTitle": "المسودة المولّدة جاهزة",
@@ -1550,8 +1546,7 @@
       "errorGenericTitle": "فشل التوليد، يرجى الكتابة يدويًا",
       "errorAggregated": "تمت تجربة {count} مزوّدين، فشلوا جميعًا.",
       "errorAggregatedWithDetail": "تمت تجربة {count} مزوّدين، فشلوا جميعًا. آخر خطأ: {error}",
-      "backToSettings": "العودة إلى الإعدادات",
-      "usageCountLabel": "محادثات مستخدمة"
+      "backToSettings": "العودة إلى الإعدادات"
     }
   },
   "capability": {

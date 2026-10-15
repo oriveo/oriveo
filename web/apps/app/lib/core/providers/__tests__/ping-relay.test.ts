@@ -108,7 +108,8 @@ describe('buildRelayPingRequest', () => {
       model: 'claude-3-5-sonnet',
       max_tokens: 1,
       stream: false,
-      messages: [{ role: 'user', content: [{ type: 'text', text: 'ping' }] }],
+      // Shares the chat request body builder, so the last block carries Relay Anthropic's single cache breakpoint (below the minimum cacheable length, so no cache write happens).
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'ping', cache_control: { type: 'ephemeral' } }] }],
     });
   });
 

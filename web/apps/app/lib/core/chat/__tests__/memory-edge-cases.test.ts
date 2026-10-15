@@ -2,7 +2,7 @@
  * Further Memory boundary and edge-case unit tests.
  *
  * Covers the automatable cases: paste truncation over the limit, zero-width characters, 2000 pure
- * emoji, mixed RTL text, Markdown treated as plain text and anti-forget on multimodal messages.
+ * emoji, mixed RTL text, Markdown treated as plain text, and anti-forget no longer being injected.
  */
 import { describe, it, expect } from 'vitest';
 import { graphemeCount, takeGraphemes } from '../../../utils/grapheme-utils';
@@ -16,33 +16,17 @@ function applyMemoryInjection(
   chatHistory: ChatHistoryMsg[],
   prefs: { memoryText?: string; memoryAntiForgetEnabled?: boolean; memoryAntiForgetText?: string },
   conversationUseMemory: boolean | undefined,
-): { injected: boolean; antiForgetAppended: boolean } {
+): { injected: boolean } {
   const memoryText = prefs.memoryText?.trim();
   const useMemory = conversationUseMemory !== false;
   let injected = false;
-  let antiForgetAppended = false;
 
   if (memoryText && useMemory) {
     chatHistory.unshift({ role: 'system', content: memoryText });
     injected = true;
 
-    if (prefs.memoryAntiForgetEnabled) {
-      const userMsgCount = chatHistory.filter((m) => m.role === 'user').length;
-      const summaryText = prefs.memoryAntiForgetText?.trim();
-      if (userMsgCount >= 10 && summaryText) {
-        for (let i = chatHistory.length - 1; i >= 0; i--) {
-          if (chatHistory[i].role === 'user') {
-            const original = chatHistory[i].content;
-            const textContent = typeof original === 'string' ? original : original.map((p) => p.type === 'text' ? p.text : '').join('');
-            chatHistory[i] = { ...chatHistory[i], content: `${textContent}\n\n[Reminder: ${summaryText}]` };
-            antiForgetAppended = true;
-            break;
-          }
-        }
-      }
-    }
   }
-  return { injected, antiForgetAppended };
+  return { injected };
 }
 
 function makeUserMessages(count: number): ChatHistoryMsg[] {
@@ -223,52 +207,20 @@ describe('memoryText containing Markdown is treated as plain text', () => {
   });
 });
 
-describe('anti-forget append on multimodal messages', () => {
-  it('ContentPart[] messages: Context is appended to the text part without breaking the parts structure', () => {
-    const chatHistory: ChatHistoryMsg[] = makeUserMessages(9);
-    // The 10th user message is multimodal (image + text)
-    const multimodalMsg: ChatHistoryMsg = {
-      role: 'user',
-      content: [
-        { type: 'text', text: 'What is in this image?' },
-        { type: 'image_url', image_url: { url: 'data:image/png;base64,abc123' } },
-      ],
-    };
-    chatHistory.push(multimodalMsg);
+describe('anti-forget reminder is no longer appended', () => {
+  it('preference on + >= 10 turns + summary present: the last outbound user message has no [Reminder:', () => {
+    const chatHistory = makeUserMessages(10);
+    chatHistory.push({ role: 'user', content: 'Latest question' });
 
     applyMemoryInjection(chatHistory, {
-      memoryText: 'I am a developer',
+      memoryText: 'I am an engineer',
       memoryAntiForgetEnabled: true,
-      memoryAntiForgetText: 'Use Chinese to respond',
-    }, undefined);
-
-    // Find the last user message, the one that was modified
-    const lastUser = [...chatHistory].reverse().find((m) => m.role === 'user');
-    // ContentPart[] is flattened to text before Context is appended
-    expect(typeof lastUser?.content).toBe('string');
-    expect(lastUser?.content).toContain('What is in this image?');
-    expect(lastUser?.content).toContain('\n\n[Reminder: Use Chinese to respond]');
-  });
-
-  it('image-only messages: Context is still appended to the empty text', () => {
-    const chatHistory: ChatHistoryMsg[] = makeUserMessages(9);
-    const imageOnlyMsg: ChatHistoryMsg = {
-      role: 'user',
-      content: [
-        { type: 'image_url', image_url: { url: 'data:image/png;base64,abc' } },
-      ],
-    };
-    chatHistory.push(imageOnlyMsg);
-
-    applyMemoryInjection(chatHistory, {
-      memoryText: 'Memory',
-      memoryAntiForgetEnabled: true,
-      memoryAntiForgetText: 'Context info',
+      memoryAntiForgetText: 'Prefer Go code',
     }, undefined);
 
     const lastUser = [...chatHistory].reverse().find((m) => m.role === 'user');
-    // The image part yields an empty text extraction, so Context is appended to an empty string
-    expect(lastUser?.content).toBe('\n\n[Reminder: Context info]');
+    expect(lastUser?.content).toBe('Latest question');
+    expect(JSON.stringify(chatHistory)).not.toContain('[Reminder:');
   });
 });
 

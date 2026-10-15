@@ -57,6 +57,7 @@ export interface SyncAdapter {
   didUpdateConversationPinnedNotes: SyncNotification;
 
   didUpdateConversationTitle: SyncNotification;
+  didUpdateConversationUseMemory: SyncNotification;
   didUpdateConversationModel: SyncNotification;
   didCompleteAssistantMessage: SyncNotification;
   didCompleteRound: SyncNotification;

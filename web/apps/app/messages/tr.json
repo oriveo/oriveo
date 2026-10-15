@@ -1517,10 +1517,7 @@
       "manualWrite": "Manuel olarak yaz",
       "save": "Kaydet",
       "saved": "Bellek kaydedildi",
-      "usageCount": "{count} konuşmalarında kullanılır",
       "charCount": "{count} / {max} karakter (yaklaşık {tokens} token)",
-      "antiForgetSection": "Uzun konuşma unutmayı önleme",
-      "antiForgetDescription": "10 turluk konuşmanın ardından mesajların sonuna otomatik olarak bir özet hatırlatıcı ekleyin.",
       "privacyWarning": "Bellek içeriği, her yapay zeka isteğiyle birlikte seçtiğiniz sağlayıcıya gönderilir. Şifreleri veya diğer hassas bilgileri girmeyin.",
       "indicatorTitle": "Bu görüşme hafızayı kullanıyor",
       "indicatorViewEdit": "Tüm belleği görüntüle/düzenle",
@@ -1533,7 +1530,6 @@
       "close": "Kapat",
       "heroChipAuto": "Otomatik",
       "heroChipReady": "Ready",
-      "antiForgetBadge": "Unutmayı önleme modu",
       "charactersUnit": "karakterler",
       "unsavedBarTitle": "Kaydedilmemiş değişiklikler",
       "draftReadyTitle": "Oluşturulan taslak hazır",
@@ -1550,8 +1546,7 @@
       "errorGenericTitle": "Oluşturma başarısız oldu, lütfen manuel olarak yazın",
       "errorAggregated": "{count} sağlayıcı denendi, hepsi başarısız.",
       "errorAggregatedWithDetail": "{count} sağlayıcı denendi, hepsi başarısız. Son hata: {error}",
-      "backToSettings": "Ayarlara dön",
-      "usageCountLabel": "Kullanılan konuşmalar"
+      "backToSettings": "Ayarlara dön"
     }
   },
   "capability": {

@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import {
   Atom,
-  Bookmark,
   Brain,
   Check,
   CheckCircle2,
@@ -81,12 +80,13 @@ export function MemoryPage() {
   const router = useRouter();
 
   const preferences = useAppStore((s) => s.preferences);
-  const memoryUsageCount = useAppStore((s) => s.memoryUsageCount);
   const providers = useAppStore((s) => s.providers);
   const lastUsedModelRef = useAppStore((s) => s.lastUsedModelRef);
   const conversations = useAppStore((s) => s.conversations);
 
   const [text, setText] = useState(preferences.memoryText ?? '');
+  // The anti-forget toggle is hidden from the UI and nothing is injected on send anymore; the preference
+  // fields are still read and written as is so a later migration can carry them.
   const [antiForgetEnabled, setAntiForgetEnabled] = useState(
     preferences.memoryAntiForgetEnabled ?? false,
   );
@@ -187,13 +187,6 @@ export function MemoryPage() {
   const focusEditor = useCallback(() => {
     setIsEditorFocused(true);
     requestAnimationFrame(() => textareaRef.current?.focus());
-  }, []);
-
-  /* ───────── Anti-forget toggle ───────── */
-
-  const handleAntiForgetToggle = useCallback(() => {
-    setAntiForgetEnabled((prev) => !prev);
-    editRevisionRef.current += 1;
   }, []);
 
   /* --------- Generate draft (round-robin across providers) --------- */
@@ -436,18 +429,6 @@ ${excerpts}`;
     errorDialog,
   ]);
 
-  /* --------- AntiForget description rendering: highlight the number, for example "10" --------- */
-  const antiForgetDescNodes = useMemo<ReactElement[]>(() => {
-    const desc = t('antiForgetDescription');
-    return desc.split(/(\d+)/).map((part, i) =>
-      /^\d+$/.test(part) ? (
-        <em key={`hl-${i}`} className={styles.descHighlight}>{part}</em>
-      ) : (
-        <span key={`tx-${i}`}>{part}</span>
-      ),
-    );
-  }, [t]);
-
   /* ───────── Hero chip ───────── */
 
   const heroChip: { label: string; icon: ReactElement; tone: 'primary' | 'success' } = (() => {
@@ -606,49 +587,6 @@ ${excerpts}`;
                 <span className={styles.regenerateText}>{t('generateDraft')}</span>
               </button>
             )}
-
-            {memoryUsageCount > 0 && (
-              <div className={styles.statCard}>
-                <span className={styles.statIcon} aria-hidden="true">
-                  <CheckCircle2 size={15} strokeWidth={2.4} />
-                </span>
-                <div className={styles.statText}>
-                  <span className={styles.statValue}>{memoryUsageCount.toLocaleString()}</span>
-                  <span className={styles.statLabel}>{t('usageCountLabel')}</span>
-                </div>
-              </div>
-            )}
-
-            <div
-              className={`${styles.toggleCard} ${
-                antiForgetEnabled ? styles.toggleCardActive : ''
-              }`}
-            >
-              <div className={styles.toggleHeader}>
-                <span
-                  className={`${styles.toggleIcon} ${
-                    antiForgetEnabled ? styles.toggleIconActive : ''
-                  }`}
-                  aria-hidden="true"
-                >
-                  <Bookmark size={14} strokeWidth={2.2} fill={antiForgetEnabled ? 'currentColor' : 'none'} />
-                </span>
-                <div className={styles.toggleText}>
-                  <span className={styles.toggleTitle}>{t('antiForgetSection')}</span>
-                  <span className={styles.toggleDesc}>{antiForgetDescNodes}</span>
-                </div>
-                <button
-                  type="button"
-                  className={styles.toggle}
-                  data-on={antiForgetEnabled}
-                  onClick={handleAntiForgetToggle}
-                  aria-label={t('antiForgetSection')}
-                  aria-pressed={antiForgetEnabled}
-                >
-                  <span className={styles.toggleKnob} />
-                </button>
-              </div>
-            </div>
 
             <p className={styles.privacyNote}>
               <ShieldAlert size={13} strokeWidth={2.2} className={styles.privacyIcon} />

@@ -1517,10 +1517,7 @@
       "manualWrite": "Viết thủ công",
       "save": "Lưu",
       "saved": "Đã lưu bộ nhớ",
-      "usageCount": "Được sử dụng trong các cuộc hội thoại {count}",
       "charCount": "{count} / {max} ký tự (khoảng {tokens} token)",
-      "antiForgetSection": "Trò chuyện dài chống quên",
-      "antiForgetDescription": "Sau 10 vòng trò chuyện, tự động thêm lời nhắc tóm tắt vào cuối tin nhắn.",
       "privacyWarning": "Nội dung bộ nhớ được gửi cùng với mọi yêu cầu AI đến nhà cung cấp mà bạn đã chọn. Không nhập mật khẩu hoặc thông tin nhạy cảm khác.",
       "indicatorTitle": "Cuộc trò chuyện này đang sử dụng bộ nhớ",
       "indicatorViewEdit": "Xem/chỉnh sửa toàn bộ bộ nhớ",
@@ -1533,7 +1530,6 @@
       "close": "Đóng",
       "heroChipAuto": "Tự động",
       "heroChipReady": "Ready",
-      "antiForgetBadge": "Chế độ chống quên",
       "charactersUnit": "nhân vật",
       "unsavedBarTitle": "Thay đổi chưa lưu",
       "draftReadyTitle": "Bản nháp được tạo đã sẵn sàng",
@@ -1550,8 +1546,7 @@
       "errorGenericTitle": "Tạo không thành công, vui lòng viết thủ công",
       "errorAggregated": "Đã thử {count} nhà cung cấp, đều thất bại.",
       "errorAggregatedWithDetail": "Đã thử {count} nhà cung cấp, đều thất bại. Lỗi cuối: {error}",
-      "backToSettings": "Quay lại Cài đặt",
-      "usageCountLabel": "Cuộc trò chuyện đã dùng"
+      "backToSettings": "Quay lại Cài đặt"
     }
   },
   "capability": {

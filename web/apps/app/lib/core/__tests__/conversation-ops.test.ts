@@ -10,11 +10,13 @@ import {
   pinNoteToConversation,
   updateConversationTitle,
   updateConversationModel,
+  updateConversationUseMemory,
 } from '../conversation-ops';
 
 const mockSyncAdapter = {
   didDeleteConversations: vi.fn(),
   didUpdateConversationTitle: vi.fn(),
+  didUpdateConversationUseMemory: vi.fn(),
   didUpdateConversationModel: vi.fn(),
   didUpdateConversationPinnedNotes: vi.fn(),
 };
@@ -69,6 +71,17 @@ describe('conversation-ops', () => {
     expect(conv.title).toBe('New Title');
     expect(conv.hasCustomTitle).toBe(true);
     expect(mockSyncAdapter.didUpdateConversationTitle).toHaveBeenCalledWith('c1', 'New Title');
+  });
+
+  it('updateConversationUseMemory — store + sync.didUpdateConversationUseMemory (same path as renaming)', () => {
+    updateConversationUseMemory(store, 'c1', false);
+    expect(store.getState().conversations.find((c) => c.id === 'c1')!.useMemory).toBe(false);
+    expect(store.getState().conversations.find((c) => c.id === 'c2')!.useMemory).toBeUndefined();
+    expect(mockSyncAdapter.didUpdateConversationUseMemory).toHaveBeenCalledWith('c1', false);
+
+    updateConversationUseMemory(store, 'c1', true);
+    expect(store.getState().conversations.find((c) => c.id === 'c1')!.useMemory).toBe(true);
+    expect(mockSyncAdapter.didUpdateConversationUseMemory).toHaveBeenLastCalledWith('c1', true);
   });
 
   it('updateConversationModel updates the store and calls sync.didUpdateConversationModel with providerKind and relayKind', () => {

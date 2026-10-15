@@ -1517,10 +1517,7 @@
       "manualWrite": "Écrire manuellement",
       "save": "Enregistrer",
       "saved": "Mémoire sauvegardée",
-      "usageCount": "Utilisé dans {count} conversations",
       "charCount": "{count} / {max} caractères (env. {tokens} tokens)",
-      "antiForgetSection": "Anti-oubli pour longues conversations",
-      "antiForgetDescription": "Après 10 échanges, ajoute automatiquement un résumé à la fin des messages.",
       "privacyWarning": "Le contenu de la mémoire est envoyé avec chaque requête IA au fournisseur choisi. N'entrez pas de mots de passe ou d'informations sensibles.",
       "indicatorTitle": "Cette conversation utilise la mémoire",
       "indicatorViewEdit": "Voir/modifier la mémoire complète",
@@ -1533,7 +1530,6 @@
       "close": "Fermer",
       "heroChipAuto": "Automatique",
       "heroChipReady": "Disponible",
-      "antiForgetBadge": "Mode anti-oubli",
       "charactersUnit": "caractères",
       "unsavedBarTitle": "Modifications non enregistrées",
       "draftReadyTitle": "Le brouillon généré est prêt",
@@ -1550,8 +1546,7 @@
       "errorGenericTitle": "La génération a échoué, écrivez manuellement",
       "errorAggregated": "{count} fournisseurs essayés, tous ont échoué.",
       "errorAggregatedWithDetail": "{count} fournisseurs essayés, tous ont échoué. Dernière erreur : {error}",
-      "backToSettings": "Retour aux paramètres",
-      "usageCountLabel": "Conversations utilisées"
+      "backToSettings": "Retour aux paramètres"
     }
   },
   "capability": {

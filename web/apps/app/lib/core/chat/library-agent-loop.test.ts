@@ -661,7 +661,7 @@ describe("runLibraryAgentLoop", () => {
     ]);
   });
 
-  it("empty-result limit: the stop system text and the research_stopped text for skipped proposals are independent", async () => {
+  it("empty-result limit: the stop notice text and the research_stopped text for skipped proposals are independent", async () => {
     const requests: LibraryAgentLegRequest[] = [];
     const executeTool = vi.fn(async () => ({ result: { hits: [] } }));
     await runLibraryAgentLoop(
@@ -696,9 +696,10 @@ describe("runLibraryAgentLoop", () => {
         content: expect.stringContaining("The empty-result limit was reached."),
       }),
     );
+    // Host loop notices are appended as user messages (not system), keeping every leg's system prefix unchanged.
     expect(messages).toContainEqual(
       expect.objectContaining({
-        role: "system",
+        role: "user",
         content:
           "No relevant Library evidence was found. Answer honestly that nothing was found and do not invent facts.",
       }),
@@ -706,10 +707,11 @@ describe("runLibraryAgentLoop", () => {
   });
 
   // This pins the order, not the content: the test above uses toContainEqual, which only proves
-  // that all four messages are present and would stay green if they were reordered. The system
-  // message goes after all tool results, which also satisfies the protocol requirement that
-  // tool results directly follow the assistant's tool_calls.
-  it("when the empty-result limit is hit, the feedback order is assistant → tool (executed) → tool (skipped) → system", async () => {
+  // that all four messages are present and would stay green if they were reordered. The host loop
+  // notice goes after all tool results, which also satisfies the protocol requirement that
+  // tool results directly follow the assistant's tool_calls. The notice is a user message: appending
+  // a system message mid-loop would change every later leg's top-level system and invalidate the cache.
+  it("when the empty-result limit is hit, the feedback order is assistant → tool (executed) → tool (skipped) → user notice", async () => {
     const requests: LibraryAgentLegRequest[] = [];
     await runLibraryAgentLoop(
       options({
@@ -741,16 +743,17 @@ describe("runLibraryAgentLoop", () => {
       ["assistant", null],
       ["tool", "s1"],
       ["tool", "s2"],
-      ["system", null],
+      ["user", null],
     ]);
-    // The appended system message must come after both tool results: placing it between them violates the protocol.
-    const systemIndex = messages.findIndex((message) => message.role === "system");
+    // The notice must come after both tool results: placing it between them violates the protocol.
+    const noticeIndex = messages.length - 1;
+    expect(messages.some((message) => message.role === "system")).toBe(false);
     const lastToolIndex = messages.reduce(
       (last, message, index) => (message.role === "tool" ? index : last),
       -1,
     );
     expect(lastToolIndex).toBeGreaterThan(0);
-    expect(systemIndex).toBe(lastToolIndex + 1);
+    expect(noticeIndex).toBe(lastToolIndex + 1);
     expect(messages[2].content).toContain('"ok":true');
     expect(messages[3].content).toContain("research_stopped");
   });

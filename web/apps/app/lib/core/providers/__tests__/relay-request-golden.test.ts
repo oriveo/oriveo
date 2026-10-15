@@ -105,6 +105,29 @@ function withCodexIdentityChange<T extends GoldenRecord>(
   return { ...record, headers, body: JSON.stringify(body) };
 }
 
+/**
+ * The **only allowed** golden difference for the Relay Anthropic cache breakpoint: the request body gains
+ * one cache_control breakpoint on the last block of the last user message (Anthropic allows at most 4
+ * breakpoints per request and Relay places only this one). Everything else stays byte for byte.
+ */
+const RELAY_ANTHROPIC_CACHE_BREAKPOINT_CASES = new Set(['relay_messages_bare_host', 'relay_messages_legacy_resolved_root']);
+
+type AnthropicBodyMessage = { role: string; content: Array<Record<string, unknown>> };
+
+function lastUserLastBlock(body: Record<string, unknown>): Record<string, unknown> | undefined {
+  const messages = body.messages as AnthropicBodyMessage[] | undefined;
+  return messages?.filter((message) => message.role === 'user').at(-1)?.content.at(-1);
+}
+
+/** Lift the old baseline to the cache-breakpoint convention before comparing: one that already has the breakpoint is returned as is, so re-recording is repeatable. */
+function withRelayAnthropicCacheBreakpoint<T extends GoldenRecord>(record: T): T {
+  if (!('body' in record)) return record;
+  const body = JSON.parse(record.body) as Record<string, unknown>;
+  const block = lastUserLastBlock(body);
+  if (block && !('cache_control' in block)) block.cache_control = { type: 'ephemeral' };
+  return { ...record, body: JSON.stringify(body) };
+}
+
 // openai_responses direct generates a session_id; fix the source so golden does not delete fields.
 const FIXED_UUID = '00000000-0000-4000-8000-000000000000';
 
@@ -228,10 +251,18 @@ function check(record: GoldenRecord) {
       `${record.caseId} prompt_cache_key`,
     ).toBe(codexChange.promptCacheKey);
   }
+  const cacheBreakpointChange = RELAY_ANTHROPIC_CACHE_BREAKPOINT_CASES.has(record.caseId);
+  if (cacheBreakpointChange) {
+    expect(
+      'body' in record ? lastUserLastBlock(JSON.parse(record.body) as Record<string, unknown>)?.cache_control : undefined,
+      `${record.caseId} cache breakpoint`,
+    ).toEqual({ type: 'ephemeral' });
+  }
   if (RECORD) {
-    // Re-record guard: when a baseline exists, nothing may change except the URLs of those three cases and the one Codex identity case.
+    // Re-record guard: when a baseline exists, nothing may change except the URLs of those three cases, the one Codex identity case and the two cache-breakpoint cases.
     const stored = golden?.cases.find((entry) => entry.caseId === record.caseId);
-    const previous = stored && codexChange ? withCodexIdentityChange(stored, codexChange) : stored;
+    const lifted = stored && codexChange ? withCodexIdentityChange(stored, codexChange) : stored;
+    const previous = lifted && cacheBreakpointChange ? withRelayAnthropicCacheBreakpoint(lifted) : lifted;
     if (previous) {
       if (allowed && 'url' in previous && 'url' in record) {
         expect([allowed.before, allowed.after], `${record.caseId} previous URL`).toContain(previous.url);

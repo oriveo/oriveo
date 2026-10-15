@@ -25,7 +25,6 @@ type MockConversation = {
 
 type MockMemoryState = {
   preferences: MockPreferences;
-  memoryUsageCount: number;
   providers: MockProvider[];
   conversations: MockConversation[];
 };
@@ -41,7 +40,6 @@ const mocks = vi.hoisted(() => ({
 
 let mockState: MockMemoryState = {
   preferences: {},
-  memoryUsageCount: 0,
   providers: [],
   conversations: [],
 };
@@ -116,7 +114,6 @@ describe('MemoryPage', () => {
   beforeEach(() => {
     mockState = {
       preferences: {},
-      memoryUsageCount: 0,
       providers: [],
       conversations: [],
     };
@@ -162,6 +159,30 @@ describe('MemoryPage', () => {
       );
     });
     expect(screen.getByText('saved')).toBeTruthy();
+  });
+
+  it('hides the anti-forget toggle and usage stat, but keeps the stored anti-forget preference on save', async () => {
+    mockState = {
+      ...mockState,
+      preferences: {
+        memoryText: 'Existing memory',
+        memoryAntiForgetEnabled: true,
+        memoryAntiForgetText: 'Existing memory',
+      },
+    };
+    render(<MemoryPage />);
+
+    expect(screen.queryByRole('button', { name: 'antiForgetSection' })).toBeNull();
+    expect(screen.queryByText('usageCountLabel')).toBeNull();
+
+    fireEvent.change(screen.getByPlaceholderText('exampleHint'), {
+      target: { value: 'Updated memory' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    await waitFor(() => {
+      expect(mocks.updateMemory).toHaveBeenCalledWith(mocks.vanillaStore, 'Updated memory', true, 'Updated memory');
+    });
   });
 
   it('prompts before leaving with unsaved changes and can discard', async () => {

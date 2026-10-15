@@ -285,7 +285,7 @@ describe('ToolCallLoop — step limit', () => {
     expect(runner.requests[2]?.toolChoice).toBe('none');
     const finalMessages = runner.requests[2]?.messages ?? [];
     expect(finalMessages.at(-1)).toEqual({
-      role: 'system',
+      role: 'user',
       content:
         'The tool call limit was reached. Answer now using the tool results you already have. Do not call another tool.',
     });
@@ -439,7 +439,7 @@ describe('ToolCallLoop — failure disposition and self-correction', () => {
       ok: false,
       error: { code: 'tool_loop_stopped', message: 'The empty-result limit was reached.' },
     });
-    expect(finalMessages.some((message) => message.role === 'system' && message.content === 'The empty-result limit was reached.')).toBe(true);
+    expect(finalMessages.some((message) => message.role === 'user' && message.content === 'The empty-result limit was reached.')).toBe(true);
   });
 });
 
@@ -471,7 +471,7 @@ describe('ToolCallLoop — token budget and usage merging', () => {
       },
     });
     expect(finalMessages.at(-1)).toEqual({
-      role: 'system',
+      role: 'user',
       content:
         'The token budget for tool calls was reached. Answer now using the tool results you already have and do not call another tool. If they are not enough to answer, say so clearly.',
     });
@@ -1103,7 +1103,7 @@ describe('ToolCallLoop — neutral default prompts and overridable stop error co
       ok: false,
       error: { code: 'research_stopped', message: 'STEP LIMIT TOOL' },
     });
-    expect(stepMessages.at(-1)).toEqual({ role: 'system', content: 'STEP LIMIT SYSTEM' });
+    expect(stepMessages.at(-1)).toEqual({ role: 'user', content: 'STEP LIMIT SYSTEM' });
 
     const budgetRunner = makeRunner([
       handle([toolCall('c1', 'library_search'), { type: 'usage', usage: { total_tokens: 10 } }]),
@@ -1122,6 +1122,6 @@ describe('ToolCallLoop — neutral default prompts and overridable stop error co
       ok: false,
       error: { code: 'research_stopped', message: 'BUDGET TOOL' },
     });
-    expect(budgetMessages.at(-1)).toEqual({ role: 'system', content: 'BUDGET SYSTEM' });
+    expect(budgetMessages.at(-1)).toEqual({ role: 'user', content: 'BUDGET SYSTEM' });
   });
 });

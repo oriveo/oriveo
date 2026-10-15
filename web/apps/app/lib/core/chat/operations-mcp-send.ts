@@ -204,7 +204,6 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
       retrievalCost = promptContext.retrievalCost;
       // The user's system prompt comes first; the safety prompt is appended after it.
       history.unshift({ role: 'system', content: mcpSystemPrompt(promptContext.systemContent) });
-      if (promptContext.memoryInjected) store.getState().incrementMemoryUsageCount();
 
       const unresolvedGenerationParameters = resolveGenerationParameterOverrides({
         providerId: params.provider.id,

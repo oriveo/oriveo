@@ -259,6 +259,35 @@ export function extractText(parts: ContentPart[]): string {
     .join('\n');
 }
 
+const RELAY_ANTHROPIC_CACHE_CONTROL = { type: 'ephemeral' } as const;
+
+/**
+ * The single block-level cache breakpoint for Relay Anthropic: placed on the last content block of the
+ * last user message. Anthropic allows at most 4 cache_control breakpoints per request; marking every
+ * image / document block would exceed that with many attachments and get the request rejected. One
+ * breakpoint on the last block already lets the whole prefix (system + full history + attachments) hit
+ * the cache. String content is wrapped into a text block first; an empty-text last block is left
+ * unmarked (Anthropic rejects breakpoints on empty text blocks). Array elements are replaced in place,
+ * so the caller's message objects are never mutated.
+ */
+export function markRelayAnthropicCacheBreakpoint(messages: Array<Record<string, unknown>>): void {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== 'user') continue;
+    const content = typeof message.content === 'string'
+      ? (message.content ? [{ type: 'text', text: message.content }] : [])
+      : message.content;
+    if (!Array.isArray(content) || content.length === 0) return;
+    const last = content[content.length - 1] as Record<string, unknown>;
+    if (last.type === 'text' && !last.text) return;
+    messages[index] = {
+      ...message,
+      content: [...content.slice(0, -1), { ...last, cache_control: RELAY_ANTHROPIC_CACHE_CONTROL }],
+    };
+    return;
+  }
+}
+
 export function convertToAnthropicParts(parts: ContentPart[]) {
   return parts.map((part) => {
     if (part.type === 'text') {

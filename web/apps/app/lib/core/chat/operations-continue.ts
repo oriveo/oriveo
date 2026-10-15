@@ -41,10 +41,7 @@ import {
 } from './error-reporting';
 import { recalculateConversationCost, shouldTrackProviderUsage } from './usage-tracking';
 import { runStreamPipeline } from './stream-runner';
-import {
-  appendAntiForgetReminder,
-  buildPromptInjectionContext,
-} from './prompt-injection';
+import { buildPromptInjectionContext } from './prompt-injection';
 import type { ChatOpCtx, SendHandle } from './operations';
 import { clearOwnLibraryConfirmation, requestLibraryConfirmation } from '../library/confirmation';
 import type { LibraryConfirmationRequest } from '../library/types';
@@ -214,16 +211,11 @@ export function continueAnswering(
         .join('\n\n');
       if (systemContent) {
         chatHistory.unshift({ role: 'system', content: systemContent });
-        if (promptContext.memoryInjected) {
-          store.getState().incrementMemoryUsageCount();
-        }
       }
 
       if (directContext) {
         appendTextToLatestUserMessage(chatHistory, directContext.userContext);
       }
-
-      appendAntiForgetReminder(chatHistory, store.getState().preferences, promptContext);
 
       const clientControlsAllowed = !providerControlsAreManaged(provider);
       const unresolvedGenerationParameters = clientControlsAllowed ? resolveGenerationParameterOverrides({

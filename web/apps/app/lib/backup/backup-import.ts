@@ -41,6 +41,42 @@ import { normalizeNoteFolderIDs, normalizeNoteIDs, normalizeUUID } from '../util
 import type { CatalogMetadataInput } from '../core/providers/catalog-resolver';
 import { getActiveUIDSync } from '../infra/storage/partition';
 import { setLocaleCookie, SUPPORTED_LOCALES, type SupportedLocale } from '../i18n/locale-utils';
+import { getSyncAdapter } from '../core/sync-port';
+import { takeGraphemes } from '../utils/grapheme-utils';
+
+/** Same limits as the Memory page and the iOS / Android clients: 2000 characters of memory text, 200 of anti-forget summary. */
+const BACKUP_MEMORY_TEXT_LIMIT = 2000;
+const BACKUP_MEMORY_ANTI_FORGET_TEXT_LIMIT = 200;
+
+type MemoryPreferencePatch = Partial<Pick<
+  AppPreference,
+  'memoryText' | 'memoryAntiForgetEnabled' | 'memoryAntiForgetText' | 'memoryUpdatedAt'
+>>;
+
+/**
+ * Memory fields in a backup: each field is restored only when present (an older backup without these
+ * keys leaves local memory untouched). Text and summary are truncated by grapheme; updatedAt is written
+ * back only when it parses (normalized to ISO 8601).
+ */
+export function memoryPreferencesFromBackup(
+  preferences: NonNullable<BackupFile['data']['preferences']>,
+): MemoryPreferencePatch {
+  const patch: MemoryPreferencePatch = {};
+  if (typeof preferences.memoryText === 'string') {
+    patch.memoryText = takeGraphemes(preferences.memoryText, BACKUP_MEMORY_TEXT_LIMIT);
+  }
+  if (typeof preferences.memoryAntiForgetEnabled === 'boolean') {
+    patch.memoryAntiForgetEnabled = preferences.memoryAntiForgetEnabled;
+  }
+  if (typeof preferences.memoryAntiForgetText === 'string') {
+    patch.memoryAntiForgetText = takeGraphemes(preferences.memoryAntiForgetText, BACKUP_MEMORY_ANTI_FORGET_TEXT_LIMIT);
+  }
+  if (typeof preferences.memoryUpdatedAt === 'string') {
+    const parsed = Date.parse(preferences.memoryUpdatedAt);
+    if (!Number.isNaN(parsed)) patch.memoryUpdatedAt = new Date(parsed).toISOString();
+  }
+  return patch;
+}
 
 /** Abort as soon as the account partition changes mid-import: writes must land in the partition that started it. */
 function assertExpectedImportUID(expectedUID?: string): void {
@@ -234,7 +270,9 @@ export async function executeImport(
   const store = tryGetVanillaStore();
   if (backupFile.data.preferences) {
     const { theme, language } = backupFile.data.preferences;
-    if (theme || language) {
+    const memoryPatch = memoryPreferencesFromBackup(backupFile.data.preferences);
+    const hasMemory = Object.keys(memoryPatch).length > 0;
+    if (theme || language || hasMemory) {
       const currentPreferences = store?.getState().preferences ?? getPreference<AppPreference>(
         'preferences',
         {
@@ -245,15 +283,21 @@ export async function executeImport(
         },
         expectedUID,
       );
-      // theme in the backup is user data, so treat it as an explicit choice once restored
-      const restoredPatch = theme
-        ? { ...backupFile.data.preferences, themeSetByUser: true }
-        : backupFile.data.preferences;
+      // Only known fields are taken: other keys in the backup never reach preferences. theme in the
+      // backup is user data, so treat it as an explicit choice once restored.
+      const restoredPatch: Partial<AppPreference> = {
+        ...(theme ? { theme, themeSetByUser: true } : {}),
+        ...(language ? { language } : {}),
+        ...memoryPatch,
+      };
       setPreference('preferences', {
         ...currentPreferences,
         ...restoredPatch,
       }, expectedUID);
       store?.getState().setPreferences(restoredPatch);
+      // Memory goes through the same preference sync path as saving on the Memory page (theme /
+      // language imports have always stayed on this device).
+      if (hasMemory) getSyncAdapter()?.didUpdatePreferences(memoryPatch);
       // On this device the interface language lives in the NEXT_LOCALE cookie and hydration
       // follows it; without writing it here, the hydration after import would overwrite the
       // language that was just restored.

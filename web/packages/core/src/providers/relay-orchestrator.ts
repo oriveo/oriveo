@@ -46,6 +46,7 @@ import {
   buildRelayProxyConfig,
   buildResponsesContent,
   convertToAnthropicParts,
+  markRelayAnthropicCacheBreakpoint,
   convertToGeminiParts,
   convertToOpenAIChatParts,
   extractImagePrompt,
@@ -1026,12 +1027,14 @@ export function buildRelayAnthropicMessagesBody(
   messages: RelayMessages,
   options: StreamOptions | undefined,
 ): Record<string, unknown> {
-  let systemText: string | undefined;
+  // Join every system message into the top-level system with a blank line; never keep only the last one.
+  const systemTexts: string[] = [];
 
   const apiMessages = messages
     .filter((message) => {
       if (message.role === 'system') {
-        systemText = typeof message.content === 'string' ? message.content : extractText(message.content);
+        const text = typeof message.content === 'string' ? message.content : extractText(message.content);
+        if (text) systemTexts.push(text);
         return false;
       }
       return true;
@@ -1043,6 +1046,9 @@ export function buildRelayAnthropicMessagesBody(
         : convertToAnthropicParts(message.content),
     }));
 
+  // Anthropic allows at most 4 cache breakpoints: Relay places exactly one, on the last block of the last user message.
+  markRelayAnthropicCacheBreakpoint(apiMessages);
+
   const body: Record<string, unknown> = {
     model: modelID,
     // Relay-specific exception / heuristic-allow fallback only: the official Anthropic path resolves this from metadata instead.
@@ -1050,7 +1056,7 @@ export function buildRelayAnthropicMessagesBody(
     stream: shouldRelayStream(options),
     messages: apiMessages,
   };
-  if (systemText) body.system = systemText;
+  if (systemTexts.length > 0) body.system = systemTexts.join('\n\n');
   const thinking = resolveRelayAnthropicThinking(options?.reasoning);
   if (thinking) {
     body.thinking = { type: 'enabled', budget_tokens: thinking.budgetTokens };

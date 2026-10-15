@@ -421,7 +421,7 @@
   flex-shrink: 0;
 }
 
-/* ── Sidebar(stat + toggle + privacy) ──────────── */
+/* ── Sidebar(draft + privacy) ──────────── */
 
 .sidebar {
   display: flex;
@@ -509,168 +509,6 @@
   border-top-color: #ffffff;
   border-radius: 50%;
   animation: spin 0.85s linear infinite;
-}
-
-/* — Stat card — */
-
-.statCard {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px var(--o-space-lg);
-  border-radius: var(--o-radius-card);
-  border: 1px solid color-mix(in srgb, var(--o-success) 18%, var(--o-border));
-  background:
-    linear-gradient(140deg, color-mix(in srgb, var(--o-success) 5%, transparent), transparent 80%),
-    color-mix(in srgb, var(--o-surface) 95%, transparent);
-  box-shadow: var(--o-elevation-card);
-}
-
-.statIcon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  color: #ffffff;
-  background: var(--o-success);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
-}
-
-.statText {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.statValue {
-  font-size: 18px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--o-text);
-  line-height: 1;
-  font-family: var(--o-font-display);
-}
-
-.statLabel {
-  font-size: 11px;
-  color: var(--o-text-secondary);
-}
-
-/* — Toggle card — */
-
-.toggleCard {
-  background: color-mix(in srgb, var(--o-surface) 96%, transparent);
-  border: 1px solid var(--o-border);
-  border-radius: var(--o-radius-card);
-  padding: var(--o-space-md);
-  box-shadow: var(--o-elevation-card);
-  transition: border-color 240ms ease, background-color 240ms ease;
-}
-
-.toggleCardActive {
-  border-color: color-mix(in srgb, var(--o-primary) 32%, var(--o-border));
-  background:
-    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--o-primary) 8%, transparent), transparent 50%),
-    color-mix(in srgb, var(--o-surface) 96%, transparent);
-}
-
-.toggleHeader {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.toggleIcon {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  color: var(--o-text-secondary);
-  background: var(--o-surface-raised);
-  transition: all 240ms ease;
-}
-
-.toggleIconActive {
-  color: #ffffff;
-  background: var(--o-primary);
-  box-shadow: 0 4px 10px color-mix(in srgb, var(--o-primary) 36%, transparent);
-}
-
-.toggleText {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-.toggleTitle {
-  font-size: var(--o-text-sm);
-  font-weight: 600;
-  color: var(--o-text);
-}
-
-.toggleDesc {
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--o-text-secondary);
-}
-
-/* Numbers inside the AntiForget description (for example "10 turns") are highlighted in the primary color */
-.descHighlight {
-  font-style: normal;
-  font-weight: 700;
-  color: var(--o-primary);
-  font-variant-numeric: tabular-nums;
-}
-
-/* — Toggle switch — */
-
-.toggle {
-  position: relative;
-  flex-shrink: 0;
-  width: 40px;
-  height: 22px;
-  padding: 0;
-  border: none;
-  border-radius: 999px;
-  background: var(--o-border-strong);
-  cursor: pointer;
-  transition: background-color 200ms ease;
-}
-
-.toggle:focus-visible {
-  outline: none;
-  box-shadow: var(--o-focus-ring);
-}
-
-.toggle[data-on='true'] {
-  background: var(--o-primary);
-}
-
-.toggleKnob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--o-switch-thumb, #ffffff);
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.18),
-    0 0 0 0.5px rgba(0, 0, 0, 0.06);
-  transition: transform 200ms cubic-bezier(0.4, 0.2, 0.2, 1);
-}
-
-.toggle[data-on='true'] .toggleKnob {
-  transform: translateX(18px);
 }
 
 /* Privacy footnote (restrained, no background fill) */
@@ -902,10 +740,4 @@
     0 22px 44px rgba(0, 0, 0, 0.6),
     0 2px 4px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-:global(html[data-theme='dark']) .toggleCardActive {
-  background:
-    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--o-primary) 14%, transparent), transparent 50%),
-    color-mix(in srgb, var(--o-surface-raised) 88%, transparent);
 }

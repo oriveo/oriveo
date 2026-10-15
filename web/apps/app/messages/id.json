@@ -1517,10 +1517,7 @@
       "manualWrite": "Tulis secara manual",
       "save": "Simpan",
       "saved": "Memori disimpan",
-      "usageCount": "Digunakan dalam percakapan {count}",
       "charCount": "Karakter {count} / {max} (kira-kira token {tokens})",
-      "antiForgetSection": "Percakapan panjang anti lupa",
-      "antiForgetDescription": "Setelah 10 putaran percakapan, secara otomatis menambahkan ringkasan pengingat di akhir pesan.",
       "privacyWarning": "Konten memori dikirim dengan setiap permintaan AI ke penyedia pilihan Anda. Jangan masukkan kata sandi atau informasi sensitif lainnya.",
       "indicatorTitle": "Percakapan ini menggunakan memori",
       "indicatorViewEdit": "Lihat/edit memori penuh",
@@ -1533,7 +1530,6 @@
       "close": "Tutup",
       "heroChipAuto": "Otomatis",
       "heroChipReady": "Ready",
-      "antiForgetBadge": "Mode anti-lupa",
       "charactersUnit": "karakter",
       "unsavedBarTitle": "Perubahan belum disimpan",
       "draftReadyTitle": "Draf yang dihasilkan sudah siap",
@@ -1550,8 +1546,7 @@
       "errorGenericTitle": "Pembuatan gagal, harap tulis secara manual",
       "errorAggregated": "Mencoba {count} penyedia, semua gagal.",
       "errorAggregatedWithDetail": "Mencoba {count} penyedia, semua gagal. Kesalahan terakhir: {error}",
-      "backToSettings": "Kembali ke Pengaturan",
-      "usageCountLabel": "Percakapan yang digunakan"
+      "backToSettings": "Kembali ke Pengaturan"
     }
   },
   "capability": {

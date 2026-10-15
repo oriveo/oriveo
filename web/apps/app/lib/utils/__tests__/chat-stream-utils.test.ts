@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AIModel, Attachment, ChatMessage } from '@oriveo/shared';
-import { buildChatHistory, readStream, sanitizeOutboundMessages } from '../chat-stream-utils';
+import { buildChatHistory, readStream, sanitizeOutboundMessages, UNANSWERED_ENVELOPE_NOTE } from '../chat-stream-utils';
+
+const envelope = (earlier: string) =>
+  `<oriveo-unanswered>\n<note>${UNANSWERED_ENVELOPE_NOTE}</note>\n${earlier}\n</oriveo-unanswered>`;
 import { AttachmentOverLimitError, findUnsendableTextAttachments } from '../../core/attachments/attachment-delivery';
 
 vi.mock('../../infra/storage/image-store', () => ({
@@ -325,20 +328,20 @@ describe('sanitizeOutboundMessages ', () => {
     expect(sanitizeOutboundMessages(msgs).map((m) => m.id)).toEqual(['u1', 'a1', 'u2']);
   });
 
-  it('after dropping an empty failed assistant in the middle, keeps only the newest user message so two questions are not merged into one prompt', () => {
+  it('after dropping an empty failed assistant in the middle, merges the adjacent user messages: the old question goes into the unanswered envelope and the newest id is kept', () => {
     const result = sanitizeOutboundMessages([
       makeMessage({ id: 'u1', role: 'user', text: 'q1', state: 'delivered' }),
       makeMessage({ id: 'a1', role: 'assistant', text: '', state: 'failed' }),
       makeMessage({ id: 'u2', role: 'user', text: 'q2', state: 'delivered' }),
     ]);
-    // With the empty a1 gone, u1 and u2 are adjacent; the answer to u1 failed or was abandoned, so only the newest u2 is kept, which stays strictly alternating without merging the two questions.
+    // With the empty a1 gone, u1 and u2 are adjacent and merge into one (id from u2); u1's text goes into the envelope as context so the model answers only q2.
     expect(result.map((m) => m.id)).toEqual(['u2']);
-    expect(result[0].text).toBe('q2');
+    expect(result[0].text).toBe(`${envelope('q1')}\n\nq2`);
   });
 
-  it('retrying a failed message drops the intervening empty failed assistant and keeps only the newest user message, staying strictly alternating', () => {
+  it('retrying a failed message drops the intervening empty failed assistant and merges the adjacent user messages, staying strictly alternating', () => {
     // A conversation that accumulated failed turns: u1 -> a1(delivered) -> u2 -> a2(failed, empty) -> u3.
-    // Dropping a2 leaves u2 and u3 adjacent, so the older u2 goes and only u3 remains.
+    // Dropping a2 leaves u2 and u3 adjacent, so they merge into u3 with u2's text in the envelope.
     const result = sanitizeOutboundMessages([
       makeMessage({ id: 'u1', role: 'user', text: 'q1', state: 'delivered' }),
       makeMessage({ id: 'a1', role: 'assistant', text: 'a1', state: 'delivered' }),
@@ -347,11 +350,11 @@ describe('sanitizeOutboundMessages ', () => {
       makeMessage({ id: 'u3', role: 'user', text: 'q3', state: 'delivered' }),
     ]);
     expect(result.map((m) => m.role)).toEqual(['user', 'assistant', 'user']);
-    expect(result.map((m) => m.text)).toEqual(['q1', 'a1', 'q3']);
+    expect(result.map((m) => m.text)).toEqual(['q1', 'a1', `${envelope('q2')}\n\nq3`]);
     expect(result.map((m) => m.id)).toEqual(['u1', 'a1', 'u3']);
   });
 
-  it('keeps the newest user message with its own attachments when discarding the older one', () => {
+  it('concatenates attachments in message order when merging adjacent user messages', () => {
     const result = sanitizeOutboundMessages([
       makeMessage({
         id: 'u1', role: 'user', text: 'q1', state: 'delivered',
@@ -365,8 +368,8 @@ describe('sanitizeOutboundMessages ', () => {
     ]);
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('u2');
-    expect(result[0].text).toBe('q2');
-    expect(result[0].attachments?.map((a) => a.id)).toEqual(['att2']);
+    expect(result[0].text).toBe(`${envelope('q1')}\n\nq2`);
+    expect(result[0].attachments?.map((a) => a.id)).toEqual(['att1', 'att2']);
   });
 
   it('keeps an interrupted assistant that has partial text as context separating two user messages, and preserves the continuation target through keepId', () => {
@@ -406,7 +409,7 @@ describe('sanitizeOutboundMessages ', () => {
     expect(result[1].attachments).toBeUndefined();
   });
 
-  it('drops an image-only assistant message that has no text left after stripping, and keeps only the newest user message', () => {
+  it('drops an image-only assistant message that has no text left after stripping, and merges the user messages around it', () => {
     const result = sanitizeOutboundMessages([
       makeMessage({ id: 'u1', role: 'user', text: 'draw me a farmer', state: 'delivered' }),
       makeMessage({
@@ -415,9 +418,9 @@ describe('sanitizeOutboundMessages ', () => {
       }),
       makeMessage({ id: 'u2', role: 'user', text: 'nice one', state: 'delivered' }),
     ]);
-    // An image-only assistant becomes empty once images are stripped, so it is dropped; u1 and u2 are then adjacent and only the newest u2 is kept.
+    // An image-only assistant becomes empty once images are stripped, so it is dropped; u1 and u2 are then adjacent and merge, with u1 in the envelope.
     expect(result.map((m) => m.role)).toEqual(['user']);
-    expect(result[0].text).toBe('nice one');
+    expect(result[0].text).toBe(`${envelope('draw me a farmer')}\n\nnice one`);
   });
 
   it('does not strip image attachments the user uploaded; only assistant messages are touched', () => {
@@ -430,15 +433,16 @@ describe('sanitizeOutboundMessages ', () => {
     expect(result[0].attachments?.map((a) => a.id)).toEqual(['up1']);
   });
 
-  it('sending a new question after stopping drops the empty interrupted assistant and the old question, sending only the new one', () => {
-    // Reproduces and pins a production bug: send A, stop (leaving an empty interrupted assistant), send B. The old behavior merged A and B into one message for the model to answer together; now only B is sent.
+  it('sending a new question after stopping drops the empty interrupted assistant and puts the old question in the unanswered envelope so the model answers the new one', () => {
+    // Production bug: send A, stop (leaving an empty interrupted assistant), send B. A and B were once merged into one message for the model to answer together;
+    // now A goes into an <oriveo-unanswered> envelope that says to answer only the latest message, and A's content is not lost.
     const result = sanitizeOutboundMessages([
       makeMessage({ id: 'uA', role: 'user', text: 'what is that micro frontend framework called', state: 'delivered' }),
       makeMessage({ id: 'aA', role: 'assistant', text: '', state: 'interrupted' }),
       makeMessage({ id: 'uB', role: 'user', text: 'who founded that video studio', state: 'delivered' }),
     ]);
     expect(result.map((m) => m.id)).toEqual(['uB']);
-    expect(result[0].text).toBe('who founded that video studio');
+    expect(result[0].text).toBe(`${envelope('what is that micro frontend framework called')}\n\nwho founded that video studio`);
   });
 
   it('sending a new question after stopping keeps an interrupted assistant with partial text between the two user messages, so the model answers only the new question', () => {
@@ -459,7 +463,8 @@ describe('sanitizeOutboundMessages ', () => {
       makeMessage({ id: 'u2', role: 'user', text: 'q2', state: 'delivered' }),
     ]);
     expect(result.map((m) => m.id)).toEqual(['u2']);
-    expect(result[0].text).toBe('q2');
+    expect(result[0].text).toBe(`${envelope('q1')}\n\nq2`);
+    expect(result[0].text).not.toContain('invalid key');
   });
 
   it('merges the text of adjacent assistant messages from a malformed history to restore alternation', () => {

@@ -97,6 +97,12 @@ export function updateConversationTitle(store: StoreApi<AppStore>, convId: strin
   getSyncAdapter()?.didUpdateConversationTitle(convId, title.trim());
 }
 
+/** Per-conversation "use memory" switch: update the store (the subscriber persists it to IDB) and notify the sync adapter, the same path as renaming. */
+export function updateConversationUseMemory(store: StoreApi<AppStore>, convId: string, useMemory: boolean) {
+  store.getState().setConversationUseMemory(convId, useMemory);
+  getSyncAdapter()?.didUpdateConversationUseMemory(convId, useMemory);
+}
+
 export function updateConversationModel(
   store: StoreApi<AppStore>,
   convId: string,

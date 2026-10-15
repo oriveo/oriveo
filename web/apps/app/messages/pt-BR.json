@@ -1517,10 +1517,7 @@
       "manualWrite": "Escrever manualmente",
       "save": "Salvar",
       "saved": "Memória salva",
-      "usageCount": "Usado em {count} conversas",
       "charCount": "{count} / {max} caracteres (aprox. {tokens} tokens)",
-      "antiForgetSection": "Anti-esquecimento em conversas longas",
-      "antiForgetDescription": "Após 10 rodadas de conversa, adiciona automaticamente um resumo ao final das mensagens.",
       "privacyWarning": "O conteúdo da memória é enviado com cada solicitação de IA ao provedor escolhido. Não insira senhas ou outras informações sensíveis.",
       "indicatorTitle": "Esta conversa está usando memória",
       "indicatorViewEdit": "Ver/editar memória completa",
@@ -1533,7 +1530,6 @@
       "close": "Fechar",
       "heroChipAuto": "Automático",
       "heroChipReady": "Disponível",
-      "antiForgetBadge": "Modo anti-esquecimento",
       "charactersUnit": "caracteres",
       "unsavedBarTitle": "Alterações não salvas",
       "draftReadyTitle": "O rascunho gerado está pronto",
@@ -1550,8 +1546,7 @@
       "errorGenericTitle": "A geração falhou, escreva manualmente",
       "errorAggregated": "Tentamos {count} provedores, todos falharam.",
       "errorAggregatedWithDetail": "Tentamos {count} provedores, todos falharam. Último erro: {error}",
-      "backToSettings": "Voltar para Configurações",
-      "usageCountLabel": "Conversas usadas"
+      "backToSettings": "Voltar para Configurações"
     }
   },
   "capability": {

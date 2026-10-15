@@ -5,11 +5,9 @@
  * - Memory injected as a system message for new and continued conversations
  * - useMemory = false blocks injection
  * - Empty or whitespace-only memoryText is not injected
- * - Anti-forget threshold (10 user messages) and its boundaries
- * - Anti-forget lives only in the request copy and does not pollute ContentPart
+ * - Anti-forget is no longer injected: even with the preference on, no [Reminder: ...] is appended
  * - retry/edit-resend use the current memory text
  * - Where each provider adapter places the system message
- * - usageCount increments once per conversation
  */
 import { describe, it, expect } from 'vitest';
 import type { AppPreference } from '@oriveo/shared';
@@ -21,41 +19,25 @@ type ChatHistoryMsg = { role: 'user' | 'assistant' | 'system'; content: string |
 
 /**
  * Mirrors the Memory injection logic in operations.ts sendMessage.
- * Returns whether injection happened and whether usageCount should increment.
+ * Returns the injection state.
  */
 function applyMemoryInjection(
   chatHistory: ChatHistoryMsg[],
   prefs: Pick<AppPreference, 'memoryText' | 'memoryAntiForgetEnabled' | 'memoryAntiForgetText'>,
   conversationUseMemory: boolean | undefined,
-): { injected: boolean; antiForgetAppended: boolean; shouldIncrementUsage: boolean } {
+): { injected: boolean } {
   const memoryText = prefs.memoryText?.trim();
   const useMemory = conversationUseMemory !== false;
 
   let injected = false;
-  let antiForgetAppended = false;
 
   if (memoryText && useMemory) {
     chatHistory.unshift({ role: 'system', content: memoryText });
     injected = true;
 
-    if (prefs.memoryAntiForgetEnabled) {
-      const userMsgCount = chatHistory.filter((m) => m.role === 'user').length;
-      const summaryText = prefs.memoryAntiForgetText?.trim();
-      if (userMsgCount >= 10 && summaryText) {
-        for (let i = chatHistory.length - 1; i >= 0; i--) {
-          if (chatHistory[i].role === 'user') {
-            const original = chatHistory[i].content;
-            const textContent = typeof original === 'string' ? original : original.map((p) => p.type === 'text' ? p.text : '').join('');
-            chatHistory[i] = { ...chatHistory[i], content: `${textContent}\n\n[Reminder: ${summaryText}]` };
-            antiForgetAppended = true;
-            break;
-          }
-        }
-      }
-    }
   }
 
-  return { injected, antiForgetAppended, shouldIncrementUsage: injected };
+  return { injected };
 }
 
 // Helpers
@@ -170,7 +152,7 @@ describe('existing conversation continue — Memory continues to inject', () => 
   });
 });
 
-describe('useMemory = false — no injection, no usageCount increment', () => {
+describe('useMemory = false — no injection', () => {
   it('does not inject a system message when useMemory = false', () => {
     const chatHistory: ChatHistoryMsg[] = [
       { role: 'user', content: 'Hello' },
@@ -180,12 +162,11 @@ describe('useMemory = false — no injection, no usageCount increment', () => {
     }, false);
 
     expect(result.injected).toBe(false);
-    expect(result.shouldIncrementUsage).toBe(false);
     expect(chatHistory).toHaveLength(1);
     expect(chatHistory[0].role).toBe('user');
   });
 
-  it('does not trigger anti-forget when useMemory = false', () => {
+  it('does not inject when useMemory = false even with the anti-forget preference on', () => {
     const chatHistory = makeUserMessages(10);
     chatHistory.push({ role: 'user', content: 'Latest' });
 
@@ -196,8 +177,6 @@ describe('useMemory = false — no injection, no usageCount increment', () => {
     }, false);
 
     expect(result.injected).toBe(false);
-    expect(result.antiForgetAppended).toBe(false);
-    expect(result.shouldIncrementUsage).toBe(false);
   });
 });
 
@@ -206,7 +185,6 @@ describe('empty/whitespace-only memory — no injection, no indicator', () => {
     const chatHistory: ChatHistoryMsg[] = [{ role: 'user', content: 'Hi' }];
     const result = applyMemoryInjection(chatHistory, { memoryText: '' }, undefined);
     expect(result.injected).toBe(false);
-    expect(result.shouldIncrementUsage).toBe(false);
   });
 
   it('does not inject whitespace only', () => {
@@ -228,202 +206,20 @@ describe('empty/whitespace-only memory — no injection, no indicator', () => {
   });
 });
 
-describe('anti-forget exactly 10 user messages — starts appending Context', () => {
-  it('appends Context at 10 user messages, counted after system injection', () => {
-    // 9 user+assistant rounds plus 1 new user message = 10 user messages
-    const chatHistory = makeUserMessages(9);
-    chatHistory.push({ role: 'user', content: 'Tenth question' });
+describe('anti-forget reminder is no longer appended', () => {
+  it('preference on + >= 10 turns + summary present: the last outbound user message has no [Reminder:', () => {
+    const chatHistory = makeUserMessages(10);
+    chatHistory.push({ role: 'user', content: 'Latest question' });
 
-    const result = applyMemoryInjection(chatHistory, {
+    applyMemoryInjection(chatHistory, {
       memoryText: 'I am an engineer',
       memoryAntiForgetEnabled: true,
       memoryAntiForgetText: 'Prefer Go code',
     }, undefined);
 
-    expect(result.antiForgetAppended).toBe(true);
     const lastUser = [...chatHistory].reverse().find((m) => m.role === 'user');
-    expect(lastUser?.content).toContain('Tenth question');
-    expect(lastUser?.content).toContain('\n\n[Reminder: Prefer Go code]');
-  });
-
-  it('also triggers at 11 user messages', () => {
-    const chatHistory = makeUserMessages(10);
-    chatHistory.push({ role: 'user', content: 'Eleventh' });
-
-    const result = applyMemoryInjection(chatHistory, {
-      memoryText: 'Context',
-      memoryAntiForgetEnabled: true,
-      memoryAntiForgetText: 'Summary',
-    }, undefined);
-
-    expect(result.antiForgetAppended).toBe(true);
-  });
-});
-
-describe('anti-forget < 10 user messages — no Context appended', () => {
-  it('does not trigger at 9 user messages', () => {
-    const chatHistory = makeUserMessages(8);
-    chatHistory.push({ role: 'user', content: 'Ninth' });
-
-    const result = applyMemoryInjection(chatHistory, {
-      memoryText: 'Context',
-      memoryAntiForgetEnabled: true,
-      memoryAntiForgetText: 'Summary',
-    }, undefined);
-
-    expect(result.antiForgetAppended).toBe(false);
-    const lastUser = [...chatHistory].reverse().find((m) => m.role === 'user');
-    expect(lastUser?.content).toBe('Ninth');
-  });
-
-  it('does not trigger at 1 user message', () => {
-    const chatHistory: ChatHistoryMsg[] = [
-      { role: 'user', content: 'Only one' },
-    ];
-
-    const result = applyMemoryInjection(chatHistory, {
-      memoryText: 'Context',
-      memoryAntiForgetEnabled: true,
-      memoryAntiForgetText: 'Summary',
-    }, undefined);
-
-    expect(result.antiForgetAppended).toBe(false);
-  });
-});
-
-describe('anti-forget disabled or summary empty — no Context', () => {
-  it('memoryAntiForgetEnabled = false does not append', () => {
-    const chatHistory = makeUserMessages(10);
-    chatHistory.push({ role: 'user', content: 'Latest' });
-
-    const result = applyMemoryInjection(chatHistory, {
-      memoryText: 'Context',
-      memoryAntiForgetEnabled: false,
-      memoryAntiForgetText: 'Summary',
-    }, undefined);
-
-    expect(result.antiForgetAppended).toBe(false);
-  });
-
-  it('memoryAntiForgetEnabled = undefined does not append', () => {
-    const chatHistory = makeUserMessages(10);
-    chatHistory.push({ role: 'user', content: 'Latest' });
-
-    const result = applyMemoryInjection(chatHistory, {
-      memoryText: 'Context',
-      memoryAntiForgetText: 'Summary',
-    }, undefined);
-
-    expect(result.antiForgetAppended).toBe(false);
-  });
-
-  it('empty memoryAntiForgetText does not append', () => {
-    const chatHistory = makeUserMessages(10);
-    chatHistory.push({ role: 'user', content: 'Latest' });
-
-    const result = applyMemoryInjection(chatHistory, {
-      memoryText: 'Context',
-      memoryAntiForgetEnabled: true,
-      memoryAntiForgetText: '',
-    }, undefined);
-
-    expect(result.antiForgetAppended).toBe(false);
-  });
-
-  it('whitespace-only memoryAntiForgetText does not append', () => {
-    const chatHistory = makeUserMessages(10);
-    chatHistory.push({ role: 'user', content: 'Latest' });
-
-    const result = applyMemoryInjection(chatHistory, {
-      memoryText: 'Context',
-      memoryAntiForgetEnabled: true,
-      memoryAntiForgetText: '   ',
-    }, undefined);
-
-    expect(result.antiForgetAppended).toBe(false);
-  });
-
-  it('undefined memoryAntiForgetText does not append', () => {
-    const chatHistory = makeUserMessages(10);
-    chatHistory.push({ role: 'user', content: 'Latest' });
-
-    const result = applyMemoryInjection(chatHistory, {
-      memoryText: 'Context',
-      memoryAntiForgetEnabled: true,
-    }, undefined);
-
-    expect(result.antiForgetAppended).toBe(false);
-  });
-});
-
-describe('anti-forget only in request copy, not in local messages/UI/export', () => {
-  it('modifies the request copy while local messages stay unchanged', () => {
-    // Mirrors operations.ts: buildChatHistory makes a deep copy of chatHistory and
-    // applyMemoryInjection mutates that copy.
-    const localMessages: ChatHistoryMsg[] = makeUserMessages(10);
-    localMessages.push({ role: 'user', content: 'Latest question' });
-
-    // Request copy, standing in for the buildChatHistory return value
-    const requestCopy = localMessages.map((m) => ({ ...m }));
-
-    applyMemoryInjection(requestCopy, {
-      memoryText: 'Context',
-      memoryAntiForgetEnabled: true,
-      memoryAntiForgetText: 'Summary',
-    }, undefined);
-
-    // The request copy is modified
-    const lastUserInRequest = [...requestCopy].reverse().find((m) => m.role === 'user');
-    expect(lastUserInRequest?.content).toContain('[Reminder: Summary]');
-
-    // The local messages are untouched
-    const lastUserInLocal = [...localMessages].reverse().find((m) => m.role === 'user');
-    expect(lastUserInLocal?.content).toBe('Latest question');
-  });
-});
-
-describe('anti-forget with content parts (image+text) — flatten to text to avoid breaking format', () => {
-  it('flattens ContentPart[] to plain text before appending Context', () => {
-    const chatHistory = makeUserMessages(9);
-    // The last user message holds both an image and text
-    const contentParts: ContentPart[] = [
-      { type: 'text', text: 'What is this image?' },
-      { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,abc123' } },
-    ];
-    chatHistory.push({ role: 'user', content: contentParts });
-
-    const result = applyMemoryInjection(chatHistory, {
-      memoryText: 'Memory text',
-      memoryAntiForgetEnabled: true,
-      memoryAntiForgetText: 'Keep concise',
-    }, undefined);
-
-    expect(result.antiForgetAppended).toBe(true);
-
-    // After flattening, the image_url part becomes empty and only the text survives
-    const lastUser = [...chatHistory].reverse().find((m) => m.role === 'user');
-    expect(typeof lastUser?.content).toBe('string');
-    expect(lastUser?.content).toContain('What is this image?');
-    expect(lastUser?.content).toContain('[Reminder: Keep concise]');
-  });
-
-  it('flattens a ContentPart holding only image_url to empty text plus Context', () => {
-    const chatHistory = makeUserMessages(9);
-    const contentParts: ContentPart[] = [
-      { type: 'image_url', image_url: { url: 'data:image/png;base64,xyz' } },
-    ];
-    chatHistory.push({ role: 'user', content: contentParts });
-
-    const result = applyMemoryInjection(chatHistory, {
-      memoryText: 'Memory',
-      memoryAntiForgetEnabled: true,
-      memoryAntiForgetText: 'Reminder',
-    }, undefined);
-
-    expect(result.antiForgetAppended).toBe(true);
-    const lastUser = [...chatHistory].reverse().find((m) => m.role === 'user');
-    expect(typeof lastUser?.content).toBe('string');
-    expect(lastUser?.content).toContain('[Reminder: Reminder]');
+    expect(lastUser?.content).toBe('Latest question');
+    expect(JSON.stringify(chatHistory)).not.toContain('[Reminder:');
   });
 });
 
@@ -562,52 +358,6 @@ describe('OpenAI Responses API — instructions field (future-proof)', () => {
     const instructions = systemMsg ? (typeof systemMsg.content === 'string' ? systemMsg.content : '') : undefined;
 
     expect(instructions).toBe('Be concise');
-  });
-});
-
-describe('usageCount increments once per conversation, not per message', () => {
-  it('shouldIncrementUsage = true on successful injection', () => {
-    const chatHistory: ChatHistoryMsg[] = [{ role: 'user', content: 'Hi' }];
-    const result = applyMemoryInjection(chatHistory, { memoryText: 'Context' }, undefined);
-    expect(result.shouldIncrementUsage).toBe(true);
-  });
-
-  it('shouldIncrementUsage = false when nothing is injected', () => {
-    const chatHistory: ChatHistoryMsg[] = [{ role: 'user', content: 'Hi' }];
-    const result = applyMemoryInjection(chatHistory, {}, undefined);
-    expect(result.shouldIncrementUsage).toBe(false);
-  });
-
-  it('shouldIncrementUsage = false when useMemory = false', () => {
-    const chatHistory: ChatHistoryMsg[] = [{ role: 'user', content: 'Hi' }];
-    const result = applyMemoryInjection(chatHistory, { memoryText: 'Context' }, false);
-    expect(result.shouldIncrementUsage).toBe(false);
-  });
-
-  it('every sendMessage call signals an increment, dedupe is handled by the store', () => {
-    // incrementMemoryUsageCount is called from operations.ts on every successful injection.
-    // Whether that ends up as once per conversation is a caller or store convention;
-    // this only checks that a successful injection raises the increment signal.
-
-    let totalIncrements = 0;
-
-    // First message
-    const ch1: ChatHistoryMsg[] = [{ role: 'user', content: 'First' }];
-    const r1 = applyMemoryInjection(ch1, { memoryText: 'Ctx' }, undefined);
-    if (r1.shouldIncrementUsage) totalIncrements++;
-
-    // Second message in the same conversation
-    const ch2: ChatHistoryMsg[] = [
-      { role: 'user', content: 'First' },
-      { role: 'assistant', content: 'Reply' },
-      { role: 'user', content: 'Second' },
-    ];
-    const r2 = applyMemoryInjection(ch2, { memoryText: 'Ctx' }, undefined);
-    if (r2.shouldIncrementUsage) totalIncrements++;
-
-    // Every sendMessage triggers incrementMemoryUsageCount, and
-    // store.incrementMemoryUsageCount is a plain +1 counter.
-    expect(totalIncrements).toBe(2);
   });
 });
 

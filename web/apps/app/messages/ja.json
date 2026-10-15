@@ -1517,10 +1517,7 @@
       "manualWrite": "手動で書く",
       "save": "保存",
       "saved": "メモリーを保存しました",
-      "usageCount": "{count} 件の会話で使用中",
       "charCount": "{count} / {max} 文字（約 {tokens} トークン）",
-      "antiForgetSection": "長い会話の忘却防止",
-      "antiForgetDescription": "会話が10往復を超えると、メッセージの末尾に要約リマインダーを自動的に追加します。",
       "privacyWarning": "メモリーの内容はAIリクエストごとに選択したプロバイダーに送信されます。パスワードやその他の機密情報を入力しないでください。",
       "indicatorTitle": "この会話はメモリーを使用しています",
       "indicatorViewEdit": "メモリー全文を表示/編集",
@@ -1533,7 +1530,6 @@
       "close": "閉じる",
       "heroChipAuto": "自動",
       "heroChipReady": "利用可能",
-      "antiForgetBadge": "忘却防止モード",
       "charactersUnit": "文字",
       "unsavedBarTitle": "未保存の変更",
       "draftReadyTitle": "生成された下書きの準備ができました",
@@ -1550,8 +1546,7 @@
       "errorGenericTitle": "生成に失敗しました。手動で書いてください",
       "errorAggregated": "{count} 個のプロバイダーを試しましたが、すべて失敗しました。",
       "errorAggregatedWithDetail": "{count} 個のプロバイダーを試しましたが、すべて失敗しました。最後のエラー: {error}",
-      "backToSettings": "設定に戻る",
-      "usageCountLabel": "使用済みの会話"
+      "backToSettings": "設定に戻る"
     }
   },
   "capability": {

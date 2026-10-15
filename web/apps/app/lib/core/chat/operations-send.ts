@@ -42,10 +42,7 @@ import {
   createProviderSentryError,
 } from './error-reporting';
 import { recalculateConversationCost } from './usage-tracking';
-import {
-  appendAntiForgetReminder,
-  buildPromptInjectionContext,
-} from './prompt-injection';
+import { buildPromptInjectionContext } from './prompt-injection';
 import { runStreamPipeline } from './stream-runner';
 import { prepareSendStart, reportSendStartedTelemetry } from './send-start';
 import { reportSendCompletion } from './send-completion';
@@ -332,10 +329,11 @@ export function sendMessage(
       }
 
       // Tidy up before sending: drop assistant turns with empty content and failed turns, keep
-      // interrupted/generating turns that have content, and collapse adjacent user turns to the
-      // newest one (see sanitizeOutboundMessages). Empty content makes some relay gateways hold
-      // a persistent RST, and stale turns make the model answer a stopped question together
-      // with the new one.
+      // interrupted/generating turns that have content, and merge adjacent user turns into one,
+      // with earlier unanswered text wrapped in an <oriveo-unanswered> envelope (see
+      // sanitizeOutboundMessages). Empty content makes some relay gateways hold a persistent RST,
+      // stale turns would make the model answer a stopped question together with the new one, and
+      // instructions in the earlier message are no longer silently lost.
       const attachmentScopeOptions = buildProviderStreamOptions(
         provider,
         buildStreamOptionsFromIntent(model, reasoningMode, webSearchEnabled),
@@ -417,13 +415,7 @@ export function sendMessage(
 
       if (systemContent) {
         chatHistory.unshift({ role: 'system', content: systemContent });
-        if (promptContext.memoryInjected) {
-          store.getState().incrementMemoryUsageCount();
-        }
       }
-
-      // Anti-forgetting mode: past 10 user turns, append a summary reminder to the last user message.
-      appendAntiForgetReminder(chatHistory, store.getState().preferences, promptContext);
 
       if (libraryContext) {
         appendTextToLatestUserMessage(chatHistory, libraryContext.userContext);

@@ -160,6 +160,10 @@ async function buildBackupZip(options: ExportOptions): Promise<JSZip> {
     preferences: {
       theme: preferences.theme,
       language: preferences.language,
+      ...(preferences.memoryText ? { memoryText: preferences.memoryText } : {}),
+      ...(preferences.memoryAntiForgetEnabled === true ? { memoryAntiForgetEnabled: true } : {}),
+      ...(preferences.memoryAntiForgetText ? { memoryAntiForgetText: preferences.memoryAntiForgetText } : {}),
+      ...(preferences.memoryUpdatedAt ? { memoryUpdatedAt: preferences.memoryUpdatedAt } : {}),
     },
     lastUsedModelRef,
   };

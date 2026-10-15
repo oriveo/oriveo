@@ -154,7 +154,45 @@ export async function buildChatHistory(
 }
 
 /**
- * Normalize outbound messages before sending.
+ * Note text used when earlier unanswered user messages are merged into the envelope. Must match
+ * unansweredEnvelope.note in shared/context-contracts/sanitize.v1.json byte for byte; every client
+ * shares it.
+ */
+export const UNANSWERED_ENVELOPE_NOTE =
+  'The user sent this earlier but no reply was delivered. Treat it as context and answer the latest message.';
+
+/** XML-escape earlier text inside the envelope: replace & < > in this order (otherwise &lt; would be escaped twice). */
+function escapeEnvelopeText(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * Merge a run of consecutive user messages (N >= 2) into one: keep the id and every non-content field
+ * of the last one; earlier non-empty texts are trimmed, escaped and joined by blank lines inside an
+ * <oriveo-unanswered> envelope, followed by the latest original text; attachments are concatenated in
+ * message order.
+ */
+function mergeUserRun(run: ChatMessage[]): ChatMessage {
+  const latest = run[run.length - 1];
+  if (run.length === 1) return latest;
+  const earlier = run.slice(0, -1);
+  const earlierTexts = earlier
+    .map((m) => m.text?.trim() ?? '')
+    .filter((t) => t.length > 0)
+    .map(escapeEnvelopeText);
+  const latestText = latest.text ?? '';
+  let text = latestText;
+  if (earlierTexts.length > 0) {
+    const envelope = `<oriveo-unanswered>\n<note>${UNANSWERED_ENVELOPE_NOTE}</note>\n${earlierTexts.join('\n\n')}\n</oriveo-unanswered>`;
+    text = latestText.length > 0 ? `${envelope}\n\n${latestText}` : envelope;
+  }
+  const attachments = run.flatMap((m) => m.attachments ?? []);
+  return { ...latest, text, attachments: attachments.length > 0 ? attachments : undefined };
+}
+
+/**
+ * Normalize outbound messages before sending. The merge rules follow the contract fixture
+ * shared/context-contracts/sanitize.v1.json.
  *
  * Two steps:
  * 1. Filter: drop messages with empty content (no text and no attachments); keep every user message,
@@ -167,15 +205,17 @@ export async function buildChatHistory(
  *    two user messages it separated become adjacent and roles no longer alternate. Strict
  *    OpenAI-compatible relays require user/assistant to alternate and reject consecutive same-role
  *    messages outright.
- *    - Adjacent user: drop the earlier one and keep only the latest. The earlier question already
- *      failed or was abandoned, and merging two independent questions into one prompt makes the model
- *      answer both at once.
+ *    - Adjacent user: a run of consecutive user messages is merged into one (keeping the last one's
+ *      id and fields). Earlier text is not dropped -- an instruction such as "always write in Arabic
+ *      from now on" may live in the unanswered message -- but goes into an <oriveo-unanswered>
+ *      envelope marked "context only, answer the latest message". This restores strict alternation
+ *      without making the model answer both questions at once.
  *    - Adjacent assistant (rare): merge text (joined by a blank line) and attachments (in order) so
  *      nothing is lost.
  *
  * Note: an interrupted assistant that still has partial text naturally separates the two surrounding
  * user messages, so the adjacent-user path is usually never reached; it only triggers when the stop
- * happened early enough that the partial is empty.
+ * happened early enough that the partial is empty, or when a failed turn was dropped.
  */
 export function sanitizeOutboundMessages(
   messages: ChatMessage[],
@@ -205,32 +245,34 @@ export function sanitizeOutboundMessages(
     });
 
   const merged: ChatMessage[] = [];
+  let userRun: ChatMessage[] = [];
+  const flushUserRun = () => {
+    if (userRun.length > 0) merged.push(mergeUserRun(userRun));
+    userRun = [];
+  };
   for (const m of filtered) {
+    if (m.role === 'user') {
+      userRun.push(m);
+      continue;
+    }
+    flushUserRun();
     const last = merged[merged.length - 1];
     if (last && last.role === m.role) {
-      if (m.role === 'user') {
-        // Two adjacent user messages can only come from the assistant between them being dropped (the
-        // previous answer failed, was interrupted with an empty partial, or was an image-only reply that
-        // became empty after stripping). Drop the earlier one and keep the latest: this restores strict
-        // user/assistant alternation and avoids merging two independent questions into one prompt.
-        merged[merged.length - 1] = m;
-      } else {
-        // Two consecutive turns from the same role: concatenate rather than drop, so nothing the
-        // user wrote is lost on the way to a strictly alternating history.
-        const joinedText = [last.text?.trim(), m.text?.trim()]
-          .filter((t): t is string => !!t && t.length > 0)
-          .join('\n\n');
-        const joinedAttachments = [...(last.attachments ?? []), ...(m.attachments ?? [])];
-        merged[merged.length - 1] = {
-          ...last,
-          text: joinedText,
-          attachments: joinedAttachments.length > 0 ? joinedAttachments : undefined,
-        };
-      }
+      // Adjacent assistant messages (rare) are still merged so no valid answer content is lost.
+      const joinedText = [last.text?.trim(), m.text?.trim()]
+        .filter((t): t is string => !!t && t.length > 0)
+        .join('\n\n');
+      const joinedAttachments = [...(last.attachments ?? []), ...(m.attachments ?? [])];
+      merged[merged.length - 1] = {
+        ...last,
+        text: joinedText,
+        attachments: joinedAttachments.length > 0 ? joinedAttachments : undefined,
+      };
     } else {
       merged.push(m);
     }
   }
+  flushUserRun();
   return merged;
 }
 

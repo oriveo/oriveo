@@ -34,7 +34,15 @@ export interface BackupData {
   folders?: BackupFolder[];
   notes?: Note[];
   noteFolders?: BackupNoteFolder[];
-  preferences?: Pick<AppPreference, 'theme' | 'language'>;
+  /**
+   * Same shape as iOS / Android: theme / language are always present; memory fields are written only when
+   * they have a value -- memoryText / memoryAntiForgetText are omitted when empty, memoryAntiForgetEnabled
+   * is written only when true, and memoryUpdatedAt is an ISO 8601 string.
+   */
+  preferences?: Partial<Pick<
+    AppPreference,
+    'theme' | 'language' | 'memoryText' | 'memoryAntiForgetEnabled' | 'memoryAntiForgetText' | 'memoryUpdatedAt'
+  >>;
   lastUsedModelRef?: LastUsedModelRef | null;
 }
 

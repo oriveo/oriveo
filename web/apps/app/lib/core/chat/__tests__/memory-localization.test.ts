@@ -153,15 +153,15 @@ describe('full localization coverage - Memory copy is translated in every locale
   // The web client uses next-intl messages/*.json.
   const SUPPORTED_LOCALES = ['en', 'zh-Hans', 'zh-Hant', 'ja', 'ko', 'es', 'fr', 'de', 'pt-BR', 'ar', 'hi', 'id', 'vi', 'th', 'tr', 'ru'];
 
+  // usageCount / usageCountLabel / antiForget* were removed together with the usage counter and the anti-forget UI.
   const MEMORY_KEYS = [
     'title', 'settingsEntry', 'notSet', 'description', 'emptyTitle', 'emptyDescription',
     'exampleHint', 'generateDraft', 'generateDraftLoading', 'generateDraftFailed',
-    'manualWrite', 'save', 'saved', 'usageCount', 'charCount',
-    'antiForgetSection', 'antiForgetDescription',
+    'manualWrite', 'save', 'saved', 'charCount',
     'privacyWarning', 'indicatorTitle', 'indicatorViewEdit', 'indicatorDisable',
     'conversationUseMemory', 'conversationUseMemoryHint', 'unsavedChanges', 'discard', 'keepEditing',
     // Added by the Memory page rewrite.
-    'heroChipAuto', 'heroChipReady', 'antiForgetBadge', 'charactersUnit', 'unsavedBarTitle',
+    'heroChipAuto', 'heroChipReady', 'charactersUnit', 'unsavedBarTitle',
     'draftReadyTitle', 'draftReadyMessage', 'draftApply',
     'errorNoModelTitle', 'errorNoModelMessage',
     'errorNoProviderTitle', 'errorNoProviderMessage',
@@ -169,7 +169,7 @@ describe('full localization coverage - Memory copy is translated in every locale
     'errorHydrateTitle', 'errorHydrateMessage',
     'errorGenericTitle', 'errorAggregated', 'errorAggregatedWithDetail',
     // Web redesign additions, aligned with the product design language.
-    'backToSettings', 'usageCountLabel',
+    'backToSettings',
   ];
 
   for (const locale of SUPPORTED_LOCALES) {

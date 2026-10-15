@@ -1517,10 +1517,7 @@
       "manualWrite": "Manuell schreiben",
       "save": "Speichern",
       "saved": "Gedächtnis gespeichert",
-      "usageCount": "In {count} Unterhaltungen verwendet",
       "charCount": "{count} / {max} Zeichen (ca. {tokens} Token)",
-      "antiForgetSection": "Vergessensschutz bei langen Gesprächen",
-      "antiForgetDescription": "Nach 10 Gesprächsrunden wird am Ende der Nachrichten automatisch eine Zusammenfassung angehängt.",
       "privacyWarning": "Der Gedächtnisinhalt wird mit jeder KI-Anfrage an den gewählten Anbieter gesendet. Gib keine Passwörter oder sensiblen Informationen ein.",
       "indicatorTitle": "Diese Konversation verwendet das Gedächtnis",
       "indicatorViewEdit": "Vollständiges Gedächtnis anzeigen/bearbeiten",
@@ -1533,7 +1530,6 @@
       "close": "Schließen",
       "heroChipAuto": "Automatisch",
       "heroChipReady": "Verfügbar",
-      "antiForgetBadge": "Vergessensschutz-Modus",
       "charactersUnit": "Zeichen",
       "unsavedBarTitle": "Nicht gespeicherte Änderungen",
       "draftReadyTitle": "Der generierte Entwurf ist fertig",
@@ -1550,8 +1546,7 @@
       "errorGenericTitle": "Generierung fehlgeschlagen, bitte manuell schreiben",
       "errorAggregated": "{count} Anbieter versucht, alle fehlgeschlagen.",
       "errorAggregatedWithDetail": "{count} Anbieter versucht, alle fehlgeschlagen. Letzter Fehler: {error}",
-      "backToSettings": "Zurück zu Einstellungen",
-      "usageCountLabel": "Verwendete Unterhaltungen"
+      "backToSettings": "Zurück zu Einstellungen"
     }
   },
   "capability": {

@@ -1517,10 +1517,7 @@
       "manualWrite": "직접 작성",
       "save": "저장",
       "saved": "메모리가 저장되었습니다",
-      "usageCount": "{count}개의 대화에서 사용 중",
       "charCount": "{count} / {max} 글자 (약 {tokens} 토큰)",
-      "antiForgetSection": "긴 대화 망각 방지",
-      "antiForgetDescription": "대화가 10회를 넘으면 메시지 끝에 요약 알림을 자동으로 추가합니다.",
       "privacyWarning": "메모리 내용은 모든 AI 요청과 함께 선택한 제공업체에 전송됩니다. 비밀번호 등 민감한 정보는 입력하지 마세요.",
       "indicatorTitle": "이 대화는 메모리를 사용 중입니다",
       "indicatorViewEdit": "전체 메모리 보기/편집",
@@ -1533,7 +1530,6 @@
       "close": "닫기",
       "heroChipAuto": "자동",
       "heroChipReady": "사용 가능",
-      "antiForgetBadge": "망각 방지 모드",
       "charactersUnit": "자",
       "unsavedBarTitle": "저장되지 않은 변경사항",
       "draftReadyTitle": "생성된 초안이 준비되었습니다",
@@ -1550,8 +1546,7 @@
       "errorGenericTitle": "생성에 실패했습니다. 직접 작성해 주세요",
       "errorAggregated": "{count} 개 제공업체를 시도했지만 모두 실패했습니다.",
       "errorAggregatedWithDetail": "{count} 개 제공업체를 시도했지만 모두 실패했습니다. 마지막 오류: {error}",
-      "backToSettings": "설정으로 돌아가기",
-      "usageCountLabel": "사용한 대화"
+      "backToSettings": "설정으로 돌아가기"
     }
   },
   "capability": {

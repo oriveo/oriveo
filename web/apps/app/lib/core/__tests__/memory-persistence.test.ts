@@ -5,7 +5,6 @@
  * - An old conversation without useMemory defaults to true.
  * - Old data without memory fields does not crash and falls back to correct defaults.
  * - LWW conflict resolution: the newer memoryUpdatedAt wins.
- * - Local-only fields such as memoryUsageCount are not synced.
  * - Empty local memory does not overwrite cloud data.
  * - Clearing memory atomically clears the anti-forget fields.
  * - The Memory LWW merge inside handlePreferencesChange.
@@ -181,19 +180,6 @@ describe('old version data missing memory fields — no crash, correct defaults'
     expect(prefs.memoryAntiForgetEnabled).toBeUndefined();
   });
 
-  it('memoryUsageCount defaults to 0', () => {
-    const store = createAppStore();
-    expect(store.getState().memoryUsageCount).toBe(0);
-  });
-
-  it('incrementMemoryUsageCount works when there is no memory data', () => {
-    const store = createAppStore();
-    store.getState().incrementMemoryUsageCount();
-    expect(store.getState().memoryUsageCount).toBe(1);
-    store.getState().incrementMemoryUsageCount();
-    expect(store.getState().memoryUsageCount).toBe(2);
-  });
-
   it('setConversationUseMemory works on an old conversation', () => {
     const store = createAppStore();
     const oldConv = makeConversation({ useMemory: undefined });
@@ -321,29 +307,13 @@ describe('Sync: LWW conflict resolution — newer timestamp wins', () => {
   });
 });
 
-describe('Sync: local-only fields (memoryUsageCount, memoryHasSeen) not synced', () => {
-  it('memoryUsageCount lives only in AppState, not in AppPreference', () => {
+describe('Sync: updateMemory pushes memory preference fields', () => {
+  it('the preferences sync payload carries memoryText and memoryUpdatedAt', () => {
     const store = createAppStore();
-    store.getState().incrementMemoryUsageCount();
-    store.getState().incrementMemoryUsageCount();
-    store.getState().incrementMemoryUsageCount();
 
-    expect(store.getState().memoryUsageCount).toBe(3);
-
-    // memoryUsageCount is not part of preferences
-    const prefs = store.getState().preferences;
-    expect('memoryUsageCount' in prefs).toBe(false);
-  });
-
-  it('the preferences sync payload carries no memoryUsageCount', () => {
-    const store = createAppStore();
-    store.getState().incrementMemoryUsageCount();
-
-    // What updateMemory pushes to sync contains no memoryUsageCount
     updateMemory(store, 'Test memory', false, undefined);
 
     const syncCall = mockSyncAdapter.didUpdatePreferences.mock.calls[0][0];
-    expect(syncCall).not.toHaveProperty('memoryUsageCount');
     expect(syncCall).toHaveProperty('memoryText');
     expect(syncCall).toHaveProperty('memoryUpdatedAt');
   });
@@ -575,29 +545,6 @@ describe('Store: setConversationUseMemory', () => {
     }).not.toThrow();
     // The existing conversation is untouched
     expect(store.getState().conversations).toHaveLength(1);
-  });
-});
-
-describe('Store: incrementMemoryUsageCount', () => {
-  it('increments from 0', () => {
-    const store = createAppStore();
-    expect(store.getState().memoryUsageCount).toBe(0);
-    store.getState().incrementMemoryUsageCount();
-    expect(store.getState().memoryUsageCount).toBe(1);
-  });
-
-  it('increments repeatedly', () => {
-    const store = createAppStore();
-    for (let i = 0; i < 5; i++) {
-      store.getState().incrementMemoryUsageCount();
-    }
-    expect(store.getState().memoryUsageCount).toBe(5);
-  });
-
-  it('increments from a custom initial value', () => {
-    const store = createAppStore({ memoryUsageCount: 42 });
-    store.getState().incrementMemoryUsageCount();
-    expect(store.getState().memoryUsageCount).toBe(43);
   });
 });
 

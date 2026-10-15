@@ -140,9 +140,6 @@ export interface AppState {
    */
   storageHealth: StorageHealth | null;
 
-  /* Memory (local only, never synced) */
-  memoryUsageCount: number;
-
   /* Skills */
   catalogSkills: Skill[];
   userSkills: Skill[];
@@ -258,7 +255,6 @@ export interface AppActions {
 
   /* Memory */
   setConversationUseMemory: (conversationId: string, useMemory: boolean) => void;
-  incrementMemoryUsageCount: () => void;
 
   /* Skills */
   setCatalogSkills: (skills: Skill[], categories: SkillCategory[], version: number) => void;
@@ -319,7 +315,6 @@ export const defaultState: AppState = {
   syncState: 'disabled',
   hydrationPhase: 'booting',
   storageHealth: null,
-  memoryUsageCount: 0,
   catalogSkills: [],
   userSkills: [],
   skillCategories: [],

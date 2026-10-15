@@ -62,7 +62,8 @@ describe('attachment preflight — video judged on the outbound history', () => 
   beforeEach(() => probe.mockClear());
 
   it('GI_PREFLIGHT_USES_OUTBOUND_HISTORY', async () => {
-    // After the failed turn is dropped by outbound normalization, two user messages become adjacent; the earlier one (with the video) is not sent.
+    // After the failed turn is dropped by outbound normalization, two user messages become adjacent and merge into one (contract sanitize.v1):
+    // the earlier message's video attachment is concatenated into the merged message and judged with the outbound history.
     const conversation = [
       message('u0', 'user', 'What happens in this clip?', { attachments: [video] }),
       message('a0', 'assistant', '', { state: 'failed' } as Partial<ChatMessage>),
@@ -70,10 +71,11 @@ describe('attachment preflight — video judged on the outbound history', () => 
     ];
     const outbound = buildOutboundMessages({ messages: conversation, currentTurnId: 'u1', provider, model, streamOptions });
     expect(outbound.map((item) => item.id)).toEqual(['u1']);
+    expect(outbound[0].attachments?.map((item) => item.id)).toEqual(['v', 'f']);
     const line = await resolveAttachmentLineForMessages(outbound, { provider, model, streamOptions, officialMetadata: metadata });
-    expect(line?.transport).toBe('gemini_interactions');
+    expect(line?.transport).toBe('gemini_generate');
     await preflight(outbound, [file]);
-    expect(probeFlags()).toEqual([false]);
+    expect(probeFlags()).toEqual([true]);
   });
 
   it('video still in the outbound history → probe carries it', async () => {
@@ -99,11 +101,11 @@ describe('model panel file card — same outbound history with a placeholder tur
   const panel = (messages: ChatMessage[], forProvider: Provider = provider) =>
     modelPanelOutboundHasVideo({ messages, provider: forProvider, model, streamOptions });
 
-  it('[u0(video), a0 failed] → the placeholder turn displaces u0, no video (matches send / iOS / Android)', async () => {
+  it('[u0(video), a0 failed] → the placeholder turn merges with u0, its video stays (sanitize.v1, matches send / iOS / Android)', async () => {
     expect(await panel([
       message('u0', 'user', 'What happens in this clip?', { attachments: [video] }),
       message('a0', 'assistant', '', { state: 'failed' } as Partial<ChatMessage>),
-    ])).toBe(false);
+    ])).toBe(true);
   });
 
   it('[u0(video), a0 delivered] → video stays in the outbound history', async () => {

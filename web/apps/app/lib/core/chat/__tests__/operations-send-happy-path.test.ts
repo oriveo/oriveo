@@ -459,6 +459,40 @@ describe('sendMessage happy path', () => {
 
   // Server-side retrieval reuses the same injection pipeline as explicitly named documents, so the
   // model needs no tool capability at all
+  it('does not append an anti-forget reminder even when the stored preference is on', async () => {
+    const provider = makeProvider();
+    const model = makeModel();
+    const conversation = makeConversation();
+    const longHistory = Array.from({ length: 12 }, (_, i) => [
+      { role: 'user', content: `question ${i}` },
+      { role: 'assistant', content: `answer ${i}` },
+    ]).flat();
+    mocks.buildChatHistory.mockResolvedValue([...longHistory, { role: 'user', content: 'What changed?' }]);
+    const store = createAppStore({
+      providers: [provider],
+      preferences: {
+        theme: 'system',
+        language: 'system',
+        sendShortcut: 'enter',
+        memoryText: 'Remember my tone',
+        memoryAntiForgetEnabled: true,
+        memoryAntiForgetText: 'Answer in French',
+      },
+      conversations: [conversation],
+    });
+
+    const handle = sendMessage(
+      { store, appendChunk: vi.fn(), te: (key) => key },
+      { text: 'What changed?', prevMessages: [], conversation, provider, model, reasoningMode: 'automatic' },
+    );
+    await handle.done;
+
+    const history = mocks.sendStream.mock.calls[0][3] as Array<{ role: string; content: string }>;
+    expect(history[0]).toMatchObject({ role: 'system', content: expect.stringContaining('Remember my tone') });
+    expect(JSON.stringify(history)).not.toContain('[Reminder:');
+    expect(history.at(-1)).toEqual({ role: 'user', content: 'What changed?' });
+  });
+
   it('server-side retrieval injects an envelope plus identity-only citations and sets the retry flag', async () => {
     const provider = makeProvider();
     const model = makeModel();

@@ -178,7 +178,8 @@ describe('without the new parameters the four chat constructors produce byte-ide
       messages: [
         { role: 'user', content: [
           { type: 'text', text: 'look' },
-          { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } },
+          // Relay Anthropic's single block-level cache breakpoint sits on the last block of the last user message.
+          { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' }, cache_control: { type: 'ephemeral' } },
         ] },
       ],
       system: 'S',

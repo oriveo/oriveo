@@ -1517,10 +1517,7 @@
       "manualWrite": "Write manually",
       "save": "Save",
       "saved": "Memory saved",
-      "usageCount": "Used in {count} conversations",
       "charCount": "{count} / {max} characters (approx. {tokens} tokens)",
-      "antiForgetSection": "Long conversation anti-forgetting",
-      "antiForgetDescription": "After 10 rounds of conversation, automatically append a summary reminder at the end of messages.",
       "privacyWarning": "Memory content is sent with every AI request to your chosen provider. Do not enter passwords or other sensitive information.",
       "indicatorTitle": "This conversation is using memory",
       "indicatorViewEdit": "View/edit full memory",
@@ -1533,7 +1530,6 @@
       "close": "Close",
       "heroChipAuto": "Auto",
       "heroChipReady": "Ready",
-      "antiForgetBadge": "Anti-forget mode",
       "charactersUnit": "characters",
       "unsavedBarTitle": "Unsaved changes",
       "draftReadyTitle": "Generated draft is ready",
@@ -1550,8 +1546,7 @@
       "errorGenericTitle": "Generation failed, please write manually",
       "errorAggregated": "Tried {count} providers, all failed.",
       "errorAggregatedWithDetail": "Tried {count} providers, all failed. Last error: {error}",
-      "backToSettings": "Back to Settings",
-      "usageCountLabel": "Conversations used"
+      "backToSettings": "Back to Settings"
     }
   },
   "capability": {

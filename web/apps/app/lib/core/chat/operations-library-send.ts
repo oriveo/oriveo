@@ -323,8 +323,6 @@ export function sendLibraryMessage(
         mcpSession ? MCP_SAFETY_PROMPT : "",
       ].filter(Boolean);
       history.unshift({ role: "system", content: systemParts.join("\n\n") });
-      if (promptContext.memoryInjected)
-        store.getState().incrementMemoryUsageCount();
 
       const clientControlsAllowed = !providerControlsAreManaged(params.provider);
       const unresolvedGenerationParameters = clientControlsAllowed ? resolveGenerationParameterOverrides({

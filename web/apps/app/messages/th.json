@@ -1517,10 +1517,7 @@
       "manualWrite": "เขียนด้วยตนเอง",
       "save": "บันทึก",
       "saved": "บันทึกหน่วยความจำแล้ว",
-      "usageCount": "ใช้ในการสนทนา {count}",
       "charCount": "อักขระ {count} / {max} (โทเค็นประมาณ {tokens})",
-      "antiForgetSection": "การสนทนาที่ยาวนานป้องกันการลืม",
-      "antiForgetDescription": "หลังจากสนทนาครบ 10 รอบ จะเพิ่มการเตือนสรุปต่อท้ายข้อความโดยอัตโนมัติ",
       "privacyWarning": "เนื้อหาหน่วยความจำจะถูกส่งพร้อมกับทุกคำขอ AI ไปยังผู้ให้บริการที่คุณเลือก อย่าป้อนรหัสผ่านหรือข้อมูลที่ละเอียดอ่อนอื่น ๆ",
       "indicatorTitle": "การสนทนานี้กำลังใช้ความทรงจำ",
       "indicatorViewEdit": "ดู/แก้ไขหน่วยความจำเต็ม",
@@ -1533,7 +1530,6 @@
       "close": "ปิด",
       "heroChipAuto": "อัตโนมัติ",
       "heroChipReady": "Ready",
-      "antiForgetBadge": "โหมดป้องกันการลืม",
       "charactersUnit": "ตัวอักษร",
       "unsavedBarTitle": "การเปลี่ยนแปลงที่ยังไม่บันทึก",
       "draftReadyTitle": "ฉบับร่างที่สร้างขึ้นพร้อมแล้ว",
@@ -1550,8 +1546,7 @@
       "errorGenericTitle": "การสร้างล้มเหลว โปรดเขียนด้วยตนเอง",
       "errorAggregated": "ลอง {count} ผู้ให้บริการ ล้มเหลวทั้งหมด",
       "errorAggregatedWithDetail": "ลอง {count} ผู้ให้บริการ ล้มเหลวทั้งหมด ข้อผิดพลาดล่าสุด: {error}",
-      "backToSettings": "กลับไปที่การตั้งค่า",
-      "usageCountLabel": "บทสนทนาที่ใช้แล้ว"
+      "backToSettings": "กลับไปที่การตั้งค่า"
     }
   },
   "capability": {

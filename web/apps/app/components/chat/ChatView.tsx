@@ -14,7 +14,7 @@ import { appendAttachmentsWithinLimit } from '../../lib/core/attachments/attachm
 import { SEND_BLOCKED, useStreamChat } from '../../lib/hooks/useStreamChat';
 import { loadSyncCore } from '../../lib/core/sync-lazy';
 import { getVanillaStore } from '../../providers/StoreProvider';
-import { pinNoteToConversation, unpinNoteFromConversation } from '../../lib/core/conversation-ops';
+import { pinNoteToConversation, unpinNoteFromConversation, updateConversationUseMemory } from '../../lib/core/conversation-ops';
 import { canAcceptDroppedAttachment } from '../../lib/core/chat/attachment-policy';
 import { TopBar } from './TopBar';
 import { AttachmentIcon, WarningIcon, CloseIcon, ChevronLeftIcon } from '../icons';
@@ -1078,7 +1078,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   const handleToggleMemory = useMemo(() => {
     if (!conversation) return undefined;
     return () => {
-      getVanillaStore().getState().setConversationUseMemory(conversation.id, conversationUseMemory === false ? true : false);
+      updateConversationUseMemory(getVanillaStore(), conversation.id, conversationUseMemory === false);
     };
   }, [conversation, conversationUseMemory]);
   const extraActions = useMemo(() => {

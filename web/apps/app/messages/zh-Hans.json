@@ -1517,10 +1517,7 @@
       "manualWrite": "手动编写",
       "save": "保存",
       "saved": "记忆已保存",
-      "usageCount": "已在 {count} 个对话中使用",
       "charCount": "{count} / {max} 字符（约 {tokens} tokens）",
-      "antiForgetSection": "长对话防遗忘",
-      "antiForgetDescription": "对话超过 10 轮后，自动在消息末尾追加摘要提醒。",
       "privacyWarning": "记忆内容会随每次 AI 请求发送至你选择的供应商。请勿输入密码或其他敏感信息。",
       "indicatorTitle": "此对话正在使用记忆",
       "indicatorViewEdit": "查看/编辑完整记忆",
@@ -1533,7 +1530,6 @@
       "close": "关闭",
       "heroChipAuto": "自动",
       "heroChipReady": "可用",
-      "antiForgetBadge": "防遗忘模式",
       "charactersUnit": "字符",
       "unsavedBarTitle": "未保存的修改",
       "draftReadyTitle": "生成的草稿已就绪",
@@ -1550,8 +1546,7 @@
       "errorGenericTitle": "生成失败，请手动编写",
       "errorAggregated": "已尝试 {count} 个供应商，均失败。",
       "errorAggregatedWithDetail": "已尝试 {count} 个供应商，均失败。最后错误：{error}",
-      "backToSettings": "返回设置",
-      "usageCountLabel": "已使用对话"
+      "backToSettings": "返回设置"
     }
   },
   "capability": {
