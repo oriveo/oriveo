@@ -246,32 +246,9 @@ struct ConversationRow: View, Equatable {
         if let cached = previewCache.object(forKey: cacheKey) {
             return cached as String
         }
-        let preview = stripMarkdownForPreview(prefix)
+        let preview = MarkdownPreviewText.plain(prefix)
         previewCache.setObject(NSString(string: preview), forKey: cacheKey)
         return preview
-    }
-
-    private static func stripMarkdownForPreview(_ text: String) -> String {
-        var result = text
-        result = String(result.unicodeScalars.filter { scalar in
-            scalar != "\u{FFFD}" && scalar != "\u{FFFC}" &&
-            !(scalar.value < 0x20 && scalar != "\n" && scalar != "\r" && scalar != "\t") &&
-            scalar.value != 0x7F
-        })
-        result = result.replacingOccurrences(of: "```[\\s\\S]*?```", with: " ", options: .regularExpression)
-        result = result.replacingOccurrences(of: "`([^`]+)`", with: "$1", options: .regularExpression)
-        result = result.replacingOccurrences(of: "!\\[([^\\]]*)\\]\\([^)]*\\)", with: "$1", options: .regularExpression)
-        result = result.replacingOccurrences(of: "\\[([^\\]]*)\\]\\([^)]*\\)", with: "$1", options: .regularExpression)
-        result = result.replacingOccurrences(of: "\\*\\*(.+?)\\*\\*", with: "$1", options: .regularExpression)
-        result = result.replacingOccurrences(of: "__(.+?)__", with: "$1", options: .regularExpression)
-        result = result.replacingOccurrences(of: "(?<![\\*\\s])\\*([^\\*]+)\\*(?!\\*)", with: "$1", options: .regularExpression)
-        result = result.replacingOccurrences(of: "(?<!_)_([^_]+)_(?!_)", with: "$1", options: .regularExpression)
-        result = result.replacingOccurrences(of: "(?m)^#{1,6}\\s+", with: "", options: .regularExpression)
-        result = result.replacingOccurrences(of: "(?m)^>\\s?", with: "", options: .regularExpression)
-        result = result.replacingOccurrences(of: "(?m)^[\\-\\*]\\s+", with: "", options: .regularExpression)
-        result = result.replacingOccurrences(of: "(?m)^\\d+\\.\\s+", with: "", options: .regularExpression)
-        result = result.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-        return result.trimmingCharacters(in: .whitespaces)
     }
 }
 

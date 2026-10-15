@@ -831,11 +831,13 @@ struct CrosscheckSheet: View {
     }
 
     private var originalAnswerPreview: String {
-        let collapsed = originalAnswer
-            .split(whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
+        Self.originalAnswerPreview(for: originalAnswer)
+    }
+
+    /// One-line preview of the original answer: strip markdown markers, collapse whitespace, cap at 220 characters.
+    static func originalAnswerPreview(for text: String) -> String {
+        // Only the head is shown, so run the regexes on a bounded prefix of long answers.
+        let collapsed = MarkdownPreviewText.plain(String(text.prefix(4000)))
         guard collapsed.count > 220 else { return collapsed }
         return String(collapsed.prefix(220)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
     }
