@@ -1,6 +1,17 @@
 import ChatLayout
 import Combine
+import os
 import UIKit
+
+/// Reading anchor: the message id of the cell under the viewport's top edge plus where that edge falls inside the cell (0–1).
+///
+/// A width change (folding or half-folding a Duo, rotating an iPhone, resizing an iPad window) relays out
+/// every cell at a new height, so a pixel offset goes stale; recording "which message and how far into it"
+/// lets a long answer land back in the same place after relayout. `nil` means at the bottom.
+struct ChatReadingAnchor: Equatable {
+    let messageID: UUID
+    let progress: CGFloat
+}
 
 @MainActor
 final class ChatListViewController: UIViewController {
@@ -134,6 +145,21 @@ final class ChatListViewController: UIViewController {
     private var pendingOutlineScroll: PendingOutlineScroll?
     private var outlineScrollSeq: UInt = 0
     private static let outlineScrollTopPadding: CGFloat = 16
+    /// A reading anchor injected from outside (for example by the layer above when the conversation changes
+    /// carrier or the scene is rebuilt): consumed on the first build or a conversation switch, after search
+    /// targeting and note jumps and before the bottom fallback. An anchor whose message is not in the window
+    /// counts as none (the list lands at the bottom as usual).
+    var pendingReadingAnchor: ChatReadingAnchor?
+    /// The reading anchor captured before a width change of this same controller: taken in
+    /// `viewDidLayoutSubviews` **before** collectionView.frame changes (afterwards ChatLayout relays out at the
+    /// new width and the old geometry is gone), then consumed by the width-change branch of the same `rebuildIfReady` pass.
+    private var widthChangeReadingAnchor: ChatReadingAnchor?
+    /// Signpost interval around the width-change reload + layout (see `chat.widthRelayout` in Instruments).
+    private static let relayoutSignposter = OSSignposter(subsystem: Bundle.main.bundleIdentifier ?? "Oriveo", category: "chat")
+    #if DEBUG
+    /// Duration of the latest width-change reload + layout in milliseconds; tests read it to guard against regressions.
+    private(set) var _testLastWidthRelayoutMs: Double?
+    #endif
     private var dismissedErrorIDs: Set<UUID> = []
     private var expandedRecoveryDetailIDs: Set<UUID> = []
     private var prependGeometryRecoveryCount = 0
@@ -306,6 +332,12 @@ final class ChatListViewController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         if collectionView.frame != view.bounds {
+            // The width is about to change and the list is built: capture the reading anchor from the old geometry before changing the frame (nil at the bottom, which lands at the bottom again).
+            if collectionView.frame.width > 0,
+               view.bounds.width != collectionView.frame.width,
+               lastConversationID != nil {
+                widthChangeReadingAnchor = captureReadingAnchor()
+            }
             collectionView.frame = view.bounds
             syncEstimatedItemWidth()
             reconcileViewportChangeEnsuringFullLayout(animated: false)
@@ -484,12 +516,19 @@ final class ChatListViewController: UIViewController {
     }
 
     func scrollToUserMessage(id: UUID, animated: Bool) {
+        scrollToMessage(id: id, progress: nil, animated: animated, source: "outline")
+    }
+
+    /// Scrolls to a message by id and converges (shared by outline jumps and reading anchors). `progress == nil` puts the message top 16pt below the viewport top;
+    /// otherwise the viewport top lands at `progress` of the message's height. Returns false when the target is not in the window and no offset was written.
+    @discardableResult
+    private func scrollToMessage(id: UUID, progress: CGFloat?, animated: Bool, source: String) -> Bool {
         collectionView.layoutIfNeeded()
-        guard let targetOffset = outlineTargetOffset(for: id) else { return }
+        guard let targetOffset = outlineTargetOffset(for: id, progress: progress) else { return false }
         bottomSettleGeneration &+= 1
         revealCollectionViewIfAwaiting()
         stickController.userDidGrab()
-        recordProgrammaticJump(to: targetOffset, source: "outline")
+        recordProgrammaticJump(to: targetOffset, source: source)
         collectionView.setContentOffset(CGPoint(x: 0, y: targetOffset), animated: animated)
         stickController.invalidateOffsetBaseline()
         reportFollowingChangeIfNeeded()
@@ -500,12 +539,46 @@ final class ChatListViewController: UIViewController {
         RunLoop.main.perform { [weak self] in
             self?.runOutlineCorrectionPass(
                 id: id,
+                progress: progress,
                 seq: seq,
                 remainingPasses: Self.outlineCorrectionFrameBudget,
                 lastCorrected: .nan,
                 stableFrames: 0
             )
         }
+        return true
+    }
+
+    /// Captures the current reading anchor. Returns nil (= at the bottom) when not streaming and within `atBottomThreshold` of the bottom (the same measure as `settle`);
+    /// otherwise (including the pinned-to-top streaming state) the message id of the cell under the viewport top and where the top falls inside it.
+    func captureReadingAnchor() -> ChatReadingAnchor? {
+        let rows = dataSource.rows
+        guard !rows.isEmpty else { return nil }
+        if !stickController.isStreamingMode,
+           distanceFromBottom < ChatStickToBottomController.atBottomThreshold {
+            return nil
+        }
+        let topY = collectionView.contentOffset.y
+        let visible = collectionView.indexPathsForVisibleItems.sorted(by: { $0.item < $1.item })
+        for indexPath in visible where indexPath.item < rows.count {
+            guard let frame = collectionView.layoutAttributesForItem(at: indexPath)?.frame,
+                  frame.maxY > topY else { continue }
+            // When the viewport top falls in a gap between cells or in the top padding, take the first cell below it with progress 0.
+            let progress = frame.height > 0 ? (topY - frame.minY) / frame.height : 0
+            return ChatReadingAnchor(messageID: rows[indexPath.item].id, progress: min(1, max(0, progress)))
+        }
+        return nil
+    }
+
+    /// Lands on a reading anchor (reusing the outline jump's converge-by-id loop, so no new offset writer).
+    /// Returns false when the anchor's message is not in the window. The inset is recomputed from the current
+    /// geometry first: reset() puts it back to minPad, and the pinned-top padding and streaming runway must be
+    /// restored or the target would be clamped by a too-small maxOffset.
+    private func restoreReadingAnchor(_ anchor: ChatReadingAnchor) -> Bool {
+        guard dataSource.rows.contains(where: { $0.id == anchor.messageID }) else { return false }
+        stickController.reconcileInsetOnly()
+        return scrollToMessage(id: anchor.messageID, progress: anchor.progress,
+                               animated: false, source: "reading_anchor")
     }
 
     private static let outlineCorrectionFrameBudget = 30
@@ -513,6 +586,7 @@ final class ChatListViewController: UIViewController {
 
     private func runOutlineCorrectionPass(
         id: UUID,
+        progress: CGFloat? = nil,
         seq: UInt,
         remainingPasses: Int,
         lastCorrected: CGFloat,
@@ -521,7 +595,7 @@ final class ChatListViewController: UIViewController {
         guard outlineScrollSeq == seq else { return }
         guard !collectionView.isTracking, !collectionView.isDragging, !collectionView.isDecelerating else { return }
         collectionView.layoutIfNeeded()
-        guard let corrected = outlineTargetOffset(for: id) else { return }
+        guard let corrected = outlineTargetOffset(for: id, progress: progress) else { return }
         if abs(collectionView.contentOffset.y - corrected) > 0.5 {
             collectionView.setContentOffset(CGPoint(x: 0, y: corrected), animated: false)
             stickController.invalidateOffsetBaseline()
@@ -543,6 +617,7 @@ final class ChatListViewController: UIViewController {
             MainActor.assumeIsolated {
                 self?.runOutlineCorrectionPass(
                     id: id,
+                    progress: progress,
                     seq: seq,
                     remainingPasses: remainingPasses - 1,
                     lastCorrected: corrected,
@@ -553,7 +628,8 @@ final class ChatListViewController: UIViewController {
         RunLoop.main.add(timer, forMode: .common)
     }
 
-    private func outlineTargetOffset(for id: UUID) -> CGFloat? {
+    /// With a non-nil `progress` (a reading anchor) the 16pt top padding is replaced by "the viewport top lands at `progress` of the message's height".
+    private func outlineTargetOffset(for id: UUID, progress: CGFloat? = nil) -> CGFloat? {
         guard let rowIndex = dataSource.rows.firstIndex(where: { $0.id == id }),
               let attributes = collectionView.layoutAttributesForItem(at: IndexPath(item: rowIndex, section: 0))
         else { return nil }
@@ -564,7 +640,9 @@ final class ChatListViewController: UIViewController {
                 - stickController.streamingRunway()
                 - collectionView.bounds.height
         )
-        return min(maxOffset, max(0, attributes.frame.minY - Self.outlineScrollTopPadding))
+        let desiredTop = progress.map { attributes.frame.minY + $0 * attributes.frame.height }
+            ?? attributes.frame.minY - Self.outlineScrollTopPadding
+        return min(maxOffset, max(0, desiredTop))
     }
 
     private func reportVisibleTopUserMessageIfNeeded() {
@@ -795,6 +873,10 @@ final class ChatListViewController: UIViewController {
         }
         let isInitialOrReset = lastConversationID == nil || isConversationSwitch || widthChanged
         lastMeasuredWidth = width
+        // Width change of the same controller (not the first build, not a conversation switch): use the anchor captured before the frame changed; a conversation switch discards it.
+        let isWidthOnlyChange = widthChanged && lastConversationID != nil && !isConversationSwitch
+        let widthAnchor = isWidthOnlyChange ? widthChangeReadingAnchor : nil
+        widthChangeReadingAnchor = nil
 
         let diff = dataSource.computeDiff(newRows: viewModel.rows, newRenderModels: plan.renderModelsByID)
         let commit: () -> Void = { [weak self] in
@@ -821,8 +903,18 @@ final class ChatListViewController: UIViewController {
                 }
             }
             let reloadStart = CACurrentMediaTime()
+            let relayoutInterval = isWidthOnlyChange
+                ? Self.relayoutSignposter.beginInterval("chat.widthRelayout",
+                                                        id: Self.relayoutSignposter.makeSignpostID())
+                : nil
             collectionView.reloadData()
             collectionView.layoutIfNeeded()
+            if let relayoutInterval {
+                Self.relayoutSignposter.endInterval("chat.widthRelayout", relayoutInterval)
+                #if DEBUG
+                _testLastWidthRelayoutMs = (CACurrentMediaTime() - reloadStart) * 1000
+                #endif
+            }
             #if DEBUG
             AppLog.info(
                 "initial reload and layout took \(Int((CACurrentMediaTime() - reloadStart) * 1000))ms "
@@ -835,10 +927,13 @@ final class ChatListViewController: UIViewController {
                 stickController.setStreamingMode(true)
                 startStreamingReconcileTick()
             }
-            // Both jump handlers scroll on their own; only fall back to the bottom when
-            // neither of them claimed this first layout.
+            // Both jump handlers scroll on their own, and so does a reading anchor (the reader was
+            // in the history before a width change, or one was injected from outside: it lands back
+            // by message id and ratio). Only fall back to the bottom when none of them claimed this
+            // first layout.
             if !handlePendingSearchTargetIfNeeded(viewModel),
-               !consumePendingOutlineScroll(conversationID: viewModel.conversationID) {
+               !consumePendingOutlineScroll(conversationID: viewModel.conversationID),
+               !((isWidthOnlyChange ? widthAnchor : takePendingReadingAnchor()).map { restoreReadingAnchor($0) } ?? false) {
                 scrollToBottomEnsuringFullLayout()
             }
         } else if diff.requiresFullReload {
@@ -858,6 +953,14 @@ final class ChatListViewController: UIViewController {
         contentDirty = false
     }
 
+    /// Takes the injected reading anchor (once; when its message is not in the window `restoreReadingAnchor` fails and the list lands at the bottom).
+    private func takePendingReadingAnchor() -> ChatReadingAnchor? {
+        defer { pendingReadingAnchor = nil }
+        return pendingReadingAnchor
+    }
+
+    ///
+    ///
     private func applyIncrementalUpdate(
         _ diff: ChatListDiff.Result,
         commit: @escaping () -> Void,
@@ -1336,6 +1439,14 @@ final class ChatListViewController: UIViewController {
         for case let cell as AssistantMessageCell in collectionView.visibleCells {
             cell.flushStreamingHeightIfPending()
         }
+    }
+
+    /// Called by the list bridge when the list is rebuilt for a carrier change (two columns ↔ one): there is no push transition to protect, so the first build runs synchronously
+    /// and folding does not flash the skeleton. Must be called before the first `update`.
+    func skipInitialTransitionDeferral() {
+        isDeferringInitialRebuildForTransition = false
+        deferralFallbackTimer?.invalidate()
+        deferralFallbackTimer = nil
     }
 
     #if DEBUG

@@ -216,6 +216,13 @@ struct ChatView: View {
     @State private var bootstrapWatchdogExpired = false
     @State private var historyRetryGeneration = 0
     @State private var generationParameterDraftSessionID = UUID()
+    /// The token registered with this window's carrier handoff (on disappear only this registration is removed).
+    @State private var carrierHandoffToken: ChatCarrierHandoff.Token?
+    /// Makes the composer reopen the model options panel after a carrier change.
+    @State private var composerModelControlsReopenToken: UInt = 0
+
+    /// Delay before reopening a sheet after a carrier change: wait for the new view to mount and the old view's sheet to go away.
+    private static let carrierSheetReopenDelay: Duration = .milliseconds(350)
 
     private static let bootstrapWatchdogSeconds: Double = 12
 
@@ -1133,6 +1140,8 @@ struct ChatView: View {
         .onAppear {
             restoreCapabilityPreferences(provider: provider, model: currentModel, conversationID: projection.activeConversationID)
             handleAppear(currentModel: currentModel)
+            // After the preferences are restored: the handed-over state is what the user was just looking at, so it wins over the stored preferences.
+            registerAndConsumeCarrierHandoff()
         }
         .onChange(of: pendingQuoteContext) { oldValue, newValue in
             guard oldValue != newValue else { return }
@@ -1291,7 +1300,8 @@ struct ChatView: View {
                 },
                 onShowPhotoPicker: { showPhotoPicker = true },
                 onShowCamera: { showCamera = true },
-                onShowFileImporter: { showFileImporter = true }
+                onShowFileImporter: { showFileImporter = true },
+                modelControlsReopenToken: composerModelControlsReopenToken
             )
         }
     }
@@ -1572,6 +1582,77 @@ struct ChatView: View {
         conversationObservation.stop()
         windowLoader.stop()
         appState.activeReturnToNoteID = nil
+        if let carrierHandoffToken {
+            navigation.chatHandoff.unregister(carrierHandoffToken)
+            self.carrierHandoffToken = nil
+        }
+    }
+
+    // MARK: - Carrier handoff
+
+    /// Registers the page state provider and takes back the state from before the move by this page's key (once; a mismatched key or an expired snapshot is discarded).
+    private func registerAndConsumeCarrierHandoff() {
+        let handoff = navigation.chatHandoff
+        let token = carrierHandoffToken ?? handoff.registerPage { carrierPageState }
+        carrierHandoffToken = token
+        guard let snapshot = handoff.consume(key: ChatCarrierKey(conversationID: conversationID), by: token) else {
+            return
+        }
+        if let page = snapshot.page {
+            pendingAttachments = page.pendingAttachments
+            pendingQuoteContext = page.pendingQuoteContext
+            reasoningMode = page.reasoningMode
+            reasoningIntentSelection = page.reasoningIntentSelection
+            webEnabled = page.webEnabled
+            generationParameterDraftSessionID = page.generationParameterDraftSessionID
+        }
+        if let composer = snapshot.composer {
+            composerTextPush.push(composer.text)
+            composerFocused = composer.isFocused
+        }
+        let sheet = snapshot.page?.sheet
+        let reopensModelControls = snapshot.composer?.showsModelControls == true
+        guard sheet != nil || reopensModelControls else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: Self.carrierSheetReopenDelay)
+            reopenCarrierSheet(sheet)
+            if reopensModelControls {
+                composerModelControlsReopenToken &+= 1
+            }
+        }
+    }
+
+    /// Called synchronously by `NavigationManager` before the move: reads the page state at this moment.
+    private var carrierPageState: ChatPageCarrierState {
+        let sheet: ChatCarrierSheet?
+        if modelPickerPresentation != nil {
+            sheet = .modelPicker
+        } else if showsMcpToolPanel {
+            sheet = .mcpTools
+        } else {
+            sheet = nil
+        }
+        return ChatPageCarrierState(
+            pendingAttachments: pendingAttachments,
+            pendingQuoteContext: pendingQuoteContext,
+            reasoningMode: reasoningMode,
+            reasoningIntentSelection: reasoningIntentSelection,
+            webEnabled: webEnabled,
+            generationParameterDraftSessionID: generationParameterDraftSessionID,
+            sheet: sheet
+        )
+    }
+
+    private func reopenCarrierSheet(_ sheet: ChatCarrierSheet?) {
+        switch sheet {
+        case .modelPicker:
+            presentModelPicker()
+        case .mcpTools:
+            reloadMcpPanelState()
+            showsMcpToolPanel = true
+        case nil:
+            break
+        }
     }
 
     private func restoreComposerText(_ text: String) {

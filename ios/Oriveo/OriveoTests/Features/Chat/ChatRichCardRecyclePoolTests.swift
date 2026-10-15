@@ -98,7 +98,7 @@ struct ChatRichCardRecyclePoolTests {
     func dismantlingChatListPurgesPools() throws {
         UIKitTableCard.recycle(try tableCard(uniqueTableLines()))
         #expect(UIKitTableCard.recycledCardCountForTesting > 0)
-        ChatListViewControllerRepresentable.dismantleUIViewController(ChatListViewController(), coordinator: ())
+        ChatListViewControllerRepresentable.dismantleUIViewController(ChatListViewController(), coordinator: .init())
         #expect(UIKitTableCard.recycledCardCountForTesting == 0)
     }
 

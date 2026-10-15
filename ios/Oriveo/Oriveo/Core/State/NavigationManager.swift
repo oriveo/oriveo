@@ -73,6 +73,9 @@ final class NavigationManager {
     /// column so the first frame after a cold start renders narrow; `AppRootView` corrects it as
     /// soon as it has the real size class and window width.
     private(set) var isRegularWidth = false
+    /// Hands the chat page's state over when a conversation changes carrier (one per window). Not
+    /// observed: it is only captured right before the move and taken when the new page appears.
+    @ObservationIgnored let chatHandoff = ChatCarrierHandoff()
 
     func openProviderSetup(from entryPoint: ProviderSetupEntryPoint, preselectedKind: ProviderKind? = nil) {
         attemptNavigate(to: .providerSetup(entryPoint: entryPoint, preselectedKind: preselectedKind))
@@ -233,6 +236,25 @@ final class NavigationManager {
         horizontalSizeClass == .regular && windowWidth >= splitLayoutMinimumWidth
     }
 
+    /// In the half-folded posture the sidebar width lines up with the fold: returns the distance from
+    /// the fold's centre line to the container's leading edge, or nil without an active fold (fully
+    /// open, iPad), which keeps 360–440.
+    ///
+    /// The system would centre the columns on the fold by itself (half-folded Duo, no column width
+    /// set: sidebar 475.67 = fold centre), but our fixed 360–440 holds it at 400 and the fold lands
+    /// 75pt into the conversation column. The column width modifier cannot be attached conditionally
+    /// (that would replace HomeView's identity and lose the conversation list's scroll position), so
+    /// with an active fold ideal / max become the fold position, matching what the system would do.
+    /// `containerWidth` is the full width including the leading and trailing safe areas; when the
+    /// two sides of the fold cannot hold a 360pt sidebar and a 420pt conversation column it does not
+    /// follow (no such device exists; this is defensive).
+    static func foldAlignedSidebarWidth(divisionMidX: CGFloat?, containerWidth: CGFloat) -> CGFloat? {
+        guard let divisionMidX,
+              divisionMidX >= 360,
+              containerWidth - divisionMidX >= 420 else { return nil }
+        return divisionMidX
+    }
+
     /// Moves the conversation to the carrier that matches the new layout, keeping the
     /// "only one carrier" invariant. `isRegular` means "uses two columns" (the result of
     /// `usesSplitLayout`), not the raw size class.
@@ -246,13 +268,17 @@ final class NavigationManager {
         guard isRegular != isRegularWidth else { return }
         isRegularWidth = isRegular
 
+        // The move rebuilds ChatView from scratch: capture the page state synchronously before it,
+        // and the new page takes it back by key when it appears.
         if isRegular {
             guard case let .chat(conversationID) = path.last else { return }
+            chatHandoff.capture(key: ChatCarrierKey(conversationID: conversationID))
             path.removeLast()
             chatDetail = conversationID.map { .conversation($0) } ?? .draft
         } else {
             guard !chatDetail.isEmpty else { return }
             let conversationID = chatDetail.conversationID
+            chatHandoff.capture(key: ChatCarrierKey(conversationID: conversationID))
             chatDetail = .empty
             attemptNavigate(to: .chat(conversationID: conversationID))
         }

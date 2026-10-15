@@ -340,7 +340,8 @@ struct ChatMessageList: View, Equatable {
                     outlineScrollRequest: outlineScrollRequest,
                     outlineScrollMessageID: outlineScrollMessageID,
                     outlineScrollShouldFlash: outlineScrollShouldFlash,
-                    onVisibleTopUserMessageChanged: { outlineState.currentUserMessageID = $0 }
+                    onVisibleTopUserMessageChanged: { outlineState.currentUserMessageID = $0 },
+                    carrierHandoff: navigation.chatHandoff
                 )
             }
 

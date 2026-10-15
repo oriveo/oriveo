@@ -261,7 +261,13 @@ struct AppRootView: View {
             // unfolding, or the window width crossing 780pt). The render branch reads
             // `navigation.isRegularWidth` too, so which layout is drawn and which carrier holds
             // the conversation are always the same judgement and can never be a frame apart.
-            navigation.updateLayoutWidth(isRegular: split)
+            // Animations off: when folding, the conversation simply appears on top of the stack
+            // instead of being pushed.
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                navigation.updateLayoutWidth(isRegular: split)
+            }
             // A size class change swaps the Home tab's view tree, and the outer nav may be
             // rebuilt with it. The back swipe recognizer is bound to that nav, so re-confirm
             // here — a no-op when it is still attached.
@@ -673,6 +679,7 @@ private struct MainTabView: View {
     /// This window's navigation state; a host without one injected (previews, tests) falls back
     /// to the active window.
     private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
+    @State private var foldSidebarWidth: CGFloat?
 
     var body: some View {
         @Bindable var navigation = navigation
@@ -713,19 +720,32 @@ private struct MainTabView: View {
     ///
     /// The fixed 400pt sidebar is how "the same layout in all three shapes" is delivered: 400
     /// lines up with the 402pt of a phone in portrait. 360–440 is adjustable; giving the sidebar
-    /// less leaves the detail column more.
+    /// less leaves the detail column more. Half-folded, the sidebar lines up with the fold (see
+    /// `NavigationManager.foldAlignedSidebarWidth`).
     @ViewBuilder
     private var homeTabContent: some View {
         if navigation.isRegularWidth {
             NavigationSplitView {
                 HomeView()
-                    .navigationSplitViewColumnWidth(min: 360, ideal: 400, max: 440)
+                    .navigationSplitViewColumnWidth(min: 360, ideal: foldSidebarWidth ?? 400, max: foldSidebarWidth ?? 440)
                     .toolbar(.hidden, for: .navigationBar)
             } detail: {
                 ChatDetailColumn()
                     .navigationBarBackButtonHidden(true)
                     .toolbar(.hidden, for: .navigationBar)
             }
+            .onGeometryChange(for: CGFloat?.self) { proxy in
+                // The 27.0 SDK has no fold region API (the project sets this condition by SDK name, see project.pbxproj)
+                #if ORIVEO_SDK_BEFORE_27_1
+                return nil
+                #else
+                guard #available(iOS 27.1, *) else { return nil }
+                let fold = proxy.reservedRegions(kind: .division).first(where: \.isActive)
+                // Full width including the leading and trailing safe areas (the Duo's 84pt vertical status bar on the right), measured the same way as the two-column test
+                let fullWidth = proxy.size.width + proxy.safeAreaInsets.leading + proxy.safeAreaInsets.trailing
+                return NavigationManager.foldAlignedSidebarWidth(divisionMidX: fold?.frame.midX, containerWidth: fullWidth)
+                #endif
+            } action: { foldSidebarWidth = $0 }
         } else {
             HomeView()
         }

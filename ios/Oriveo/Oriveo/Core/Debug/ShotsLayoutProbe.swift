@@ -13,8 +13,13 @@ enum ShotsLayoutProbe {
     /// `supportsMultipleWindows` from the SwiftUI environment, written by `AppRootView`; nil = no window has reported yet.
     static var supportsMultipleWindows: Bool?
 
+    /// The latest keyboard frame (screen coordinates); nil = no keyboard, or it is hidden.
+    private static var keyboardFrameInScreen: CGRect?
+    private static var keyboardObservers: [NSObjectProtocol] = []
+
     static func runIfRequested(page: String) async {
         guard CommandLine.arguments.contains("-SHOTS_PROBE") else { return }
+        observeKeyboard()
         let start = Date()
         var lastSignature = ""
         var stableSince = Date()
@@ -36,6 +41,18 @@ enum ShotsLayoutProbe {
             }
         }
         write(page: page, nodes: nodes, timedOut: timedOut, waited: Date().timeIntervalSince(start))
+    }
+
+    private static func observeKeyboard() {
+        guard keyboardObservers.isEmpty else { return }
+        let center = NotificationCenter.default
+        keyboardObservers.append(center.addObserver(forName: UIResponder.keyboardWillChangeFrameNotification, object: nil, queue: .main) { note in
+            let frame = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue
+            MainActor.assumeIsolated { keyboardFrameInScreen = frame }
+        })
+        keyboardObservers.append(center.addObserver(forName: UIResponder.keyboardWillHideNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { keyboardFrameInScreen = nil }
+        })
     }
 
     // MARK: - Collection
@@ -273,6 +290,27 @@ enum ShotsLayoutProbe {
         return result
     }
 
+    /// Fold regions (division) and occluded regions (occlusion, such as an under-display camera) in window coordinates, inactive ones included.
+    /// Half-folded and fully open windows have the same size; only the division's `isActive` tells the two postures apart. Built with the 27.0 SDK or running below iOS 27.1 it outputs an empty array.
+    private static func collectReservedRegions(in window: UIWindow) -> [[String: Any]] {
+        #if !ORIVEO_SDK_BEFORE_27_1
+        if #available(iOS 27.1, *) {
+            let kinds: [(String, UIView.ReservedRegion.Kind)] = [("division", .division), ("occlusion", .occlusion)]
+            return kinds.flatMap { name, kind in
+                window.reservedRegions(kind: kind, options: .includeInactive).map { region -> [String: Any] in
+                    [
+                        "kind": name,
+                        "active": region.isActive,
+                        "rect": rectDictionary(region.frame),
+                        "margins": ["top": region.margins.top, "left": region.margins.left, "bottom": region.margins.bottom, "right": region.margins.right],
+                    ]
+                }
+            }
+        }
+        #endif
+        return []
+    }
+
     private static func rectDictionary(_ rect: CGRect) -> [String: CGFloat] {
         ["x": rect.minX, "y": rect.minY, "w": rect.width, "h": rect.height]
     }
@@ -299,6 +337,13 @@ enum ShotsLayoutProbe {
             "safe": ["top": insets.top, "bottom": insets.bottom, "left": insets.left, "right": insets.right],
             "bars": window.map(collectBars(in:)) ?? [],
             "split": window.map(collectSplitColumns(in:)) ?? [],
+            "reserved": window.map(collectReservedRegions(in:)) ?? [],
+            // The keyboard frame in window coordinates; null when it does not intersect the window (with a hardware keyboard only an off-screen placeholder remains)
+            "keyboard": window.flatMap { window -> [String: CGFloat]? in
+                guard let screenFrame = keyboardFrameInScreen else { return nil }
+                let frame = window.convert(screenFrame, from: window.windowScene?.screen.coordinateSpace ?? window.coordinateSpace)
+                return frame.intersects(window.bounds) ? rectDictionary(frame) : nil
+            } ?? NSNull(),
             "supportsMultipleWindows": supportsMultipleWindows.map { $0 as Any } ?? NSNull(),
             "supportsMultipleScenes": UIApplication.shared.supportsMultipleScenes,
             "nodes": nodes.map { node -> [String: Any] in

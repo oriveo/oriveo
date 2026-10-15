@@ -309,6 +309,8 @@ struct ChatComposerBar: View {
     let onShowPhotoPicker: () -> Void
     let onShowCamera: () -> Void
     let onShowFileImporter: () -> Void
+    /// Reopens the model options panel after a carrier change: ChatView bumps it when the handoff says the panel was open.
+    var modelControlsReopenToken: UInt = 0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -323,6 +325,8 @@ struct ChatComposerBar: View {
     @State private var recalledNotes: [NoteRecallEngine.Suggestion] = []
     @State private var noteRecallWorker = NoteRecallWorker()
     @State private var showsModelControls = false
+    /// The token registered with this window's carrier handoff (on disappear only this registration is removed).
+    @State private var carrierHandoffToken: ChatCarrierHandoff.Token?
     @State private var opensModelPickerAfterControls = false
     @State private var opensConnectionSettingsAfterControls = false
     /// Same idea: after "Open web search settings" is tapped on a relay's web row, push the connection's web search settings page.
@@ -673,8 +677,18 @@ struct ChatComposerBar: View {
             }
             configureHighlightPulse()
             syncStoredCapabilitySelection()
+            registerCarrierHandoff()
         }
-        .onDisappear(perform: commitDraft)
+        .onDisappear {
+            commitDraft()
+            if let carrierHandoffToken {
+                navigation.chatHandoff.unregister(carrierHandoffToken)
+                self.carrierHandoffToken = nil
+            }
+        }
+        .onChange(of: modelControlsReopenToken) { _, _ in
+            showsModelControls = true
+        }
         // Going to the background while focused neither loses focus nor disappears, and the draft
         // would be lost if the system then terminates the app. Write once against the stored snapshot
         // (nothing is written when unchanged).
@@ -757,6 +771,18 @@ struct ChatComposerBar: View {
                isFocused: new.isFocused
            ) {
             composerText = draft
+        }
+    }
+
+    /// Called synchronously by `NavigationManager` before the move: reads the current input text, focus and panel.
+    private func registerCarrierHandoff() {
+        guard carrierHandoffToken == nil else { return }
+        carrierHandoffToken = navigation.chatHandoff.registerComposer {
+            ChatComposerCarrierState(
+                text: composerText,
+                isFocused: composerFocused.wrappedValue,
+                showsModelControls: showsModelControls
+            )
         }
     }
 

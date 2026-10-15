@@ -44,15 +44,47 @@ struct ChatListViewControllerRepresentable: UIViewControllerRepresentable {
     var outlineScrollMessageID: UUID? = nil
     var outlineScrollShouldFlash: Bool = false
     var onVisibleTopUserMessageChanged: (UUID?) -> Void = { _ in }
+    /// This window's carrier handoff: registers the reading anchor provider and, when a controller is created, takes back the old carrier's reading position.
+    var carrierHandoff: ChatCarrierHandoff? = nil
+
+    final class Coordinator {
+        weak var carrierHandoff: ChatCarrierHandoff?
+        var carrierHandoffToken: ChatCarrierHandoff.Token?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIViewController(context: Context) -> ChatListViewController {
-        ChatListViewController()
+        let controller = ChatListViewController()
+        if let carrierHandoff {
+            context.coordinator.carrierHandoff = carrierHandoff
+            context.coordinator.carrierHandoffToken = Self.attachCarrierHandoff(carrierHandoff, to: controller)
+        }
+        return controller
+    }
+
+    /// Connects a new controller to the handoff: with a carrier handoff it sets the reading anchor and skips the entrance delay, then registers this controller's anchor provider
+    /// for the next move to capture. Returns the registration token, used to unregister when the controller is torn down.
+    static func attachCarrierHandoff(
+        _ handoff: ChatCarrierHandoff,
+        to controller: ChatListViewController
+    ) -> ChatCarrierHandoff.Token {
+        if let restore = handoff.takeListRestore() {
+            controller.pendingReadingAnchor = restore.readingAnchor
+            controller.skipInitialTransitionDeferral()
+        }
+        return handoff.registerReadingAnchor { [weak controller] in
+            controller?.captureReadingAnchor()
+        }
     }
 
     /// Leaving the chat screen: pooled rich cards only serve scrolling back within the current
     /// conversation, so they are released with the screen.
-    static func dismantleUIViewController(_ uiViewController: ChatListViewController, coordinator: ()) {
+    static func dismantleUIViewController(_ uiViewController: ChatListViewController, coordinator: Coordinator) {
         ChatRichCardRecycling.purgeAll()
+        if let token = coordinator.carrierHandoffToken {
+            coordinator.carrierHandoff?.unregister(token)
+        }
     }
 
     func updateUIViewController(_ controller: ChatListViewController, context: Context) {

@@ -218,6 +218,22 @@ struct NavigationManagerTests {
         #expect(NavigationManager.usesSplitLayout(horizontalSizeClass: sizeClass, windowWidth: width) == expected)
     }
 
+    @Test(
+        "Half-folded sidebar follows the fold only with an active fold and room on both sides; otherwise 360–440",
+        arguments: [
+            // Half-folded Duo: fold centre line at 475.5 in a 951pt window
+            (CGFloat?.some(475.5), CGFloat(951), CGFloat?.some(475.5)),
+            (nil, 951, nil),
+            (359, 951, nil),
+            (360, 780, 360),
+            (531, 951, 531),
+            (532, 951, nil),
+        ] as [(CGFloat?, CGFloat, CGFloat?)]
+    )
+    func foldAlignedSidebarWidth(divisionMidX: CGFloat?, containerWidth: CGFloat, expected: CGFloat?) {
+        #expect(NavigationManager.foldAlignedSidebarWidth(divisionMidX: divisionMidX, containerWidth: containerWidth) == expected)
+    }
+
     @Test("Resizing A Regular Window Across 780pt Moves The Conversation Between Carriers")
     func regularWindowResizeAcrossThresholdMovesChat() {
         let nav = NavigationManager()
