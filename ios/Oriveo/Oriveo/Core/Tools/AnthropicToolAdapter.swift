@@ -33,7 +33,10 @@ nonisolated struct AnthropicToolAdapter: ToolProtocolAdapter {
             case "system":
                 let text = message.plainText
                 guard !text.isEmpty else { continue }
-                if wire.isEmpty { system.append(text) } else { appendToLastUser([["type": "text", "text": text]]) }
+                // System text only comes from the start of the conversation and goes into top-level `system`.
+                // Mid-loop notices are user turns (ToolCallLoop.loopNotice) and are merged with the same
+                // leg's tool_result blocks into one user turn via appendToLastUser below.
+                system.append(text)
             case "user":
                 appendToLastUser(try Self.userBlocks(message))
             case "assistant":

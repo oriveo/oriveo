@@ -11,26 +11,19 @@ nonisolated struct ChatRequestConversationSnapshot: Sendable, Equatable {
     let skillID: UUID?
 }
 
+/// Request building only reads the memory text. Anti-forget (`memoryAntiForgetEnabled/Text`) no longer
+/// injects anything: the preference fields are still stored / synced / backed up so existing values
+/// survive, but they are not part of the request snapshot.
 nonisolated struct ChatRequestPreferencesSnapshot: Sendable, Equatable {
     var memoryText: String
-    var memoryAntiForgetEnabled: Bool
-    var memoryAntiForgetText: String
 
-    init(
-        memoryText: String = "",
-        memoryAntiForgetEnabled: Bool = false,
-        memoryAntiForgetText: String = ""
-    ) {
+    init(memoryText: String = "") {
         self.memoryText = memoryText
-        self.memoryAntiForgetEnabled = memoryAntiForgetEnabled
-        self.memoryAntiForgetText = memoryAntiForgetText
     }
 
     @MainActor
     init(_ preferences: AppPreference) {
         memoryText = preferences.memoryText
-        memoryAntiForgetEnabled = preferences.memoryAntiForgetEnabled
-        memoryAntiForgetText = preferences.memoryAntiForgetText
     }
 }
 

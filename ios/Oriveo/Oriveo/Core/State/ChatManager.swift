@@ -1480,9 +1480,8 @@ final class ChatManager {
             let officialImageDispatcher = BaseAPIService(session: self.providerSession)
             var bufferedDelta = ""
             var lastFlushTime = Date().timeIntervalSince1970
-            let enrichedRequestSnapshot = await self.markMemoryUsedIfRequestInjectsIt(requestSnapshot)
             let requestBuild = await Task.detached(priority: .userInitiated) {
-                ChatRequestBuilder.build(from: enrichedRequestSnapshot)
+                ChatRequestBuilder.build(from: requestSnapshot)
             }.value
             let requestMessages = requestBuild.requestMessages
             var requestOptions = requestBuild.requestOptions
@@ -3978,23 +3977,6 @@ final class ChatManager {
             sendPath: sendPath
         )
         return snapshot
-    }
-
-    /// Records that this request consumes memory so the conversation can show it, and hands the
-    /// snapshot back unchanged.
-    private func markMemoryUsedIfRequestInjectsIt(
-        _ requestSnapshot: ChatRequestSnapshot
-    ) async -> ChatRequestSnapshot {
-        if let conversation = requestSnapshot.conversation,
-           ChatRequestBuilder.willInjectMemory(
-               skill: requestSnapshot.skill,
-               preferences: requestSnapshot.preferences,
-               conversation: requestSnapshot.conversation,
-               retrievedSnippets: requestSnapshot.retrievedSnippets
-           ) {
-            appState.markMemoryUsedIfNeeded(in: conversation.id)
-        }
-        return requestSnapshot
     }
 
     private func beginEditingUserMessage(at messageIndex: Int, in conversationID: UUID) -> ComposerEditDraft? {

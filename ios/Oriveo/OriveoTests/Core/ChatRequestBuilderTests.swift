@@ -119,12 +119,18 @@ struct ChatRequestBuilderTests {
 
         let result = ChatRequestBuilder.build(from: snapshot)
 
+        // The text-less generated-image assistant becomes empty and is dropped; the now adjacent users merge
+        // into one, with the earlier text inside the unanswered envelope (contract sanitize.v1).
         #expect(result.requestMessages.map(\.role) == [.user])
-        #expect(result.requestMessages.first?.text == "Nice")
+        #expect(result.requestMessages.first?.id == followUp.id)
+        #expect(result.requestMessages.first?.text == "<oriveo-unanswered>\n<note>\(ChatRequestBuilder.unansweredEnvelopeNote)</note>\nDraw a farmer\n</oriveo-unanswered>\n\nNice")
     }
 
-    @Test("send path drops the older user left by a dropped mid-history empty failed assistant")
-    func sendPathDropsOlderUserAfterDroppingEmptyFailedAssistant() {
+    @Test("send path folds the older user left by a dropped mid-history empty failed assistant into the envelope")
+    func sendPathFoldsOlderUserAfterDroppingEmptyFailedAssistant() {
+        // u1 -> a1(delivered) -> u2 -> a2(failed, '') -> u3: once a2 is dropped u2/u3 are adjacent. Strict relays
+        // require alternation, so they merge into one: u2 goes into the unanswered envelope, u3's text follows,
+        // and u3's id is kept (contract sanitize.v1).
         let u1 = TestFactories.makeMessage(role: .user, text: "q1")
         let a1 = TestFactories.makeMessage(role: .assistant, text: "a1")
         let u2 = TestFactories.makeMessage(role: .user, text: "q2")
@@ -146,11 +152,15 @@ struct ChatRequestBuilderTests {
         let result = ChatRequestBuilder.build(from: snapshot)
 
         #expect(result.requestMessages.map(\.role) == [.user, .assistant, .user])
-        #expect(result.requestMessages.map(\.text) == ["q1", "a1", "q3"])
+        #expect(result.requestMessages.map(\.text) == ["q1", "a1", "<oriveo-unanswered>\n<note>\(ChatRequestBuilder.unansweredEnvelopeNote)</note>\nq2\n</oriveo-unanswered>\n\nq3"])
+        #expect(result.requestMessages.last?.id == u3.id)
     }
 
-    @Test("send path drops the orphaned earlier user when a stopped empty assistant is removed")
-    func sendPathDropsOrphanedUserAfterEmptyInterruptedAssistant() {
+    @Test("send path keeps the orphaned earlier user as unanswered context when a stopped empty assistant is removed")
+    func sendPathEnvelopesOrphanedUserAfterEmptyInterruptedAssistant() {
+        // Ask A -> tap stop (the assistant is interrupted before any text) -> ask B. Gluing A and B into one
+        // prompt made the model answer both; dropping A loses standing instructions. Per contract sanitize.v1,
+        // A goes into the unanswered envelope (which says to answer only the latest) and B's text follows.
         let uA = TestFactories.makeMessage(role: .user, text: "What is the micro-frontend framework called")
         let aA = TestFactories.makeMessage(role: .assistant, text: "", state: .interrupted)
         let uB = TestFactories.makeMessage(role: .user, text: "Who is the boss of Film Typhoon")
@@ -166,7 +176,8 @@ struct ChatRequestBuilderTests {
         let result = ChatRequestBuilder.build(from: snapshot)
 
         #expect(result.requestMessages.map(\.role) == [.user])
-        #expect(result.requestMessages.first?.text == "Who is the boss of Film Typhoon")
+        #expect(result.requestMessages.first?.id == uB.id)
+        #expect(result.requestMessages.first?.text == "<oriveo-unanswered>\n<note>\(ChatRequestBuilder.unansweredEnvelopeNote)</note>\nWhat is the micro-frontend framework called\n</oriveo-unanswered>\n\nWho is the boss of Film Typhoon")
     }
 
     @Test("send path keeps a non-empty interrupted assistant to separate two user turns")
@@ -226,7 +237,7 @@ struct ChatRequestBuilderTests {
         let result = ChatRequestBuilder.build(from: snapshot)
 
         #expect(result.requestMessages.map(\.role) == [.user])
-        #expect(result.requestMessages.first?.text == "q2")
+        #expect(result.requestMessages.first?.text == "<oriveo-unanswered>\n<note>\(ChatRequestBuilder.unansweredEnvelopeNote)</note>\nq1\n</oriveo-unanswered>\n\nq2")
     }
 
     @Test("continue path treats the current assistant as delivered and appends the continue instruction")
@@ -273,8 +284,8 @@ struct ChatRequestBuilderTests {
         )
     }
 
-    @Test("builder composes skill prompt, knowledge files, memory, and anti-forget from immutable snapshots")
-    func builderComposesSkillMemoryAndAntiForget() {
+    @Test("builder composes skill prompt, knowledge files and memory; anti-forget never injects a reminder")
+    func builderComposesSkillMemoryWithoutAntiForgetReminder() {
         var messages: [ChatMessage] = []
         for index in 0..<10 {
             messages.append(TestFactories.makeMessage(role: .user, text: "User message \(index)"))
@@ -289,9 +300,7 @@ struct ChatRequestBuilderTests {
             ),
             messages: messages,
             preferences: ChatRequestPreferencesSnapshot(
-                memoryText: "User prefers concise Swift examples.",
-                memoryAntiForgetEnabled: true,
-                memoryAntiForgetText: "Keep the answer concise and code-first."
+                memoryText: "User prefers concise Swift examples."
             ),
             skill: ChatRequestSkillSnapshot(
                 id: UUID(),
@@ -314,8 +323,44 @@ struct ChatRequestBuilderTests {
         #expect(result.requestOptions.systemPrompt.contains("Prefer GRDB observations over legacy mirrors."))
         #expect(result.requestOptions.systemPrompt.contains("[User context: User prefers concise Swift examples.]"))
 
-        let lastUserMessage = result.requestMessages.last(where: { $0.role == .user })
-        #expect(lastUserMessage?.text.contains("[Reminder: Keep the answer concise and code-first.]") == true)
+        // Anti-forget no longer injects anything: even past 10 rounds no reminder is appended to any message
+        #expect(RetiredAntiForgetProbe.containsReminder(result) == false)
+    }
+
+    @Test("anti-forget preference enabled with text still yields requests without [Reminder:")
+    @MainActor
+    func antiForgetPreferenceNeverInjectsReminder() {
+        var messages: [ChatMessage] = []
+        for index in 0..<12 {
+            messages.append(TestFactories.makeMessage(role: .user, text: "User message \(index)"))
+            messages.append(TestFactories.makeMessage(role: .assistant, text: "Assistant reply \(index)"))
+        }
+        let preference = AppPreference(
+            theme: .system,
+            language: .system,
+            memoryText: "User prefers concise Swift examples.",
+            memoryAntiForgetEnabled: true,
+            memoryAntiForgetText: "Keep the answer concise and code-first.",
+            memoryUpdatedAt: Date()
+        )
+        // The preference itself is kept as is (stored / synced / backed up); it just no longer reaches requests
+        #expect(preference.memoryAntiForgetEnabled)
+        #expect(preference.memoryAntiForgetText == "Keep the answer concise and code-first.")
+
+        for sendPath in [
+            ChatRequestSendPath.send(excludingMessageID: nil),
+            .continueResponse(assistantMessageID: messages[messages.count - 1].id, instruction: "Continue"),
+        ] {
+            let result = ChatRequestBuilder.build(from: ChatRequestSnapshot(
+                conversation: ChatRequestConversationSnapshot(id: UUID(), useMemory: true, skillID: nil),
+                messages: messages,
+                preferences: ChatRequestPreferencesSnapshot(preference),
+                skill: nil,
+                sendPath: sendPath
+            ))
+            #expect(result.requestOptions.systemPrompt.contains("User prefers concise Swift examples."))
+            #expect(RetiredAntiForgetProbe.containsReminder(result) == false)
+        }
     }
 
     @Test("skill path respects the current conversation memory toggle")
@@ -331,9 +376,7 @@ struct ChatRequestBuilderTests {
                 TestFactories.makeMessage(role: .assistant, text: "world")
             ],
             preferences: ChatRequestPreferencesSnapshot(
-                memoryText: "User prefers concise Swift examples.",
-                memoryAntiForgetEnabled: true,
-                memoryAntiForgetText: "Keep the answer concise and code-first."
+                memoryText: "User prefers concise Swift examples."
             ),
             skill: ChatRequestSkillSnapshot(
                 id: UUID(),
@@ -348,8 +391,7 @@ struct ChatRequestBuilderTests {
 
         #expect(result.requestOptions.systemPrompt.contains("You are an iOS architecture copilot."))
         #expect(result.requestOptions.systemPrompt.contains("[User context: User prefers concise Swift examples.]") == false)
-        let lastUserMessage = result.requestMessages.last(where: { $0.role == .user })
-        #expect(lastUserMessage?.text.contains("[Reminder: Keep the answer concise and code-first.]") == false)
+        #expect(RetiredAntiForgetProbe.containsReminder(result) == false)
     }
 
     @Test("memory injection eligibility uses only snapshots, not full prompt assembly")
@@ -412,7 +454,7 @@ struct ChatRequestBuilderTests {
         )
     }
 
-    @Test("memory injection availability respects prompt budget before counting usage")
+    @Test("memory injection availability respects prompt budget")
     func memoryInjectionAvailabilityRespectsPromptBudget() {
         let preferences = ChatRequestPreferencesSnapshot(
             memoryText: "User prefers concise Swift examples."
@@ -429,13 +471,6 @@ struct ChatRequestBuilderTests {
             skillID: UUID()
         )
 
-        #expect(
-            ChatRequestBuilder.willInjectMemory(
-                skill: skill,
-                preferences: preferences,
-                conversation: conversation
-            ) == false
-        )
         #expect(
             ChatRequestBuilder.buildPromptInjectionContext(
                 skill: skill,
@@ -533,5 +568,31 @@ struct ChatRequestBuilderTests {
             systemPrompt.range(of: "--- Reference: guardrails.md ---")?.lowerBound ?? systemPrompt.startIndex
                 < systemPrompt.range(of: "--- Knowledge Base: kb.txt ---")?.lowerBound ?? systemPrompt.endIndex
         )
+    }
+}
+
+/// Anti-forget no longer injects reminders. Memory-related tests run the production
+/// `ChatRequestBuilder.build` through this probe and assert that the outbound request
+/// (every message and the system prompt) never contains `[Reminder:`.
+enum RetiredAntiForgetProbe {
+    static let reminderMarker = "[Reminder:"
+
+    static func build(
+        _ messages: [ChatMessage],
+        memoryText: String,
+        useMemory: Bool
+    ) -> ChatRequestBuildResult {
+        ChatRequestBuilder.build(from: ChatRequestSnapshot(
+            conversation: ChatRequestConversationSnapshot(id: UUID(), useMemory: useMemory, skillID: nil),
+            messages: messages,
+            preferences: ChatRequestPreferencesSnapshot(memoryText: memoryText),
+            skill: nil,
+            sendPath: .send(excludingMessageID: nil)
+        ))
+    }
+
+    static func containsReminder(_ result: ChatRequestBuildResult) -> Bool {
+        result.requestOptions.systemPrompt.contains(reminderMarker)
+            || result.requestMessages.contains { $0.text.contains(reminderMarker) }
     }
 }

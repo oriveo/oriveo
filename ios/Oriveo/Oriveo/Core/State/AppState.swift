@@ -202,9 +202,6 @@ final class AppState {
 
     var pendingSearchScrollTarget: PendingSearchScrollTarget?
 
-    var memoryUsageCount: Int = 0
-    var memoryUsageConversationIDs: Set<UUID> = []
-
     /// The assistant message ID currently streaming in `conversationID`, or nil when nothing is.
     func streamingMessageID(in conversationID: UUID) -> UUID? {
         chatManager.streamingMessageID(in: conversationID)
@@ -378,7 +375,6 @@ final class AppState {
         providerManager.bind(to: self)
         chatManager.bind(to: self)
         skillManager.bind(to: self)
-        loadMemoryUsageData()
 
         if AppStateLaunchPolicy.shouldRunProviderPriceMigration(
             seedDemoData: seedDemoData,
@@ -1853,7 +1849,6 @@ final class AppState {
             hasCompletedOnboarding = true
         }
 
-        loadMemoryUsageData()
         skillManager.reloadCacheForCurrentAccount()
 
         if !providers.isEmpty {
@@ -2071,22 +2066,8 @@ final class AppState {
         }
     }
 
-    func markMemoryUsedIfNeeded(in conversationID: UUID) {
-        guard !memoryUsageConversationIDs.contains(conversationID) else { return }
-        memoryUsageConversationIDs.insert(conversationID)
-        memoryUsageCount = memoryUsageConversationIDs.count
-        AppPreferencesStore.memoryUsageConversationIDs = memoryUsageConversationIDs.map(\.uuidString)
-        AppPreferencesStore.memoryUsageCount = memoryUsageCount
-    }
-
     func openMemory() {
         navigation.openMemory()
-    }
-
-    func loadMemoryUsageData() {
-        let ids = AppPreferencesStore.memoryUsageConversationIDs.compactMap { UUID(uuidString: $0) }
-        memoryUsageConversationIDs = Set(ids)
-        memoryUsageCount = memoryUsageConversationIDs.count
     }
 
     // MARK: - Skills

@@ -728,6 +728,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             messages: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, transport: .relayAnthropicMessages, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) }
         )
         var body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
+        Self.applyRelayCacheBreakpoint(to: &body)
         if let functionTools {
             body["tools"] = functionTools
         }
@@ -858,6 +859,40 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
         return components?.url?.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? "\(baseString)/\(defaultVersion)"
     }
 
+    /// Relay Anthropic does not send a top-level `cache_control` (many relays do not accept it); instead it
+    /// places a single ephemeral breakpoint on the last content block of the last user message, the same
+    /// shape as Web. Plain-text content is first expanded into a single text block. The whole request carries
+    /// at most one block-level breakpoint, well below Anthropic's limit of 4.
+    static func applyRelayCacheBreakpoint(to body: inout [String: Any]) {
+        guard var messages = body["messages"] as? [[String: Any]],
+              let index = messages.lastIndex(where: { $0["role"] as? String == "user" })
+        else { return }
+        let breakpoint: [String: Any] = ["type": "ephemeral"]
+        var message = messages[index]
+        if let text = message["content"] as? String {
+            guard !text.isEmpty else { return }
+            message["content"] = [["type": "text", "text": text, "cache_control": breakpoint]]
+        } else if var blocks = message["content"] as? [[String: Any]], !blocks.isEmpty {
+            blocks[blocks.count - 1]["cache_control"] = breakpoint
+            message["content"] = blocks
+        } else {
+            return
+        }
+        messages[index] = message
+        body["messages"] = messages
+    }
+
+    /// Wire shape of the message blocks (without the capability-evidence projection), produced by the same
+    /// encoder as the request body's `messages`. Lets tests check block-level fields: the official route's
+    /// vision evidence is unavailable in tests, so images sent through sendMessageStream become placeholders.
+    static func encodedWireMessages(_ messages: [ChatMessage], transport: AttachmentTransport, model: AIModel?) throws -> Data {
+        try JSONEncoder().encode(
+            AttachmentDelivery.mapTurns(messages, isChatSend: model != nil) {
+                try buildRequestMessage($0, transport: transport, model: model, isOutgoingTurn: $1)
+            }
+        )
+    }
+
     private static func buildRequestMessage(_ msg: ChatMessage, transport: AttachmentTransport, model: AIModel?, isOutgoingTurn: Bool) throws -> AnthropicChatRequest.Message {
         let role = msg.role == .assistant ? "assistant" : "user"
 
@@ -883,7 +918,10 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             return .init(role: role, content: .text(combinedText))
         }
 
-        let cache = AnthropicChatRequest.ContentBlock.CacheControl(type: "ephemeral")
+        // No block-level cache_control: Anthropic allows at most 4 cache breakpoints per request, so marking
+        // every image / document returns 400 once there are more than 4. The official route relies on the
+        // top-level cache_control for automatic caching; Relay places a single breakpoint on the last block
+        // of the last user message (see applyRelayCacheBreakpoint).
         var contentBlocks: [AnthropicChatRequest.ContentBlock] = [
             .init(type: "text", text: combinedText)
         ]
@@ -892,16 +930,14 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             guard !b64.isEmpty else { continue }
             contentBlocks.append(.init(
                 type: "image",
-                source: .init(type: "base64", media_type: a.mimeType, data: b64),
-                cache_control: cache
+                source: .init(type: "base64", media_type: a.mimeType, data: b64)
             ))
         }
         for f in nativeAtts {
             if let base64 = f.originalBase64Data, !base64.isEmpty {
                 contentBlocks.append(.init(
                     type: "document",
-                    source: .init(type: "base64", media_type: f.mimeType, data: base64),
-                    cache_control: cache
+                    source: .init(type: "base64", media_type: f.mimeType, data: base64)
                 ))
             }
         }

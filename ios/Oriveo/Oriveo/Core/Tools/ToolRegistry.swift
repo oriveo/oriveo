@@ -26,6 +26,9 @@ nonisolated enum ToolFailureDisposition: Equatable, Sendable {
 
 nonisolated struct ToolExecutionOutcome: Sendable {
     var content: String
+    /// Whether to stop and wrap up after this execution. When `stopReason` is set, the loop appends it as a
+    /// host loop notice (plain user text after the leg's tool results), feeds `research_stopped` back for the
+    /// leg's remaining tool_calls, then runs a tool-less synthesis leg.
     var stopReason: String?
 
     init(content: String, stopReason: String? = nil) {

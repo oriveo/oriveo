@@ -97,6 +97,15 @@ nonisolated struct ToolCallLoop: Sendable {
         self.onLegCompleted = onLegCompleted
     }
 
+    /// Host loop notice (step limit / token budget / a tool asking to wrap up): always appended as plain
+    /// user text after all of the leg's tool results, never as system. System text only comes from the
+    /// start and goes into top-level system / instructions / systemInstruction; appending system mid-loop
+    /// would change the system prefix of every later leg and invalidate the whole prefix cache.
+    /// The Anthropic / Gemini adapters merge it with the same leg's tool_result / functionResponse into one user turn.
+    static func loopNotice(_ content: String) -> ToolLoopMessage {
+        ToolLoopMessage(role: "user", content: content)
+    }
+
     func run(
         messages initialMessages: [ToolLoopMessage],
         onProgress: @escaping ProgressHandler = { _ in }
@@ -162,17 +171,18 @@ nonisolated struct ToolCallLoop: Sendable {
             )
             history.append(assistantMessage)
             var resultsByCallID: [String: ToolLoopMessage] = [:]
-            var trailingSystemMessages: [ToolLoopMessage] = []
+            // Tool results are fed back in the order the upstream proposed them; host loop notices go after all results.
+            var trailingNotices: [ToolLoopMessage] = []
             func feed(_ message: ToolLoopMessage) {
                 if let id = message.toolCallID { resultsByCallID[id] = message }
             }
-            func appendSystem(_ content: String) {
-                trailingSystemMessages.append(ToolLoopMessage(role: "system", content: content))
+            func appendNotice(_ content: String) {
+                trailingNotices.append(Self.loopNotice(content))
             }
             func commitLeg() async throws {
                 let ordered = typedCalls.compactMap { resultsByCallID[$0.id] }
                 history.append(contentsOf: ordered)
-                history.append(contentsOf: trailingSystemMessages)
+                history.append(contentsOf: trailingNotices)
                 try await onLegCompleted?(LegRecord(legIndex: legIndex, assistantMessage: assistantMessage, toolResultMessages: ordered))
             }
             for call in unhandled {
@@ -189,7 +199,7 @@ nonisolated struct ToolCallLoop: Sendable {
                         content: Self.errorContent(code: prompts.stoppedErrorCode, message: prompts.stoppedByTokenBudget)
                     ))
                 }
-                appendSystem(prompts.tokenBudgetReached)
+                appendNotice(prompts.tokenBudgetReached)
                 forceSynthesis = true
                 try await commitLeg()
                 break
@@ -208,7 +218,7 @@ nonisolated struct ToolCallLoop: Sendable {
                     consecutiveToolFailures = 0
                     feed(adapter.encodeToolResult(callID: call.id, toolName: call.function.name, content: outcome.content))
                     if let stopReason = outcome.stopReason {
-                        appendSystem(stopReason)
+                        appendNotice(stopReason)
                         for skipped in accepted.dropFirst(callIndex + 1) {
                             feed(adapter.encodeToolResult(
                                 callID: skipped.id, toolName: skipped.function.name,
@@ -257,7 +267,7 @@ nonisolated struct ToolCallLoop: Sendable {
                             content: Self.errorContent(code: prompts.stoppedErrorCode, message: prompts.stoppedByStepLimit)
                         ))
                     }
-                    appendSystem(prompts.stepLimitReached)
+                    appendNotice(prompts.stepLimitReached)
                     forceSynthesis = true
                     stepLimitReached = true
                     break toolCallsLoop
@@ -268,7 +278,8 @@ nonisolated struct ToolCallLoop: Sendable {
         }
 
         if !forceSynthesis {
-            history.append(ToolLoopMessage(role: "system", content: prompts.stepLimitReached))
+            // Legs exhausted: treated the same as hitting the step limit.
+            history.append(Self.loopNotice(prompts.stepLimitReached))
             stepLimitReached = true
         }
         let finalIndex = max(0, limits.maxSteps)

@@ -121,34 +121,6 @@ struct MemoryView: View {
         }
     }
 
-    private var overviewBadges: [MemoryOverviewBadge] {
-        var badges: [MemoryOverviewBadge] = []
-
-        if appState.memoryUsageCount > 0 {
-            badges.append(
-                .init(
-                    text: String(format: L10n.tr("Used in %d conversations", table: .settings), appState.memoryUsageCount),
-                    systemImage: "checkmark.circle.fill",
-                    foreground: OriveoTheme.Palette.success,
-                    fill: OriveoTheme.Palette.successSoft
-                )
-            )
-        }
-
-        if antiForgetEnabled && !trimmedText.isEmpty {
-            badges.append(
-                .init(
-                    text: L10n.tr("Anti-forget mode", table: .settings),
-                    systemImage: "bookmark.fill",
-                    foreground: OriveoTheme.Palette.primary,
-                    fill: OriveoTheme.Palette.primarySoft
-                )
-            )
-        }
-
-        return badges
-    }
-
     var body: some View {
         ScrollView {
             VStack(spacing: 30) {
@@ -159,9 +131,9 @@ struct MemoryView: View {
 
                 editorCard
 
+                // The anti-forget toggle is hidden because reminders are no longer injected into requests;
+                // the preference fields are still saved and synced so existing values survive.
                 if presentation.showsSupportCards {
-                    advancedSection
-                        .transition(.opacity)
                     privacyFootnote
                         .transition(.opacity)
                 }
@@ -294,11 +266,6 @@ struct MemoryView: View {
                     .frame(maxWidth: 320)
             }
             .padding(.horizontal, 8)
-
-            if !overviewBadges.isEmpty {
-                badgesFlow(overviewBadges)
-                    .padding(.top, 4)
-            }
 
             if let primaryAction = presentation.primaryAction {
                 VStack(spacing: 8) {
@@ -596,93 +563,6 @@ struct MemoryView: View {
         }
     }
 
-    // MARK: - Advanced (premium row group)
-
-    private var advancedSection: some View {
-        antiForgetRow
-            .background(premiumCardBackground(focused: false, tone: antiForgetEnabled ? .primary : .neutral))
-            .overlay(premiumCardShine())
-            .clipShape(RoundedRectangle(cornerRadius: OriveoTheme.Radius.card, style: .continuous))
-            .shadow(
-                color: OriveoTheme.Palette.shadow.opacity(colorScheme == .dark ? 0.40 : 0.08),
-                radius: colorScheme == .dark ? 14 : 10,
-                y: 4
-            )
-            .shadow(
-                color: OriveoTheme.Palette.shadow.opacity(colorScheme == .dark ? 0.24 : 0.04),
-                radius: 1.5,
-                y: 1
-            )
-            .animation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.85), value: antiForgetEnabled)
-    }
-
-    private var antiForgetRow: some View {
-        HStack(alignment: .center, spacing: 14) {
-            antiForgetIcon
-                .frame(width: 38, height: 38)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(L10n.tr("Long conversation anti-forgetting", table: .settings))
-                    .font(OriveoTheme.Typography.body.weight(.semibold))
-                    .foregroundStyle(OriveoTheme.Palette.textPrimary)
-
-                Text(L10n.tr("After 10 rounds of conversation, automatically append a summary reminder at the end of messages.", table: .settings))
-                    .font(OriveoTheme.Typography.footnote)
-                    .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                    .lineLimit(2)
-                    .lineSpacing(1)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 8)
-
-            Toggle("", isOn: $antiForgetEnabled)
-                .labelsHidden()
-                .tint(OriveoTheme.Palette.primary)
-                .onChange(of: antiForgetEnabled) { _, _ in
-                    editRevision += 1
-                }
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-    }
-
-    private var antiForgetIcon: some View {
-        ZStack {
-            if antiForgetEnabled {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(hex: 0x9B6BFF),
-                                Color(hex: 0x7238E5)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 11, style: .continuous)
-                            .stroke(Color.white.opacity(0.28), lineWidth: 0.6)
-                    )
-                    .shadow(color: OriveoTheme.Palette.primaryGlow, radius: 8, y: 4)
-                    .shadow(color: OriveoTheme.Palette.primary.opacity(colorScheme == .dark ? 0.30 : 0.18), radius: 2, y: 1)
-            } else {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(OriveoTheme.Palette.surfaceInset)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 11, style: .continuous)
-                            .stroke(OriveoTheme.Palette.border, lineWidth: 0.5)
-                    )
-            }
-
-            Image(systemName: "bookmark.fill")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(antiForgetEnabled ? Color.white : OriveoTheme.Palette.textSecondary)
-                .shadow(color: antiForgetEnabled ? Color.black.opacity(0.18) : .clear, radius: 2, y: 1)
-        }
-    }
-
     // MARK: - Footnotes
 
     private var privacyFootnote: some View {
@@ -863,25 +743,6 @@ struct MemoryView: View {
                 .padding(-3)
                 .allowsHitTesting(false)
                 .transition(.opacity)
-        }
-    }
-
-    // MARK: - Badges flow
-
-    @ViewBuilder
-    private func badgesFlow(_ badges: [MemoryOverviewBadge]) -> some View {
-        ViewThatFits {
-            HStack(spacing: OriveoTheme.Spacing.sm) {
-                ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
-                    MemoryOverviewBadgeView(badge: badge)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: OriveoTheme.Spacing.sm) {
-                ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
-                    MemoryOverviewBadgeView(badge: badge)
-                }
-            }
         }
     }
 
@@ -1223,38 +1084,4 @@ struct MemoryView: View {
 private struct DraftCandidate {
     let provider: Provider
     let model: AIModel
-}
-
-private struct MemoryOverviewBadge {
-    let text: String
-    let systemImage: String
-    let foreground: Color
-    let fill: Color
-}
-
-private struct MemoryOverviewBadgeView: View {
-    let badge: MemoryOverviewBadge
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: badge.systemImage)
-                .font(.system(size: 12, weight: .semibold))
-
-            Text(badge.text)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
-        }
-        .font(.system(size: 12, weight: .semibold))
-        .foregroundStyle(badge.foreground)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(
-            Capsule(style: .continuous)
-                .fill(badge.fill)
-        )
-        .overlay(
-            Capsule(style: .continuous)
-                .stroke(badge.foreground.opacity(0.16), lineWidth: 0.5)
-        )
-    }
 }

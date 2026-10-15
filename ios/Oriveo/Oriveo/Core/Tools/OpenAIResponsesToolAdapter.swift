@@ -23,11 +23,10 @@ nonisolated struct OpenAIResponsesToolAdapter: ToolProtocolAdapter {
             case "system":
                 let text = message.plainText
                 guard !text.isEmpty else { continue }
-                if input.isEmpty {
-                    instructions.append(text)
-                } else {
-                    input.append(["role": "system", "content": [["type": "input_text", "text": text]]])
-                }
+                // System text only comes from the start of the conversation and goes into `instructions`.
+                // Mid-loop notices are user turns (ToolCallLoop.loopNotice): one user item after the
+                // function_call_output items.
+                instructions.append(text)
             case "user":
                 input.append(["role": "user", "content": Self.userContent(message)])
             case "assistant":

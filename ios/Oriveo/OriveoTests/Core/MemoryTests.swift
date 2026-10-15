@@ -180,24 +180,17 @@ struct MemoryInjectionTests {
     }
 
 
-    @Test("Anti-forget appends when 10 messages")
-    func antiForgetAppendsWhen10Messages() {
+    @Test("Anti-forget no longer injects: 10 or more user messages still get no [Reminder:]")
+    func antiForgetNeverAppendsAt10Messages() {
         var messages: [ChatMessage] = []
         for i in 0..<10 {
             messages.append(makeMessage(role: .user, text: "User message \(i)"))
             messages.append(makeMessage(role: .assistant, text: "Reply \(i)"))
         }
 
-        let antiForgetText = "Developer, concise"
-        let userCount = messages.filter { $0.role == .user }.count
-        #expect(userCount >= 10)
-
-        if let lastIndex = messages.lastIndex(where: { $0.role == .user }) {
-            messages[lastIndex].text += "\n\n[Reminder: \(antiForgetText)]"
-        }
-
-        let lastUser = messages.last(where: { $0.role == .user })!
-        #expect(lastUser.text.contains("[Reminder: Developer, concise]"))
+        let result = RetiredAntiForgetProbe.build(messages, memoryText: "Developer, concise", useMemory: true)
+        #expect(!RetiredAntiForgetProbe.containsReminder(result))
+        #expect(result.requestMessages.last(where: { $0.role == .user })?.text == "User message 9")
     }
 
     @Test("Anti-forget skips under 10")
@@ -388,6 +381,8 @@ struct AntiForgetBoundaryTests {
         )
     }
 
+    /// Runs the production ChatRequestBuilder and reports whether `[Reminder:` shows up in the outbound
+    /// request (always false now that anti-forget no longer injects).
     private func shouldApplyAntiForget(
         messages: [ChatMessage],
         antiForgetEnabled: Bool,
@@ -395,12 +390,9 @@ struct AntiForgetBoundaryTests {
         antiForgetText: String,
         useMemory: Bool
     ) -> Bool {
-        let userMessageCount = messages.filter { $0.role == .user }.count
-        return antiForgetEnabled
-            && useMemory
-            && !memoryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !antiForgetText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && userMessageCount >= 10
+        RetiredAntiForgetProbe.containsReminder(
+            RetiredAntiForgetProbe.build(messages, memoryText: memoryText, useMemory: useMemory)
+        )
     }
 
     @Test("Nine user messages do not trigger")
@@ -421,8 +413,8 @@ struct AntiForgetBoundaryTests {
         #expect(!result)
     }
 
-    @Test("Ten user messages trigger")
-    func tenUserMessagesTrigger() {
+    @Test("Ten user messages do not trigger either (anti-forget no longer injects)")
+    func tenUserMessagesDoNotTrigger() {
         var messages: [ChatMessage] = []
         for i in 0..<10 {
             messages.append(makeMessage(role: .user, text: "User \(i)"))
@@ -436,11 +428,11 @@ struct AntiForgetBoundaryTests {
             antiForgetText: "Developer",
             useMemory: true
         )
-        #expect(result)
+        #expect(!result, "anti-forget no longer injects")
     }
 
-    @Test("Eleven user messages also trigger")
-    func elevenUserMessagesAlsoTrigger() {
+    @Test("Eleven user messages do not trigger either (anti-forget no longer injects)")
+    func elevenUserMessagesDoNotTrigger() {
         var messages: [ChatMessage] = []
         for i in 0..<11 {
             messages.append(makeMessage(role: .user, text: "User \(i)"))
@@ -454,11 +446,11 @@ struct AntiForgetBoundaryTests {
             antiForgetText: "Developer",
             useMemory: true
         )
-        #expect(result)
+        #expect(!result, "anti-forget no longer injects")
     }
 }
 
-@Suite("Anti-forget format")
+@Suite("Anti-forget no longer injects")
 struct AntiForgetFormatTests {
 
     private func makeMessage(role: ChatRole, text: String) -> ChatMessage {
@@ -473,43 +465,17 @@ struct AntiForgetFormatTests {
         )
     }
 
-    @Test("Anti-forget format")
-    func antiForgetFormat() {
+    @Test("The last user message of the production request keeps its text without a [Reminder: {text}] suffix")
+    func lastUserKeepsOriginalText() {
         var messages: [ChatMessage] = []
         for i in 0..<10 {
             messages.append(makeMessage(role: .user, text: "User message \(i)"))
             messages.append(makeMessage(role: .assistant, text: "Reply \(i)"))
         }
 
-        let antiForgetText = "Developer, concise"
-
-        if let lastIndex = messages.lastIndex(where: { $0.role == .user }) {
-            let trimmed = antiForgetText.trimmingCharacters(in: .whitespacesAndNewlines)
-            messages[lastIndex].text += "\n\n[Reminder: \(trimmed)]"
-        }
-
-        let lastUser = messages.last(where: { $0.role == .user })!
-        #expect(lastUser.text.hasSuffix("\n\n[Reminder: Developer, concise]"))
-        #expect(lastUser.text == "User message 9\n\n[Reminder: Developer, concise]")
-    }
-
-    @Test("Anti-forget text is trimmed")
-    func antiForgetTextIsTrimmed() {
-        var messages: [ChatMessage] = []
-        for i in 0..<10 {
-            messages.append(makeMessage(role: .user, text: "User \(i)"))
-            messages.append(makeMessage(role: .assistant, text: "Reply \(i)"))
-        }
-
-        let antiForgetText = "  Developer, concise  \n"
-
-        if let lastIndex = messages.lastIndex(where: { $0.role == .user }) {
-            let trimmed = antiForgetText.trimmingCharacters(in: .whitespacesAndNewlines)
-            messages[lastIndex].text += "\n\n[Reminder: \(trimmed)]"
-        }
-
-        let lastUser = messages.last(where: { $0.role == .user })!
-        #expect(lastUser.text.hasSuffix("[Reminder: Developer, concise]"))
+        let result = RetiredAntiForgetProbe.build(messages, memoryText: "  Developer, concise  \n", useMemory: true)
+        #expect(result.requestMessages.last(where: { $0.role == .user })?.text == "User message 9")
+        #expect(!RetiredAntiForgetProbe.containsReminder(result))
     }
 }
 
@@ -894,6 +860,9 @@ private func simulateBuildMemoryRequestOptions(
     return ChatRequestOptions(systemPrompt: trimmed)
 }
 
+/// "Applying anti-forget" = running the production ChatRequestBuilder and writing the outbound messages
+/// back into the copy. The anti-forget preference is not part of the request snapshot any more;
+/// `antiForgetEnabled` / `antiForgetText` only keep the call sites readable and do not affect the result.
 private func simulateApplyAntiForget(
     messages: inout [ChatMessage],
     antiForgetEnabled: Bool,
@@ -901,27 +870,7 @@ private func simulateApplyAntiForget(
     antiForgetText: String,
     useMemory: Bool
 ) {
-    let userMessageCount = messages.filter { $0.role == .user }.count
-    guard antiForgetEnabled,
-          useMemory,
-          !memoryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-          !antiForgetText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-          userMessageCount >= 10
-    else { return }
-
-    if let lastIndex = messages.lastIndex(where: { $0.role == .user }) {
-        let trimmed = antiForgetText.trimmingCharacters(in: .whitespacesAndNewlines)
-        messages[lastIndex].text += "\n\n[Reminder: \(trimmed)]"
-    }
-}
-
-private func simulateMarkMemoryUsed(
-    conversationID: UUID,
-    existingIDs: inout Set<UUID>
-) -> Bool {
-    guard !existingIDs.contains(conversationID) else { return false }
-    existingIDs.insert(conversationID)
-    return true
+    messages = RetiredAntiForgetProbe.build(messages, memoryText: memoryText, useMemory: useMemory).requestMessages
 }
 
 
@@ -955,15 +904,6 @@ struct UseMemoryFalseTests {
         let options = simulateBuildMemoryRequestOptions(memoryText: memoryText, useMemory: false)
         #expect(!options.hasCustomizations)
         #expect(options.systemPrompt.isEmpty)
-    }
-
-    @Test("Use memory false no usage increment")
-    func useMemoryFalseNoUsageIncrement() {
-        let memoryText = "I am a developer"
-        let useMemory = false
-        let trimmed = memoryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let shouldMark = !trimmed.isEmpty && useMemory
-        #expect(!shouldMark)
     }
 }
 
@@ -1010,8 +950,8 @@ struct AntiForgetPipelineTests {
         messages
     }
 
-    @Test("Exactly10 user messages appends context")
-    func exactly10UserMessagesAppendsContext() {
+    @Test("Exactly 10 user messages append no context either")
+    func exactly10UserMessagesNoContext() {
         var messages: [ChatMessage] = []
         for i in 0..<10 {
             messages.append(makeMessage(role: .user, text: "Msg \(i)"))
@@ -1029,8 +969,8 @@ struct AntiForgetPipelineTests {
         )
 
         let lastUser = messages.last(where: { $0.role == .user })!
-        #expect(lastUser.text.contains("[Reminder: Developer, concise]"))
-        #expect(lastUser.text.hasPrefix(originalLastUserText))
+        #expect(!lastUser.text.contains("[Reminder:"))
+        #expect(lastUser.text == originalLastUserText)
     }
 
     @Test("Under10 user messages no context")
@@ -1100,7 +1040,7 @@ struct AntiForgetPipelineTests {
         #expect(lastUser.text == originalLastText)
     }
 
-    @Test("Anti-forget only mutates copy")
+    @Test("Built request copy carries no reminder and the original messages are untouched")
     func antiForgetOnlyMutatesCopy() {
         var original: [ChatMessage] = []
         for i in 0..<10 {
@@ -1120,8 +1060,8 @@ struct AntiForgetPipelineTests {
             useMemory: true
         )
 
-        let lastUserInCopy = requestCopy.last(where: { $0.role == .user })!
-        #expect(lastUserInCopy.text.contains("[Reminder:"))
+        // The production request copy carries no reminder either
+        #expect(!requestCopy.contains { $0.text.contains("[Reminder:") })
 
         for (i, msg) in original.enumerated() {
             #expect(msg.text == originalTexts[i])
@@ -1276,63 +1216,6 @@ struct GeminiSystemInstructionTests {
         #expect(!hasInstruction)
     }
 }
-
-
-@Suite("Memory usage count deduplication")
-struct MemoryUsageCountDeduplicationTests {
-
-    @Test("First use in conversation increments count")
-    func firstUseInConversationIncrementsCount() {
-        var usedIDs: Set<UUID> = []
-        let convID = UUID()
-
-        let incremented = simulateMarkMemoryUsed(conversationID: convID, existingIDs: &usedIDs)
-        #expect(incremented)
-        #expect(usedIDs.count == 1)
-    }
-
-    @Test("Duplicate use in same conversation no increment")
-    func duplicateUseInSameConversationNoIncrement() {
-        var usedIDs: Set<UUID> = []
-        let convID = UUID()
-
-        _ = simulateMarkMemoryUsed(conversationID: convID, existingIDs: &usedIDs)
-        let secondResult = simulateMarkMemoryUsed(conversationID: convID, existingIDs: &usedIDs)
-
-        #expect(!secondResult)
-        #expect(usedIDs.count == 1)
-    }
-
-    @Test("Different conversations each count once")
-    func differentConversationsEachCountOnce() {
-        var usedIDs: Set<UUID> = []
-        let convA = UUID()
-        let convB = UUID()
-        let convC = UUID()
-
-        _ = simulateMarkMemoryUsed(conversationID: convA, existingIDs: &usedIDs)
-        _ = simulateMarkMemoryUsed(conversationID: convB, existingIDs: &usedIDs)
-        _ = simulateMarkMemoryUsed(conversationID: convC, existingIDs: &usedIDs)
-
-        #expect(usedIDs.count == 3)
-    }
-
-    @Test("Mixed usage count equals unique conversations")
-    func mixedUsageCountEqualsUniqueConversations() {
-        var usedIDs: Set<UUID> = []
-        let convA = UUID()
-        let convB = UUID()
-
-        _ = simulateMarkMemoryUsed(conversationID: convA, existingIDs: &usedIDs)
-        _ = simulateMarkMemoryUsed(conversationID: convA, existingIDs: &usedIDs)
-        _ = simulateMarkMemoryUsed(conversationID: convB, existingIDs: &usedIDs)
-        _ = simulateMarkMemoryUsed(conversationID: convA, existingIDs: &usedIDs)
-        _ = simulateMarkMemoryUsed(conversationID: convB, existingIDs: &usedIDs)
-
-        #expect(usedIDs.count == 2)
-    }
-}
-
 
 
 @Suite("Legacy conversation missing use memory")
@@ -1547,18 +1430,6 @@ struct SignOutClearsMemoryTests {
         #expect(!prefs.memoryAntiForgetEnabled)
         #expect(prefs.memoryAntiForgetText.isEmpty)
         #expect(prefs.memoryUpdatedAt == nil)
-    }
-
-    @Test("Sign out clears usage tracking")
-    func signOutClearsUsageTracking() {
-        var usageCount = 5
-        var usageConversationIDs: Set<UUID> = [UUID(), UUID(), UUID(), UUID(), UUID()]
-
-        usageCount = 0
-        usageConversationIDs = []
-
-        #expect(usageCount == 0)
-        #expect(usageConversationIDs.isEmpty)
     }
 
     @Test("Sign out prevents leak to next user")

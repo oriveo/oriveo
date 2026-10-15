@@ -30,12 +30,6 @@ nonisolated enum ChatRequestBuilder {
             retrievedSnippets: snapshot.retrievedSnippets,
             pinnedNotes: snapshot.pinnedNotes
         )
-        applyAntiForget(
-            to: &requestMessages,
-            preferences: snapshot.preferences,
-            conversation: snapshot.conversation,
-            promptContext: promptContext
-        )
         applyQuoteContexts(to: &requestMessages)
         requestMessages = OutboundAttachmentBudget.apply(to: requestMessages)
 
@@ -77,33 +71,6 @@ nonisolated enum ChatRequestBuilder {
         }
 
         return conversation?.useMemory ?? true
-    }
-
-    static func willInjectMemory(
-        skill: ChatRequestSkillSnapshot?,
-        preferences: ChatRequestPreferencesSnapshot,
-        conversation: ChatRequestConversationSnapshot?,
-        retrievedSnippets: [ChatRequestRetrievedSnippet] = []
-    ) -> Bool {
-        guard shouldInjectMemory(
-            skill: skill,
-            preferences: preferences,
-            conversation: conversation
-        ) else {
-            return false
-        }
-
-        let memoryText = preferences.memoryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let remainingChars = remainingCharsBeforeMemory(
-            skill: skill,
-            retrievedSnippets: retrievedSnippets
-        )
-        return fitWrappedSegment(
-            prefix: "[User context: ",
-            content: memoryText,
-            suffix: "]",
-            remainingChars: remainingChars
-        ) != nil
     }
 
     static func buildPromptInjectionContext(
@@ -274,7 +241,7 @@ nonisolated enum ChatRequestBuilder {
     }
 
     /// The attachment shape of the outbound history: normalized the same way as `build` (filtering, adjacent same-role merge, history attachment budget),
-    /// minus only the plain-text injections that do not touch attachments (the anti-forgetting reminder, citations). The pre-send check of the outbound route uses it.
+    /// minus only the plain-text injections that do not touch attachments (citations). The pre-send check of the outbound route uses it.
     static func outboundAttachmentHistory(_ messages: [ChatMessage], sendPath: ChatRequestSendPath) -> [ChatMessage] {
         OutboundAttachmentBudget.apply(to: mergeAdjacentSameRole(buildRequestMessages(messages, sendPath: sendPath)))
     }
@@ -332,26 +299,100 @@ nonisolated enum ChatRequestBuilder {
         }
     }
 
+    /// Explanatory sentence inside the envelope that wraps unanswered user turns. Cross-platform contract
+    /// `shared/context-contracts/sanitize.v1.json` `unansweredEnvelope.note`; every platform uses it verbatim,
+    /// so any change must update the contract too.
+    static let unansweredEnvelopeNote = "The user sent this earlier but no reply was delivered. Treat it as context and answer the latest message."
+
+    /// Outbound history sanitizing (filtering + merging adjacent same-role turns), i.e. the part of `build`
+    /// without injections. `keepAssistantID` is the continue / retry target, kept as delivered for prefill.
+    /// The cross-platform contract test calls this directly.
+    static func sanitizeOutbound(_ messages: [ChatMessage], keepAssistantID: UUID?) -> [ChatMessage] {
+        mergeAdjacentSameRole(
+            filteredMessages(
+                messages,
+                excludingMessageID: nil,
+                treatingAssistantMessageIDAsDelivered: keepAssistantID
+            )
+        )
+    }
+
+    /// Normalizes adjacent same-role messages: once filteredMessages drops failed / empty assistants in
+    /// between, the user turns they separated become adjacent. Strict OpenAI-compatible relays require
+    /// user/assistant to alternate and reject consecutive turns with the same role.
+    /// - Adjacent users (contract sanitize.v1): a run of N >= 2 users collapses into one that keeps the last
+    ///   message's id and fields. Earlier non-empty texts are trimmed, XML-escaped and wrapped in an
+    ///   `<oriveo-unanswered>` envelope placed before the latest text; attachments are concatenated in order.
+    ///   Earlier users are often standing instructions ("reply in Arabic from now on") and must not be
+    ///   silently dropped; the envelope note tells the model to treat them as context and only answer
+    ///   the latest message instead of answering both questions at once.
+    /// - Adjacent assistants (rare): text (trimmed, joined by a blank line) and attachments (in order) are
+    ///   merged, keeping the first message's fields.
+    ///
+    /// Note: an interrupted assistant with partial text is kept and naturally separates two users, so it
+    /// never triggers the user merge.
     private static func mergeAdjacentSameRole(_ messages: [ChatMessage]) -> [ChatMessage] {
         var merged: [ChatMessage] = []
+        var userRun: [ChatMessage] = []
+        func flushUserRun() {
+            guard !userRun.isEmpty else { return }
+            merged.append(mergeUserRun(userRun))
+            userRun.removeAll()
+        }
         for message in messages {
+            if message.role == .user {
+                userRun.append(message)
+                continue
+            }
+            flushUserRun()
             if let last = merged.last, last.role == message.role {
-                if message.role == .user {
-                    merged[merged.count - 1] = message
-                } else {
-                    var combinedLast = last
-                    let lastText = combinedLast.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let currentText = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    combinedLast.text = [lastText, currentText].filter { !$0.isEmpty }.joined(separator: "\n\n")
-                    let combined = (combinedLast.attachments ?? []) + (message.attachments ?? [])
-                    combinedLast.attachments = combined.isEmpty ? nil : combined
-                    merged[merged.count - 1] = combinedLast
-                }
+                var combinedLast = last
+                let lastText = combinedLast.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                let currentText = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                combinedLast.text = [lastText, currentText].filter { !$0.isEmpty }.joined(separator: "\n\n")
+                let combined = (combinedLast.attachments ?? []) + (message.attachments ?? [])
+                combinedLast.attachments = combined.isEmpty ? nil : combined
+                merged[merged.count - 1] = combinedLast
             } else {
                 merged.append(message)
             }
         }
+        flushUserRun()
         return merged
+    }
+
+    /// Collapses a run of consecutive user turns into one (contract sanitize.v1 `unansweredEnvelope.rules`).
+    private static func mergeUserRun(_ run: [ChatMessage]) -> ChatMessage {
+        guard var result = run.last else {
+            preconditionFailure("mergeUserRun requires a non-empty run")
+        }
+        guard run.count >= 2 else { return result }
+        let earlier = run.dropLast()
+        let earlierTexts = earlier
+            .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .map(escapeUnansweredXML)
+        if !earlierTexts.isEmpty {
+            let envelope = "<oriveo-unanswered>\n<note>\(unansweredEnvelopeNote)</note>\n"
+                + earlierTexts.joined(separator: "\n\n")
+                + "\n</oriveo-unanswered>"
+            let latest = result.text
+            result.text = latest.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? envelope
+                : envelope + "\n\n" + latest
+        }
+        let attachments = run.flatMap { $0.attachments ?? [] }
+        result.attachments = attachments.isEmpty ? nil : attachments
+        return result
+    }
+
+    /// Escapes only the earlier texts inside the envelope. `&` must be replaced first, otherwise the
+    /// entities produced afterwards would be escaped a second time.
+    private static func escapeUnansweredXML(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
     }
 
     private static func makeInstructionMessage(
@@ -469,36 +510,5 @@ nonisolated enum ChatRequestBuilder {
             return "file"
         }
         return String(normalized.prefix(maxPromptFileNameChars))
-    }
-
-    private static func applyAntiForget(
-        to messages: inout [ChatMessage],
-        preferences: ChatRequestPreferencesSnapshot,
-        conversation: ChatRequestConversationSnapshot?,
-        promptContext: ChatRequestPromptContext?
-    ) {
-        let userMessageCount = messages.filter { $0.role == .user }.count
-        guard preferences.memoryAntiForgetEnabled,
-              promptContext?.useMemory ?? (conversation?.useMemory ?? true),
-              !preferences.memoryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              !preferences.memoryAntiForgetText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              userMessageCount >= 10
-        else {
-            return
-        }
-
-        guard let lastIndex = messages.lastIndex(where: { $0.role == .user }) else { return }
-        let antiForgetText = preferences.memoryAntiForgetText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let remainingChars = promptContext?.remainingChars ?? 12_000
-        guard let reminder = fitWrappedSegment(
-            prefix: "[Reminder: ",
-            content: antiForgetText,
-            suffix: "]",
-            remainingChars: remainingChars
-        ) else {
-            return
-        }
-
-        messages[lastIndex].text += "\n\n\(reminder)"
     }
 }

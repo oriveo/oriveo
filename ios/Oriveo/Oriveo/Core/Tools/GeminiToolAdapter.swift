@@ -34,7 +34,10 @@ nonisolated struct GeminiToolAdapter: ToolProtocolAdapter {
             case "system":
                 let text = message.plainText
                 guard !text.isEmpty else { continue }
-                if contents.isEmpty { system.append(text) } else { appendToLastUser([["text": text]]) }
+                // System text only comes from the start of the conversation and goes into systemInstruction.
+                // Mid-loop notices are user turns (ToolCallLoop.loopNotice) and are merged with the same
+                // leg's functionResponse parts into one user content via appendToLastUser.
+                system.append(text)
             case "user":
                 appendToLastUser(Self.userParts(message))
             case "assistant":

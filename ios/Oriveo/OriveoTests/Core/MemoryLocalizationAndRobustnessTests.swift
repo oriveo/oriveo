@@ -102,7 +102,6 @@ struct MemoryLocalizationCoverageTests {
             "Memory",
             "Memory saved",
             "Use Memory",
-            "Long conversation anti-forgetting",
         ]
         for key in memoryKeys {
             #expect(!key.isEmpty, "Key '\(key)' should exist")

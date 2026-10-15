@@ -127,8 +127,6 @@ enum AppPreferencesStore {
         static let memoryAntiForgetEnabled = "oriveo.preferences.memoryAntiForgetEnabled"
         static let memoryAntiForgetText = "oriveo.preferences.memoryAntiForgetText"
         static let memoryUpdatedAt = "oriveo.preferences.memoryUpdatedAt"
-        static let memoryUsageCount = "oriveo.preferences.memoryUsageCount"
-        static let memoryUsageConversationIDs = "oriveo.preferences.memoryUsageConversationIDs"
         static let memoryHasSeen = "oriveo.preferences.memoryHasSeen"
         static let pinnedConversationIDs = "oriveo.preferences.pinnedConversationIDs"
         static let pinnedConversationIDsUpdatedAt = "oriveo.preferences.pinnedConversationIDsUpdatedAt"
@@ -143,8 +141,6 @@ enum AppPreferencesStore {
         Key.memoryAntiForgetEnabled,
         Key.memoryAntiForgetText,
         Key.memoryUpdatedAt,
-        Key.memoryUsageCount,
-        Key.memoryUsageConversationIDs,
         Key.memoryHasSeen,
         Key.pinnedConversationIDs,
         Key.pinnedConversationIDsUpdatedAt,
@@ -242,26 +238,6 @@ enum AppPreferencesStore {
     static var savedMemoryUpdatedAt: Date? {
         get { accountDate(Key.memoryUpdatedAt) }
         set { UserDefaults.standard.set(newValue, forKey: scopedKey(Key.memoryUpdatedAt)) }
-    }
-
-    static var memoryUsageCount: Int {
-        get {
-            let defaults = UserDefaults.standard
-            let scoped = scopedKey(Key.memoryUsageCount)
-            if defaults.object(forKey: scoped) != nil {
-                return defaults.integer(forKey: scoped)
-            }
-            if shouldFallbackToLegacyKey(for: AppSessionStore.activeUID), defaults.object(forKey: Key.memoryUsageCount) != nil {
-                return defaults.integer(forKey: Key.memoryUsageCount)
-            }
-            return 0
-        }
-        set { UserDefaults.standard.set(newValue, forKey: scopedKey(Key.memoryUsageCount)) }
-    }
-
-    static var memoryUsageConversationIDs: [String] {
-        get { accountStringArray(Key.memoryUsageConversationIDs) }
-        set { UserDefaults.standard.set(newValue, forKey: scopedKey(Key.memoryUsageConversationIDs)) }
     }
 
     static var memoryHasSeen: Bool {
