@@ -93,5 +93,8 @@ struct OriveoFlatIconButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .opacity(configuration.isPressed ? 0.5 : 1)
+            // No backing; on hover the 44pt target gets a circular highlight, like the system navigation bar's icon buttons
+            .contentShape(.hoverEffect, Circle())
+            .hoverEffect(.highlight)
     }
 }

@@ -182,7 +182,11 @@ struct FolderRow: View {
                 AuroraGroupedCard {
                     VStack(spacing: 0) {
                         ForEach(visible) { conversation in
-                            conversationInFolder(conversation)
+                            conversationInFolder(
+                                conversation,
+                                isFirst: conversation.id == visible.first?.id,
+                                isLast: conversation.id == visible.last?.id
+                            )
                         }
                     }
                 }
@@ -209,7 +213,7 @@ struct FolderRow: View {
         .padding(.top, OriveoTheme.V2.Sp.s8)
     }
 
-    private func conversationInFolder(_ conversation: Conversation) -> some View {
+    private func conversationInFolder(_ conversation: Conversation, isFirst: Bool, isLast: Bool) -> some View {
         Button {
             if isEditing {
                 if selectedIDs.contains(conversation.id) {
@@ -255,6 +259,13 @@ struct FolderRow: View {
         .contextMenu {
             conversationContextMenu(for: conversation)
         }
+        // Rows inside the card: the outer corners of the first and last rows follow the card's radius
+        .contentShape(.hoverEffect, AuroraGroupedRowSurface.shape(isFirst: isFirst, isLast: isLast))
+        .hoverEffect(.highlight)
+        .modifier(ConversationWindowDragSource(
+            conversationID: conversation.id,
+            isEnabled: ConversationWindowDrag.isAvailable(canOpenConversationWindow: canOpenConversationWindow)
+        ))
     }
 
     private var newChatButton: some View {

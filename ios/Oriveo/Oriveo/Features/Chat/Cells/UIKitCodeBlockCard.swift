@@ -105,6 +105,15 @@ final class UIKitCodeBlockCard: UIView {
 
     private var copied = false
     private var copyResetWorkItem: DispatchWorkItem?
+    /// Drags the whole card out: the same source text as the Copy button; a press on the code text goes to text selection instead.
+    private lazy var codeDragSource = ChatTextDragSource(
+        text: { [weak self] in self?.content },
+        canBegin: { [weak self] session in
+            guard let self else { return false }
+            let location = session.location(in: self.codeTextView)
+            return !(self.codeTextView.isSelectable && self.codeTextView.bounds.contains(location))
+        }
+    )
 
     var onIntrinsicHeightDidChange: (() -> Void)?
 
@@ -193,6 +202,7 @@ final class UIKitCodeBlockCard: UIView {
         setupViews()
         renderCode()
         addInteraction(UIContextMenuInteraction(delegate: self))
+        addInteraction(UIDragInteraction(delegate: codeDragSource))
         seedCodeHeight()
     }
 

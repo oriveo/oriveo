@@ -663,19 +663,25 @@ struct AuroraGroupedRowSurface: ViewModifier {
     let isLast: Bool
     @Environment(\.colorScheme) private var colorScheme
 
-    private let radius: CGFloat = 20
+    private let radius: CGFloat = Self.cornerRadius
+    static let cornerRadius: CGFloat = 20
 
-    func body(content: Content) -> some View {
-        let isDark = colorScheme == .dark
-        let shape = UnevenRoundedRectangle(
+    /// The visible shape of a row in a group: the first row's top corners and the last row's bottom corners follow the card's radius, middle rows are square (the pointer hover highlight uses it too).
+    static func shape(isFirst: Bool, isLast: Bool) -> UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
             cornerRadii: RectangleCornerRadii(
-                topLeading: isFirst ? radius : 0,
-                bottomLeading: isLast ? radius : 0,
-                bottomTrailing: isLast ? radius : 0,
-                topTrailing: isFirst ? radius : 0
+                topLeading: isFirst ? cornerRadius : 0,
+                bottomLeading: isLast ? cornerRadius : 0,
+                bottomTrailing: isLast ? cornerRadius : 0,
+                topTrailing: isFirst ? cornerRadius : 0
             ),
             style: .continuous
         )
+    }
+
+    func body(content: Content) -> some View {
+        let isDark = colorScheme == .dark
+        let shape = Self.shape(isFirst: isFirst, isLast: isLast)
         let innerShape = shape.inset(by: 1)
 
         content

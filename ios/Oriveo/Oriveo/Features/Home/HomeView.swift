@@ -196,6 +196,7 @@ struct HomeView: View {
     @Environment(\.openWindow) private var openWindow
     /// "Open in New Window" is offered only where several windows are possible (iPad, Duo).
     @Environment(\.canOpenConversationWindow) private var canOpenConversationWindow
+    @Environment(\.windowNavigation) private var windowNavigation
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     #if DEBUG
     @Environment(\.homeDebugSnapshotSeed) private var debugSnapshotSeed
@@ -203,6 +204,13 @@ struct HomeView: View {
 
     @State private var isSearching = false
     @State private var searchText = ""
+    /// Search field focus (after ⌘F expands it, typing works right away).
+    @FocusState private var isSearchFieldFocused: Bool
+    /// ⌘F expanded search before the field was mounted: focus it once it appears.
+    @State private var focusSearchFieldOnAppear = false
+
+    /// This window's navigation; falls back to the active window when nil.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
     @State private var searchResults: [Conversation] = []
     @State private var searchInFlight = false
     @State private var modelPickerPresentation: ModelPickerPresentationSnapshot?
@@ -337,6 +345,17 @@ struct HomeView: View {
         .auroraBackground()
         .animation(preferredAnimation, value: heroState)
         .animation(preferredAnimation, value: isEditing)
+        // ⌘F: this window's pending request (also caught right after Home mounts) → expand and focus search
+        .onChange(of: navigation.pendingSearchReveal, initial: true) { _, pending in
+            guard pending else { return }
+            navigation.pendingSearchReveal = false
+            if isSearching {
+                isSearchFieldFocused = true
+            } else {
+                focusSearchFieldOnAppear = true
+                withAnimation(.snappy) { isSearching = true }
+            }
+        }
         .onAppear {
             #if DEBUG
             if let seed = debugSnapshotSeed {
@@ -639,6 +658,9 @@ struct HomeView: View {
                 // Visually 36×38 to match the capsule (the glass shape follows the button group); the hit area
                 // extends 3pt above and below to reach 44 without changing layout
                 .frame(width: homeHeaderActionHitWidth, height: homeHeaderCapsuleHeight)
+                // The pointer hover highlight covers only the visible 36×38 cell, not the enlarged hit area
+                .contentShape(.hoverEffect, Capsule(style: .continuous))
+                .hoverEffect(.highlight)
                 .padding(.vertical, (homeHeaderActionHitHeight - homeHeaderCapsuleHeight) / 2)
                 .contentShape(Rectangle())
                 .padding(.vertical, -(homeHeaderActionHitHeight - homeHeaderCapsuleHeight) / 2)
@@ -697,6 +719,12 @@ struct HomeView: View {
                     .foregroundStyle(AuroraTheme.Colors.textTertiary)
                 TextField(L10n.tr("Search conversations...", table: .home), text: $searchText)
                     .font(.system(size: 15))
+                    .focused($isSearchFieldFocused)
+                    .onAppear {
+                        guard focusSearchFieldOnAppear else { return }
+                        focusSearchFieldOnAppear = false
+                        isSearchFieldFocused = true
+                    }
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .foregroundStyle(AuroraTheme.Colors.textPrimary)
@@ -1080,6 +1108,12 @@ struct HomeView: View {
         case .conversation(let conversation, let showFolderTag, let isFirst, let isLast):
             conversationButton(for: conversation, showFolderTag: showFolderTag, grouped: true)
                 .modifier(AuroraGroupedRowSurface(isFirst: isFirst, isLast: isLast))
+                .contentShape(.hoverEffect, AuroraGroupedRowSurface.shape(isFirst: isFirst, isLast: isLast))
+                .hoverEffect(.highlight)
+                .modifier(ConversationWindowDragSource(
+                    conversationID: conversation.id,
+                    isEnabled: ConversationWindowDrag.isAvailable(canOpenConversationWindow: canOpenConversationWindow)
+                ))
         case .showMore(let remaining):
             earlierShowMoreButton(remainingCount: remaining)
         }

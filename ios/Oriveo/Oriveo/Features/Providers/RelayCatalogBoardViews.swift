@@ -411,6 +411,8 @@ struct RelayCatalogFilterChips: View {
                         .overlay(
                             Capsule().stroke(isSelected ? OriveoTheme.Palette.primary.opacity(0.3) : OriveoTheme.Palette.border, lineWidth: 1)
                         )
+                        .contentShape(.hoverEffect, Capsule())
+                        .hoverEffect(.highlight)
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(isSelected ? .isSelected : [])

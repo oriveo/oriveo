@@ -142,6 +142,8 @@ struct QuoteContextChip: View {
                 }
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
+                .contentShape(.hoverEffect, chipShape)
+                .hoverEffect(.highlight)
             }
             .buttonStyle(.plain)
             .popover(isPresented: $showsPreview, attachmentAnchor: .rect(.bounds), arrowEdge: .bottom) {
@@ -158,6 +160,8 @@ struct QuoteContextChip: View {
                         .foregroundStyle(removeForeground)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
+                        .contentShape(.hoverEffect, Circle())
+                        .hoverEffect(.highlight)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(L10n.tr("Remove quote", table: .chat))
@@ -1048,7 +1052,12 @@ struct ChatComposerBar: View {
                 textColor: controlsDisabled ? Self.inputDisabledColor : Self.inputTextColor,
                 isEnabled: !controlsDisabled,
                 maxLength: ChatInputLimit.maxUTF16,
-                onLengthLimitExceeded: ChatInputLimit.showLimitReachedToast
+                onLengthLimitExceeded: ChatInputLimit.showLimitReachedToast,
+                // Return on a hardware keyboard sends: the same condition and the same onSend as the send button
+                onHardwareReturnSend: {
+                    onSend(composerText, pendingAttachments)
+                },
+                canSendOnHardwareReturn: !isSendingMessage && hasDraftHighlight
             )
             .padding(.vertical, 8)
             .frame(minHeight: 44, alignment: .center)
@@ -1249,6 +1258,8 @@ struct ChatComposerBar: View {
                         Color.dynamic(light: 0x8C5FF8, dark: 0xFFFFFF, lightAlpha: 0.12, darkAlpha: 0.10)
                     )
                 )
+                .contentShape(.hoverEffect, Circle())
+                .hoverEffect(.highlight)
 
             if count > 0 {
                 Text("\(count)")
@@ -1335,6 +1346,8 @@ struct ChatComposerBar: View {
                         : Color.dynamic(light: 0xF9FAFD, dark: 0x121A2A, lightAlpha: 0.58, darkAlpha: 0.58)
                 )
         }
+        .contentShape(.hoverEffect, chipShape)
+        .hoverEffect(.highlight)
         .shadow(
             color: emphasized ? accent.shadow.opacity(0.08) : .clear,
             radius: emphasized ? 7 : 0,
@@ -1364,6 +1377,7 @@ struct ChatComposerBar: View {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     onCancel()
                 }
+                .accessibilityLabel(L10n.tr("Stop Generating"))
             } else {
                 OriveoCircleIconButton(
                     systemImage: "arrow.up",

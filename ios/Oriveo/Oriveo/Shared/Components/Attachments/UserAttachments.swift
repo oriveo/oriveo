@@ -158,6 +158,8 @@ struct UserImageAttachment: View {
             }
             .clipShape(clipShape)
             .contentShape(clipShape)
+            .contentShape(.hoverEffect, clipShape)
+            .hoverEffect(.lift)
             .onTapGesture { showFullScreen = true }
             .contextMenu {
                 imageContextMenuItems(
@@ -286,6 +288,8 @@ struct UserFileAttachment: View {
                 Capsule(style: .continuous)
                     .fill(.white.opacity(isUnavailable ? 0.08 : 0.18))
             )
+            .contentShape(.hoverEffect, Capsule(style: .continuous))
+            .hoverEffect(.highlight)
         }
         .buttonStyle(.plain)
         .disabled(isUnavailable || isDownloading)

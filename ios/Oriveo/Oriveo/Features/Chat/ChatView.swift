@@ -203,6 +203,8 @@ struct ChatView: View {
     @State private var isProcessingAttachment = false
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var showAttachmentSizeLimitAlert = false
+    /// Something is being dragged over the chat page: the composer area gets a primary-colour outline.
+    @State private var isDropTargeted = false
     @State private var showDeleteConfirmation = false
     @State private var expensiveModelHint: ExpensiveModelHintData?
     /// The input is a UIKit view (ComposerTextView) that bridges focus to first responder by hand, not through FocusState.
@@ -220,6 +222,8 @@ struct ChatView: View {
     @State private var carrierHandoffToken: ChatCarrierHandoff.Token?
     /// Makes the composer reopen the model options panel after a carrier change.
     @State private var composerModelControlsReopenToken: UInt = 0
+    /// This page's identity in the window's command target (see `ChatCommandTarget.owner`).
+    @State private var commandTargetOwner = UUID()
 
     /// Delay before reopening a sheet after a carrier change: wait for the new view to mount and the old view's sheet to go away.
     private static let carrierSheetReopenDelay: Duration = .milliseconds(350)
@@ -247,6 +251,15 @@ struct ChatView: View {
             messageRevision: windowLoader.revision,
             localLoadFailed: hasBootstrapFailure,
             bootstrapWatchdogExpired: bootstrapWatchdogExpired
+        )
+    }
+
+    private var chatCommandTarget: ChatCommandTarget {
+        let projection = projection
+        return ChatCommandTarget(
+            owner: commandTargetOwner,
+            conversationID: projection.activeConversationID,
+            lastResponseText: ChatCommandTarget.lastCopyableResponse(in: projection.messages)
         )
     }
 
@@ -1148,6 +1161,17 @@ struct ChatView: View {
             pendingQuoteAttachedAt = newValue == nil ? nil : Date()
         }
         .onDisappear(perform: handleDisappear)
+        // Menu bar commands: register the current conversation (its id changes once a draft is sent) and the last copyable reply with this window
+        .onChange(of: chatCommandTarget, initial: true) { _, target in
+            navigation.registerChatCommandTarget(target)
+        }
+        .onDisappear {
+            navigation.unregisterChatCommandTarget(owner: commandTargetOwner)
+        }
+        // ⌘K: opens only when this window's request token changes; other windows' requests do not affect this page
+        .onChange(of: navigation.modelPickerRequest) { _, _ in
+            presentModelPicker()
+        }
 
         return lifecycleContent
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItems, matching: .images)
@@ -1169,6 +1193,10 @@ struct ChatView: View {
             allowsMultipleSelection: true
         ) { result in
             handleImportedFiles(result)
+        }
+        // The whole page is a drop target; the text field's own text drops (UITextView) sit above it and take precedence
+        .onDrop(of: ChatDropImport.acceptedContentTypes, isTargeted: $isDropTargeted) { providers in
+            handleDrop(providers)
         }
         .alert(
             L10n.tr("Delete this conversation?"),
@@ -1303,6 +1331,13 @@ struct ChatView: View {
                 onShowFileImporter: { showFileImporter = true },
                 modelControlsReopenToken: composerModelControlsReopenToken
             )
+            .overlay {
+                if isDropTargeted {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(OriveoTheme.Palette.primary, lineWidth: 2)
+                        .allowsHitTesting(false)
+                }
+            }
         }
     }
 
@@ -1394,35 +1429,119 @@ struct ChatView: View {
 
     private func handleImportedFiles(_ result: Result<[URL], Error>) {
         guard case .success(let urls) = result, !urls.isEmpty else { return }
+        importFileURLs(urls)
+    }
 
+    /// Shared by the file button and drops: the same slots, import and rejection feedback.
+    /// - Parameters:
+    ///   - unreadableCount: sources a drop could not read a file from; reported as an unsupported format, like unreadable files.
+    ///   - afterImport: called once the import finishes (drops use it to remove the temporary directory).
+    private func importFileURLs(
+        _ urls: [URL],
+        unreadableCount: Int = 0,
+        afterImport: (@Sendable () -> Void)? = nil
+    ) {
         let importContext = currentAttachmentImportContext
         let extractionLimits = currentFileExtractionLimits
         isProcessingAttachment = true
         let byteLimit = currentAttachmentByteLimit
         // The slots are counted before any file is read: files beyond them are not read at all
         // (see `AttachmentImportLimiter.importSequentially`).
-        let availableSlots = max(extractionLimits.maxFiles - pendingAttachments.count, 0)
+        let availableSlots = ChatDropImport.availableFileSlots(
+            maxFiles: extractionLimits.maxFiles,
+            pendingCount: pendingAttachments.count
+        )
 
         Task(priority: .userInitiated) {
-            let (attachments, rejectedCount, oversizedCount, overLimitCount) = await Self.processFileURLs(
+            let (attachments, rejectedCount, oversizedCount, overLimitCount) = await ChatDropImport.processFileURLs(
                 urls,
                 availableSlots: availableSlots,
                 importContext: importContext,
                 byteLimit: byteLimit,
                 extractionLimits: extractionLimits
             )
+            afterImport?()
             applyImportedAttachments(attachments, source: "file", skippedOverLimit: overLimitCount)
             if oversizedCount > 0 {
                 await MainActor.run {
                     showAttachmentSizeLimitAlert = true
                 }
             }
-            if rejectedCount > 0 {
+            if rejectedCount + unreadableCount > 0 {
                 await MainActor.run {
                     ToastManager.shared.show(L10n.tr("Unsupported file format"))
                 }
             }
         }
+    }
+
+    // MARK: - Drag and drop
+
+    /// Drops on the chat page: images take the camera path, files are copied to a temporary directory and take the file button path, and text alone is appended to the composer.
+    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard !isComposerReadOnly else { return false }
+        let plan = ChatDropImport.plan(
+            providers.map(ChatDropImport.Item.init(provider:)),
+            supportsImage: currentSupportsImageAttachment
+        )
+        guard !plan.isEmpty else { return false }
+
+        if plan.appendsText {
+            let textProviders = plan.textIndices.map { providers[$0] }
+            Task { @MainActor in
+                var pieces: [String] = []
+                for provider in textProviders {
+                    if let text = await ChatDropLoader.loadText(from: provider), !text.isEmpty {
+                        pieces.append(text)
+                    }
+                }
+                guard !pieces.isEmpty else { return }
+                appendDroppedText(pieces.joined(separator: "\n"))
+            }
+            return true
+        }
+
+        let imageProviders = plan.imageIndices.map { providers[$0] }
+        let fileProviders = plan.fileIndices.map { providers[$0] }
+        let unsupportedImageCount = plan.unsupportedCount
+        Task { @MainActor in
+            for provider in imageProviders {
+                if let image = await ChatDropLoader.loadImage(from: provider) {
+                    handleCapturedImage(image)
+                }
+            }
+            guard !fileProviders.isEmpty else {
+                if unsupportedImageCount > 0 {
+                    ToastManager.shared.show(L10n.tr("Unsupported file format"))
+                }
+                return
+            }
+            let directory = ChatDropLoader.makeTemporaryDirectory()
+            var urls: [URL] = []
+            var unreadable = unsupportedImageCount
+            for provider in fileProviders {
+                if let url = await ChatDropLoader.copyFile(from: provider, into: directory) {
+                    urls.append(url)
+                } else {
+                    unreadable += 1
+                }
+            }
+            importFileURLs(urls, unreadableCount: unreadable) {
+                try? FileManager.default.removeItem(at: directory)
+            }
+        }
+        return true
+    }
+
+    /// Appends after the composer's current text (the live text the composer registered; the stored draft may not be saved yet).
+    private func appendDroppedText(_ text: String) {
+        let current = navigation.chatHandoff.liveComposerText() ?? composerTextPush.text
+        let result = ChatDropImport.appendingDroppedText(text, to: current, maxUTF16: ChatInputLimit.maxUTF16)
+        if result.truncated {
+            ChatInputLimit.showLimitReachedToast()
+        }
+        guard result.text != current else { return }
+        composerTextPush.push(result.text)
     }
 
     nonisolated
@@ -1450,45 +1569,6 @@ struct ChatView: View {
             }
         }
         return (results, oversized)
-    }
-
-    nonisolated
-    private static func processFileURLs(
-        _ urls: [URL],
-        availableSlots: Int,
-        importContext: ChatAttachmentPicker.ImportContext,
-        byteLimit: Int,
-        extractionLimits: FileExtractionLimits
-    ) async -> (attachments: [Attachment], rejectedCount: Int, oversizedCount: Int, overLimitCount: Int) {
-        var rejected = 0
-        var oversized = 0
-        let batch = await AttachmentImportLimiter.importSequentially(urls, availableSlots: availableSlots) { url in
-            switch await ChatAttachmentPicker.processFileURL(
-                url,
-                importContext: importContext,
-                byteLimit: byteLimit,
-                extractionLimits: extractionLimits
-            ) {
-            case .imported(let attachment):
-                return attachment
-            case .oversized:
-                oversized += 1
-            case .unsupported:
-                rejected += 1
-            case .extractionFailed(let code, let fileName):
-                // An extraction failure (corrupted, encrypted, scanned, ...) has its own message and is not
-                // counted as rejected: counting it would immediately show a second "unsupported file format"
-                // toast in the same spot, and that one usually wins although the format is supported.
-                Task { @MainActor in
-                    ToastManager.shared.show(code.importFailureMessage(
-                        fileName: fileName,
-                        maxInputFileBytes: extractionLimits.maxInputFileBytes
-                    ))
-                }
-            }
-            return nil
-        }
-        return (batch.accepted, rejected, oversized, batch.skippedOverLimit)
     }
 
     private func pruneUnsupportedPendingAttachments() {

@@ -231,7 +231,7 @@ final class ChatPassiveTextView: UITextView {
         delaysContentTouches = false
         canCancelContentTouches = true
         panGestureRecognizer.isEnabled = false
-        textDragInteraction?.isEnabled = false
+        // Dragging a selection out (to another app) follows the system default: on for iPad, off for iPhone. It used to be off everywhere, so body text could not be dragged out on iPad
         layoutManager.allowsNonContiguousLayout = false
         contentMode = .topLeft
     }

@@ -81,6 +81,10 @@
 	<array>
 		<string>PlusJakartaSans-Bold.ttf</string>
 	</array>
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>ai.oriveo.community.open-conversation-window</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

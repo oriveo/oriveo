@@ -720,6 +720,8 @@ private struct ProviderCategoryChips: View {
                                     lineWidth: 0.5
                                 )
                         )
+                        .contentShape(.hoverEffect, Capsule())
+                        .hoverEffect(.highlight)
                     }
                     .buttonStyle(.plain)
                 }

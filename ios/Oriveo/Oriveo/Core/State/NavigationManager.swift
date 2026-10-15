@@ -94,6 +94,35 @@ final class NavigationManager {
     /// Hands the note body draft over (one per window). Not observed: stored when a detail leaves, taken when one appears.
     @ObservationIgnored let noteDraftHandoff = NoteBodyDraftHandoff()
 
+    // MARK: - Menu bar commands
+
+    /// The command target registered by this window's chat page (the conversation ⌘. and ⌘⇧C act on). Registered when the chat page appears, unregistered by owner when it disappears.
+    private(set) var chatCommandTarget: ChatCommandTarget?
+    /// Request token for ⌘K: bumped on every request; this window's chat page observes it to open the model picker.
+    private(set) var modelPickerRequest: UInt = 0
+    /// Pending ⌘F: when Home (possibly not mounted yet) appears or sees it, it expands and focuses search, then clears it.
+    var pendingSearchReveal = false
+
+    func registerChatCommandTarget(_ target: ChatCommandTarget) {
+        guard chatCommandTarget != target else { return }
+        chatCommandTarget = target
+    }
+
+    func unregisterChatCommandTarget(owner: UUID) {
+        guard chatCommandTarget?.owner == owner else { return }
+        chatCommandTarget = nil
+    }
+
+    func requestModelPicker() {
+        modelPickerRequest &+= 1
+    }
+
+    func requestSearchReveal() {
+        pendingSearchReveal = true
+    }
+
+    // MARK: - Page navigation
+
     func openProviderSetup(from entryPoint: ProviderSetupEntryPoint, preselectedKind: ProviderKind? = nil) {
         attemptNavigate(to: .providerSetup(entryPoint: entryPoint, preselectedKind: preselectedKind))
     }

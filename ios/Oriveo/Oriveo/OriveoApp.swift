@@ -45,6 +45,9 @@ struct OriveoApp: App {
             appRoot(conversationID: $conversationID)
             #endif
         }
+        .commands {
+            AppMenuCommands(appState: appState)
+        }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {
                 appState.chatManager.prepareForSessionBoundary()

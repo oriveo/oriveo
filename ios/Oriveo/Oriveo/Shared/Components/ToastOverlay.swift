@@ -50,6 +50,8 @@ private struct ToastCapsule: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(OriveoTheme.Palette.primary)
                         .contentShape(Rectangle())
+                        .contentShape(.hoverEffect, Capsule(style: .continuous))
+                        .hoverEffect(.highlight)
                 }
                 .buttonStyle(.plain)
             }

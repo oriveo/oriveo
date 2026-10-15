@@ -180,6 +180,8 @@ struct CodeBlockCard: View {
                             .font(OriveoTheme.Typography.footnote)
                     }
                     .foregroundStyle(codeForeground)
+                    .contentShape(.hoverEffect, Capsule(style: .continuous))
+                    .hoverEffect(.highlight)
                 }
                 .buttonStyle(.plain)
 
@@ -194,6 +196,8 @@ struct CodeBlockCard: View {
                                 .font(OriveoTheme.Typography.footnote)
                         }
                         .foregroundStyle(codeForeground)
+                        .contentShape(.hoverEffect, Capsule(style: .continuous))
+                        .hoverEffect(.highlight)
                     }
                     .buttonStyle(.plain)
                 }

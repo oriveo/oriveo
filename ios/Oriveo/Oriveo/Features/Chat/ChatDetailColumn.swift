@@ -15,6 +15,7 @@ struct ChatDetailColumn: View {
     @State private var columnTop = ColumnTopGeometry(minYInWindow: 0, safeAreaTop: 0)
     /// Injected by the outer `chatNavigationChrome`: this column's system bars run vertically along a side.
     @Environment(\.chatUsesVerticalBar) private var usesVerticalBar
+    @Environment(\.windowCornerTopClearance) private var cornerClearance
 
     var body: some View {
         content
@@ -61,15 +62,25 @@ struct ChatDetailColumn: View {
         Self.needsTopTabBarClearance(
             columnMinYInWindow: columnTop.minYInWindow,
             columnSafeAreaTop: columnTop.safeAreaTop,
+            cornerClearance: cornerClearance,
             usesVerticalBar: usesVerticalBar
         )
     }
 
-    /// Whether the detail column leaves 32pt at the top for the iPad floating tab bar: the column top's y in the window plus the column's own safe top is the window's top safe line, and only > 0 leaves room.
+    /// Whether the detail column leaves 32pt at the top for the floating iPad tab bar: the column top's y in the window and the column's own safe top give the window's top safe line, and only > 0 leaves room.
     /// With vertical system bars the tab bar is on a side too, so no room is left: the navigation bar shown then is a zero-height strip
     /// that gives the column a 24pt safe top (unfolded Duo held sideways), and the geometric test would wrongly leave room.
-    static func needsTopTabBarClearance(columnMinYInWindow: CGFloat, columnSafeAreaTop: CGFloat, usesVerticalBar: Bool = false) -> Bool {
-        !usesVerticalBar && columnMinYInWindow + columnSafeAreaTop > 0
+    /// `cornerClearance` is the height the window adds to its safe area for rounded corners (`WindowCornerClearance`).
+    /// It only exists when the status bar is not at the top, so it does not mean a tab bar runs along the top
+    /// and is not counted. Once added, the column top's y and the column's safe top both report 16 (unfolded
+    /// Duo held sideways), and adding them would count it twice, so the safe line takes the larger of the two.
+    static func needsTopTabBarClearance(
+        columnMinYInWindow: CGFloat,
+        columnSafeAreaTop: CGFloat,
+        cornerClearance: CGFloat = 0,
+        usesVerticalBar: Bool = false
+    ) -> Bool {
+        !usesVerticalBar && max(columnMinYInWindow, columnSafeAreaTop) > cornerClearance
     }
 }
 

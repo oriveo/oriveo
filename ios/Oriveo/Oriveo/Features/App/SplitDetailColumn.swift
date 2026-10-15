@@ -41,6 +41,7 @@ extension View {
 private struct SplitColumnTopTabBarClearance: ViewModifier {
     /// The column's top edge in the window and the column's own safe top; their sum is the window's top safe line.
     @State private var columnTop = ColumnTopGeometry(minYInWindow: 0, safeAreaTop: 0)
+    @Environment(\.windowCornerTopClearance) private var cornerClearance
 
     func body(content: Content) -> some View {
         content
@@ -57,6 +58,7 @@ private struct SplitColumnTopTabBarClearance: ViewModifier {
         ChatDetailColumn.needsTopTabBarClearance(
             columnMinYInWindow: columnTop.minYInWindow,
             columnSafeAreaTop: columnTop.safeAreaTop,
+            cornerClearance: cornerClearance,
             usesVerticalBar: false
         )
     }

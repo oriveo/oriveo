@@ -278,11 +278,20 @@ final class UserMessageCell: UICollectionViewCell {
 
     var onSaveNote: (() -> Void)?
     private var onOpenNoteReferences: (() -> Void)?
+    /// Drags the bubble out: the same source text as Copy; a press on selectable text goes to text selection, as the long-press menu does.
+    private lazy var textDragSource = ChatTextDragSource(
+        text: { [weak self] in self?.currentText },
+        canBegin: { [weak self] session in
+            guard let self else { return false }
+            return !self.shouldYieldContextMenuToTextSelection(at: session.location(in: self.bubbleView))
+        }
+    )
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         setupViews()
         bubbleView.addInteraction(UIContextMenuInteraction(delegate: self))
+        bubbleView.addInteraction(UIDragInteraction(delegate: textDragSource))
     }
 
     @available(*, unavailable)

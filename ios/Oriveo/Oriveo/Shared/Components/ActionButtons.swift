@@ -30,6 +30,9 @@ struct OriveoPrimaryButtonStyle: ButtonStyle {
                 y: colorScheme == .dark ? 12 : 6
             )
             .scaleEffect(configuration.isPressed ? 0.99 : 1)
+            // The pointer hover highlight only appears with a trackpad or mouse on iPad / Duo, shaped like the visible backing
+            .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: OriveoTheme.Radius.md, style: .continuous))
+            .hoverEffect(.highlight)
     }
 }
 
@@ -49,6 +52,8 @@ struct OriveoSecondaryButtonStyle: ButtonStyle {
             )
             .opacity(configuration.isPressed ? 0.92 : 1)
             .scaleEffect(configuration.isPressed ? 0.99 : 1)
+            .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: OriveoTheme.Radius.md, style: .continuous))
+            .hoverEffect(.highlight)
     }
 }
 
@@ -58,6 +63,9 @@ struct OriveoTextButtonStyle: ButtonStyle {
             .font(OriveoTheme.Typography.caption)
             .foregroundStyle(OriveoTheme.Palette.primary)
             .opacity(configuration.isPressed ? 0.7 : 1)
+            // A text button has no backing, so the hover highlight wraps the text in a capsule
+            .contentShape(.hoverEffect, Capsule(style: .continuous))
+            .hoverEffect(.highlight)
     }
 }
 
@@ -94,6 +102,8 @@ struct OriveoCircleIconButton: View {
                             y: colorScheme == .dark ? 10 : 5
                         )
                 )
+                .contentShape(.hoverEffect, Circle())
+                .hoverEffect(.highlight)
         }
         .buttonStyle(.plain)
     }

@@ -78,11 +78,11 @@ enum ShotsLayoutProbe {
     /// The visible area used to filter nodes: the key window's frame in screen coordinates.
     /// Not `UIScreen.main` — on a folding device it reports the folded value (466pt while the
     /// unfolded Duo window is 951pt), and filtering with it drops everything right of 466pt.
-    private static var visibleBounds: CGRect = .null
+    private static var probeWindow: UIWindow?
 
     private static func collect() -> [Node] {
         var nodes: [Node] = []
-        visibleBounds = keyWindow().map(screenFrame(of:)) ?? .null
+        probeWindow = keyWindow()
         for window in appWindows() {
             // When a sheet / full-screen page is presented, only the topmost layer is considered: the covered pages are not exported on the other platforms either
             let root: UIView = topPresented(in: window)?.view ?? window
@@ -108,11 +108,11 @@ enum ShotsLayoutProbe {
         return windows.first { $0.isKeyWindow } ?? windows.first
     }
 
-    /// `accessibilityFrame` is in the coordinate space of the window's screen, so the window frame is
-    /// converted into the same space before comparing.
-    private static func screenFrame(of window: UIWindow) -> CGRect {
-        guard let space = window.windowScene?.screen.coordinateSpace else { return window.frame }
-        return window.convert(window.bounds, to: space)
+    /// accessibilityFrame is in screen coordinates while the clip rect, bars and keyboard are in window coordinates; in a windowed iPad the window origin is not the screen origin,
+    /// so without conversion they never intersect (every node is clipped away). Nodes are converted to key window coordinates before comparing and output.
+    private static func windowFrame(_ screenFrame: CGRect) -> CGRect {
+        guard let window = probeWindow, let space = window.windowScene?.screen.coordinateSpace else { return screenFrame }
+        return window.convert(screenFrame, from: space)
     }
 
     private static func topPresented(in window: UIWindow) -> UIViewController? {
@@ -173,9 +173,9 @@ enum ShotsLayoutProbe {
     }
 
     private static func makeNode(_ object: NSObject) -> Node? {
-        let frame = object.accessibilityFrame
+        let frame = windowFrame(object.accessibilityFrame)
         guard frame.width > 0.5, frame.height > 0.5 else { return nil }
-        guard visibleBounds.isNull || frame.intersects(visibleBounds) else { return nil }
+        guard probeWindow.map({ frame.intersects($0.bounds) }) ?? true else { return nil }
         let label = object.accessibilityLabel ?? ""
         let value = object.accessibilityValue ?? ""
         let traits = object.accessibilityTraits
@@ -363,6 +363,19 @@ enum ShotsLayoutProbe {
         ["x": rect.minX, "y": rect.minY, "w": rect.width, "h": rect.height]
     }
 
+    private static func cornerAdaptedSafeArea(in window: UIWindow) -> Any {
+        guard #available(iOS 26, *) else { return NSNull() }
+        func dictionary(_ insets: UIEdgeInsets) -> [String: CGFloat] {
+            ["top": insets.top, "bottom": insets.bottom, "left": insets.left, "right": insets.right]
+        }
+        return [
+            "horizontal": dictionary(window.edgeInsets(for: .safeArea(cornerAdaptation: .horizontal))),
+            "vertical": dictionary(window.edgeInsets(for: .safeArea(cornerAdaptation: .vertical))),
+            "marginsHorizontal": dictionary(window.edgeInsets(for: .margins(cornerAdaptation: .horizontal))),
+            "marginsVertical": dictionary(window.edgeInsets(for: .margins(cornerAdaptation: .vertical))),
+        ]
+    }
+
     // MARK: - Output
 
     private static func write(page: String, nodes: [Node], timedOut: Bool, waited: TimeInterval) {
@@ -384,6 +397,8 @@ enum ShotsLayoutProbe {
             "sizeClass": ["h": sizeClassName(traits?.horizontalSizeClass), "v": sizeClassName(traits?.verticalSizeClass)],
             "safe": ["top": insets.top, "bottom": insets.bottom, "left": insets.left, "right": insets.right],
             "verticalBarEdge": verticalBarEdgeName(traits),
+            // The safe area after the system makes room for screen / window corners (iOS 26 layout region); with the status bar on a side the top safe area is 0 and only this covers the corner
+            "cornerSafe": window.map(cornerAdaptedSafeArea(in:)) ?? NSNull(),
             "bars": window.map(collectBars(in:)) ?? [],
             "split": window.map(collectSplitColumns(in:)) ?? [],
             "navigation": window.map(collectNavigationControllers(in:)) ?? [],

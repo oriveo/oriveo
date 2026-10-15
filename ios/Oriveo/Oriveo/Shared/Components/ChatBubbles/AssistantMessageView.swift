@@ -114,6 +114,8 @@ struct AssistantMessageView: View {
                                 Image(systemName: "arrow.counterclockwise")
                                     .font(.system(size: 11, weight: .medium))
                                     .foregroundStyle(OriveoTheme.Palette.textTertiary)
+                                    .contentShape(.hoverEffect, Circle())
+                                    .hoverEffect(.highlight)
                             }
                         }
                     }

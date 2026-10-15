@@ -126,6 +126,8 @@ final class AppState {
     @ObservationIgnored private var primaryNavigationOwner: UUID?
     /// The active window (the one the user touched most recently). `navigation` and `openXxx()` act on it.
     private(set) var activeWindowToken: UUID?
+    /// Number of registered (live) windows. The menu bar's ⌘W availability depends on it; `windowNavigations` is not observed, so the count is kept separately.
+    private(set) var registeredWindowCount = 0
 
     /// The active window's navigation manager; falls back to `primaryNavigation` when no window is registered.
     var navigation: NavigationManager {
@@ -155,6 +157,7 @@ final class AppState {
             manager.onSelectedTabChange = { [weak self] in self?.persistSessionIfNeeded() }
         }
         windowNavigations[token] = manager
+        registeredWindowCount = windowNavigations.count
         if activeWindowToken == nil {
             activeWindowToken = token
         }
@@ -165,6 +168,7 @@ final class AppState {
     /// releasing the active window makes one of the remaining windows active (preferring the one holding the primary manager).
     func releaseWindowNavigation(_ token: UUID) {
         guard windowNavigations.removeValue(forKey: token) != nil else { return }
+        registeredWindowCount = windowNavigations.count
         if primaryNavigationOwner == token {
             primaryNavigationOwner = nil
         }

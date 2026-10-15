@@ -11,6 +11,8 @@ final class UIKitAssistantImageView: UIView {
     private let loadingIndicator = UIActivityIndicatorView(style: .medium)
     private var heightConstraint: NSLayoutConstraint!
     private var currentRatio: CGFloat = 0
+    /// Drags out the original image file (`UIDragInteraction` holds its delegate weakly).
+    private lazy var dragSource = AssistantImageDragSource(attachment: attachment, partitionUID: partitionUID)
 
     var onLanded: (() -> Void)?
 
@@ -82,6 +84,7 @@ final class UIKitAssistantImageView: UIView {
         let tap = UITapGestureRecognizer(target: self, action: #selector(imageTapped))
         addGestureRecognizer(tap)
         isUserInteractionEnabled = true
+        addInteraction(UIDragInteraction(delegate: dragSource))
     }
 
     private func setAspectRatio(_ ratio: CGFloat) {

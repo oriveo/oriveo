@@ -70,6 +70,8 @@ struct AppRootView: View {
     /// Full window width (root container width plus the leading and trailing safe areas).
     /// 0 means not measured yet, which counts as a single column.
     @State private var windowWidth: CGFloat = 0
+    /// Extra top safe area added for the window's rounded corners (`WindowCornerClearance`), passed down to columns that decide their clearance from the top safe line.
+    @State private var cornerTopClearance: CGFloat = 0
 
     /// Background services (reachability, metadata) are per process: with several windows only
     /// the first one starts them.
@@ -143,6 +145,7 @@ struct AppRootView: View {
         }
         .animation(.snappy, value: appState.databaseHealthProbe.health)
         .environment(\.windowNavigation, navigation)
+        .environment(\.windowCornerTopClearance, cornerTopClearance)
         // Judged at the window root with the window's size class: in the two-column Home the list sits in the split view sidebar, whose size class does not describe the window
         .environment(
             \.canOpenConversationWindow,
@@ -169,6 +172,20 @@ struct AppRootView: View {
                 navigation: navigation
             )
             if request != windowOpenRequest.wrappedValue {
+                windowOpenRequest.wrappedValue = request
+            }
+        }
+        // A window created by dragging a conversation row out: the activity payload becomes a window request, consumed the same way as "Open in New Window" from the menu
+        .onContinueUserActivity(ConversationWindowDrag.activityType) { activity in
+            var request = ConversationWindowDrag.request(from: activity)
+            guard request != nil else { return }
+            WindowOpenRequestPolicy.consume(
+                &request,
+                hasCompletedOnboarding: appState.hasCompletedOnboarding,
+                navigation: navigation
+            )
+            // Before onboarding is finished the request stays as this window's scene value (saved with scene restoration, like one passed to openWindow)
+            if let request {
                 windowOpenRequest.wrappedValue = request
             }
         }
@@ -258,6 +275,7 @@ struct AppRootView: View {
         } action: { width in
             windowWidth = width
         }
+        .background(WindowCornerClearance { cornerTopClearance = $0 })
         .onChange(of: usesSplitLayout, initial: true) { _, split in
             // Moves the conversation to the carrier that matches the new layout (folding,
             // unfolding, or the window width crossing 780pt). The render branch reads

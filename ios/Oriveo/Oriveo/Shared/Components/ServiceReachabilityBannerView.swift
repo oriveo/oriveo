@@ -27,6 +27,8 @@ struct ServiceReachabilityBannerView: View {
                             .foregroundStyle(model.foreground.opacity(0.75))
                             .frame(width: 28, height: 28)
                             .contentShape(Rectangle())
+                            .contentShape(.hoverEffect, Circle())
+                            .hoverEffect(.highlight)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(L10n.tr("Close"))

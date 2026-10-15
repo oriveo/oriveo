@@ -114,6 +114,11 @@ final class ChatCarrierHandoff {
         if pendingListRestore?.owner == token { pendingListRestore = nil }
     }
 
+    /// The composer's current text (dropped text is appended after it); nil before the composer has registered.
+    func liveComposerText() -> String? {
+        composerProvider?.provide().text
+    }
+
     // MARK: - Capture and consume
 
     /// Called synchronously before the move: the old views still exist, so each provider reads what the user is looking at.

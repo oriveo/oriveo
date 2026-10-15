@@ -22,7 +22,12 @@ struct NoteTagChip: View {
     @ViewBuilder
     private func tappable(_ content: some View) -> some View {
         if let onTap {
-            content.onTapGesture(perform: onTap)
+            // Only a tappable tag gets the hover highlight; a read-only tag usually sits inside a card
+            // button, and highlighting it alone would suggest a separate target
+            content
+                .contentShape(.hoverEffect, Capsule(style: .continuous))
+                .hoverEffect(.highlight)
+                .onTapGesture(perform: onTap)
         } else {
             content
         }
@@ -45,6 +50,8 @@ struct NoteTagChip: View {
                         .foregroundStyle(OriveoTheme.Palette.textTertiary.opacity(0.65))
                         .frame(width: 14, height: 14)
                         .contentShape(Rectangle())
+                        .contentShape(.hoverEffect, Circle())
+                        .hoverEffect(.highlight)
                 }
                 .buttonStyle(.plain)
             }

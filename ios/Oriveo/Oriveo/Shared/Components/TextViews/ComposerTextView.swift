@@ -71,6 +71,10 @@ struct ComposerTextView: UIViewRepresentable {
     /// Called when a user edit is shortened or blocked by the limit; it fires once per over-limit episode and
     /// re-arms only after the length drops below the limit.
     var onLengthLimitExceeded: (@MainActor () -> Void)?
+    /// Return on a hardware keyboard sends; nil = Return inserts a newline as usual (the Home hero and others do not opt in). See `ComposerReturnKey`.
+    var onHardwareReturnSend: (@MainActor () -> Void)?
+    /// The same can-send condition as the send button; only meaningful when `onHardwareReturnSend` is non-nil.
+    var canSendOnHardwareReturn: Bool = false
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -920,6 +924,46 @@ final class ComposerUITextView: UITextView {
     override func insertText(_ text: String) {
         if let coordinator, coordinator.interceptInsertion(text, in: selectedRange, of: self) { return }
         super.insertText(text)
+    }
+
+    /// Hardware Returns this view swallowed: once the press was swallowed, its end or cancel is not passed to the system either.
+    private var swallowedPresses: Set<ObjectIdentifier> = []
+
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        var passed = presses
+        if let parent = coordinator?.parent, let send = parent.onHardwareReturnSend {
+            for press in presses {
+                guard let key = press.key else { continue }
+                let action = ComposerReturnKey.action(
+                    keyCode: key.keyCode,
+                    modifiers: key.modifierFlags,
+                    hasMarkedText: markedTextRange != nil,
+                    canSend: parent.canSendOnHardwareReturn
+                )
+                guard action != .system else { continue }
+                passed.remove(press)
+                swallowedPresses.insert(ObjectIdentifier(press))
+                if action == .send { send() }
+            }
+        }
+        guard !passed.isEmpty else { return }
+        super.pressesBegan(passed, with: event)
+    }
+
+    override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        let passed = releaseSwallowed(presses)
+        guard !passed.isEmpty else { return }
+        super.pressesEnded(passed, with: event)
+    }
+
+    override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        let passed = releaseSwallowed(presses)
+        guard !passed.isEmpty else { return }
+        super.pressesCancelled(passed, with: event)
+    }
+
+    private func releaseSwallowed(_ presses: Set<UIPress>) -> Set<UIPress> {
+        presses.filter { swallowedPresses.remove(ObjectIdentifier($0)) == nil }
     }
 
     override func didMoveToWindow() {
