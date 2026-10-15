@@ -8,6 +8,9 @@ import SwiftUI
 /// popping back) — see the carrier invariant on `NavigationManager.chatDetail`.
 struct ChatDetailColumn: View {
     @Environment(AppState.self) private var appState
+    /// The detail column's own top safe area. Above 0 means a system bar runs horizontally along
+    /// the top, which is when the floating iPad tab bar appears.
+    @State private var topSafeAreaInset: CGFloat = 0
 
     var body: some View {
         content
@@ -22,11 +25,18 @@ struct ChatDetailColumn: View {
                 // The test is *where the tab bar is*, not *which platform this is*: on an
                 // unfolded Duo the tab bar is a vertical strip on the trailing edge and the
                 // detail column already sits clear of it. That placement is the system's choice
-                // and no public API reports it, so the idiom is the only signal available.
+                // and no public API reports it, so the column's own geometry decides: a top safe
+                // area above 0 means a system bar runs along the top, and only then is 32pt added.
+                // An unfolded Duo held sideways (measured: top 0, trailing 84, bars vertical) and
+                // an iPhone in landscape (top 0) add nothing. The idiom is not used because it
+                // cannot tell where the bar sits on one and the same device.
                 // The real fix is to settle on one tab bar shape (`.tabViewStyle(.sidebarAdaptable)`),
                 // which is a separate decision.
                 Color.clear.frame(height: needsTopTabBarClearance ? 32 : 0)
             }
+            // Read outside the safeAreaInset so it measures the column's own safe area without
+            // the 32pt above; otherwise the inset would feed back into itself.
+            .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { topSafeAreaInset = $0 }
     }
 
     @ViewBuilder
@@ -42,7 +52,7 @@ struct ChatDetailColumn: View {
     }
 
     private var needsTopTabBarClearance: Bool {
-        UIDevice.current.userInterfaceIdiom == .pad
+        topSafeAreaInset > 0
     }
 }
 

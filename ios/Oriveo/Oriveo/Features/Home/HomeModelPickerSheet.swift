@@ -111,6 +111,7 @@ struct ModelPickerSheet: View {
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.displayScale) private var displayScale
 
     @State private var appeared = false
     @State private var searchText = ""
@@ -366,6 +367,7 @@ struct ModelPickerSheet: View {
         // the covered root copy is never visible, so nothing shows twice). Outside the NavigationStack
         // so the pushed InlineModelCatalogView is covered too.
         .overlay { ToastOverlay() }
+        .formPresentationSizing()
     }
 
     // MARK: - Content
@@ -685,7 +687,7 @@ struct ModelPickerSheet: View {
             if !item.endsProvider {
                 Rectangle()
                     .fill(OriveoTheme.V2.Colors.borderSubtle)
-                    .frame(height: 1 / UIScreen.main.scale)
+                    .frame(height: 1 / displayScale)
                     .padding(.leading, item.dividerLeadingInset)
             }
         }
@@ -1681,5 +1683,26 @@ struct InlineModelCatalogView: View {
             expandedGroupIDs.insert(groupID)
         }
         ModelPickerGroupExpansionStore.save(expandedGroupIDs, for: providerID)
+    }
+}
+
+/// Gives a sheet the `.form` size: on large screens (iPad, the unfolded Duo) it is centred at
+/// form size instead of filling the screen; at compact width the system still presents it full
+/// width with its detents, so iPhone is unchanged. Attach it to the sheet's **content root**; call
+/// sites stay as they are.
+///
+/// It does not branch on `horizontalSizeClass`: sheet content reads the sheet's own size class
+/// (compact inside an iPad form sheet), so branching on it judges the cause by its result, and
+/// flipping the branch while folding or unfolding would replace the view identity and lose the
+/// sheet's state.
+private struct FormPresentationSizing: ViewModifier {
+    func body(content: Content) -> some View {
+        content.presentationSizing(.form)
+    }
+}
+
+extension View {
+    func formPresentationSizing() -> some View {
+        modifier(FormPresentationSizing())
     }
 }

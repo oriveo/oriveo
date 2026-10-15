@@ -37,9 +37,9 @@ final class NavigationManager {
     /// `updateLayoutWidth(isRegular:)` moves the conversation between the two, so both are
     /// never occupied at once.
     var chatDetail: ChatDetailState = .empty
-    /// Whether the window is currently at regular width. Defaults to compact so the first frame
-    /// after a cold start renders narrow; `AppRootView` corrects it as soon as it has the real
-    /// size class.
+    /// Whether the window currently uses two columns (see `usesSplitLayout`). Defaults to a single
+    /// column so the first frame after a cold start renders narrow; `AppRootView` corrects it as
+    /// soon as it has the real size class and window width.
     private(set) var isRegularWidth = false
 
     func openProviderSetup(from entryPoint: ProviderSetupEntryPoint, preselectedKind: ProviderKind? = nil) {
@@ -175,8 +175,23 @@ final class NavigationManager {
 
     // MARK: - Layout changes
 
-    /// Moves the conversation to the carrier that matches the new width, keeping the
-    /// "only one carrier" invariant.
+    /// Minimum full window width for two columns: a 360pt sidebar plus a 420pt conversation column.
+    static let splitLayoutMinimumWidth: CGFloat = 780
+
+    /// Two columns only when the size class is regular **and** the full window width is at least
+    /// `splitLayoutMinimumWidth`; anything else is a single column.
+    ///
+    /// The size class alone is not enough: an unfolded Duo held upright is 669pt and still regular,
+    /// too narrow for the two minimum column widths, so the system collapses the sidebar and leaves
+    /// only the empty detail column — the home screen disappears. An 11" iPad in portrait (834pt)
+    /// fits two columns. An unknown width (not measured yet, 0) means a single column.
+    static func usesSplitLayout(horizontalSizeClass: UserInterfaceSizeClass?, windowWidth: CGFloat) -> Bool {
+        horizontalSizeClass == .regular && windowWidth >= splitLayoutMinimumWidth
+    }
+
+    /// Moves the conversation to the carrier that matches the new layout, keeping the
+    /// "only one carrier" invariant. `isRegular` means "uses two columns" (the result of
+    /// `usesSplitLayout`), not the raw size class.
     ///
     /// Folding and unfolding is a real, frequent path on an iPhone Duo, not a corner: folding
     /// while reading a conversation in the detail column has to put that conversation on the

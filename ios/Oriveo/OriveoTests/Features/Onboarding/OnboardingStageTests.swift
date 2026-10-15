@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Testing
 @testable import Oriveo
@@ -266,5 +267,55 @@ struct OnboardingActContractTests {
         #expect(OnboardingMotionPolicy.isOrbitClockPaused(reduceMotion: false, isStageActive: true) == false)
         #expect(OnboardingMotionPolicy.isOrbitClockPaused(reduceMotion: true, isStageActive: true) == true)
         #expect(OnboardingMotionPolicy.isOrbitClockPaused(reduceMotion: false, isStageActive: false) == true)
+    }
+
+    // MARK: - Wide-screen width cap and centring
+
+    @Test("Content Width Equals The Container On A Phone And Caps At 620 On Wide Screens")
+    func contentWidthCapsOnWideWindows() {
+        #expect(OnboardingFlowView.contentWidth(containerWidth: 402) == 402)
+        #expect(OnboardingFlowView.contentWidth(containerWidth: 867) == 620)
+        #expect(OnboardingFlowView.contentWidth(containerWidth: 1032) == 620)
+    }
+
+    @Test("CTA Pill Follows The Capped Content Width On Wide Screens")
+    func ctaPillFollowsContentWidth() {
+        let wide = OnboardingStageValues(progress: 3, width: Double(OnboardingFlowView.contentWidth(containerWidth: 867)))
+        #expect(abs(wide.pillWidth - (620 - 72)) < 1e-6)
+        let phone = OnboardingStageValues(progress: 3, width: Double(OnboardingFlowView.contentWidth(containerWidth: 402)))
+        #expect(abs(phone.pillWidth - (402 - 72)) < 1e-6)
+    }
+
+    @Test("Centring Shift Returns To The Window Centre On An Unfolded Duo Without Crossing The Safe Area")
+    func centeringShiftStaysInsideSafeArea() {
+        // Unfolded Duo: window 951, safe-area container 0..867 (84pt chrome on the right), content 620 → shift 42
+        #expect(OnboardingFlowView.centeringShift(
+            windowMidX: 475.5,
+            containerFrame: CGRect(x: 0, y: 0, width: 867, height: 635),
+            contentWidth: 620
+        ) == 42)
+        // Duo cover screen: window 466, container 0..382, content fills the container, no room
+        #expect(OnboardingFlowView.centeringShift(
+            windowMidX: 233,
+            containerFrame: CGRect(x: 0, y: 0, width: 382, height: 644),
+            contentWidth: 382
+        ) == 0)
+        // With too little room, shift only as far as the room allows
+        #expect(OnboardingFlowView.centeringShift(
+            windowMidX: 475.5,
+            containerFrame: CGRect(x: 0, y: 0, width: 660, height: 635),
+            contentWidth: 620
+        ) == 20)
+        // Phone in portrait: the centres coincide; no shift before the window has been measured
+        #expect(OnboardingFlowView.centeringShift(
+            windowMidX: 201,
+            containerFrame: CGRect(x: 0, y: 0, width: 402, height: 778),
+            contentWidth: 402
+        ) == 0)
+        #expect(OnboardingFlowView.centeringShift(
+            windowMidX: nil,
+            containerFrame: CGRect(x: 0, y: 0, width: 867, height: 635),
+            contentWidth: 620
+        ) == 0)
     }
 }

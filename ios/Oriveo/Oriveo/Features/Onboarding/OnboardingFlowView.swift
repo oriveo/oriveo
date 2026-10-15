@@ -26,11 +26,23 @@ struct OnboardingFlowView: View {
     @State private var controlsRevealed = false
     @State private var skipRevealed = false
 
+    /// Midline of the whole window (safe area included) in global coordinates, written by a
+    /// background measurement; see `centeringShift`.
+    @State private var fullWindowMidX: CGFloat?
+
     var body: some View {
         GeometryReader { proxy in
             let metrics = OnboardingLayoutMetrics(size: proxy.size)
-            let values = OnboardingStageValues(progress: progress, width: Double(proxy.size.width))
-            let contentCenterShift = Self.centeringShift(for: proxy)
+            // Values derived from the width (the CTA pill's `width - 72`, the parallax offset) use the
+            // capped content width: on a wide screen the pill no longer stretches into an 880pt bar, and on a
+            // phone the content width equals the container width, so nothing changes.
+            let contentWidth = Self.contentWidth(containerWidth: proxy.size.width)
+            let values = OnboardingStageValues(progress: progress, width: Double(contentWidth))
+            let contentCenterShift = Self.centeringShift(
+                windowMidX: fullWindowMidX,
+                containerFrame: proxy.frame(in: .global),
+                contentWidth: contentWidth
+            )
 
             ScrollViewReader { reader in
                 ZStack {
@@ -67,6 +79,11 @@ struct OnboardingFlowView: View {
             .scaleEffect(isExiting ? 0.96 : 1)
             .opacity(isExiting ? 0 : 1)
         }
+        .background {
+            Color.clear
+                .ignoresSafeArea()
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).midX } action: { fullWindowMidX = $0 }
+        }
         .preferredColorScheme(.dark)
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
         .background(OnboardingPalette.bg0.ignoresSafeArea())
@@ -78,40 +95,31 @@ struct OnboardingFlowView: View {
 
     // MARK: - Centring on wide screens
 
-    /// Moves the centring reference from the navigation container back to the physical screen
-    /// and returns the horizontal shift needed to get there.
-    ///
-    /// Onboarding runs inside the `NavigationStack`, and at regular width that container does
-    /// not span the window. On an unfolded iPhone Duo the window is 951pt while the
-    /// GeometryReader is handed `x=34, width=803` — a 34pt margin on the left and 114pt on the
-    /// right. The extra strip on the right is the system chrome column (the status bar;
-    /// onboarding is a full-screen flow with no tab bar, so the lower half of that strip is
-    /// empty). Centring on the container therefore pushes the whole page about 40pt to the left.
-    ///
-    /// `proxy.safeAreaInsets` cannot answer this: those insets are measured **relative to the
-    /// container**, and they come back symmetric (34 on each side), so their difference is
-    /// always zero. Only the window width exposes the asymmetry.
-    ///
-    /// Feeding a different width into `OnboardingLayoutMetrics` / `OnboardingStageValues` is not
-    /// an option either — a batch of derived values hang off that width (`pillWidth = width - 72`,
-    /// `byokOffsetX = width * 0.25`), and changing the basis blows up the CTA pill. So this only
-    /// shifts *where the content is drawn*, never *what width it is laid out against*.
-    ///
-    /// On a narrow screen the container fills the window, the two centres coincide, and this
-    /// returns 0 — phones in portrait are unaffected.
-    private static func centeringShift(for proxy: GeometryProxy) -> CGFloat {
-        guard let windowWidth = keyWindowWidth(), windowWidth > 0 else { return 0 }
-        return windowWidth / 2 - proxy.frame(in: .global).midX
+    /// Content width cap: the same token as the app-wide `oriveoContentWidth`.
+    static func contentWidth(containerWidth: CGFloat) -> CGFloat {
+        min(containerWidth, OriveoTheme.Layout.contentMaxWidth)
     }
 
-    /// Reads the current key window's width. `UIScreen.main` is deprecated and, on a folding
-    /// device, reports the folded measurement even while unfolded (466pt against a 951pt window).
-    private static func keyWindowWidth() -> CGFloat? {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .first { $0.isKeyWindow }?
-            .bounds.width
+    /// Moves the content's centring reference from the safe-area container back to the centre of the
+    /// whole window, and returns the horizontal shift needed.
+    ///
+    /// When system chrome takes only one side (on an iPhone Duo the status bar and camera strip are
+    /// 84pt on the right), the safe-area container sits left of the window, and centring on it shifts
+    /// the whole page about 42pt to the left (measured unfolded on the 27.1 SDK). Onboarding is a
+    /// full-screen brand flow, so its visual centre belongs at the centre of the window.
+    ///
+    /// The shift never exceeds the room on either side of the capped content within the container, so
+    /// the content never moves into the safe area on the chrome side. On the Duo cover screen (466pt,
+    /// 84pt on the right) the container is 382pt with no room, so the shift is 0; on a phone in
+    /// portrait the two centres coincide, also 0.
+    ///
+    /// The window midline is measured by a background view that ignores the safe area rather than by
+    /// looking up the key window in `UIApplication`: with several windows, the key window is not
+    /// necessarily the one this page is in.
+    static func centeringShift(windowMidX: CGFloat?, containerFrame: CGRect, contentWidth: CGFloat) -> CGFloat {
+        guard let windowMidX else { return 0 }
+        let room = max(0, (containerFrame.width - contentWidth) / 2)
+        return min(max(windowMidX - containerFrame.midX, -room), room)
     }
 
     private func auroraBackground(values: OnboardingStageValues) -> some View {

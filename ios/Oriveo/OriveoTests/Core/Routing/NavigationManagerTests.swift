@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import Oriveo
 
@@ -194,6 +195,53 @@ struct NavigationManagerTests {
 
         #expect(nav.path == [.chat(conversationID: id)])
         #expect(nav.chatDetail == .empty)
+    }
+
+    @Test(
+        "Two Columns Need Regular Width And A Window Of At Least 780pt",
+        arguments: [
+            (UserInterfaceSizeClass?.some(.regular), CGFloat(951), true),
+            (.regular, 834, true),
+            (.regular, 780, true),
+            (.regular, 779, false),
+            (.regular, 669, false),
+            (.compact, 1032, false),
+            (nil, 951, false),
+            (.regular, 0, false),
+        ] as [(UserInterfaceSizeClass?, CGFloat, Bool)]
+    )
+    func splitLayoutRequiresRegularAndMinimumWidth(
+        sizeClass: UserInterfaceSizeClass?,
+        width: CGFloat,
+        expected: Bool
+    ) {
+        #expect(NavigationManager.usesSplitLayout(horizontalSizeClass: sizeClass, windowWidth: width) == expected)
+    }
+
+    @Test("Resizing A Regular Window Across 780pt Moves The Conversation Between Carriers")
+    func regularWindowResizeAcrossThresholdMovesChat() {
+        let nav = NavigationManager()
+        let id = UUID()
+        func apply(_ width: CGFloat) {
+            nav.updateLayoutWidth(
+                isRegular: NavigationManager.usesSplitLayout(horizontalSizeClass: .regular, windowWidth: width)
+            )
+        }
+
+        apply(951)
+        nav.presentChat(conversationID: id)
+        #expect(nav.chatDetail == .conversation(id))
+        #expect(nav.path.isEmpty)
+
+        apply(669)
+        #expect(nav.isRegularWidth == false)
+        #expect(nav.chatDetail == .empty)
+        #expect(nav.path == [.chat(conversationID: id)])
+
+        apply(951)
+        #expect(nav.isRegularWidth)
+        #expect(nav.chatDetail == .conversation(id))
+        #expect(nav.path.isEmpty)
     }
 
     @Test("Dismiss Chat Clears The Active Carrier")

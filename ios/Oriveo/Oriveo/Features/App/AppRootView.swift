@@ -19,9 +19,20 @@ struct AppRootView: View {
     @Bindable var appState: AppState
     @State private var hasStartedBackgroundServices = false
     @State private var reachability = ServiceReachabilityMonitor.shared
+    /// Full window width (root container width plus the leading and trailing safe areas).
+    /// 0 means not measured yet, which counts as a single column.
+    @State private var windowWidth: CGFloat = 0
 
     private var isOnChatScreen: Bool {
         appState.navigation.isShowingChat
+    }
+
+    /// The two-column judgement: both the layout branch and the conversation carrier come from this one result.
+    private var usesSplitLayout: Bool {
+        NavigationManager.usesSplitLayout(
+            horizontalSizeClass: horizontalSizeClass,
+            windowWidth: windowWidth
+        )
     }
 
     var body: some View {
@@ -92,12 +103,17 @@ struct AppRootView: View {
         // The "sign-in expired" pause is presented from the root for the same reason. It is not shown again
         // while that conversation's chat page is on screen (both buttons are already under the step block).
         .mcpReauthorizationPresenter(appState: appState)
-        .onChange(of: horizontalSizeClass, initial: true) { _, sizeClass in
-            // Moves the conversation to the carrier that matches the new width (folding and
-            // unfolding). The render branch reads `navigation.isRegularWidth` too, so which
-            // layout is drawn and which carrier holds the conversation are always the same
-            // judgement and can never be a frame apart.
-            appState.navigation.updateLayoutWidth(isRegular: sizeClass == .regular)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width + proxy.safeAreaInsets.leading + proxy.safeAreaInsets.trailing
+        } action: { width in
+            windowWidth = width
+        }
+        .onChange(of: usesSplitLayout, initial: true) { _, split in
+            // Moves the conversation to the carrier that matches the new layout (folding,
+            // unfolding, or the window width crossing 780pt). The render branch reads
+            // `navigation.isRegularWidth` too, so which layout is drawn and which carrier holds
+            // the conversation are always the same judgement and can never be a frame apart.
+            appState.navigation.updateLayoutWidth(isRegular: split)
             // A size class change swaps the Home tab's view tree, and the outer nav may be
             // rebuilt with it. The back swipe recognizer is bound to that nav, so re-confirm
             // here — a no-op when it is still attached.
