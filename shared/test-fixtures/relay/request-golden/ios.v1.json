@@ -240,12 +240,12 @@
       "url" : "https://relay.example.com/v1/responses"
     },
     {
-      "body" : "{\"max_tokens\":8192,\"messages\":[{\"content\":\"Hello\",\"role\":\"user\"},{\"content\":\"Hi there.\",\"role\":\"assistant\"},{\"content\":\"Summarize in one word.\",\"role\":\"user\"}],\"model\":\"golden-relay-model\",\"stream\":true,\"system\":\"You are a golden fixture.\"}",
+      "body" : "{\"max_tokens\":8192,\"messages\":[{\"content\":\"Hello\",\"role\":\"user\"},{\"content\":\"Hi there.\",\"role\":\"assistant\"},{\"content\":[{\"cache_control\":{\"type\":\"ephemeral\"},\"text\":\"Summarize in one word.\",\"type\":\"text\"}],\"role\":\"user\"}],\"model\":\"golden-relay-model\",\"stream\":true,\"system\":\"You are a golden fixture.\"}",
       "caseId" : "relay_messages_bare_host",
       "headers" : {
         "accept" : "application/json",
         "anthropic-version" : "2023-06-01",
-        "content-length" : "240",
+        "content-length" : "302",
         "content-type" : "application/json",
         "user-agent" : "Oriveo/<app-version> (iOS <os-version>)",
         "x-api-key" : "sk-golden-0000"
@@ -292,12 +292,12 @@
       "url" : "https://relay.example.com/v2/v1/chat/completions"
     },
     {
-      "body" : "{\"max_tokens\":8192,\"messages\":[{\"content\":\"Hello\",\"role\":\"user\"},{\"content\":\"Hi there.\",\"role\":\"assistant\"},{\"content\":\"Summarize in one word.\",\"role\":\"user\"}],\"model\":\"golden-relay-model\",\"stream\":true,\"system\":\"You are a golden fixture.\"}",
+      "body" : "{\"max_tokens\":8192,\"messages\":[{\"content\":\"Hello\",\"role\":\"user\"},{\"content\":\"Hi there.\",\"role\":\"assistant\"},{\"content\":[{\"cache_control\":{\"type\":\"ephemeral\"},\"text\":\"Summarize in one word.\",\"type\":\"text\"}],\"role\":\"user\"}],\"model\":\"golden-relay-model\",\"stream\":true,\"system\":\"You are a golden fixture.\"}",
       "caseId" : "relay_messages_legacy_resolved_root",
       "headers" : {
         "accept" : "application/json",
         "anthropic-version" : "2023-06-01",
-        "content-length" : "240",
+        "content-length" : "302",
         "content-type" : "application/json",
         "user-agent" : "Oriveo/<app-version> (iOS <os-version>)",
         "x-api-key" : "sk-golden-0000"

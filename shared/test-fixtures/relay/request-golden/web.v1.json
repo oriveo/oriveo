@@ -215,7 +215,7 @@
         "content-type": "application/json",
         "x-api-key": "sk-golden-0000"
       },
-      "body": "{\"model\":\"golden-relay-model\",\"max_tokens\":8192,\"stream\":true,\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Hello\"}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Hi there.\"}]},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Summarize in one word.\"}]}],\"system\":\"You are a golden fixture.\"}"
+      "body": "{\"model\":\"golden-relay-model\",\"max_tokens\":8192,\"stream\":true,\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Hello\"}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Hi there.\"}]},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Summarize in one word.\",\"cache_control\":{\"type\":\"ephemeral\"}}]}],\"system\":\"You are a golden fixture.\"}"
     },
     {
       "caseId": "relay_gemini_bare_host",
@@ -257,7 +257,7 @@
         "content-type": "application/json",
         "x-api-key": "sk-golden-0000"
       },
-      "body": "{\"model\":\"golden-relay-model\",\"max_tokens\":8192,\"stream\":true,\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Hello\"}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Hi there.\"}]},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Summarize in one word.\"}]}],\"system\":\"You are a golden fixture.\"}"
+      "body": "{\"model\":\"golden-relay-model\",\"max_tokens\":8192,\"stream\":true,\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Hello\"}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Hi there.\"}]},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Summarize in one word.\",\"cache_control\":{\"type\":\"ephemeral\"}}]}],\"system\":\"You are a golden fixture.\"}"
     },
     {
       "caseId": "relay_chat_legacy_resolved_root",
