@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.ExperimentalMaterial3Api
 import ai.oriveo.community.ui.component.OriveoCloseButton
 import ai.oriveo.community.ui.component.OriveoModalBottomSheet
+import ai.oriveo.community.ui.component.stripMarkdown
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -726,6 +727,15 @@ private fun ModelMicroChip(option: CrosscheckOption) {
     }
 }
 
+/**
+ * One-line preview of the original answer: strip markdown with the same stripMarkdown used by
+ * conversation rows, collapse whitespace, and cap at 220 characters. Only the head of a long
+ * answer is run through the regexes.
+ */
+internal fun originalAnswerPreview(text: String): String =
+    stripMarkdown(text.take(4000))
+        .let { if (it.length > 220) it.take(220).trimEnd() + "…" else it }
+
 @Composable
 private fun OriginalSourceStrip(
     originalAnswer: String,
@@ -737,14 +747,7 @@ private fun OriginalSourceStrip(
     val colors = OriveoTheme.colors
     val isDark = OriveoTheme.isDark
 
-    val preview = remember(originalAnswer) {
-        originalAnswer
-            .split('\n')
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .joinToString(" ")
-            .let { if (it.length > 220) it.take(220).trimEnd() + "…" else it }
-    }
+    val preview = remember(originalAnswer) { originalAnswerPreview(originalAnswer) }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
