@@ -1416,6 +1416,10 @@ final class AppState {
         GenerationParameterPresetStore.shared.removeScopes(providerID: providerID)
         selectedTab = .providers
         navigation.popToRoot()
+        // A wide-screen right-column selection is not on the path, so popToRoot cannot clear it; any window whose right column still points at the provider falls back to the default detail
+        for manager in allWindowNavigations where manager.providersDetail == .providerDetail(providerID: providerID) {
+            manager.providersDetail = nil
+        }
         return true
     }
 

@@ -21,12 +21,23 @@ struct OriveoBackButton: View {
     static let edgeInset: CGFloat = (hitSize - iconSize) / 2
 
     private let action: @MainActor () -> Void
+    /// The root page of a wide-screen right column has nothing to go back to (the sidebar list stays
+    /// on screen), so the back button does not appear there.
+    @Environment(\.isSplitColumnRoot) private var isSplitColumnRoot
 
     init(action: @escaping @MainActor () -> Void) {
         self.action = action
     }
 
     var body: some View {
+        if isSplitColumnRoot {
+            EmptyView()
+        } else {
+            button
+        }
+    }
+
+    private var button: some View {
         Button(action: action) {
             OriveoBackChevron()
                 .stroke(
@@ -46,6 +57,13 @@ struct OriveoBackButton: View {
         .buttonStyle(OriveoFlatIconButtonStyle())
         .accessibilityLabel(L10n.tr("Back"))
     }
+}
+
+extension EnvironmentValues {
+    /// Whether this view is the root content of a wide-screen right column (`SplitDetailColumn`).
+    /// When true `OriveoBackButton` renders nothing; a sheet presented from the right column that
+    /// has its own back button sets it back to false on the sheet content.
+    @Entry var isSplitColumnRoot = false
 }
 
 /// The design's chevron path `M14.5 5.5L8 12l6.5 6.5` (24 grid), scaled to the frame.

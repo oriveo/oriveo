@@ -58,7 +58,13 @@ final class NavigationManager {
     /// Single observation point for tab changes: AppState persists the session snapshot from it.
     @ObservationIgnored var onSelectedTabChange: (() -> Void)?
 
-    var path: [AppRoute] = []
+    var path: [AppRoute] = [] {
+        didSet {
+            // The notes detail column belongs to the notes list on the stack: once the list leaves
+            // the stack (back, a tab switch, a whole-stack replacement) the detail is gone too.
+            if notesDetail != nil, !path.contains(.notesList) { notesDetail = nil }
+        }
+    }
     /// What the wide-screen detail column is showing. It sits beside `path`: `path` drives
     /// push/pop of the outer routes, this drives the conversation column alone.
     ///
@@ -69,6 +75,15 @@ final class NavigationManager {
     /// `updateLayoutWidth(isRegular:)` moves the conversation between the two, so both are
     /// never occupied at once.
     var chatDetail: ChatDetailState = .empty
+    /// The detail route in the Providers tab's right column on wide screens. With two columns the
+    /// tab's root list stays in the sidebar and the detail opened from it lands in the right column
+    /// instead of being pushed full screen; only non-nil at `isRegularWidth`, and moved back onto
+    /// `path` by `updateLayoutWidth` when the window narrows.
+    var providersDetail: AppRoute?
+    /// The note selected next to the notes list on wide screens. The list itself is on `path`; the
+    /// note is no longer pushed, or tapping a note in two columns would cover the whole list. When
+    /// the window narrows it goes back in after the last `.notesList`.
+    var notesDetail: UUID?
     /// Whether the window currently uses two columns (see `usesSplitLayout`). Defaults to a single
     /// column so the first frame after a cold start renders narrow; `AppRootView` corrects it as
     /// soon as it has the real size class and window width.
@@ -76,6 +91,8 @@ final class NavigationManager {
     /// Hands the chat page's state over when a conversation changes carrier (one per window). Not
     /// observed: it is only captured right before the move and taken when the new page appears.
     @ObservationIgnored let chatHandoff = ChatCarrierHandoff()
+    /// Hands the note body draft over (one per window). Not observed: stored when a detail leaves, taken when one appears.
+    @ObservationIgnored let noteDraftHandoff = NoteBodyDraftHandoff()
 
     func openProviderSetup(from entryPoint: ProviderSetupEntryPoint, preselectedKind: ProviderKind? = nil) {
         attemptNavigate(to: .providerSetup(entryPoint: entryPoint, preselectedKind: preselectedKind))
@@ -176,11 +193,30 @@ final class NavigationManager {
         attemptNavigate(to: .noteDetail(noteID: noteID))
     }
 
+    /// The single navigation entry point.
+    ///
+    /// On wide screens a detail opened from a tab's root list, and a note opened from the notes
+    /// list, land in the right column instead of being pushed.
     func attemptNavigate(to route: AppRoute) {
+        if isRegularWidth {
+            if path.isEmpty, Self.columnTab(for: route) == selectedTab {
+                setColumnDetail(route, for: selectedTab)
+                return
+            }
+            if path.last == .notesList, case let .noteDetail(noteID) = route {
+                notesDetail = noteID
+                return
+            }
+        }
         path.append(route)
     }
 
     func pop() {
+        if isRegularWidth, path.isEmpty {
+            // At a wide tab root there is no stack to pop; "back" means closing the tab's right-column detail.
+            setColumnDetail(nil, for: selectedTab)
+            return
+        }
         guard !path.isEmpty else { return }
         path.removeLast()
     }
@@ -271,16 +307,91 @@ final class NavigationManager {
         // The move rebuilds ChatView from scratch: capture the page state synchronously before it,
         // and the new page takes it back by key when it appears.
         if isRegular {
-            guard case let .chat(conversationID) = path.last else { return }
-            chatHandoff.capture(key: ChatCarrierKey(conversationID: conversationID))
-            path.removeLast()
-            chatDetail = conversationID.map { .conversation($0) } ?? .draft
+            moveChatToDetail()
+            moveRoutesToColumnDetails()
         } else {
-            guard !chatDetail.isEmpty else { return }
-            let conversationID = chatDetail.conversationID
-            chatHandoff.capture(key: ChatCarrierKey(conversationID: conversationID))
-            chatDetail = .empty
-            attemptNavigate(to: .chat(conversationID: conversationID))
+            moveColumnDetailsToPath()
+            moveChatToPath()
+        }
+    }
+
+    /// Moves the conversation from the outer stack into the detail column (unfolding).
+    private func moveChatToDetail() {
+        guard case let .chat(conversationID) = path.last else { return }
+        chatHandoff.capture(key: ChatCarrierKey(conversationID: conversationID))
+        path.removeLast()
+        chatDetail = conversationID.map { .conversation($0) } ?? .draft
+    }
+
+    /// Moves the conversation from the detail column back onto the outer stack (folding).
+    private func moveChatToPath() {
+        guard !chatDetail.isEmpty else { return }
+        let conversationID = chatDetail.conversationID
+        chatHandoff.capture(key: ChatCarrierKey(conversationID: conversationID))
+        chatDetail = .empty
+        attemptNavigate(to: .chat(conversationID: conversationID))
+    }
+
+    /// When widening, moves a single-level tab detail and a note detail from `path` into the right column.
+    /// Tab routes more than one level deep are left alone: the right column holds one level, and
+    /// moving them would lose the deeper pages.
+    private func moveRoutesToColumnDetails() {
+        if path.count == 1, let route = path.first, Self.columnTab(for: route) == selectedTab {
+            path = []
+            setColumnDetail(route, for: selectedTab)
+        }
+        if path.count >= 2,
+           path[path.count - 2] == .notesList,
+           case let .noteDetail(noteID) = path[path.count - 1] {
+            path.removeLast()
+            notesDetail = noteID
+        }
+    }
+
+    /// When narrowing, moves the right-column details back onto `path`. Only the current tab's
+    /// detail comes back; other tabs' details are dropped (in one column those tabs return to their
+    /// root lists, as a tab switch already does).
+    private func moveColumnDetailsToPath() {
+        if let route = columnDetail(for: selectedTab) {
+            path.insert(route, at: 0)
+        }
+        if let noteID = notesDetail, let listIndex = path.lastIndex(of: .notesList) {
+            path.insert(.noteDetail(noteID: noteID), at: listIndex + 1)
+        }
+        clearColumnDetails()
+    }
+
+    // MARK: - Wide-screen column details
+
+    /// Which routes are the right-column detail of a tab's root list on wide screens; nil means they are pushed as before.
+    static func columnTab(for route: AppRoute) -> AppTab? {
+        switch route {
+        case .providerDetail:
+            return .providers
+        default:
+            return nil
+        }
+    }
+
+    /// Clears every right-column detail, for the "back to the root" cases.
+    func clearColumnDetails() {
+        providersDetail = nil
+        notesDetail = nil
+    }
+
+    private func columnDetail(for tab: AppTab) -> AppRoute? {
+        switch tab {
+        case .providers: return providersDetail
+        case .settings, .home: return nil
+        }
+    }
+
+    private func setColumnDetail(_ route: AppRoute?, for tab: AppTab) {
+        switch tab {
+        case .providers:
+            providersDetail = route
+        case .settings, .home:
+            break
         }
     }
 

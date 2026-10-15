@@ -305,4 +305,227 @@ struct NavigationManagerTests {
         #expect(regular.path.isEmpty)
         #expect(regular.chatDetail == .draft)
     }
+
+    // MARK: - Wide-screen column details
+
+    private func regularNav(tab: AppTab) -> NavigationManager {
+        let nav = NavigationManager()
+        nav.updateLayoutWidth(isRegular: true)
+        nav.selectedTab = tab
+        return nav
+    }
+
+    @Test("columnTab puts a provider detail in the Providers tab; everything else is nil")
+    func columnTabMapping() {
+        #expect(NavigationManager.columnTab(for: .providerDetail(providerID: UUID())) == .providers)
+        for route: AppRoute in [.memory, .skillsList, .mcpServers, .backup, .notesList,
+                                .chat(conversationID: nil), .relayKeys(providerID: UUID())] {
+            #expect(NavigationManager.columnTab(for: route) == nil)
+        }
+    }
+
+    @Test("At a wide Providers root, opening a provider writes the right column instead of pushing")
+    func regularAttemptNavigateWritesColumnDetail() {
+        let id = UUID()
+        let providers = regularNav(tab: .providers)
+        providers.openProviderDetail(providerID: id)
+        #expect(providers.path.isEmpty)
+        #expect(providers.providersDetail == .providerDetail(providerID: id))
+    }
+
+    @Test("On wide screens other tabs' routes, settings pages and a non-empty stack still push")
+    func regularAttemptNavigatePushesOtherwise() {
+        let id = UUID()
+        let home = regularNav(tab: .home)
+        home.openProviderDetail(providerID: id)
+        #expect(home.path == [.providerDetail(providerID: id)])
+        #expect(home.providersDetail == nil)
+
+        let settings = regularNav(tab: .settings)
+        settings.openBackup()
+        #expect(settings.path == [.backup])
+
+        let providers = regularNav(tab: .providers)
+        providers.attemptNavigate(to: .notesList)
+        providers.openProviderDetail(providerID: id)
+        #expect(providers.path == [.notesList, .providerDetail(providerID: id)])
+        #expect(providers.providersDetail == nil)
+    }
+
+    @Test("On a wide notes list, tapping a note writes notesDetail instead of pushing")
+    func regularNoteDetailWritesNotesDetail() {
+        let id = UUID()
+        let nav = regularNav(tab: .settings)
+        nav.openNotesList()
+        nav.openNoteDetail(noteID: id)
+        #expect(nav.path == [.notesList])
+        #expect(nav.notesDetail == id)
+    }
+
+    @Test("At compact width attemptNavigate and pop are unchanged")
+    func compactNavigateAndPopUnchanged() {
+        let id = UUID()
+        let nav = NavigationManager()
+        nav.selectedTab = .settings
+        nav.openBackup()
+        nav.openNotesList()
+        nav.openNoteDetail(noteID: id)
+        #expect(nav.path == [.backup, .notesList, .noteDetail(noteID: id)])
+        #expect(nav.notesDetail == nil)
+        nav.pop()
+        #expect(nav.path == [.backup, .notesList])
+        nav.popToRoot()
+        nav.pop()
+        #expect(nav.path.isEmpty)
+
+        let providers = NavigationManager()
+        providers.selectedTab = .providers
+        providers.openProviderDetail(providerID: id)
+        #expect(providers.path == [.providerDetail(providerID: id)])
+        #expect(providers.providersDetail == nil)
+    }
+
+    @Test("pop at a wide tab root clears that tab's right column only")
+    func regularPopClearsSelectedTabDetail() {
+        let id = UUID()
+        let nav = regularNav(tab: .providers)
+        nav.openProviderDetail(providerID: id)
+        nav.pop()
+        #expect(nav.providersDetail == nil)
+        #expect(nav.path.isEmpty)
+
+        nav.openProviderDetail(providerID: id)
+        nav.selectedTab = .settings
+        nav.pop()
+        #expect(nav.providersDetail == .providerDetail(providerID: id))
+    }
+
+    @Test("pop on wide screens with a non-empty stack still pops the stack")
+    func regularPopWithPathPopsStack() {
+        let id = UUID()
+        let nav = regularNav(tab: .providers)
+        nav.openProviderDetail(providerID: id)
+        nav.attemptNavigate(to: .relayKeys(providerID: id))
+        nav.pop()
+        #expect(nav.path.isEmpty)
+        #expect(nav.providersDetail == .providerDetail(providerID: id))
+    }
+
+    @Test("notesDetail clears when the notes list leaves the stack")
+    func notesDetailClearedWhenNotesListLeavesPath() {
+        let nav = regularNav(tab: .settings)
+        nav.openNotesList()
+        nav.openNoteDetail(noteID: UUID())
+        nav.pop()
+        #expect(nav.path.isEmpty)
+        #expect(nav.notesDetail == nil)
+
+        nav.openNotesList()
+        nav.openNoteDetail(noteID: UUID())
+        nav.attemptNavigate(to: .memory)
+        #expect(nav.notesDetail != nil)
+        nav.reset(to: [.memory])
+        #expect(nav.notesDetail == nil)
+    }
+
+    @Test("Widening moves a single-level route of the current tab into the right column; the conversation still moves")
+    func expandMovesSingleRouteIntoDetail() {
+        let id = UUID()
+        let providers = NavigationManager()
+        providers.selectedTab = .providers
+        providers.openProviderDetail(providerID: id)
+        providers.updateLayoutWidth(isRegular: true)
+        #expect(providers.path.isEmpty)
+        #expect(providers.providersDetail == .providerDetail(providerID: id))
+
+        // The chat move runs first: once the conversation leaves [route, chat] one level remains and moves over
+        let chatID = UUID()
+        let both = NavigationManager()
+        both.selectedTab = .providers
+        both.openProviderDetail(providerID: id)
+        both.attemptNavigate(to: .chat(conversationID: chatID))
+        both.updateLayoutWidth(isRegular: true)
+        #expect(both.chatDetail == .conversation(chatID))
+        #expect(both.path.isEmpty)
+        #expect(both.providersDetail == .providerDetail(providerID: id))
+    }
+
+    @Test("Widening leaves deeper stacks and other tabs' routes alone")
+    func expandKeepsDeepOrForeignRoutes() {
+        let id = UUID()
+        let deep = NavigationManager()
+        deep.selectedTab = .providers
+        deep.openProviderDetail(providerID: id)
+        deep.openRelayKeys(providerID: id)
+        deep.updateLayoutWidth(isRegular: true)
+        #expect(deep.path == [.providerDetail(providerID: id), .relayKeys(providerID: id)])
+        #expect(deep.providersDetail == nil)
+
+        let foreign = NavigationManager()
+        foreign.selectedTab = .home
+        foreign.openProviderDetail(providerID: id)
+        foreign.updateLayoutWidth(isRegular: true)
+        #expect(foreign.path == [.providerDetail(providerID: id)])
+        #expect(foreign.providersDetail == nil)
+    }
+
+    @Test("Widening with [notes list, note] at the top moves the note into notesDetail")
+    func expandMovesNoteDetail() {
+        let id = UUID()
+        let nav = NavigationManager()
+        nav.selectedTab = .settings
+        nav.attemptNavigate(to: .memory)
+        nav.openNotesList()
+        nav.openNoteDetail(noteID: id)
+        nav.updateLayoutWidth(isRegular: true)
+        #expect(nav.path == [.memory, .notesList])
+        #expect(nav.notesDetail == id)
+    }
+
+    @Test("Narrowing puts the current tab's detail at the bottom of the stack and the note after its list, then clears both")
+    func collapseMovesDetailsBackToPath() {
+        let noteID = UUID()
+        let providerID = UUID()
+        let nav = regularNav(tab: .settings)
+        nav.openMemory()
+        nav.openNotesList()
+        nav.openNoteDetail(noteID: noteID)
+        nav.attemptNavigate(to: .skillsList)
+        nav.updateLayoutWidth(isRegular: false)
+        #expect(nav.path == [.memory, .notesList, .noteDetail(noteID: noteID), .skillsList])
+        #expect(nav.notesDetail == nil)
+
+        // The conversation moves last, so it ends up on top
+        let chatID = UUID()
+        let withChat = regularNav(tab: .providers)
+        withChat.openProviderDetail(providerID: providerID)
+        withChat.presentChat(conversationID: chatID)
+        withChat.updateLayoutWidth(isRegular: false)
+        #expect(withChat.path == [.providerDetail(providerID: providerID), .chat(conversationID: chatID)])
+        #expect(withChat.providersDetail == nil)
+        #expect(withChat.chatDetail == .empty)
+    }
+
+    @Test("Narrowing drops other tabs' details")
+    func collapseDropsOtherTabDetails() {
+        let providerID = UUID()
+        let nav = regularNav(tab: .providers)
+        nav.openProviderDetail(providerID: providerID)
+        nav.selectedTab = .home
+        nav.updateLayoutWidth(isRegular: false)
+        #expect(nav.path.isEmpty)
+        #expect(nav.providersDetail == nil)
+    }
+
+    @Test("clearColumnDetails clears every detail")
+    func clearColumnDetailsClearsAll() {
+        let nav = regularNav(tab: .providers)
+        nav.openProviderDetail(providerID: UUID())
+        nav.selectedTab = .settings
+        nav.openNotesList()
+        nav.openNoteDetail(noteID: UUID())
+        nav.clearColumnDetails()
+        #expect(nav.providersDetail == nil)
+        #expect(nav.notesDetail == nil)
+    }
 }

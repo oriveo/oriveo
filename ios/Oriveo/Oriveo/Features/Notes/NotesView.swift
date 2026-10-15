@@ -23,23 +23,15 @@ struct NotesView: View {
     @State private var folderToEdit: NoteFolder?
     @State private var folderToManage: NoteFolder?
     @State private var folderDeleteConfirming = false
+    /// Sidebar width lined up with the fold in two columns; nil without a fold, which keeps the default width.
+    @State private var foldListWidth: CGFloat?
+    /// The default note shown in the wide right column when none is selected. The last id is remembered so a sort change does not jump; the first note is taken again only the first time or when it is no longer in the current filtered list.
+    @State private var splitDefaultNoteID: UUID?
+
     static let pageSize = 10
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: OriveoTheme.Spacing.lg) {
-                header
-                tabSwitcher
-                if tab == .notes {
-                    notesSection
-                } else {
-                    trashSection
-                }
-            }
-            .padding(.horizontal, OriveoTheme.Spacing.lg)
-            .padding(.vertical, OriveoTheme.Spacing.md)
-            .oriveoContentWidth()
-        }
+        notesLayout
         .background(notesBackground.ignoresSafeArea())
         .navigationTitle(L10n.tr("Notes", table: .notes))
         .navigationBarTitleDisplayMode(.inline)
@@ -76,6 +68,86 @@ struct NotesView: View {
         .sheet(item: $folderToEdit) { folder in
             EditNoteFolderSheet(folder: folder)
         }
+    }
+
+    /// Wide screens: the list in the left column and the note in the right (this is a full-screen page on the outer stack covering the tab bar, so the right column needs no top clearance).
+    /// Compact width takes the else branch, with the same tree as before two columns.
+    @ViewBuilder
+    private var notesLayout: some View {
+        if navigation.isRegularWidth {
+            HStack(spacing: 0) {
+                notesList
+                    .frame(width: foldListWidth ?? 400)
+                noteDetailColumn
+            }
+            .onGeometryChange(for: CGFloat?.self) { proxy in
+                // The 27.0 SDK has no fold region API (the project sets this condition by SDK name, see project.pbxproj)
+                #if ORIVEO_SDK_BEFORE_27_1
+                return nil
+                #else
+                guard #available(iOS 27.1, *) else { return nil }
+                let fold = proxy.reservedRegions(kind: .division).first(where: \.isActive)
+                // Full width including the leading and trailing safe areas, measured the same way as the two-column test
+                let fullWidth = proxy.size.width + proxy.safeAreaInsets.leading + proxy.safeAreaInsets.trailing
+                return NavigationManager.foldAlignedSidebarWidth(divisionMidX: fold?.frame.midX, containerWidth: fullWidth)
+                #endif
+            } action: { foldListWidth = $0 }
+        } else {
+            notesList
+        }
+    }
+
+    private var notesList: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: OriveoTheme.Spacing.lg) {
+                header
+                tabSwitcher
+                if tab == .notes {
+                    notesSection
+                } else {
+                    trashSection
+                }
+            }
+            .padding(.horizontal, OriveoTheme.Spacing.lg)
+            .padding(.vertical, OriveoTheme.Spacing.md)
+            .oriveoContentWidth()
+        }
+    }
+
+    /// Right column: the selected note; without a selection the default note (shown only, not written to `notesDetail`); in the trash with no selection, or with no notes, an empty backdrop.
+    /// Rebuilt per note id, so switching notes runs the old detail's onDisappear (saving the title draft, discarding a blank new note).
+    @ViewBuilder
+    private var noteDetailColumn: some View {
+        let displayedIDs = displayedNotes.map(\.id)
+        let defaultNoteID = tab == .notes
+            ? Self.resolveSplitDefaultNoteID(current: splitDefaultNoteID, displayedIDs: displayedIDs)
+            : nil
+        Group {
+            if let noteID = navigation.notesDetail ?? defaultNoteID {
+                NoteDetailView(noteID: noteID)
+                    .id(noteID)
+                    .environment(\.isSplitColumnRoot, true)
+            } else {
+                OriveoTheme.Palette.backgroundBase
+                    .ignoresSafeArea()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(OriveoTheme.Palette.border)
+                .frame(width: 1)
+                .ignoresSafeArea()
+        }
+        .onChange(of: displayedIDs, initial: true) { _, ids in
+            splitDefaultNoteID = Self.resolveSplitDefaultNoteID(current: splitDefaultNoteID, displayedIDs: ids)
+        }
+    }
+
+    /// The right column's default note: keep the last id while it is still in the current filtered list (a sort change does not jump), otherwise take the first note.
+    nonisolated static func resolveSplitDefaultNoteID(current: UUID?, displayedIDs: [UUID]) -> UUID? {
+        if let current, displayedIDs.contains(current) { return current }
+        return displayedIDs.first
     }
 
     // MARK: Header

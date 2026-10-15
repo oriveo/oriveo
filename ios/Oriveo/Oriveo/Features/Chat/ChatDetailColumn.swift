@@ -73,7 +73,8 @@ struct ChatDetailColumn: View {
     }
 }
 
-nonisolated private struct ColumnTopGeometry: Equatable, Sendable {
+/// Top-edge geometry of a right column, shared with `SplitDetailColumn` to decide the clearance for the floating iPad tab bar.
+nonisolated struct ColumnTopGeometry: Equatable, Sendable {
     var minYInWindow: CGFloat
     var safeAreaTop: CGFloat
 }

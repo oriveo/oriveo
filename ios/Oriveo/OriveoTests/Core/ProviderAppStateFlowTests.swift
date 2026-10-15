@@ -267,6 +267,24 @@ struct ProviderAppStateFlowTests {
         #expect(state.providers.isEmpty)
     }
 
+    @Test("deleteProvider clears a wide-screen right-column selection pointing at it and leaves others alone")
+    func deleteProviderClearsSplitColumnSelection() {
+        let state = makeState()
+        let deleted = TestFactories.makeProvider()
+        let kept = TestFactories.makeProvider()
+        state.providers = [deleted, kept]
+        state.navigation.updateLayoutWidth(isRegular: true)
+        state.navigation.providersDetail = .providerDetail(providerID: deleted.id)
+
+        state.deleteProvider(providerID: deleted.id)
+        #expect(state.navigation.providersDetail == nil)
+
+        state.navigation.providersDetail = .providerDetail(providerID: kept.id)
+        state.providers.append(deleted)
+        state.deleteProvider(providerID: deleted.id)
+        #expect(state.navigation.providersDetail == .providerDetail(providerID: kept.id))
+    }
+
     @Test("startNewChat with provider pushes chat route")
     func startNewChatWithProviderNavigatesChat() {
         let state = makeState()

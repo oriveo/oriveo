@@ -88,6 +88,8 @@ struct AppRootView: View {
                 "isRegularWidth": manager.isRegularWidth,
                 "path": manager.path.map { String(describing: $0) },
                 "chatDetail": String(describing: manager.chatDetail),
+                "providersDetail": String(describing: manager.providersDetail),
+                "notesDetail": String(describing: manager.notesDetail),
             ]
         }
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("shots-probe", isDirectory: true)
@@ -221,7 +223,7 @@ struct AppRootView: View {
                 }
                 .animation(.easeOut(duration: 0.3), value: appState.hasCompletedOnboarding)
                 .oriveoScreenBackground()
-                .navigationDestination(for: AppRoute.self, destination: destinationView(for:))
+                .navigationDestination(for: AppRoute.self) { AppRouteDestination(route: $0) }
             }
             .toolbar(.hidden, for: .navigationBar)
             .environment(appState)
@@ -292,72 +294,6 @@ struct AppRootView: View {
             await appState.refreshProviderMetadata()
         }
     }
-
-    @ViewBuilder
-    private func destinationView(for route: AppRoute) -> some View {
-        switch route {
-        case let .providerSetup(entryPoint, preselectedKind):
-            ProviderSetupView(entryPoint: entryPoint, preselectedKind: preselectedKind)
-                .oriveoNavigationChrome()
-        case let .manualModelEntry(providerID, context):
-            ManualModelEntryView(providerID: providerID, context: context)
-                .oriveoNavigationChrome()
-        case let .providerDetail(providerID):
-            ProviderDetailView(providerID: providerID)
-                .oriveoNavigationChrome()
-        case let .relayModelLibrary(providerID, keyID):
-            ProviderDetailView(providerID: providerID, page: .modelLibrary, keyFilter: keyID)
-                .oriveoNavigationChrome()
-        case let .relayKeys(providerID):
-            RelayKeysPage(providerID: providerID)
-                .oriveoNavigationChrome()
-        case let .relayWebSearch(providerID):
-            RelayWebSearchPage(providerID: providerID)
-                .oriveoNavigationChrome()
-        case let .relayModelAdvanced(providerID, modelID, readOnly):
-            ProviderDetailView(providerID: providerID, page: .modelAdvanced(modelID: modelID, readOnly: readOnly))
-                .oriveoNavigationChrome()
-        case let .chat(conversationID):
-            ChatView(conversationID: conversationID)
-                .chatNavigationChrome()
-        case let .relaySetup(entryPoint):
-            RelaySetupView(entryPoint: entryPoint)
-                .oriveoNavigationChrome()
-        case let .localComputeSetup(entryPoint):
-            RelaySetupView(entryPoint: entryPoint, initialMethod: .local)
-                .oriveoNavigationChrome()
-        case .backup:
-            BackupView()
-                .oriveoNavigationChrome()
-        case let .folderDetail(folderID):
-            FolderDetailView(folderID: folderID)
-                .oriveoNavigationChrome()
-        case .memory:
-            MemoryView()
-                .oriveoNavigationChrome()
-        case .mcpServers:
-            McpServersView()
-                .oriveoNavigationChrome()
-        case .mcpAddServer:
-            McpAddServerView()
-                .oriveoNavigationChrome()
-        case let .mcpServerDetail(serverID, intent):
-            McpServerDetailView(serverID: serverID, intent: intent)
-                .oriveoNavigationChrome()
-        case .skillsList:
-            SkillsListView()
-                .oriveoNavigationChrome()
-        case let .skillEdit(skillID):
-            SkillEditView(skillID: skillID)
-                .oriveoNavigationChrome()
-        case .notesList:
-            NotesView()
-                .oriveoNavigationChrome()
-        case let .noteDetail(noteID):
-            NoteDetailView(noteID: noteID)
-                .oriveoNavigationChrome()
-        }
-    }
 }
 
 /// Holds the host window weakly: a `@State` value must not retain the UIWindow (window → root
@@ -366,7 +302,7 @@ private final class HostWindowBox {
     weak var window: UIWindow?
 }
 
-private extension View {
+extension View {
     func oriveoNavigationChrome() -> some View {
         navigationBarBackButtonHidden(true)
             .toolbar(.hidden, for: .navigationBar)
@@ -679,7 +615,6 @@ private struct MainTabView: View {
     /// This window's navigation state; a host without one injected (previews, tests) falls back
     /// to the active window.
     private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
-    @State private var foldSidebarWidth: CGFloat?
 
     var body: some View {
         @Bindable var navigation = navigation
@@ -693,7 +628,7 @@ private struct MainTabView: View {
             }
 
             Tab(AppTab.providers.title, image: Self.icon(for: .providers, selected: navigation.selectedTab), value: AppTab.providers) {
-                ProvidersView()
+                providersTabContent
             }
 
             Tab(AppTab.settings.title, image: Self.icon(for: .settings, selected: navigation.selectedTab), value: AppTab.settings) {
@@ -718,36 +653,56 @@ private struct MainTabView: View {
     /// through the outer NavigationStack, exactly as it did before two columns (covering the
     /// screen including the tab bar, with an edge swipe popping back to the previous route).
     ///
-    /// The fixed 400pt sidebar is how "the same layout in all three shapes" is delivered: 400
-    /// lines up with the 402pt of a phone in portrait. 360–440 is adjustable; giving the sidebar
-    /// less leaves the detail column more. Half-folded, the sidebar lines up with the fold (see
-    /// `NavigationManager.foldAlignedSidebarWidth`).
     @ViewBuilder
     private var homeTabContent: some View {
         if navigation.isRegularWidth {
-            NavigationSplitView {
+            TabSplitLayout {
                 HomeView()
-                    .navigationSplitViewColumnWidth(min: 360, ideal: foldSidebarWidth ?? 400, max: foldSidebarWidth ?? 440)
-                    .toolbar(.hidden, for: .navigationBar)
             } detail: {
                 ChatDetailColumn()
-                    // The empty state has no toolbar items, so it gets no system bar even when bars are vertical, which would otherwise leave an empty vertical strip
+                    // The empty state has no toolbar items, so it gets no system bar even when bars
+                    // are vertical, which would otherwise leave an empty vertical strip
                     .chatNavigationChrome(showsSystemBar: navigation.chatDetail != .empty)
             }
-            .onGeometryChange(for: CGFloat?.self) { proxy in
-                // The 27.0 SDK has no fold region API (the project sets this condition by SDK name, see project.pbxproj)
-                #if ORIVEO_SDK_BEFORE_27_1
-                return nil
-                #else
-                guard #available(iOS 27.1, *) else { return nil }
-                let fold = proxy.reservedRegions(kind: .division).first(where: \.isActive)
-                // Full width including the leading and trailing safe areas (the Duo's 84pt vertical status bar on the right), measured the same way as the two-column test
-                let fullWidth = proxy.size.width + proxy.safeAreaInsets.leading + proxy.safeAreaInsets.trailing
-                return NavigationManager.foldAlignedSidebarWidth(divisionMidX: fold?.frame.midX, containerWidth: fullWidth)
-                #endif
-            } action: { foldSidebarWidth = $0 }
         } else {
             HomeView()
+        }
+    }
+
+    /// Two columns on a wide screen: the sidebar is the provider list, the detail column the provider
+    /// opened from it (`providersDetail`). At compact width it stays one column and the detail is
+    /// pushed full screen on the outer NavigationStack.
+    @ViewBuilder
+    private var providersTabContent: some View {
+        if navigation.isRegularWidth {
+            TabSplitLayout {
+                ProvidersView()
+                    .splitColumnTopTabBarClearance()
+            } detail: {
+                SplitDetailColumn {
+                    providersDetailContent
+                }
+            }
+        } else {
+            ProvidersView()
+        }
+    }
+
+    /// The Providers right column: the selected detail route if there is one; otherwise the first
+    /// provider (rendered only, not written back to `providersDetail`, so the default is never moved
+    /// onto the single-column stack as if the user had picked it); an empty backdrop when there are no
+    /// providers. `.id` rebuilds the page when the provider changes instead of reusing the previous
+    /// provider's private page state.
+    @ViewBuilder
+    private var providersDetailContent: some View {
+        if let route = navigation.providersDetail {
+            AppRouteDestination(route: route)
+                .id(route)
+        } else if let provider = appState.providers.first {
+            ProviderDetailView(providerID: provider.id)
+                .id(provider.id)
+        } else {
+            OriveoTheme.Palette.backgroundBase
         }
     }
 
@@ -762,6 +717,47 @@ private struct MainTabView: View {
         case .settings: return OriveoTheme.Palette.tabAccentSettings
         default: return OriveoTheme.Palette.primary
         }
+    }
+}
+
+/// The two-column shell of a wide tab: the sidebar is the tab's root list, the detail column the page
+/// opened from it; every tab shares the same column widths and fold alignment.
+///
+/// The fixed 400pt sidebar is how "the same layout in all three shapes" is delivered: 400 lines up
+/// with the 402pt of a phone in portrait. 360–440 is adjustable; giving the sidebar less leaves the
+/// detail column more. Half-folded, the sidebar lines up with the fold (see
+/// `NavigationManager.foldAlignedSidebarWidth`). The sidebar hides the system navigation bar; the
+/// detail column's chrome is up to the caller.
+fileprivate struct TabSplitLayout<Sidebar: View, Detail: View>: View {
+    private let sidebar: Sidebar
+    private let detail: Detail
+    @State private var foldSidebarWidth: CGFloat?
+
+    init(@ViewBuilder sidebar: () -> Sidebar, @ViewBuilder detail: () -> Detail) {
+        self.sidebar = sidebar()
+        self.detail = detail()
+    }
+
+    var body: some View {
+        NavigationSplitView {
+            sidebar
+                .navigationSplitViewColumnWidth(min: 360, ideal: foldSidebarWidth ?? 400, max: foldSidebarWidth ?? 440)
+                .toolbar(.hidden, for: .navigationBar)
+        } detail: {
+            detail
+        }
+        .onGeometryChange(for: CGFloat?.self) { proxy in
+            // The 27.0 SDK has no fold region API (the project sets this condition by SDK name, see project.pbxproj)
+            #if ORIVEO_SDK_BEFORE_27_1
+            return nil
+            #else
+            guard #available(iOS 27.1, *) else { return nil }
+            let fold = proxy.reservedRegions(kind: .division).first(where: \.isActive)
+            // Full width including the leading and trailing safe areas (the Duo's 84pt vertical status bar on the right), measured the same way as the two-column test
+            let fullWidth = proxy.size.width + proxy.safeAreaInsets.leading + proxy.safeAreaInsets.trailing
+            return NavigationManager.foldAlignedSidebarWidth(divisionMidX: fold?.frame.midX, containerWidth: fullWidth)
+            #endif
+        } action: { foldSidebarWidth = $0 }
     }
 }
 

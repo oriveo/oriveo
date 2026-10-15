@@ -74,6 +74,8 @@ struct NoteDetailView: View {
     /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
     private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
     @Environment(\.colorScheme) private var colorScheme
+    /// A detail in the wide notes page's right column is not on the stack: leaving clears `notesDetail` instead of popping (a pop would remove the notes list itself).
+    @Environment(\.isSplitColumnRoot) private var isSplitColumnRoot
     let noteID: UUID
 
     @State private var note: Note?
@@ -110,20 +112,29 @@ struct NoteDetailView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
+            restoreBodyDraftIfNeeded()
             reload()
         }
-        .onDisappear(perform: prepareToLeave)
+        .onDisappear {
+            stashBodyDraftIfNeeded()
+            prepareToLeave()
+        }
         .onChange(of: appState.notesVersion) { _, _ in
             if !isEditingBody && !titleFocused { reload() }
         }
         .sheet(isPresented: $showMoveSheet) {
-            if let note { MoveToNoteFolderSheet(noteID: note.id, current: note.noteFolderID) }
+            if let note {
+                MoveToNoteFolderSheet(noteID: note.id, current: note.noteFolderID)
+                    // The sheet has its own back button, which must not hide with the right-column root page
+                    .environment(\.isSplitColumnRoot, false)
+            }
         }
         .fullScreenCover(isPresented: $showCrosscheck) {
             Group {
                 if let note { CrosscheckSheet(origin: .note(note)) }
             }
             .interactiveDismissDisabled(true)
+            .environment(\.isSplitColumnRoot, false)
         }
     }
 
@@ -196,6 +207,8 @@ struct NoteDetailView: View {
                 }
             }
         }
+        // The right-column root page renders no back button; the top bar keeps the back button's touch height so the body does not move up
+        .frame(minHeight: OriveoBackButton.hitSize)
     }
 
     // MARK: - Single-scroll layout
@@ -684,7 +697,12 @@ struct NoteDetailView: View {
                         title: L10n.tr("Cancel", table: .notes), icon: "xmark",
                         foreground: OriveoTheme.Palette.textTertiary,
                         background: OriveoTheme.Palette.surfaceInset.opacity(0.65)
-                    ) { isEditingBody = false; bodyEditorSession = nil; bodyDraft = note.body }
+                    ) {
+                        isEditingBody = false
+                        bodyEditorSession = nil
+                        bodyDraft = note.body
+                        navigation.noteDraftHandoff.clear(noteID: noteID)
+                    }
 
                     editActionPill(
                         title: L10n.tr("Save", table: .notes), icon: "checkmark", isBold: true,
@@ -871,7 +889,33 @@ struct NoteDetailView: View {
 
     private func leaveDetail() {
         prepareToLeave()
-        navigation.pop()
+        closeDetail()
+    }
+
+    /// Pops a full-screen page; in the wide right column it clears the selection and the column falls back to the first note in the list.
+    private func closeDetail() {
+        if isSplitColumnRoot {
+            navigation.notesDetail = nil
+        } else {
+            navigation.pop()
+        }
+    }
+
+    /// Stashes the draft only while editing and when it differs from the saved body, so a carrier change or switching notes in the right column does not lose it. Nothing is written to the store.
+    private func stashBodyDraftIfNeeded() {
+        guard isEditingBody, let note, bodyDraft != note.body else { return }
+        navigation.noteDraftHandoff.stash(noteID: noteID, draft: bodyDraft)
+    }
+
+    /// Takes this note's stashed draft back on appear (no time limit in the right column, 2 seconds in one column) and rebuilds the editing session as entering edit mode does.
+    /// Editing is set before the first reload, so `apply` does not overwrite the draft with the stored body.
+    private func restoreBodyDraftIfNeeded() {
+        guard let draft = navigation.noteDraftHandoff.take(noteID: noteID, isSplitColumnRoot: isSplitColumnRoot) else {
+            return
+        }
+        bodyDraft = draft
+        bodyEditorSession = NoteBodyEditorSession(body: draft)
+        isEditingBody = true
     }
 
     private func prepareToLeave() {
@@ -895,6 +939,7 @@ struct NoteDetailView: View {
         _ = appState.noteManager.updateBody(id: noteID, body: bodyDraft)
         isEditingBody = false
         bodyEditorSession = nil
+        navigation.noteDraftHandoff.clear(noteID: noteID)
         reload()
         ToastManager.shared.show(L10n.tr("Saved", table: .notes), style: .success, duration: 2)
     }
@@ -925,7 +970,7 @@ struct NoteDetailView: View {
 
     private func confirmDelete() {
         appState.noteManager.deleteNote(id: noteID)
-        navigation.pop()
+        closeDetail()
         ToastManager.shared.show(L10n.tr("Note deleted", table: .notes), duration: 5,
                                  actionTitle: L10n.tr("Undo", table: .notes)) {
             appState.noteManager.restoreNote(id: noteID)
