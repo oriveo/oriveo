@@ -277,9 +277,42 @@ enum ShotsLayoutProbe {
             if let split = controller as? UISplitViewController {
                 let columns: [[String: Any]] = split.viewControllers.compactMap { child in
                     guard child.isViewLoaded, child.view.window != nil, !child.view.isHidden else { return nil }
-                    return ["rect": rectDictionary(child.view.convert(child.view.bounds, to: window))]
+                    return [
+                        "rect": rectDictionary(child.view.convert(child.view.bounds, to: window)),
+                        // HIG: in a split view the detail column's bars run vertically and the sidebar's horizontally, so read each column
+                        "verticalBarEdge": verticalBarEdgeName(child.traitCollection),
+                    ]
                 }
                 result.append(["collapsed": split.isCollapsed, "columns": columns])
+            }
+            for child in controller.children { visit(child, depth: depth + 1) }
+            if let presented = controller.presentedViewController, presented.presentingViewController === controller {
+                visit(presented, depth: depth + 1)
+            }
+        }
+        if let root = window.rootViewController { visit(root, depth: 0) }
+        return result
+    }
+
+    /// Each navigation controller's bar state and its top page's safe area: once the system navigation bar is shown for vertical bars on the Duo,
+    /// how much room the page top gives up, and to what, cannot be told from the elements' y alone.
+    private static func collectNavigationControllers(in window: UIWindow) -> [[String: Any]] {
+        var result: [[String: Any]] = []
+        func visit(_ controller: UIViewController, depth: Int) {
+            guard depth < 40 else { return }
+            if let nav = controller as? UINavigationController, nav.isViewLoaded, nav.view.window != nil {
+                let bar = nav.navigationBar
+                var entry: [String: Any] = [
+                    "barHidden": nav.isNavigationBarHidden || bar.isHidden,
+                    "barRect": rectDictionary(bar.convert(bar.bounds, to: window)),
+                    "depth": nav.viewControllers.count,
+                ]
+                if let top = nav.topViewController, top.isViewLoaded {
+                    let insets = top.view.safeAreaInsets
+                    entry["topSafe"] = ["top": insets.top, "bottom": insets.bottom, "left": insets.left, "right": insets.right]
+                    entry["topRect"] = rectDictionary(top.view.convert(top.view.bounds, to: window))
+                }
+                result.append(entry)
             }
             for child in controller.children { visit(child, depth: depth + 1) }
             if let presented = controller.presentedViewController, presented.presentingViewController === controller {
@@ -311,6 +344,21 @@ enum ShotsLayoutProbe {
         return []
     }
 
+    /// The system's preferred vertical bar edge (`UITraitCollection.verticalBarEdge`): leading / trailing / none,
+    /// regardless of whether a vertical bar is visible right now. Built with the 27.0 SDK or below iOS 27.1 it records unavailable.
+    private static func verticalBarEdgeName(_ traits: UITraitCollection?) -> String {
+        #if !ORIVEO_SDK_BEFORE_27_1
+        if #available(iOS 27.1, *), let traits {
+            switch traits.verticalBarEdge {
+            case .leading: return "leading"
+            case .trailing: return "trailing"
+            default: return "none"
+            }
+        }
+        #endif
+        return "unavailable"
+    }
+
     private static func rectDictionary(_ rect: CGRect) -> [String: CGFloat] {
         ["x": rect.minX, "y": rect.minY, "w": rect.width, "h": rect.height]
     }
@@ -335,8 +383,10 @@ enum ShotsLayoutProbe {
             "display": ["w": display.width, "h": display.height],
             "sizeClass": ["h": sizeClassName(traits?.horizontalSizeClass), "v": sizeClassName(traits?.verticalSizeClass)],
             "safe": ["top": insets.top, "bottom": insets.bottom, "left": insets.left, "right": insets.right],
+            "verticalBarEdge": verticalBarEdgeName(traits),
             "bars": window.map(collectBars(in:)) ?? [],
             "split": window.map(collectSplitColumns(in:)) ?? [],
+            "navigation": window.map(collectNavigationControllers(in:)) ?? [],
             "reserved": window.map(collectReservedRegions(in:)) ?? [],
             // The keyboard frame in window coordinates; null when it does not intersect the window (with a hardware keyboard only an off-screen placeholder remains)
             "keyboard": window.flatMap { window -> [String: CGFloat]? in

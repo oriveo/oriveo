@@ -414,7 +414,7 @@ struct LocalComputeSetupView: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .ignoresSafeArea(edges: .bottom)
+            .ignoresSafeArea(edges: [.bottom, .horizontal])
         }
     }
 

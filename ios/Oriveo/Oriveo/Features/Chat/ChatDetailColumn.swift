@@ -13,6 +13,8 @@ struct ChatDetailColumn: View {
     private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
     /// The detail column's top edge in the window and the column's own safe top; their sum is the window's top safe line.
     @State private var columnTop = ColumnTopGeometry(minYInWindow: 0, safeAreaTop: 0)
+    /// Injected by the outer `chatNavigationChrome`: this column's system bars run vertically along a side.
+    @Environment(\.chatUsesVerticalBar) private var usesVerticalBar
 
     var body: some View {
         content
@@ -56,12 +58,18 @@ struct ChatDetailColumn: View {
     }
 
     private var needsTopTabBarClearance: Bool {
-        Self.needsTopTabBarClearance(columnMinYInWindow: columnTop.minYInWindow, columnSafeAreaTop: columnTop.safeAreaTop)
+        Self.needsTopTabBarClearance(
+            columnMinYInWindow: columnTop.minYInWindow,
+            columnSafeAreaTop: columnTop.safeAreaTop,
+            usesVerticalBar: usesVerticalBar
+        )
     }
 
     /// Whether the detail column leaves 32pt at the top for the iPad floating tab bar: the column top's y in the window plus the column's own safe top is the window's top safe line, and only > 0 leaves room.
-    static func needsTopTabBarClearance(columnMinYInWindow: CGFloat, columnSafeAreaTop: CGFloat) -> Bool {
-        columnMinYInWindow + columnSafeAreaTop > 0
+    /// With vertical system bars the tab bar is on a side too, so no room is left: the navigation bar shown then is a zero-height strip
+    /// that gives the column a 24pt safe top (unfolded Duo held sideways), and the geometric test would wrongly leave room.
+    static func needsTopTabBarClearance(columnMinYInWindow: CGFloat, columnSafeAreaTop: CGFloat, usesVerticalBar: Bool = false) -> Bool {
+        !usesVerticalBar && columnMinYInWindow + columnSafeAreaTop > 0
     }
 }
 

@@ -319,7 +319,7 @@ struct AppRootView: View {
                 .oriveoNavigationChrome()
         case let .chat(conversationID):
             ChatView(conversationID: conversationID)
-                .oriveoNavigationChrome()
+                .chatNavigationChrome()
         case let .relaySetup(entryPoint):
             RelaySetupView(entryPoint: entryPoint)
                 .oriveoNavigationChrome()
@@ -731,8 +731,8 @@ private struct MainTabView: View {
                     .toolbar(.hidden, for: .navigationBar)
             } detail: {
                 ChatDetailColumn()
-                    .navigationBarBackButtonHidden(true)
-                    .toolbar(.hidden, for: .navigationBar)
+                    // The empty state has no toolbar items, so it gets no system bar even when bars are vertical, which would otherwise leave an empty vertical strip
+                    .chatNavigationChrome(showsSystemBar: navigation.chatDetail != .empty)
             }
             .onGeometryChange(for: CGFloat?.self) { proxy in
                 // The 27.0 SDK has no fold region API (the project sets this condition by SDK name, see project.pbxproj)

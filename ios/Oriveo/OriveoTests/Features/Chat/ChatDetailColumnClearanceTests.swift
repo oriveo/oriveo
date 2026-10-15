@@ -20,4 +20,9 @@ struct ChatDetailColumnClearanceTests {
     func duoInnerLandscapeNeedsNoClearance() {
         #expect(!ChatDetailColumn.needsTopTabBarClearance(columnMinYInWindow: 0, columnSafeAreaTop: 0))
     }
+
+    @Test("Unfolded Duo held sideways with the vertical navigation bar shown: the zero-height strip gives a safe top of 24 → still no room")
+    func duoVerticalBarSafeTopNeedsNoClearance() {
+        #expect(!ChatDetailColumn.needsTopTabBarClearance(columnMinYInWindow: 0, columnSafeAreaTop: 24, usesVerticalBar: true))
+    }
 }

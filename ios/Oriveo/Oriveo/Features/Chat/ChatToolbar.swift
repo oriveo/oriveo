@@ -14,6 +14,9 @@ struct ChatToolbar: View {
     @Environment(\.windowNavigation) private var windowNavigation
     /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
     private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
+    /// The system runs the navigation bar vertically along a side (the Duo cover screen, the detail column of the unfolded Duo held sideways): back / new chat / memory / export / the overflow menu
+    /// go into the system's vertical bar and only the model capsule and the cost stay here. See `chatNavigationChrome`.
+    @Environment(\.chatUsesVerticalBar) private var usesVerticalBar
     @State private var showMemoryPopover = false
     @State private var pendingExport: ChatExportItem?
 
@@ -21,7 +24,7 @@ struct ChatToolbar: View {
         HStack(spacing: OriveoTheme.Spacing.sm) {
             // No back button in the two-column layout: there is nowhere to go back to, because
             // the sidebar stays on screen (the same rule the system split view follows).
-            if !navigation.isRegularWidth {
+            if !navigation.isRegularWidth && !usesVerticalBar {
                 OriveoBackButton { appState.pop() }
                     // Keeps the old 36pt slot so the model picker does not move; the 44pt target
                     // overflows it on every side, so the tappable area does not shrink
@@ -38,36 +41,40 @@ struct ChatToolbar: View {
             Button {
                 showModelSwitcher = true
             } label: {
-                HStack(spacing: OriveoTheme.Spacing.sm) {
-                    ConnectionAvatarIcon(provider: provider, kind: provider.kind, relayKind: provider.relayKind, size: 26)
+                if usesVerticalBar {
+                    verticalBarModelLabel
+                } else {
+                    HStack(spacing: OriveoTheme.Spacing.sm) {
+                        ConnectionAvatarIcon(provider: provider, kind: provider.kind, relayKind: provider.relayKind, size: 26)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(currentModel?.name ?? L10n.tr("Choose Model"))
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.8)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .layoutPriority(1)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(currentModel?.name ?? L10n.tr("Choose Model"))
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(OriveoTheme.Palette.textPrimary)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.8)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .layoutPriority(1)
 
-                        if let currentModel {
-                            LocalModelRuntimeLabel(model: currentModel)
-                        }
+                            if let currentModel {
+                                LocalModelRuntimeLabel(model: currentModel)
+                            }
 
-                        HStack(spacing: 4) {
-                            Text(provider.displayName)
-                                .font(OriveoTheme.Typography.footnote)
-                                .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                                .lineLimit(1)
+                            HStack(spacing: 4) {
+                                Text(provider.displayName)
+                                    .font(OriveoTheme.Typography.footnote)
+                                    .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                                    .lineLimit(1)
 
-                            Image(systemName: "chevron.up.chevron.down")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                            }
                         }
                     }
+                    .padding(.leading, 2)
+                    .contentShape(.rect)
                 }
-                .padding(.leading, 2)
-                .contentShape(.rect)
             }
             .buttonStyle(ChatToolbarPressableStyle())
 
@@ -77,7 +84,7 @@ struct ChatToolbar: View {
                 ChatCostPill(text: CostFormatter.format(projection.estimatedCost))
             }
 
-            if showMemoryIndicator {
+            if showMemoryIndicator && !usesVerticalBar {
                 Button {
                     showMemoryPopover = true
                 } label: {
@@ -95,59 +102,51 @@ struct ChatToolbar: View {
                 .accessibilityHint(L10n.tr("View/edit full memory", table: .chat))
             }
 
-            Menu {
-                Button {
-                    appState.startNewChat(preferredProviderID: provider.id)
-                } label: {
-                    Label(L10n.tr("New Chat"), systemImage: "plus")
-                }
-
-                Button {
-                    presentExport()
-                } label: {
-                    Label(L10n.tr("Export Conversation", table: .chat), systemImage: "square.and.arrow.up")
-                }
-                .disabled(!projection.exportsEnabled)
-
-                if projection.estimatedCost > 0 {
-                    Section {
-                        Text(CostFormatter.format(projection.estimatedCost))
+            if !usesVerticalBar {
+                Menu {
+                    Button {
+                        appState.startNewChat(preferredProviderID: provider.id)
+                    } label: {
+                        Label(L10n.tr("New Chat"), systemImage: "plus")
                     }
-                }
 
-                if !appState.preferences.memoryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Toggle(isOn: Binding(
-                        get: { projection.useMemory },
-                        set: { newValue in
-                            if let conversationID = projection.activeConversationID {
-                                appState.setConversationUseMemory(conversationID, useMemory: newValue)
-                            }
-                        }
-                    )) {
-                        Label(L10n.tr("Use Memory", table: .chat), systemImage: "brain")
+                    Button {
+                        presentExport()
+                    } label: {
+                        Label(L10n.tr("Export Conversation", table: .chat), systemImage: "square.and.arrow.up")
                     }
-                }
+                    .disabled(!projection.exportsEnabled)
 
-                if projection.activeConversationID != nil {
-                    Section {
-                        Button(role: .destructive) {
-                            showDeleteConfirmation = true
-                        } label: {
-                            Label(L10n.tr("Delete Conversation", table: .chat), systemImage: "trash")
+                    if projection.estimatedCost > 0 {
+                        Section {
+                            Text(CostFormatter.format(projection.estimatedCost))
                         }
                     }
+
+                    if hasMemoryText {
+                        useMemoryToggle
+                    }
+
+                    if projection.activeConversationID != nil {
+                        Section {
+                            deleteButton
+                        }
+                    }
+                } label: {
+                    ChatToolbarIconCapsule(systemImage: "ellipsis")
                 }
-            } label: {
-                ChatToolbarIconCapsule(systemImage: "ellipsis")
+                .menuStyle(.button)
+                .buttonStyle(ChatToolbarPressableStyle())
             }
-            .menuStyle(.button)
-            .buttonStyle(ChatToolbarPressableStyle())
         }
+        // Without vertical bars the navigation bar is hidden and this produces no items, so nothing changes there
+        .toolbar { verticalBarItems }
         .padding(.horizontal, OriveoTheme.Spacing.lg)
         .padding(.top, OriveoTheme.Spacing.md)
         .padding(.bottom, OriveoTheme.Spacing.sm)
         .background {
             if !transparentChrome {
+                // Extends sideways too: the Duo cover screen and the unfolded Duo held sideways have an 84pt vertical status bar safe area on the right, and filling only the top would leave a strip of another colour there.
                 LinearGradient(
                     stops: [
                         .init(color: OriveoTheme.Palette.background, location: 0),
@@ -157,7 +156,7 @@ struct ChatToolbar: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .ignoresSafeArea(.container, edges: .top)
+                .ignoresSafeArea(.container, edges: [.top, .horizontal])
             }
         }
         .sheet(item: $pendingExport) { item in
@@ -167,6 +166,137 @@ struct ChatToolbar: View {
                     ToastManager.shared.show(L10n.tr("Conversation exported as Markdown.", table: .chat))
                 }
             }
+        }
+    }
+
+    // MARK: - Vertical bars (Duo)
+
+    /// The model capsule with vertical bars: model name · provider on one line, shorter than the two-line version, giving the height back to the cover screen's reading area.
+    private var verticalBarModelLabel: some View {
+        HStack(spacing: OriveoTheme.Spacing.sm) {
+            ConnectionAvatarIcon(provider: provider, kind: provider.kind, relayKind: provider.relayKind, size: 22)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Text(currentModel?.name ?? L10n.tr("Choose Model"))
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(OriveoTheme.Palette.textPrimary)
+                        .lineLimit(1)
+                        .layoutPriority(1)
+
+                    Text(verbatim: "·")
+                        .font(OriveoTheme.Typography.footnote)
+                        .foregroundStyle(OriveoTheme.Palette.textTertiary)
+                        .accessibilityHidden(true)
+
+                    Text(provider.displayName)
+                        .font(OriveoTheme.Typography.footnote)
+                        .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                        .lineLimit(1)
+
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                }
+
+                // The runtime / loading state is a notice people need to see; it is not hidden to save a line
+                if let currentModel {
+                    LocalModelRuntimeLabel(model: currentModel)
+                }
+            }
+        }
+        .padding(.leading, 2)
+        .contentShape(.rect)
+    }
+
+    /// System toolbar items for the vertical bar. Each has both an icon and a title; the system leaves title-only or custom-view items out of a vertical bar.
+    /// Ordered per the HIG: back first, then the main actions; when space runs out Export goes first and New Chat last;
+    /// the Use Memory toggle and Delete go into the system overflow menu rather than a custom "…".
+    @ToolbarContentBuilder
+    private var verticalBarItems: some ToolbarContent {
+        if usesVerticalBar {
+            // ToolbarOverflowMenu and visibilityPriority are iOS 27 API; vertical bars only appear from 27.1
+            if #available(iOS 27.0, *) {
+                if !navigation.isRegularWidth {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            appState.pop()
+                        } label: {
+                            Label(L10n.tr("Back"), systemImage: "chevron.backward")
+                        }
+                    }
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        appState.startNewChat(preferredProviderID: provider.id)
+                    } label: {
+                        Label(L10n.tr("New Chat"), systemImage: "plus")
+                    }
+                }
+                .visibilityPriority(.high)
+
+                if showMemoryIndicator {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showMemoryPopover = true
+                        } label: {
+                            Label(L10n.tr("Memory"), systemImage: "brain")
+                        }
+                        .popover(isPresented: $showMemoryPopover) {
+                            memoryPopoverContent
+                        }
+                        .accessibilityLabel(L10n.tr("This conversation is using memory", table: .chat))
+                        .accessibilityHint(L10n.tr("View/edit full memory", table: .chat))
+                    }
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        presentExport()
+                    } label: {
+                        Label(L10n.tr("Export Conversation", table: .chat), systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(!projection.exportsEnabled)
+                }
+                .visibilityPriority(.low)
+
+                if hasMemoryText || projection.activeConversationID != nil {
+                    ToolbarOverflowMenu {
+                        if hasMemoryText {
+                            useMemoryToggle
+                        }
+                        if projection.activeConversationID != nil {
+                            deleteButton
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var hasMemoryText: Bool {
+        !appState.preferences.memoryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var useMemoryToggle: some View {
+        Toggle(isOn: Binding(
+            get: { projection.useMemory },
+            set: { newValue in
+                if let conversationID = projection.activeConversationID {
+                    appState.setConversationUseMemory(conversationID, useMemory: newValue)
+                }
+            }
+        )) {
+            Label(L10n.tr("Use Memory", table: .chat), systemImage: "brain")
+        }
+    }
+
+    private var deleteButton: some View {
+        Button(role: .destructive) {
+            showDeleteConfirmation = true
+        } label: {
+            Label(L10n.tr("Delete Conversation", table: .chat), systemImage: "trash")
         }
     }
 
@@ -188,9 +318,7 @@ struct ChatToolbar: View {
     // MARK: - Memory
 
     private var showMemoryIndicator: Bool {
-        let memoryText = appState.preferences.memoryText
-        let useMemory = projection.useMemory
-        return !memoryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && useMemory
+        hasMemoryText && projection.useMemory
     }
 
     private var memoryPopoverContent: some View {
@@ -479,3 +607,62 @@ private struct ChatToolbarPressableStyle: ButtonStyle {
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
+
+// MARK: - Chat navigation chrome
+
+extension EnvironmentValues {
+    /// The system runs the navigation bar vertically along a side here. Injected by `chatNavigationChrome` from `toolbarVerticalEdge`.
+    @Entry var chatUsesVerticalBar = false
+}
+
+extension View {
+    /// The chat page's navigation chrome. Usually the same as `oriveoNavigationChrome`: the system navigation bar
+    /// is hidden and the top bar is drawn by the page. Where the system wants vertical bars (the Duo cover screen,
+    /// the detail column of the unfolded Duo held sideways) the system navigation bar is shown so back, new chat
+    /// and the rest go into the vertical bar — a custom top bar never turns vertical, only system bars do (HIG
+    /// Vertical controls). On an ordinary iPhone or iPad the condition is false and nothing changes. With
+    /// `showsSystemBar` false (the empty detail column, no toolbar items) no system bar appears even then.
+    func chatNavigationChrome(showsSystemBar: Bool = true) -> some View {
+        modifier(ChatNavigationChrome(showsSystemBar: showsSystemBar))
+            .readingToolbarVerticalEdge()
+    }
+
+    /// Reads the system's vertical bar edge into `chatUsesVerticalBar`. Per the system documentation the value reflects the preferred edge
+    /// whether or not a vertical bar is visible, so it can be read while the navigation bar is hidden and showing the bar cannot flip it back.
+    @ViewBuilder
+    fileprivate func readingToolbarVerticalEdge() -> some View {
+        // The 27.0 SDK has no vertical bar API (the project sets this condition by SDK name, see project.pbxproj)
+        #if ORIVEO_SDK_BEFORE_27_1
+        self
+        #else
+        if #available(iOS 27.1, *) {
+            modifier(ToolbarVerticalEdgeReader())
+        } else {
+            self
+        }
+        #endif
+    }
+}
+
+private struct ChatNavigationChrome: ViewModifier {
+    let showsSystemBar: Bool
+    @Environment(\.chatUsesVerticalBar) private var usesVerticalBar
+
+    func body(content: Content) -> some View {
+        // Only the visibility value changes, the modifier is never attached conditionally: the view keeps its identity across folding and the page keeps its state
+        content
+            .navigationBarBackButtonHidden(true)
+            .toolbar(showsSystemBar && usesVerticalBar ? .visible : .hidden, for: .navigationBar)
+    }
+}
+
+#if !ORIVEO_SDK_BEFORE_27_1
+@available(iOS 27.1, *)
+private struct ToolbarVerticalEdgeReader: ViewModifier {
+    @Environment(\.toolbarVerticalEdge) private var edge
+
+    func body(content: Content) -> some View {
+        content.environment(\.chatUsesVerticalBar, edge != nil)
+    }
+}
+#endif

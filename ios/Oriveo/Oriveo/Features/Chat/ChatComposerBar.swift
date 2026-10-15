@@ -658,7 +658,7 @@ struct ChatComposerBar: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .ignoresSafeArea(.container, edges: .bottom)
+                .ignoresSafeArea(.container, edges: [.bottom, .horizontal])
             }
         }
         .animation(preferredAnimation, value: showsModeControls)

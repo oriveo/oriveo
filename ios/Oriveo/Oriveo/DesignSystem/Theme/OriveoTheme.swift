@@ -275,43 +275,51 @@ struct OriveoScreenBackground: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        ZStack {
-            Rectangle()
-                .fill(baseFillStyle)
+        Rectangle()
+            .fill(baseFillStyle)
+            // The glow is an overlay rather than a sibling in a ZStack: a fixed 460 / 500pt circle wider than the content
+            // would size the ZStack to the circle and centre it on the content area, so ignoresSafeArea could not fill
+            // the side safe areas. On the Duo cover screen the content area is 382pt and the fill reached only
+            // (382 + 460) / 2 = 421pt, leaving the host's white showing under the status bar column on the right.
+            // An overlay takes no part in sizing.
+            .overlay { glow }
+            .ignoresSafeArea()
+    }
 
-            if colorScheme == .dark {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                Color(hex: glowTint, alpha: 0.14),
-                                Color.clear
-                            ],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: 300
-                        )
+    // Brand glow: gives the frosted header and composer a layer of colour to refract
+    @ViewBuilder
+    private var glow: some View {
+        if colorScheme == .dark {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(hex: glowTint, alpha: 0.14),
+                            Color.clear
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 300
                     )
-                    .frame(width: 500, height: 500)
-                    .offset(y: -100)
-            } else {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                Color(hex: glowTint, alpha: 0.07),
-                                Color.clear
-                            ],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: 280
-                        )
+                )
+                .frame(width: 500, height: 500)
+                .offset(y: -100)
+        } else {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(hex: glowTint, alpha: 0.07),
+                            Color.clear
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 280
                     )
-                    .frame(width: 460, height: 460)
-                    .offset(y: -80)
-            }
+                )
+                .frame(width: 460, height: 460)
+                .offset(y: -80)
         }
-        .ignoresSafeArea()
     }
 
     private var baseFillStyle: AnyShapeStyle {
