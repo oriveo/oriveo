@@ -46,18 +46,28 @@ enum ShotsLayoutProbe {
         var secure: Bool
         var editable: Bool
         var truncated: Bool?
+        /// The UIKit system bar container (class name) the node sits in; nil means the app placed it.
+        /// Controls the system places (such as the `.searchable` button in the bottom toolbar) follow the
+        /// bar's own rules, so they do not count as intruding into the safe area.
+        var systemBar: String?
 
         var signature: String {
             "\(role)|\(text)|\(value)|\(Int(frame.minX)),\(Int(frame.minY)),\(Int(frame.width)),\(Int(frame.height))"
         }
     }
 
+    /// The visible area used to filter nodes: the key window's frame in screen coordinates.
+    /// Not `UIScreen.main` — on a folding device it reports the folded value (466pt while the
+    /// unfolded Duo window is 951pt), and filtering with it drops everything right of 466pt.
+    private static var visibleBounds: CGRect = .null
+
     private static func collect() -> [Node] {
         var nodes: [Node] = []
+        visibleBounds = keyWindow().map(screenFrame(of:)) ?? .null
         for window in appWindows() {
             // When a sheet / full-screen page is presented, only the topmost layer is considered: the covered pages are not exported on the other platforms either
             let root: UIView = topPresented(in: window)?.view ?? window
-            visit(root, clip: root.convert(root.bounds, to: nil), into: &nodes, depth: 0)
+            visit(root, clip: root.convert(root.bounds, to: nil), systemBar: nil, into: &nodes, depth: 0)
         }
         return nodes
     }
@@ -74,6 +84,18 @@ enum ShotsLayoutProbe {
             .sorted { $0.windowLevel.rawValue < $1.windowLevel.rawValue }
     }
 
+    private static func keyWindow() -> UIWindow? {
+        let windows = appWindows()
+        return windows.first { $0.isKeyWindow } ?? windows.first
+    }
+
+    /// `accessibilityFrame` is in the coordinate space of the window's screen, so the window frame is
+    /// converted into the same space before comparing.
+    private static func screenFrame(of window: UIWindow) -> CGRect {
+        guard let space = window.windowScene?.screen.coordinateSpace else { return window.frame }
+        return window.convert(window.bounds, to: space)
+    }
+
     private static func topPresented(in window: UIWindow) -> UIViewController? {
         var top = window.rootViewController?.presentedViewController
         while let next = top?.presentedViewController, !next.isBeingDismissed { top = next }
@@ -81,11 +103,13 @@ enum ShotsLayoutProbe {
     }
 
     /// clip = the visible area on screen of the ancestor view that clips content (a scroll view / the sheet itself); parts scrolled out of it are not "on screen".
-    private static func visit(_ object: NSObject, clip: CGRect, into nodes: inout [Node], depth: Int) {
+    private static func visit(_ object: NSObject, clip: CGRect, systemBar: String?, into nodes: inout [Node], depth: Int) {
         guard depth < 80 else { return }
         var clip = clip
+        var systemBar = systemBar
         if let view = object as? UIView {
             if view.isHidden || view.alpha < 0.01 { return }
+            if systemBar == nil, let name = systemBarClassName(view) { systemBar = name }
             if view.clipsToBounds || view is UIScrollView {
                 clip = clip.intersection(view.convert(view.bounds, to: nil))
                 if clip.isNull || clip.isEmpty { return }
@@ -97,13 +121,22 @@ enum ShotsLayoutProbe {
                 let visible = node.frame.intersection(clip)
                 guard !visible.isNull, visible.width > 0.5, visible.height > 0.5 else { return }
                 node.frame = visible
+                node.systemBar = systemBar
                 nodes.append(node)
             }
             return
         }
         for child in children(of: object) {
-            visit(child, clip: clip, into: &nodes, depth: depth + 1)
+            visit(child, clip: clip, systemBar: systemBar, into: &nodes, depth: depth + 1)
         }
+    }
+
+    /// UIKit's own bar containers (navigation bar, toolbar, tab bar, the floating bars since iOS 26, and
+    /// so on): the class name starts with UI or _UI and contains Bar.
+    private static func systemBarClassName(_ view: UIView) -> String? {
+        let name = String(describing: type(of: view))
+        guard name.hasPrefix("UI") || name.hasPrefix("_UI"), name.contains("Bar") else { return nil }
+        return name
     }
 
     private static func children(of object: NSObject) -> [NSObject] {
@@ -123,8 +156,7 @@ enum ShotsLayoutProbe {
     private static func makeNode(_ object: NSObject) -> Node? {
         let frame = object.accessibilityFrame
         guard frame.width > 0.5, frame.height > 0.5 else { return nil }
-        let screen = UIScreen.main.bounds
-        guard frame.intersects(screen) else { return nil }
+        guard visibleBounds.isNull || frame.intersects(visibleBounds) else { return nil }
         let label = object.accessibilityLabel ?? ""
         let value = object.accessibilityValue ?? ""
         let traits = object.accessibilityTraits
@@ -178,20 +210,93 @@ enum ShotsLayoutProbe {
         return verdicts.allSatisfy { $0 }
     }
 
+    // MARK: - Wide-screen layout
+
+    private static func sizeClassName(_ value: UIUserInterfaceSizeClass?) -> String {
+        switch value {
+        case .compact: "compact"
+        case .regular: "regular"
+        default: "unspecified"
+        }
+    }
+
+    /// Frame and orientation of each system bar (navigation bar / tab bar / toolbar). On a Duo the
+    /// system stands the bars up along the side, so the orientation comes from geometry (taller than
+    /// wide means vertical) rather than an API that only exists from the 27.1 SDK; 27.0 still builds.
+    /// Only the outermost match is recorded: subviews inside a bar often carry the same words.
+    private static func collectBars(in window: UIWindow) -> [[String: Any]] {
+        var bars: [[String: Any]] = []
+        func visit(_ view: UIView, depth: Int) {
+            guard depth < 60, !view.isHidden, view.alpha > 0.01 else { return }
+            let name = String(describing: type(of: view))
+            let kind: String? = name.contains("TabBar") ? "tab"
+                : name.contains("NavigationBar") ? "nav"
+                : name.contains("Toolbar") ? "toolbar"
+                : nil
+            let frame = view.convert(view.bounds, to: window)
+            if let kind, frame.width > 1, frame.height > 1, frame.intersects(window.bounds) {
+                bars.append([
+                    "kind": kind,
+                    "class": name,
+                    "axis": frame.height > frame.width ? "vertical" : "horizontal",
+                    "rect": rectDictionary(frame),
+                ])
+                return
+            }
+            for child in view.subviews { visit(child, depth: depth + 1) }
+        }
+        visit(window, depth: 0)
+        return bars
+    }
+
+    /// The actual width of each column of a split container (a NavigationSplitView is a
+    /// UISplitViewController underneath).
+    private static func collectSplitColumns(in window: UIWindow) -> [[String: Any]] {
+        var result: [[String: Any]] = []
+        func visit(_ controller: UIViewController, depth: Int) {
+            guard depth < 40 else { return }
+            if let split = controller as? UISplitViewController {
+                let columns: [[String: Any]] = split.viewControllers.compactMap { child in
+                    guard child.isViewLoaded, child.view.window != nil, !child.view.isHidden else { return nil }
+                    return ["rect": rectDictionary(child.view.convert(child.view.bounds, to: window))]
+                }
+                result.append(["collapsed": split.isCollapsed, "columns": columns])
+            }
+            for child in controller.children { visit(child, depth: depth + 1) }
+            if let presented = controller.presentedViewController, presented.presentingViewController === controller {
+                visit(presented, depth: depth + 1)
+            }
+        }
+        if let root = window.rootViewController { visit(root, depth: 0) }
+        return result
+    }
+
+    private static func rectDictionary(_ rect: CGRect) -> [String: CGFloat] {
+        ["x": rect.minX, "y": rect.minY, "w": rect.width, "h": rect.height]
+    }
+
     // MARK: - Output
 
     private static func write(page: String, nodes: [Node], timedOut: Bool, waited: TimeInterval) {
-        let window = appWindows().first { $0.isKeyWindow } ?? appWindows().first
+        let window = keyWindow()
         let insets = window?.safeAreaInsets ?? .zero
-        let screen = UIScreen.main.bounds
+        // `screen` keeps its cross-platform meaning, "the area the app can draw in", so it is the window
+        // size; the physical screen is recorded separately as `display`.
+        let windowSize = window?.bounds.size ?? .zero
+        let display = window?.windowScene?.screen.bounds.size ?? .zero
+        let traits = window?.traitCollection
         let payload: [String: Any] = [
             "end": "ios",
             "page": page,
             "units": "pt",
             "ready": !timedOut,
             "waitedMs": Int(waited * 1000),
-            "screen": ["w": screen.width, "h": screen.height],
-            "safe": ["top": insets.top, "bottom": insets.bottom],
+            "screen": ["w": windowSize.width, "h": windowSize.height],
+            "display": ["w": display.width, "h": display.height],
+            "sizeClass": ["h": sizeClassName(traits?.horizontalSizeClass), "v": sizeClassName(traits?.verticalSizeClass)],
+            "safe": ["top": insets.top, "bottom": insets.bottom, "left": insets.left, "right": insets.right],
+            "bars": window.map(collectBars(in:)) ?? [],
+            "split": window.map(collectSplitColumns(in:)) ?? [],
             "nodes": nodes.map { node -> [String: Any] in
                 var item: [String: Any] = [
                     "text": node.text,
@@ -202,6 +307,7 @@ enum ShotsLayoutProbe {
                 ]
                 if !node.value.isEmpty { item["value"] = node.value }
                 if let truncated = node.truncated { item["truncated"] = truncated }
+                if let systemBar = node.systemBar { item["systemBar"] = systemBar }
                 return item
             },
         ]

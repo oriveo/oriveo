@@ -988,7 +988,8 @@ struct CachedMarkdownView: UIViewRepresentable {
             let basePara = OriveoTheme.Typography.chatParagraphStyle(
                 lineHeightMultiple: typography.lineHeightMultiple,
                 paragraphSpacing: typography.paragraphSpacing,
-                fontSize: typography.baseFontSize
+                fontSize: typography.baseFontSize,
+                displayScale: OriveoTheme.Typography.currentDisplayScale
             ).mutableCopy() as! NSMutableParagraphStyle
             nsResult.addAttribute(.paragraphStyle, value: basePara, range: fullRange)
 

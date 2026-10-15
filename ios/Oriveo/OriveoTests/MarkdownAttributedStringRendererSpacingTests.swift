@@ -29,6 +29,32 @@ struct MarkdownAttributedStringRendererSpacingTests {
         return links
     }
 
+    /// On an iPad (screen 1032pt) with a chat column of about 632pt, the rule used to stretch to 960pt
+    /// via `max(lineFrag, screenWidth - 72)` and run out of the column; its width must follow only
+    /// the line fragment width the text container gives it.
+    @Test("horizontal rule width follows the line fragment, not the screen")
+    func horizontalRuleWidthFollowsLineFragment() throws {
+        let rendered = MarkdownAttributedStringRenderer.render("above\n\n---\n\nbelow")
+        var rule: NSTextAttachment?
+        rendered.enumerateAttribute(
+            .attachment,
+            in: NSRange(location: 0, length: rendered.length)
+        ) { value, _, stop in
+            if let attachment = value as? NSTextAttachment {
+                rule = attachment
+                stop.pointee = true
+            }
+        }
+        let attachment = try #require(rule)
+        let bounds = attachment.attachmentBounds(
+            for: nil,
+            proposedLineFragment: CGRect(x: 0, y: 0, width: 300, height: 20),
+            glyphPosition: .zero,
+            characterIndex: 0
+        )
+        #expect(bounds.width == 300)
+    }
+
     @Test("only HTTPS markdown links are interactive in UIKit and cached renderers")
     func unsafeMarkdownLinksArePlainText() {
         let markdown = "[safe](https://example.com) [plain](http://example.com) [script](javascript:alert)"

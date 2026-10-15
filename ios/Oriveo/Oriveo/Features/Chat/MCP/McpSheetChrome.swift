@@ -41,6 +41,9 @@ struct McpFittedSheet<Content: View, Footer: View>: View {
 
     @State private var contentHeight: CGFloat = 0
     @State private var footerHeight: CGFloat = 0
+    /// Height of the window hosting the sheet. The sheet's own height is set by this detent, so
+    /// measuring it would shrink it in a loop; the window is measured instead.
+    @State private var hostWindowHeight: CGFloat?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -57,6 +60,7 @@ struct McpFittedSheet<Content: View, Footer: View>: View {
                 .padding(.bottom, McpSheetMetrics.bottomPadding)
                 .background { McpHeightReader { footerHeight = $0 } }
         }
+        .background { HostWindowHeightReader { hostWindowHeight = $0 } }
         .interactiveDismissDisabled(!allowsInteractiveDismiss)
         .presentationDetents([.height(detentHeight)])
         .presentationDragIndicator(.visible)
@@ -69,7 +73,8 @@ struct McpFittedSheet<Content: View, Footer: View>: View {
     private var detentHeight: CGFloat {
         let total = contentHeight + footerHeight
         guard total.isFinite, total > 0 else { return fallbackHeight }
-        return min(total, UIScreen.main.bounds.height * 0.86)
+        guard let hostWindowHeight else { return min(total, fallbackHeight) }
+        return min(total, hostWindowHeight * 0.86)
     }
 }
 

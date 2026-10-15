@@ -368,7 +368,7 @@ final class UserMessageCell: UICollectionViewCell {
         }()
         // Snap to the pixel grid: the measurement cache key, the measured width and the constraint share one value
         // (see UserBubbleTextLayout.size).
-        let scale = traitCollection.displayScale > 0 ? traitCollection.displayScale : UIScreen.main.scale
+        let scale = traitCollection.displayScale > 0 ? traitCollection.displayScale : 3
         let effectiveBubbleWidth = (rawBubbleWidth * scale).rounded(.down) / scale
 
         bubbleWidthConstraint.constant = effectiveBubbleWidth
@@ -380,7 +380,7 @@ final class UserMessageCell: UICollectionViewCell {
 
         if hasText {
             let userParagraph = NSMutableParagraphStyle()
-            let scale = UIScreen.main.scale > 0 ? UIScreen.main.scale : 3.0
+            let scale = traitCollection.displayScale > 0 ? traitCollection.displayScale : 3.0
             let userFont = OriveoTheme.Typography.chatBodyUIFont()
             let alignedLineHeight = (userFont.lineHeight * 1.08 * scale).rounded() / scale
             userParagraph.minimumLineHeight = alignedLineHeight

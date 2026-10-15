@@ -122,12 +122,22 @@ final class UIKitUnhandledToolCallView: UIView {
         }
     }
 
+    /// The hairline is 1px at the pixel density of the view's screen; before the view is in a window
+    /// displayScale is 0 and it falls back to 3.
+    private func updateHairline() {
+        let scale = traitCollection.displayScale > 0 ? traitCollection.displayScale : 3
+        layer.borderWidth = 1 / scale
+    }
+
     private func setup() {
         isHidden = true
         backgroundColor = UIColor(OriveoTheme.Palette.surfaceInset)
         layer.cornerRadius = 8
         layer.cornerCurve = .continuous
-        layer.borderWidth = 1 / UIScreen.main.scale
+        updateHairline()
+        registerForTraitChanges([UITraitDisplayScale.self]) { (view: UIKitUnhandledToolCallView, _: UITraitCollection) in
+            view.updateHairline()
+        }
         layer.borderColor = UIColor(OriveoTheme.Palette.border).cgColor
 
         contentStack.axis = .vertical

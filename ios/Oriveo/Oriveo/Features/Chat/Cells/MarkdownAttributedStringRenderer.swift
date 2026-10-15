@@ -147,7 +147,7 @@ nonisolated enum MarkdownAttributedStringRenderer {
     private static let tableHeaderBg = UIColor(Color.dynamic(light: 0xF1F5F9, dark: 0x1E293B))
 
     private static let baseParagraphStyle: NSParagraphStyle = {
-        OriveoTheme.Typography.chatParagraphStyle()
+        OriveoTheme.Typography.chatParagraphStyle(displayScale: OriveoTheme.Typography.currentDisplayScale)
     }()
 
     private static let plainAttrs: [NSAttributedString.Key: Any] = [
@@ -317,7 +317,8 @@ nonisolated enum MarkdownAttributedStringRenderer {
         let baseStyle = OriveoTheme.Typography.chatParagraphStyle(
             lineHeightMultiple: 1.08,
             paragraphSpacing: 4,
-            fontSize: fontSize
+            fontSize: fontSize,
+            displayScale: OriveoTheme.Typography.currentDisplayScale
         )
         let para = (baseStyle.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
         para.paragraphSpacingBefore = level == 1 ? 16 : level == 2 ? 12 : 8
@@ -887,7 +888,10 @@ final class BlockMathPlaceholderAttachment: NSTextAttachment {
             height: max(imageBounds.height, 1)
         )
         let format = UIGraphicsImageRendererFormat.default()
-        format.scale = UIScreen.main.scale
+        // An attachment has no trait of its own: use the displayScale of the trait current while
+        // drawing, and keep the format's default when that is 0.
+        let currentScale = UITraitCollection.current.displayScale
+        if currentScale > 0 { format.scale = currentScale }
 
         return UIGraphicsImageRenderer(size: size, format: format).image { _ in
             placeholderColor.setFill()
@@ -924,8 +928,24 @@ private final class HorizontalRuleAttachment: NSTextAttachment {
         glyphPosition position: CGPoint,
         characterIndex charIndex: Int
     ) -> CGRect {
-        let availableWidth = max(lineFrag.width, UIScreen.main.bounds.width - 72)
+        let availableWidth = Self.ruleWidth(
+            lineFragmentWidth: lineFrag.width,
+            textContainerWidth: textContainer?.size.width
+        )
         return CGRect(x: 0, y: -4, width: availableWidth, height: lineHeight)
+    }
+
+    /// The rule width only follows the text container's own width. The old
+    /// `max(lineFrag.width, screenWidth - 72)` stretched the rule to 960pt on an iPad (screen 1032pt)
+    /// while the chat column is only about 632pt, so it ran out of the column. Without a line
+    /// fragment it falls back to the text container width, and only when neither is available to a
+    /// conservative constant (replaced by the real line fragment width after the first layout).
+    static func ruleWidth(lineFragmentWidth: CGFloat, textContainerWidth: CGFloat?) -> CGFloat {
+        if lineFragmentWidth > 0 { return lineFragmentWidth }
+        if let textContainerWidth, textContainerWidth > 0, textContainerWidth < CGFloat.greatestFiniteMagnitude / 2 {
+            return textContainerWidth
+        }
+        return 300
     }
 
     override func image(
@@ -938,7 +958,8 @@ private final class HorizontalRuleAttachment: NSTextAttachment {
             height: max(imageBounds.height, 1)
         )
         let format = UIGraphicsImageRendererFormat.default()
-        format.scale = UIScreen.main.scale
+        let currentScale = UITraitCollection.current.displayScale
+        if currentScale > 0 { format.scale = currentScale }
 
         return UIGraphicsImageRenderer(size: size, format: format).image { context in
             color.setStroke()

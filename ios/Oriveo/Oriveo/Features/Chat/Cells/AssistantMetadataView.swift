@@ -464,7 +464,9 @@ final class AssistantMetadataView: UIStackView {
         controller.view.backgroundColor = .clear
 
         let host = nearestViewController()
-        let width = host?.view.bounds.width ?? UIScreen.main.bounds.width
+        // Without a host, use the width of this view's window (in iPad Split View or on a Duo the
+        // screen width is not the usable width).
+        let width = host?.view.bounds.width ?? window?.bounds.width ?? bounds.width
         let measurer = UIHostingController(rootView: MessageTokenUsageContent(usage: usage))
         if let host {
             measurer.traitOverrides.preferredContentSizeCategory =

@@ -17,7 +17,15 @@ final class ChatListViewController: UIViewController {
         layout.settings.additionalInsets = UIEdgeInsets(top: 16, left: 0, bottom: 0, right: 0)
         layout.settings.interItemSpacing = 0
         layout.settings.interSectionSpacing = 0
-        layout.settings.estimatedItemSize = CGSize(width: UIScreen.main.bounds.width, height: 80)
+        // The estimate is only a first-screen placeholder; each cell's systemLayoutSizeFitting replaces
+        // it with the real height. The width follows this view's actual width (an iPad split layout or an
+        // unfolded Duo differs from the screen width); before the first layout a common phone width is
+        // used, and viewDidLayoutSubviews rewrites it once the collection view has its real width.
+        let initialWidth = viewIfLoaded?.bounds.width ?? 0
+        layout.settings.estimatedItemSize = CGSize(
+            width: initialWidth > 0 ? initialWidth : Self.fallbackEstimatedItemWidth,
+            height: Self.estimatedItemHeight
+        )
         layout.delegate = self
         return layout
     }()
@@ -34,7 +42,7 @@ final class ChatListViewController: UIViewController {
     private lazy var stickController = ChatStickToBottomController(
         geometry: self,
         minBottomPadding: Self.bottomBreathingRoom,
-        displayScale: traitCollection.displayScale > 0 ? traitCollection.displayScale : UIScreen.main.scale,
+        displayScale: traitCollection.displayScale > 0 ? traitCollection.displayScale : 3,
         hasStreamingContent: { [weak self] in
             guard let self else { return false }
             for case let cell as AssistantMessageCell in self.collectionView.visibleCells
@@ -299,11 +307,25 @@ final class ChatListViewController: UIViewController {
         super.viewDidLayoutSubviews()
         if collectionView.frame != view.bounds {
             collectionView.frame = view.bounds
+            syncEstimatedItemWidth()
             reconcileViewportChangeEnsuringFullLayout(animated: false)
         }
         skeletonOverlay.frame = view.bounds
         rebuildIfReady()
     }
+
+    /// The estimated width follows the collection view's actual width; it is only written when it
+    /// changes (changing the settings invalidates the whole layout).
+    private func syncEstimatedItemWidth() {
+        let width = collectionView.bounds.width
+        guard width > 0, chatLayout.settings.estimatedItemSize?.width != width else { return }
+        chatLayout.settings.estimatedItemSize = CGSize(width: width, height: Self.estimatedItemHeight)
+    }
+
+    private static let estimatedItemHeight: CGFloat = 80
+    /// Placeholder width before the first layout (the iPhone baseline of 402pt), replaced as soon as
+    /// the real width arrives.
+    private static let fallbackEstimatedItemWidth: CGFloat = 402
 
 
     func update(

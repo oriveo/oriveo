@@ -199,6 +199,16 @@ struct NoteDetailView: View {
 
     @ViewBuilder
     private func content(_ note: Note) -> some View {
+        // Proportional heights on the page use the page container's height (including the safe area,
+        // i.e. the full page height within its window) instead of the screen height: on the Duo cover
+        // screen or in a resized window the two differ, and full screen on an iPhone gives the same value.
+        GeometryReader { proxy in
+            let pageHeight = proxy.size.height + proxy.safeAreaInsets.top + proxy.safeAreaInsets.bottom
+            scrollContent(note, pageHeight: pageHeight)
+        }
+    }
+
+    private func scrollContent(_ note: Note, pageHeight: CGFloat) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 detailHeader(note)
@@ -221,7 +231,8 @@ struct NoteDetailView: View {
                     contentPicker(note).padding(.bottom, 12)
                 }
 
-                contentCard(note)
+                // Bounded content card
+                contentCard(note, pageHeight: pageHeight)
 
                 editControls(note).padding(.top, 12)
 
@@ -588,7 +599,7 @@ struct NoteDetailView: View {
     }
 
     @ViewBuilder
-    private func contentCard(_ note: Note) -> some View {
+    private func contentCard(_ note: Note, pageHeight: CGFloat) -> some View {
         if isEditingBody {
             Group {
                 if bodyEditorSession?.editor == .bounded {
@@ -597,11 +608,11 @@ struct NoteDetailView: View {
                         isEditable: true,
                         focusTakeover: bodyEditorSession?.focusTakeover
                     )
-                        .frame(height: UIScreen.main.bounds.height * 0.52)
+                        .frame(height: pageHeight * 0.52)
                 } else {
                     TextEditor(text: plainEditorBodyBinding)
                         .font(.system(size: 17))
-                        .frame(minHeight: UIScreen.main.bounds.height * 0.42)
+                        .frame(minHeight: pageHeight * 0.42)
                         .scrollContentBackground(.hidden)
                 }
             }
@@ -617,7 +628,7 @@ struct NoteDetailView: View {
                 VStack(spacing: 30) {
                     if NoteText.requiresBoundedLayout(text) {
                         BoundedNoteTextView(text: .constant(text), isEditable: false)
-                            .frame(height: UIScreen.main.bounds.height * 0.58)
+                            .frame(height: pageHeight * 0.58)
                     } else {
                         MarkdownMessageView(
                             text: contentPane == 0 ? reading.primaryMarkdown : reading.secondaryMarkdown,

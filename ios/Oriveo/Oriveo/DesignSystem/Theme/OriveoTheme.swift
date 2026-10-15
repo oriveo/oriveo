@@ -126,20 +126,37 @@ enum OriveoTheme {
             return font
         }
 
-        static func chatParagraphStyle(lineHeightMultiple: CGFloat = 1.2, paragraphSpacing: CGFloat = 4) -> NSParagraphStyle {
+        static func chatParagraphStyle(
+            lineHeightMultiple: CGFloat = 1.2,
+            paragraphSpacing: CGFloat = 4,
+            displayScale: CGFloat = OriveoTheme.Typography.currentDisplayScale
+        ) -> NSParagraphStyle {
             chatParagraphStyle(
                 lineHeightMultiple: lineHeightMultiple,
                 paragraphSpacing: paragraphSpacing,
-                fontSize: 17
+                fontSize: 17,
+                displayScale: displayScale
             )
+        }
+
+        /// Pixel density for static contexts without a view trait (renderers, cache pre-rendering): the
+        /// current trait's displayScale. It is 0 without a host scene or off the main thread, and then
+        /// falls back to 3 (the iPhone baseline). Callers that have a view should pass
+        /// `traitCollection.displayScale` or SwiftUI's `@Environment(\.displayScale)` directly.
+        static var currentDisplayScale: CGFloat {
+            let scale = UITraitCollection.current.displayScale
+            return scale > 0 ? scale : 3
         }
 
         static func chatParagraphStyle(
             lineHeightMultiple: CGFloat,
             paragraphSpacing: CGFloat,
-            fontSize: CGFloat
+            fontSize: CGFloat,
+            displayScale: CGFloat
         ) -> NSParagraphStyle {
-            let scale = UIScreen.main.scale > 0 ? UIScreen.main.scale : 2.0
+            // Align to the pixel density of the caller's screen (iPad 2x, iPhone 3x, external displays
+            // vary); 0 or less falls back to 3.
+            let scale = displayScale > 0 ? displayScale : 3
             let font = chatBodyUIFont(size: fontSize)
             let rawLineHeight = font.lineHeight * lineHeightMultiple
             let alignedLineHeight = (rawLineHeight * scale).rounded() / scale
@@ -158,7 +175,8 @@ enum OriveoTheme {
             color: UIColor,
             size: CGFloat = 17,
             weight: UIFont.Weight = .regular,
-            paragraphSpacing: CGFloat = 4
+            paragraphSpacing: CGFloat = 4,
+            displayScale: CGFloat = OriveoTheme.Typography.currentDisplayScale
         ) -> [NSAttributedString.Key: Any] {
             [
                 .font: chatBodyUIFont(size: size, weight: weight),
@@ -166,7 +184,8 @@ enum OriveoTheme {
                 .paragraphStyle: chatParagraphStyle(
                     lineHeightMultiple: 1.2,
                     paragraphSpacing: paragraphSpacing,
-                    fontSize: size
+                    fontSize: size,
+                    displayScale: displayScale
                 ),
             ]
         }

@@ -296,10 +296,29 @@ final class UIKitCodeBlockCard: UIView {
         }
     }
 
+    /// Fallback width before this view has been laid out: the superview's or window's width (not the
+    /// screen width, which in an iPad split layout is far wider than the chat column). During init
+    /// neither exists yet, so the iPhone baseline of 402pt is used (the old iPhone screen width; code
+    /// line wrapping is sensitive to it), refined once the real width is laid out.
+    private var hostFallbackWidth: CGFloat {
+        if let w = superview?.bounds.width, w > 0 { return w }
+        if let w = window?.bounds.width, w > 0 { return w }
+        return 402
+    }
+
+    /// Seeds the height right after init or a content change: while the text view has not been laid
+    /// out (bounds.width == 0) it measures with a fallback width (the card width, otherwise the
+    /// fallback width minus `ChatCardStableWidth.contentChrome`), so the explicit height does not sit
+    /// at the initial maxPreviewHeight and make `systemLayoutSizeFitting` measure too tall (setting it
+    /// only in layoutSubviews left the first frame at width 0 and a constant 392). Once the real width
+    /// is laid out, resolveTruncationIfNeeded refines it.
+    ///
+    /// The seed does not notify the host: during init the cell is still in its first layout, and a
+    /// notification would recurse straight back into self-sizing.
     private func seedCodeHeight() {
         let width = codeTextView.bounds.width > 0
             ? codeTextView.bounds.width
-            : (bounds.width > 0 ? bounds.width : UIScreen.main.bounds.width - ChatCardStableWidth.contentChrome)
+            : (bounds.width > 0 ? bounds.width : hostFallbackWidth - ChatCardStableWidth.contentChrome)
         applyCodeHeight(forWidth: width, notifyHost: false)
     }
 

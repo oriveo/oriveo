@@ -121,6 +121,8 @@ struct QuoteContextChip: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var showsPreview = false
+    /// Height of the hosting window; nil until measured, in which case the preview cap falls back to 420.
+    @State private var hostWindowHeight: CGFloat?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -146,6 +148,7 @@ struct QuoteContextChip: View {
                 quotePreview
                     .presentationCompactAdaptation(.popover)
             }
+            .background { HostWindowHeightReader { hostWindowHeight = $0 } }
             .accessibilityLabel("\(L10n.tr("Selected content", table: .chat)): \(quote.summaryText)")
 
             if allowsRemoval, let onRemove {
@@ -236,8 +239,15 @@ struct QuoteContextChip: View {
                 )
         }
         .frame(minWidth: 260, idealWidth: 340, maxWidth: 420)
-        .frame(maxHeight: min(420, UIScreen.main.bounds.height * 0.6))
+        .frame(maxHeight: quotePreviewMaxHeight)
         .background(OriveoTheme.Palette.surface)
+    }
+
+    /// The cap follows the hosting window's height: on the Duo cover screen or in a resized window
+    /// the window height is not the screen height.
+    private var quotePreviewMaxHeight: CGFloat {
+        guard let hostWindowHeight else { return 420 }
+        return min(420, hostWindowHeight * 0.6)
     }
 
     private var highlightedContext: AttributedString {

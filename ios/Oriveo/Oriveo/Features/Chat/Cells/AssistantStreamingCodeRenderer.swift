@@ -16,6 +16,16 @@ final class AssistantStreamingCodeRenderer {
 
     let view: UIView = ShadowContainerView()
 
+    /// Fallback width before this view has been laid out: the superview's or window's width (not the
+    /// screen width, which in an iPad split layout is far wider than the chat column). During init
+    /// neither exists yet, so the iPhone baseline of 402pt is used (the old iPhone screen width; code
+    /// line wrapping is sensitive to it), refined once the real width is laid out.
+    private var hostFallbackWidth: CGFloat {
+        if let w = view.superview?.bounds.width, w > 0 { return w }
+        if let w = view.window?.bounds.width, w > 0 { return w }
+        return 402
+    }
+
     private let contentContainer = UIView()
     private let headerBar = UIView()
     private let languageIcon = UIImageView()
@@ -74,7 +84,7 @@ final class AssistantStreamingCodeRenderer {
                 ? textView.bounds.width
                 : view.bounds.width
             let targetWidth = ChatCardStableWidth.anchor(for: view)
-                ?? (measuredWidth > 0 ? measuredWidth : UIScreen.main.bounds.width - ChatCardStableWidth.contentChrome)
+                ?? (measuredWidth > 0 ? measuredWidth : hostFallbackWidth - ChatCardStableWidth.contentChrome)
             let fittingSize = textView.sizeThatFits(CGSize(
                 width: targetWidth,
                 height: .greatestFiniteMagnitude

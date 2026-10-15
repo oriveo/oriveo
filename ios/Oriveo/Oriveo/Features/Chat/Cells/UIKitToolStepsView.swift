@@ -27,6 +27,8 @@ final class UIKitToolStepsView: UIView {
     private let skipButton = UIButton(type: .system)
     private let pauseNoteLabel = UILabel()
     private let limitDivider = UIView()
+    private var dividerHeightConstraint: NSLayoutConstraint?
+    private var limitDividerHeightConstraint: NSLayoutConstraint?
     private let limitLabel = UILabel()
 
     private var presentation: McpToolStepsPresentation?
@@ -212,17 +214,32 @@ final class UIKitToolStepsView: UIView {
         inner.addArrangedSubview(limitLabel)
 
         setContentCompressionResistancePriority(.required, for: .vertical)
-        let hairline = 1 / UIScreen.main.scale
+        let hairline = Self.hairline(for: traitCollection)
+        let dividerHeight = divider.heightAnchor.constraint(equalToConstant: hairline)
+        let limitDividerHeight = limitDivider.heightAnchor.constraint(equalToConstant: hairline)
+        dividerHeightConstraint = dividerHeight
+        limitDividerHeightConstraint = limitDividerHeight
+        registerForTraitChanges([UITraitDisplayScale.self]) { (view: UIKitToolStepsView, _: UITraitCollection) in
+            let hairline = Self.hairline(for: view.traitCollection)
+            view.dividerHeightConstraint?.constant = hairline
+            view.limitDividerHeightConstraint?.constant = hairline
+        }
         NSLayoutConstraint.activate([
             contentStack.leadingAnchor.constraint(equalTo: leadingAnchor),
             contentStack.trailingAnchor.constraint(equalTo: trailingAnchor),
             contentStack.topAnchor.constraint(equalTo: topAnchor),
             contentStack.bottomAnchor.constraint(equalTo: bottomAnchor),
             headerControl.heightAnchor.constraint(greaterThanOrEqualToConstant: Self.headerHeight),
-            divider.heightAnchor.constraint(equalToConstant: hairline),
-            limitDivider.heightAnchor.constraint(equalToConstant: hairline),
+            dividerHeight,
+            limitDividerHeight,
             earlierButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
         ])
+    }
+
+    /// The hairline is 1px at the pixel density of the view's screen; before the view is in a window
+    /// displayScale is 0 and it falls back to 3.
+    private static func hairline(for traits: UITraitCollection) -> CGFloat {
+        1 / (traits.displayScale > 0 ? traits.displayScale : 3)
     }
 
     private func setupHeader() {
