@@ -9,6 +9,7 @@
  * so call sites do not have to change.
  */
 import type { StoreApi } from 'zustand';
+import type { ChatAttemptKind } from '../telemetry/chat-failure';
 import type { AIModel } from '@oriveo/shared';
 import type { SkippedAttachment } from '../attachments/attachment-injector';
 import type { AppStore } from '../store/app-store';
@@ -29,6 +30,8 @@ export interface SendHandle {
   msgId: string;
   abort: () => void;
   done: Promise<void>;
+  /** Entry point that started this attempt; passed when the stream is registered so the stop event records the right attempt_kind. */
+  attemptKind?: ChatAttemptKind;
 }
 
 /* ── Operations ───────────────────────────────────────── */

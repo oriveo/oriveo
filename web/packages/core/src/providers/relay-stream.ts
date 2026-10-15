@@ -18,10 +18,10 @@ import { sanitizeUpstreamErrorText } from './upstream-error-text';
 import type { StreamEvent } from './types';
 import { createSSEStream } from './sse-parser';
 import { isRelayGenerationSuccessResponse } from './relay-generation-response';
-import { toProviderError } from './errors';
+import { toProviderError, transportNetworkDetail } from './errors';
 import { classifyRelayKeyAccess, type RelayKeyAccessOutcome } from './relay-key-access';
 import { relayErrorBodyNamesReasoning } from './relay-reasoning-rejection';
-import type { RelayErrorContext } from './relay-error-classifier';
+import { RELAY_GUIDANCE_WEB_PAGE_RETURNED_KEY, type RelayErrorContext } from './relay-error-classifier';
 import {
   executeWithUnsupportedParamSelfHeal,
   type CapabilityLearningIdentity,
@@ -107,6 +107,7 @@ function htmlPageEvent(response: Response): StreamEvent {
     relayHTMLPage: true,
     // The web-page sentence is also relay guidance: the chat failure card takes the same localized branch.
     relayGuidance: true,
+    relayGuidanceKey: RELAY_GUIDANCE_WEB_PAGE_RETURNED_KEY,
   };
 }
 
@@ -196,6 +197,7 @@ export function createRelaySSEStream(
           ),
           errorKind: 'network',
           source: 'network',
+          networkDetail: transportNetworkDetail(error, 'connect'),
         });
         ctrl.close();
         return;
@@ -260,6 +262,7 @@ export function createRelayJSONStream(
           ),
           errorKind: 'network',
           source: 'network',
+          networkDetail: transportNetworkDetail(error, 'connect'),
         });
         ctrl.close();
         return;
@@ -285,6 +288,9 @@ export function createRelayJSONStream(
           ...relayKeyAccessField(response.status, detail),
           ...(relayErrorBodyNamesReasoning(detail) ? { relayReasoningNamed: true as const } : {}),
           ...(providerError.relayGuidance ? { relayGuidance: true as const } : {}),
+          ...(providerError.upstreamErrorType ? { upstreamErrorType: providerError.upstreamErrorType } : {}),
+          ...(providerError.networkDetail ? { networkDetail: providerError.networkDetail } : {}),
+          ...(providerError.relayGuidanceKey ? { relayGuidanceKey: providerError.relayGuidanceKey } : {}),
         });
         ctrl.close();
         return;
@@ -432,6 +438,7 @@ export function createRelayResponsesStreamWithRetry(
             ),
             errorKind: 'network',
             source: 'network',
+            networkDetail: transportNetworkDetail(error, 'connect'),
           });
           return { retried: false };
         }
@@ -456,6 +463,9 @@ export function createRelayResponsesStreamWithRetry(
             ...relayKeyAccessField(response.status, detail),
             ...(relayErrorBodyNamesReasoning(detail) ? { relayReasoningNamed: true as const } : {}),
             ...(providerError.relayGuidance ? { relayGuidance: true as const } : {}),
+            ...(providerError.upstreamErrorType ? { upstreamErrorType: providerError.upstreamErrorType } : {}),
+            ...(providerError.networkDetail ? { networkDetail: providerError.networkDetail } : {}),
+            ...(providerError.relayGuidanceKey ? { relayGuidanceKey: providerError.relayGuidanceKey } : {}),
           });
           return { retried: false };
         }

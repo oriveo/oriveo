@@ -495,6 +495,11 @@ vi.mock('./LazyChatOverlays', () => ({
   LazyExportMenu: () => <div data-testid="export-menu" />,
 }));
 
+const mockReportSendBlocked = vi.hoisted(() => vi.fn());
+vi.mock('../../lib/core/chat/send-failure', () => ({
+  reportSendBlocked: (...args: unknown[]) => mockReportSendBlocked(...args),
+}));
+
 vi.mock('../Toast', () => ({
   showToast: vi.fn(),
 }));
@@ -1517,6 +1522,8 @@ beforeEach(async () => {
       ['note-1'],
       [],
     );
+     // The request is blocked before it goes out: record chat_send_blocked(library_unavailable)
+    expect(mockReportSendBlocked).toHaveBeenCalledWith('library_unavailable', expect.any(String));
   });
 
   it('falls back to another provider when the conversation provider is missing', async () => {

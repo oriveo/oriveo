@@ -707,7 +707,7 @@ describe('proxy-client', () => {
     );
 
     await expect(collectEvents(stream)).resolves.toEqual([
-      { type: 'error', error: 'Overloaded', errorKind: 'rateLimited', source: 'provider', streamErrorFrame: true },
+      { type: 'error', error: 'Overloaded', errorKind: 'rateLimited', source: 'provider', streamErrorFrame: true, upstreamErrorType: 'overloaded_error' },
       { type: 'done' },
     ]);
   });

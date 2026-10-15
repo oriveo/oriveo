@@ -34,6 +34,13 @@ export type ProviderErrorKind =
   | 'openAISubscriptionExpired'
   | 'openAISubscriptionQuotaExhausted';
 
+/**
+ * Finer reason for a transport-level failure (the `network_detail` of chat failure telemetry; a closed set shared across platforms).
+ * It travels only on the normalized error object and never feeds UI copy decisions.
+ */
+export type ChatNetworkDetail =
+  | 'dns' | 'connect' | 'tls' | 'timeout' | 'reset' | 'offline' | 'proxy' | 'fetch_failed' | 'other';
+
 export type ProviderErrorActionKind =
   | 'checkApiKey'
   | 'adjustRequest'
@@ -78,6 +85,15 @@ export interface ProviderError {
   traceId?: string;
   /** Comes from an upstream in-stream error frame (see StreamEvent.streamErrorFrame). */
   streamErrorFrame?: boolean;
+  /**
+   * Raw `error.type` / `error.code` / `error.status` (lowercase) from the upstream error body or error-frame JSON.
+   * Taken from JSON fields only, never scanned out of body text; it still goes through the telemetry allowlist before reporting.
+   */
+  upstreamErrorType?: string;
+  /** Finer reason when kind is network (telemetry `network_detail`). */
+  networkDetail?: ChatNetworkDetail;
+  /** Stable guidance key when relayGuidance matched (one table shared across platforms, keyed by RelayGuidanceCode.stableKey). */
+  relayGuidanceKey?: string;
 }
 
 export class ProviderErrorObject extends Error implements ProviderError {
@@ -93,6 +109,8 @@ export class ProviderErrorObject extends Error implements ProviderError {
   readonly upstreamURL?: string;
   readonly quotaSource?: ProviderQuotaSource;
   readonly traceId?: string;
+  readonly upstreamErrorType?: string;
+  readonly networkDetail?: ChatNetworkDetail;
 
   constructor(error: ProviderError) {
     super(error.message);
@@ -109,6 +127,8 @@ export class ProviderErrorObject extends Error implements ProviderError {
     this.upstreamURL = error.upstreamURL;
     this.quotaSource = error.quotaSource;
     this.traceId = error.traceId;
+    if (error.upstreamErrorType) this.upstreamErrorType = error.upstreamErrorType;
+    if (error.networkDetail) this.networkDetail = error.networkDetail;
   }
 }
 
@@ -134,7 +154,10 @@ export function toProviderError(
   sensitiveCredentialValues: readonly string[] = [],
   classifyContext?: ProviderErrorClassifyContext,
 ): ProviderError {
-  const classified = classifyProviderError(status, body, upstreamURL, relayErrorContext, classifyContext);
+  const classified = withUpstreamErrorType(
+    classifyProviderError(status, body, upstreamURL, relayErrorContext, classifyContext),
+    body,
+  );
   // The four subscription failure kinds are explained here, because the upstream only replies
   // "Unauthorized" or "Forbidden"; using that as the body would turn "your plan does not support
   // this" into a line of English the user cannot act on.
@@ -517,12 +540,58 @@ function freeBusinessCode(body: string): number | null {
   }
 }
 
-export function networkError(err: unknown): ProviderErrorObject {
+export function networkError(err: unknown, networkDetail?: ChatNetworkDetail): ProviderErrorObject {
   return new ProviderErrorObject({
     kind: 'network',
     title: 'Network Error',
     message: 'Unable to connect. Please check your internet connection and try again.',
     detail: err instanceof Error ? err.message : String(err),
     source: 'network',
+    networkDetail: networkDetail ?? transportNetworkDetail(err, 'connect'),
   });
+}
+
+/**
+ * Transport exception -> network_detail. Looks only at the exception `name` (stable across engines), never at the message text:
+ * TimeoutError -> timeout; a disconnect after the stream started -> reset; a fetch TypeError while sending the request -> fetch_failed; anything else -> other.
+ * Device offline (navigator.onLine) is layered on by the emitter; this function does not read globals.
+ */
+export function transportNetworkDetail(err: unknown, phase: 'connect' | 'read'): ChatNetworkDetail {
+  const name = err && typeof err === 'object' ? (err as { name?: unknown }).name : undefined;
+  if (name === 'TimeoutError') return 'timeout';
+  if (phase === 'read') return 'reset';
+  if (name === 'TypeError') return 'fetch_failed';
+  return 'other';
+}
+
+/**
+ * `error.type` / `error.code` / `error.status` of the upstream error body JSON (first string value, lowercase).
+ * A Gemini error body may be a one-element array. Non-JSON or none of these fields -> undefined.
+ */
+export function upstreamErrorTypeFromBody(body: string): string | undefined {
+  let parsed: unknown;
+  try { parsed = JSON.parse(body.trim()); } catch { return undefined; }
+  if (Array.isArray(parsed)) parsed = parsed[0];
+  const error = parsed && typeof parsed === 'object' ? (parsed as { error?: unknown }).error : undefined;
+  if (!error || typeof error !== 'object' || Array.isArray(error)) return undefined;
+  return upstreamErrorTypeValue(error as Record<string, unknown>);
+}
+
+/** Raw type/code/status on an error object (the `error` of an in-stream frame or an HTTP error body). */
+export function upstreamErrorTypeValue(error: Record<string, unknown>): string | undefined {
+  for (const key of ['type', 'code', 'status'] as const) {
+    const value = error[key];
+    if (typeof value === 'string' && value.trim()) return normalizeUpstreamErrorType(value);
+  }
+  return undefined;
+}
+
+export function normalizeUpstreamErrorType(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
+  return value.trim().toLowerCase().slice(0, 64);
+}
+
+function withUpstreamErrorType(error: ProviderError, body: string): ProviderError {
+  const upstreamErrorType = upstreamErrorTypeFromBody(body);
+  return upstreamErrorType ? { ...error, upstreamErrorType } : error;
 }

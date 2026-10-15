@@ -314,7 +314,10 @@ export async function runStreamPipeline(
   setAbortFn(abort);
 
   const flushScheduler = createPartialFlushScheduler(store, conversationId, messageId);
+  // Whether this attempt has received any body / reasoning delta (empty keep-alive chunks do not count): the only source of failure_phase in failure telemetry.
+  let outputStarted = false;
   const onChunk = (chunk: string) => {
+    if (chunk) outputStarted = true;
     // The model is talking again, so whatever activity was observed (a web search, say) is over.
     store.getState().setStreamingActivity(conversationId, null);
     appendChunk(chunk);
@@ -337,6 +340,7 @@ export async function runStreamPipeline(
     }
     // Empty strings never enter the text pipeline: appending one is still empty and only burns a rAF frame and a store set.
     if (!chunk) return;
+    outputStarted = true;
     store.getState().setStreamingActivity(conversationId, null);
     // Reasoning shares the rAF batcher with the body text: an expanded reasoning block is rendered
     // as markdown, so writing straight to the store would tie parse frequency to the provider's
@@ -406,6 +410,7 @@ export async function runStreamPipeline(
       // Keep the final wire fact as `requested`; the failed message's normal
       // error card can offer a custom-only retry without claiming rejection.
       Object.assign(error, {
+        outputStarted,
         capabilityResults: requestedCapabilityResults(capabilityContext),
         capabilityCustomRetryEligible: capabilityCustomRetryEligibleOf(streamHandle),
         additionalBodyRetryEligible: resolveAdditionalBodyRetry(streamHandle, error, normalizedEvents),

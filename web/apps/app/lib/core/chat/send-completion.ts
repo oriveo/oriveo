@@ -25,6 +25,7 @@ import { shouldTrackProviderUsage } from "./usage-tracking";
 import { promoteRelayTransportOnDelivered } from "../providers/relay-model-observed";
 import { recordRelayKeyAccessOnDelivered } from "../providers/relay-key-access-writeback";
 import { recordRelayWebSearchObserved } from "./relay-web-probe-records";
+import type { ChatAttemptKind } from "../telemetry/chat-failure";
 
 export interface SendCompletionParams {
   store: StoreApi<AppStore>;
@@ -48,6 +49,8 @@ export interface SendCompletionParams {
   };
   sendStartedAt: number;
   completedAt: string;
+  /** Entry point that started this attempt; defaults to send. */
+  attemptKind?: ChatAttemptKind;
   /** Passive relay web search record: the connection-level fragment actually sent this turn, the dispatched transport, and the citations parsed by production code. */
   relayWebObservation?: {
     sentFragment: Record<string, unknown> | undefined;
@@ -100,6 +103,7 @@ export function reportSendCompletion(p: SendCompletionParams): void {
     latency_ms: Date.now() - sendStartedAt,
     cost_usd_micros: Math.round(cost * 1_000_000),
     has_image_output: processedAttachments.length > 0,
+    attempt_kind: p.attemptKind ?? 'send',
     // relay_url / relay_protocol come from the same helper as chat_message_sent, so both dashboards agree
     ...relaySendTelemetryProperties(provider, model),
   });

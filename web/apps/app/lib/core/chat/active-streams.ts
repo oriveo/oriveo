@@ -13,6 +13,7 @@
  */
 
 import { getVanillaStore, tryGetVanillaStore } from '../../../providers/StoreProvider';
+import type { ChatAttemptKind } from '../telemetry/chat-failure';
 
 import { flushPartialToMessage, type PartialFlushScheduler } from './partial-flush';
 import {
@@ -39,6 +40,8 @@ export interface StreamingSession {
   startedAt: number;
   /** Continuation or managed recovery stream (as opposed to a first send), used only for telemetry is_recovery. */
   isRecovery?: boolean;
+  /** Entry point that started this attempt (retry / regenerate / edit ...); used only for chat_message_stopped.attempt_kind. */
+  attemptKind?: ChatAttemptKind;
   /**
    * Previous-round reasoning snapshot for continuations (from interruptedMsg.reasoningText).
    * partial-flush joins it with this round's partial so re-entry neither drops nor duplicates prev.

@@ -31,6 +31,9 @@ import { getCapabilityRuntime } from '../metadata/metadata-client';
 import { withoutUnreceivableImages } from './attachment-policy';
 import { relayFirstSendMessagesBlockedByFiles } from './relay-rejection-loop';
 import { trackEvent, telemetryProviderKind, telemetryModelID } from '../telemetry';
+import { relaySendTelemetryProperties } from '../telemetry/relay-properties';
+import { reportSendStartedTelemetry } from './send-start';
+import { reportChatFailed } from './send-failure';
 import * as Sentry from '@sentry/nextjs';
 import { mergeCitationsWithExisting, deriveCostFields, mergeMessageUsageFields } from './cost-fields';
 import {
@@ -126,6 +129,24 @@ export function continueAnswering(
   // The partial-flush and stop-stream paths need the same concatenation.
   store.getState().beginStreamingForConversation(conversation.id, messageId);
   store.getState().setStreamingText(conversation.id, existingText);
+  const continueStartedAt = Date.now();
+  // A continuation is a real outbound request: exactly one sent per attempt (attempt_kind=continue), reported before the outcome.
+  let sentReported = false;
+  const reportSent = () => {
+    if (sentReported) return;
+    sentReported = true;
+    reportSendStartedTelemetry({
+      finalConvId: conversation.id,
+      isFirstMessage: false,
+      provider,
+      model,
+      reasoningMode,
+      webSearchEnabled,
+      attachments: undefined,
+      skillId: conversation.skillId,
+      attemptKind: 'continue',
+    });
+  };
 
   let abortFn: (() => void) | null = null;
   let abortRequested = false;
@@ -334,6 +355,7 @@ export function continueAnswering(
       });
 
       if (pipeline.outcome === 'guarded') {
+        reportSent();
         await Promise.resolve(continuationSendInterrupted(conversation.id, messageId)).catch(() => undefined);
         return;
       }
@@ -418,6 +440,19 @@ export function continueAnswering(
         () => store.getState().conversations,
         store.getState().updateConversation,
       );
+      reportSent();
+      trackEvent('chat_message_completed', {
+        provider_kind: telemetryProviderKind(provider.kind),
+        model_id: telemetryModelID(provider.kind, model.id),
+        served_model_id: servedModelID ? telemetryModelID(provider.kind, servedModelID) : null,
+        prompt_tokens: usage?.prompt_tokens ?? null,
+        completion_tokens: usage?.completion_tokens ?? null,
+        latency_ms: Date.now() - continueStartedAt,
+        cost_usd_micros: Math.round(cost * 1_000_000),
+        has_image_output: processedAttachments.length > 0,
+        attempt_kind: 'continue',
+        ...relaySendTelemetryProperties(provider, model),
+      });
       await Promise.resolve(continuationSendCompleted(conversation.id, messageId)).catch(() => undefined);
     } catch (err) {
       await Promise.resolve(continuationSendInterrupted(conversation.id, messageId)).catch(() => undefined);
@@ -462,6 +497,11 @@ export function continueAnswering(
         .find((c) => c.id === conversation.id)?.messages
         .find((m) => m.id === messageId);
       const alreadyTerminal = guardMsg?.state === 'interrupted' || guardMsg?.state === 'failed';
+      reportSent();
+      // A user stop (stop() already saved interrupted and reported stopped) is not a failure: at most one outcome.
+      if (!abortRequested && guardMsg?.state !== 'interrupted') {
+        reportChatFailed({ provider, model, attemptKind: 'continue', error: pe ?? err, rawError: err, sendStartedAt: continueStartedAt });
+      }
       const partialText = partialState.streamingTexts[conversation.id] || existingText;
       const partialReasoning = (partialState.streamingReasoningTexts[conversation.id] ?? '').trim();
       const mergedReasoning =
@@ -541,6 +581,7 @@ export function continueAnswering(
     msgId: messageId,
     abort: requestAbort,
     done,
+    attemptKind: 'continue',
   };
 }
 

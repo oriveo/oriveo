@@ -70,7 +70,7 @@ import { nativeToolCallEvents, type ToolCallProtocol } from './tool-call-protoco
 import { generationWriteFacts } from './generation-rejection-facts';
 import { additionalBodyHasContent, applyAdditionalBodyInPlace, assertAdditionalBodyAccepted } from './request-builders/additional-body';
 import { readTopLevelErrorFrame } from './upstream-error-text';
-import { classifyInStreamProviderErrorKind } from './errors';
+import { classifyInStreamProviderErrorKind, normalizeUpstreamErrorType, upstreamErrorTypeValue } from './errors';
 import { guardAnthropicThinking, resolveRelayAnthropicThinking } from './request-builders/anthropic-thinking';
 import { compileSafeCustomFragment, rejectSafeCustomFragment, SafeCustomFragmentRejectedError } from './request-builders/safe-custom-fragment';
 import { safeCustomOwners } from './request-builders/generation-parameters';
@@ -308,6 +308,7 @@ function relayTopLevelErrorFrame(chunk: unknown): StreamEvent | null {
     errorKind: classifyInStreamProviderErrorKind(frame.message, frame.typeOrCode),
     source: 'provider',
     streamErrorFrame: true,
+    ...(normalizeUpstreamErrorType(frame.typeOrCode) ? { upstreamErrorType: normalizeUpstreamErrorType(frame.typeOrCode) } : {}),
   };
 }
 
@@ -993,6 +994,10 @@ function sendOpenAIResponsesStream(
               ? envelope.error
               : upstreamError?.message;
             const mapped = mapRelayStreamError(code, message);
+            // Only JSON fields (error.type / code / status) are read; the allowlist is applied on the telemetry side.
+            const upstreamErrorType = upstreamError
+              ? upstreamErrorTypeValue(upstreamError as Record<string, unknown>)
+              : undefined;
             events.push({
               type: 'error',
               error: redactRelayCredentials(mapped.message, sensitiveCredentialValues),
@@ -1000,6 +1005,7 @@ function sendOpenAIResponsesStream(
               source: 'provider',
               ...(mapped.i18nKey ? { i18nKey: mapped.i18nKey } : {}),
               streamErrorFrame: true,
+              ...(upstreamErrorType ? { upstreamErrorType } : {}),
             });
           }
 
@@ -1292,7 +1298,13 @@ function sendGeminiGenerateContentStream(
         const message = typeof chunk.error === 'string'
           ? chunk.error
           : chunk.error.message || 'Gemini stream error';
-        return [{ type: 'error', error: message, errorKind: 'upstream', source: 'provider', streamErrorFrame: true }];
+        const upstreamErrorType = typeof chunk.error === 'object' && chunk.error
+          ? upstreamErrorTypeValue(chunk.error as Record<string, unknown>)
+          : undefined;
+        return [{
+          type: 'error', error: message, errorKind: 'upstream', source: 'provider', streamErrorFrame: true,
+          ...(upstreamErrorType ? { upstreamErrorType } : {}),
+        }];
       }
       const blocked = detectGeminiBlockEvent(chunk as Record<string, unknown>);
       if (blocked) return [blocked];

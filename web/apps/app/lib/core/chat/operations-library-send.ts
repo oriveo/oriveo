@@ -17,7 +17,9 @@ import { buildOutboundChatHistory } from "./outbound-history";
 import { filterCurrentTurnAttachments, withoutUnreceivableImages } from "./attachment-policy";
 import { AttachmentOverLimitError } from "../attachments/attachment-delivery";
 import { createAssistantMessage, createUserMessage } from "./message-factory";
-import { prepareSendStart } from "./send-start";
+import { prepareSendStart, reportSendStartedTelemetry } from "./send-start";
+import { reportChatFailed } from "./send-failure";
+import type { ChatAttemptKind } from "../telemetry/chat-failure";
 import {
   deriveCostFields,
   mergeCitationsWithExisting,
@@ -124,6 +126,8 @@ type SendLibraryMessageParams = {
   transientGenerationParameters?: GenerationParameterOverrides;
   /** "Retry without the additional request body": omitted for this one send only, the stored record is unchanged. */
   omitAdditionalBody?: boolean;
+  /** Entry point that started this attempt (telemetry attempt_kind); defaults to send. */
+  attemptKind?: ChatAttemptKind;
 } & LibraryMessagePresentation & LibraryRecoveryOptions;
 
 export function sendLibraryMessage(
@@ -220,7 +224,8 @@ export function sendLibraryMessage(
     ownConfirmationIds.add(request.id);
     return requestLibraryConfirmation(store, request, controller.signal);
   };
-  const { finalConvId, initialConversationSnapshot, sendStartedAt } =
+  const attemptKind = params.attemptKind ?? "send";
+  const { finalConvId, isFirstMessage, initialConversationSnapshot, sendStartedAt } =
     prepareSendStart({
       store,
       userMsg: userMessage,
@@ -237,6 +242,23 @@ export function sendLibraryMessage(
       pinnedNoteIds: params.pinnedNoteIds,
       onNewConversation: params.onNewConversation,
     });
+  // Exactly one sent per attempt: reported before the outcome (completed / stopped / failed), and never before the request actually goes out.
+  let sentReported = false;
+  const reportSent = () => {
+    if (sentReported) return;
+    sentReported = true;
+    reportSendStartedTelemetry({
+      finalConvId,
+      isFirstMessage,
+      provider: params.provider,
+      model: params.model,
+      reasoningMode: params.reasoningMode,
+      webSearchEnabled: false,
+      attachments: params.attachments,
+      skillId: params.conversation?.skillId,
+      attemptKind,
+    });
+  };
   // New conversation creation point: both kinds of draft move together, the generation parameters
   // and the typed capability preferences. Moving only the generation parameters silently loses the
   // web and reasoning preferences set in the draft state by a user whose first message already
@@ -505,6 +527,7 @@ export function sendLibraryMessage(
         userMessage,
         delivered,
       );
+      reportSent();
       reportSendCompletion({
         store,
         provider: params.provider,
@@ -520,6 +543,7 @@ export function sendLibraryMessage(
         promptContext,
         sendStartedAt,
         completedAt: new Date().toISOString(),
+        attemptKind,
       });
     } catch (error) {
       const partialCost = latestUsage
@@ -559,6 +583,8 @@ export function sendLibraryMessage(
         } else if (mcpSession) {
           patchAssistantMessage(store, finalConvId, assistantMessage.id, mcpToolStepsPatch());
         }
+        // User stop: sent is still reported; the outcome is the stopped event from the stop side, and failed is not reported.
+        reportSent();
         return;
       }
       if (error instanceof LibraryResearchCancelledError) {
@@ -624,6 +650,21 @@ export function sendLibraryMessage(
         ...partialCostPatch,
       };
       patchAssistantMessage(store, finalConvId, assistantMessage.id, failed);
+      // This path used to save a failed message without reporting any failure event; it now shares the exit with the plain send.
+      reportSent();
+      const rawFailure = error && typeof error === "object" ? (error as Record<string, unknown>) : {};
+      reportChatFailed({
+        provider: params.provider,
+        model: params.model,
+        attemptKind,
+        error: {
+          ...rawFailure,
+          kind: typeof rawFailure.kind === "string" ? rawFailure.kind : failed.errorKind,
+          ...(typeof rawFailure.name === "string" ? {} : error instanceof Error ? { name: error.name } : {}),
+          outputStarted: (failed.text ?? "").trim() !== (initialText ?? "").trim(),
+        },
+        sendStartedAt,
+      });
       params.onFailed?.(params.text);
     } finally {
       clearOwnLibraryConfirmation(store, ownConfirmationIds);
@@ -636,6 +677,7 @@ export function sendLibraryMessage(
     msgId: assistantMessage.id,
     abort: () => controller.abort(),
     done,
+    attemptKind,
   };
 }
 
@@ -691,6 +733,7 @@ function buildFallbackSendParams(
       ? { transientGenerationParameters: params.transientGenerationParameters }
       : {}),
     ...(params.omitAdditionalBody ? { omitAdditionalBody: true } : {}),
+    ...(params.attemptKind ? { attemptKind: params.attemptKind } : {}),
     libraryContextCancelledText: params.cancelledText,
     // Failures on the server-side retrieval path land in sendMessage's generic catch. Without
     // carrying this presentation over, the same library_* error code would be localized on the
@@ -864,6 +907,7 @@ export function continueLibraryAnswering(
     userMessageAlreadyInHistory: true,
     historyMessages,
     appendToAssistant: true,
+    attemptKind: "continue",
     cancelledText: params.cancelledText,
     errorTitle: params.errorTitle,
     errorDetail: params.errorDetail,

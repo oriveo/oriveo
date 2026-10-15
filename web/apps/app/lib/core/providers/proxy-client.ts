@@ -6,7 +6,7 @@
 import type { ProviderKind } from '@oriveo/shared';
 import type { StreamEvent, ContentPart, StreamHandle, StreamOptions } from './types';
 import { createSSEStream } from '../../infra/sse-parser';
-import { networkError, toProviderError } from './errors';
+import { networkError, toProviderError, transportNetworkDetail } from './errors';
 import type { RelayErrorContext } from './relay-error-classifier';
 import {
   SUBSCRIPTION_CONFIG_REVISION_HEADER,
@@ -95,7 +95,7 @@ export async function validateRelayKeyProxy(
   }
   if (!res.ok) {
     const detail = await readErrorDetail(res, 'Validation failed');
-    if (res.status === 502) throw networkError(detail);
+    if (res.status === 502) throw networkError(detail, 'proxy');
     throw toProviderError(res.status, detail, undefined, RELAY_ERROR_CONTEXT);
   }
 }
@@ -119,7 +119,7 @@ export async function syncModelsProxy(
   }
   if (!res.ok) {
     const detail = await readErrorDetail(res, 'Sync failed');
-    if (res.status === 502) throw networkError(detail);
+    if (res.status === 502) throw networkError(detail, 'proxy');
     // syncModelsProxy serves both official providers and relay, split by providerKind, so the
     // relay-specific copy is only produced when a real relay catalog sync fails.
     throw toProviderError(res.status, detail, undefined, providerKind === 'relay' ? RELAY_ERROR_CONTEXT : undefined);
@@ -198,6 +198,7 @@ export function sendStreamProxy(
           error: err instanceof Error ? err.message : 'Network error',
           errorKind: 'network',
           source: 'network',
+          networkDetail: transportNetworkDetail(err, 'connect'),
         });
         ctrl.close();
         return;
@@ -262,7 +263,7 @@ export function sendStreamProxy(
 
       if (!res.ok && res.status === 502) {
         const detail = await readErrorDetail(res, 'Failed to connect to provider');
-        ctrl.enqueue({ type: 'error', error: detail, errorKind: 'network', source: 'network' });
+        ctrl.enqueue({ type: 'error', error: detail, errorKind: 'network', source: 'network', networkDetail: 'proxy' });
         const additionalBodyCode = await readAdditionalBodyRejection(res.clone());
         if (additionalBodyCode) {
           // Local rejection of the additional body: carries only the safe code and does not set capabilityCustomRetryEligible (a local rejection has no retry path).
@@ -462,6 +463,7 @@ export function sendLibraryAgentLeg(
             error: error instanceof Error ? error.message : 'Network error',
             errorKind: 'network',
             source: 'network',
+            networkDetail: transportNetworkDetail(error, 'connect'),
           });
         }
         ctrl.close();

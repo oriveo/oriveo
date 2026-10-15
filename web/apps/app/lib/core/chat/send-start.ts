@@ -14,6 +14,7 @@ import { deriveConversationMetadata, computeConversationActivityAt } from '../co
 import { getSkillById } from '../skills/query';
 import { trackEvent, telemetryProviderKind, telemetryModelID } from '../telemetry';
 import { relaySendTelemetryProperties } from '../telemetry/relay-properties';
+import type { ChatAttemptKind } from '../telemetry/chat-failure';
 import { recalculateConversationCost } from './usage-tracking';
 import { upsertMessages } from './message-merge';
 
@@ -64,10 +65,12 @@ export function reportSendStartedTelemetry(input: {
   webSearchEnabled: boolean | undefined;
   attachments: Attachment[] | undefined;
   skillId: string | undefined;
+  /** Entry point that started this attempt (send / edit / retry / regenerate / continue); defaults to send. */
+  attemptKind?: ChatAttemptKind;
 }): void {
   const {
     finalConvId, isFirstMessage, provider, model, reasoningMode, webSearchEnabled,
-    attachments, skillId,
+    attachments, skillId, attemptKind = 'send',
   } = input;
   const reportedModelID = telemetryModelID(provider.kind, model.id);
   if (isFirstMessage) {
@@ -89,6 +92,7 @@ export function reportSendStartedTelemetry(input: {
     // User intent at click time; it is deliberately distinct from
     // `web_search_used`, which is emitted only after the final facade gate.
     web_search_enabled: Boolean(webSearchEnabled),
+    attempt_kind: attemptKind,
     ...relaySendTelemetryProperties(provider, model),
   });
 }

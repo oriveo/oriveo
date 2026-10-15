@@ -32,6 +32,8 @@ export type TelemetryEventName =
   | 'chat_message_completed'
   | 'chat_message_failed'
   | 'chat_message_stopped'
+  // The user pressed send but the request was blocked before going out (no usable model, etc.); neither sent nor failed is reported
+  | 'chat_send_blocked'
   | 'message_regenerated'
   | 'model_switched'
   | 'model_picker_opened'
@@ -91,6 +93,7 @@ export const TELEMETRY_EVENTS: readonly TelemetryEventName[] = [
   'chat_message_completed',
   'chat_message_failed',
   'chat_message_stopped',
+  'chat_send_blocked',
   'message_regenerated',
   'model_switched',
   'model_picker_opened',

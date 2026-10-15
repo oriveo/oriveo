@@ -20,7 +20,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIModel, ChatMessage, Conversation, Provider } from '@oriveo/shared';
 import { createAppStore } from '../../store/app-store';
-import { continueAnswering, sendMessage } from '../operations';
+import { continueAnswering, retryMessage, sendMessage } from '../operations';
 
 const mocks = vi.hoisted(() => ({
   sendStream: vi.fn(),
@@ -335,7 +335,7 @@ describe('chat lifecycle telemetry property contract', () => {
 
   it('relay failure: failed also carries relay_url / relay_protocol, so the relay address does not vanish from the dashboard', async () => {
     mocks.readStream.mockRejectedValueOnce(
-      Object.assign(new Error('relay 502 body'), { kind: 'server_error', source: 'provider' }),
+      Object.assign(new Error('relay 502 body'), { kind: 'upstream', status: 502, source: 'provider' }),
     );
 
     await send(makeRelayProvider(), makeModel());
@@ -345,7 +345,8 @@ describe('chat lifecycle telemetry property contract', () => {
     expect(failed).toMatchObject({
       provider_kind: 'relay',
       model_id: 'custom',
-      error_code: 'server_error',
+      error_code: 'upstream_502',
+      http_status: 502,
       relay_url: 'https://relay.example.com:8443/v1',
       relay_protocol: 'anthropic_messages',
     });
@@ -459,6 +460,132 @@ describe('Sentry suppression gate on the failure path', () => {
 
     expect(mocks.captureException).not.toHaveBeenCalled();
     // Suppressed for Sentry, but the failure is still reported as ordinary telemetry.
-    expect(propsOf('chat_message_failed')).toMatchObject({ provider_kind: 'openai', error_code: 'upstream' });
+    // A bare upstream error with no status code that is not an in-stream frame cannot be bucketed: record unknown with the exception class name
+    expect(propsOf('chat_message_failed')).toMatchObject({
+      provider_kind: 'openai', error_code: 'unknown', error_class: 'Error',
+    });
+  });
+});
+
+describe('chat failure attribution and event conservation', () => {
+  const user = (provider: Provider): ChatMessage => ({
+    id: 'u-1', role: 'user', text: 'question', state: 'delivered',
+    providerID: provider.id, providerKind: provider.kind, providerName: 'OpenAI',
+    modelID: 'gpt-4o', modelName: 'GPT-4o', estimatedCost: 0,
+  });
+  const assistant = (provider: Provider, state: ChatMessage['state']): ChatMessage => ({
+    id: 'a-1', role: 'assistant', text: state === 'failed' ? '' : 'answer', state,
+    providerID: provider.id, providerKind: provider.kind, providerName: 'OpenAI',
+    modelID: 'gpt-4o', modelName: 'GPT-4o', estimatedCost: 0,
+  });
+
+  function eventsNamed(event: string) {
+    return mocks.trackEvent.mock.calls.filter(([name]) => name === event);
+  }
+
+  it('failure before the first byte: failed carries failure_phase=before_output, http_status and attempt_kind=send', async () => {
+    mocks.readStream.mockRejectedValueOnce(
+      Object.assign(new Error('upstream body must remain local'), { kind: 'rateLimited', status: 429, source: 'provider' }),
+    );
+
+    await send(makeOfficialProvider(), makeModel());
+
+    expect(propsOf('chat_message_failed')).toMatchObject({
+      error_code: 'rate_limited', http_status: 429, failure_phase: 'before_output', attempt_kind: 'send',
+    });
+    expect(propsOf('chat_message_sent')).toMatchObject({ attempt_kind: 'send' });
+  });
+
+  it('error after body text arrived: reports failed (after_output) and no completed', async () => {
+    // The real stream-runner wraps readStream: some body text is emitted first, then an in-stream error frame arrives
+    mocks.readStream.mockImplementationOnce(async (_stream: unknown, _initial: string, onChunk: (c: string) => void) => {
+      onChunk('partial answer');
+      throw Object.assign(new Error('Overloaded'), {
+        kind: 'rateLimited', streamErrorFrame: true, upstreamErrorType: 'overloaded_error', source: 'provider',
+      });
+    });
+
+    await send(makeOfficialProvider(), makeModel());
+
+    expect(propsOf('chat_message_failed')).toMatchObject({
+      error_code: 'rate_limited', failure_phase: 'after_output', upstream_error_type: 'overloaded_error',
+    });
+    expect(eventsNamed('chat_message_completed')).toHaveLength(0);
+    expect(eventsNamed('chat_message_sent')).toHaveLength(1);
+  });
+
+  it('user stop: an abort surfacing as a network error still reports no failed, and exactly one sent', async () => {
+    let rejectRead: (reason: unknown) => void = () => undefined;
+    const abort = vi.fn(() => rejectRead(Object.assign(new TypeError('Failed to fetch'), { name: 'TypeError' })));
+    mocks.sendStream.mockReturnValue({ stream: {} as ReadableStream, abort });
+    mocks.readStream.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectRead = reject; }));
+    const provider = makeOfficialProvider();
+    const conversation = makeConversation(provider);
+    const store = createAppStore({ providers: [provider], conversations: [conversation] });
+    const handle = sendMessage(
+      { store, appendChunk: vi.fn(), te: (key: string) => key },
+      { text: 'hello', prevMessages: conversation.messages, conversation, provider, model: makeModel(), reasoningMode: 'automatic' },
+    );
+    await vi.waitFor(() => expect(mocks.readStream).toHaveBeenCalled());
+
+    handle.abort();
+    await handle.done;
+
+    expect(eventsNamed('chat_message_failed')).toHaveLength(0);
+    expect(eventsNamed('chat_message_completed')).toHaveLength(0);
+    expect(eventsNamed('chat_message_sent')).toHaveLength(1);
+  });
+
+  it.each([
+    ['failed', 'retry'],
+    ['delivered', 'regenerate'],
+  ] as const)('retry of a %s message: exactly one sent with attempt_kind=%s, and the outcome carries it too', async (state, attemptKind) => {
+    const provider = makeOfficialProvider();
+    const messages = [user(provider), assistant(provider, state)];
+    const conversation = makeConversation(provider, { messages });
+    const store = createAppStore({ providers: [provider], conversations: [conversation] });
+
+    const handle = retryMessage(
+      { store, appendChunk: vi.fn(), te: (key: string) => key },
+      { messageId: 'a-1', conversation, messages, provider, model: makeModel(), reasoningMode: 'automatic' },
+    );
+    expect(handle?.attemptKind).toBe(attemptKind);
+    await handle?.done;
+
+    expect(propsOf('chat_message_sent')).toMatchObject({ attempt_kind: attemptKind });
+    expect(propsOf('chat_message_completed')).toMatchObject({ attempt_kind: attemptKind });
+  });
+
+  async function runContinue() {
+    const provider = makeOfficialProvider();
+    const messages = [user(provider), assistant(provider, 'interrupted')];
+    const conversation = makeConversation(provider, { messages });
+    const store = createAppStore({ providers: [provider], conversations: [conversation] });
+    const handle = continueAnswering(
+      { store, appendChunk: vi.fn(), te: (key: string) => key },
+      { messageId: 'a-1', conversation, messages, provider, model: makeModel(), reasoningMode: 'automatic' },
+    );
+    expect(handle.attemptKind).toBe('continue');
+    await handle.done;
+  }
+
+  it('continuation success: exactly one sent and one completed, attempt_kind=continue', async () => {
+    await runContinue();
+
+    expect(propsOf('chat_message_sent')).toMatchObject({ attempt_kind: 'continue', provider_kind: 'openai' });
+    expect(propsOf('chat_message_completed')).toMatchObject({ attempt_kind: 'continue' });
+    expect(eventsNamed('chat_message_failed')).toHaveLength(0);
+  });
+
+  it('continuation failure: reports sent + failed(attempt_kind=continue) rather than nothing', async () => {
+    mocks.readStream.mockRejectedValueOnce(Object.assign(new Error('x'), { kind: 'upstream', status: 503 }));
+
+    await runContinue();
+
+    expect(propsOf('chat_message_sent')).toMatchObject({ attempt_kind: 'continue' });
+    expect(propsOf('chat_message_failed')).toMatchObject({
+      attempt_kind: 'continue', error_code: 'upstream_503', http_status: 503, failure_phase: 'before_output',
+    });
+    expect(eventsNamed('chat_message_completed')).toHaveLength(0);
   });
 });

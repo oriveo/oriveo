@@ -16,6 +16,7 @@ import type { ChatOpCtx } from "../core/chat/operations";
 import { loadChatOperations } from "../core/chat/operations-lazy";
 import { initMetadata } from "../core/metadata/metadata-client";
 import { stopStream } from "../core/chat/stop-stream";
+import { reportSendBlocked } from "../core/chat/send-failure";
 import type { AppStore } from "../core/store/app-store";
 import { createProviderSelectionSnapshot } from "../core/providers/provider-selection-snapshot";
 import { resolveConversationModelRemoval } from "../core/chat/conversation-model-status";
@@ -352,7 +353,10 @@ export function useStreamChat({
         currentModel,
       );
       // The relay conversation's model has been removed: like the other send-blocking branches, return SEND_BLOCKED and keep the draft.
-      if (!precheckSelection.model) return SEND_BLOCKED;
+      if (!precheckSelection.model) {
+        reportSendBlocked("no_model", precheckSelection.provider.kind);
+        return SEND_BLOCKED;
+      }
       if (await blockUnsendableAttachments(msgAttachments, precheckSelection.provider, precheckSelection.model, { history: prevMessages, turn: preflightTurn(text, msgAttachments) })) {
         return SEND_BLOCKED;
       }
@@ -382,6 +386,7 @@ export function useStreamChat({
         );
         if (!sendSelection.model) {
           reservation?.release();
+          reportSendBlocked("no_model", sendSelection.provider.kind);
           return SEND_BLOCKED;
         }
         // For a new conversation the convId is generated inside sendMessage, so start with a
@@ -458,6 +463,7 @@ export function useStreamChat({
           msgId: handle.msgId,
           abort: handle.abort,
           startedAt: reservation?.startedAt ?? Date.now(),
+          ...(handle.attemptKind ? { attemptKind: handle.attemptKind } : {}),
         });
 
         try {
@@ -507,6 +513,7 @@ export function useStreamChat({
       // Locate the message bound to the session rather than assuming the last one is this stream's target (retry and continue can target a message in the middle).
       msgId: session?.msgId,
       isRecovery: session?.isRecovery,
+      ...(session?.attemptKind ? { attemptKind: session.attemptKind } : {}),
     });
     endStream(convId);
     store.getState().clearStreamingForConversation(convId);
@@ -584,6 +591,7 @@ export function useStreamChat({
         msgId: handle.msgId,
         abort: handle.abort,
         startedAt: Date.now(),
+        ...(handle.attemptKind ? { attemptKind: handle.attemptKind } : {}),
       });
       void handle.done.finally(() => {
         endStream(handle.convId);
@@ -758,6 +766,7 @@ export function useStreamChat({
         msgId: handle.msgId,
         abort: handle.abort,
         startedAt: Date.now(),
+        ...(handle.attemptKind ? { attemptKind: handle.attemptKind } : {}),
       });
       void handle.done.finally(() => {
         endStream(handle.convId);

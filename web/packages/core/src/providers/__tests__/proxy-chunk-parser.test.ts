@@ -697,6 +697,8 @@ describe('createProxyChunkParser - in-stream overload classification', () => {
       errorKind: 'rateLimited',
       source: 'provider',
       streamErrorFrame: true,
+      // The raw JSON error.type of the in-stream frame (lowercase); failure telemetry reports it as upstream_error_type through the allowlist
+      upstreamErrorType: 'overloaded_error',
     }]);
     expect(feed(parser, 'error', JSON.stringify({
       type: 'error',
@@ -707,6 +709,8 @@ describe('createProxyChunkParser - in-stream overload classification', () => {
       errorKind: 'upstream',
       source: 'provider',
       streamErrorFrame: true,
+      // The raw JSON error.type of the in-stream frame (lowercase); failure telemetry reports it as upstream_error_type through the allowlist
+      upstreamErrorType: 'api_error',
     }]);
   });
 
@@ -720,6 +724,8 @@ describe('createProxyChunkParser - in-stream overload classification', () => {
       errorKind: 'upstream',
       source: 'provider',
       streamErrorFrame: true,
+      // The raw JSON error.type of the in-stream frame (lowercase); failure telemetry reports it as upstream_error_type through the allowlist
+      upstreamErrorType: 'server_error',
     }]);
   });
 

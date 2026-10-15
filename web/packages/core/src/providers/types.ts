@@ -12,6 +12,7 @@ import type { CapabilityLearningIdentity } from './unsupported-param';
 import type { ContinuationIntent } from './request-preference/continuation';
 import type { ProxyToolDefinition } from './request-builders/runtime';
 import type {
+  ChatNetworkDetail,
   ProviderErrorNextAction,
   ProviderErrorSeverity,
   ProviderErrorSource,
@@ -112,6 +113,12 @@ export type StreamEvent =
       relayReasoningNamed?: true;
       /** `error` is a relay guidance sentence: the failure card body uses its localization, and the upstream original in `errorDetail` goes into the technical details. */
       relayGuidance?: true;
+      /** Raw error.type / code / status (lowercase) of the upstream error JSON; reported only after the failure telemetry allowlist. */
+      upstreamErrorType?: string;
+      /** Finer reason when errorKind is network (failure telemetry network_detail). */
+      networkDetail?: ChatNetworkDetail;
+      /** Stable guidance key of relayGuidance (failure telemetry relay_guidance). */
+      relayGuidanceKey?: string;
     };
 
 export interface StreamHandle {

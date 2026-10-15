@@ -3,6 +3,7 @@ import type { ChatMessage, Conversation } from '@oriveo/shared';
 import type { AppStore } from '../store/app-store';
 import { deriveConversationMetadata, computeConversationActivityAt } from '../conversation-metadata';
 import { trackEvent, telemetryProviderKind, telemetryModelID } from '../telemetry';
+import type { ChatAttemptKind } from '../telemetry/chat-failure';
 
 export interface StopStreamOptions {
   /** Stream start timestamp, used for the telemetry elapsed_ms; recorded as 0 when omitted. */
@@ -25,6 +26,8 @@ export interface StopStreamOptions {
   msgId?: string;
   /** Stopping a continuation or a Managed recovery stream; affects telemetry bucketing only, never persistence semantics. */
   isRecovery?: boolean;
+  /** Entry point that started the attempt being stopped; defaults to continue for continuation streams and send otherwise. */
+  attemptKind?: ChatAttemptKind;
 }
 
 export function stopStream(
@@ -35,7 +38,7 @@ export function stopStream(
   abortFn: (() => void) | null,
   options: StopStreamOptions = {},
 ) {
-  const { streamStartedAt = null, initialReasoning, msgId, isRecovery } = options;
+  const { streamStartedAt = null, initialReasoning, msgId, isRecovery, attemptKind } = options;
   abortFn?.();
   const targetMsg = msgId ? messages.find((m) => m.id === msgId) : messages[messages.length - 1];
   if (targetMsg?.role === 'assistant' && targetMsg.state === 'generating') {
@@ -77,6 +80,7 @@ export function stopStream(
       elapsed_ms: streamStartedAt ? Date.now() - streamStartedAt : 0,
       // Separates a stop the user asked for from one issued while recovering a stuck stream.
       is_recovery: Boolean(isRecovery),
+      attempt_kind: attemptKind ?? (isRecovery ? 'continue' : 'send'),
     });
   }
 }

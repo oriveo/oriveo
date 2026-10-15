@@ -79,5 +79,6 @@ export function editAndResend(
     libraryContextDocuments: [],
     libraryContextCancelledText,
     onNewConversation, onFailed,
+    attemptKind: 'edit',
   });
 }

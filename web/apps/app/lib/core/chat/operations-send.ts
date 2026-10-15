@@ -31,7 +31,6 @@ import { relayWebReplyNoticeFor, setRelayWebReplyNotice } from './relay-web-repl
 import { getCapabilityRuntime } from '../metadata/metadata-client';
 import { resolveModelCapabilityEvidence } from './capability-evidence';
 import { trackEvent, telemetryProviderKind, telemetryModelID } from '../telemetry';
-import { relaySendTelemetryProperties } from '../telemetry/relay-properties';
 import * as Sentry from '@sentry/nextjs';
 import { deriveCostFields, mergeMessageUsageFields } from './cost-fields';
 import { mergeCitationsWithExisting } from './cost-fields';
@@ -45,6 +44,8 @@ import { recalculateConversationCost } from './usage-tracking';
 import { buildPromptInjectionContext } from './prompt-injection';
 import { runStreamPipeline } from './stream-runner';
 import { prepareSendStart, reportSendStartedTelemetry } from './send-start';
+import { reportChatFailed } from './send-failure';
+import type { ChatAttemptKind } from '../telemetry/chat-failure';
 import { reportSendCompletion } from './send-completion';
 import { continuationCaptured, continuationSendCompleted, continuationSendInterrupted, continuationSendStarted } from './continuation-lifecycle';
 import { getSyncAdapter } from '../sync-port';
@@ -123,6 +124,7 @@ function resolveMcpDelegation(params: Parameters<typeof sendMessage>[1]): SendMc
     ...(params.generationParameterDraftSessionId ? { generationParameterDraftSessionId: params.generationParameterDraftSessionId } : {}),
     ...(params.transientGenerationParameters ? { transientGenerationParameters: params.transientGenerationParameters } : {}),
     ...(params.omitAdditionalBody ? { omitAdditionalBody: true } : {}),
+    ...(params.attemptKind ? { attemptKind: params.attemptKind } : {}),
   };
 }
 
@@ -186,6 +188,8 @@ export function sendMessage(
     capabilityRecipeResendOwners?: Array<'web' | 'reasoning' | 'generation'>;
     /** Explicit resend only: omit exactly the rejected capability owner(s) for this request. */
     excludeCapabilityOwners?: Array<'web' | 'reasoning' | 'generation'>;
+    /** Entry point that started this attempt (telemetry attempt_kind); defaults to send. */
+    attemptKind?: ChatAttemptKind;
   },
 ): SendHandle {
   const { store, appendChunk, te } = ctx;
@@ -222,6 +226,7 @@ export function sendMessage(
     capabilityRecipeOmissions = [],
     capabilityRecipeResendOwners = [],
     excludeCapabilityOwners = [],
+    attemptKind = 'send',
   } = params;
 
   // Remote MCP: when this conversation has servers switched on and the connection can carry tools,
@@ -325,7 +330,7 @@ export function sendMessage(
         // Use the networkError helper rather than a hand-made literal: it returns a real Error
         // subclass, so throwing carries a stack for Sentry. The UI error card is still rendered
         // by te(`network.title`) in the catch block, independent of this message.
-        throw networkError(new Error('navigator.onLine === false'));
+        throw networkError(new Error('navigator.onLine === false'), 'offline');
       }
 
       // Tidy up before sending: drop assistant turns with empty content and failed turns, keep
@@ -558,6 +563,18 @@ export function sendMessage(
 
       if (pipeline.outcome === 'guarded') {
         // Guard hit: stream-runner already wrote citations back, so the transaction must not overwrite the final message state.
+        // The request did go out, so still report this attempt's sent (the outcome is the stopped event from the stop side, not reported here).
+        reportSendStartedTelemetry({
+          finalConvId,
+          isFirstMessage,
+          provider,
+          model,
+          reasoningMode,
+          webSearchEnabled: effectiveWebSearchEnabled,
+          attachments,
+          skillId,
+          attemptKind,
+        });
         return;
       }
 
@@ -602,6 +619,7 @@ export function sendMessage(
         webSearchEnabled: effectiveWebSearchEnabled,
         attachments,
         skillId,
+        attemptKind,
       });
 
       const { finalText, processedAttachments } = await processImageAttachments(fullText, imageAttachments);
@@ -681,6 +699,7 @@ export function sendMessage(
         promptContext,
         sendStartedAt,
         completedAt,
+        attemptKind,
         // Take the transport and fragment from the request actually delivered (a protocol-level fallback is recorded under the protocol actually used).
         relayWebObservation: {
           sentFragment: deliveredRelayOptions?.relayWebFragment,
@@ -768,16 +787,17 @@ export function sendMessage(
         webSearchEnabled: effectiveWebSearchEnabled,
         attachments,
         skillId,
+        attemptKind,
       });
-      trackEvent('chat_message_failed', {
-        provider_kind: telemetryProviderKind(provider.kind),
-        model_id: telemetryModelID(provider.kind, model.id),
-        // Report the normalized short slug (ProviderErrorKind) only; the raw error body never enters telemetry.
-        error_code: pe?.kind ?? 'unknown',
-        latency_ms: Date.now() - sendStartedAt,
-        // A relay failure has to be traceable to the relay address that broke; same helper as sent/completed.
-        ...relaySendTelemetryProperties(provider, model),
-      });
+      // When the user stops the stream (stop() already saved the message as interrupted and reported stopped), the abort also
+      // bubbles up here, often wrapped as a network error: that is not a failure, so failed is never reported again
+      // (event conservation: at most one outcome).
+      const stoppedByUser = abortRequested || store.getState().conversations
+        .find((c) => c.id === finalConvId)?.messages
+        .find((m) => m.id === assistantMsg.id)?.state === 'interrupted';
+      if (!stoppedByUser) {
+        reportChatFailed({ provider, model, attemptKind, error: pe ?? err, rawError: err, sendStartedAt });
+      }
       // The partial generated before the failure is still in the store's streaming map
       // (clearStreamingForConversation only runs in finally), so read it out here into the failed
       // message instead of zeroing half-written content with text:''.
@@ -895,6 +915,7 @@ export function sendMessage(
     msgId: assistantMsg.id,
     abort: requestAbort,
     done,
+    attemptKind,
   };
 }
 

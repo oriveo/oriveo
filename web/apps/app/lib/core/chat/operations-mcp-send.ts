@@ -37,8 +37,7 @@ import { currentMcpRuntimeConfig } from '../mcp/mcp-store';
 import { telemetryToolName } from '../mcp/mcp-telemetry';
 import { normalizeModelFactsID, resolveCatalogModel } from '../metadata/metadata-client';
 import { sendLibraryAgentLeg } from '../providers/proxy-client';
-import { trackEvent, telemetryModelID, telemetryProviderKind } from '../telemetry';
-import { relaySendTelemetryProperties } from '../telemetry/relay-properties';
+import { trackEvent, telemetryProviderKind } from '../telemetry';
 import { withAdditionalBody } from './additional-body-settings';
 import { createAdditionalBodyRetryTap } from './additional-body-retry-tap';
 import {
@@ -64,7 +63,9 @@ import { createAssistantMessage, createUserMessage } from './message-factory';
 import type { ChatOpCtx, SendHandle } from './operations';
 import { buildPromptInjectionContext } from './prompt-injection';
 import { reportSendCompletion } from './send-completion';
-import { prepareSendStart } from './send-start';
+import { prepareSendStart, reportSendStartedTelemetry } from './send-start';
+import { reportChatFailed } from './send-failure';
+import type { ChatAttemptKind } from '../telemetry/chat-failure';
 import { requestBaseURLText } from '../providers/endpoint-source';
 import { PROVIDER_REQUEST_FAILED_TITLE } from '../providers/error-i18n';
 import {
@@ -98,6 +99,8 @@ export interface SendMcpToolMessageParams {
   onNewConversation?: (convId: string) => void;
   onFailed?: (text: string) => void;
   generationParameterDraftSessionId?: string;
+  /** Entry point that started this attempt (telemetry attempt_kind); defaults to send. */
+  attemptKind?: ChatAttemptKind;
   transientGenerationParameters?: GenerationParameterOverrides;
 }
 
@@ -124,7 +127,8 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
   const controller = new AbortController();
   const sendingAccountId = getActiveUIDSync();
 
-  const { finalConvId, initialConversationSnapshot, sendStartedAt } = prepareSendStart({
+  const attemptKind = params.attemptKind ?? 'send';
+  const { finalConvId, isFirstMessage, initialConversationSnapshot, sendStartedAt } = prepareSendStart({
     store,
     userMsg: userMessage,
     assistantMsg: assistantMessage,
@@ -140,6 +144,22 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
     pinnedNoteIds: params.pinnedNoteIds,
     onNewConversation: params.onNewConversation,
   });
+  let sentReported = false;
+  const reportSent = () => {
+    if (sentReported) return;
+    sentReported = true;
+    reportSendStartedTelemetry({
+      finalConvId,
+      isFirstMessage,
+      provider: params.provider,
+      model: params.model,
+      reasoningMode: params.reasoningMode,
+      webSearchEnabled: false,
+      attachments: params.attachments,
+      skillId: params.skillId ?? params.conversation?.skillId,
+      attemptKind,
+    });
+  };
   migrateDraftScopedModelControls({
     provider: params.provider,
     model: params.model,
@@ -376,6 +396,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
           : {}),
       };
       completeRound(store, finalConvId, effectiveConversation, params.prevMessages, userMessage, delivered);
+      reportSent();
       reportSendCompletion({
         store,
         provider: params.provider,
@@ -391,8 +412,11 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         promptContext,
         sendStartedAt,
         completedAt: new Date().toISOString(),
+        attemptKind,
       });
     } catch (error) {
+      // Exactly one sent event per attempt: a stop or a failure also reports it first, through the same helper as the plain send.
+      reportSent();
       const partialCost = latestUsage
         ? deriveCostFields(latestUsage, params.model, params.provider.kind, params.provider.authMode)
         : undefined;
@@ -444,13 +468,20 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         ...toolStepsPatch(),
         ...partialCostPatch,
       });
-      trackEvent('chat_message_failed', {
-        provider_kind: telemetryProviderKind(params.provider.kind),
-        model_id: telemetryModelID(params.provider.kind, params.model.id),
-        // Report only the normalized short slug; the raw error body never goes into telemetry
-        error_code: failure.kind,
-        latency_ms: Date.now() - sendStartedAt,
-        ...relaySendTelemetryProperties(params.provider, params.model),
+      const raw = error && typeof error === 'object' ? error as Record<string, unknown> : {};
+      reportChatFailed({
+        provider: params.provider,
+        model: params.model,
+        attemptKind,
+        error: {
+          ...raw,
+          kind: failure.kind,
+          ...(typeof raw.name === 'string' ? {} : error instanceof Error ? { name: error.name } : {}),
+          ...(error instanceof TypeError && raw.networkDetail === undefined ? { networkDetail: 'fetch_failed' } : {}),
+          outputStarted: partialText.trim() !== (initialText ?? '').trim()
+            || (state.streamingReasoningTexts[finalConvId] ?? '').trim() !== '',
+        },
+        sendStartedAt,
       });
       params.onFailed?.(params.text);
     } finally {
@@ -463,6 +494,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
     msgId: assistantMessage.id,
     abort: () => controller.abort(),
     done,
+    attemptKind,
   };
 }
 

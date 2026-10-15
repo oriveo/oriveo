@@ -142,12 +142,14 @@ export function classifyRelayHTTPError(
   // Connection failures and response-header timeouts when the Web relay proxies to a user-defined
   // endpoint are transport-layer faults. The machine code is produced by /api/relay/forward so a
   // one-off network blip is not reported as a provider 5xx.
-  if (status === 502 && isRelayProxyTransportFailure(detail)) {
+  const transportFailureCode = status === 502 ? relayProxyTransportFailureCode(detail) : null;
+  if (transportFailureCode) {
     return {
       kind: 'network',
       title: 'Network Error',
       message: 'Unable to connect. Please check your internet connection and try again.',
       detail,
+      networkDetail: transportFailureCode === 'relay_upstream_timeout' ? 'timeout' : 'connect',
     };
   }
 
@@ -210,6 +212,7 @@ export function classifyRelayHTTPError(
       message: RELAY_GUIDANCE.anthropicAuthRequired,
       detail,
       relayGuidance: true,
+      relayGuidanceKey: RELAY_GUIDANCE_STABLE_KEYS.anthropicAuthRequired,
     };
   }
 
@@ -249,16 +252,50 @@ function upstream(statusCode: number, message: string, detail: string): Provider
     message,
     detail,
     relayGuidance: true,
+    ...(relayGuidanceStableKey(message) ? { relayGuidanceKey: relayGuidanceStableKey(message) } : {}),
   };
 }
 
-function isRelayProxyTransportFailure(body: string): boolean {
+/**
+ * Stable keys for relay guidance (one table shared across platforms, keyed by `RelayGuidanceCode.stableKey`).
+ * Used only for telemetry and cross-platform reconciliation, decoupled from the English wording.
+ */
+export const RELAY_GUIDANCE_STABLE_KEYS: Readonly<Record<keyof typeof RELAY_GUIDANCE, string>> = {
+  codexIdentityRequiredSwitch: 'codex_identity_switch_type',
+  codexIdentityRejected: 'codex_identity_still_rejected',
+  chatCompletionsRejectedByCodexHost: 'responses_only_endpoint',
+  upstreamUnavailable: 'upstream_unreachable',
+  modelUnavailable: 'model_not_offered',
+  responsesProtocolRequired: 'responses_protocol_required',
+  storeRejected: 'store_param_rejected',
+  serviceTierRejected: 'service_tier_invalid',
+  maxTokensRequired: 'max_tokens_required',
+  anthropicAuthRequired: 'anthropic_auth_header',
+  imageSchemaMismatch: 'image_schema_mismatch',
+  imageGenerationEndpointUnavailable: 'images_endpoint_unavailable',
+  imageResponseFormatRejected: 'image_response_format_rejected',
+  clientGated: 'client_gated',
+};
+
+/** Stable key for the relay web-page fallback (RELAY_HTML_PAGE_ERROR in relay-stream). */
+export const RELAY_GUIDANCE_WEB_PAGE_RETURNED_KEY = 'web_page_returned';
+
+/** English guidance source sentence -> stable key; undefined when the message is not a guidance sentence. */
+export function relayGuidanceStableKey(message: string | undefined): string | undefined {
+  if (!message) return undefined;
+  const key = (Object.keys(RELAY_GUIDANCE) as Array<keyof typeof RELAY_GUIDANCE>)
+    .find((candidate) => RELAY_GUIDANCE[candidate] === message);
+  return key ? RELAY_GUIDANCE_STABLE_KEYS[key] : undefined;
+}
+
+function relayProxyTransportFailureCode(body: string): 'relay_upstream_timeout' | 'relay_upstream_connection_failed' | null {
   try {
     const parsed = JSON.parse(body) as { code?: unknown };
-    return parsed.code === 'relay_upstream_timeout'
-      || parsed.code === 'relay_upstream_connection_failed';
+    return parsed.code === 'relay_upstream_timeout' || parsed.code === 'relay_upstream_connection_failed'
+      ? parsed.code
+      : null;
   } catch {
-    return false;
+    return null;
   }
 }
 

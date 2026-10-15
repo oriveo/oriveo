@@ -13,7 +13,7 @@
  */
 
 import type { TransportPort, TransportResponse } from '../ports';
-import { isSubscriptionErrorKind, toProviderError } from './errors';
+import { isSubscriptionErrorKind, toProviderError, transportNetworkDetail } from './errors';
 import { structuredErrorFields } from './generation-rejection-facts';
 import type { ProviderErrorSource } from './errors';
 import type { RelayErrorContext } from './relay-error-classifier';
@@ -294,6 +294,9 @@ export function createSSEStream(
           ...(relayKeyAccess !== 'none' ? { relayKeyAccess } : {}),
           ...(options?.relayErrorContext && relayErrorBodyNamesReasoning(text) ? { relayReasoningNamed: true as const } : {}),
           ...(pe.relayGuidance ? { relayGuidance: true as const } : {}),
+          ...(pe.upstreamErrorType ? { upstreamErrorType: pe.upstreamErrorType } : {}),
+          ...(pe.networkDetail ? { networkDetail: pe.networkDetail } : {}),
+          ...(pe.relayGuidanceKey ? { relayGuidanceKey: pe.relayGuidanceKey } : {}),
         });
         ctrl.close();
         return;
@@ -391,6 +394,7 @@ export function createSSEStream(
             error: err instanceof Error ? err.message : 'Stream error',
             errorKind: parseChunkFailed ? 'upstream' : 'network',
             source: parseChunkFailed ? 'unknown' : 'network',
+            ...(parseChunkFailed ? {} : { networkDetail: transportNetworkDetail(err, 'read') }),
           });
         }
         hasError = true;
@@ -446,6 +450,7 @@ export function createSSEFetchStream(
           error: err instanceof Error ? err.message : 'Network error',
           errorKind: 'network',
           source: 'network',
+          networkDetail: transportNetworkDetail(err, 'connect'),
         });
         ctrl.close();
         return;

@@ -12,7 +12,7 @@
  */
 
 import type { Citation, ProviderKind } from '@oriveo/shared/pure-types';
-import { classifyInStreamProviderErrorKind } from './errors';
+import { classifyInStreamProviderErrorKind, normalizeUpstreamErrorType } from './errors';
 import type {
   StreamEvent,
   StreamToolCallDelta,
@@ -1184,5 +1184,6 @@ function inStreamProviderError(
     errorKind: classifyInStreamProviderErrorKind(message, type),
     source,
     streamErrorFrame: true,
+    ...(normalizeUpstreamErrorType(type) ? { upstreamErrorType: normalizeUpstreamErrorType(type) } : {}),
   };
 }

@@ -44,6 +44,7 @@ import { markNewConversationRoutePromotion } from '../../lib/core/chat/route-tra
 import { useSkillL10n } from '../../lib/hooks/useSkillL10n';
 
 import { trackEvent, telemetryProviderKind, telemetryModelID } from '../../lib/core/telemetry';
+import { reportSendBlocked } from '../../lib/core/chat/send-failure';
 import styles from './ChatView.module.css';
 import { ConversationBootstrapState } from './ConversationBootstrapState';
 import { ConversationStalledState } from './ConversationStalledState';
@@ -786,7 +787,16 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   // ── Handlers ──
   const handleSend = useCallback(async (overrideText?: string) => {
     const text = (overrideText ?? inputText).trim();
-    if (!text || !provider || !currentModel) return;
+    // Empty input is not a block; chat_send_blocked is recorded only when there is content but no usable connection / model.
+    if (!text) return;
+    if (!provider) {
+      reportSendBlocked('provider_missing');
+      return;
+    }
+    if (!currentModel) {
+      reportSendBlocked('no_model', provider.kind);
+      return;
+    }
     const currentAttachments = overrideText ? [] : [...attachments];
     const currentPendingPinnedNoteIds = overrideText ? [] : [...pendingPinnedNoteIds];
     const currentQuoteContext = overrideText ? undefined : pendingQuoteContext;
@@ -802,6 +812,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         // no-op for guests). Use the same prompt as "signed in but this source is not
         // connected", otherwise sending clears the input with no feedback at all.
         showToast(tLibrary('connectRequired'), 5000, undefined, 'warning');
+        reportSendBlocked('library_unavailable', provider.kind);
         return;
       }
       const connectedSources = new Set(
@@ -811,10 +822,12 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
       );
       if (explicitLibrarySources.some((source) => !connectedSources.has(source))) {
         showToast(tLibrary('connectRequired'), 5000, undefined, 'warning');
+        reportSendBlocked('library_unavailable', provider.kind);
         return;
       }
       if (!libraryResearchAvailable) {
         handleLibraryContextOpen();
+        reportSendBlocked('research_unavailable', provider.kind);
         return;
       }
     }

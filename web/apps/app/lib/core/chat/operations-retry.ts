@@ -139,6 +139,8 @@ export function retryMessageWithSender(
       }
     : undefined;
   return send(ctx, {
+    // Retrying a failed message is recorded as retry; regenerating a completed / interrupted answer is recorded as regenerate.
+    attemptKind: retryingFailedAssistant ? 'retry' : 'regenerate',
     text: userMsg.text, prevMessages: remaining, conversation,
     provider, model, reasoningMode, webSearchEnabled,
     attachments: userMsg.attachments,

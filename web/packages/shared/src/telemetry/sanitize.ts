@@ -48,6 +48,16 @@ const SAFE_KEY_ALLOWLIST = new Set([
   // codes and `auto` / `token`; neither carries a credential or raw server text.
   'errorcode',
   'authkind',
+  // Drill-down fields of chat failure attribution plus attempt_kind / block reason: the values are fixed short slugs or integers,
+  // never error text. Allowed by exact key so a later substring rule (code / class / status) cannot silently drop them.
+  'attempt_kind',
+  'failure_phase',
+  'http_status',
+  'network_detail',
+  'upstream_error_type',
+  'relay_guidance',
+  'error_class',
+  'reason',
 ]);
 
 function normalizeKey(key: string): string {

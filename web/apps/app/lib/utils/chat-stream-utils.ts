@@ -388,6 +388,9 @@ export async function readStream(
           ...(event.streamErrorFrame ? { streamErrorFrame: true } : {}),
           ...(event.errorFields ? { errorFields: event.errorFields } : {}),
           ...(event.relayGuidance ? { relayGuidance: true } : {}),
+          ...(event.upstreamErrorType ? { upstreamErrorType: event.upstreamErrorType } : {}),
+          ...(event.networkDetail ? { networkDetail: event.networkDetail } : {}),
+          ...(event.relayGuidanceKey ? { relayGuidanceKey: event.relayGuidanceKey } : {}),
         } as ProviderError;
       case 'done':
         break;

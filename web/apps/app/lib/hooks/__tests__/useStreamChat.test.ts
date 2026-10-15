@@ -1308,3 +1308,54 @@ describe('sessionStorage backup module (multi-conversation map)', () => {
     expect(Object.keys(readStreamPartialBackup())).toHaveLength(0);
   });
 });
+
+describe('useStreamChat pre-send block event chat_send_blocked', () => {
+  beforeEach(() => {
+    resetState();
+    mockTrackEvent.mockClear();
+  });
+
+  it('the conversation model was removed from the relay connection: reports chat_send_blocked(no_model), no sent / failed', async () => {
+    const relay = { ...provider, id: 'relay-1', kind: 'relay', models: [] };
+    const conversation = {
+      id: 'conversation-1', providerID: 'relay-1', providerKind: 'relay', modelID: 'removed-model', messages: [],
+    };
+    mocks.mockStoreState.providers = [relay];
+    mocks.mockStoreState.conversations = [conversation];
+    const { result } = renderHook(() => useStreamChat({
+      provider: relay, currentModel,
+      conversation: conversation as any,
+      messages: [],
+      reasoningMode: 'automatic',
+      onSendFailed: vi.fn(),
+    }));
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.send('Hello', [], conversation as any);
+    });
+
+    expect(outcome).toBe(SEND_BLOCKED);
+    expect(mockTrackEvent).toHaveBeenCalledWith('chat_send_blocked', { reason: 'no_model', provider_kind: 'relay' });
+    const names = mockTrackEvent.mock.calls.map(([name]) => name);
+    expect(names).not.toContain('chat_message_sent');
+    expect(names).not.toContain('chat_message_failed');
+    expect(mocks.mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('empty input is not a block: no event at all', async () => {
+    const { result } = renderHook(() => useStreamChat({
+      provider, currentModel,
+      conversation: undefined,
+      messages: [],
+      reasoningMode: 'automatic',
+      onSendFailed: vi.fn(),
+    }));
+
+    await act(async () => {
+      await result.current.send('', [], undefined);
+    });
+
+    expect(mockTrackEvent).not.toHaveBeenCalledWith('chat_send_blocked', expect.anything());
+  });
+});
