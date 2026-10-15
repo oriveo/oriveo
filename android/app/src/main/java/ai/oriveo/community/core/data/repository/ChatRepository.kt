@@ -177,7 +177,6 @@ class ChatRepository(
         quoteContext: QuoteContext? = null,
         reasoningMode: ReasoningMode = ReasoningMode.Automatic,
         webSearchEnabled: Boolean = false,
-        antiForgetText: String? = null,
         requestOptions: ChatRequestOptions = ChatRequestOptions(),
         outputs: ConversationStreamingOutputs,
         persistUserMessage: Boolean = true,
@@ -298,16 +297,10 @@ class ChatRepository(
             mcpChatToolRunner?.saveStepPayload(assistantMessageId, update)
         }
 
-        val outboundUserMessage = antiForgetText
-            ?.takeIf { it.isNotBlank() }
-            ?.let { context ->
-                userMessage.copy(text = "${userMessage.text}\n\n$context")
-            }
-            ?: userMessage
         val rawMessages = if (userMessageAlreadyInHistory) {
             existingMessages
         } else {
-            existingMessages + outboundUserMessage
+            existingMessages + userMessage
         }
         val allMessages = withContext(Dispatchers.IO) {
             // Sanitizing, quoting, the attachment budget and the pre-send check share [OutboundHistory].

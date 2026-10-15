@@ -22,8 +22,9 @@ object OutboundHistory {
         blobSizeOf: suspend (String) -> Long,
     ): List<ChatMessage> {
         // Pre-send normalization: drop assistant messages with empty content (to avoid an empty {"role":"assistant","content":""} triggering a persistent RST
-        // from relay gateways), keep interrupted/failed assistant messages with partial text as context, and for adjacent user messages drop the older and keep the newer
-        // (see MessageBuilder.sanitizeOutboundMessages). The latter fixes "after stopping, a new question gets answered together with the old one".
+        // from relay gateways), keep interrupted/failed assistant messages with partial text as context, and merge adjacent user messages into one (the
+        // earlier unanswered text goes into an <oriveo-unanswered> envelope, see MessageBuilder.sanitizeOutboundMessages). The latter neither loses
+        // instructions from the earlier user message nor makes the model answer both questions at once.
         val sanitized = MessageBuilder.sanitizeOutboundMessages(rawMessages, keepAssistantId = keepAssistantId)
         val quoted = QuotePromptBuilder.applyToMessages(sanitized)
         // Trim first, then backfill: history attachments over budget are never read from disk. The current input (the last

@@ -47,10 +47,6 @@ class MemoryViewModel(
 
     var editText by mutableStateOf("")
         private set
-    var antiForgetEnabled by mutableStateOf(false)
-        private set
-    var antiForgetText by mutableStateOf("")
-        private set
     var editRevision by mutableIntStateOf(0)
         private set
     var isGeneratingDraft by mutableStateOf(false)
@@ -68,18 +64,17 @@ class MemoryViewModel(
         private set
 
     private var originalText = ""
-    private var originalAntiForgetEnabled = false
+    // Anti-Forget preferences: not shown in the UI and no longer injected into requests; they are
+    // read as stored and written back unchanged when the memory is saved (kept for later migration).
+    private var storedAntiForgetEnabled = false
+    private var storedAntiForgetText = ""
     private var draftGenerationJob: Job? = null
-
-    val usageCount: StateFlow<Int> = appPreferencesRepository.memoryUsageCount
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val hasRecentConversations: StateFlow<Boolean> = conversationRepository.observeHasAnyWithMessages()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val hasChanges: Boolean
-        get() = editText != originalText ||
-            antiForgetEnabled != originalAntiForgetEnabled
+        get() = editText != originalText
 
     val isEmpty: Boolean
         get() = editText.trim().isBlank()
@@ -87,11 +82,9 @@ class MemoryViewModel(
     init {
         viewModelScope.launch {
             originalText = appPreferencesRepository.getMemoryText()
-            originalAntiForgetEnabled = appPreferencesRepository.getMemoryAntiForgetEnabled()
+            storedAntiForgetEnabled = appPreferencesRepository.getMemoryAntiForgetEnabled()
+            storedAntiForgetText = appPreferencesRepository.getMemoryAntiForgetText()
             editText = originalText
-            antiForgetEnabled = originalAntiForgetEnabled
-
-            antiForgetText = appPreferencesRepository.getMemoryAntiForgetText()
         }
     }
 
@@ -103,29 +96,13 @@ class MemoryViewModel(
         }
     }
 
-    fun updateAntiForgetEnabled(enabled: Boolean) {
-        if (antiForgetEnabled == enabled) return
-        antiForgetEnabled = enabled
-        editRevision += 1
-
-        if (enabled) {
-            antiForgetText = editText.takeGraphemes(
-                AppPreferencesRepository.MEMORY_ANTI_FORGET_CHARACTER_LIMIT,
-            )
-        }
-    }
-
     fun save() {
         viewModelScope.launch {
             val normalizedText = editText.trim()
                 .takeGraphemes(AppPreferencesRepository.MEMORY_CHARACTER_LIMIT)
-            val normalizedAntiForgetEnabled = normalizedText.isNotBlank() && antiForgetEnabled
-
-            val normalizedAntiForgetText = if (normalizedText.isBlank()) {
-                ""
-            } else {
-                editText.takeGraphemes(AppPreferencesRepository.MEMORY_ANTI_FORGET_CHARACTER_LIMIT)
-            }
+            // Anti-Forget preferences are written back unchanged; clearing the memory keeps saveMemory's existing reset semantics.
+            val normalizedAntiForgetEnabled = normalizedText.isNotBlank() && storedAntiForgetEnabled
+            val normalizedAntiForgetText = if (normalizedText.isBlank()) "" else storedAntiForgetText
             val updatedAt = Instant.now().toString()
 
             val previousWasEmpty = originalText.isBlank()
@@ -144,10 +121,9 @@ class MemoryViewModel(
                 updatedAt = updatedAt,
             )
             originalText = normalizedText
-            originalAntiForgetEnabled = normalizedAntiForgetEnabled
+            storedAntiForgetEnabled = normalizedAntiForgetEnabled
+            storedAntiForgetText = normalizedAntiForgetText
             editText = normalizedText
-            antiForgetEnabled = normalizedAntiForgetEnabled
-            antiForgetText = normalizedAntiForgetText
             editRevision = 0
 
             showSaveSuccessDialog = true

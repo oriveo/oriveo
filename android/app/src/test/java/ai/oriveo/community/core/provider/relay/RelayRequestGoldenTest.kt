@@ -362,6 +362,46 @@ class RelayRequestGoldenTest {
         if (existing!!.isNotEmpty()) fail("RL2_MIGRATE_01 golden mismatch (${existing.size}):\n" + existing.joinToString("\n"))
     }
 
+    /**
+     * Registered difference for the Anthropic cache breakpoint: the relay Anthropic body only gains the single cache_control
+     * breakpoint on the last content block of the last user message (a text-only user therefore turns from a string into a
+     * single text block), and among the headers only content-length changes with it. With that breakpoint removed the body
+     * must match the golden field by field.
+     */
+    private fun cacheBreakpointAllowed(key: String, want: JsonElement?, got: JsonElement?): Boolean = when (key) {
+        "headers" -> {
+            val w = want as? JsonObject
+            val g = got as? JsonObject
+            w != null && g != null && JsonObject(w - "content-length") == JsonObject(g - "content-length")
+        }
+        "body" -> {
+            val w = want?.jsonPrimitive?.content?.let { json.parseToJsonElement(it) }
+            val g = got?.jsonPrimitive?.content?.let { json.parseToJsonElement(it).jsonObject }
+            w != null && g != null && w == withoutLastUserBreakpoint(g)
+        }
+        else -> false
+    }
+
+    private fun withoutLastUserBreakpoint(body: JsonObject): JsonObject {
+        val messages = body["messages"] as? JsonArray ?: return body
+        val index = messages.indexOfLast { (it as? JsonObject)?.get("role")?.jsonPrimitive?.content == "user" }
+        if (index < 0) return body
+        val message = messages[index].jsonObject
+        val blocks = message["content"] as? JsonArray ?: return body
+        val last = blocks.lastOrNull() as? JsonObject ?: return body
+        if (!last.containsKey("cache_control")) return body
+        val stripped = JsonObject(last - "cache_control")
+        val content: JsonElement = if (blocks.size == 1 && stripped.keys == setOf("type", "text") &&
+            stripped["type"]?.jsonPrimitive?.content == "text"
+        ) {
+            stripped.getValue("text")
+        } else {
+            JsonArray(blocks.dropLast(1) + stripped)
+        }
+        val rebuilt = messages.toMutableList().also { it[index] = JsonObject(message + ("content" to content)) }
+        return JsonObject(body + ("messages" to JsonArray(rebuilt)))
+    }
+
     /** Compared case by case and field by field; the three registered cells only allow one kind of difference: the URL changing from the old value to the new value with /v1 added. */
     private fun diffAgainst(goldenFile: Path, actual: List<JsonObject>): List<String> {
         val expected = json.parseToJsonElement(String(Files.readAllBytes(goldenFile), Charsets.UTF_8))
@@ -390,6 +430,9 @@ class RelayRequestGoldenTest {
                     wantValue?.jsonPrimitive?.content == allowed.first &&
                     got[key]?.jsonPrimitive?.content == allowed.second
                 ) {
+                    return@forEach
+                }
+                if (caseId in ANTHROPIC_CACHE_BREAKPOINT && cacheBreakpointAllowed(key, wantValue, got[key])) {
                     return@forEach
                 }
                 diffs += "$caseId.$key\n  golden: $wantValue\n  actual: ${got[key]}"
@@ -431,6 +474,12 @@ class RelayRequestGoldenTest {
                 ("https://relay.example.com/chat/completions" to "https://relay.example.com/v1/chat/completions"),
             "relay_responses_bare_host" to
                 ("https://relay.example.com/responses" to "https://relay.example.com/v1/responses"),
+        )
+
+        /** Relay Anthropic puts one cache breakpoint only on the last content block of the last user message. */
+        val ANTHROPIC_CACHE_BREAKPOINT: Set<String> = setOf(
+            "relay_messages_bare_host",
+            "relay_messages_legacy_resolved_root",
         )
     }
 }

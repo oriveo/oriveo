@@ -404,11 +404,7 @@
     <string name="memory_write_manually">الكتابة يدويًا</string>
     <string name="memory_saved">تم حفظ الذاكرة</string>
     <string name="memory_edit_description">أخبر الذكاء الاصطناعي عن نفسك. سيعرف ذلك تلقائيًا في بداية كل محادثة.</string>
-    <string name="memory_usage_count">مستخدم في %1$d محادثة</string>
     <string name="memory_chars">حرف</string>
-    <string name="memory_anti_forget_title">مكافحة النسيان في المحادثات الطويلة</string>
-    <string name="memory_anti_forget_toggle">وضع مكافحة النسيان</string>
-    <string name="memory_anti_forget_description">بعد 10 جولات من المحادثة، يُضاف تلقائيًا ملخص تذكيري في نهاية الرسائل.</string>
     <string name="memory_privacy_warning">يتم إرسال محتوى الذاكرة مع كل طلب ذكاء اصطناعي إلى المزود المختار. لا تدخل كلمات المرور أو معلومات حساسة أخرى.</string>
     <string name="memory_indicator">هذه المحادثة تستخدم الذاكرة</string>
     <string name="memory_indicator_title">هذه المحادثة تستخدم الذاكرة</string>

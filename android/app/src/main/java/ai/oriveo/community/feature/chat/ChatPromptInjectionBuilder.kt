@@ -217,36 +217,6 @@ internal class ChatPromptInjectionBuilder(
         const val MAX_PINNED_NOTES = 3
         const val PINNED_NOTE_BUDGET_CHARS = 6_000
 
-        fun resolvedAntiForgetText(
-            conversation: Conversation,
-            existingMessages: List<ChatMessage>,
-            memoryText: String,
-            antiForgetEnabled: Boolean,
-            antiForgetText: String,
-            remainingChars: Int,
-        ): String? {
-            val trimmedAntiForgetText = antiForgetText.trim()
-            if (!antiForgetEnabled ||
-                !conversation.useMemory ||
-                memoryText.isBlank() ||
-                trimmedAntiForgetText.isBlank()
-            ) {
-                return null
-            }
-
-            val userMessageCount = existingMessages.count { it.role == ChatRole.User } + 1
-            if (userMessageCount < 10) {
-                return null
-            }
-
-            return fitWrappedSegment(
-                prefix = "[Reminder: ",
-                content = trimmedAntiForgetText,
-                suffix = "]",
-                remainingChars = remainingChars,
-            )
-        }
-
         fun fitWrappedSegment(
             prefix: String,
             content: String,

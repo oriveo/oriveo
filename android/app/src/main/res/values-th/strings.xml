@@ -400,11 +400,7 @@
     <string name="memory_write_manually">เขียนด้วยตนเอง</string>
     <string name="memory_saved">บันทึกหน่วยความจำแล้ว</string>
     <string name="memory_edit_description">บอก AI เกี่ยวกับตัวคุณ มันจะรู้สิ่งนี้โดยอัตโนมัติเมื่อเริ่มการสนทนาทุกครั้ง</string>
-    <string name="memory_usage_count">ใช้ในการสนทนา %1$d</string>
     <string name="memory_chars">ตัวอักษร</string>
-    <string name="memory_anti_forget_title">การสนทนาที่ยาวนานป้องกันการลืม</string>
-    <string name="memory_anti_forget_toggle">โหมดป้องกันการลืม</string>
-    <string name="memory_anti_forget_description">หลังจากสนทนาครบ 10 รอบ จะเพิ่มการเตือนสรุปต่อท้ายข้อความโดยอัตโนมัติ</string>
     <string name="memory_privacy_warning">เนื้อหาหน่วยความจำจะถูกส่งพร้อมกับทุกคำขอ AI ไปยังผู้ให้บริการที่คุณเลือก อย่าป้อนรหัสผ่านหรือข้อมูลที่ละเอียดอ่อนอื่น ๆ</string>
     <string name="memory_indicator">การสนทนานี้กำลังใช้ความทรงจำ</string>
     <string name="memory_indicator_title">การสนทนานี้กำลังใช้ความทรงจำ</string>

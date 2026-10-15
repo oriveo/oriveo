@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -40,8 +39,9 @@ class ChatOutboundHistoryProbeTest {
     )
 
     /**
-     * After a user message with a video is sent, the assistant placeholder is persisted first (empty body, removed by outbound normalization -> the video user message becomes adjacent to this turn's placeholder, old dropped and new kept -> false);
-     * once the answer is delivered the last id is unchanged and the flag must be recomputed to true (the next real send carries the video and goes through generateContent).
+     * After a user message with a video is sent, the assistant placeholder is persisted first (empty body, removed by outbound normalization -> the video user message becomes adjacent to this turn's placeholder and merges into one,
+     * attachments concatenated in order -> the video is still there, true); once the answer is delivered the last id is unchanged and the recomputed flag stays true
+     * (the next real send carries the video and goes through generateContent).
      */
     @Test
     fun `flag is recomputed when the streaming answer settles under the same message id`() = runTest {
@@ -59,7 +59,7 @@ class ChatOutboundHistoryProbeTest {
             .hasVideoFlow(states, scope)
         scope.launch { flag.collect {} }
         testScheduler.advanceUntilIdle()
-        assertFalse("with an empty placeholder answer, outbound normalization drops the video user message", flag.value)
+        assertTrue("with an empty placeholder answer the video user message merges with this turn and the video is kept with the attachments", flag.value)
 
         stored = delivered
         states.value = ConversationRenderState(conversation = delivered)

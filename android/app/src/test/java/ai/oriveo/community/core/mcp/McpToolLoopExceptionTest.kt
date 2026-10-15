@@ -286,7 +286,8 @@ class McpToolLoopExceptionTest {
             "the synthesis leg must not propose tools again",
             synthesis.tools.isEmpty() || synthesis.toolChoice == ai.oriveo.community.core.tools.ToolLoopToolChoice.None,
         )
-        assertTrue(synthesis.messages.any { it.role == "system" && it.textContent == McpToolBridge.prompts.stepLimitReached })
+        assertTrue(synthesis.messages.any { it.role == "user" && it.textContent == McpToolBridge.prompts.stepLimitReached })
+        assertTrue("no system message is appended mid-loop", synthesis.messages.dropWhile { it.role == "system" }.none { it.role == "system" })
     }
 
     // ── Confirmation declined ────────────────────────────────────────

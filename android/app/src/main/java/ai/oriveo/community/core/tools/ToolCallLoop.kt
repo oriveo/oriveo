@@ -121,9 +121,9 @@ class ToolCallLoop(
      * would only make the model invent citation numbers). Features with their own wording and error code pass them in explicitly.
      */
     data class Prompts(
-        /** System instruction appended after hitting the cap (steps or legs). */
+        /** Instruction appended as a host notice (user) after hitting the cap (steps or legs). */
         val stepLimitReached: String = "The tool call limit was reached. Answer now using the tool results you already have. Do not call another tool.",
-        /** System instruction appended after the token budget runs out. */
+        /** Instruction appended as a host notice (user) after the token budget runs out. */
         val tokenBudgetReached: String = "The token budget for tool calls was reached. Answer now using the tool results you already have and do not call another tool. If they are not enough to answer, say so clearly.",
         /** Explanation fed back to the skipped calls when the cap is hit. */
         val stoppedByStepLimit: String = "The tool call limit was reached.",
@@ -237,19 +237,21 @@ class ToolCallLoop(
                 providerContinuation = leg.providerContinuation,
             )
             history += assistantMessage
-            // Tool results are fed back in the upstream proposal order (unmatched entries in a mixed leg are not moved to the front); appended system statements come after all results.
+            // Tool results are fed back in the upstream proposal order (unmatched entries in a mixed leg are not moved to the front); host loop notices come after all results.
+            // Notices are always user messages and never go into system: system only comes from the start, and the system / instructions /
+            // systemInstruction encoded for every leg must be byte-identical (otherwise the prefix cache misses on every leg and some protocols reject a mid-way system).
             val resultsByCallId = LinkedHashMap<String, ToolLoopMessage>()
-            val trailingSystemMessages = mutableListOf<ToolLoopMessage>()
+            val trailingHostNotices = mutableListOf<ToolLoopMessage>()
             fun feed(message: ToolLoopMessage) {
                 message.toolCallId?.let { resultsByCallId[it] = message }
             }
-            fun appendSystem(content: String) {
-                trailingSystemMessages += ToolLoopMessage("system", content)
+            fun appendHostNotice(content: String) {
+                trailingHostNotices += hostNotice(content)
             }
             suspend fun commitLeg() {
                 val ordered = typedCalls.mapNotNull { resultsByCallId[it.id] }
                 history += ordered
-                history += trailingSystemMessages
+                history += trailingHostNotices
                 onLegCompleted?.invoke(LegRecord(legIndex, assistantMessage, ordered))
             }
             // The protocol requires a tool message for every tool_call: the unmatched ones in a mixed leg get an unknown_tool reply.
@@ -270,7 +272,7 @@ class ToolCallLoop(
                         content = errorContent(prompts.stoppedCode, prompts.stoppedByTokenBudget),
                     ))
                 }
-                appendSystem(prompts.tokenBudgetReached)
+                appendHostNotice(prompts.tokenBudgetReached)
                 forceSynthesis = true
                 commitLeg()
                 break
@@ -289,7 +291,7 @@ class ToolCallLoop(
                     feed(adapter.encodeToolResult(call.id, call.function.name, outcome.content))
                     val stopReason = outcome.stopReason
                     if (stopReason != null) {
-                        appendSystem(stopReason)
+                        appendHostNotice(stopReason)
                         for (skipped in accepted.drop(callIndex + 1)) {
                             feed(adapter.encodeToolResult(
                                 callId = skipped.id,
@@ -351,7 +353,7 @@ class ToolCallLoop(
                             content = errorContent(prompts.stoppedCode, prompts.stoppedByStepLimit),
                         ))
                     }
-                    appendSystem(prompts.stepLimitReached)
+                    appendHostNotice(prompts.stepLimitReached)
                     forceSynthesis = true
                     stepLimitReached = true
                     break@toolCallsLoop
@@ -362,8 +364,8 @@ class ToolCallLoop(
         }
 
         if (!forceSynthesis) {
-            // Legs exhausted: the same "limit reached" outcome as the step cap.
-            history += ToolLoopMessage("system", prompts.stepLimitReached)
+            // Legs exhausted: the same "limit reached" outcome as the step cap, likewise appended as a host notice after the last leg's tool results.
+            history += hostNotice(prompts.stepLimitReached)
             stepLimitReached = true
         }
         val finalIndex = maxOf(0, limits.maxSteps)
@@ -389,6 +391,9 @@ class ToolCallLoop(
             executedToolSteps = executedToolSteps,
         )
     }
+
+    /** Host loop notice: appended as a user message after all tool results of the leg (the adapter keeps it in the same user turn as those results). */
+    private fun hostNotice(content: String): ToolLoopMessage = ToolLoopMessage("user", content)
 
     data class ConsumedLeg(
         val text: String,

@@ -409,7 +409,8 @@ class AnthropicService(
         capabilityProjection: CapabilityEvidenceProductionAdapter.Projection,
     ): String {
         val options = MessageBuilder.normalizeRequestOptions(requestOptions)
-        // Resolve the model for AttachmentRouter, which enables cache_control and native PDF.
+        // Resolve the model for AttachmentRouter (native PDF). Caching uses only the top-level
+        // cache_control; content blocks get no breakpoint of their own.
         val activeModel = MetadataClient.resolveAIModelForRouter(modelID, ProviderKind.Anthropic)
         // Build the message list, attachments included, through MessageBuilder.
         val msgs = MessageBuilder.buildAnthropicMessages(messagesForCapabilityProjection(messages, capabilityProjection), activeModel)

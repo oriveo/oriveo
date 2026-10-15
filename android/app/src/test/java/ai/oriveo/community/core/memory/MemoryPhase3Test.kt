@@ -100,21 +100,9 @@ class MemoryPhase3Test {
     }
 
     @Test
-    fun `MEM-3-20 - missing memory usage count defaults to 0`() = runTest {
-        val count = repository.memoryUsageCount.first()
-        assertEquals(0, count)
-    }
-
-    @Test
     fun `MEM-3-20 - missing memory has seen defaults to false`() = runTest {
         val hasSeen = repository.memoryHasSeen.first()
         assertFalse(hasSeen)
-    }
-
-    @Test
-    fun `MEM-3-20 - missing memory usage conversation ids defaults to empty set`() = runTest {
-        val ids = repository.memoryUsageConversationIds.first()
-        assertTrue(ids.isEmpty())
     }
 
     @Test
@@ -133,37 +121,13 @@ class MemoryPhase3Test {
     }
 
     @Test
-    fun `MEM-3-20 - malformed memory usage count does not crash`() = runTest {
-        preferenceDao.set(PreferenceEntity(AppPreferenceKeys.MEMORY_USAGE_COUNT, "not_a_number"))
-        val count = repository.memoryUsageCount.first()
-        assertEquals(0, count)
-    }
-
-    @Test
     fun `MEM-3-20 - malformed memory anti-forget enabled does not crash`() = runTest {
         preferenceDao.set(PreferenceEntity(AppPreferenceKeys.MEMORY_ANTI_FORGET_ENABLED, "not_a_bool"))
         val enabled = repository.memoryAntiForgetEnabled.first()
         assertFalse(enabled)
     }
 
-    @Test
-    fun `MEM-3-20 - malformed memory usage conversation ids does not crash`() = runTest {
-        preferenceDao.set(PreferenceEntity(AppPreferenceKeys.MEMORY_USAGE_CONVERSATION_IDS, "invalid_json"))
-        val ids = repository.memoryUsageConversationIds.first()
-        assertTrue(ids.isEmpty())
-    }
-
-    @Test
-    fun `MEM-3-09 - memoryUsageCount is local-only stored in preferences`() = runTest {
-        repository.markMemoryUsedInConversation("conv-1")
-        repository.markMemoryUsedInConversation("conv-2")
-
-        val count = repository.memoryUsageCount.first()
-        assertEquals(2, count)
-
-        val rawCount = preferenceDao.get(AppPreferenceKeys.MEMORY_USAGE_COUNT)
-        assertEquals("2", rawCount)
-    }
+    // MEM-3-09: the memory usage count was removed, and backups carry no such field either.
 
     @Test
     fun `MEM-3-09 - memoryUsageCount not included in BackupPreferences`() {

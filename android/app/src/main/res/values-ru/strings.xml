@@ -403,11 +403,7 @@
     <string name="memory_write_manually">Написать вручную</string>
     <string name="memory_saved">Память сохранена</string>
     <string name="memory_edit_description">Расскажите ИИ о себе. Он будет автоматически знать это в начале каждого разговора.</string>
-    <string name="memory_usage_count">Используется в разговорах %1$d.</string>
     <string name="memory_chars">персонажи</string>
-    <string name="memory_anti_forget_title">Долгий разговор против забывания</string>
-    <string name="memory_anti_forget_toggle">Режим защиты от забывания</string>
-    <string name="memory_anti_forget_description">После 10 раундов разговора автоматически добавляйте сводное напоминание в конце сообщений.</string>
     <string name="memory_privacy_warning">Содержимое памяти отправляется с каждым запросом ИИ выбранному вами провайдеру. Не вводите пароли или другую конфиденциальную информацию.</string>
     <string name="memory_indicator">Этот разговор использует память</string>
     <string name="memory_indicator_title">Этот разговор использует память</string>

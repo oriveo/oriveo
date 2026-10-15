@@ -407,8 +407,9 @@ class RelayCapabilityTestTest {
             """{"model":"m","input":[{"role":"user","content":[{"type":"input_text","text":"Hi"}]}],"stream":true,"tools":[{"type":"image_generation"}],"reasoning":{"summary":"auto"},"prompt_cache_key":"${RelayRuntimeSupport.promptCacheKey("m", "", "Hi")}"}""",
             buildResponsesBody("m", messages, true, false, ReasoningMode.Automatic, false, options(RelayTransport.OpenAIResponses)),
         )
+        // Relay Anthropic puts the only cache breakpoint on the last content block of the last user message (a text-only user becomes a single text block).
         assertEquals(
-            """{"model":"m","max_tokens":8192,"stream":true,"messages":[{"role":"user","content":"Hi"}]}""",
+            """{"model":"m","max_tokens":8192,"stream":true,"messages":[{"role":"user","content":[{"type":"text","text":"Hi","cache_control":{"type":"ephemeral"}}]}]}""",
             buildAnthropicBody("m", messages, true, ReasoningMode.Automatic, options(RelayTransport.AnthropicMessages)),
         )
         assertEquals(

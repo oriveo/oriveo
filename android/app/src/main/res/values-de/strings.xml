@@ -461,11 +461,7 @@
     <string name="memory_write_manually">Manuell schreiben</string>
     <string name="memory_saved">Gedächtnis gespeichert</string>
     <string name="memory_edit_description">Erzähl der KI von dir. Sie wird es automatisch am Anfang jedes Gesprächs wissen.</string>
-    <string name="memory_usage_count">In %1$d Unterhaltungen verwendet</string>
     <string name="memory_chars">Zeichen</string>
-    <string name="memory_anti_forget_title">Vergessensschutz bei langen Gesprächen</string>
-    <string name="memory_anti_forget_toggle">Vergessensschutz-Modus</string>
-    <string name="memory_anti_forget_description">Nach 10 Gesprächsrunden wird am Ende der Nachrichten automatisch eine Zusammenfassung angehängt.</string>
     <string name="memory_privacy_warning">Der Gedächtnisinhalt wird mit jeder KI-Anfrage an den gewählten Anbieter gesendet. Gib keine Passwörter oder sensiblen Informationen ein.</string>
     <string name="memory_indicator">Diese Konversation verwendet das Gedächtnis</string>
     <string name="memory_indicator_title">Diese Konversation verwendet das Gedächtnis</string>

@@ -462,11 +462,7 @@
     <string name="memory_write_manually">직접 작성</string>
     <string name="memory_saved">메모리가 저장되었습니다</string>
     <string name="memory_edit_description">AI에게 자신에 대해 알려주세요. 모든 대화 시작 시 자동으로 인식합니다.</string>
-    <string name="memory_usage_count">%1$d개의 대화에서 사용 중</string>
     <string name="memory_chars">자</string>
-    <string name="memory_anti_forget_title">긴 대화 망각 방지</string>
-    <string name="memory_anti_forget_toggle">망각 방지 모드</string>
-    <string name="memory_anti_forget_description">대화가 10회를 넘으면 메시지 끝에 요약 알림을 자동으로 추가합니다.</string>
     <string name="memory_privacy_warning">메모리 내용은 모든 AI 요청과 함께 선택한 제공업체에 전송됩니다. 비밀번호 등 민감한 정보는 입력하지 마세요.</string>
     <string name="memory_indicator">이 대화는 메모리를 사용 중입니다</string>
     <string name="memory_indicator_title">이 대화는 메모리를 사용 중입니다</string>

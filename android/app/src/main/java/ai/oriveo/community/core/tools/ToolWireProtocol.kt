@@ -156,20 +156,18 @@ internal object ToolWireProtocolAdapter {
     )
 
     private fun responsesInput(messages: List<ToolLoopMessage>): ResponsesInput {
-        val instructions = messages.filter { it.role == "system" }.mapNotNull(::textContent)
-            .takeIf { it.isNotEmpty() }?.joinToString("\n\n")
-        val previousIndex = messages.indexOfLast {
+        val (instructions, body) = splitLeadingSystem(messages)
+        val previousIndex = body.indexOfLast {
             continuationState(it, "openai_responses")
                 ?.get("previousResponseId")?.jsonPrimitive?.contentOrNull?.isNotBlank() == true
         }
-        val previousId = messages.getOrNull(previousIndex)
+        val previousId = body.getOrNull(previousIndex)
             ?.let { continuationState(it, "openai_responses") }
             ?.get("previousResponseId")?.jsonPrimitive?.contentOrNull
-        val source = if (previousIndex >= 0) messages.drop(previousIndex + 1) else messages
+        val source = if (previousIndex >= 0) body.drop(previousIndex + 1) else body
         val input = buildJsonArray {
             source.forEach { message ->
                 when (message.role) {
-                    "system" -> Unit
                     "tool" -> add(buildJsonObject {
                         put("type", "function_call_output")
                         put("call_id", message.toolCallId.orEmpty())
@@ -206,10 +204,9 @@ internal object ToolWireProtocolAdapter {
     private data class AnthropicInput(val messages: JsonArray, val system: String?)
 
     private fun anthropicMessages(messages: List<ToolLoopMessage>): AnthropicInput {
-        val system = messages.filter { it.role == "system" }.mapNotNull(::textContent)
-            .takeIf { it.isNotEmpty() }?.joinToString("\n\n")
+        val (system, body) = splitLeadingSystem(messages)
         val output = mutableListOf<JsonElement>()
-        messages.filterNot { it.role == "system" }.forEach { message ->
+        body.forEach { message ->
             if (message.role == "tool") {
                 val block = buildJsonObject {
                     put("type", "tool_result")
@@ -227,6 +224,16 @@ internal object ToolWireProtocolAdapter {
                     ))
                 } else {
                     output += buildJsonObject { put("role", "user"); put("content", JsonArray(listOf(block))) }
+                }
+            } else if (message.role == "user" && lastIsToolResultTurn(output)) {
+                // A host loop notice right after tool_result blocks joins the same user turn, so two
+                // adjacent user turns never appear.
+                textContent(message)?.takeIf { it.isNotEmpty() }?.let { text ->
+                    val previous = output.last() as JsonObject
+                    val block = buildJsonObject { put("type", "text"); put("text", text) }
+                    output[output.lastIndex] = JsonObject(previous + (
+                        "content" to JsonArray((previous["content"] as JsonArray) + block)
+                    ))
                 }
             } else {
                 val replay = continuationBlocks(message, "anthropic_messages")
@@ -252,52 +259,91 @@ internal object ToolWireProtocolAdapter {
     private data class GeminiInput(val contents: JsonArray, val systemInstruction: JsonObject?)
 
     private fun geminiContents(messages: List<ToolLoopMessage>): GeminiInput {
-        val system = messages.filter { it.role == "system" }.mapNotNull(::textContent)
-            .takeIf { it.isNotEmpty() }?.joinToString("\n\n")
+        val (system, body) = splitLeadingSystem(messages)
         val callNames = buildMap {
             messages.forEach { message -> message.toolCalls.orEmpty().forEach { put(it.id, it.function.name) } }
         }
-        val contents = buildJsonArray {
-            messages.filterNot { it.role == "system" }.forEach { message ->
-                if (message.role == "tool") {
-                    add(buildJsonObject {
-                        put("role", "user")
-                        put("parts", buildJsonArray {
-                            add(buildJsonObject {
-                                put("functionResponse", buildJsonObject {
-                                    put("name", callNames[message.toolCallId] ?: "unknown_tool")
-                                    put("response", jsonObject(textContent(message).orEmpty()))
-                                })
-                            })
-                        })
+        val output = mutableListOf<JsonObject>()
+        body.forEach { message ->
+            if (message.role == "tool") {
+                val part = buildJsonObject {
+                    put("functionResponse", buildJsonObject {
+                        put("name", callNames[message.toolCallId] ?: "unknown_tool")
+                        put("response", jsonObject(textContent(message).orEmpty()))
                     })
+                }
+                // Several functionResponse parts of the same leg share one user turn.
+                if (lastIsFunctionResponseTurn(output)) appendGeminiPart(output, part)
+                else output += geminiUserTurn(part)
+            } else if (message.role == "user" && lastIsFunctionResponseTurn(output)) {
+                // A host loop notice right after functionResponse parts joins the same user turn.
+                textContent(message)?.takeIf { it.isNotEmpty() }?.let { text ->
+                    appendGeminiPart(output, buildJsonObject { put("text", text) })
+                }
+            } else {
+                val replay = continuationBlocks(message, "gemini_generate")
+                if (replay != null) {
+                    replay.forEach { block -> (block as? JsonObject)?.let { output += it } }
                 } else {
-                    val replay = continuationBlocks(message, "gemini_generate")
-                    if (replay != null) {
-                        replay.forEach(::add)
-                    } else {
-                        add(buildJsonObject {
-                            put("role", if (message.role == "assistant") "model" else "user")
-                            put("parts", buildJsonArray {
-                                textContent(message)?.takeIf { it.isNotEmpty() }?.let { add(buildJsonObject { put("text", it) }) }
-                                message.toolCalls.orEmpty().forEach { call ->
-                                    add(buildJsonObject {
-                                        put("functionCall", buildJsonObject {
-                                            put("name", call.function.name)
-                                            put("args", jsonObject(call.function.arguments))
-                                        })
+                    output += buildJsonObject {
+                        put("role", if (message.role == "assistant") "model" else "user")
+                        put("parts", buildJsonArray {
+                            textContent(message)?.takeIf { it.isNotEmpty() }?.let { add(buildJsonObject { put("text", it) }) }
+                            message.toolCalls.orEmpty().forEach { call ->
+                                add(buildJsonObject {
+                                    put("functionCall", buildJsonObject {
+                                        put("name", call.function.name)
+                                        put("args", jsonObject(call.function.arguments))
                                     })
-                                }
-                            })
+                                })
+                            }
                         })
                     }
                 }
             }
         }
+        val contents = JsonArray(output)
         val systemInstruction = system?.let {
             buildJsonObject { put("parts", buildJsonArray { add(buildJsonObject { put("text", it) }) }) }
         }
         return GeminiInput(contents, systemInstruction)
+    }
+
+    /**
+     * System text only comes from the leading run of system messages (it becomes the top-level
+     * system / instructions / systemInstruction). The loop never adds a system message mid-way
+     * (host notices are user messages), so every leg gets a byte-identical system.
+     */
+    private fun splitLeadingSystem(messages: List<ToolLoopMessage>): Pair<String?, List<ToolLoopMessage>> {
+        val leading = messages.takeWhile { it.role == "system" }
+        val system = leading.mapNotNull(::textContent).takeIf { it.isNotEmpty() }?.joinToString("\n\n")
+        return system to messages.drop(leading.size)
+    }
+
+    private fun lastIsToolResultTurn(output: List<JsonElement>): Boolean {
+        val previous = output.lastOrNull() as? JsonObject ?: return false
+        if (previous["role"]?.jsonPrimitive?.contentOrNull != "user") return false
+        return (previous["content"] as? JsonArray)?.any {
+            (it as? JsonObject)?.get("type")?.jsonPrimitive?.contentOrNull == "tool_result"
+        } == true
+    }
+
+    private fun lastIsFunctionResponseTurn(output: List<JsonObject>): Boolean {
+        val previous = output.lastOrNull() ?: return false
+        if (previous["role"]?.jsonPrimitive?.contentOrNull != "user") return false
+        val parts = previous["parts"] as? JsonArray ?: return false
+        // A turn that already absorbed a host notice (a text part) takes no further functionResponse.
+        return parts.isNotEmpty() && parts.all { (it as? JsonObject)?.containsKey("functionResponse") == true }
+    }
+
+    private fun appendGeminiPart(output: MutableList<JsonObject>, part: JsonObject) {
+        val previous = output.last()
+        output[output.lastIndex] = JsonObject(previous + ("parts" to JsonArray((previous["parts"] as JsonArray) + part)))
+    }
+
+    private fun geminiUserTurn(part: JsonObject) = buildJsonObject {
+        put("role", "user")
+        put("parts", JsonArray(listOf(part)))
     }
 
     private fun openAIChatTool(tool: ToolLoopToolDefinition) = buildJsonObject {

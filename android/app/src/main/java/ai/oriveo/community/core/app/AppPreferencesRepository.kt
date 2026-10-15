@@ -152,12 +152,6 @@ class AppPreferencesRepository(
 
     val memoryUpdatedAt: Flow<String?> = observeUserState(AppPreferenceKeys.MEMORY_UPDATED_AT)
 
-    val memoryUsageCount: Flow<Int> = observeUserState(AppPreferenceKeys.MEMORY_USAGE_COUNT)
-        .map { it?.toIntOrNull() ?: 0 }
-
-    val memoryUsageConversationIds: Flow<Set<String>> = observeUserState(AppPreferenceKeys.MEMORY_USAGE_CONVERSATION_IDS)
-        .map(::decodeMemoryUsageConversationIds)
-
     val memoryHasSeen: Flow<Boolean> = observeUserState(AppPreferenceKeys.MEMORY_HAS_SEEN)
         .map { it?.toBooleanStrictOrNull() ?: false }
 
@@ -404,30 +398,6 @@ class AppPreferencesRepository(
     suspend fun getPinnedConversationIds(): List<String> =
         decodePinnedConversationIds(accountScopedValue(AppPreferenceKeys.PINNED_CONVERSATION_IDS))
 
-    suspend fun markMemoryUsedInConversation(conversationId: String) {
-        val normalizedId = conversationId.trim()
-        if (normalizedId.isEmpty()) return
-
-        val current = decodeMemoryUsageConversationIds(
-            accountScopedValue(AppPreferenceKeys.MEMORY_USAGE_CONVERSATION_IDS),
-        ).toMutableSet()
-        if (!current.add(normalizedId)) return
-
-        val sortedIds = current.toList().sorted()
-        preferenceDao.set(
-            PreferenceEntity(
-                storageKeyForCurrentAccount(AppPreferenceKeys.MEMORY_USAGE_CONVERSATION_IDS),
-                json.encodeToString(sortedIds),
-            ),
-        )
-        preferenceDao.set(
-            PreferenceEntity(
-                storageKeyForCurrentAccount(AppPreferenceKeys.MEMORY_USAGE_COUNT),
-                sortedIds.size.toString(),
-            ),
-        )
-    }
-
     suspend fun saveMemory(
         text: String,
         antiForgetEnabled: Boolean,
@@ -477,16 +447,6 @@ class AppPreferencesRepository(
     private fun storageKeyForCurrentAccount(key: String): String = key
 
     private fun currentAccountId(): String = LOCAL_PARTITION_ID
-
-    private fun decodeMemoryUsageConversationIds(rawValue: String?): Set<String> {
-        val raw = rawValue?.takeIf { it.isNotBlank() } ?: return emptySet()
-        return runCatching {
-            json.decodeFromString<List<String>>(raw)
-                .map(String::trim)
-                .filter(String::isNotEmpty)
-                .toSet()
-        }.getOrDefault(emptySet())
-    }
 
     private fun decodePinnedConversationIds(rawValue: String?): List<String> {
         val raw = rawValue?.takeIf { it.isNotBlank() } ?: return emptyList()

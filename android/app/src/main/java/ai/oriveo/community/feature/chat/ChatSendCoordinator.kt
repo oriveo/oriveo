@@ -1,6 +1,5 @@
 package ai.oriveo.community.feature.chat
 
-import ai.oriveo.community.core.app.AppPreferencesRepository
 import ai.oriveo.community.core.attachments.AttachmentInjector
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.AIModel
@@ -28,12 +27,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 internal class ChatSendCoordinator(
-    private val appPreferencesRepository: AppPreferencesRepository,
     private val chatStreamingManager: ChatStreamingManager,
     private val applicationScope: CoroutineScope,
     private val promptInjectionBuilder: ChatPromptInjectionBuilder,
-    private val currentAntiForgetEnabled: () -> Boolean,
-    private val currentAntiForgetText: () -> String,
     /** Resolves the pinned note ids on the conversation, plus any staged before it was stored. */
     private val pinnedNotesResolver: suspend (List<String>) -> List<Note>,
     private val pendingPinnedNoteIds: () -> List<String>,
@@ -104,26 +100,11 @@ internal class ChatSendCoordinator(
                 memoryText = memoryText,
                 pinnedNotes = pinnedNotes,
             )
-            val antiForgetText = if (appendToAssistant != null) {
-                null
-            } else {
-                ChatPromptInjectionBuilder.resolvedAntiForgetText(
-                    conversation = conversation,
-                    existingMessages = existingMessages,
-                    memoryText = memoryText,
-                    antiForgetEnabled = currentAntiForgetEnabled(),
-                    antiForgetText = currentAntiForgetText(),
-                    remainingChars = promptInjection?.remainingChars ?: 12_000,
-                )
-            }
             val finalSystemPrompt = finalSystemPrompt(
                 basePrompt = promptInjection?.systemPrompt.orEmpty(),
                 attachments = attachments,
             )
             val baseRequestOptions = if (finalSystemPrompt.isNotBlank()) {
-                if (promptInjection?.memoryInjected == true) {
-                    appPreferencesRepository.markMemoryUsedInConversation(conversation.id)
-                }
                 ChatRequestOptions(systemPrompt = finalSystemPrompt)
             } else {
                 ChatRequestOptions()
@@ -205,7 +186,6 @@ internal class ChatSendCoordinator(
                     quoteContext = quoteContext,
                     reasoningMode = customReasoningMode,
                     webSearchEnabled = dispatch.outboundWebSearchEnabled,
-                    antiForgetText = antiForgetText,
                     requestOptions = requestOptions,
                     persistUserMessage = persistUserMessage,
                     userMessageAlreadyInHistory = userMessageAlreadyInHistory,

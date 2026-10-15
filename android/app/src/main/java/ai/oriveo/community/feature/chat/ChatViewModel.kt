@@ -120,12 +120,9 @@ class ChatViewModel(
         untitledNoteFallback = context.getString(R.string.notes_untitled),
     )
     private val sendCoordinator = ChatSendCoordinator(
-        appPreferencesRepository = appPreferencesRepository,
         chatStreamingManager = chatStreamingManager,
         applicationScope = applicationScope,
         promptInjectionBuilder = promptInjectionBuilder,
-        currentAntiForgetEnabled = { currentAntiForgetEnabled.value },
-        currentAntiForgetText = { currentAntiForgetText.value },
         pinnedNotesResolver = { ids -> noteRepository.getActiveNotesByIds(ids) },
         pendingPinnedNoteIds = { noteCoordinator.pendingPinnedNoteIds },
         generationParameterSettingsStore = generationParameterSettingsStore,
@@ -536,12 +533,6 @@ class ChatViewModel(
     }
 
     val currentMemoryText: StateFlow<String> = appPreferencesRepository.memoryText
-        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
-
-    private val currentAntiForgetEnabled = appPreferencesRepository.memoryAntiForgetEnabled
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-
-    private val currentAntiForgetText = appPreferencesRepository.memoryAntiForgetText
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     val showMemoryIndicator: StateFlow<Boolean> = combine(

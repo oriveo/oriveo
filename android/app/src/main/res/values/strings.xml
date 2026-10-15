@@ -575,11 +575,7 @@
     <string name="memory_write_manually">Write manually</string>
     <string name="memory_saved">Memory saved</string>
     <string name="memory_edit_description">Tell AI about yourself. It will automatically know this at the start of every conversation.</string>
-    <string name="memory_usage_count">Used in %1$d conversations</string>
     <string name="memory_chars">characters</string>
-    <string name="memory_anti_forget_title">Long conversation anti-forgetting</string>
-    <string name="memory_anti_forget_toggle">Anti-forget mode</string>
-    <string name="memory_anti_forget_description">After 10 rounds of conversation, automatically append a summary reminder at the end of messages.</string>
     <string name="memory_privacy_warning">Memory content is sent with every AI request to your chosen provider. Do not enter passwords or other sensitive information.</string>
     <string name="memory_indicator">This conversation is using memory</string>
     <string name="memory_indicator_title">This conversation is using memory</string>

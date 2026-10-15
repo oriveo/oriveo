@@ -354,25 +354,24 @@ class MessageBuilderTest {
     }
 
     @Test
-    fun `sanitizeOutboundMessages - dropping an empty failed assistant in the middle also drops the older user, keeping only the latest`() {
+    fun `sanitizeOutboundMessages - dropping an empty failed assistant in the middle merges the older user into the latest via the unanswered envelope`() {
         val messages = listOf(
             msg("u1", ChatRole.User, "q1", ChatMessageState.Delivered),
             msg("a1", ChatRole.Assistant, "", ChatMessageState.Failed),
             msg("u2", ChatRole.User, "q2", ChatMessageState.Delivered),
         )
         val result = MessageBuilder.sanitizeOutboundMessages(messages)
-        // Removing the empty a1 leaves u1 and u2 adjacent. The answer to u1 already failed or was abandoned, so the older u1
-        // is dropped and only the latest u2 is sent: roles stay strictly alternating and two independent questions are not
-        // merged into a single prompt the model would try to answer at once.
+        // Removing the empty a1 leaves u1 and u2 adjacent: they merge into one message that keeps u2's id, and u1 goes into
+        // the envelope as unanswered context instead of being silently lost.
         assertEquals(listOf(ChatRole.User), result.map { it.role })
-        assertEquals("q2", result.single().text)
+        assertEquals("<oriveo-unanswered>\n<note>${MessageBuilder.UNANSWERED_NOTE}</note>\nq1\n</oriveo-unanswered>\n\nq2", result.single().text)
         assertEquals(listOf("u2"), result.map { it.id })
     }
 
     @Test
-    fun `sanitizeOutboundMessages - dropping an empty failed assistant mid-history keeps only the latest user and stays strictly alternating`() {
-        // u1 -> a1(delivered) -> u2 -> a2(failed, empty) -> u3: once a2 is dropped, u2 and u3 are adjacent, and since the
-        // answer to u2 already failed or was abandoned, u2 is dropped and only u3 survives.
+    fun `sanitizeOutboundMessages - dropping an empty failed assistant mid-history merges adjacent users and stays strictly alternating`() {
+        // u1 -> a1(delivered) -> u2 -> a2(failed, empty) -> u3: once a2 is dropped, u2 and u3 are adjacent; they merge into
+        // one message that keeps u3's id, with u2 in the unanswered envelope.
         val messages = listOf(
             msg("u1", ChatRole.User, "q1", ChatMessageState.Delivered),
             msg("a1", ChatRole.Assistant, "a1", ChatMessageState.Delivered),
@@ -385,7 +384,7 @@ class MessageBuilderTest {
             listOf(ChatRole.User, ChatRole.Assistant, ChatRole.User),
             result.map { it.role },
         )
-        assertEquals(listOf("q1", "a1", "q3"), result.map { it.text })
+        assertEquals(listOf("q1", "a1", "<oriveo-unanswered>\n<note>${MessageBuilder.UNANSWERED_NOTE}</note>\nq2\n</oriveo-unanswered>\n\nq3"), result.map { it.text })
         assertEquals(listOf("u1", "a1", "u3"), result.map { it.id })
     }
 
@@ -424,10 +423,10 @@ class MessageBuilderTest {
     }
 
     @Test
-    fun `sanitizeOutboundMessages - a new question after a stop drops the old question once the empty interrupted assistant is removed`() {
-        // Reproduces and pins a bug seen in the field: ask question A, press stop before the assistant emits any text (an
-        // empty interruption), then ask question B. The old implementation merged A and B into one prompt and the model
-        // answered both. Now the older question A is dropped and only B is sent.
+    fun `sanitizeOutboundMessages - a new question after a stop puts the old question in the unanswered envelope once the empty interrupted assistant is removed`() {
+        // Ask question A, press stop before the assistant emits any text (an empty interruption), then ask question B: A is
+        // not dropped (it may carry an instruction) but wrapped in an <oriveo-unanswered> envelope that says "use as context,
+        // answer the latest message", with B's original text following the envelope.
         val messages = listOf(
             msg("uA", ChatRole.User, "what is that micro frontend framework called", ChatMessageState.Delivered),
             msg("aA", ChatRole.Assistant, "", ChatMessageState.Interrupted),
@@ -435,7 +434,7 @@ class MessageBuilderTest {
         )
         val result = MessageBuilder.sanitizeOutboundMessages(messages)
         assertEquals(listOf("uB"), result.map { it.id })
-        assertEquals("who runs that video studio", result.single().text)
+        assertEquals("<oriveo-unanswered>\n<note>${MessageBuilder.UNANSWERED_NOTE}</note>\nwhat is that micro frontend framework called\n</oriveo-unanswered>\n\nwho runs that video studio", result.single().text)
     }
 
     @Test
@@ -443,7 +442,7 @@ class MessageBuilderTest {
         // Some clients overwrite the text with localised error copy when the partial is empty, which is what the failure
         // bubble renders; here the text is simply empty. Either way a failed turn must not be sent to the model as
         // assistant context, or the error copy becomes a fake answer and is re-sent on every subsequent turn. Anything
-        // with state == Failed is dropped, and when it is not the keepId the older user goes with it.
+        // with state == Failed is dropped, and when it is not the keepId the older user goes into the unanswered envelope.
         val messages = listOf(
             msg("u1", ChatRole.User, "q1", ChatMessageState.Delivered),
             msg("a1", ChatRole.Assistant, "Request failed: invalid key", ChatMessageState.Failed),
@@ -451,7 +450,11 @@ class MessageBuilderTest {
         )
         val result = MessageBuilder.sanitizeOutboundMessages(messages)
         assertEquals(listOf("u2"), result.map { it.id })
-        assertEquals("q2", result.single().text)
+        assertEquals(
+            "<oriveo-unanswered>\n<note>${MessageBuilder.UNANSWERED_NOTE}</note>\nq1\n</oriveo-unanswered>\n\nq2",
+            result.single().text,
+        )
+        assertFalse(result.single().text.contains("Request failed"))
     }
 
     @Test
@@ -508,7 +511,7 @@ class MessageBuilderTest {
     }
 
     @Test
-    fun `sanitizeOutboundMessages - an image-only assistant becomes empty once stripped, so it is removed and the older user is dropped too`() {
+    fun `sanitizeOutboundMessages - an image-only assistant becomes empty once stripped, so it is removed and the adjacent users merge`() {
         val messages = listOf(
             msg("u1", ChatRole.User, "draw me a farmer", ChatMessageState.Delivered),
             msg("a1", ChatRole.Assistant, "", ChatMessageState.Delivered)
@@ -516,9 +519,9 @@ class MessageBuilderTest {
             msg("u2", ChatRole.User, "nice one", ChatMessageState.Delivered),
         )
         val result = MessageBuilder.sanitizeOutboundMessages(messages)
-        // Stripping the image leaves a1 empty, so it is removed, u1 and u2 become adjacent, and only the latest u2 remains
+        // Stripping the image leaves a1 empty, so it is removed, u1 and u2 become adjacent and merge, with u1 in the unanswered envelope
         assertEquals(listOf(ChatRole.User), result.map { it.role })
-        assertEquals("nice one", result.single().text)
+        assertEquals("<oriveo-unanswered>\n<note>${MessageBuilder.UNANSWERED_NOTE}</note>\ndraw me a farmer\n</oriveo-unanswered>\n\nnice one", result.single().text)
         assertEquals(listOf("u2"), result.map { it.id })
     }
 

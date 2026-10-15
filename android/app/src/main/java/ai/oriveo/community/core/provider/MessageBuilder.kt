@@ -40,16 +40,23 @@ object MessageBuilder {
      *     the middle, the two user messages it used to separate become adjacent and the roles no
      *     longer alternate. Strict OpenAI-compatible relays require user/assistant to alternate and
      *     reject two consecutive messages in the same role outright.
-     *     - Adjacent user messages: discard the earlier one and keep only the newest. The answer to
-     *       the earlier question already failed or was abandoned, and two independent questions must
-     *       not be fused into one prompt for the model to answer together (that is the root cause of
-     *       the "asked something new after stopping and got both answered at once" report).
-     *     - Adjacent assistant messages (rare): merge them instead, joining text with a blank line
-     *       and concatenating attachments in order, so no real answer content is lost.
+     *     The rules follow the shared fixture `shared/context-contracts/sanitize.v1.json`:
+     *     - A run of N >= 2 consecutive user messages is merged into one that keeps the id and other
+     *       fields of the last message. The non-empty texts of the earlier ones are trimmed,
+     *       XML-escaped and joined with blank lines inside an `<oriveo-unanswered>` envelope (carrying
+     *       [UNANSWERED_NOTE]); the envelope is followed by a blank line and the newest message's
+     *       original text. If none of the earlier messages has text there is no envelope; if the
+     *       newest one is empty only the envelope remains. Attachments are concatenated in message
+     *       order. Earlier user messages often carry instructions ("from now on answer only in
+     *       Arabic"); dropping them silently loses that context. Wrapping them in an envelope that
+     *       says "unanswered, use as context, answer the latest message" keeps the instruction
+     *       without making the model answer both questions at once.
+     *     - Adjacent assistant messages (rare): merge them, joining trimmed text with a blank line
+     *       and concatenating attachments in order, keeping the first message's fields.
      *
      * Note: an interrupted or failed assistant that does have partial text naturally separates the
-     * two user messages around it, so in most cases the adjacent-user rule never fires at all. Only
-     * "stopped early, partial is empty" reaches the branch that discards the older user message.
+     * two user messages around it, so in most cases the adjacent-user merge never fires at all.
+     * Only "stopped early, partial is empty" or a failed answer reaches the envelope branch.
      */
     fun sanitizeOutboundMessages(
         messages: List<ChatMessage>,
@@ -92,37 +99,69 @@ object MessageBuilder {
         }
 
         val merged = mutableListOf<ChatMessage>()
+        // The earlier messages of the current run of consecutive user messages (not merged yet);
+        // merged in one go when a non-user message or the end of the list is reached.
+        val pendingUsers = mutableListOf<ChatMessage>()
+        fun flushUsers() {
+            if (pendingUsers.isEmpty()) return
+            merged.add(mergeUnansweredUsers(pendingUsers))
+            pendingUsers.clear()
+        }
         for (msg in filtered) {
+            if (msg.role == ChatRole.User) {
+                pendingUsers.add(msg)
+                continue
+            }
+            flushUsers()
             val last = merged.lastOrNull()
-            if (last != null && last.role == msg.role) {
-                if (msg.role == ChatRole.User) {
-                    // Two adjacent user messages can only come from the assistant between them
-                    // having been dropped (the previous answer failed, or the user interrupted it
-                    // with an empty partial, or it was a pure image generation that went empty once
-                    // the image was stripped). Discard the earlier user message and keep only the
-                    // newest: that restores strict user/assistant alternation and avoids fusing two
-                    // independent questions into one prompt for the model to answer together (the
-                    // root cause of the "asked something new after stopping and got both answered at
-                    // once" report).
-                    merged[merged.size - 1] = msg
-                } else {
-                    // Adjacent assistant messages (rare) are merged instead, so no real answer
-                    // content is lost.
-                    val joinedText = listOf(last.text.trim(), msg.text.trim())
-                        .filter { it.isNotEmpty() }
-                        .joinToString("\n\n")
-                    val joinedAttachments = last.attachments.orEmpty() + msg.attachments.orEmpty()
-                    merged[merged.size - 1] = last.copy(
-                        text = joinedText,
-                        attachments = joinedAttachments.takeIf { it.isNotEmpty() },
-                    )
-                }
+            if (last != null && last.role == ChatRole.Assistant) {
+                // Adjacent assistant messages (rare) are merged, so no real answer content is lost.
+                val joinedText = listOf(last.text.trim(), msg.text.trim())
+                    .filter { it.isNotEmpty() }
+                    .joinToString("\n\n")
+                val joinedAttachments = last.attachments.orEmpty() + msg.attachments.orEmpty()
+                merged[merged.size - 1] = last.copy(
+                    text = joinedText,
+                    attachments = joinedAttachments.takeIf { it.isNotEmpty() },
+                )
             } else {
                 merged.add(msg)
             }
         }
+        flushUsers()
         return merged
     }
+
+    /** Note text inside the unanswered-user envelope (`unansweredEnvelope.note` of the cross-platform sanitize.v1 contract, verbatim). */
+    const val UNANSWERED_NOTE =
+        "The user sent this earlier but no reply was delivered. Treat it as context and answer the latest message."
+
+    private const val UNANSWERED_TAG = "oriveo-unanswered"
+
+    /** Merges a run of consecutive user messages: keeps the last one's id/fields, wraps earlier non-empty texts in the envelope, concatenates attachments in order. */
+    private fun mergeUnansweredUsers(run: List<ChatMessage>): ChatMessage {
+        val latest = run.last()
+        if (run.size == 1) return latest
+        val earlier = run.dropLast(1)
+        val earlierTexts = earlier.map { it.text.trim() }.filter { it.isNotEmpty() }.map(::escapeXml)
+        val text = if (earlierTexts.isEmpty()) {
+            latest.text
+        } else {
+            val envelope = buildString {
+                append("<").append(UNANSWERED_TAG).append(">\n")
+                append("<note>").append(UNANSWERED_NOTE).append("</note>\n")
+                append(earlierTexts.joinToString("\n\n")).append("\n")
+                append("</").append(UNANSWERED_TAG).append(">")
+            }
+            if (latest.text.isEmpty()) envelope else envelope + "\n\n" + latest.text
+        }
+        val attachments = run.flatMap { it.attachments.orEmpty() }
+        return latest.copy(text = text, attachments = attachments.takeIf { it.isNotEmpty() })
+    }
+
+    // Only the earlier texts inside the envelope are escaped; the order is fixed at & -> < -> > to avoid double escaping.
+    private fun escapeXml(raw: String): String =
+        raw.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
     /**
      * Builds the message-array JSON in OpenRouter / OpenAI Chat Completions format.
@@ -233,25 +272,40 @@ object MessageBuilder {
     /**
      * Builds the message-array JSON in Anthropic Messages API format.
      * image -> base64 source, document -> base64 source, text file -> inline text.
-     * Passing activeModel enables the router; document and image blocks automatically get
-     * cache_control: ephemeral.
+     * Passing activeModel enables the router.
+     *
+     * Cache breakpoints: Anthropic allows at most 4 cache_control breakpoints per request, so
+     * content blocks get none by default (direct Anthropic requests rely on the top-level
+     * cache_control only). With [cacheLastUserBlock] = true (the relay Anthropic path) exactly one
+     * breakpoint goes on the last content block of the last user message.
      */
     fun buildAnthropicMessages(
         messages: List<ChatMessage>,
         activeModel: AIModel? = null,
         transport: AttachmentTransportProfile = AttachmentTransportProfile.AnthropicMessages,
+        cacheLastUserBlock: Boolean = false,
     ): String {
         val currentTurnIndex = AttachmentDelivery.currentTurnIndex(messages)
+        val breakpointIndex = if (cacheLastUserBlock) messages.indexOfLast { it.role == ChatRole.User } else -1
         return messages.withIndex().joinToString(",") { (index, msg) ->
             val role = msg.role.name.lowercase()
             val parts = buildAnthropicParts(msg, activeModel, isCurrentTurn = index == currentTurnIndex, transport = transport)
-            if (parts != null) {
-                """{"role":"$role","content":[$parts]}"""
-            } else {
-                """{"role":"$role","content":${escapeJsonString(msg.text)}}"""
+            when {
+                index == breakpointIndex && parts.isNotEmpty() -> {
+                    val marked = parts.dropLast(1) + withAnthropicCacheControl(parts.last())
+                    """{"role":"$role","content":[${marked.joinToString(",")}]}"""
+                }
+                index == breakpointIndex && msg.text.isNotBlank() ->
+                    """{"role":"$role","content":[${withAnthropicCacheControl("""{"type":"text","text":${escapeJsonString(msg.text)}}""")}]}"""
+                parts.isNotEmpty() -> """{"role":"$role","content":[${parts.joinToString(",")}]}"""
+                else -> """{"role":"$role","content":${escapeJsonString(msg.text)}}"""
             }
         }
     }
+
+    /** Appends `cache_control: ephemeral` to one Anthropic content block (a JSON object string). */
+    private fun withAnthropicCacheControl(block: String): String =
+        block.removeSuffix("}") + ""","cache_control":{"type":"ephemeral"}}"""
 
     /**
      * Builds the contents JSON for Gemini generateContent.
@@ -430,9 +484,9 @@ object MessageBuilder {
         activeModel: AIModel? = null,
         isCurrentTurn: Boolean = false,
         transport: AttachmentTransportProfile = AttachmentTransportProfile.AnthropicMessages,
-    ): String? {
+    ): List<String> {
         val attachments = msg.attachments
-        if (attachments.isNullOrEmpty()) return null
+        if (attachments.isNullOrEmpty()) return emptyList()
 
         val parts = mutableListOf<String>()
         // Video placeholders are folded into the text; the delivery plan decides whether each file goes up as a
@@ -452,32 +506,28 @@ object MessageBuilder {
             transport = transport,
         )
         AttachmentDelivery.requireDeliverable(plan, isCurrentTurn)
-        // Document and image blocks automatically get cache_control: ephemeral (a 5 minute TTL),
-        // which cuts roughly 70 percent off the cost of asking about the same attachment again.
-        val cacheControl = ""","cache_control":{"type":"ephemeral"}"""
-
         for (att in attachments) {
             when (att.kind) {
                 AttachmentKind.Image -> {
                     if (imagePlaceholder != null) continue
                     val base64 = att.base64Data ?: att.thumbnailBase64 ?: continue
-                    parts.add("""{"type":"image","source":{"type":"base64","media_type":"${att.mimeType}","data":"$base64"}$cacheControl}""")
+                    parts.add("""{"type":"image","source":{"type":"base64","media_type":"${att.mimeType}","data":"$base64"}}""")
                 }
                 AttachmentKind.Video -> Unit  // folded into the text part below
                 AttachmentKind.File -> Unit   // handled through the delivery plan
             }
         }
-        // Native PDF becomes a document block plus cache_control, with the mime taken from the
-        // attachment itself.
+        // Native PDF becomes a document block, with the mime taken from the attachment itself.
+        // Blocks never get their own cache_control (see buildAnthropicMessages).
         for (f in plan.native) {
             val base64 = f.originalBase64Data ?: continue
-            parts.add("""{"type":"document","source":{"type":"base64","media_type":"${f.mimeType}","data":"$base64"}$cacheControl}""")
+            parts.add("""{"type":"document","source":{"type":"base64","media_type":"${f.mimeType}","data":"$base64"}}""")
         }
 
         if (plan.text.isNotBlank()) {
             parts.add(0, """{"type":"text","text":${escapeJsonString(plan.text)}}""")
         }
-        return if (parts.isNotEmpty()) parts.joinToString(",") else null
+        return parts
     }
 
     /** Text-only wires replace each image with one placeholder line appended after the body (same shape as DeepSeek / llama.cpp); wires that can carry images return the content unchanged. */

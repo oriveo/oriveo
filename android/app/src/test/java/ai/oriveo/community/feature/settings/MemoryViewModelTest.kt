@@ -79,7 +79,6 @@ class MemoryViewModelTest {
         advanceUntilIdle()
 
         viewModel.updateEditText("   ")
-        viewModel.updateAntiForgetEnabled(true)
 
         viewModel.save()
         advanceUntilIdle()
@@ -89,25 +88,27 @@ class MemoryViewModelTest {
         assertEquals("", appPreferencesRepository.getMemoryAntiForgetText())
         assertTrue(viewModel.showSaveSuccessDialog)
         assertEquals("", viewModel.editText)
-        assertFalse(viewModel.antiForgetEnabled)
         assertFalse(viewModel.hasChanges)
     }
 
     @Test
-    fun `save with anti-forget enabled mirrors memory text into antiForgetText`() = runTest {
+    fun `save keeps stored anti-forget preference unchanged`() = runTest {
+        // The Anti-Forget UI is hidden, but the preference fields are still read and written back unchanged for later migration.
+        appPreferencesRepository.saveMemory(
+            text = "Old memory",
+            antiForgetEnabled = true,
+            antiForgetText = "Keep replies concise",
+        )
         val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.updateEditText("I'm a backend engineer using Go.")
-        viewModel.updateAntiForgetEnabled(true)
-
         viewModel.save()
         advanceUntilIdle()
 
-        // antiForgetText auto-derives from editText (truncated to 200); there's no separate field anymore.
         assertEquals("I'm a backend engineer using Go.", appPreferencesRepository.getMemoryText())
         assertTrue(appPreferencesRepository.getMemoryAntiForgetEnabled())
-        assertEquals("I'm a backend engineer using Go.", appPreferencesRepository.getMemoryAntiForgetText())
+        assertEquals("Keep replies concise", appPreferencesRepository.getMemoryAntiForgetText())
     }
 
     @Test

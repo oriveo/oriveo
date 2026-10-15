@@ -298,11 +298,12 @@ internal fun buildAnthropicBody(
     } else {
         """"max_tokens":8192"""
     }
-    // Resolving the router model on the Anthropic side is what turns on cache_control and native
-    // PDF handling for this request.
+    // Resolving the router model on the Anthropic side turns on native PDF handling for this request.
+    // Cache breakpoints: the relay sends no top-level cache_control, only one breakpoint on the last
+    // content block of the last user message.
     val activeModel = relayRouterModel(modelID, ProviderKind.Anthropic, requestOptions.activeModel)
     return GenerationParameterResolver.apply(
-        """{"model":"$modelID",$maxTokens,"stream":$stream,"messages":[${MessageBuilder.buildAnthropicMessages(messagesForProjection(messages, capabilityProjection, buildExtras), activeModel, relayAttachmentTransport(AttachmentTransportProfile.RelayAnthropicMessages, requestOptions))}]$extrasJson}""",
+        """{"model":"$modelID",$maxTokens,"stream":$stream,"messages":[${MessageBuilder.buildAnthropicMessages(messagesForProjection(messages, capabilityProjection, buildExtras), activeModel, relayAttachmentTransport(AttachmentTransportProfile.RelayAnthropicMessages, requestOptions), cacheLastUserBlock = true)}]$extrasJson}""",
         requestOptions,
         resolved,
         capabilityProjection,

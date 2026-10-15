@@ -400,11 +400,7 @@
     <string name="memory_write_manually">Viết thủ công</string>
     <string name="memory_saved">Đã lưu bộ nhớ</string>
     <string name="memory_edit_description">Nói với AI về bản thân bạn. Nó sẽ tự động biết điều này khi bắt đầu mỗi cuộc trò chuyện.</string>
-    <string name="memory_usage_count">Được sử dụng trong các cuộc hội thoại %1$d</string>
     <string name="memory_chars">nhân vật</string>
-    <string name="memory_anti_forget_title">Trò chuyện dài chống quên</string>
-    <string name="memory_anti_forget_toggle">Chế độ chống quên</string>
-    <string name="memory_anti_forget_description">Sau 10 vòng trò chuyện, tự động thêm lời nhắc tóm tắt vào cuối tin nhắn.</string>
     <string name="memory_privacy_warning">Nội dung bộ nhớ được gửi cùng với mọi yêu cầu AI đến nhà cung cấp mà bạn đã chọn. Không nhập mật khẩu hoặc thông tin nhạy cảm khác.</string>
     <string name="memory_indicator">Cuộc trò chuyện này đang sử dụng bộ nhớ</string>
     <string name="memory_indicator_title">Cuộc trò chuyện này đang sử dụng bộ nhớ</string>

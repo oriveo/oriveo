@@ -484,11 +484,7 @@
     <string name="memory_write_manually">手動編寫</string>
     <string name="memory_saved">記憶已儲存</string>
     <string name="memory_edit_description">告訴 AI 關於你自己。它會在每次對話開始時自動了解這些。</string>
-    <string name="memory_usage_count">已在 %1$d 個對話中使用</string>
     <string name="memory_chars">字元</string>
-    <string name="memory_anti_forget_title">長對話防遺忘</string>
-    <string name="memory_anti_forget_toggle">防遺忘模式</string>
-    <string name="memory_anti_forget_description">對話超過 10 輪後，自動在訊息末尾追加摘要提醒。</string>
     <string name="memory_privacy_warning">記憶內容會隨每次 AI 請求傳送至你選擇的供應商。請勿輸入密碼或其他敏感資訊。</string>
     <string name="memory_indicator">此對話正在使用記憶</string>
     <string name="memory_indicator_title">此對話正在使用記憶</string>

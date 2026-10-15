@@ -121,7 +121,7 @@ class ToolCallLoopPolicyTest {
         loop.run(listOf(ToolLoopMessage("user", "hi")))
 
         val finalRequest = runner.requests.last()
-        assertEquals(listOf(ToolCallLoop.Prompts().stepLimitReached), finalRequest.systemTexts())
+        assertEquals(listOf(ToolCallLoop.Prompts().stepLimitReached), finalRequest.hostNoticeTexts())
         val skipped = finalRequest.toolResult("c2").orEmpty()
         assertTrue(skipped, skipped.contains("\"code\":\"tool_loop_stopped\""))
         assertTrue(skipped, skipped.contains(ToolCallLoop.Prompts().stoppedByStepLimit))
@@ -155,7 +155,7 @@ class ToolCallLoopPolicyTest {
         ).run(listOf(ToolLoopMessage("user", "hi")))
 
         val budgetFinal = budgetRunner.requests.last()
-        assertEquals(listOf("CUSTOM BUDGET SYSTEM"), budgetFinal.systemTexts())
+        assertEquals(listOf("CUSTOM BUDGET SYSTEM"), budgetFinal.hostNoticeTexts())
         assertEquals(
             ToolCallLoop.errorContent("custom_stopped", "custom budget stopped"),
             budgetFinal.toolResult("c1"),
@@ -172,7 +172,7 @@ class ToolCallLoopPolicyTest {
         ).run(listOf(ToolLoopMessage("user", "hi")))
 
         val stepFinal = stepRunner.requests.last()
-        assertEquals(listOf("CUSTOM STEP SYSTEM"), stepFinal.systemTexts())
+        assertEquals(listOf("CUSTOM STEP SYSTEM"), stepFinal.hostNoticeTexts())
         assertEquals(ToolCallLoop.errorContent("custom_stopped", "custom step stopped"), stepFinal.toolResult("c2"))
     }
 
@@ -193,7 +193,7 @@ class ToolCallLoopPolicyTest {
         val separate = runWith(
             ToolExecutionOutcome(ScriptedEntry.OK, stopReason = "SYSTEM: stop now", stoppedMessage = "limit hit"),
         )
-        assertEquals(listOf("SYSTEM: stop now"), separate.systemTexts())
+        assertEquals(listOf("SYSTEM: stop now"), separate.hostNoticeTexts())
         assertEquals(ToolCallLoop.errorContent("tool_loop_stopped", "limit hit"), separate.toolResult("c2"))
         assertEquals(ToolLoopToolChoice.None, separate.toolChoice)
 

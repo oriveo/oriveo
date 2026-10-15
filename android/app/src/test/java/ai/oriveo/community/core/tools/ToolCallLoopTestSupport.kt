@@ -66,5 +66,8 @@ internal class ScriptedEntry(
 internal fun ToolLoopLegRequest.toolResult(callId: String): String? =
     messages.lastOrNull { it.role == "tool" && it.toolCallId == callId }?.textContent
 
-internal fun ToolLoopLegRequest.systemTexts(): List<String> =
-    messages.filter { it.role == "system" }.mapNotNull { it.textContent }
+/** Host loop notices: the user messages after the tool results (the loop never appends a system message mid-way). */
+internal fun ToolLoopLegRequest.hostNoticeTexts(): List<String> {
+    check(messages.dropWhile { it.role == "system" }.none { it.role == "system" }) { "A system message must not appear mid-loop" }
+    return messages.dropWhile { it.role != "tool" }.filter { it.role == "user" }.mapNotNull { it.textContent }
+}

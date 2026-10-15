@@ -38,6 +38,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 
@@ -83,7 +84,6 @@ class ChatViewModelMemoryTest {
         ai.oriveo.community.testing.installChatStreamingManagerForwardingStub(chatStreamingManager, chatRepository)
 
         coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>(), any()) } returns Unit
-        coEvery { appPreferencesRepository.markMemoryUsedInConversation(any()) } returns Unit
         coEvery { appPreferencesRepository.hasAcceptedProviderDisclosure(any()) } returns true
         coEvery { appPreferencesRepository.markProviderDisclosureAccepted(any()) } returns Unit
         coEvery { conversationRepository.getWithMessages("conversation-1") } returns null
@@ -102,7 +102,6 @@ class ChatViewModelMemoryTest {
                 attachments = any(),
                 reasoningMode = any(),
                 webSearchEnabled = any(),
-                antiForgetText = any(),
                 requestOptions = any(),
                 outputs = any(),
                 persistUserMessage = any(),
@@ -118,8 +117,8 @@ class ChatViewModelMemoryTest {
     }
 
     @Test
-    fun `sendMessage injects memory system prompt and anti forget context`() = runTest {
-        val antiForgetSlot = io.mockk.slot<String?>()
+    fun `sendMessage injects memory system prompt without anti forget reminder`() = runTest {
+        val textSlot = io.mockk.slot<String>()
         val requestOptionsSlot = io.mockk.slot<ChatRequestOptions>()
         val conversation = buildConversation(useMemory = true, existingUserMessageCount = 9)
 
@@ -134,14 +133,13 @@ class ChatViewModelMemoryTest {
         coEvery {
             chatRepository.sendMessage(
                 conversation = any(),
-                text = any(),
+                text = capture(textSlot),
                 provider = any(),
                 modelID = any(),
                 existingMessages = any(),
                 attachments = any(),
                 reasoningMode = any(),
                 webSearchEnabled = any(),
-                antiForgetText = captureNullable(antiForgetSlot),
                 requestOptions = capture(requestOptionsSlot),
                 outputs = any(),
                 persistUserMessage = any(),
@@ -171,13 +169,59 @@ class ChatViewModelMemoryTest {
         advanceUntilIdle()
 
         assertEquals("I use Kotlin", requestOptionsSlot.captured.systemPrompt)
-        assertEquals("[Reminder: Prefer concise Chinese answers]", antiForgetSlot.captured)
-        coVerify { appPreferencesRepository.markMemoryUsedInConversation("conversation-1") }
+        // Even with the Anti-Forget preference on and 10 turns reached, no [Reminder: ...] is injected into the request.
+        assertEquals("What should I build next?", textSlot.captured)
+        assertFalse(textSlot.captured.contains("[Reminder:"))
+        assertFalse(requestOptionsSlot.captured.systemPrompt.orEmpty().contains("[Reminder:"))
+    }
+
+    /**
+     * Toggling the conversation's "use memory" switch persists right away through
+     * ConversationRepository.updateUseMemory instead of waiting for the next send.
+     */
+    @Test
+    fun `toggleUseMemory persists immediately without waiting for a send`() = runTest {
+        val conversation = buildConversation(useMemory = true, existingUserMessageCount = 1)
+
+        every { appPreferencesRepository.lastUsedModelRef } returns flowOf(null)
+        every { appPreferencesRepository.memoryText } returns MutableStateFlow("I use Kotlin")
+        every { conversationRepository.observeMetadata("conversation-1") } returns flowOf(conversation)
+        coEvery { conversationRepository.getWithMessages("conversation-1") } returns conversation
+        coEvery { conversationRepository.getWithLatestMessageWindow("conversation-1", any()) } returns conversation
+        coEvery { conversationRepository.updateUseMemory("conversation-1", false) } returns Unit
+        windowStore.put("conversation-1", conversation.messages)
+
+        val viewModel = ChatViewModel(
+            savedStateHandle = SavedStateHandle(mapOf("conversationId" to "conversation-1")),
+            context = mockk<Context>(relaxed = true),
+            appPreferencesRepository = appPreferencesRepository,
+            providerRepository = providerRepository,
+            conversationRepository = conversationRepository,
+            noteRepository = mockk(relaxed = true),
+            chatStreamingManager = chatStreamingManager,
+            skillRepository = skillRepository,
+            attachmentProcessor = mockk(relaxed = true),
+            globalSnackbarManager = globalSnackbarManager,
+            applicationScope = applicationScope,
+        )
+        advanceUntilIdle()
+
+        viewModel.toggleUseMemory()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { conversationRepository.updateUseMemory("conversation-1", false) }
+        coVerify(exactly = 0) {
+            chatRepository.sendMessage(
+                conversation = any(), text = any(), provider = any(), modelID = any(),
+                existingMessages = any(), attachments = any(), reasoningMode = any(),
+                webSearchEnabled = any(), requestOptions = any(), outputs = any(),
+            )
+        }
     }
 
     @Test
     fun `sendMessage skips memory injection when conversation memory is disabled`() = runTest {
-        val antiForgetSlot = io.mockk.slot<String?>()
+        val textSlot = io.mockk.slot<String>()
         val requestOptionsSlot = io.mockk.slot<ChatRequestOptions>()
         val conversation = buildConversation(useMemory = false, existingUserMessageCount = 9)
 
@@ -192,14 +236,13 @@ class ChatViewModelMemoryTest {
         coEvery {
             chatRepository.sendMessage(
                 conversation = any(),
-                text = any(),
+                text = capture(textSlot),
                 provider = any(),
                 modelID = any(),
                 existingMessages = any(),
                 attachments = any(),
                 reasoningMode = any(),
                 webSearchEnabled = any(),
-                antiForgetText = captureNullable(antiForgetSlot),
                 requestOptions = capture(requestOptionsSlot),
                 outputs = any(),
                 persistUserMessage = any(),
@@ -229,8 +272,7 @@ class ChatViewModelMemoryTest {
         advanceUntilIdle()
 
         assertEquals("", requestOptionsSlot.captured.systemPrompt)
-        assertEquals(null, antiForgetSlot.captured)
-        coVerify(exactly = 0) { appPreferencesRepository.markMemoryUsedInConversation(any()) }
+        assertFalse(textSlot.captured.contains("[Reminder:"))
     }
 
     @Test
@@ -263,7 +305,6 @@ class ChatViewModelMemoryTest {
                 attachments = any(),
                 reasoningMode = any(),
                 webSearchEnabled = any(),
-                antiForgetText = any(),
                 requestOptions = capture(requestOptionsSlot),
                 outputs = any(),
                 persistUserMessage = any(),
@@ -293,7 +334,6 @@ class ChatViewModelMemoryTest {
         advanceUntilIdle()
 
         assertEquals("Write clearly.", requestOptionsSlot.captured.systemPrompt)
-        coVerify(exactly = 0) { appPreferencesRepository.markMemoryUsedInConversation(any()) }
     }
 
     private fun buildConversation(

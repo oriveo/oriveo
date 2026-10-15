@@ -476,7 +476,6 @@ class ChatComposerRecompositionScopeTest {
         ai.oriveo.community.testing.installChatStreamingManagerForwardingStub(chatStreamingManager, chatRepository)
         every { appPreferencesRepository.primeLastUsedModel(any(), any()) } just runs
         coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>(), any()) } returns Unit
-        coEvery { appPreferencesRepository.markMemoryUsedInConversation(any()) } returns Unit
         coEvery { appPreferencesRepository.hasAcceptedProviderDisclosure(any()) } returns true
         coEvery { appPreferencesRepository.markProviderDisclosureAccepted(any()) } returns Unit
         conversationRepository.stubMessageWindowLoaderDefaults(windowStore)
@@ -493,7 +492,6 @@ class ChatComposerRecompositionScopeTest {
                 attachments = any(),
                 reasoningMode = any(),
                 webSearchEnabled = any(),
-                antiForgetText = any(),
                 requestOptions = any(),
                 outputs = any(),
                 persistUserMessage = any(),

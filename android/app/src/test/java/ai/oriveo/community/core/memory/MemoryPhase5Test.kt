@@ -75,30 +75,6 @@ class MemoryPhase5Test {
         return messages
     }
 
-    /** Mirrors the applyAntiForget logic. */
-    private fun simulateApplyAntiForget(
-        messages: MutableList<ChatMessage>,
-        antiForgetEnabled: Boolean,
-        memoryText: String,
-        antiForgetText: String,
-        useMemory: Boolean,
-    ) {
-        val userMessageCount = messages.count { it.role == ChatRole.User }
-        if (!antiForgetEnabled) return
-        if (!useMemory) return
-        if (memoryText.trim().isEmpty()) return
-        if (antiForgetText.trim().isEmpty()) return
-        if (userMessageCount < 10) return
-
-        val lastIndex = messages.indexOfLast { it.role == ChatRole.User }
-        if (lastIndex >= 0) {
-            val trimmed = antiForgetText.trim()
-            messages[lastIndex] = messages[lastIndex].copy(
-                text = "${messages[lastIndex].text}\n\n[Reminder: $trimmed]"
-            )
-        }
-    }
-
     /** Mirrors the core logic of buildMemoryRequestOptions. */
     private fun simulateBuildSystemPrompt(memoryText: String, useMemory: Boolean): String? {
         val trimmed = memoryText.trim()
@@ -126,16 +102,6 @@ class MemoryPhase5Test {
         else -> Pair(false, true)
     }
 
-    /** Mirrors usageCount counting per conversation. */
-    private fun simulateMarkMemoryUsed(
-        conversationId: String,
-        existingIds: MutableSet<String>,
-    ): Boolean {
-        if (existingIds.contains(conversationId)) return false
-        existingIds.add(conversationId)
-        return true
-    }
-
     // ══════════════════════════════════════════════════════════
     // MEM-5-01: full localization coverage
     // ══════════════════════════════════════════════════════════
@@ -148,8 +114,7 @@ class MemoryPhase5Test {
             "memory_title", "memory_not_set", "memory_empty_title", "memory_empty_description",
             "memory_generate_draft", "memory_generating", "memory_generate_failed",
             "memory_write_manually", "memory_saved", "memory_edit_description",
-            "memory_usage_count", "memory_chars",
-            "memory_anti_forget_title", "memory_anti_forget_toggle", "memory_anti_forget_description",
+            "memory_chars",
             "memory_privacy_warning",
             "memory_indicator", "memory_indicator_title", "memory_indicator_view_edit",
             "memory_indicator_disable", "memory_use_toggle",
@@ -219,21 +184,6 @@ class MemoryPhase5Test {
         assertTrue("mixed text grapheme count should be > 0", count > 0)
         val truncated = mixed.takeGraphemes(5)
         assertEquals(5, truncated.graphemeCount())
-    }
-
-    @Test
-    fun `MEM-5-03 - Arabic anti-forget append is formatted correctly`() {
-        val arabicAntiForget = "مطور ويب"
-        val messages = buildConversation(10)
-        simulateApplyAntiForget(
-            messages,
-            antiForgetEnabled = true,
-            memoryText = "أنا مطور",
-            antiForgetText = arabicAntiForget,
-            useMemory = true,
-        )
-        val lastUser = messages.last { it.role == ChatRole.User }
-        assertTrue(lastUser.text.contains("\n\n[Reminder: $arabicAntiForget]"))
     }
 
     // ══════════════════════════════════════════════════════════
@@ -313,21 +263,6 @@ class MemoryPhase5Test {
         assertEquals(memory, prompt1)
     }
 
-    @Test
-    fun `MEM-5-06 - anti-forget summary preserves the user's original text`() {
-        val antiForgetText = "シニアエンジニア、かんけつなスタイル"
-        val messages = buildConversation(10)
-        simulateApplyAntiForget(
-            messages,
-            antiForgetEnabled = true,
-            memoryText = "Memory",
-            antiForgetText = antiForgetText,
-            useMemory = true,
-        )
-        val lastUser = messages.last { it.role == ChatRole.User }
-        assertTrue(lastUser.text.contains(antiForgetText))
-    }
-
     // ══════════════════════════════════════════════════════════
     // MEM-5-07/08/09: multilingual draft generation
     // ══════════════════════════════════════════════════════════
@@ -358,73 +293,6 @@ class MemoryPhase5Test {
         val prompt = simulateBuildSystemPrompt("أنا مطور ويب", useMemory = true)
         assertNotNull(prompt)
         assertEquals("أنا مطور ويب", prompt)
-    }
-
-    // ══════════════════════════════════════════════════════════
-    // MEM-5-15: anti-forget stability across long conversations
-    // ══════════════════════════════════════════════════════════
-
-    private val stableMemoryText = "I am a developer"
-    private val stableAntiForgetText = "Senior engineer, prefers concise code"
-
-    @Test
-    fun `MEM-5-15 - 10 rounds append the Context only once`() {
-        val messages = buildConversation(10)
-        simulateApplyAntiForget(messages, true, stableMemoryText, stableAntiForgetText, true)
-        val contextCount = messages.count { it.text.contains("[Reminder:") }
-        assertEquals(1, contextCount)
-    }
-
-    @Test
-    fun `MEM-5-15 - 20 rounds still append the Context only once`() {
-        val messages = buildConversation(20)
-        simulateApplyAntiForget(messages, true, stableMemoryText, stableAntiForgetText, true)
-        val contextCount = messages.count { it.text.contains("[Reminder:") }
-        assertEquals(1, contextCount)
-    }
-
-    @Test
-    fun `MEM-5-15 - 50 rounds still append the Context only once`() {
-        val messages = buildConversation(50)
-        simulateApplyAntiForget(messages, true, stableMemoryText, stableAntiForgetText, true)
-        val contextCount = messages.count { it.text.contains("[Reminder:") }
-        assertEquals(1, contextCount)
-    }
-
-    @Test
-    fun `MEM-5-15 - 100 rounds still append the Context only once`() {
-        val messages = buildConversation(100)
-        simulateApplyAntiForget(messages, true, stableMemoryText, stableAntiForgetText, true)
-        val contextCount = messages.count { it.text.contains("[Reminder:") }
-        assertEquals(1, contextCount)
-    }
-
-    @Test
-    fun `MEM-5-15 - Context only appears in the last user message`() {
-        val messages = buildConversation(15)
-        simulateApplyAntiForget(messages, true, stableMemoryText, stableAntiForgetText, true)
-
-        val userMsgsWithContext = messages.filter {
-            it.role == ChatRole.User && it.text.contains("[Reminder:")
-        }
-        assertEquals(1, userMsgsWithContext.size)
-
-        // confirm it is the last user message
-        val lastUser = messages.last { it.role == ChatRole.User }
-        assertTrue(lastUser.text.contains("[Reminder:"))
-    }
-
-    @Test
-    fun `MEM-5-15 - calling it repeatedly does not duplicate the append`() {
-        val messages = buildConversation(10)
-
-        // first append
-        simulateApplyAntiForget(messages, true, stableMemoryText, stableAntiForgetText, true)
-
-        // the last user message should contain exactly 1 [Reminder:]
-        val lastUser = messages.last { it.role == ChatRole.User }
-        val occurrences = lastUser.text.split("[Reminder:").size - 1
-        assertEquals(1, occurrences)
     }
 
     // ══════════════════════════════════════════════════════════
@@ -566,24 +434,6 @@ class MemoryPhase5Test {
         assertTrue("Gemini should return null for empty memory", geminiEmpty == null)
     }
 
-    @Test
-    fun `MEM-5-17 - across every provider, anti-forget context is appended only to the last user message`() {
-        val messages = buildConversation(10)
-        simulateApplyAntiForget(
-            messages,
-            antiForgetEnabled = true,
-            memoryText = "Memory text",
-            antiForgetText = "TypeScript expert",
-            useMemory = true,
-        )
-
-        val lastUser = messages.last { it.role == ChatRole.User }
-        assertTrue(lastUser.text.contains("[Reminder: TypeScript expert]"))
-
-        val contextCount = messages.count { it.text.contains("[Reminder:") }
-        assertEquals(1, contextCount)
-    }
-
     // ══════════════════════════════════════════════════════════
     // MEM-5-18: smoke tests across guest / free / pro roles
     // ══════════════════════════════════════════════════════════
@@ -628,80 +478,11 @@ class MemoryPhase5Test {
     }
 
     @Test
-    fun `MEM-5-18 - usageCount counts per conversation`() {
-        val ids = mutableSetOf<String>()
-
-        // first use
-        assertTrue(simulateMarkMemoryUsed("conv-1", ids))
-
-        // a repeat within the same conversation does not count
-        assertFalse(simulateMarkMemoryUsed("conv-1", ids))
-
-        // a new conversation counts
-        assertTrue(simulateMarkMemoryUsed("conv-2", ids))
-    }
-
-    @Test
     fun `MEM-5-18 - useMemory=false skips injection for every role`() {
         for (role in listOf("guest", "free", "pro")) {
             val prompt = simulateBuildSystemPrompt("Some memory", useMemory = false)
             assertTrue("$role should not inject when useMemory=false", prompt == null)
         }
-    }
-
-    // ══════════════════════════════════════════════════════════
-    // MEM-P-04: anti-forget payload size for long conversations
-    // ══════════════════════════════════════════════════════════
-
-    @Test
-    fun `MEM-P-04 - 50 rounds plus a 200-character Context add less than 10KB`() {
-        val antiForgetText = "A".repeat(200)
-        val messages = buildConversation(50)
-
-        // size without anti-forget applied
-        val baselineSize = messages.sumOf { it.text.toByteArray(Charsets.UTF_8).size }
-
-        // apply anti-forget
-        simulateApplyAntiForget(
-            messages,
-            antiForgetEnabled = true,
-            memoryText = "Test memory",
-            antiForgetText = antiForgetText,
-            useMemory = true,
-        )
-
-        val injectedSize = messages.sumOf { it.text.toByteArray(Charsets.UTF_8).size }
-        val delta = injectedSize - baselineSize
-
-        assertTrue("delta of $delta bytes should be < 10KB", delta < 10240)
-    }
-
-    @Test
-    fun `MEM-P-04 - 200 Unicode emoji Context encodes to a reasonable UTF-8 size`() {
-        val emojiContext = "😀".repeat(200)
-        val encoded = "\n\n[Reminder: $emojiContext]".toByteArray(Charsets.UTF_8)
-        assertTrue("emoji context encoding should be < 10KB", encoded.size < 10240)
-    }
-
-    @Test
-    fun `MEM-P-04 - 200-character kana Context encodes to a reasonable size`() {
-        val cjkContext = "の".repeat(200)
-        val encoded = "\n\n[Reminder: $cjkContext]".toByteArray(Charsets.UTF_8)
-        assertTrue("kana context encoding should be < 10KB", encoded.size < 10240)
-    }
-
-    @Test
-    fun `MEM-P-04 - 50-round conversation appends Context only once`() {
-        val messages = buildConversation(50)
-        simulateApplyAntiForget(
-            messages,
-            antiForgetEnabled = true,
-            memoryText = "Memory",
-            antiForgetText = "A".repeat(200),
-            useMemory = true,
-        )
-        val contextCount = messages.count { it.text.contains("[Reminder:") }
-        assertEquals(1, contextCount)
     }
 
     // ══════════════════════════════════════════════════════════
@@ -757,7 +538,7 @@ class MemoryPhase5Test {
     // ══════════════════════════════════════════════════════════
     // MEM-P-07: first-message injection latency
     // ══════════════════════════════════════════════════════════
-    // A timing test here would only measure simulateBuildSystemPrompt / simulateApplyAntiForget,
+    // A timing test here would only measure simulateBuildSystemPrompt (and the anti-forget simulation that has since been removed),
     // the test-double logic defined in this same file, rather than the production code path.
     // The invariant these cases care about -- an empty Memory short-circuits without extra
     // work -- is already guarded by the production entry point ChatPromptInjectionBuilder.build,

@@ -261,7 +261,7 @@ class ToolCallLoopBehaviorTest {
         assertFalse("an exhausted budget is not the same as hitting the step limit", result.stepLimitReached)
         val finalRequest = runner.requests.last()
         assertEquals(ToolLoopToolChoice.None, finalRequest.toolChoice)
-        assertEquals(listOf(ToolCallLoop.Prompts().tokenBudgetReached), finalRequest.systemTexts())
+        assertEquals(listOf(ToolCallLoop.Prompts().tokenBudgetReached), finalRequest.hostNoticeTexts())
         listOf("c1", "c2").forEach { id ->
             assertEquals(
                 "the protocol requires a tool message for every tool_call",
@@ -457,7 +457,7 @@ class ToolCallLoopBehaviorTest {
         assertEquals("rejections do not consume steps", 0, result.executedToolSteps)
         assertEquals(3, runner.requests.size)
         assertEquals(ToolLoopToolChoice.None, runner.requests.last().toolChoice)
-        assertEquals(listOf(ToolCallLoop.Prompts().stepLimitReached), runner.requests.last().systemTexts())
+        assertEquals(listOf(ToolCallLoop.Prompts().stepLimitReached), runner.requests.last().hostNoticeTexts())
         assertEquals(
             "the synthesis leg's index follows right after the last tool leg",
             listOf(0, 1, 2),

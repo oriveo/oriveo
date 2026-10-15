@@ -48,19 +48,6 @@ class AppPreferencesRepositoryTest {
     }
 
     @Test
-    fun `markMemoryUsedInConversation deduplicates by conversation id`() = runTest {
-        repository.markMemoryUsedInConversation("conversation-1")
-        repository.markMemoryUsedInConversation("conversation-1")
-        repository.markMemoryUsedInConversation("conversation-2")
-
-        assertEquals("2", preferenceDao.get(AppPreferenceKeys.MEMORY_USAGE_COUNT))
-        assertEquals(
-            setOf("conversation-1", "conversation-2"),
-            repository.memoryUsageConversationIds.first(),
-        )
-    }
-
-    @Test
     fun `language keys persist the newly added locales with stable storage names`() = runTest {
         val scopedRepository = AppPreferencesRepository(preferenceDao)
         val expected = linkedMapOf(

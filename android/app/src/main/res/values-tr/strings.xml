@@ -401,11 +401,7 @@
     <string name="memory_write_manually">Manuel olarak yaz</string>
     <string name="memory_saved">Bellek kaydedildi</string>
     <string name="memory_edit_description">AI\'ye kendinizden bahsedin. Her konuşmanın başında bunu otomatik olarak bilecektir.</string>
-    <string name="memory_usage_count">%1$d konuşmalarında kullanılır</string>
     <string name="memory_chars">karakterler</string>
-    <string name="memory_anti_forget_title">Uzun konuşma unutmayı önleme</string>
-    <string name="memory_anti_forget_toggle">Unutmayı önleme modu</string>
-    <string name="memory_anti_forget_description">10 turluk konuşmanın ardından mesajların sonuna otomatik olarak bir özet hatırlatıcı ekleyin.</string>
     <string name="memory_privacy_warning">Bellek içeriği, her yapay zeka isteğiyle birlikte seçtiğiniz sağlayıcıya gönderilir. Şifreleri veya diğer hassas bilgileri girmeyin.</string>
     <string name="memory_indicator">Bu görüşme hafızayı kullanıyor</string>
     <string name="memory_indicator_title">Bu görüşme hafızayı kullanıyor</string>

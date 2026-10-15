@@ -100,7 +100,6 @@ class ChatViewModelMultiSessionTest {
         every { appPreferencesRepository.memoryAntiForgetEnabled } returns MutableStateFlow(false)
         every { appPreferencesRepository.memoryAntiForgetText } returns MutableStateFlow("")
         coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>(), any()) } returns Unit
-        coEvery { appPreferencesRepository.markMemoryUsedInConversation(any()) } returns Unit
         coEvery { appPreferencesRepository.hasAcceptedProviderDisclosure(any()) } returns true
         coEvery { appPreferencesRepository.markProviderDisclosureAccepted(any()) } returns Unit
         coEvery { conversationRepository.updateDraft(any(), any()) } returns Unit

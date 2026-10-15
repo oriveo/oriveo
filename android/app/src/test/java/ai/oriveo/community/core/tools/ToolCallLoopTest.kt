@@ -139,7 +139,10 @@ class ToolCallLoopTest {
         )
         val finalRequest = runner.requests.last()
         assertEquals(ToolLoopToolChoice.None, finalRequest.toolChoice)
-        assertEquals("system", finalRequest.messages.last().role)
+        // The cap notice is a host loop notice: a user message right after this leg's tool results, never system.
+        assertEquals("user", finalRequest.messages.last().role)
+        assertEquals("tool", finalRequest.messages[finalRequest.messages.size - 2].role)
+        assertTrue(finalRequest.messages.none { it.role == "system" })
         assertTrue(finalRequest.messages.last().textContent!!.contains("limit was reached"))
     }
 

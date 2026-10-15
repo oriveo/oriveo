@@ -22,8 +22,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -44,9 +42,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.automirrored.outlined.StickyNote2
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Psychology
@@ -56,8 +52,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -92,14 +86,8 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -152,7 +140,6 @@ fun MemoryScreen(
     viewModel: MemoryViewModel = koinViewModel(),
 ) {
     val colors = OriveoTheme.colors
-    val usageCount by viewModel.usageCount.collectAsStateWithLifecycle()
     val hasRecentConversations by viewModel.hasRecentConversations.collectAsStateWithLifecycle()
     var showUnsavedDialog by remember { mutableStateOf(false) }
     var isEditorFocused by remember { mutableStateOf(false) }
@@ -270,8 +257,6 @@ fun MemoryScreen(
 
                 MemoryHeroSection(
                     presentation = presentation,
-                    usageCount = usageCount,
-                    antiForgetEnabled = viewModel.antiForgetEnabled && viewModel.editText.isNotBlank(),
                     isGeneratingDraft = viewModel.isGeneratingDraft,
                     reduceMotion = reduceMotion,
                     onAction = { action ->
@@ -294,10 +279,6 @@ fun MemoryScreen(
                 )
 
                 if (presentation.showsSupportSections) {
-                    AntiForgetCard(
-                        enabled = viewModel.antiForgetEnabled,
-                        onEnabledChange = viewModel::updateAntiForgetEnabled,
-                    )
                     PrivacyFootnote()
                 }
 
@@ -401,17 +382,13 @@ private fun MemoryAuroraBackdrop() {
 
 // ── Hero Section ──
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MemoryHeroSection(
     presentation: MemoryScreenPresentation,
-    usageCount: Int,
-    antiForgetEnabled: Boolean,
     isGeneratingDraft: Boolean,
     reduceMotion: Boolean,
     onAction: (MemoryScreenAction) -> Unit,
 ) {
-    val colors = OriveoTheme.colors
     var appeared by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { appeared = true }
 
@@ -454,33 +431,6 @@ private fun MemoryHeroSection(
         HeroChip(style = presentation.heroStyle)
 
         HeroTitleAndDescription(presentation = presentation)
-
-        if (usageCount > 0 || antiForgetEnabled) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm, Alignment.CenterHorizontally),
-                verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 340.dp),
-            ) {
-                if (usageCount > 0) {
-                    MemoryOverviewBadge(
-                        text = stringResource(R.string.memory_usage_count, usageCount),
-                        icon = Icons.Filled.CheckCircle,
-                        foreground = colors.success,
-                        fill = colors.successSoft,
-                    )
-                }
-                if (antiForgetEnabled) {
-                    MemoryOverviewBadge(
-                        text = stringResource(R.string.memory_anti_forget_toggle),
-                        icon = Icons.Filled.Bookmark,
-                        foreground = colors.primary,
-                        fill = colors.primarySoft,
-                    )
-                }
-            }
-        }
 
         if (presentation.primaryAction != null) {
             Column(
@@ -1011,192 +961,6 @@ private fun EditorTextField(
     }
 }
 
-// ── Overview badge ──
-
-@Composable
-private fun MemoryOverviewBadge(
-    text: String,
-    icon: ImageVector,
-    foreground: Color,
-    fill: Color,
-) {
-    Row(
-        modifier = Modifier
-            .background(fill, RoundedCornerShape(999.dp))
-            .border(
-                width = OriveoBorderWidth.standard,
-                color = foreground.copy(alpha = 0.16f),
-                shape = RoundedCornerShape(999.dp),
-            )
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = foreground,
-            modifier = Modifier.size(12.dp),
-        )
-        Text(
-            text = text,
-            style = OriveoTheme.typography.footnote.copy(
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-            ),
-            color = foreground,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-// ── AntiForget card ──
-
-@Composable
-private fun AntiForgetCard(
-    enabled: Boolean,
-    onEnabledChange: (Boolean) -> Unit,
-) {
-    val colors = OriveoTheme.colors
-    val isDark = OriveoTheme.isDark
-    val cardShape = RoundedCornerShape(OriveoTheme.radius.lg)
-
-    val borderColor = if (enabled) {
-        colors.primary.copy(alpha = 0.32f)
-    } else {
-        colors.border
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(
-                elevation = if (isDark) 14.dp else 10.dp,
-                shape = cardShape,
-                ambientColor = colors.shadow.copy(alpha = if (isDark) 0.40f else 0.08f),
-                spotColor = colors.shadow.copy(alpha = if (isDark) 0.40f else 0.08f),
-            )
-            .shadow(
-                elevation = 1.5.dp,
-                shape = cardShape,
-                ambientColor = colors.shadow.copy(alpha = if (isDark) 0.24f else 0.04f),
-                spotColor = colors.shadow.copy(alpha = if (isDark) 0.24f else 0.04f),
-            )
-            .background(colors.surfaceElevated, cardShape)
-            .drawBehind {
-                val shineHeight = 1.dp.toPx()
-                drawRect(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.White.copy(alpha = if (isDark) 0.10f else 0.55f),
-                            Color.Transparent,
-                        ),
-                    ),
-                    topLeft = Offset.Zero,
-                    size = Size(size.width, shineHeight),
-                )
-            }
-            .border(
-                width = OriveoBorderWidth.standard,
-                color = borderColor,
-                shape = cardShape,
-            )
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AntiForgetIcon(enabled = enabled)
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.memory_anti_forget_title),
-                style = OriveoTheme.typography.body.copy(fontWeight = FontWeight.SemiBold),
-                color = colors.textPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = buildHighlightedDescription(
-                    text = stringResource(R.string.memory_anti_forget_description),
-                    highlight = colors.primary,
-                ),
-                style = OriveoTheme.typography.footnote,
-                color = colors.textSecondary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        val antiForgetLabel = stringResource(R.string.memory_anti_forget_title)
-        Switch(
-            checked = enabled,
-            onCheckedChange = onEnabledChange,
-            // // The switch has no label of its own; without a contentDescription it is announced only as "switch".
-            modifier = Modifier.semantics { contentDescription = antiForgetLabel },
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = colors.primary,
-                uncheckedThumbColor = Color.White,
-                uncheckedTrackColor = colors.borderStrong,
-            ),
-        )
-    }
-}
-
-@Composable
-private fun AntiForgetIcon(enabled: Boolean) {
-    val colors = OriveoTheme.colors
-    val isDark = OriveoTheme.isDark
-    Box(
-        modifier = Modifier
-            .size(38.dp)
-            .then(
-                if (enabled) {
-                    Modifier
-                        .shadow(
-                            elevation = 8.dp,
-                            shape = RoundedCornerShape(11.dp),
-                            ambientColor = colors.primaryGlow,
-                            spotColor = colors.primaryGlow,
-                        )
-                        .background(
-                            brush = Brush.linearGradient(
-                                colors = listOf(
-                                    Color(0xFF9B6BFF),
-                                    Color(0xFF7238E5),
-                                ),
-                            ),
-                            shape = RoundedCornerShape(11.dp),
-                        )
-                        .border(
-                            width = OriveoBorderWidth.standard,
-                            color = Color.White.copy(alpha = 0.28f),
-                            shape = RoundedCornerShape(11.dp),
-                        )
-                } else {
-                    Modifier
-                        .background(colors.surfaceInset, RoundedCornerShape(11.dp))
-                        .border(
-                            width = OriveoBorderWidth.standard,
-                            color = colors.border,
-                            shape = RoundedCornerShape(11.dp),
-                        )
-                },
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = Icons.Filled.Bookmark,
-            contentDescription = null,
-            tint = if (enabled) Color.White else colors.textSecondary,
-            modifier = Modifier.size(15.dp),
-        )
-    }
-}
-
 // ── Privacy footnote ──
 
 @Composable
@@ -1421,25 +1185,6 @@ private fun SavePulseDot(reduceMotion: Boolean) {
     }
 }
 
-private fun buildHighlightedDescription(text: String, highlight: Color): AnnotatedString {
-    return buildAnnotatedString {
-        val pattern = Regex("\\d+")
-        var lastEnd = 0
-        pattern.findAll(text).forEach { match ->
-            if (match.range.first > lastEnd) {
-                append(text.substring(lastEnd, match.range.first))
-            }
-            withStyle(SpanStyle(color = highlight, fontWeight = FontWeight.Bold)) {
-                append(match.value)
-            }
-            lastEnd = match.range.last + 1
-        }
-        if (lastEnd < text.length) {
-            append(text.substring(lastEnd))
-        }
-    }
-}
-
 // ── Previews ──
 
 @Preview(showBackground = true, widthDp = 360, heightDp = 720)
@@ -1456,8 +1201,6 @@ private fun MemoryScreenPreviewCompact() {
                     showsExampleSuggestions = false,
                     showsSupportSections = false,
                 ),
-                usageCount = 0,
-                antiForgetEnabled = false,
                 isGeneratingDraft = false,
                 reduceMotion = true,
                 onAction = {},
@@ -1480,8 +1223,6 @@ private fun MemoryScreenPreviewCompactDark() {
                     showsExampleSuggestions = false,
                     showsSupportSections = true,
                 ),
-                usageCount = 3,
-                antiForgetEnabled = true,
                 isGeneratingDraft = false,
                 reduceMotion = true,
                 onAction = {},

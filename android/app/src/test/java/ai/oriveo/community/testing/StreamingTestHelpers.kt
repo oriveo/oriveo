@@ -28,7 +28,6 @@ internal fun installChatStreamingManagerForwardingStub(
                 attachments = req.attachments,
                 reasoningMode = req.reasoningMode,
                 webSearchEnabled = req.webSearchEnabled,
-                antiForgetText = req.antiForgetText,
                 requestOptions = req.requestOptions,
                 outputs = outputs,
                 persistUserMessage = req.persistUserMessage,

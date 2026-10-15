@@ -608,7 +608,7 @@ class MoonshotServiceTest {
     }
 
     /**
-     * The system message appended for Kimi at the step limit must use web search's own wording.
+     * The host notice appended for Kimi at the step limit must use web search's own wording.
      * Web search has no `[n]` citation scheme, so wording that asks for numbered citations would
      * only make the model invent citation numbers.
      */
@@ -632,7 +632,8 @@ class MoonshotServiceTest {
         val finalBody = bodies.last()
         assertEquals("none", finalBody["tool_choice"]?.jsonPrimitive?.content)
         val notice = finalBody["messages"]!!.jsonArray.last().jsonObject
-        assertEquals("system", notice["role"]?.jsonPrimitive?.content)
+        // The host loop notice is a user message after the tool results, no longer a mid-way system message.
+        assertEquals("user", notice["role"]?.jsonPrimitive?.content)
         val text = notice["content"]!!.jsonPrimitive.content
         assertEquals(MOONSHOT_WEB_SEARCH_PROMPTS.stepLimitReached, text)
         assertEquals(

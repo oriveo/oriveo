@@ -401,11 +401,7 @@
     <string name="memory_write_manually">मैन्युअल रूप से लिखें</string>
     <string name="memory_saved">मेमोरी सहेजी गई</string>
     <string name="memory_edit_description">एआई को अपने बारे में बताएं. इसे हर बातचीत की शुरुआत में अपने आप इसका पता चल जाएगा।</string>
-    <string name="memory_usage_count">%1$d वार्तालापों में उपयोग किया जाता है</string>
     <string name="memory_chars">अक्षर</string>
-    <string name="memory_anti_forget_title">लंबी बातचीत विस्मृति रोधी</string>
-    <string name="memory_anti_forget_toggle">विरोधी भूल मोड</string>
-    <string name="memory_anti_forget_description">बातचीत के 10 दौर के बाद, संदेशों के अंत में स्वचालित रूप से एक सारांश अनुस्मारक जोड़ें।</string>
     <string name="memory_privacy_warning">प्रत्येक AI अनुरोध के साथ मेमोरी सामग्री आपके चुने हुए प्रोवाइडर को भेजी जाती है। पासवर्ड या अन्य संवेदनशील जानकारी दर्ज न करें।</string>
     <string name="memory_indicator">यह वार्तालाप स्मृति का उपयोग कर रहा है</string>
     <string name="memory_indicator_title">यह वार्तालाप स्मृति का उपयोग कर रहा है</string>

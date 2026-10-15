@@ -462,11 +462,7 @@
     <string name="memory_write_manually">手動で書く</string>
     <string name="memory_saved">メモリーを保存しました</string>
     <string name="memory_edit_description">AIにあなた自身のことを伝えてください。毎回の会話の最初に自動的に認識します。</string>
-    <string name="memory_usage_count">%1$d 件の会話で使用中</string>
     <string name="memory_chars">文字</string>
-    <string name="memory_anti_forget_title">長い会話の忘却防止</string>
-    <string name="memory_anti_forget_toggle">忘却防止モード</string>
-    <string name="memory_anti_forget_description">会話が10往復を超えると、メッセージの末尾に要約リマインダーを自動的に追加します。</string>
     <string name="memory_privacy_warning">メモリーの内容はAIリクエストごとに選択したプロバイダーに送信されます。パスワードやその他の機密情報を入力しないでください。</string>
     <string name="memory_indicator">この会話はメモリーを使用しています</string>
     <string name="memory_indicator_title">この会話はメモリーを使用しています</string>

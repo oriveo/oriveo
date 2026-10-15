@@ -16,6 +16,7 @@ object AppPreferenceKeys {
     const val MEMORY_ANTI_FORGET_ENABLED = "memory_anti_forget_enabled"
     const val MEMORY_ANTI_FORGET_TEXT = "memory_anti_forget_text"
     const val MEMORY_UPDATED_AT = "memory_updated_at"
+    // Legacy keys: the memory usage count was removed and is no longer read or written; the key names stay only so clearing user state still wipes old values.
     const val MEMORY_USAGE_COUNT = "memory_usage_count"
     const val MEMORY_USAGE_CONVERSATION_IDS = "memory_usage_conversation_ids"
     const val MEMORY_HAS_SEEN = "memory_has_seen"

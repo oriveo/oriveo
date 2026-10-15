@@ -129,45 +129,6 @@ class MemoryContractTest {
     }
 
     @Test
-    fun `MEM-0-06 - anti-forget does not trigger at 9 user messages`() {
-        // ChatViewModel.resolvedAntiForgetText: userMessageCount = existing + 1
-        // 8 existing + 1 new = 9 total < 10 → no anti-forget
-        val existingUserCount = 8
-        val totalUserCount = existingUserCount + 1
-        assertTrue(totalUserCount < 10)
-    }
-
-    @Test
-    fun `MEM-0-06 - anti-forget triggers at 10 user messages`() {
-        // 9 existing + 1 new = 10 total >= 10 → triggers
-        val existingUserCount = 9
-        val totalUserCount = existingUserCount + 1
-        assertTrue(totalUserCount >= 10)
-    }
-
-    @Test
-    fun `MEM-0-07 - anti-forget appends context in correct format`() {
-        val userText = "What should I build next?"
-        val antiForgetText = "Prefer concise Chinese answers"
-        val expected = "$userText\n\n[Reminder: $antiForgetText]"
-
-        val result = "$userText\n\n[Reminder: $antiForgetText]"
-        assertEquals(expected, result)
-    }
-
-    @Test
-    fun `MEM-0-07 - anti-forget format matches ChatRepository injection`() {
-        // ChatRepository line 139-141: "${userMessage.text}\n\n[Reminder: $context]"
-        val text = "Hello"
-        val context = "Be brief"
-        val injected = "$text\n\n[Reminder: $context]"
-
-        assertTrue(injected.contains("\n\n[Reminder: "))
-        assertTrue(injected.endsWith("]"))
-        assertEquals("Hello\n\n[Reminder: Be brief]", injected)
-    }
-
-    @Test
     fun `MEM-0-11 - OpenAI system prompt as messages 0 with role system`() {
         val msgs = listOf(userMessage("Hello"))
         val result = MessageBuilder.buildOpenAIMessages(

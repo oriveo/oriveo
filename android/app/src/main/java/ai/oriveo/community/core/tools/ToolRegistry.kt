@@ -37,10 +37,10 @@ class ToolExecutionTimeout(val toolName: String, cause: Throwable) :
 /**
  * The result of one successful execution.
  *
- * When [stopReason] is non-null the loop appends it as a system message, feeds "stopped" back to the remaining tool_calls of the leg
+ * When [stopReason] is non-null the loop appends it as a host notice (user, after all tool results of the leg), feeds "stopped" back to the remaining tool_calls of the leg
  * (error code from `ToolCallLoop.Prompts.stoppedCode`) and then runs the tool-free synthesis leg (e.g. a cap on consecutive empty results).
  * [stoppedMessage] is the explanation fed back to those skipped calls; it defaults to [stopReason]. They are separate because the
- * system prompt instructs the model, while a skipped call's tool result only needs to state the reason.
+ * host notice instructs the model, while a skipped call's tool result only needs to state the reason.
  */
 data class ToolExecutionOutcome(
     val content: String,
