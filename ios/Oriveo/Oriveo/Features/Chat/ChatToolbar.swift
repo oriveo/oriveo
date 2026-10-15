@@ -11,6 +11,9 @@ struct ChatToolbar: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppState.self) private var appState
+    @Environment(\.windowNavigation) private var windowNavigation
+    /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
     @State private var showMemoryPopover = false
     @State private var pendingExport: ChatExportItem?
 
@@ -18,7 +21,7 @@ struct ChatToolbar: View {
         HStack(spacing: OriveoTheme.Spacing.sm) {
             // No back button in the two-column layout: there is nowhere to go back to, because
             // the sidebar stays on screen (the same rule the system split view follows).
-            if !appState.navigation.isRegularWidth {
+            if !navigation.isRegularWidth {
                 OriveoBackButton { appState.pop() }
                     // Keeps the old 36pt slot so the model picker does not move; the 44pt target
                     // overflows it on every side, so the tappable area does not shrink

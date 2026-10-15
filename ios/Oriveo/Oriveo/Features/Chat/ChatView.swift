@@ -173,6 +173,9 @@ struct ChatView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppState.self) private var appState
+    @Environment(\.windowNavigation) private var windowNavigation
+    /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
 
     /// Input text is not ChatView `@State`: each keystroke would rebuild the page
     /// (list, toolbar, capability strip). The live text and draft persistence live in
@@ -625,20 +628,20 @@ struct ChatView: View {
 
     private func openMcpServers() {
         showsMcpToolPanel = false
-        appState.navigation.path.append(.mcpServers)
+        navigation.path.append(.mcpServers)
     }
 
     /// "Add MCP server" in the empty tool panel: goes straight to the add page and comes back to this
     /// conversation afterwards.
     private func openMcpAddServer() {
         showsMcpToolPanel = false
-        appState.navigation.path.append(.mcpAddServer)
+        navigation.path.append(.mcpAddServer)
     }
 
     /// "Re-authorize" on a row of the tool panel: opens that server's details and starts re-authorizing.
     private func openMcpReauthorization(_ serverId: UUID) {
         showsMcpToolPanel = false
-        appState.navigation.path.append(.mcpServerDetail(serverID: serverId, intent: .reauthorize))
+        navigation.path.append(.mcpServerDetail(serverID: serverId, intent: .reauthorize))
     }
 
     private func presentModelPicker() {
@@ -751,7 +754,7 @@ struct ChatView: View {
                 // column to its empty state.
                 Color.clear.onAppear {
                     if let conversationID {
-                        appState.navigation.dismissChat(conversationID: conversationID)
+                        navigation.dismissChat(conversationID: conversationID)
                     }
                 }
             } else if let resolvedChatContext {

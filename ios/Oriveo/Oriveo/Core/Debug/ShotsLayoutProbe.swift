@@ -10,6 +10,8 @@ import UIKit
 enum ShotsLayoutProbe {
     private static let stableInterval: TimeInterval = 1.5
     private static let timeout: TimeInterval = 25
+    /// `supportsMultipleWindows` from the SwiftUI environment, written by `AppRootView`; nil = no window has reported yet.
+    static var supportsMultipleWindows: Bool?
 
     static func runIfRequested(page: String) async {
         guard CommandLine.arguments.contains("-SHOTS_PROBE") else { return }
@@ -297,6 +299,8 @@ enum ShotsLayoutProbe {
             "safe": ["top": insets.top, "bottom": insets.bottom, "left": insets.left, "right": insets.right],
             "bars": window.map(collectBars(in:)) ?? [],
             "split": window.map(collectSplitColumns(in:)) ?? [],
+            "supportsMultipleWindows": supportsMultipleWindows.map { $0 as Any } ?? NSNull(),
+            "supportsMultipleScenes": UIApplication.shared.supportsMultipleScenes,
             "nodes": nodes.map { node -> [String: Any] in
                 var item: [String: Any] = [
                     "text": node.text,

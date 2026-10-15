@@ -109,10 +109,80 @@ final class AppState {
     private let persistsSession: Bool
     private var pendingChatAnchorUserMessageIDs: [UUID: UUID] = [:]
 
+    /// The active window's tab. Each window has its own (see `NavigationManager.selectedTab`);
+    /// this is only a convenience accessor. Persistence is triggered by each manager's `onSelectedTabChange`.
     var selectedTab: AppTab {
-        didSet { persistSessionIfNeeded() }
+        get { navigation.selectedTab }
+        set { navigation.selectedTab = newValue }
     }
-    var navigation = NavigationManager()
+
+    // MARK: - Per-window navigation
+
+    /// The navigation manager of the first window (and of the app while no window is registered).
+    let primaryNavigation = NavigationManager()
+    /// Window token → that window's navigation manager. Changes only when a window registers or is released; views observe `activeWindowToken`.
+    @ObservationIgnored private var windowNavigations: [UUID: NavigationManager] = [:]
+    /// The window currently using `primaryNavigation`; nil means it is free and the next window to register reuses it.
+    @ObservationIgnored private var primaryNavigationOwner: UUID?
+    /// The active window (the one the user touched most recently). `navigation` and `openXxx()` act on it.
+    private(set) var activeWindowToken: UUID?
+
+    /// The active window's navigation manager; falls back to `primaryNavigation` when no window is registered.
+    var navigation: NavigationManager {
+        activeWindowToken.flatMap { windowNavigations[$0] } ?? primaryNavigation
+    }
+
+    /// The primary manager plus every registered window's manager (deduplicated), for app-wide events that must reach every window.
+    var allWindowNavigations: [NavigationManager] {
+        var result = [primaryNavigation]
+        for manager in windowNavigations.values where !result.contains(where: { $0 === manager }) {
+            result.append(manager)
+        }
+        return result
+    }
+
+    /// Gets (or creates) a window's navigation manager. Idempotent, so it can be called from a view body.
+    /// Hands out the primary manager when no live window holds it; otherwise creates a new one and wires its observers.
+    /// When there is no active window, this window becomes the active one.
+    func windowNavigation(for token: UUID) -> NavigationManager {
+        if let existing = windowNavigations[token] { return existing }
+        let manager: NavigationManager
+        if primaryNavigationOwner == nil {
+            primaryNavigationOwner = token
+            manager = primaryNavigation
+        } else {
+            manager = NavigationManager()
+            manager.onSelectedTabChange = { [weak self] in self?.persistSessionIfNeeded() }
+        }
+        windowNavigations[token] = manager
+        if activeWindowToken == nil {
+            activeWindowToken = token
+        }
+        return manager
+    }
+
+    /// Releases a window's manager when the window closes. The primary manager is only marked free so it can be reused;
+    /// releasing the active window makes one of the remaining windows active (preferring the one holding the primary manager).
+    func releaseWindowNavigation(_ token: UUID) {
+        guard windowNavigations.removeValue(forKey: token) != nil else { return }
+        if primaryNavigationOwner == token {
+            primaryNavigationOwner = nil
+        }
+        if activeWindowToken == token {
+            activeWindowToken = primaryNavigationOwner ?? windowNavigations.keys.first
+        }
+    }
+
+    /// Makes a registered window the active one; an unregistered token is ignored.
+    func activateWindowNavigation(_ token: UUID) {
+        guard windowNavigations[token] != nil, activeWindowToken != token else { return }
+        activeWindowToken = token
+    }
+
+    func isActiveWindow(_ token: UUID) -> Bool {
+        activeWindowToken == token
+    }
+
     var conversationManager = ConversationManager()
     var hasCompletedOnboarding: Bool {
         didSet { persistSessionIfNeeded() }
@@ -333,7 +403,6 @@ final class AppState {
         chatManager = ChatManager(providerSession: providerSession, toolCallMemory: toolCallMemory)
         persistsSession = !seedDemoData
         boundPartitionUID = requestedSessionUID ?? AppSessionStore.activeUID
-        selectedTab = .home
         preferences = AppPreferencesStore.load()
         pendingSuccessBanner = nil
 
@@ -364,6 +433,7 @@ final class AppState {
             loadSession(boundTo: requestedSessionUID ?? AppSessionStore.activeUID)
         }
 
+        primaryNavigation.onSelectedTabChange = { [weak self] in self?.persistSessionIfNeeded() }
         rebuildProviderLookup()
         rebuildConversationLookup()
 

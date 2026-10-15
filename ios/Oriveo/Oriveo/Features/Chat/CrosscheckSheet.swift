@@ -146,6 +146,9 @@ struct CrosscheckModelPickerPresentation: Identifiable {
 struct CrosscheckSheet: View {
     let origin: CrosscheckOrigin
     @Environment(AppState.self) private var appState
+    @Environment(\.windowNavigation) private var windowNavigation
+    /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -458,7 +461,7 @@ struct CrosscheckSheet: View {
                 Button {
                     cancelRun()
                     dismiss()
-                    appState.selectedTab = .providers
+                    navigation.selectedTab = .providers
                     appState.openProviderSetup(from: .providers)
                 } label: {
                     Label(L10n.tr("Add Provider"), systemImage: "plus")

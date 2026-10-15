@@ -2,6 +2,9 @@ import SwiftUI
 
 struct ProvidersView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.windowNavigation) private var windowNavigation
+    /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
     @State private var providerToDelete: Provider?
     @State private var providerBalancesByID: [UUID: ProviderBalance] = [:]
     @State private var spotlightIndex: Int = 0
@@ -27,7 +30,7 @@ struct ProvidersView: View {
             }
             .joined(separator: "|")
         return [
-            appState.selectedTab == .providers ? "active" : "inactive",
+            navigation.selectedTab == .providers ? "active" : "inactive",
             AppSessionStore.activeUID,
             providersKey,
         ].joined(separator: "|")
@@ -113,7 +116,7 @@ struct ProvidersView: View {
         .scrollIndicators(.hidden)
         .background(ProvidersScreenBackground())
         .task(id: providerBalancesRefreshKey, priority: .utility) {
-            guard appState.selectedTab == .providers else { return }
+            guard navigation.selectedTab == .providers else { return }
             await refreshProviderBalances()
         }
 

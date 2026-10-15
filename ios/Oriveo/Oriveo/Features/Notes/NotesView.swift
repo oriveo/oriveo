@@ -2,6 +2,9 @@ import SwiftUI
 
 struct NotesView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.windowNavigation) private var windowNavigation
+    /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
 
     private enum Tab: Hashable { case notes, trash }
 
@@ -89,7 +92,7 @@ struct NotesView: View {
                 // never placed its own, leaving the edge swipe as the single way out: findable
                 // on a phone, effectively no exit at all on a wide screen. Styled by the
                 // shared OriveoBackButton.
-                OriveoBackButton { appState.navigation.pop() }
+                OriveoBackButton { navigation.pop() }
                     .padding(.leading, -OriveoBackButton.edgeInset)
 
                 brandIcon

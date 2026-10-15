@@ -12,6 +12,9 @@ struct OnboardingFlowView: View {
     var onFinish: (() -> Void)?
 
     @Environment(AppState.self) private var appState
+    @Environment(\.windowNavigation) private var windowNavigation
+    /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -416,7 +419,10 @@ struct OnboardingFlowView: View {
         isStageAnimating = false
         switch mode {
         case .rehearsal:
-            appState.selectedTab = .home
+            // Replay mode has to land in the right place too: the CTA means "go to the main screen and start chatting",
+            // and only closing the overlay would fall back to the Settings tab it was opened from, so this step could not be checked.
+            // It only switches the tab; it does not write hasCompletedOnboarding.
+            navigation.selectedTab = .home
             onFinish?()
         case .live:
             appState.startOnboarding()

@@ -3,6 +3,9 @@ import SwiftUI
 struct FolderDetailView: View {
     let folderID: UUID
     @Environment(AppState.self) private var appState
+    @Environment(\.windowNavigation) private var windowNavigation
+    /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
     @State private var isEditing = false
@@ -88,7 +91,7 @@ struct FolderDetailView: View {
         }
         .onChange(of: appState.foldersVersion) {
             if folder == nil {
-                appState.navigation.pop()
+                navigation.pop()
             }
         }
         .alert(L10n.tr("Rename Folder", table: .home), isPresented: $showRenameAlert) {
@@ -106,7 +109,7 @@ struct FolderDetailView: View {
             Button(L10n.tr("Delete Folder", table: .home), role: .destructive) {
                 appState.folderManager.deleteFolder(id: folderID)
                 ToastManager.shared.show(L10n.tr("Folder deleted", table: .home))
-                appState.navigation.pop()
+                navigation.pop()
             }
         } message: {
             Text(L10n.tr("Conversations inside will be kept.", table: .home))
@@ -134,7 +137,7 @@ struct FolderDetailView: View {
         HStack(spacing: OriveoTheme.Spacing.sm) {
             // The native navigation bar is hidden; without its own back button the edge swipe is the only way out (no exit at all on wide screens)
             OriveoBackButton {
-                appState.navigation.pop()
+                navigation.pop()
             }
             .padding(.leading, -OriveoBackButton.edgeInset)
             Text(folder?.name ?? "")

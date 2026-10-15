@@ -8,9 +8,11 @@ import SwiftUI
 /// popping back) — see the carrier invariant on `NavigationManager.chatDetail`.
 struct ChatDetailColumn: View {
     @Environment(AppState.self) private var appState
-    /// The detail column's own top safe area. Above 0 means a system bar runs horizontally along
-    /// the top, which is when the floating iPad tab bar appears.
-    @State private var topSafeAreaInset: CGFloat = 0
+    @Environment(\.windowNavigation) private var windowNavigation
+    /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
+    /// The detail column's top edge in the window and the column's own safe top; their sum is the window's top safe line.
+    @State private var columnTop = ColumnTopGeometry(minYInWindow: 0, safeAreaTop: 0)
 
     var body: some View {
         content
@@ -22,26 +24,28 @@ struct ChatDetailColumn: View {
                 // iPad in portrait the capsule occupies 38–70pt while the toolbar starts at 40).
                 // The sidebar is unaffected: everything in its top bar sits left of the capsule.
                 //
-                // The test is *where the tab bar is*, not *which platform this is*: on an
-                // unfolded Duo the tab bar is a vertical strip on the trailing edge and the
-                // detail column already sits clear of it. That placement is the system's choice
-                // and no public API reports it, so the column's own geometry decides: a top safe
-                // area above 0 means a system bar runs along the top, and only then is 32pt added.
-                // An unfolded Duo held sideways (measured: top 0, trailing 84, bars vertical) and
-                // an iPhone in landscape (top 0) add nothing. The idiom is not used because it
-                // cannot tell where the bar sits on one and the same device.
-                // The real fix is to settle on one tab bar shape (`.tabViewStyle(.sidebarAdaptable)`),
-                // which is a separate decision.
+                // The test is where the tab bar sits, not which platform this is: on the unfolded Duo the tab bar
+                // is a vertical strip on the right and the detail column is already to its left, so nothing needs
+                // clearing; only a tab bar along the top does. The system decides that placement and there is no
+                // public API to ask, so it is judged geometrically: a window top safe line > 0 means the status bar
+                // and system bars run along the top, and only then 32pt is added. An unfolded Duo held sideways
+                // (safe top 0, right 84, bars vertical) and an iPhone in landscape (top 0) get none.
+                // The column's own safe top alone is not enough: the split view places the columns below the status
+                // bar (column top y=32 on iPad), so the column's own safe top is 0 and judging by it would never
+                // clear the bar on iPad (the model button ended up at y=45 under the 32–76 capsule).
+                // Not judged by idiom: the idiom cannot tell where the bar sits on the same device. The real fix
+                // would be one tab bar style everywhere (`.tabViewStyle(.sidebarAdaptable)`), a separate decision.
                 Color.clear.frame(height: needsTopTabBarClearance ? 32 : 0)
             }
-            // Read outside the safeAreaInset so it measures the column's own safe area without
-            // the 32pt above; otherwise the inset would feed back into itself.
-            .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { topSafeAreaInset = $0 }
+            // Read outside the safeAreaInset: it measures the column's own geometry without the 32pt above, so it cannot feed back on itself.
+            .onGeometryChange(for: ColumnTopGeometry.self) {
+                ColumnTopGeometry(minYInWindow: $0.frame(in: .global).minY, safeAreaTop: $0.safeAreaInsets.top)
+            } action: { columnTop = $0 }
     }
 
     @ViewBuilder
     private var content: some View {
-        switch appState.navigation.chatDetail {
+        switch navigation.chatDetail {
         case .empty:
             ChatDetailEmptyStateView()
         case .draft:
@@ -52,8 +56,18 @@ struct ChatDetailColumn: View {
     }
 
     private var needsTopTabBarClearance: Bool {
-        topSafeAreaInset > 0
+        Self.needsTopTabBarClearance(columnMinYInWindow: columnTop.minYInWindow, columnSafeAreaTop: columnTop.safeAreaTop)
     }
+
+    /// Whether the detail column leaves 32pt at the top for the iPad floating tab bar: the column top's y in the window plus the column's own safe top is the window's top safe line, and only > 0 leaves room.
+    static func needsTopTabBarClearance(columnMinYInWindow: CGFloat, columnSafeAreaTop: CGFloat) -> Bool {
+        columnMinYInWindow + columnSafeAreaTop > 0
+    }
+}
+
+nonisolated private struct ColumnTopGeometry: Equatable, Sendable {
+    var minYInWindow: CGFloat
+    var safeAreaTop: CGFloat
 }
 
 /// Where the detail column lands when no conversation is selected.

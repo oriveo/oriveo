@@ -136,7 +136,7 @@ struct ModelControlsPanelStructureTests {
         #expect(composer.contains("opensModelPickerAfterControls = true"))
         #expect(composer.contains("onChooseModel()"))
         #expect(composer.contains("opensConnectionSettingsAfterControls = true"))
-        #expect(composer.contains("appState.navigation.openProviderDetail(providerID: provider.id)"))
+        #expect(composer.contains("navigation.openProviderDetail(providerID: provider.id)"))
     }
 
     // MARK: - The height follows the content

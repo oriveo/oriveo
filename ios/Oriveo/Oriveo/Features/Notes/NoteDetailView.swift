@@ -70,6 +70,9 @@ enum NoteDetailTitleEditPolicy {
 
 struct NoteDetailView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.windowNavigation) private var windowNavigation
+    /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
     @Environment(\.colorScheme) private var colorScheme
     let noteID: UUID
 
@@ -868,7 +871,7 @@ struct NoteDetailView: View {
 
     private func leaveDetail() {
         prepareToLeave()
-        appState.navigation.pop()
+        navigation.pop()
     }
 
     private func prepareToLeave() {
@@ -922,7 +925,7 @@ struct NoteDetailView: View {
 
     private func confirmDelete() {
         appState.noteManager.deleteNote(id: noteID)
-        appState.navigation.pop()
+        navigation.pop()
         ToastManager.shared.show(L10n.tr("Note deleted", table: .notes), duration: 5,
                                  actionTitle: L10n.tr("Undo", table: .notes)) {
             appState.noteManager.restoreNote(id: noteID)

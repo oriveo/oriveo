@@ -9,6 +9,9 @@ struct ProviderSetupView: View {
     let preselectedKind: ProviderKind?
 
     @Environment(AppState.self) private var appState
+    @Environment(\.windowNavigation) private var windowNavigation
+    /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedKind: ProviderKind?
@@ -79,7 +82,7 @@ struct ProviderSetupView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 LocalComputeEntry {
                                     didHandOffToRelay = true
-                                    appState.navigation.path.append(.localComputeSetup(entryPoint: entryPoint))
+                                    navigation.path.append(.localComputeSetup(entryPoint: entryPoint))
                                 }
 
                                 CustomRelayEntry {

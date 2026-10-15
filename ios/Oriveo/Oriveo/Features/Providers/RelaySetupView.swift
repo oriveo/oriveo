@@ -24,6 +24,9 @@ struct RelaySetupView: View {
     let entryPoint: ProviderSetupEntryPoint
 
     @Environment(AppState.self) private var appState
+    @Environment(\.windowNavigation) private var windowNavigation
+    /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
 
     /// Quick setup is the default entry; manual setup is a separate page reached from the secondary row at the bottom of step 1.
     @State private var showsManualSetup = false
@@ -396,7 +399,7 @@ struct RelaySetupView: View {
 
     /// "Save anyway (unverified)" on the failure card: persist the connection with an issue, then open its detail page.
     private func saveUnverified() {
-        manualFlow.saveUnverified(appState: appState, entryPoint: entryPoint)
+        manualFlow.saveUnverified(appState: appState, navigation: navigation, entryPoint: entryPoint)
     }
 }
 

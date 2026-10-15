@@ -6,6 +6,12 @@ struct FolderRow: View {
     @Binding var selectedIDs: Set<UUID>
 
     @Environment(AppState.self) private var appState
+    @Environment(\.windowNavigation) private var windowNavigation
+    @Environment(\.openWindow) private var openWindow
+    /// "Open in New Window" is offered only where several windows are possible (iPad, Duo).
+    @Environment(\.canOpenConversationWindow) private var canOpenConversationWindow
+    /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
     @State private var showRenameAlert = false
     @State private var renameText = ""
     @State private var showDeleteConfirm = false
@@ -183,7 +189,7 @@ struct FolderRow: View {
 
                 if remaining > 0 {
                     Button {
-                        appState.navigation.path.append(.folderDetail(folderID: folder.id))
+                        navigation.path.append(.folderDetail(folderID: folder.id))
                     } label: {
                         Text(String(format: L10n.tr("Show More (%d)", table: .home), remaining))
                             .font(.system(size: 11, weight: .semibold))
@@ -279,7 +285,7 @@ struct FolderRow: View {
         }
 
         Button {
-            appState.navigation.path.append(.folderDetail(folderID: folder.id))
+            navigation.path.append(.folderDetail(folderID: folder.id))
         } label: {
             Label(L10n.tr("View All", table: .home), systemImage: "list.bullet")
         }
@@ -301,6 +307,15 @@ struct FolderRow: View {
 
     @ViewBuilder
     private func conversationContextMenu(for conversation: Conversation) -> some View {
+        if canOpenConversationWindow && !isEditing {
+            Button {
+                openWindow(value: WindowOpenRequest(conversationID: conversation.id))
+            } label: {
+                Label(L10n.tr("Open in New Window", table: .home), systemImage: "macwindow.badge.plus")
+            }
+        }
+
+        // Move-to-folder submenu
         Menu {
             ForEach(appState.folderManager.sortedFolders) { f in
                 if f.id != folder.id {

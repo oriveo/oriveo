@@ -154,6 +154,9 @@ struct ChatMessageList: View, Equatable {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppState.self) private var appState
+    @Environment(\.windowNavigation) private var windowNavigation
+    /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
 
     @State private var emptyStateAppeared = false
     @State private var greetingHeadline = ""
@@ -568,10 +571,10 @@ struct ChatMessageList: View, Equatable {
             appState.mcpReauthorizationCoordinator.skip(conversationID: conversationID, stepID: step.id)
         case let .reauthorize(step):
             guard let serverID = UUID(uuidString: step.serverId) else {
-                appState.navigation.path.append(.mcpServers)
+                navigation.path.append(.mcpServers)
                 return
             }
-            appState.navigation.path.append(.mcpServerDetail(serverID: serverID, intent: .reauthorize))
+            navigation.path.append(.mcpServerDetail(serverID: serverID, intent: .reauthorize))
         }
     }
 

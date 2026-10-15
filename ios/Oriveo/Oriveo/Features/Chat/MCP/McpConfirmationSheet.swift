@@ -234,13 +234,15 @@ private struct McpConfirmationPresenter: ViewModifier {
     /// level of `AppRootView`, and the `AppState` the root view injects is for the content **inside** it. The
     /// outer level would only see one if whatever hosts the root view injected it a second time.
     let appState: AppState
+    /// With several windows it is presented only in the active window, so the same confirmation is not shown once per window.
+    let isActiveWindow: Bool
 
     /// The confirmation at the head of the queue, not filtered by conversation (the same rule as other
     /// confirmations): it needs UI to present it even after the user switches to another conversation, or that
     /// answer would wait forever. The choice is routed back by confirmation id to the wait that raised it.
     private var confirmation: Binding<PendingMcpConfirmation?> {
         Binding(
-            get: { appState.mcpConfirmationCoordinator.pending.first },
+            get: { isActiveWindow ? appState.mcpConfirmationCoordinator.pending.first : nil },
             set: { _ in }
         )
     }
@@ -263,8 +265,8 @@ private struct McpConfirmationPresenter: ViewModifier {
 }
 
 extension View {
-    func mcpConfirmationPresenter(appState: AppState) -> some View {
-        modifier(McpConfirmationPresenter(appState: appState))
+    func mcpConfirmationPresenter(appState: AppState, isActiveWindow: Bool = true) -> some View {
+        modifier(McpConfirmationPresenter(appState: appState, isActiveWindow: isActiveWindow))
     }
 }
 
@@ -333,6 +335,11 @@ struct McpReauthorizationSheet: View {
 private struct McpReauthorizationPresenter: ViewModifier {
     /// Passed in explicitly, for the same reason as in `McpConfirmationPresenter`.
     let appState: AppState
+    /// With several windows it is presented only in the active window, for the same reason as `McpConfirmationPresenter`.
+    let isActiveWindow: Bool
+    @Environment(\.windowNavigation) private var windowNavigation
+    /// This window's navigation state; a host without one injected falls back to the active window.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
     /// Prompts the user swiped away. Dismissing does not decide for the user: the step keeps waiting and can still
     /// be handled under the step block after returning to that conversation.
     @State private var dismissed: Set<UUID> = []
@@ -340,15 +347,18 @@ private struct McpReauthorizationPresenter: ViewModifier {
     private var prompt: Binding<PendingMcpReauthorization?> {
         Binding(
             get: {
-                appState.mcpReauthorizationCoordinator.rootPrompt(
-                    signingInServerId: McpReauthorizationCoordinator.signingInServerId(in: appState.navigation.path),
+                guard isActiveWindow else { return nil }
+                return appState.mcpReauthorizationCoordinator.rootPrompt(
+                    signingInServerId: McpReauthorizationCoordinator.signingInServerId(in: navigation.path),
                     dismissed: dismissed
                 )
             },
             set: { newValue in
-                guard newValue == nil,
+                // When another window becomes active this window's prompt is withdrawn; that is not the user dismissing it
+                guard isActiveWindow,
+                      newValue == nil,
                       let current = appState.mcpReauthorizationCoordinator.rootPrompt(
-                          signingInServerId: McpReauthorizationCoordinator.signingInServerId(in: appState.navigation.path),
+                          signingInServerId: McpReauthorizationCoordinator.signingInServerId(in: navigation.path),
                           dismissed: dismissed
                       ) else { return }
                 dismissed.insert(current.id)
@@ -362,7 +372,7 @@ private struct McpReauthorizationPresenter: ViewModifier {
                 request: pending.request,
                 conversationTitle: appState.conversation(for: pending.request.conversationId)?.title,
                 onReauthorize: {
-                    appState.navigation.path.append(
+                    navigation.path.append(
                         .mcpServerDetail(serverID: pending.request.serverId, intent: .reauthorize)
                     )
                 },
@@ -401,8 +411,8 @@ private struct McpReauthorizationInlineHost: ViewModifier {
 
 extension View {
     /// The app-root presenter for the expired-authorization prompt.
-    func mcpReauthorizationPresenter(appState: AppState) -> some View {
-        modifier(McpReauthorizationPresenter(appState: appState))
+    func mcpReauthorizationPresenter(appState: AppState, isActiveWindow: Bool = true) -> some View {
+        modifier(McpReauthorizationPresenter(appState: appState, isActiveWindow: isActiveWindow))
     }
 
     /// For the chat view: registers "this conversation's step block is on screen".

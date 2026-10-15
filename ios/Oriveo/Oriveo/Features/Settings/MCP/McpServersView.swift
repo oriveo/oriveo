@@ -5,6 +5,9 @@ import SwiftUI
 /// Both "MCP servers" in Settings and "Manage MCP servers" in the chat tool panel lead here.
 struct McpServersView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.windowNavigation) private var windowNavigation
+    /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
     @State private var servers: [McpServerSummary] = []
     /// The first read of local storage has not returned yet: do not draw the empty state, so people who already
     /// have servers never see a flash of "no servers yet".
@@ -15,8 +18,8 @@ struct McpServersView: View {
             servers: servers,
             loaded: loaded,
             onBack: { appState.pop() },
-            onAddServer: { appState.navigation.attemptNavigate(to: .mcpAddServer) },
-            onOpenServer: { appState.navigation.attemptNavigate(to: .mcpServerDetail(serverID: $0, intent: .view)) }
+            onAddServer: { navigation.attemptNavigate(to: .mcpAddServer) },
+            onOpenServer: { navigation.attemptNavigate(to: .mcpServerDetail(serverID: $0, intent: .view)) }
         )
         .refreshable { await refresh() }
         // Re-read when coming back from the add page or the detail page.

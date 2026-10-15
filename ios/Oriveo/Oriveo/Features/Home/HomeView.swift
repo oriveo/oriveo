@@ -193,6 +193,9 @@ struct HeroPendingSend {
 
 struct HomeView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.openWindow) private var openWindow
+    /// "Open in New Window" is offered only where several windows are possible (iPad, Duo).
+    @Environment(\.canOpenConversationWindow) private var canOpenConversationWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     #if DEBUG
     @Environment(\.homeDebugSnapshotSeed) private var debugSnapshotSeed
@@ -1183,6 +1186,15 @@ struct HomeView: View {
         .buttonStyle(.plain)
         .contextMenu {
             if !isEditing {
+                if canOpenConversationWindow {
+                    Button {
+                        openWindow(value: WindowOpenRequest(conversationID: conversation.id))
+                    } label: {
+                        Label(L10n.tr("Open in New Window", table: .home), systemImage: "macwindow.badge.plus")
+                    }
+                }
+
+                // Pin / unpin (same as Web and Android: first in the menu)
                 let isPinned = appState.conversationManager.isPinned(conversation.id)
                 Button {
                     appState.conversationManager.togglePin(conversationID: conversation.id)

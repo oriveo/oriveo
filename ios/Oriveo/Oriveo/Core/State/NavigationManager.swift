@@ -22,9 +22,41 @@ enum ChatDetailState: Hashable {
     var isEmpty: Bool { self == .empty }
 }
 
+/// The current window's own navigation manager. With several windows (iPad, Duo) the window's root view injects it;
+/// when it is nil, views fall back to `AppState.navigation` (the active window).
+private struct WindowNavigationKey: EnvironmentKey {
+    static var defaultValue: NavigationManager? { nil }
+}
+
+/// Whether this window offers "Open in New Window". The window's root view computes it with `canOpenConversationWindow` and injects it.
+private struct CanOpenConversationWindowKey: EnvironmentKey {
+    static var defaultValue: Bool { false }
+}
+
+extension EnvironmentValues {
+    var windowNavigation: NavigationManager? {
+        get { self[WindowNavigationKey.self] }
+        set { self[WindowNavigationKey.self] = newValue }
+    }
+
+    var canOpenConversationWindow: Bool {
+        get { self[CanOpenConversationWindowKey.self] }
+        set { self[CanOpenConversationWindowKey.self] = newValue }
+    }
+}
+
+// Routing, tab switching and navigation path state
+// Pure navigation logic extracted from AppState
 @MainActor
 @Observable
 final class NavigationManager {
+
+    /// The tab this window is on. Each window has its own, so windows never interfere.
+    var selectedTab: AppTab = .home {
+        didSet { onSelectedTabChange?() }
+    }
+    /// Single observation point for tab changes: AppState persists the session snapshot from it.
+    @ObservationIgnored var onSelectedTabChange: (() -> Void)?
 
     var path: [AppRoute] = []
     /// What the wide-screen detail column is showing. It sits beside `path`: `path` drives
@@ -177,6 +209,18 @@ final class NavigationManager {
 
     /// Minimum full window width for two columns: a 360pt sidebar plus a 420pt conversation column.
     static let splitLayoutMinimumWidth: CGFloat = 780
+
+    /// Whether "Open in New Window" is offered: multiple windows are supported **and** the window is
+    /// horizontally regular.
+    ///
+    /// `supportsMultipleWindows` alone is not enough: on the Duo's cover screen (466pt, compact) it
+    /// also reports true, yet the cover screen cannot open a new window. The system's
+    /// `UIWindowSceneActivationAction` hides itself there, and a SwiftUI menu has no equivalent, so
+    /// the decision is made on the available space: a compact window does not get the item (nor does
+    /// a narrow iPad window; a wide one still does).
+    static func canOpenConversationWindow(supportsMultipleWindows: Bool, horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
+        supportsMultipleWindows && horizontalSizeClass == .regular
+    }
 
     /// Two columns only when the size class is regular **and** the full window width is at least
     /// `splitLayoutMinimumWidth`; anything else is a single column.

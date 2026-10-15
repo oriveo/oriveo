@@ -445,9 +445,11 @@ final class RelayManualSetupFlow {
     }
 
     /// "Save anyway (unverified)" on the failure card: the only exit that stores an unverified connection. It sends no further request.
+    /// `navigation` is the navigation state of the window the request came from (one per window); without it the active window is used.
     @discardableResult
     func saveUnverified(
         appState: AppState,
+        navigation: NavigationManager? = nil,
         entryPoint: ProviderSetupEntryPoint,
         onWillComplete: () -> Void = {}
     ) -> Bool {
@@ -472,8 +474,9 @@ final class RelayManualSetupFlow {
             kind: .unverifiedSave(pending.reason)
         )
         onWillComplete()
-        appState.selectedTab = .providers
-        appState.navigation.path = [relaySetupCompletionRoute(for: provider)]
+        let navigation = navigation ?? appState.navigation
+        navigation.selectedTab = .providers
+        navigation.path = [relaySetupCompletionRoute(for: provider)]
         return true
     }
 

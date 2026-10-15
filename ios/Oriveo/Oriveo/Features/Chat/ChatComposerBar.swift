@@ -314,6 +314,9 @@ struct ChatComposerBar: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
     @Environment(AppState.self) private var appState
+    @Environment(\.windowNavigation) private var windowNavigation
+    /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
     @State private var highlightPulse = false
     @State private var highlightPulseToken = 0
     @State private var dismissedRelatedNoteIDs: Set<UUID> = []
@@ -838,7 +841,7 @@ struct ChatComposerBar: View {
             .sheet(isPresented: $showsModelControls, onDismiss: {
                 if opensConnectionSettingsAfterControls {
                     opensConnectionSettingsAfterControls = false
-                    appState.navigation.openProviderDetail(providerID: provider.id)
+                    navigation.openProviderDetail(providerID: provider.id)
                     return
                 }
                 if opensConnectionWebSearchAfterControls {
@@ -938,7 +941,7 @@ struct ChatComposerBar: View {
                             pendingAttachments.removeAll { $0.id == id }
                         },
                         onTapKnowledgeCTA: (canUseKnowledge && attachment.extractedTruncated == true)
-                            ? { appState.navigation.openSkillEdit() }
+                            ? { navigation.openSkillEdit() }
                             : nil
                     )
                 }

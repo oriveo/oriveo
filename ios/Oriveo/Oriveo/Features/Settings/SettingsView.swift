@@ -28,6 +28,9 @@ enum SettingsDeveloperMenuPolicy {
 
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.windowNavigation) private var windowNavigation
+    /// This window's navigation state (one per window); a host without one injected (tests) falls back to the active window.
+    private var navigation: NavigationManager { windowNavigation ?? appState.navigation }
     @State private var presentedWebDestination: ProjectWebDestination?
     @State private var aboutTapCount: Int = 0
     /// Revealed by tapping the About logo 10 times: shows the API host and replays the onboarding,
@@ -86,7 +89,7 @@ struct SettingsView: View {
                     McpSettingsSection(
                         iconColor: aiColor,
                         mcpSummary: mcpEntrySummary,
-                        onOpenMcpServers: { appState.navigation.attemptNavigate(to: .mcpServers) }
+                        onOpenMcpServers: { navigation.attemptNavigate(to: .mcpServers) }
                     )
                 }
 

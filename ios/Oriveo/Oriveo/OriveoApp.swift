@@ -31,17 +31,18 @@ struct OriveoApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        // The window value is the conversation to open in that window (passed by "Open in New Window" in the conversation menu); nil for the default window the system opens.
+        WindowGroup(for: WindowOpenRequest.self) { $conversationID in
             #if DEBUG
             // Debug samples: launched with `-OriveoModelOptionsSample <name>`, the app shows only that sample
             // instead of the main interface.
             if let sample = ModelOptionsSample.requestedName {
                 ModelOptionsSampleHost(name: sample)
             } else {
-                appRoot
+                appRoot(conversationID: $conversationID)
             }
             #else
-            appRoot
+            appRoot(conversationID: $conversationID)
             #endif
         }
         .onChange(of: scenePhase) { _, newPhase in
@@ -55,12 +56,21 @@ struct OriveoApp: App {
         }
     }
 
-    private var appRoot: some View {
-        AppRootView(appState: appState)
+    /// Launch tasks are per process: with several windows (iPad, Duo) every window mounts its own
+    /// appRoot, and only the first one runs them.
+    private static var hasRunLaunchTasks = false
+
+    private func appRoot(conversationID: Binding<WindowOpenRequest?>) -> some View {
+        AppRootView(
+            appState: appState,
+            windowOpenRequest: conversationID
+        )
             .environment(appState)
             .environment(\.locale, appState.preferences.language.locale)
             .preferredColorScheme(currentColorScheme)
             .task {
+                guard !Self.hasRunLaunchTasks else { return }
+                Self.hasRunLaunchTasks = true
                 #if DEBUG
                 await runDebugLaunchAutomationIfNeeded()
                 #endif

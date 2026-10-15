@@ -76,4 +76,33 @@ struct SwipeBackCoordinatorRebindTests {
         #expect(afterFirst == before + 1, "the first bind should attach one recognizer")
         #expect(afterThird == afterFirst, "a rebind must detach the old one, or several recognizers read the same swipe")
     }
+
+    @Test("Multiple windows: each window gets its own recognizer, and rebinding one leaves the other alone")
+    func eachWindowKeepsItsOwnGesture() {
+        let (windowA, _) = makeWindow(depth: 2)
+        let (windowB, _) = makeWindow(depth: 2)
+        defer {
+            windowA.isHidden = true
+            windowB.isHidden = true
+        }
+
+        let coordinator = SwipeBackCoordinator()
+        coordinator.bindForTesting(window: windowA)
+        coordinator.bindForTesting(window: windowB)
+        let gestureA = coordinator.attachedGestureForTesting(window: windowA)
+        let gestureB = coordinator.attachedGestureForTesting(window: windowB)
+
+        #expect(gestureA != nil)
+        #expect(gestureB != nil)
+        #expect(gestureA !== gestureB)
+        #expect(gestureA?.view === windowA, "Binding the second window must not detach the first window's recognizer")
+        #expect(gestureB?.view === windowB)
+
+        // Rebind B: B gets a new recognizer and A keeps its own
+        coordinator.bindForTesting(window: windowB)
+        #expect(coordinator.attachedGestureForTesting(window: windowA) === gestureA)
+        #expect(gestureA?.view === windowA)
+        #expect(gestureB?.view == nil, "B's old recognizer should have been detached")
+        #expect(coordinator.attachedGestureForTesting(window: windowB)?.view === windowB)
+    }
 }
