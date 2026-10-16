@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_read_aloud">Leer en voz alta</string>
+    <string name="voice_stop_reading">Detener la lectura</string>
+    <string name="voice_read_aloud_progress">Frase %1$d de %2$d</string>
+    <string name="voice_placeholder_code">Aquí hay un bloque de código.</string>
+    <string name="voice_placeholder_table">Aquí hay una tabla.</string>
+    <string name="voice_placeholder_math">Aquí hay una fórmula.</string>
+    <string name="voice_tts_unavailable">Este dispositivo no tiene ninguna voz de lectura disponible</string>
+    <string name="voice_read_aloud_failed">No se pudo leer esta respuesta en voz alta</string>
+</resources>

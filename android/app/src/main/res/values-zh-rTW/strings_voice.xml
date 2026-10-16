@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_read_aloud">朗讀</string>
+    <string name="voice_stop_reading">停止朗讀</string>
+    <string name="voice_read_aloud_progress">第 %1$d 句，共 %2$d 句</string>
+    <string name="voice_placeholder_code">這裡有一段程式碼。</string>
+    <string name="voice_placeholder_table">這裡有一張表格。</string>
+    <string name="voice_placeholder_math">這裡有一個公式。</string>
+    <string name="voice_tts_unavailable">這台裝置沒有可用的系統語音</string>
+    <string name="voice_read_aloud_failed">無法朗讀這則回覆</string>
+</resources>

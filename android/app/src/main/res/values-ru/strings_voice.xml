@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_read_aloud">Прочитать вслух</string>
+    <string name="voice_stop_reading">Остановить чтение</string>
+    <string name="voice_read_aloud_progress">Предложение %1$d из %2$d</string>
+    <string name="voice_placeholder_code">Здесь фрагмент кода.</string>
+    <string name="voice_placeholder_table">Здесь таблица.</string>
+    <string name="voice_placeholder_math">Здесь формула.</string>
+    <string name="voice_tts_unavailable">На этом устройстве нет голоса для чтения вслух</string>
+    <string name="voice_read_aloud_failed">Не удалось прочитать этот ответ вслух</string>
+</resources>

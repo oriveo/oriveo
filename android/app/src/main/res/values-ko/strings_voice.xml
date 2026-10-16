@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_read_aloud">소리 내어 읽기</string>
+    <string name="voice_stop_reading">읽기 중지</string>
+    <string name="voice_read_aloud_progress">%2$d문장 중 %1$d번째</string>
+    <string name="voice_placeholder_code">여기에 코드가 있어요.</string>
+    <string name="voice_placeholder_table">여기에 표가 있어요.</string>
+    <string name="voice_placeholder_math">여기에 수식이 있어요.</string>
+    <string name="voice_tts_unavailable">이 기기에서 사용할 수 있는 시스템 음성이 없습니다</string>
+    <string name="voice_read_aloud_failed">이 답변을 소리 내어 읽지 못했습니다</string>
+</resources>

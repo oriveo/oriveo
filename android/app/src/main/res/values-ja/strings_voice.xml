@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_read_aloud">読み上げ</string>
+    <string name="voice_stop_reading">読み上げを停止</string>
+    <string name="voice_read_aloud_progress">全 %2$d 文中 %1$d 文目</string>
+    <string name="voice_placeholder_code">ここにコードがあります。</string>
+    <string name="voice_placeholder_table">ここに表があります。</string>
+    <string name="voice_placeholder_math">ここに数式があります。</string>
+    <string name="voice_tts_unavailable">この端末では読み上げを使えません</string>
+    <string name="voice_read_aloud_failed">この返信を読み上げられませんでした</string>
+</resources>

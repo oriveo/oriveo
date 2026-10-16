@@ -27,6 +27,13 @@
     -->
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
+    <!-- Read aloud: Android 11+ package visibility; required to bind the system TTS engine. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <!--
         usesCleartextTraffic is on because local model servers (llama.cpp, Ollama, LM Studio,
         vLLM) speak plain HTTP on the user's own machine or LAN and have no certificate. A

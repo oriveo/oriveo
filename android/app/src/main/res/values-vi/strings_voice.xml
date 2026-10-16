@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_read_aloud">Đọc to</string>
+    <string name="voice_stop_reading">Dừng đọc</string>
+    <string name="voice_read_aloud_progress">Câu %1$d trên %2$d</string>
+    <string name="voice_placeholder_code">Ở đây có một đoạn mã.</string>
+    <string name="voice_placeholder_table">Ở đây có một bảng.</string>
+    <string name="voice_placeholder_math">Ở đây có một công thức.</string>
+    <string name="voice_tts_unavailable">Thiết bị này không có giọng đọc hệ thống</string>
+    <string name="voice_read_aloud_failed">Không thể đọc to câu trả lời này</string>
+</resources>

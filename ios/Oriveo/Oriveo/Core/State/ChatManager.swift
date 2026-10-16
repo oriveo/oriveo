@@ -979,6 +979,7 @@ final class ChatManager {
         updatedForRegen.modelID = storedModelID
         let removedMessages = Array(updatedForRegen.messages[msgIndex...])
         updatedForRegen.messages.removeSubrange(msgIndex...)
+        ReadAloudController.shared.stopIfSpeaking(messageIDs: removedMessages.map(\.id), .newGeneration)
         updatedForRegen.messages.append(newAssistantMessage)
         updatedForRegen.updatedAt = ConversationListMetadata.computeActivityAt(for: updatedForRegen)
         updatedForRegen.draftText = ""
@@ -3997,6 +3998,7 @@ final class ChatManager {
         var updated = conversations[convIndex]
         let truncatedSegment = Array(updated.messages[messageIndex...])
         updated.messages.removeSubrange(messageIndex...)
+        ReadAloudController.shared.stopIfSpeaking(messageIDs: truncatedSegment.map(\.id), .navigated)
         // Lower the display count with the truncation: a stale count would make the summary projection
         // after a restart believe there is history that was never loaded.
         updated.messageCountOverride = updated.messageCountOverride.map {

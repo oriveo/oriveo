@@ -1,0 +1,914 @@
+{
+  "$comment": "Speakable text contract for read aloud. Every client runs its production speakable-text function on input.text with input.final and compares the segment list with expected (kind, placeholder, text byte-exact). A message whose final output is empty shows no read-aloud button. Placeholder segments are spoken as localized sentences chosen by placeholderLocale. Clients must also assert prefix stability: for every case, the output of every code-point prefix with final=false is a prefix of the final=true output of the whole text.",
+  "schema": "oriveo.voice.speakable-text",
+  "version": 1,
+  "constants": {
+    "unit": "unicode_code_point",
+    "maxSentenceCodePoints": 200,
+    "whitespace": [
+      "U+0020",
+      "U+0009",
+      "U+000B",
+      "U+000C",
+      "U+00A0",
+      "U+1680",
+      "U+2000..U+200A",
+      "U+2028",
+      "U+2029",
+      "U+202F",
+      "U+205F",
+      "U+3000"
+    ],
+    "weakTerminators": [
+      ".",
+      "!",
+      "?",
+      ";"
+    ],
+    "strongTerminators": [
+      "。",
+      "！",
+      "？",
+      "；",
+      "｡",
+      "؟",
+      "۔",
+      "؛",
+      "।",
+      "॥"
+    ],
+    "closers": [
+      "\"",
+      "'",
+      ")",
+      "]",
+      "}",
+      "”",
+      "’",
+      "」",
+      "』",
+      "）",
+      "】",
+      "》",
+      "〉",
+      "»",
+      "›",
+      "〕",
+      "〗",
+      "］",
+      "｝"
+    ],
+    "abbreviationOpeners": [
+      "(",
+      "\"",
+      "'",
+      "“",
+      "‘",
+      "「",
+      "『",
+      "（",
+      "【",
+      "《"
+    ],
+    "abbreviations": [
+      "mr",
+      "mrs",
+      "ms",
+      "dr",
+      "prof",
+      "sr",
+      "jr",
+      "st",
+      "vs",
+      "etc",
+      "e.g",
+      "i.e",
+      "inc",
+      "ltd",
+      "co",
+      "fig",
+      "approx",
+      "u.s",
+      "a.m",
+      "p.m"
+    ],
+    "removedCodePoints": [
+      "U+200B..U+200D",
+      "U+2060",
+      "U+FE0E..U+FE0F",
+      "U+20E3",
+      "U+231A..U+231B",
+      "U+23E9..U+23F3",
+      "U+23F8..U+23FA",
+      "U+25FD..U+25FE",
+      "U+2600..U+27BF",
+      "U+2B1B..U+2B1C",
+      "U+2B50",
+      "U+2B55",
+      "U+1F000..U+1FAFF",
+      "U+E0020..U+E007F"
+    ],
+    "placeholders": [
+      "code",
+      "table",
+      "math"
+    ],
+    "appLocales": [
+      "ar",
+      "de",
+      "en",
+      "es",
+      "fr",
+      "hi",
+      "id",
+      "ja",
+      "ko",
+      "pt-BR",
+      "ru",
+      "th",
+      "tr",
+      "vi",
+      "zh-Hans",
+      "zh-Hant"
+    ]
+  },
+  "rules": {
+    "output": [
+      "Output is an ordered list of segments: {\"kind\":\"sentence\",\"text\":...} or {\"kind\":\"placeholder\",\"placeholder\":\"code\"|\"table\"|\"math\"}.",
+      "Input is only the message text (Markdown). reasoningText, tool steps and citation lists are never passed in.",
+      "After all lines are processed, a placeholder that directly follows a placeholder of the same kind (no sentence between) is dropped."
+    ],
+    "lines": [
+      "Normalize CRLF and lone CR to LF, then split on LF. Every line is its own block; the end of a line is a sentence boundary.",
+      "final=true: every line is complete. final=false (streaming prefix): the text after the last LF is the open line; all earlier lines are complete and are processed exactly as with final=true.",
+      "Fence and display-math state carries across lines. Only complete lines change that state. The open line never emits a block placeholder."
+    ],
+    "blockClassification": [
+      "Repeatedly strip a blockquote marker /^[ \\t]{0,3}>[ \\t]?/ first (applies inside fences too).",
+      "Inside a fence: a complete line matching /^[ \\t]{0,3}F{n,}[ \\t]*$/ (F = the fence char, n = opening length) closes it; any other line emits nothing.",
+      "Inside display math: a complete line containing the closer ($$ or \\]) closes it; any line emits nothing.",
+      "Then, first match wins:",
+      "1. Fence open /^[ \\t]{0,3}(`{3,}|~{3,})(.*)$/, except a backtick fence whose rest contains a backtick (that line is a paragraph): complete line emits placeholder code and enters the fence; open line emits nothing.",
+      "2. Display math /^[ \\t]*(\\$\\$|\\\\\\[)(.*)$/: complete line emits placeholder math; if the rest does not contain the matching closer ($$ or \\]) enter display math. Open line emits nothing.",
+      "3. Table line /^[ \\t]*\\|/: complete line emits placeholder table; open line emits nothing. Only pipe-led tables are recognized.",
+      "4. Thematic break or setext underline /^[ \\t]{0,3}([-*_=])(?:[ \\t]*\\1){2,}[ \\t]*$/: nothing.",
+      "5. Heading /^[ \\t]{0,3}#{1,6}(?:[ \\t]+|$)/: content is the rest; on a complete line also remove a trailing /(?:^|[ \\t]+)#+[ \\t]*$/.",
+      "6. List item /^[ \\t]*(?:[-*+]|\\d{1,9}[.)])[ \\t]+(?:\\[[ xX]\\][ \\t]+)?/: content is the rest.",
+      "7. Otherwise the whole line is paragraph content. Indented code blocks are not recognized.",
+      "Content goes through the inline pass (open = this is the open line) and then sentence splitting (blockEnd = line complete and inline pass did not stop at a pending construct)."
+    ],
+    "inline": [
+      "The inline pass turns content into a sequence u of code points and math placeholders, left to right. Appending: any whitespace code point becomes U+0020 and is skipped when u is empty or already ends with whitespace; removedCodePoints are skipped.",
+      "Pending (open line only): whenever a decision needs a code point beyond the end of the open line, stop. Keep what is already in u and treat the line as not ended. With final=true or on a complete line nothing is pending; \"beyond the end\" behaves as described per construct.",
+      "Backslash: \\( ... \\) and \\[ ... \\] on the same line are inline math (placeholder math); unmatched \\( or \\[ appends ( or [. Backslash before ASCII punctuation appends that punctuation. A trailing lone backslash is dropped. Other backslashes are literal.",
+      "Inline code: a backtick run of length n closes at the next backtick run of exactly length n; its content is appended literally (whitespace still normalized, removed code points still removed). Unmatched: the run is dropped.",
+      "Dollar: $$...$$ on the line is placeholder math; unmatched $$ is dropped. Single $ opens only if the next code point is not whitespace and not an ASCII digit; it closes at the first later $ that is not preceded by whitespace or backslash and not followed by an ASCII digit; the span becomes placeholder math. Otherwise $ is literal.",
+      "Image ![label](url): the label goes through the inline pass (alt text); empty alt contributes nothing. ! not followed by a full link is literal.",
+      "Bracket [label]: find the matching ] (nested brackets counted, backslash skips one code point). If followed by ( and a matching ) exists it is a link; otherwise label-only. Label matching /^\\s*\\^/ (footnote) or /^\\s*\\d+(?:\\s*[,，、\\-–]\\s*\\d+)*\\s*$/ (citation) contributes nothing; any other label goes through the inline pass. URL is never read. Unmatched [ is dropped.",
+      "Angle bracket: if followed by [A-Za-z/] and a > appears before any further <: <http(s)://...> appends the host; an HTML tag /^<\\/?([A-Za-z][A-Za-z0-9-]*)(?:\\s[^<>]*)?\\/?>$/ is removed (br appends a space). Otherwise < is literal.",
+      "Bare URL: h at line start or after a non-letter/number, starting lowercase http:// or https://. It extends over ASCII 0x21..0x7E except < > \" `; trailing . , : ; ! ? ' \" ) ] } * _ ~ are given back. Appends the host (text after :// up to / ? # :, leading www. removed).",
+      "Emphasis: a maximal run of *, _ or exactly two ~. prev = code point before the run (start of line counts as whitespace), next = after the run (end of complete line counts as whitespace). canOpen = next is not whitespace and (char is not _ or prev is not letter/number). canClose = prev is not whitespace and (char is not _ or next is not letter/number). If canOpen, the closer is the first later run of the same char with the same length that canClose; the content between goes through the inline pass. Unmatched opener: dropped. Run that cannot open but can close: dropped. Otherwise literal. A single ~ or 3+ ~ is literal.",
+      "Everything else is appended as is. letter/number = Unicode general category L* or N*."
+    ],
+    "sentences": [
+      "Scan u from a start s (skip whitespace first). The first closure after s is: a math placeholder (closes before it, then the placeholder is emitted); or a terminator run followed by its closers.",
+      "Terminator run = maximal run of weak/strong terminators. A run of only . with length >= 2 is an ellipsis, not a terminator. A single . is not a terminator when the word before it (non-whitespace code points back to s, leading abbreviationOpeners removed, ASCII-lowercased) is one ASCII letter or is in abbreviations.",
+      "After the run, skip closers. Strong run: closes after the closers. Weak run (only weak terminators): closes after the closers only if the next item is whitespace, a placeholder, or the end of a block; otherwise scanning continues after the run.",
+      "If the run or its closers reach the end of u: a block end closes there; otherwise (line not ended) the sentence waits.",
+      "With no closure the end of an ended block closes the sentence. Length cap L = maxSentenceCodePoints: when the closure c satisfies c - s > L, or there is no closure yet and more than L code points from s are known, force a split: at the last whitespace index q in (s, s+L] (sentence is u[s..q)), else at p = s+L moved left while u[p] is a combining mark (general category M*) and p > s+1.",
+      "Emitted sentence text: join, collapse spaces, remove a space directly before any terminator, trim. Drop sentences with no letter/number."
+    ],
+    "placeholderLocale": [
+      "placeholderLocale(readingLanguage, uiLocale) = appLocale(readingLanguage) ?? appLocale(uiLocale) ?? \"en\".",
+      "appLocale(tag): normalize _ to -, compare case-insensitively. zh with Hant/TW/HK/MO -> zh-Hant, other zh -> zh-Hans; pt -> pt-BR; in -> id; otherwise the base language if it is in appLocales, else null.",
+      "readingLanguage comes from the platform language detector; the detector itself is not part of this contract."
+    ]
+  },
+  "cases": [
+    {
+      "id": "heading_paragraph_list_quote",
+      "input": {
+        "text": "# 标题\n\n第一段。第二句！\n\n- 列表一\n- 列表二\n1. 有序项\n> 引用块",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "标题"
+        },
+        {
+          "kind": "sentence",
+          "text": "第一段。"
+        },
+        {
+          "kind": "sentence",
+          "text": "第二句！"
+        },
+        {
+          "kind": "sentence",
+          "text": "列表一"
+        },
+        {
+          "kind": "sentence",
+          "text": "列表二"
+        },
+        {
+          "kind": "sentence",
+          "text": "有序项"
+        },
+        {
+          "kind": "sentence",
+          "text": "引用块"
+        }
+      ]
+    },
+    {
+      "id": "emphasis_strike_html_stripped",
+      "input": {
+        "text": "This is **bold**, *italic*, ~~gone~~ and <b>tag</b> text.<br>Next line",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "This is bold, italic, gone and tag text."
+        },
+        {
+          "kind": "sentence",
+          "text": "Next line"
+        }
+      ]
+    },
+    {
+      "id": "inline_code_keeps_content",
+      "input": {
+        "text": "Run `npm install` first. Then `npm test`.",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Run npm install first."
+        },
+        {
+          "kind": "sentence",
+          "text": "Then npm test."
+        }
+      ]
+    },
+    {
+      "id": "code_block_placeholder",
+      "input": {
+        "text": "Here is the code:\n\n```swift\nlet a = 1. b = 2\n```\n\nThat is all.",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Here is the code:"
+        },
+        {
+          "kind": "placeholder",
+          "placeholder": "code"
+        },
+        {
+          "kind": "sentence",
+          "text": "That is all."
+        }
+      ]
+    },
+    {
+      "id": "table_placeholder",
+      "input": {
+        "text": "Compare:\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nDone.",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Compare:"
+        },
+        {
+          "kind": "placeholder",
+          "placeholder": "table"
+        },
+        {
+          "kind": "sentence",
+          "text": "Done."
+        }
+      ]
+    },
+    {
+      "id": "math_inline_and_block_placeholder",
+      "input": {
+        "text": "The area is $\\pi r^2$ here.\n\n$$\nE = mc^2\n$$\n\nAnd \\(x\\) too.",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "The area is"
+        },
+        {
+          "kind": "placeholder",
+          "placeholder": "math"
+        },
+        {
+          "kind": "sentence",
+          "text": "here."
+        },
+        {
+          "kind": "placeholder",
+          "placeholder": "math"
+        },
+        {
+          "kind": "sentence",
+          "text": "And"
+        },
+        {
+          "kind": "placeholder",
+          "placeholder": "math"
+        },
+        {
+          "kind": "sentence",
+          "text": "too."
+        }
+      ]
+    },
+    {
+      "id": "link_reads_label_only",
+      "input": {
+        "text": "See [the docs](https://example.com/a.b) for details.",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "See the docs for details."
+        }
+      ]
+    },
+    {
+      "id": "bare_url_reads_domain",
+      "input": {
+        "text": "Visit https://www.example.com/path?q=1. Then go.",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Visit example.com."
+        },
+        {
+          "kind": "sentence",
+          "text": "Then go."
+        }
+      ]
+    },
+    {
+      "id": "image_alt_or_skip",
+      "input": {
+        "text": "![A cat](cat.png) Look. ![](x.png) Done.",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "A cat Look."
+        },
+        {
+          "kind": "sentence",
+          "text": "Done."
+        }
+      ]
+    },
+    {
+      "id": "emoji_and_citation_removed",
+      "input": {
+        "text": "Great job 🎉! Source says so[1][2]. Also [^3] noted 👍🏽.",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Great job!"
+        },
+        {
+          "kind": "sentence",
+          "text": "Source says so."
+        },
+        {
+          "kind": "sentence",
+          "text": "Also noted."
+        }
+      ]
+    },
+    {
+      "id": "mixed_cjk_english",
+      "input": {
+        "text": "使用 SwiftUI 构建界面。It works well! 然后发布到 App Store；完成",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "使用 SwiftUI 构建界面。"
+        },
+        {
+          "kind": "sentence",
+          "text": "It works well!"
+        },
+        {
+          "kind": "sentence",
+          "text": "然后发布到 App Store；"
+        },
+        {
+          "kind": "sentence",
+          "text": "完成"
+        }
+      ]
+    },
+    {
+      "id": "arabic_sentences",
+      "input": {
+        "text": "مرحبا بك. كيف حالك؟ أنا بخير، شكرا",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "مرحبا بك."
+        },
+        {
+          "kind": "sentence",
+          "text": "كيف حالك؟"
+        },
+        {
+          "kind": "sentence",
+          "text": "أنا بخير، شكرا"
+        }
+      ]
+    },
+    {
+      "id": "hindi_sentences",
+      "input": {
+        "text": "नमस्ते। आप कैसे हैं? मैं ठीक हूँ।",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "नमस्ते।"
+        },
+        {
+          "kind": "sentence",
+          "text": "आप कैसे हैं?"
+        },
+        {
+          "kind": "sentence",
+          "text": "मैं ठीक हूँ।"
+        }
+      ]
+    },
+    {
+      "id": "thai_long_split_by_space",
+      "input": {
+        "text": "ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค"
+        },
+        {
+          "kind": "sentence",
+          "text": "ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค ภาษาไทยไม่มีเครื่องหมายจบประโยค"
+        }
+      ]
+    },
+    {
+      "id": "ellipsis_decimal_abbrev_not_split",
+      "input": {
+        "text": "Wait... the value is 3.14 today. Dr. Smith agrees, e.g. with Mr. Lee. Done!",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Wait... the value is 3.14 today."
+        },
+        {
+          "kind": "sentence",
+          "text": "Dr. Smith agrees, e.g. with Mr. Lee."
+        },
+        {
+          "kind": "sentence",
+          "text": "Done!"
+        }
+      ]
+    },
+    {
+      "id": "closers_attach_to_sentence",
+      "input": {
+        "text": "他说：“好的。”然后走了。She said \"Yes.\" Then left.",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "他说：“好的。”"
+        },
+        {
+          "kind": "sentence",
+          "text": "然后走了。"
+        },
+        {
+          "kind": "sentence",
+          "text": "She said \"Yes.\""
+        },
+        {
+          "kind": "sentence",
+          "text": "Then left."
+        }
+      ]
+    },
+    {
+      "id": "all_code_single_placeholder",
+      "input": {
+        "text": "```python\nprint(1)\n```\n\n```bash\nls\n```",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "placeholder",
+          "placeholder": "code"
+        }
+      ]
+    },
+    {
+      "id": "empty_reply",
+      "input": {
+        "text": "",
+        "final": true
+      },
+      "expected": []
+    },
+    {
+      "id": "whitespace_and_markup_only_reply",
+      "input": {
+        "text": "  \n\n---\n\n**  **\n",
+        "final": true
+      },
+      "expected": []
+    },
+    {
+      "id": "truncated_reply_unclosed_bold_and_fence",
+      "input": {
+        "text": "Answer: **important point that was cut",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Answer: important point that was cut"
+        }
+      ]
+    },
+    {
+      "id": "truncated_reply_unclosed_fence",
+      "input": {
+        "text": "Start here.\n\n```js\nconst x =",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Start here."
+        },
+        {
+          "kind": "placeholder",
+          "placeholder": "code"
+        }
+      ]
+    },
+    {
+      "id": "task_list_and_setext",
+      "input": {
+        "text": "Title\n=====\n\n- [x] Done item\n- [ ] Open item",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Title"
+        },
+        {
+          "kind": "sentence",
+          "text": "Done item"
+        },
+        {
+          "kind": "sentence",
+          "text": "Open item"
+        }
+      ]
+    },
+    {
+      "id": "nested_emphasis",
+      "input": {
+        "text": "***Very*** important and **bold *mixed* text** here.",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Very important and bold mixed text here."
+        }
+      ]
+    },
+    {
+      "id": "snake_case_and_currency_literal",
+      "input": {
+        "text": "Use snake_case names. It costs $5 and $10. 5 * 3 = 15.",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Use snake_case names."
+        },
+        {
+          "kind": "sentence",
+          "text": "It costs $5 and $10."
+        },
+        {
+          "kind": "sentence",
+          "text": "5 * 3 = 15."
+        }
+      ]
+    },
+    {
+      "id": "backslash_escapes",
+      "input": {
+        "text": "Literal \\*stars\\* stay. Path C:\\Users ok.",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Literal *stars* stay."
+        },
+        {
+          "kind": "sentence",
+          "text": "Path C:\\Users ok."
+        }
+      ]
+    },
+    {
+      "id": "autolink_angle",
+      "input": {
+        "text": "Mail <https://oriveo.app/docs> now.",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Mail oriveo.app now."
+        }
+      ]
+    },
+    {
+      "id": "crlf_newlines",
+      "input": {
+        "text": "Line one.\r\nLine two\r\n",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Line one."
+        },
+        {
+          "kind": "sentence",
+          "text": "Line two"
+        }
+      ]
+    },
+    {
+      "id": "placeholder_language_is_key",
+      "input": {
+        "text": "Text before.\n\n| x |\n\nText after.",
+        "final": true
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Text before."
+        },
+        {
+          "kind": "placeholder",
+          "placeholder": "table"
+        },
+        {
+          "kind": "sentence",
+          "text": "Text after."
+        }
+      ]
+    }
+  ],
+  "streamingCases": [
+    {
+      "id": "stream_unclosed_bold_blocks_sentence",
+      "input": {
+        "text": "First. **Second sentence. still",
+        "final": false
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "First."
+        }
+      ]
+    },
+    {
+      "id": "stream_unclosed_link_blocks",
+      "input": {
+        "text": "Read. See [the doc",
+        "final": false
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Read."
+        }
+      ]
+    },
+    {
+      "id": "stream_open_code_block_no_output",
+      "input": {
+        "text": "Intro.\n\n```py\nprint(1)",
+        "final": false
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Intro."
+        },
+        {
+          "kind": "placeholder",
+          "placeholder": "code"
+        }
+      ]
+    },
+    {
+      "id": "stream_table_line_open",
+      "input": {
+        "text": "Intro.\n\n| a | b",
+        "final": false
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Intro."
+        }
+      ]
+    },
+    {
+      "id": "stream_cjk_terminator_waits_for_closer",
+      "input": {
+        "text": "你好。",
+        "final": false
+      },
+      "expected": []
+    },
+    {
+      "id": "stream_cjk_closed_by_next_char",
+      "input": {
+        "text": "你好。我",
+        "final": false
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "你好。"
+        }
+      ]
+    },
+    {
+      "id": "stream_western_needs_whitespace",
+      "input": {
+        "text": "Hello.",
+        "final": false
+      },
+      "expected": []
+    },
+    {
+      "id": "stream_western_closed",
+      "input": {
+        "text": "Hello. W",
+        "final": false
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Hello."
+        }
+      ]
+    },
+    {
+      "id": "stream_url_pending",
+      "input": {
+        "text": "Go. Visit https://exa",
+        "final": false
+      },
+      "expected": [
+        {
+          "kind": "sentence",
+          "text": "Go."
+        }
+      ]
+    }
+  ],
+  "placeholderLocaleCases": [
+    {
+      "id": "reading_language_wins",
+      "input": {
+        "readingLanguage": "en",
+        "uiLocale": "zh-Hans"
+      },
+      "expected": "en"
+    },
+    {
+      "id": "reading_language_region_mapped",
+      "input": {
+        "readingLanguage": "pt-PT",
+        "uiLocale": "en"
+      },
+      "expected": "pt-BR"
+    },
+    {
+      "id": "traditional_chinese_by_region",
+      "input": {
+        "readingLanguage": "zh-TW",
+        "uiLocale": "en"
+      },
+      "expected": "zh-Hant"
+    },
+    {
+      "id": "traditional_chinese_by_script",
+      "input": {
+        "readingLanguage": "zh-Hant",
+        "uiLocale": "ja"
+      },
+      "expected": "zh-Hant"
+    },
+    {
+      "id": "simplified_chinese_default",
+      "input": {
+        "readingLanguage": "zh",
+        "uiLocale": "en"
+      },
+      "expected": "zh-Hans"
+    },
+    {
+      "id": "android_legacy_indonesian",
+      "input": {
+        "readingLanguage": "in",
+        "uiLocale": "en"
+      },
+      "expected": "id"
+    },
+    {
+      "id": "unsupported_reading_falls_back_to_ui",
+      "input": {
+        "readingLanguage": "it",
+        "uiLocale": "de"
+      },
+      "expected": "de"
+    },
+    {
+      "id": "unknown_reading_falls_back_to_ui",
+      "input": {
+        "readingLanguage": null,
+        "uiLocale": "ko"
+      },
+      "expected": "ko"
+    },
+    {
+      "id": "both_unsupported_falls_back_to_en",
+      "input": {
+        "readingLanguage": "it",
+        "uiLocale": "nl"
+      },
+      "expected": "en"
+    },
+    {
+      "id": "underscore_tag",
+      "input": {
+        "readingLanguage": "zh_Hant_HK",
+        "uiLocale": "en"
+      },
+      "expected": "zh-Hant"
+    }
+  ]
+}

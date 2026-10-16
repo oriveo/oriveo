@@ -19,6 +19,7 @@ final class AssistantMetadataView: UIStackView {
     private let copyButton = UIButton(type: .system)
     private let savedNoteReferenceButton = UIButton(type: .system)
     private let saveNoteButton = UIButton(type: .system)
+    private let readAloudButton = ReadAloudButton()
     private let moreButton = UIButton(type: .system)
     private let continueButton = UIButton(type: .system)
     private let metaFont = UIFont(descriptor: UIFontDescriptor.preferredFontDescriptor(withTextStyle: .footnote), size: 0)
@@ -111,6 +112,10 @@ final class AssistantMetadataView: UIStackView {
         let showSaveNote = isDeliveredWithText && onSaveNote != nil
         saveNoteButton.isHidden = !showSaveNote
 
+        // Read aloud: shown once the reply is delivered with text (delivered already excludes streaming); needs no other callback
+        readAloudButton.configure(messageID: model.message.id, text: model.message.text, isEligible: isDeliveredWithText)
+        let showReadAloud = !readAloudButton.isHidden
+
         let showRetry = isDeliveredWithText && onRetry != nil
         let showCrosscheck = isDeliveredWithText && onCrosscheck != nil
 
@@ -119,7 +124,7 @@ final class AssistantMetadataView: UIStackView {
         configureMoreMenu(showRetry: showRetry, showCrosscheck: showCrosscheck)
 
         messageStateAllowsFooterActions = model.message.state != .generating
-        hasConfiguredFooterActions = showCopy || showSaveNote || showMore || !continueButton.isHidden
+        hasConfiguredFooterActions = showCopy || showSaveNote || showReadAloud || showMore || !continueButton.isHidden
         self.isVisualRenderPending = isVisualRenderPending
         updateActionRowVisibility()
 
@@ -151,6 +156,7 @@ final class AssistantMetadataView: UIStackView {
         updateCopyButton(copied: false)
         updateSavedNoteReferenceButton(noteReferences: [])
         moreButton.menu = nil
+        readAloudButton.reset()
         actionRow.isHidden = true
         savedNoteRow.isHidden = true
         isHidden = true
@@ -230,6 +236,7 @@ final class AssistantMetadataView: UIStackView {
                               style: .accent,
                               symbolPointSize: 14)
         actionRow.addArrangedSubview(saveNoteButton)
+        actionRow.addArrangedSubview(readAloudButton)
 
         applyFooterButtonConfiguration(
             moreButton,

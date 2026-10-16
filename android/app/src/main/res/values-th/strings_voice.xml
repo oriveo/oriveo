@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_read_aloud">อ่านออกเสียง</string>
+    <string name="voice_stop_reading">หยุดอ่าน</string>
+    <string name="voice_read_aloud_progress">ประโยคที่ %1$d จาก %2$d</string>
+    <string name="voice_placeholder_code">ตรงนี้มีโค้ด</string>
+    <string name="voice_placeholder_table">ตรงนี้มีตาราง</string>
+    <string name="voice_placeholder_math">ตรงนี้มีสูตร</string>
+    <string name="voice_tts_unavailable">อุปกรณ์นี้ไม่มีเสียงอ่านของระบบ</string>
+    <string name="voice_read_aloud_failed">อ่านออกเสียงคำตอบนี้ไม่สำเร็จ</string>
+</resources>

@@ -53,11 +53,13 @@ enum OriveoTheme {
         static let shadowStrong = Color.dynamic(light: 0x0F172A, dark: 0x000000, lightAlpha: 0.16, darkAlpha: 0.56)
         /// Solid fill of the system tab bar on iOS 18–25 (from iOS 26 the tab bar is liquid glass and this is unused)
         static let tabBar = Color.dynamic(light: 0xFFFFFF, dark: 0x14181F, lightAlpha: 0.94, darkAlpha: 0.88)
+        /// Color stops of primaryGradient, used directly on the UIKit side (CAGradientLayer)
+        static let primaryGradientColors: [Color] = [
+            Color.dynamic(light: 0x8347F5, dark: 0x8347F5),
+            Color.dynamic(light: 0x6B3BC7, dark: 0x6B3BC7)
+        ]
         static let primaryGradient = LinearGradient(
-            colors: [
-                Color.dynamic(light: 0x8347F5, dark: 0x8347F5),
-                Color.dynamic(light: 0x6B3BC7, dark: 0x6B3BC7)
-            ],
+            colors: primaryGradientColors,
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )

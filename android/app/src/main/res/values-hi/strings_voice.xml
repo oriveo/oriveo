@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_read_aloud">पढ़कर सुनाएँ</string>
+    <string name="voice_stop_reading">पढ़ना रोकें</string>
+    <string name="voice_read_aloud_progress">वाक्य %1$d (कुल %2$d)</string>
+    <string name="voice_placeholder_code">यहाँ एक कोड ब्लॉक है।</string>
+    <string name="voice_placeholder_table">यहाँ एक तालिका है।</string>
+    <string name="voice_placeholder_math">यहाँ एक सूत्र है।</string>
+    <string name="voice_tts_unavailable">इस डिवाइस पर पढ़कर सुनाने वाली सिस्टम आवाज़ उपलब्ध नहीं है</string>
+    <string name="voice_read_aloud_failed">यह जवाब पढ़कर नहीं सुनाया जा सका</string>
+</resources>

@@ -295,6 +295,14 @@ final class ChatListViewController: UIViewController {
         endInitialRebuildTransitionDeferralAndFlush(source: "didAppear")
     }
 
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        // Stop reading only when leaving the chat screen, not when a sheet covers it
+        if view.window == nil {
+            ReadAloudController.shared.stop(.navigated)
+        }
+    }
+
     private func showSkeletonOverlay() {
         skeletonOverlay.isHidden = false
     }
@@ -430,6 +438,10 @@ final class ChatListViewController: UIViewController {
         self.onPendingSearchTargetHandled = onPendingSearchTargetHandled
         self.onVisibleTopUserMessageChanged = onVisibleTopUserMessageChanged
         self.isSendingMessage = viewModel.isSendingMessage
+        ReadAloudController.shared.observeChat(
+            conversationID: viewModel.conversationID,
+            streamingMessageID: viewModel.streamingMessageID
+        )
         streamingCoordinator.bind(
             publisher: streamingPublisher,
             reasoningPublisher: streamingReasoningPublisher,

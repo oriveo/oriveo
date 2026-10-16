@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_read_aloud">Bacakan</string>
+    <string name="voice_stop_reading">Hentikan pembacaan</string>
+    <string name="voice_read_aloud_progress">Kalimat %1$d dari %2$d</string>
+    <string name="voice_placeholder_code">Di sini ada blok kode.</string>
+    <string name="voice_placeholder_table">Di sini ada tabel.</string>
+    <string name="voice_placeholder_math">Di sini ada rumus.</string>
+    <string name="voice_tts_unavailable">Tidak ada suara sistem yang tersedia di perangkat ini</string>
+    <string name="voice_read_aloud_failed">Gagal membacakan balasan ini</string>
+</resources>

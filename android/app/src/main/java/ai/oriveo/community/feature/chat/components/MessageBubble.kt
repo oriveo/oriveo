@@ -934,7 +934,10 @@ private fun AssistantMessage(
                     }
                     if (showDeliveredFooterActions) {
                         AssistantFooterActionRow(
+                            messageId = message.id,
                             messageText = message.text,
+                            // Read aloud only for delivered replies with settled text that are not streaming
+                            readAloudEligible = !isLiveStream,
                             inputTokens = message.inputTokens,
                             outputTokens = message.outputTokens,
                             cacheReadTokens = message.cachedInputTokens,
@@ -1105,7 +1108,9 @@ private fun CapabilityExecutionStatusText(results: List<CapabilityExecutionResul
 
 @Composable
 private fun AssistantFooterActionRow(
+    messageId: String,
     messageText: String,
+    readAloudEligible: Boolean,
     inputTokens: Int?,
     outputTokens: Int?,
     cacheReadTokens: Int?,
@@ -1168,6 +1173,12 @@ private fun AssistantFooterActionRow(
                 onClick = onSaveMessageAsNote,
             )
         }
+
+        ReadAloudButton(
+            messageId = messageId,
+            messageText = messageText,
+            eligible = readAloudEligible,
+        )
 
         if (hasSecondaryActions) {
             Box {

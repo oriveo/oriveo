@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_read_aloud">قراءة بصوت عالٍ</string>
+    <string name="voice_stop_reading">إيقاف القراءة</string>
+    <string name="voice_read_aloud_progress">الجملة %1$d من %2$d</string>
+    <string name="voice_placeholder_code">يوجد هنا مقطع برمجي.</string>
+    <string name="voice_placeholder_table">يوجد هنا جدول.</string>
+    <string name="voice_placeholder_math">توجد هنا معادلة.</string>
+    <string name="voice_tts_unavailable">لا يتوفر صوت قراءة من النظام على هذا الجهاز</string>
+    <string name="voice_read_aloud_failed">تعذّرت قراءة هذا الرد بصوت عالٍ</string>
+</resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_read_aloud">Sesli oku</string>
+    <string name="voice_stop_reading">Okumayı durdur</string>
+    <string name="voice_read_aloud_progress">Cümle %1$d, toplam %2$d</string>
+    <string name="voice_placeholder_code">Burada bir kod bloğu var.</string>
+    <string name="voice_placeholder_table">Burada bir tablo var.</string>
+    <string name="voice_placeholder_math">Burada bir formül var.</string>
+    <string name="voice_tts_unavailable">Bu cihazda kullanılabilir bir sistem sesi yok</string>
+    <string name="voice_read_aloud_failed">Bu yanıt sesli okunamadı</string>
+</resources>

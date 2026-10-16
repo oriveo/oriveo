@@ -180,6 +180,7 @@ import ai.oriveo.community.feature.chat.components.EmptyChatState
 import ai.oriveo.community.feature.chat.composer.NotePreviewSheet
 import ai.oriveo.community.feature.chat.crosscheck.CrosscheckSheet
 import ai.oriveo.community.feature.chat.components.ProviderDisclosureSheet
+import ai.oriveo.community.feature.chat.components.ReadAloudChatEffect
 import ai.oriveo.community.feature.chat.components.SkillStarterView
 
 import ai.oriveo.community.feature.chat.composer.ChatComposerHost
@@ -455,6 +456,9 @@ internal fun ChatScreenContent(
     )
 
     ChatStreamingModeEffect(viewModel.isGenerating, scrollController)
+
+    // Read aloud: stop when switching conversations, when a new reply starts generating, or when leaving the chat screen
+    ReadAloudChatEffect(conversationId = conversationId, streamingMessageId = streamingMessageId)
 
     ChatInitialScrollToBottomEffect(
         conversationId = conversationId,

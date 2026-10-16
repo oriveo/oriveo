@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_read_aloud">Vorlesen</string>
+    <string name="voice_stop_reading">Vorlesen beenden</string>
+    <string name="voice_read_aloud_progress">Satz %1$d von %2$d</string>
+    <string name="voice_placeholder_code">Hier folgt ein Codeblock.</string>
+    <string name="voice_placeholder_table">Hier folgt eine Tabelle.</string>
+    <string name="voice_placeholder_math">Hier folgt eine Formel.</string>
+    <string name="voice_tts_unavailable">Auf diesem Gerät ist keine Vorlesestimme verfügbar</string>
+    <string name="voice_read_aloud_failed">Diese Antwort konnte nicht vorgelesen werden</string>
+</resources>
