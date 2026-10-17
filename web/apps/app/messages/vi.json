@@ -488,6 +488,7 @@
         "errorCorrupted": "Không thể đọc {fileName} — tệp có thể đã bị hỏng.",
         "errorNoText": "Không thể trích xuất văn bản từ {fileName} (có vẻ là PDF đã quét).",
         "errorUnsupported": "{fileName} không phải là loại tệp được hỗ trợ.",
+        "errorLegacyFormat": "Không đọc được {fileName}. Hãy lưu lại dưới dạng .docx, .xlsx hoặc .pptx rồi tải lên lại.",
         "errorTooLarge": "{fileName} quá lớn (tối đa {maxMB} MB).",
         "tooManyFiles": "Bạn có thể đính kèm tối đa {maxFiles} tệp cho mô hình này.",
         "textBudgetExceeded": "{fileName} chưa được thêm: nếu thêm, phần văn bản đính kèm tin nhắn này sẽ vượt giới hạn.",

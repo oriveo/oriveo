@@ -6,7 +6,15 @@
  * SSR guard: browser only
  */
 
-// MARK: - Local AIModel interface (avoids a circular dependency)
+import {
+  OFFICE_FILE_KINDS,
+  OOXML_FILE_KINDS,
+  SUPPORTED_ATTACHMENT_TYPES,
+  classifyAttachmentFile,
+} from './attachment-file-types';
+import { ExtractionDeadline } from './extraction-deadline';
+
+// MARK: - AIModel local interface (avoids a circular dependency)
 interface AttachmentExtractionOverride {
   maxLines?: number;
   maxBytes?: number;
@@ -28,6 +36,8 @@ export interface ExtractedText {
   truncated: boolean;
   truncationReason?: 'lines' | 'bytes';
   sizeBytes: number;
+  /** Spec section 12: a fully scanned file produced text via OCR. Web does no OCR, so extraction here never sets this; attachments synced from other platforms may. */
+  scanned?: boolean;
 }
 
 export type ExtractionErrorCode =
@@ -50,7 +60,16 @@ export class ExtractionError extends Error {
   }
 }
 
-// MARK: - Limits
+/**
+ * Attachment "has usable text": the text is non-empty and there is no error code or the code is `scanned_pdf` (spec section 13: a fully scanned file recognized successfully
+ * still records `scanned_pdf` on the attachment so routes with native capability keep sending the original; injection, budget and fallback all treat it as a successful extraction).
+ * Delivery, import, outbound fallback and the Relay first-send check share this one judgment.
+ */
+export function hasUsableExtractedText(text: string | null | undefined, errorCode: string | null | undefined): boolean {
+  return Boolean(text?.trim()) && (!errorCode || errorCode === 'scanned_pdf');
+}
+
+// MARK: - Limits (Spec section 2.2, as revised)
 
 export interface FileExtractionLimits {
   maxLines: number;
@@ -91,41 +110,29 @@ export function resolveFileExtractionLimits(
 // MARK: - Extractor
 
 export const FileTextExtractor = {
-  supportedMimes: new Set<string>([
-    'text/plain', 'text/markdown', 'text/csv', 'text/tab-separated-values',
-    'text/x-yaml', 'text/x-toml', 'text/x-ini', 'text/css',
-    'text/javascript', 'text/x-python', 'text/x-go',
-    'application/json', 'application/xml', 'application/x-yaml',
-    'application/javascript', 'application/x-sh',
-    'text/html', 'application/xhtml+xml', 'image/svg+xml',
-    'application/pdf',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'application/vnd.oasis.opendocument.text',
-    'application/vnd.oasis.opendocument.spreadsheet',
-    'application/vnd.oasis.opendocument.presentation',
-    'application/rtf', 'text/rtf',
-    'application/epub+zip',
-  ]),
+  /** All mimes the extractor recognizes (legacy formats excluded), taken from the single type detection list. */
+  supportedMimes: new Set<string>(
+    Object.entries(SUPPORTED_ATTACHMENT_TYPES)
+      .filter(([kind]) => kind !== 'legacy')
+      .flatMap(([, entry]) => entry.mimes),
+  ),
 
-  textExtensions: new Set<string>([
-    'txt','md','markdown','json','jsonl','ndjson','csv','tsv','xml',
-    'yaml','yml','toml','ini','cfg','conf','log','env','gitignore','editorconfig',
-    'py','js','jsx','ts','tsx','mjs','cjs','go','rs','java','kt','kts','swift','m','mm',
-    'c','h','cpp','hpp','cc','cs','rb','php','sh','bash','zsh','ps1','bat','cmd','sql',
-    'r','lua','dart','vue','svelte','scss','sass','less','css','gradle','groovy',
-    'proto','graphql','svg',
-  ]),
+  /** Plain-text extensions, taken from the single type detection list. */
+  textExtensions: new Set<string>(SUPPORTED_ATTACHMENT_TYPES.text.extensions),
+
+  /** Type detection from spec section 2; shared by entry checks and the extractor. */
+  classify: classifyAttachmentFile,
 
   /**
-   * Main entry point, wrapped with telemetry.
+   * Main entry (wrapped with telemetry).
    * @param source telemetry source field (defaults to file; drag-drop / paste callers override it)
+   * @param uiLanguage The app's current UI language (next-intl locale), used only to break ties in plain-text encoding detection; falls back to `en`
    */
   async extract(
     file: File,
     limits: FileExtractionLimits = DEFAULT_LIMITS,
     source: 'file' | 'drag_drop' | 'paste' = 'file',
+    uiLanguage: string = 'en',
   ): Promise<ExtractedText> {
     const { trackEvent } = await import('../telemetry');
     const startedAt = Date.now();
@@ -138,7 +145,7 @@ export const FileTextExtractor = {
     });
 
     try {
-      const result = await FileTextExtractor.extractInner(file, limits);
+      const result = await FileTextExtractor.extractInner(file, limits, uiLanguage);
       trackEvent('file_extraction_completed', {
         mime,
         total_lines: result.totalLines,
@@ -158,9 +165,9 @@ export const FileTextExtractor = {
     }
   },
 
-  /** The actual extraction logic, without the telemetry wrapper */
-  async extractInner(file: File, limits: FileExtractionLimits): Promise<ExtractedText> {
-    // SSR boundary guard (pdfjs and the GBK TextDecoder are browser only)
+  /** Actual extraction logic (outside telemetry)*/
+  async extractInner(file: File, limits: FileExtractionLimits, uiLanguage: string = 'en'): Promise<ExtractedText> {
+    // SSR boundary guard (pdfjs / TextDecoder GBK are available in the browser only)
     if (typeof window === 'undefined') {
       throw new ExtractionError('extraction_error', 'FileTextExtractor.extract called in SSR context');
     }
@@ -169,33 +176,30 @@ export const FileTextExtractor = {
       throw new ExtractionError('file_too_large');
     }
 
-    const ext = (file.name.split('.').pop() || '').toLowerCase();
-    const mime = (file.type || '').toLowerCase();
+    const kind = classifyAttachmentFile(file.name, file.type);
+    // Spec section 14: 30 seconds per extraction; each format checks at the start of its loop.
+    const deadline = new ExtractionDeadline();
 
     let raw: string;
 
-    if (mime === 'application/pdf' || ext === 'pdf') {
+    if (kind === 'pdf') {
       const { extractPdfText } = await import('./extractors/pdf-text-extractor');
-      raw = await extractPdfText(file);
-    } else if (mime === 'application/epub+zip' || ext === 'epub') {
+      raw = await extractPdfText(file, deadline);
+    } else if (kind === 'epub') {
       const { extractEpubText } = await import('./extractors/epub-text-extractor');
-      raw = await extractEpubText(file);
-    } else if (
-      mime === 'text/html' || mime === 'application/xhtml+xml' ||
-      ['html', 'htm', 'xhtml'].includes(ext)
-    ) {
+      raw = await extractEpubText(file, deadline, uiLanguage);
+    } else if (kind === 'html') {
       const { extractHtmlText } = await import('./extractors/html-text-extractor');
-      raw = await extractHtmlText(file);
-    } else if (
-      mime.startsWith('application/vnd.openxmlformats-officedocument.') ||
-      mime.startsWith('application/vnd.oasis.opendocument.') ||
-      mime === 'application/rtf' || mime === 'text/rtf' ||
-      ['docx', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'rtf'].includes(ext)
-    ) {
-      // office-parser failures are mapped to ExtractionError
+      raw = await extractHtmlText(file, uiLanguage);
+    } else if (OFFICE_FILE_KINDS.has(kind)) {
+      // Spec section 16: encrypted OOXML is an OLE compound document, not a zip; decided before opening the zip.
+      if (OOXML_FILE_KINDS.has(kind) && await hasOleCompoundHeader(file)) {
+        throw new ExtractionError('password_protected_office', 'OLE compound document');
+      }
+      // office-parser errors are uniformly mapped to ExtractionError
       try {
         const { parseOfficeFile } = await import('../../utils/office-parser');
-        raw = await parseOfficeFile(file);
+        raw = await parseOfficeFile(file, deadline);
       } catch (e: unknown) {
         // The parser already classifies what it can, and relabelling that as corrupted would
         // report "the file is damaged" for a document that is merely oversized.
@@ -207,13 +211,11 @@ export const FileTextExtractor = {
         }
         throw new ExtractionError('corrupted_file', err?.message);
       }
-    } else if (
-      FileTextExtractor.supportedMimes.has(mime) ||
-      FileTextExtractor.textExtensions.has(ext) ||
-      mime.startsWith('text/')
-    ) {
-      raw = await file.text();
+    } else if (kind === 'text') {
+      const { decodeTextBytes } = await import('./extractors/text-decoding');
+      raw = decodeTextBytes(new Uint8Array(await file.arrayBuffer()), uiLanguage);
     } else {
+      // Legacy formats are blocked at the entry (section 2); if one gets here it is reported as unsupported like any other unrecognized type.
       throw new ExtractionError('unsupported_format');
     }
 
@@ -254,7 +256,7 @@ export const FileTextExtractor = {
         joined = sliceUtf8Prefix(encoder.encode(pickedLines[0] ?? ''), limits.maxBytes);
       } else {
         pickedLines = pickedLines.slice(0, lo);
-        // Fall back to a logical separator (XLSX sheet / PPTX slide)
+        // Spec section 3.4: lookback alignment to before a heading / page marker
         pickedLines = alignToLogicalBoundary(pickedLines);
         joined = pickedLines.join('\n');
       }
@@ -272,7 +274,16 @@ export const FileTextExtractor = {
   },
 };
 
-/** Takes the first `maxBytes` bytes, backing off to a complete UTF-8 character boundary (a multi-byte character is never split). */
+/** OLE compound document signature `D0 CF 11 E0 A1 B1 1A E1` (spec section 16). */
+const OLE_COMPOUND_SIGNATURE = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+
+async function hasOleCompoundHeader(file: File): Promise<boolean> {
+  const head = new Uint8Array(await file.slice(0, OLE_COMPOUND_SIGNATURE.length).arrayBuffer());
+  return head.length === OLE_COMPOUND_SIGNATURE.length
+    && OLE_COMPOUND_SIGNATURE.every((byte, index) => head[index] === byte);
+}
+
+/** Take the first `maxBytes` bytes, backing off to a whole UTF-8 character boundary (never splitting a multi-byte character). */
 function sliceUtf8Prefix(bytes: Uint8Array, maxBytes: number): string {
   if (bytes.byteLength <= maxBytes) return new TextDecoder().decode(bytes);
   let end = Math.max(0, maxBytes);
@@ -282,15 +293,16 @@ function sliceUtf8Prefix(bytes: Uint8Array, maxBytes: number): string {
 }
 
 /**
- * If the truncation lands in the middle of a structural separator (===Sheet: / ===Slide / ## heading),
- * fall back to the nearest complete section boundary, so a multi-sheet XLSX is not cut mid-sheet.
+ * Spec section 3.4: after bisecting by whole lines to the most lines that fit, look back at most 50 lines; on hitting a heading (`^#{1,6} `) or page marker
+ * (`^--- Page `), cut before that line (excluding it), so a section or page is not split in the middle.
  */
+const LOGICAL_BOUNDARY = /^(#{1,6} |--- Page )/;
+const LOGICAL_BOUNDARY_LOOKBACK = 50;
+
 function alignToLogicalBoundary(lines: string[]): string[] {
-  const patterns = ['===Sheet:', '===Slide ', '## '];
-  const lookbackMax = 50;
-  for (let i = lines.length - 1; i >= Math.max(0, lines.length - lookbackMax); i--) {
-    const line = lines[i];
-    if (patterns.some((p) => line.startsWith(p))) {
+  // No alignment when the hit is the first line of the kept part (the result would be empty), so only look down to index 1.
+  for (let i = lines.length - 1; i >= Math.max(1, lines.length - LOGICAL_BOUNDARY_LOOKBACK); i--) {
+    if (LOGICAL_BOUNDARY.test(lines[i])) {
       return lines.slice(0, i);
     }
   }

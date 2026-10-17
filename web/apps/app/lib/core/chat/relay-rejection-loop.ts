@@ -33,6 +33,7 @@ import {
 } from '@oriveo/core/providers/attachment-transport';
 import { type OutboundHistoryMessage, textFallbackHistory } from '../attachments/native-file-fallback';
 import { resolveAttachmentLine } from '../attachments/attachment-transport-resolver';
+import { hasUsableExtractedText } from '../attachments/file-text-extractor';
 import { providerFormOf } from '../capability/truth/provider-form';
 import { isRelayRouteRejection, relayCatalogEndpointTypes, resolveRelayProbeCandidates } from '../providers/relay-probe-candidates';
 import { relayFirstSendTransport } from '../providers/relay-first-send-transport';
@@ -110,7 +111,7 @@ export async function relayFirstSendMessagesBlockedByFiles(input: {
   if (providerFormOf(input.provider) !== 'relay') return false;
   const files = input.messages.flatMap((message) => message.attachments ?? []).filter((item) => item.kind === 'file');
   if (files.length === 0) return false;
-  if (files.some((file) => !file.extractionErrorCode && Boolean(file.base64Data?.trim()))) return false;
+  if (files.some((file) => hasUsableExtractedText(file.base64Data, file.extractionErrorCode))) return false;
   const messages: RelayModelTransport = 'anthropic_messages';
   const line = await resolveAttachmentLine({
     provider: input.provider,

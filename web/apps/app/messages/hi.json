@@ -488,6 +488,7 @@
         "errorCorrupted": "{fileName} पढ़ा नहीं जा सका। फ़ाइल ख़राब हो सकती है।",
         "errorNoText": "{fileName} से टेक्स्ट नहीं निकाला जा सका (यह स्कैन किया गया PDF लगता है)।",
         "errorUnsupported": "{fileName} समर्थित फ़ाइल प्रकार नहीं है।",
+        "errorLegacyFormat": "{fileName} को पढ़ा नहीं जा सकता। इसे .docx, .xlsx या .pptx के रूप में सेव करें, फिर दोबारा अपलोड करें।",
         "errorTooLarge": "{fileName} बहुत बड़ी है (अधिकतम {maxMB} MB)।",
         "tooManyFiles": "इस मॉडल के लिए आप अधिकतम {maxFiles} फ़ाइलें जोड़ सकते हैं।",
         "textBudgetExceeded": "{fileName} नहीं जोड़ी गई: इसे जोड़ने पर इस संदेश के साथ जुड़ा टेक्स्ट सीमा से ज़्यादा हो जाता।",

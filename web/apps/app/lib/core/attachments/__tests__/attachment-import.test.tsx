@@ -33,7 +33,7 @@ vi.mock('../../../../components/Toast', () => ({ showToast: mockShowToast }));
 vi.mock('next-intl', () => {
   const translate = (key: string, values?: Record<string, unknown>) =>
     values ? `${key}(${JSON.stringify(values)})` : key;
-  return { useTranslations: () => translate };
+  return { useTranslations: () => translate, useLocale: () => 'en' };
 });
 
 vi.mock('../../telemetry', async (importOriginal) => ({
@@ -263,6 +263,15 @@ describe('importAttachmentFiles', () => {
       expect(mockShowToast).toHaveBeenCalledExactlyOnceWith(
         'truncatedNotice({"fileName":"long.txt","shown":500,"total":600})',
       );
+    });
+
+    // Attachment extraction spec section 2: legacy formats are stopped at intake, never reach the input box, and the user is told to save as a newer format.
+    it('a legacy-format file is not added and the user is told to save it in a newer format', async () => {
+      const composer = renderComposer();
+      await act(async () => { await composer.current.pickFiles([new File(['x'], 'old.doc', { type: 'application/msword' })]); });
+      await settle();
+      expect(composer.current.attachments).toEqual([]);
+      expect(mockShowToast).toHaveBeenCalledExactlyOnceWith('errorLegacyFormat({"fileName":"old.doc"})');
     });
 
     it('a .txt over 200KB is added truncated instead of rejected', async () => {

@@ -488,6 +488,7 @@
         "errorCorrupted": "Couldn't read {fileName} — the file may be corrupted.",
         "errorNoText": "Couldn't extract text from {fileName} (looks like a scanned PDF).",
         "errorUnsupported": "{fileName} is not a supported file type.",
+        "errorLegacyFormat": "Can't read {fileName}. Save it as .docx, .xlsx, or .pptx, then attach it again.",
         "errorTooLarge": "{fileName} is too large (max {maxMB} MB).",
         "tooManyFiles": "You can attach up to {maxFiles} files for this model.",
         "textBudgetExceeded": "{fileName} wasn't added: it would put the text attached to this message over the limit.",

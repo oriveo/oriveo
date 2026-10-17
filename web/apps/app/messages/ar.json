@@ -488,6 +488,7 @@
         "errorCorrupted": "تعذّر قراءة ⁦{fileName}⁩؛ قد يكون الملف تالفًا.",
         "errorNoText": "تعذّر استخراج النص من ⁦{fileName}⁩ (يبدو أنه ملف PDF ممسوح ضوئيًا).",
         "errorUnsupported": "نوع الملف ⁦{fileName}⁩ غير مدعوم.",
+        "errorLegacyFormat": "تعذّرت قراءة الملف ⁦{fileName}⁩. احفظه بصيغة ⁦.docx⁩ أو ⁦.xlsx⁩ أو ⁦.pptx⁩ ثم أرفقه مرة أخرى.",
         "errorTooLarge": "الملف ⁦{fileName}⁩ كبير جدًا (الحد الأقصى {maxMB} ميجابايت).",
         "tooManyFiles": "يمكنك إرفاق ما يصل إلى {maxFiles} ملفات لهذا النموذج.",
         "textBudgetExceeded": "لم تتم إضافة ⁦{fileName}⁩: إضافته تجعل النص المرفق بهذه الرسالة يتجاوز الحد الأقصى.",

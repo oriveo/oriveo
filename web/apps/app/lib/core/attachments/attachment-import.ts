@@ -29,7 +29,12 @@ import {
 } from '../../utils/attachment-size-policy';
 import { showToast } from '../../../components/Toast';
 import { attachmentTextBudgetBytes } from './attachment-injector';
-import { DEFAULT_LIMITS, type FileExtractionLimits, resolveFileExtractionLimits } from './file-text-extractor';
+import {
+  DEFAULT_LIMITS,
+  type FileExtractionLimits,
+  hasUsableExtractedText,
+  resolveFileExtractionLimits,
+} from './file-text-extractor';
 
 export interface AttachmentImportRequest {
   files: File[];
@@ -54,6 +59,8 @@ export interface AttachmentImportRequest {
   canAcceptAttachment?: (attachment: Attachment) => boolean;
   /** Some files were rejected for their size. */
   onRejectedBySize: (files: File[]) => void;
+  /** The app's current UI language (next-intl locale), used to break ties in plain-text encoding detection; defaults to `en`. */
+  uiLanguage?: string;
   /** Translation function for the `pages.chat.fileExtraction` namespace. */
   translate: (key: string, values?: Record<string, string | number>) => string;
 }
@@ -121,7 +128,8 @@ export function keepsFailedExtraction(errorCode: string | undefined): boolean {
  * block too little than to reject a file that could have been sent.
  */
 function injectedTextBytes(attachment: Attachment): number {
-  if (attachment.kind !== 'file' || attachment.extractionErrorCode || attachment.originalBase64Data) return 0;
+  if (attachment.kind !== 'file' || attachment.originalBase64Data) return 0;
+  if (!hasUsableExtractedText(attachment.base64Data, attachment.extractionErrorCode)) return 0;
   return attachmentTextBudgetBytes(attachment.base64Data);
 }
 
@@ -194,6 +202,11 @@ async function runImport(request: AttachmentImportRequest): Promise<void> {
     (file) => failures.push(translate('errorGeneric', { fileName: file.name })),
     (file) => tooLarge.push(file),
     textLimits,
+    {
+      uiLanguage: request.uiLanguage,
+      // Legacy formats are blocked at the entry and never reach the input box; only explain that they cannot be read and what to do (spec section 2).
+      onLegacyFormat: (file) => failures.push(translate('errorLegacyFormat', { fileName: file.name })),
+    },
   );
   // A file found to be over the limit only at conversion time still gets the "file too large" notice.
   if (tooLarge.length > 0) request.onRejectedBySize(tooLarge);
@@ -230,12 +243,14 @@ async function runImport(request: AttachmentImportRequest): Promise<void> {
 
   // Added but no text could be read (scanned PDFs): say so on the spot too, so the user does not find out after sending.
   for (const attachment of incoming) {
+    if (hasUsableExtractedText(attachment.base64Data, attachment.extractionErrorCode)) continue;
     const copyKey = extractionFailureCopyKey(attachment.extractionErrorCode);
     if (copyKey) failures.push(translate(copyKey, { fileName: attachment.fileName ?? '' }));
   }
   // Say it on the spot when a file was truncated: the ⚠︎ in the attachment bar only says "truncated"; this gives the kept and original line counts.
   const truncations = incoming
-    .filter((attachment) => attachment.extractedTruncated && !attachment.extractionErrorCode)
+    .filter((attachment) => attachment.extractedTruncated
+      && hasUsableExtractedText(attachment.base64Data, attachment.extractionErrorCode))
     .map((attachment) => translate('truncatedNotice', {
       fileName: attachment.fileName ?? '',
       shown: (attachment.base64Data ?? '').split('\n').length,

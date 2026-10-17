@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import type { AIModel, Attachment } from '@oriveo/shared';
 import { appendAttachmentsWithinLimit, importAttachmentFiles } from '../core/attachments/attachment-import';
 
@@ -34,6 +34,7 @@ export function useAttachmentIntake({
 }: UseAttachmentIntakeParams) {
   const [showAttachmentSizeLimit, setShowAttachmentSizeLimit] = useState(false);
   const tfe = useTranslations('pages.chat.fileExtraction');
+  const locale = useLocale();
 
   // Importing is asynchronous: the `attachments` captured when the callback was created may be
   // stale by the time the files have been read, so the gate reads a ref.
@@ -52,10 +53,11 @@ export function useAttachmentIntake({
           onAttachmentsChange((current) => appendAttachmentsWithinLimit(current, incoming, maxAttachments)),
         model: currentModel,
         onRejectedBySize: () => setShowAttachmentSizeLimit(true),
+        uiLanguage: locale,
         translate: tfe,
       });
     },
-    [currentModel, onAttachmentsChange, providerKind, tfe],
+    [currentModel, locale, onAttachmentsChange, providerKind, tfe],
   );
 
   const handleFileInput = useCallback(

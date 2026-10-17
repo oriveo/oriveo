@@ -488,6 +488,7 @@
         "errorCorrupted": "Não foi possível ler {fileName} — o arquivo pode estar corrompido.",
         "errorNoText": "Não foi possível extrair texto de {fileName} (parece ser um PDF digitalizado).",
         "errorUnsupported": "O tipo de arquivo de {fileName} não é compatível.",
+        "errorLegacyFormat": "Não foi possível ler {fileName}. Salve como .docx, .xlsx ou .pptx e anexe o arquivo de novo.",
         "errorTooLarge": "{fileName} é muito grande (máx. {maxMB} MB).",
         "tooManyFiles": "Você pode anexar até {maxFiles} arquivos para este modelo.",
         "textBudgetExceeded": "{fileName} não foi adicionado: com ele, o texto anexado a esta mensagem passaria do limite.",

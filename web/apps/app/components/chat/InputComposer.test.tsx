@@ -1334,7 +1334,7 @@ describe('InputComposer', () => {
 
     await vi.waitFor(() => {
       expect(mockLoadAttachmentUtils).toHaveBeenCalledTimes(1);
-      expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined, expect.any(Function), expect.any(Function), DEFAULT_LIMITS);
+      expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined, expect.any(Function), expect.any(Function), DEFAULT_LIMITS, { uiLanguage: 'en', onLegacyFormat: expect.any(Function) });
       expect(appliedAttachments(onAttachmentsChange)).toEqual([
         expect.objectContaining({ id: 'attachment-1', kind: 'image' }),
       ]);
@@ -1433,7 +1433,7 @@ describe('InputComposer', () => {
     fireEvent.change(fileInput);
 
     await vi.waitFor(() => {
-      expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined, expect.any(Function), expect.any(Function), DEFAULT_LIMITS);
+      expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined, expect.any(Function), expect.any(Function), DEFAULT_LIMITS, { uiLanguage: 'en', onLegacyFormat: expect.any(Function) });
     });
     await vi.waitFor(() => {
       expect(appliedAttachments(onAttachmentsChange)).toEqual([

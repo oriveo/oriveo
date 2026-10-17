@@ -29,11 +29,11 @@ export const ATTACHMENT_ARCHIVE_BUDGET: ArchiveBudget = {
   maxEntries: 4_096,
 };
 
-/** The subset of a JSZip entry this module needs, so it does not depend on the whole type. */
-interface ArchiveEntry {
+/** Declares only the small slice of the JSZip entry structure this module uses, avoiding a dependency on the full JSZip types. */
+export interface ArchiveEntry {
   name: string;
   dir: boolean;
-  async: (type: 'string') => Promise<string>;
+  async: (type: 'string' | 'uint8array') => Promise<string | Uint8Array>;
 }
 
 type ArchiveFiles = Record<string, ArchiveEntry & { _data?: { uncompressedSize?: number } }>;
@@ -87,6 +87,31 @@ export class BoundedArchiveReader {
   constructor(private readonly budget: ArchiveBudget = ATTACHMENT_ARCHIVE_BUDGET) {}
 
   async readText(entry: ArchiveEntry): Promise<string> {
+    this.checkDeclared(entry);
+
+    const text = String(await entry.async('string'));
+    this.account(entry, text.length);
+    return text;
+  }
+
+  /** Raw bytes (EPUB chapters must be decoded by HTML rules themselves, so JSZip must not decode them as UTF-8 first). */
+  async readBytes(entry: ArchiveEntry): Promise<Uint8Array> {
+    this.checkDeclared(entry);
+    const bytes = (await entry.async('uint8array')) as Uint8Array;
+    this.account(entry, bytes.byteLength);
+    return bytes;
+  }
+
+  /**
+   * Read and parse an XML part inside an OOXML / ODF / EPUB package (spec section 15, shared by all extractors):
+   * if the first 1024 bytes after stripping the BOM contain `<!DOCTYPE` (case-insensitive) → `corrupted_file`, blocking XXE and billion-laughs in one step;
+   * if `DOMParser('application/xml')` reports `parsererror` → `corrupted_file`.
+   */
+  async readXml(entry: ArchiveEntry): Promise<Document> {
+    return parsePackageXml(await this.readBytes(entry));
+  }
+
+  private checkDeclared(entry: ArchiveEntry): void {
     const declared = declaredUncompressedSize(entry);
     if (declared !== undefined && declared > this.budget.maxEntryBytes) {
       throw new ExtractionError('file_too_large', `entry ${entry.name} declares ${declared} bytes`);
@@ -94,17 +119,71 @@ export class BoundedArchiveReader {
     if (declared !== undefined && this.total + declared > this.budget.maxTotalBytes) {
       throw new ExtractionError('file_too_large', 'archive exceeds the total extraction budget');
     }
+  }
 
-    const text = await entry.async('string');
-    // Re-check against what actually came out: the declared size is part of the archive and a
-    // crafted one can claim anything.
-    if (text.length > this.budget.maxEntryBytes) {
+  /** Re-check against the actually decompressed length: declared sizes are part of the archive, and a crafted archive can write anything. */
+  private account(entry: ArchiveEntry, length: number): void {
+    if (length > this.budget.maxEntryBytes) {
       throw new ExtractionError('file_too_large', `entry ${entry.name} expanded past the entry budget`);
     }
-    this.total += text.length;
+    this.total += length;
     if (this.total > this.budget.maxTotalBytes) {
       throw new ExtractionError('file_too_large', 'archive exceeds the total extraction budget');
     }
-    return text;
+  }
+}
+
+const XML_SNIFF_BYTES = 1024;
+
+/** XML part parsing from spec section 15; see {@link BoundedArchiveReader.readXml}. */
+export function parsePackageXml(bytes: Uint8Array): Document {
+  const utf16 = bytes.length >= 2 && ((bytes[0] === 0xfe && bytes[1] === 0xff) || (bytes[0] === 0xff && bytes[1] === 0xfe));
+  const utf8Bom = bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
+  const start = utf16 ? 2 : utf8Bom ? 3 : 0;
+  let head = '';
+  const end = Math.min(bytes.length, start + XML_SNIFF_BYTES);
+  for (let i = start; i < end; i++) head += String.fromCharCode(bytes[i]);
+  if (/<!doctype/i.test(head)) throw new ExtractionError('corrupted_file', 'DTD in package XML');
+
+  let xml: string;
+  try {
+    const encoding = utf16 ? (bytes[0] === 0xfe ? 'utf-16be' : 'utf-16le') : 'utf-8';
+    xml = new TextDecoder(encoding, { fatal: true }).decode(bytes);
+  } catch {
+    throw new ExtractionError('corrupted_file', 'package XML is not decodable');
+  }
+  // In UTF-16 bytes `<!DOCTYPE` is interleaved with zero bytes and invisible at the byte level; check the start again after decoding.
+  if (utf16 && /<!doctype/i.test(xml.slice(0, XML_SNIFF_BYTES))) {
+    throw new ExtractionError('corrupted_file', 'DTD in package XML');
+  }
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length > 0) {
+    throw new ExtractionError('corrupted_file', 'malformed package XML');
+  }
+  return doc;
+}
+
+/** zip entry lookup (spec sections 4A / 10): exact match first, then case-insensitive; directory entries do not count. */
+export class ArchiveEntryLookup<Entry extends ArchiveEntry> {
+  private readonly byLowerName = new Map<string, string>();
+
+  constructor(private readonly files: Record<string, Entry>) {
+    for (const [name, entry] of Object.entries(files)) {
+      if (entry.dir) continue;
+      const lower = name.toLowerCase();
+      if (!this.byLowerName.has(lower)) this.byLowerName.set(lower, name);
+    }
+  }
+
+  /** All file entry names (directories excluded). */
+  get names(): string[] {
+    return Object.keys(this.files).filter((name) => !this.files[name].dir);
+  }
+
+  find(path: string): Entry | null {
+    const exact = Object.prototype.hasOwnProperty.call(this.files, path) ? this.files[path] : undefined;
+    if (exact && !exact.dir) return exact;
+    const name = this.byLowerName.get(path.toLowerCase());
+    return name ? this.files[name] : null;
   }
 }
