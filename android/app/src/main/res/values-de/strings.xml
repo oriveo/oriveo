@@ -885,6 +885,7 @@
     <string name="file_extraction_error_encrypted_pdf">%1$s ist passwortgeschützt. Entferne das Passwort und lade die Datei erneut hoch.</string>
     <string name="file_extraction_error_corrupted">%1$s konnte nicht gelesen werden – die Datei ist möglicherweise beschädigt.</string>
     <string name="file_extraction_error_unsupported">Der Dateityp von %1$s wird nicht unterstützt.</string>
+    <string name="file_extraction_error_legacy_format">%1$s kann nicht gelesen werden. Speichere die Datei als .docx, .xlsx oder .pptx und lade sie erneut hoch.</string>
     <string name="file_extraction_error_too_large">%1$s ist zu groß (max. %2$d MB).</string>
     <string name="file_extraction_error_generic">%1$s konnte nicht verarbeitet werden. Versuche es erneut oder wähle eine andere Datei.</string>
     <string name="file_extraction_truncated_notice">%1$s ist lang, daher wurden nur die ersten %2$d von %3$d Zeilen hinzugefügt.</string>

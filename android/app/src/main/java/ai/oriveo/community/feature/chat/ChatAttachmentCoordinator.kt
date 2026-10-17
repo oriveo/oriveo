@@ -172,6 +172,12 @@ internal class ChatAttachmentCoordinator(
                 globalSnackbarManager.show(
                     GlobalSnackbarMessage(message = UiText.Resource(R.string.import_failed)),
                 )
+            is AttachmentImportOutcome.LegacyFormat ->
+                globalSnackbarManager.show(
+                    GlobalSnackbarMessage(
+                        message = UiText.Resource(R.string.file_extraction_error_legacy_format, listOf(outcome.fileName)),
+                    ),
+                )
             AttachmentImportOutcome.AttachmentConflict ->
                 globalSnackbarManager.show(
                     GlobalSnackbarMessage(message = UiText.Resource(R.string.attachment_conflict_message)),

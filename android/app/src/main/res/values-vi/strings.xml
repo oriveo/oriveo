@@ -850,6 +850,7 @@
     <string name="file_extraction_error_encrypted_pdf">%1$s có mật khẩu. Bỏ mật khẩu rồi tải lên lại.</string>
     <string name="file_extraction_error_corrupted">Không thể đọc %1$s — tệp có thể đã bị hỏng.</string>
     <string name="file_extraction_error_unsupported">%1$s không phải là loại tệp được hỗ trợ.</string>
+    <string name="file_extraction_error_legacy_format">Không đọc được %1$s. Hãy lưu lại dưới dạng .docx, .xlsx hoặc .pptx rồi tải lên lại.</string>
     <string name="file_extraction_error_too_large">%1$s quá lớn (tối đa %2$d MB).</string>
     <string name="file_extraction_error_generic">Không thể xử lý %1$s. Thử lại hoặc chọn tệp khác.</string>
     <string name="file_extraction_truncated_notice">%1$s khá dài nên chỉ thêm %2$d dòng đầu trong tổng số %3$d dòng.</string>

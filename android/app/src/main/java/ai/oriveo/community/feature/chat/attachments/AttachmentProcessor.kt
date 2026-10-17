@@ -5,9 +5,11 @@ import android.net.Uri
 import android.util.Base64
 import ai.oriveo.community.core.attachments.ExtractionErrorCode
 import ai.oriveo.community.core.attachments.ExtractionException
+import ai.oriveo.community.core.attachments.ExtractionFileKind
+import ai.oriveo.community.core.attachments.ExtractionFileTypes
 import ai.oriveo.community.core.attachments.FileExtractionLimits
 import ai.oriveo.community.core.attachments.FileTextExtractor
-import ai.oriveo.community.core.attachments.extractors.OfficeTextExtractor
+import ai.oriveo.community.core.attachments.extractors.PdfOcr
 import ai.oriveo.community.core.attachments.extractors.PdfTextExtractor
 import ai.oriveo.community.core.attachments.shouldPersistOriginalBase64
 import ai.oriveo.community.core.data.attachment.AttachmentStore
@@ -41,6 +43,8 @@ sealed class AttachmentImportOutcome {
     data class Truncation(val shownLines: Int, val totalLines: Int)
     data object Oversized : AttachmentImportOutcome()
     data object UnsupportedFile : AttachmentImportOutcome()
+    /** .doc / .xls / .ppt / iWork: blocked at the entry without reading bytes, prompting to save as a new format (attachment extraction spec section 2). */
+    data class LegacyFormat(val fileName: String) : AttachmentImportOutcome()
     data object AttachmentConflict : AttachmentImportOutcome()
     data class FileCountLimitExceeded(val fileName: String) : AttachmentImportOutcome()
     data class FileExtractionError(
@@ -53,6 +57,8 @@ sealed class AttachmentImportOutcome {
 
 class AttachmentProcessor(
     private val attachmentStore: AttachmentStore,
+    /** Scanned-PDF OCR (spec section 13); when null, pages without a text layer are not recognized. */
+    private val pdfOcr: PdfOcr? = null,
 ) {
     private data class ImageImportReadResult(
         val stored: StoredImage?,
@@ -154,6 +160,10 @@ class AttachmentProcessor(
             val rawSize = meta.rawSize
 
             if (AttachmentImportPolicy.isOversized(rawSize)) return AttachmentImportOutcome.Oversized
+            // Legacy formats are blocked before reading bytes with a dedicated prompt, instead of falling into the generic "import failed".
+            if (ExtractionFileTypes.classify(fileName, detectedMimeType) == ExtractionFileKind.Legacy) {
+                return AttachmentImportOutcome.LegacyFormat(fileName)
+            }
             if (!AttachmentImportPolicy.isSupportedFile(fileName, detectedMimeType)) {
                 return AttachmentImportOutcome.UnsupportedFile
             }
@@ -163,27 +173,24 @@ class AttachmentProcessor(
                 detectedMimeType = detectedMimeType,
             )
             val isVideo = mimeType.lowercase().startsWith("video/")
-            val ext = fileName.substringAfterLast('.', "").lowercase()
 
             if (isVideo && !MessageBuilder.canAttachVideo(activeProviderKind, mimeType)) {
                 return AttachmentImportOutcome.AttachmentConflict
             }
 
-            val isExtractable = ext in FileTextExtractor.textExtensions ||
-                mimeType in FileTextExtractor.supportedMimes ||
-                ext == "pdf" || ext == "epub" || ext in setOf("html", "htm", "rtf") ||
-                OfficeTextExtractor.isOfficeFile(ext) ||
-                ext in setOf("odt", "ods", "odp")
+            // Decide whether it is an extractable file type: same classification function as the extractor (attachment extraction spec section 2)
+            val fileKind = ExtractionFileTypes.classify(fileName, mimeType)
+            val isExtractable = !isVideo &&
+                fileKind != ExtractionFileKind.Unsupported && fileKind != ExtractionFileKind.Legacy
             val limits = FileExtractionLimits.resolve(activeModel)
 
             if (isExtractable && currentFileCount >= limits.maxFiles) {
                 return AttachmentImportOutcome.FileCountLimitExceeded(fileName)
             }
 
-            // The PDF engine has to be initialized before the file's bytes are on the heap: if its
-            // static initializer fails under memory pressure, PDF extraction stays unavailable for
-            // the rest of the process (see PdfTextExtractor.warmUp).
-            if (isExtractable && (ext == "pdf" || mimeType.lowercase() == "application/pdf")) {
+            // The PDF engine must be initialized **before** file bytes enter the heap: if its static initialization fails once with the heap near the limit,
+            // PDF extraction becomes permanently unavailable in this process (ORIVEO-ANDROID-3E, see PdfTextExtractor.warmUp).
+            if (isExtractable && fileKind == ExtractionFileKind.Pdf) {
                 try {
                     withContext(Dispatchers.IO) { PdfTextExtractor.warmUp() }
                 } catch (e: ExtractionException) {
@@ -233,7 +240,7 @@ class AttachmentProcessor(
             if (isExtractable) {
                 try {
                     val extracted = withContext(Dispatchers.IO) {
-                        FileTextExtractor.extract(bytes, fileName, mimeType, limits)
+                        FileTextExtractor.extract(bytes, fileName, mimeType, limits, pdfOcr = pdfOcr)
                     }
                     val textBytes = extracted.content.toByteArray(Charsets.UTF_8)
                     val base64 = withContext(Dispatchers.Default) {
@@ -258,6 +265,9 @@ class AttachmentProcessor(
                             extractedTruncated = extracted.truncated,
                             extractedSizeBytes = extracted.sizeBytes,
                             rawContentRef = rawContentRef,
+                            // Attachment extraction spec section 13: a fully scanned file whose text OCR recognized carries the body and is also recorded as scanned_pdf,
+                            // so routes with native capability still send the original; with text delivery it is injected as a success (AttachmentDelivery.hasUsableText).
+                            extractionErrorCode = if (extracted.scanned) ExtractionErrorCode.ScannedPdf.raw else null,
                         ),
                         source = "file",
                         truncation = if (extracted.truncated) {

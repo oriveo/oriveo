@@ -1,7 +1,6 @@
 package ai.oriveo.community.core.attachments
 
 import ai.oriveo.community.core.model.AIModel
-import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderServiceError
@@ -61,7 +60,7 @@ object NativeFileFallback {
     ): Boolean = messages.any { message ->
         val attachments = message.attachments
         !attachments.isNullOrEmpty() &&
-            AttachmentDelivery.plan("", attachments, model, transport).native.any(::hasExtractedText)
+            AttachmentDelivery.plan("", attachments, model, transport).native.any(AttachmentDelivery::hasUsableText)
     }
 
     /**
@@ -78,11 +77,8 @@ object NativeFileFallback {
             if (attachments.isNullOrEmpty()) emptyList()
             else AttachmentDelivery.plan("", attachments, model, transport).native
         }
-        return native.isNotEmpty() && native.none(::hasExtractedText)
+        return native.isNotEmpty() && native.none(AttachmentDelivery::hasUsableText)
     }
-
-    private fun hasExtractedText(attachment: Attachment): Boolean =
-        attachment.extractionErrorCode == null && !attachment.base64Data.isNullOrEmpty()
 
     private fun isRejection(error: Throwable): Boolean = when {
         // A relay saying "this key cannot use this model" is not a file rejection; resending as text would be rejected just the same.

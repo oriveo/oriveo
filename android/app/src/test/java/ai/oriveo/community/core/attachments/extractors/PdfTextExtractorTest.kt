@@ -37,7 +37,30 @@ class PdfTextExtractorTest {
     fun `extracts the text layer of a real pdf`() {
         val text = PdfTextExtractor.extract(pdfWithLines(listOf("first line", "second line")))
 
-        assertEquals("first line\nsecond line", text)
+        assertEquals("--- Page 1 ---\nfirst line\nsecond line", text)
+    }
+
+    @Test
+    fun `page text expands ligatures and maps radical code points back to ideographs`() {
+        assertEquals("office file \u7B2C\u4E8C\u9875", PdfTextExtractor.normalizePageText("o\uFB03ce \uFB01le \u7B2C\u2F06\u2EDA  \n\n"))
+    }
+
+    @Test
+    fun `pages without a text layer go to the ocr hook and an all-ocr result is flagged scanned`() {
+        val asked = mutableListOf<Int>()
+        val result = PdfTextExtractor.extractPages(pdfWithLines(emptyList()), ocr = { page, _ -> asked += page; "123" })
+
+        assertEquals(listOf(1), asked)
+        assertEquals(PdfText("--- Page 1 (OCR) ---\n123", scanned = true), result)
+    }
+
+    @Test
+    fun `an ocr hook that recognizes nothing still reports a scanned pdf`() {
+        val error = runCatching {
+            PdfTextExtractor.extractPages(pdfWithLines(emptyList()), ocr = { _, _ -> "" })
+        }.exceptionOrNull()
+
+        assertEquals(ExtractionErrorCode.ScannedPdf, (error as ExtractionException).code)
     }
 
     @Test
@@ -53,7 +76,8 @@ class PdfTextExtractorTest {
 
         assertTrue("cap must actually bite", capped.length < full.length)
         assertEquals(FileTextExtractor.truncate(full, pdf.size, limits), viaProduction)
-        assertEquals(120, viaProduction.totalLines)
+        // 120 lines of body + the page marker of page 1.
+        assertEquals(121, viaProduction.totalLines)
         assertEquals(ExtractedText.TruncationReason.Lines, viaProduction.truncationReason)
         assertTrue(viaProduction.content.toByteArray().size <= limits.maxBytes)
     }

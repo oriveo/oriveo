@@ -885,6 +885,7 @@
     <string name="file_extraction_error_encrypted_pdf">%1$s está protegido por senha. Remova a senha e anexe o arquivo de novo.</string>
     <string name="file_extraction_error_corrupted">Não foi possível ler %1$s — o arquivo pode estar corrompido.</string>
     <string name="file_extraction_error_unsupported">O tipo de arquivo de %1$s não é compatível.</string>
+    <string name="file_extraction_error_legacy_format">Não foi possível ler %1$s. Salve como .docx, .xlsx ou .pptx e anexe o arquivo de novo.</string>
     <string name="file_extraction_error_too_large">%1$s é muito grande (máx. %2$d MB).</string>
     <string name="file_extraction_error_generic">Não foi possível processar %1$s. Tente novamente ou escolha outro arquivo.</string>
     <string name="file_extraction_truncated_notice">%1$s é longo, então só as primeiras %2$d de %3$d linhas foram adicionadas.</string>

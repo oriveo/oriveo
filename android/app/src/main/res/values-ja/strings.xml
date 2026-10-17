@@ -886,6 +886,7 @@
     <string name="file_extraction_error_encrypted_pdf">%1$s にはパスワードがかかっています。パスワードを解除してから、もう一度追加してください。</string>
     <string name="file_extraction_error_corrupted">%1$s を読み取れませんでした。ファイルが破損している可能性があります。</string>
     <string name="file_extraction_error_unsupported">%1$s はサポートされていないファイル形式です。</string>
+    <string name="file_extraction_error_legacy_format">%1$s は読み込めません。.docx・.xlsx・.pptx 形式で保存し直してから、もう一度追加してください。</string>
     <string name="file_extraction_error_too_large">%1$s は大きすぎます（最大 %2$d MB）。</string>
     <string name="file_extraction_error_generic">%1$s を処理できませんでした。もう一度試すか、別のファイルを選択してください。</string>
     <string name="file_extraction_truncated_notice">%1$s は長いため、全 %3$d 行のうち先頭の %2$d 行だけを追加しました。</string>

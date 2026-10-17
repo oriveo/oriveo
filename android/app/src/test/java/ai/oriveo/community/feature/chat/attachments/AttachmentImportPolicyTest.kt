@@ -18,14 +18,19 @@ class AttachmentImportPolicyTest {
         )
     }
 
+    /** Attachment extraction spec section 2: only look at the mime if the extension is unknown; any text-type mime is treated as plain text (fixture a.weird + text/x-whatever). */
     @Test
-    fun `unknown extension is rejected even when mime looks textual`() {
-        assertFalse(
+    fun `unknown extension falls back to a textual mime`() {
+        assertTrue(
             AttachmentImportPolicy.isSupportedFile(
                 fileName = "bundle.thirdparty",
-                detectedMimeType = "text/plain",
+                detectedMimeType = "text/x-whatever",
             ),
         )
+        assertEquals("text/plain", AttachmentImportPolicy.resolveMimeType("bundle.thirdparty", "text/x-whatever"))
+        assertFalse(AttachmentImportPolicy.isSupportedFile("bundle.thirdparty", "application/octet-stream"))
+        // Legacy formats are blocked by processFile before this with a dedicated prompt, so they do not count as supported here.
+        assertFalse(AttachmentImportPolicy.isSupportedFile("report.doc", null))
     }
 
     @Test

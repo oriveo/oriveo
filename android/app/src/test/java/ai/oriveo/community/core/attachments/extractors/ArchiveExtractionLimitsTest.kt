@@ -32,7 +32,9 @@ class ArchiveExtractionLimitsTest {
     @Test
     fun `office extractor still reads a normal document`() {
         val archive = zipOf(
-            "word/document.xml" to "<w:document><w:p>Hello</w:p></w:document>".toByteArray(),
+            "word/document.xml" to
+                ("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" +
+                    "<w:body><w:p><w:r><w:t>Hello</w:t></w:r></w:p></w:body></w:document>").toByteArray(),
         )
 
         assertEquals("Hello", OfficeTextExtractor.extractText(archive, "docx"))
@@ -45,7 +47,8 @@ class ArchiveExtractionLimitsTest {
                 "<container><rootfiles><rootfile full-path=\"OEBPS/content.opf\"/></rootfiles></container>".toByteArray(),
             "OEBPS/content.opf" to
                 ("<package><manifest>" +
-                    "<item id=\"one\" href=\"one.xhtml\"/><item id=\"two\" href=\"two.xhtml\"/>" +
+                    "<item id=\"one\" href=\"one.xhtml\" media-type=\"application/xhtml+xml\"/>" +
+                    "<item id=\"two\" href=\"two.xhtml\" media-type=\"application/xhtml+xml\"/>" +
                     "</manifest><spine><itemref idref=\"one\"/><itemref idref=\"two\"/></spine></package>").toByteArray(),
             "OEBPS/one.xhtml" to "<html><body>First chapter</body></html>".toByteArray(),
             "OEBPS/two.xhtml" to "<html><body>Second chapter</body></html>".toByteArray(),

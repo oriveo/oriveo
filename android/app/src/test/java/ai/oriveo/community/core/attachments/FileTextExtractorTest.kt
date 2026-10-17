@@ -1,5 +1,7 @@
 package ai.oriveo.community.core.attachments
 
+import ai.oriveo.community.core.app.AppLanguageManager
+import ai.oriveo.community.core.attachments.extractors.EpubTextExtractor
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -33,7 +35,24 @@ class FileTextExtractorTest {
         assertTrue(r.content.toByteArray(Charsets.UTF_8).size <= FileExtractionLimits.MAX_BYTES)
     }
 
-    /** A document that is a single line over the byte cap: keep the start, cut on a UTF-8 character boundary, and never cut it down to nothing. */
+    /** Attachment extraction spec section 3.4: look back after byte truncation and cut before the nearest page marker / heading line; the old ===Sheet: is no longer recognized. */
+    @Test
+    fun byteTruncationBacksUpToTheLastPageMarkerOrHeading() {
+        val limits = FileExtractionLimits.DEFAULT.copy(maxBytes = 60)
+        val pages = "--- Page 1 ---\naaaa\nbbbb\n\n--- Page 2 ---\ncccc\ndddd\neeee\nffff\ngggg"
+        assertEquals("--- Page 1 ---\naaaa\nbbbb\n", FileTextExtractor.truncate(pages, pages.length, limits).content)
+
+        val headings = "### One\naaaa\n###### Six\nbbbb\ncccc\ndddd\neeee\nffff\ngggg\nhhhh\niiii"
+        assertEquals("### One\naaaa", FileTextExtractor.truncate(headings, headings.length, limits).content)
+
+        val legacy = "===Sheet: A\naaaa\nbbbb\ncccc\ndddd\neeee\nffff\ngggg\nhhhh\niiii\njjjj\nkkkk\nllll"
+        assertEquals(
+            "===Sheet: A\naaaa\nbbbb\ncccc\ndddd\neeee\nffff\ngggg\nhhhh\niiii",
+            FileTextExtractor.truncate(legacy, legacy.length, limits).content,
+        )
+    }
+
+    /** The whole file is a single line over the byte cap: keep the beginning, cut at a UTF-8 character boundary, never to empty content. */
     @Test
     fun aSingleLineOverTheByteCapKeepsItsHeadCutOnACharacterBoundary() {
         val limits = FileExtractionLimits.DEFAULT.copy(maxBytes = 10)
@@ -165,7 +184,11 @@ class FileTextExtractorTest {
 
     @Test
     fun ordinaryDocxIsStillExtracted() {
-        val docx = zipOf("word/document.xml" to "<w:document><w:p><w:t>hello</w:t></w:p></w:document>")
+        val docx = zipOf(
+            "word/document.xml" to
+                "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" +
+                "<w:body><w:p><w:r><w:t>hello</w:t></w:r></w:p></w:body></w:document>",
+        )
 
         val extracted = FileTextExtractor.extract(
             docx,
@@ -319,6 +342,139 @@ class FileTextExtractorTest {
         return ExtractedText(joined, lines.size, truncated, reason, 1)
     }
 
+    // -- Supplementary rules from the implementation phase of the attachment extraction spec (sections 3.3 3.4 4A 5 7 9 10), items the shared fixtures do not cover --
+
+    @Test
+    fun lookbackHittingTheFirstKeptLineDoesNotAlign() {
+        val limits = FileExtractionLimits.DEFAULT.copy(maxBytes = 30)
+        val raw = "## Only\naaaa\nbbbb\ncccc\ndddd\neeee\nffff"
+        assertEquals("## Only\naaaa\nbbbb\ncccc\ndddd", FileTextExtractor.truncate(raw, raw.length, limits).content)
+    }
+
+    @Test
+    fun cellParagraphsTrimLineBreaksBeforeJoining() {
+        val docx = docxOf(
+            "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>a</w:t><w:br/></w:r></w:p><w:p><w:r><w:br/></w:r></w:p>" +
+                "<w:p><w:r><w:t>b</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>c</w:t></w:r></w:p></w:tc></w:tr></w:tbl>",
+        )
+        assertEquals("| a<br>b | c |\n| --- | --- |", extractDocx(docx))
+    }
+
+    @Test
+    fun docxFieldInstructionSuppressesEveryOutput() {
+        val docx = docxOf(
+            "<w:p><w:r><w:t>A</w:t></w:r><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r>" +
+                "<w:r><w:instrText>REF x</w:instrText><w:t>instr</w:t><w:tab/><w:br/><w:cr/><w:noBreakHyphen/>" +
+                "<w:footnoteReference w:id=\"1\"/><w:endnoteReference w:id=\"2\"/>" +
+                "<w:txbxContent><w:p><w:r><w:t>Box</w:t></w:r></w:p></w:txbxContent></w:r>" +
+                "<w:r><w:fldChar w:fldCharType=\"separate\"/></w:r><w:r><w:t>B</w:t></w:r>" +
+                "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>",
+            "word/footnotes.xml" to "<w:footnotes xmlns:w=\"$W\"><w:footnote w:id=\"1\"><w:p><w:r><w:t>Note</w:t></w:r></w:p></w:footnote></w:footnotes>",
+        )
+        assertEquals("AB", extractDocx(docx))
+    }
+
+    @Test
+    fun docxSdtPropertiesAreSkippedEntirely() {
+        val docx = docxOf(
+            "<w:p><w:sdt><w:sdtPr><w:alias w:val=\"x\"/><w:t>junk</w:t></w:sdtPr><w:sdtEndPr><w:t>junk2</w:t></w:sdtEndPr>" +
+                "<w:sdtContent><w:r><w:t>kept</w:t></w:r></w:sdtContent></w:sdt></w:p>",
+        )
+        assertEquals("kept", extractDocx(docx))
+    }
+
+    @Test
+    fun pptxSlidesThatDoNotResolveAreSkippedWithoutTakingANumber() {
+        fun slide(title: String) = "<p:sld xmlns:p=\"$P\" xmlns:a=\"$A\"><p:cSld><p:spTree><p:sp><p:nvSpPr><p:nvPr>" +
+            "<p:ph type=\"title\"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>$title</a:t></a:r></a:p></p:txBody></p:sp>" +
+            "</p:spTree></p:cSld></p:sld>"
+        val slideType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide"
+        val pptx = zipOf(
+            "ppt/presentation.xml" to "<p:presentation xmlns:p=\"$P\" xmlns:r=\"$R\"><p:sldIdLst>" +
+                "<p:sldId id=\"256\" r:id=\"rId1\"/><p:sldId id=\"257\" r:id=\"rId9\"/>" +
+                "<p:sldId id=\"258\" r:id=\"rId2\"/><p:sldId id=\"259\" r:id=\"rId3\"/></p:sldIdLst></p:presentation>",
+            "ppt/_rels/presentation.xml.rels" to "<Relationships xmlns=\"$PKG_RELS\">" +
+                "<Relationship Id=\"rId1\" Type=\"$slideType\" Target=\"slides/slide1.xml\"/>" +
+                "<Relationship Id=\"rId2\" Type=\"$slideType\" Target=\"slides/slide2.xml\"/>" +
+                "<Relationship Id=\"rId3\" Type=\"$slideType\" Target=\"slides/slide3.xml\"/></Relationships>",
+            "ppt/slides/slide1.xml" to slide("One"),
+            "ppt/slides/slide3.xml" to slide("Three"),
+        )
+        val content = FileTextExtractor.extract(
+            pptx, "deck.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ).content
+        assertEquals("## Slide 1: One\n\n## Slide 2: Three", content)
+    }
+
+    @Test
+    fun missingMainPartsAreCorruptedFiles() {
+        val epubContainer = "<container xmlns=\"urn:oasis:names:tc:opendocument:xmlns:container\"><rootfiles>" +
+            "<rootfile full-path=\"OEBPS/content.opf\" media-type=\"application/oebps-package+xml\"/></rootfiles></container>"
+        val cases = listOf(
+            Triple(zipOf("[Content_Types].xml" to "<Types/>"), "book.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            Triple(zipOf("mimetype" to "application/epub+zip"), "no-container.epub", "application/epub+zip"),
+            Triple(zipOf("mimetype" to "application/epub+zip", "META-INF/container.xml" to epubContainer), "no-opf.epub", "application/epub+zip"),
+            Triple(zipOf("mimetype" to "application/vnd.oasis.opendocument.text"), "no-content.odt", "application/vnd.oasis.opendocument.text"),
+        )
+        for ((bytes, name, mime) in cases) {
+            val error = runCatching { FileTextExtractor.extract(bytes, name, mime) }.exceptionOrNull()
+            assertEquals(name, ExtractionErrorCode.CorruptedFile, (error as? ExtractionException)?.code)
+        }
+    }
+
+    @Test
+    fun odtTableRepeatsAndCoveredCellsFollowOdsWithoutTrimmingTheRange() {
+        val odt = odtOf(
+            "<table:table><table:table-row><table:table-cell><text:p>A</text:p></table:table-cell>" +
+                "<table:covered-table-cell/><table:table-cell><text:p>B</text:p></table:table-cell></table:table-row>" +
+                "<table:table-row table:number-rows-repeated=\"2\"><table:table-cell><text:p>C</text:p></table:table-cell></table:table-row>" +
+                "<table:table-row table:number-rows-repeated=\"2\"><table:table-cell table:number-columns-repeated=\"4\"/></table:table-row>" +
+                "<table:table-row><table:table-cell table:number-columns-repeated=\"2\"/><table:table-cell><text:p>D</text:p></table:table-cell></table:table-row>" +
+                "<table:table-row table:number-rows-repeated=\"9\"><table:table-cell/></table:table-row></table:table>",
+        )
+        assertEquals(
+            "| A |  | B |\n| --- | --- | --- |\n| C |  |  |\n| C |  |  |\n|  |  |  |\n|  |  |  |\n|  |  | D |",
+            odt,
+        )
+    }
+
+    @Test
+    fun odtTableWiderThanFiftyColumnsCountsRepeatsInTheNote() {
+        val odt = odtOf(
+            "<table:table><table:table-row><table:table-cell table:number-columns-repeated=\"55\"><text:p>x</text:p></table:table-cell>" +
+                "<table:table-cell table:number-columns-repeated=\"3\"/><table:table-cell><text:p>y</text:p></table:table-cell>" +
+                "</table:table-row><table:table-row><table:table-cell><text:p>z</text:p></table:table-cell></table:table-row></table:table>",
+        )
+        assertTrue(odt, odt.endsWith("\n\n(9 more columns not shown)"))
+        assertEquals(50, odt.lines().first().split(" | ").size)
+    }
+
+    @Test
+    fun epubHrefEscapingThePackageRootIsDroppedWhileWalkingDotDot() {
+        assertEquals("x.html", EpubTextExtractor.resolveHref("OEBPS/content.opf", "../x.html"))
+        assertEquals(null, EpubTextExtractor.resolveHref("OEBPS/content.opf", "../../x.html"))
+        // URL resolution clamps an extra `..` back to the root giving `OEBPS/x.html`; resolving segment by segment, it has already crossed the boundary.
+        assertEquals(null, EpubTextExtractor.resolveHref("OEBPS/content.opf", "../../OEBPS/x.html"))
+    }
+
+    private fun extractDocx(docx: ByteArray): String =
+        FileTextExtractor.extract(docx, "doc.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document").content
+
+    private fun docxOf(body: String, vararg parts: Pair<String, String>): ByteArray =
+        zipOf("word/document.xml" to "<w:document xmlns:w=\"$W\"><w:body>$body</w:body></w:document>", *parts)
+
+    private fun odtOf(text: String): String {
+        val content = "<office:document-content xmlns:office=\"urn:oasis:names:tc:opendocument:xmlns:office:1.0\" " +
+            "xmlns:text=\"urn:oasis:names:tc:opendocument:xmlns:text:1.0\" " +
+            "xmlns:table=\"urn:oasis:names:tc:opendocument:xmlns:table:1.0\"><office:body><office:text>$text" +
+            "</office:text></office:body></office:document-content>"
+        return FileTextExtractor.extract(
+            zipOf("mimetype" to "application/vnd.oasis.opendocument.text", "content.xml" to content),
+            "doc.odt",
+            "application/vnd.oasis.opendocument.text",
+        ).content
+    }
+
     private fun zipOf(vararg entries: Pair<String, String>): ByteArray {
         val out = java.io.ByteArrayOutputStream()
         java.util.zip.ZipOutputStream(out).use { zip ->
@@ -329,5 +485,51 @@ class FileTextExtractorTest {
             }
         }
         return out.toByteArray()
+    }
+
+    // -- Attachment extraction spec section 14 deadline, section 1 UI language --
+
+    @Test
+    fun extractionDeadlineExpiresOnlyAfterThirtySecondsOnTheInjectedClock() {
+        var now = 1_000L
+        val deadline = ExtractionDeadline(nanoTime = { now })
+        now += 30_000_000_000L
+        assertFalse(deadline.isExpired)
+        deadline.check()
+
+        now += 1L
+        assertTrue(deadline.isExpired)
+        val error = runCatching { deadline.check() }.exceptionOrNull()
+        assertEquals(ExtractionErrorCode.ExtractionTimeout, (error as? ExtractionException)?.code)
+    }
+
+    @Test
+    fun extractionDeadlineSurvivesNanoTimeOverflow() {
+        var now = Long.MAX_VALUE - 5L
+        val deadline = ExtractionDeadline(budgetNanos = 100L, nanoTime = { now })
+        now += 50L // overflows to negative; the difference is still 50
+        assertFalse(deadline.isExpired)
+        now += 51L
+        assertTrue(deadline.isExpired)
+    }
+
+    @Test
+    fun extractionUiLanguageMapsAppLocaleToTheSpecValues() {
+        val cases = mapOf(
+            "zh-CN" to "zh-Hans", "zh-Hans-TW" to "zh-Hans", "zh" to "zh-Hans",
+            "zh-TW" to "zh-Hant", "zh-HK" to "zh-Hant", "zh-Hant" to "zh-Hant",
+            "ja-JP" to "ja", "ko" to "ko", "ru-RU" to "ru",
+            "en-US" to "en", "de" to "en", "ar-u-nu-latn" to "en", "pt-BR" to "en",
+        )
+        cases.forEach { (tag, expected) ->
+            assertEquals(tag, expected, AppLanguageManager.extractionUiLanguage(java.util.Locale.forLanguageTag(tag)))
+        }
+    }
+    private companion object {
+        const val W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        const val P = "http://schemas.openxmlformats.org/presentationml/2006/main"
+        const val A = "http://schemas.openxmlformats.org/drawingml/2006/main"
+        const val R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+        const val PKG_RELS = "http://schemas.openxmlformats.org/package/2006/relationships"
     }
 }

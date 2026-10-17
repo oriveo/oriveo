@@ -852,6 +852,7 @@
     <string name="file_extraction_error_encrypted_pdf">%1$s parola korumalı. Parolayı kaldırıp dosyayı yeniden ekleyin.</string>
     <string name="file_extraction_error_corrupted">%1$s okunamadı; dosya bozuk olabilir.</string>
     <string name="file_extraction_error_unsupported">%1$s dosyasının türü desteklenmiyor.</string>
+    <string name="file_extraction_error_legacy_format">%1$s okunamıyor. Dosyayı .docx, .xlsx veya .pptx olarak kaydedip yeniden ekleyin.</string>
     <string name="file_extraction_error_too_large">%1$s çok büyük (en fazla %2$d MB).</string>
     <string name="file_extraction_error_generic">%1$s işlenemedi. Tekrar deneyin veya başka bir dosya seçin.</string>
     <string name="file_extraction_truncated_notice">%1$s uzun olduğu için %3$d satırın yalnızca ilk %2$d satırı eklendi.</string>

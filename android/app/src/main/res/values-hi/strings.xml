@@ -852,6 +852,7 @@
     <string name="file_extraction_error_encrypted_pdf">%1$s पर पासवर्ड लगा है। पासवर्ड हटाएँ, फिर फ़ाइल दोबारा अपलोड करें।</string>
     <string name="file_extraction_error_corrupted">%1$s पढ़ा नहीं जा सका। फ़ाइल ख़राब हो सकती है।</string>
     <string name="file_extraction_error_unsupported">%1$s समर्थित फ़ाइल प्रकार नहीं है।</string>
+    <string name="file_extraction_error_legacy_format">%1$s को पढ़ा नहीं जा सकता। इसे .docx, .xlsx या .pptx के रूप में सेव करें, फिर दोबारा अपलोड करें।</string>
     <string name="file_extraction_error_too_large">%1$s बहुत बड़ी है (अधिकतम %2$d MB)।</string>
     <string name="file_extraction_error_generic">%1$s को प्रोसेस नहीं किया जा सका। दोबारा प्रयास करें या कोई अन्य फ़ाइल चुनें।</string>
     <string name="file_extraction_truncated_notice">%1$s लंबी फ़ाइल है, इसलिए %3$d में से सिर्फ़ पहली %2$d पंक्तियाँ जोड़ी गईं।</string>
