@@ -11,6 +11,7 @@ import ai.oriveo.community.core.attachments.extractors.OfficeTextExtractor
 import ai.oriveo.community.core.attachments.extractors.PdfTextExtractor
 import ai.oriveo.community.core.attachments.shouldPersistOriginalBase64
 import ai.oriveo.community.core.data.attachment.AttachmentStore
+import ai.oriveo.community.core.data.attachment.StoredImage
 
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Attachment
@@ -54,7 +55,7 @@ class AttachmentProcessor(
     private val attachmentStore: AttachmentStore,
 ) {
     private data class ImageImportReadResult(
-        val localId: String?,
+        val stored: StoredImage?,
         val thumbnail: String?,
         val oversized: Boolean,
     )
@@ -74,7 +75,6 @@ class AttachmentProcessor(
     /** Imports a URI from the image picker: compress, build a thumbnail, create the Attachment. */
     suspend fun processImage(context: Context, uri: Uri): AttachmentImportOutcome {
         return try {
-            val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
             val fileName = uri.lastPathSegment ?: "image.jpg"
 
             val rawSize = withContext(Dispatchers.IO) {
@@ -97,23 +97,26 @@ class AttachmentProcessor(
                 if (!AttachmentImportPolicy.isWithinSizeLimit(bytes.size)) {
                     return@withContext ImageImportReadResult(null, null, true)
                 }
-                val resolvedLocalId = attachmentStore.saveImage(bytes, mimeType)
+                val stored = attachmentStore.saveCompressedImage(bytes)
+                    ?: return@withContext ImageImportReadResult(null, null, false)
                 ImageImportReadResult(
-                    localId = resolvedLocalId,
-                    thumbnail = attachmentStore.loadThumbnailBase64(resolvedLocalId),
+                    stored = stored,
+                    thumbnail = attachmentStore.loadThumbnailBase64(stored.id),
                     oversized = false,
                 )
             }
             if (readResult.oversized) return AttachmentImportOutcome.Oversized
-            val localId = readResult.localId ?: return AttachmentImportOutcome.Silent
+            val stored = readResult.stored ?: return AttachmentImportOutcome.Silent
 
             AttachmentImportOutcome.Success(
                 attachment = Attachment(
                     id = generateUuidString(),
                     kind = AttachmentKind.Image,
                     fileName = fileName,
-                    mimeType = mimeType,
-                    localImageId = localId,
+                    // The stored bytes are already a compressed JPEG; keeping the picker's MIME (PNG screenshot,
+                    // HEIC) would make providers that validate media_type reject the image.
+                    mimeType = stored.mimeType,
+                    localImageId = stored.id,
                     thumbnailBase64 = readResult.thumbnail,
                 ),
                 source = "photo_library",

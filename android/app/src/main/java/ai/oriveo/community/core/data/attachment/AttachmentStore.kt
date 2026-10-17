@@ -6,10 +6,14 @@ import android.graphics.BitmapFactory
 import android.util.Base64
 import ai.oriveo.community.core.util.generateUuidString
 import ai.oriveo.community.ui.component.computeSampleSize
+import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.math.max
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+/** Result of storing an image: an attachment's localImageId and mimeType both come from here, so the mimeType always describes the bytes on disk. */
+data class StoredImage(val id: String, val mimeType: String)
 
 class AttachmentStore(private val context: Context) {
 
@@ -30,6 +34,12 @@ class AttachmentStore(private val context: Context) {
         private const val THUMBNAIL_LONG_EDGE = 120
         private const val JPEG_QUALITY = 70
         private const val THUMBNAIL_QUALITY = 60
+        private const val COMPRESSED_MIME_TYPE = "image/jpeg"
+
+        // Only used when an original carries a rotation EXIF tag and must be re-encoded upright:
+        // keeps it sharp while capping decode memory.
+        private const val ORIGINAL_MAX_LONG_EDGE = 4096
+        private const val ORIGINAL_REENCODE_QUALITY = 95
 
         private val SAFE_IMAGE_ID = Regex("^[A-Za-z0-9_-]+$")
 
@@ -63,18 +73,25 @@ class AttachmentStore(private val context: Context) {
     private fun thumbnailFile(localImageId: String): File =
         if (isSafeImageId(localImageId)) File(thumbnailDir, "$localImageId.jpg") else File(thumbnailDir, ".invalid")
 
-    fun saveImage(data: ByteArray, mimeType: String = "image/jpeg", id: String = generateUuidString()): String {
+    /**
+     * Images the user sends to a model: rotated upright and shrunk to a 1536px long edge / JPEG 0.7
+     * (the same cost budget on every platform). Only the photo picker and the avatar use this;
+     * model-generated, synced and imported images go through [saveOriginalImage] so they are never
+     * re-compressed. Not main-thread safe. Returns null, writing nothing, when the bytes don't decode.
+     */
+    fun saveCompressedImage(data: ByteArray, id: String = generateUuidString()): StoredImage? {
 
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(data, 0, data.size, bounds)
         val rawMaxEdge = max(bounds.outWidth, bounds.outHeight)
+        if (rawMaxEdge <= 0) return null
 
         val sampleSize = computeSampleSize(rawMaxEdge, MAX_LONG_EDGE * 2)
         val decodeOptions = BitmapFactory.Options().apply {
             inSampleSize = sampleSize
             inPreferredConfig = Bitmap.Config.ARGB_8888
         }
-        val decoded = BitmapFactory.decodeByteArray(data, 0, data.size, decodeOptions) ?: return id
+        val decoded = BitmapFactory.decodeByteArray(data, 0, data.size, decodeOptions) ?: return null
         // Camera photos store pixels in sensor order and rely on the EXIF Orientation tag.
         // Re-encoding to JPEG drops EXIF, so rotate the pixels first; the written file carries
         // no orientation tag and viewers won't rotate it a second time.
@@ -94,7 +111,65 @@ class AttachmentStore(private val context: Context) {
         if (thumb !== original) thumb.recycle()
         original.recycle()
 
-        return id
+        return StoredImage(id, COMPRESSED_MIME_TYPE)
+    }
+
+    /**
+     * Finished images (model-generated, imported from a backup): the bytes are stored as-is and only a
+     * thumbnail is generated, matching iOS `ImageStore.save` and the web `saveImage`. The MIME is the
+     * format the decoder actually recognised; callers must copy it onto the attachment because
+     * providers validate the bytes against it.
+     *
+     * Images on disk must be upright (the viewers decode without reading EXIF), so input carrying a
+     * non-normal EXIF orientation is rotated and stored as a high-quality JPEG.
+     * Not main-thread safe. Returns null, writing nothing, when the bytes don't decode.
+     */
+    fun saveOriginalImage(data: ByteArray, id: String = generateUuidString()): StoredImage? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(data, 0, data.size, bounds)
+        val rawMaxEdge = max(bounds.outWidth, bounds.outHeight)
+        val mimeType = bounds.outMimeType
+        if (rawMaxEdge <= 0 || mimeType.isNullOrBlank()) return null
+
+        if (exifOrientationMatrix(exifOrientation(data)) != null) {
+            val upright = encodeUprightJpeg(data, rawMaxEdge) ?: return null
+            return saveOriginalImage(upright, id)
+        }
+
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = computeSampleSize(rawMaxEdge, THUMBNAIL_LONG_EDGE * 2)
+        }
+        val decoded = BitmapFactory.decodeByteArray(data, 0, data.size, decodeOptions) ?: return null
+        val thumb = scaleToFit(decoded, THUMBNAIL_LONG_EDGE)
+        if (thumb !== decoded) decoded.recycle()
+
+        File(ensureImageDir(), "$id.jpg").writeBytes(data)
+        File(ensureThumbnailDir(), "$id.jpg").outputStream().use { out ->
+            thumb.compress(Bitmap.CompressFormat.JPEG, THUMBNAIL_QUALITY, out)
+        }
+        thumb.recycle()
+
+        return StoredImage(id, mimeType)
+    }
+
+    private fun encodeUprightJpeg(data: ByteArray, rawMaxEdge: Int): ByteArray? {
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = computeSampleSize(rawMaxEdge, ORIGINAL_MAX_LONG_EDGE * 2)
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+        val decoded = BitmapFactory.decodeByteArray(data, 0, data.size, decodeOptions) ?: return null
+        val scaled = scaleToFit(decoded, ORIGINAL_MAX_LONG_EDGE)
+        if (scaled !== decoded) decoded.recycle()
+        val upright = applyExifOrientation(scaled, exifOrientation(data))
+        if (upright !== scaled) scaled.recycle()
+        return try {
+            ByteArrayOutputStream().use { out ->
+                if (!upright.compress(Bitmap.CompressFormat.JPEG, ORIGINAL_REENCODE_QUALITY, out)) return null
+                out.toByteArray()
+            }
+        } finally {
+            upright.recycle()
+        }
     }
 
     fun loadImageBytes(localImageId: String): ByteArray? {

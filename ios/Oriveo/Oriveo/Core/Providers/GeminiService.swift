@@ -655,7 +655,8 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             for attachment in attachments {
                 switch attachment.kind {
                 case .image:
-                    content.append(["type": "image", "data": attachment.resolvedBase64Data, "mime_type": attachment.mimeType])
+                    let b64 = attachment.resolvedBase64Data
+                    content.append(["type": "image", "data": b64, "mime_type": ImageMediaType.resolve(base64: b64, declared: attachment.mimeType)])
                 case .file:
                     content.append([
                         "type": "document",
@@ -1481,7 +1482,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             case .image:
                 let b64 = a.resolvedBase64Data
                 guard !b64.isEmpty else { continue }
-                parts.append(.init(inlineData: .init(mimeType: a.mimeType, data: b64)))
+                parts.append(.init(inlineData: .init(mimeType: ImageMediaType.resolve(base64: b64, declared: a.mimeType), data: b64)))
             case .video:
                 let b64 = a.resolvedBase64Data
                 guard !b64.isEmpty else { continue }

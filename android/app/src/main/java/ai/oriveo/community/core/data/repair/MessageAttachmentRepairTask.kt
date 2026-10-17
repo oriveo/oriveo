@@ -80,7 +80,7 @@ class MessageAttachmentRepairTask(
         runCatching {
             AttachmentSlimmer.slim(
                 attachment = attachment,
-                saveImage = { bytes -> attachmentStore.saveImage(bytes, attachment.mimeType) },
+                saveImage = { bytes -> attachmentStore.saveOriginalImage(bytes) },
                 saveBlob = { bytes -> attachmentStore.saveBlob(bytes) },
             )
         }.getOrDefault(attachment)

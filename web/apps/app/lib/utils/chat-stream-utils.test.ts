@@ -199,4 +199,28 @@ describe('buildChatHistory', () => {
     const textPart = (content as Array<{ type: string; text?: string }>).find((p) => p.type === 'text');
     expect(textPart?.text).toContain('<ATTACHMENT_FILE>');
   });
+
+  // Attachments can carry a MIME that does not match their bytes; Anthropic validates bytes against media_type and returns 400.
+  it('labels an image data URL by its bytes, not the stored mime', async () => {
+    const jpeg = btoa(String.fromCharCode(0xff, 0xd8, 0xff, 0xe0, ...new Array(16).fill(0)));
+    const msgs: ChatMessage[] = [
+      {
+        id: '1',
+        role: 'user',
+        text: 'what is this',
+        providerKind: 'anthropic',
+        providerName: 'Anthropic',
+        modelID: 'claude',
+        modelName: 'Claude',
+        estimatedCost: 0,
+        state: 'delivered',
+        attachments: [{ id: 'img', kind: 'image', fileName: 'shot.png', mimeType: 'image/png', base64Data: jpeg }],
+      },
+    ];
+    const result = await buildChatHistory(msgs);
+    const imagePart = (result[0].content as Array<{ type: string; image_url?: { url: string } }>).find(
+      (p) => p.type === 'image_url',
+    );
+    expect(imagePart?.image_url?.url).toBe(`data:image/jpeg;base64,${jpeg}`);
+  });
 });

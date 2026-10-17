@@ -475,7 +475,7 @@ final class QwenService: BaseAPIService, ProviderServiceProtocol, CustomBaseURLP
         for img in imageAtts {
             let b64 = img.resolvedBase64Data
             guard !b64.isEmpty else { continue }
-            let mime = img.mimeType ?? "image/jpeg"
+            let mime = ImageMediaType.resolve(base64: b64, declared: img.mimeType ?? "image/jpeg")
             contentParts.append([
                 "type": "image_url",
                 "image_url": ["url": "data:\(mime);base64,\(b64)"]

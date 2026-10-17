@@ -16,7 +16,7 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * Camera photos store pixels in sensor order and rely on EXIF Orientation to tell viewers how to
- * rotate them. saveImage re-encodes to JPEG, which drops EXIF, so it has to rotate the pixels
+ * rotate them. saveCompressedImage re-encodes to JPEG, which drops EXIF, so it has to rotate the pixels
  * first or chat attachments end up sideways.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -46,7 +46,7 @@ class AttachmentStoreExifOrientationTest {
     @Test
     fun `rotate 90 camera photo is stored upright for both image and thumbnail`() {
         val store = AttachmentStore(context)
-        val id = store.saveImage(cameraJpeg(ExifInterface.ORIENTATION_ROTATE_90))
+        val id = store.saveCompressedImage(cameraJpeg(ExifInterface.ORIENTATION_ROTATE_90))!!.id
 
         listOf(store.loadImageBytes(id)!!, store.loadThumbnailBytes(id)!!).forEach { bytes ->
             val saved = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
@@ -67,7 +67,7 @@ class AttachmentStoreExifOrientationTest {
     @Test
     fun `normal photo keeps its orientation`() {
         val store = AttachmentStore(context)
-        val id = store.saveImage(cameraJpeg(ExifInterface.ORIENTATION_NORMAL))
+        val id = store.saveCompressedImage(cameraJpeg(ExifInterface.ORIENTATION_NORMAL))!!.id
         val bytes = store.loadImageBytes(id)!!
         val saved = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
 
