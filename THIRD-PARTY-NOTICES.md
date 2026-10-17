@@ -39,6 +39,24 @@ licensed under the SIL Open Font License, Version 1.1.
   packages) — GPL-2.0-or-later with the linking exception granted by the JLaTeXMath authors,
   which permits linking it into this AGPL-3.0-or-later application.
 
+## Attachment text extraction
+
+- **SwiftSoup** 2.13.9 (iOS, HTML parsing) — MIT License, Copyright (c) 2009-2025 Jonathan Hedley
+  (<https://jsoup.org/>) and (c) 2016-2025 Nabil Chatbi (Swift port),
+  <https://github.com/scinfu/SwiftSoup>.
+- **Google ML Kit Text Recognition v2** (Android, OCR for scanned PDFs) — provided under the
+  [ML Kit Terms](https://developers.google.com/ml-kit/terms). The Chinese recognizer ships inside
+  the app; the Japanese, Korean and Devanagari recognizers are downloaded through Google Play
+  services.
+- **node-chardet** (<https://github.com/runk/node-chardet>) — the lists of common characters used
+  to guess legacy multi-byte encodings (GBK, Big5, Shift_JIS, EUC-KR) are derived from its
+  `mbcs.ts`, in `shared/test-fixtures/attachments/extraction/charset-tables.v1.json` and the
+  matching tables in each client. MIT License, Copyright (C) 2024 Dmitry Shirokov.
+- **Unicode `EquivalentUnifiedIdeograph.txt`** (UCD 18.0) — the mapping from CJK radical code
+  points to unified ideographs, in `shared/test-fixtures/attachments/extraction/cjk-radicals.v1.json`
+  and the matching tables in each client. Unicode License v3 (<https://www.unicode.org/license.txt>),
+  Copyright (c) Unicode, Inc.
+
 ## Provider names and logos
 
 The clients ship the names and logos of the model providers they can be pointed at, in
