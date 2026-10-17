@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { StoreApi } from 'zustand';
 import type { AIModel, Provider, Skill } from '@oriveo/shared';
 import type { AppStore } from '../store/app-store';
-import { resolveModelForSkill } from './query';
+import { getSkillById, resolveModelForSkill } from './query';
 
 function model(id: string, evidence: AIModel['capabilityEvidenceCandidates']): AIModel {
   return {
@@ -92,5 +92,17 @@ describe('resolveModelForSkill capability evidence', () => {
       id: 'skill-vision',
       modelCapabilityHint: 'vision',
     } as Skill)?.provider.id).toBe('official-provider');
+  });
+});
+
+describe('getSkillById', () => {
+  // Catalog ids are lowercase UUIDs; iOS writes a conversation's skillId as an uppercase uuidString.
+  it('matches a skill id regardless of UUID case', () => {
+    const catalogSkill = { id: '3fa85f64-5717-4562-b3fc-2c963f66afa6' } as Skill;
+    const store = {
+      getState: () => ({ catalogSkills: [catalogSkill], userSkills: [] as Skill[] }) as unknown as AppStore,
+    } as StoreApi<AppStore>;
+
+    expect(getSkillById(store, '3FA85F64-5717-4562-B3FC-2C963F66AFA6')).toBe(catalogSkill);
   });
 });

@@ -4,6 +4,7 @@ import type { AppStore } from '../store/app-store';
 import { getEffectiveStatusKind, isEffectiveWarning } from '../providers/provider-status';
 import { modelSupportsCapabilityFilter } from '../chat/model-capability-presentation';
 import { resolveModelCapabilityEvidence } from '../chat/capability-evidence';
+import { sameNormalizedID } from '../../utils/id-utils';
 
 const DEFAULT_ONBOARDING_SKILL_KEYS = [
   'translation_expert',
@@ -72,7 +73,9 @@ export function getSidebarSkills(store: StoreApi<AppStore>): Skill[] {
 
 export function getSkillById(store: StoreApi<AppStore>, id: string): Skill | undefined {
   const { catalogSkills, userSkills } = store.getState();
-  return catalogSkills.find((skill) => skill.id === id) ?? userSkills.find((skill) => skill.id === id);
+  // A conversation's skillId may arrive in another UUID case than the catalog id (iOS writes uppercase); compare normalized.
+  return catalogSkills.find((skill) => sameNormalizedID(skill.id, id))
+    ?? userSkills.find((skill) => sameNormalizedID(skill.id, id));
 }
 
 export interface ResolvedModel {

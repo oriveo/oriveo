@@ -118,8 +118,8 @@ export const ConversationItem = memo(function ConversationItem({
   const skillIcon = useMemo(() => {
     if (!conversation.skillId) return null;
     const skill =
-      (userSkills ?? []).find((s) => s.id === conversation.skillId) ??
-      (catalogSkills ?? []).find((s) => s.id === conversation.skillId);
+      (userSkills ?? []).find((s) => sameNormalizedID(s.id, conversation.skillId)) ??
+      (catalogSkills ?? []).find((s) => sameNormalizedID(s.id, conversation.skillId));
     return skill?.icon ?? null;
   }, [conversation.skillId, catalogSkills, userSkills]);
 
