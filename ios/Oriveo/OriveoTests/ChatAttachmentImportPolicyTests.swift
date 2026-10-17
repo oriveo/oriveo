@@ -15,14 +15,17 @@ struct ChatAttachmentImportPolicyTests {
         #expect(mimeType == "text/plain")
     }
 
-    @Test("Rejects Unknown Extension Even If Mime Looks Textual")
-    func rejectsUnknownExtensionEvenIfMimeLooksTextual() {
-        let supported = ChatAttachmentImportPolicy.isSupportedFile(
+    // Attachment extraction spec section 2: mime is consulted only when the extension is unrecognized, any text/* is accepted as plain text; rejected only when neither extension nor mime is recognized.
+    @Test("unknown suffix falls back to mime: text/* is accepted as plain text, binary mime is rejected")
+    func unknownExtensionFallsBackToMime() {
+        #expect(ChatAttachmentImportPolicy.isSupportedFile(
             fileName: "archive.custompkg",
             detectedMimeType: "text/plain"
-        )
-
-        #expect(supported == false)
+        ) == true)
+        #expect(ChatAttachmentImportPolicy.isSupportedFile(
+            fileName: "archive.custompkg",
+            detectedMimeType: "application/octet-stream"
+        ) == false)
     }
 
     @Test("Allows Mime Only Known Types")

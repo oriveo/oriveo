@@ -216,7 +216,7 @@ nonisolated enum NativeFileFallback {
     }
 
     static func hasExtractedText(_ attachment: Attachment) -> Bool {
-        attachment.extractionErrorCode == nil && attachment.base64Data?.isEmpty == false
+        attachment.hasUsableExtractedText
     }
 
     // MARK: - Sending side

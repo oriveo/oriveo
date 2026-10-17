@@ -4,46 +4,12 @@ import UniformTypeIdentifiers
 nonisolated enum ChatAttachmentImportPolicy {
     nonisolated static let maxAttachmentBytes = 30 * 1024 * 1024
 
-    private static let textExtensions: Set<String> = [
-        "txt", "csv", "md", "json", "xml", "html", "css",
-        "js", "ts", "jsx", "tsx", "py", "rb", "go", "rs",
-        "java", "kt", "swift", "c", "cpp", "h", "hpp",
-        "sh", "bash", "zsh", "yaml", "yml", "toml", "ini",
-        "env", "log", "sql", "graphql", "proto",
-    ]
-
-    private static let officeExtensions: Set<String> = [
-        "docx", "xlsx", "pptx", "odt", "ods", "odp", "rtf", "epub",
-    ]
-
+    // The list of text-extractable types lives only in `AttachmentTypeClassifier` (attachment extraction spec section 2); this file only handles video routing.
     private static let videoExtensions: Set<String> = [
         "mp4", "mov", "mpeg", "mpg", "avi", "flv", "webm", "wmv", "3gp",
     ]
 
-    private static let supportedMimeTypes: Set<String> = [
-        "text/plain",
-        "text/csv",
-        "text/markdown",
-        "text/html",
-        "text/css",
-        "text/xml",
-        "text/javascript",
-        "application/json",
-        "application/xml",
-        "application/javascript",
-        "application/typescript",
-        "application/x-yaml",
-        "application/x-sh",
-        "application/pdf",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        "application/vnd.oasis.opendocument.text",
-        "application/vnd.oasis.opendocument.spreadsheet",
-        "application/vnd.oasis.opendocument.presentation",
-        "application/rtf",
-        "text/rtf",
-        "application/epub+zip",
+    private static let videoMimeTypes: Set<String> = [
         "video/mp4",
         "video/mpeg",
         "video/quicktime",
@@ -79,11 +45,12 @@ nonisolated enum ChatAttachmentImportPolicy {
         append(.mpeg4Movie)
         append(.quickTimeMovie)
 
-        for ext in textExtensions.sorted() {
-            append(UTType(tag: ext, tagClass: .filenameExtension, conformingTo: .text))
-        }
-        for ext in officeExtensions.sorted() {
-            append(UTType(tag: ext, tagClass: .filenameExtension, conformingTo: .data))
+        // Legacy formats are listed too: after selection the entry point shows a "save as a new format" hint, instead of silently graying them out in the picker.
+        for entry in AttachmentTypeClassifier.entries {
+            let conformance: UTType = entry.kind == .text ? .text : .data
+            for ext in entry.extensions.sorted() {
+                append(UTType(tag: ext, tagClass: .filenameExtension, conformingTo: conformance))
+            }
         }
         for ext in videoExtensions.sorted() {
             append(UTType(tag: ext, tagClass: .filenameExtension, conformingTo: .movie))
@@ -92,13 +59,26 @@ nonisolated enum ChatAttachmentImportPolicy {
         return result
     }()
 
+    /// Importable files: types recognized as extractable per attachment extraction spec section 2, or video. Legacy formats do not count (the entry point shows a separate hint).
     static func isSupportedFile(fileName: String, detectedMimeType: String?) -> Bool {
-        let ext = normalizedExtension(fileName)
-        if !ext.isEmpty {
-            return ext == "pdf" || textExtensions.contains(ext) || officeExtensions.contains(ext) || videoExtensions.contains(ext)
+        if isVideo(fileName: fileName, detectedMimeType: detectedMimeType) { return true }
+        switch AttachmentTypeClassifier.classify(fileName: fileName, mimeType: detectedMimeType) {
+        case .legacy, .unsupported: return false
+        default: return true
         }
+    }
 
-        return isSupportedMimeType(normalizeMimeType(detectedMimeType))
+    /// Legacy formats (doc / xls / ppt / iWork): blocked at the entry point with a hint to save as a new format.
+    static func isLegacyFormat(fileName: String, detectedMimeType: String?) -> Bool {
+        AttachmentTypeClassifier.classify(fileName: fileName, mimeType: detectedMimeType) == .legacy
+    }
+
+    private static func isVideo(fileName: String, detectedMimeType: String?) -> Bool {
+        let ext = normalizedExtension(fileName)
+        if !ext.isEmpty, AttachmentTypeClassifier.classify(fileName: fileName, mimeType: nil) == .unsupported {
+            return videoExtensions.contains(ext)
+        }
+        return ext.isEmpty && videoMimeTypes.contains(normalizeMimeType(detectedMimeType))
     }
 
     /// - Parameters:
@@ -113,11 +93,21 @@ nonisolated enum ChatAttachmentImportPolicy {
     static func resolveMimeType(fileName: String, detectedMimeType: String?) -> String {
         let ext = normalizedExtension(fileName)
         if !ext.isEmpty {
-            return fallbackMIMEType(for: ext)
+            let byExtension = fallbackMIMEType(for: ext)
+            if byExtension != "application/octet-stream" { return byExtension }
         }
 
         let normalizedMime = normalizeMimeType(detectedMimeType)
-        return isSupportedMimeType(normalizedMime) ? normalizedMime : "application/octet-stream"
+        if ext.isEmpty, videoMimeTypes.contains(normalizedMime) { return normalizedMime }
+        let kind = AttachmentTypeClassifier.classify(fileName: fileName, mimeType: normalizedMime)
+        switch kind {
+        case .legacy, .unsupported:
+            return "application/octet-stream"
+        default:
+            // If the detected mime already belongs to this class, keep it; otherwise (e.g. a Dockerfile recognized by filename) use the class's canonical mime.
+            if AttachmentTypeClassifier.classify(mimeType: normalizedMime) == kind { return normalizedMime }
+            return AttachmentTypeClassifier.entry(kind)?.mimes.first ?? "application/octet-stream"
+        }
     }
 
     static func fallbackMIMEType(for ext: String) -> String {
@@ -135,8 +125,10 @@ nonisolated enum ChatAttachmentImportPolicy {
             return "application/json"
         case "xml":
             return "application/xml"
-        case "html":
+        case "html", "htm":
             return "text/html"
+        case "xhtml":
+            return "application/xhtml+xml"
         case "css":
             return "text/css"
         case "yaml", "yml":
@@ -176,7 +168,10 @@ nonisolated enum ChatAttachmentImportPolicy {
         case "3gp":
             return "video/3gpp"
         default:
-            return "application/octet-stream"
+            // Other plain-text extensions in the list (vue, rst, same-named extensions like Makefile, etc.) are all sent as text/plain.
+            return AttachmentTypeClassifier.classify(fileName: "file." + ext.lowercased(), mimeType: nil) == .text
+                ? "text/plain"
+                : "application/octet-stream"
         }
     }
 
@@ -188,10 +183,5 @@ nonisolated enum ChatAttachmentImportPolicy {
         mimeType?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased() ?? ""
-    }
-
-    private static func isSupportedMimeType(_ mimeType: String) -> Bool {
-        guard !mimeType.isEmpty else { return false }
-        return supportedMimeTypes.contains(mimeType)
     }
 }

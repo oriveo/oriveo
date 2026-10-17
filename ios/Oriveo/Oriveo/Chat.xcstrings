@@ -9639,6 +9639,107 @@
         }
       }
     },
+    "file_extraction_error_legacy_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تعذّرت قراءة الملف ⁦%@⁩. احفظه بصيغة ⁦.docx⁩ أو ⁦.xlsx⁩ أو ⁦.pptx⁩ ثم أرفقه مرة أخرى."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ kann nicht gelesen werden. Speichere die Datei als .docx, .xlsx oder .pptx und lade sie erneut hoch."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't read %@. Save it as .docx, .xlsx, or .pptx, then attach it again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se puede leer %@. Guárdalo como .docx, .xlsx o .pptx y vuelve a adjuntarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de lire %@. Enregistrez-le au format .docx, .xlsx ou .pptx, puis joignez-le à nouveau."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ को पढ़ा नहीं जा सकता। इसे .docx, .xlsx या .pptx के रूप में सेव करें, फिर दोबारा अपलोड करें।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ tidak dapat dibaca. Simpan sebagai .docx, .xlsx, atau .pptx, lalu lampirkan lagi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ は読み込めません。.docx・.xlsx・.pptx 形式で保存し直してから、もう一度追加してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 파일은 읽을 수 없습니다. .docx, .xlsx 또는 .pptx 형식으로 다시 저장한 뒤 첨부해 주세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível ler %@. Salve como .docx, .xlsx ou .pptx e anexe o arquivo de novo."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удаётся прочитать файл %@. Сохраните его в формате .docx, .xlsx или .pptx и прикрепите заново."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "อ่าน %@ ไม่ได้ บันทึกเป็น .docx, .xlsx หรือ .pptx แล้วอัปโหลดอีกครั้ง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ okunamıyor. Dosyayı .docx, .xlsx veya .pptx olarak kaydedip yeniden ekleyin."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không đọc được %@. Hãy lưu lại dưới dạng .docx, .xlsx hoặc .pptx rồi tải lên lại."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂时读不了 %@，请另存为 .docx、.xlsx 或 .pptx 后重新添加。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前無法讀取 %@，請另存為 .docx、.xlsx 或 .pptx 後重新加入。"
+          }
+        }
+      }
+    },
     "file_extraction_error_scanned_pdf" : {
       "extractionState" : "manual",
       "localizations" : {

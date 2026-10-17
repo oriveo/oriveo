@@ -23,6 +23,8 @@ struct ChatDropImportTests {
             // Text files also report public.text: with a file representation, or a suggested name with a supported extension, they count as files
             (["public.plain-text"], "notes.txt", false, .file),
             (["public.plain-text"], nil, true, .file),
+            // Legacy formats (.doc) also go by file so that they reach the legacy-format hint
+            (["public.utf8-plain-text"], "report.doc", false, .file),
             (["public.zip-archive"], "bundle.zip", false, .file),
             (["com.apple.uikit.useractivity"], nil, false, .ignored),
         ] as [([String], String?, Bool, ChatDropImport.Kind)]

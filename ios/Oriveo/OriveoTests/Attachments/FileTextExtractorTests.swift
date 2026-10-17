@@ -31,7 +31,49 @@ final class FileTextExtractorTests: XCTestCase {
         XCTAssertTrue(r.truncated)
         XCTAssertLessThanOrEqual(r.content.utf8.count, FileExtractionLimits.default.maxBytes)
     }
-    /// A file with a single line over the byte limit: cut inside the line on a character boundary, keeping the beginning instead of truncating to nothing.
+
+    // Look-back alignment on truncation (attachment extraction spec section 3.4): after the binary search for line count, look back at most 50 lines,
+    // and cut before a line matching `^#{1,6} ` or `^--- Page `; `===Sheet:` / `===Slide ` are obsolete.
+    private func truncateAfterHeader(_ header: String) -> ExtractedText {
+        let limits = FileExtractionLimits(maxLines: 500, maxBytes: 100, totalCap: 204_800, maxInputFileBytes: 1_000_000, maxFiles: 3)
+        // The first two lines plus 7 body lines of 10 bytes fit exactly in 100 bytes (9 lines); line 10 onward is cut.
+        let lines = ["intro", header] + Array(repeating: String(repeating: "a", count: 10), count: 20)
+        let raw = lines.joined(separator: "\n")
+        return FileTextExtractor.truncate(rawText: raw, sizeBytes: raw.utf8.count, limits: limits)
+    }
+
+    func testByteTruncationBacksOffToPageMarkerOrHeading() {
+        for header in ["--- Page 2 ---", "--- Page 2 --- [no text layer]", "## Sheet: B", "# Title", "###### Deep", "### Notes"] {
+            let r = truncateAfterHeader(header)
+            XCTAssertTrue(r.truncated, header)
+            XCTAssertEqual(r.truncationReason, .bytes, header)
+            XCTAssertEqual(r.content, "intro", header)
+        }
+    }
+
+    func testByteTruncationIgnoresRetiredAndNonHeadingSeparators() {
+        for header in ["===Sheet: A", "===Slide 2", "####### seven", "#tag", "--- Pages"] {
+            let r = truncateAfterHeader(header)
+            XCTAssertTrue(r.truncated, header)
+            // No look-back: keep all lines from the binary search (header lengths differ, line count 9-10).
+            XCTAssertGreaterThanOrEqual(r.content.components(separatedBy: "\n").count, 9, header)
+            XCTAssertTrue(r.content.hasPrefix("intro\n\(header)\n"), header)
+        }
+    }
+
+    func testByteTruncationLooksBackAtMostFiftyLines() {
+        let limits = FileExtractionLimits(maxLines: 500, maxBytes: 4 + 60 * 3, totalCap: 204_800, maxInputFileBytes: 1_000_000, maxFiles: 3)
+        // "## H" (4 bytes) + 60 x ("\n" + "aa") is exactly 184 bytes and fits 61 lines; the look-back reaches only line 12 and never touches "## H" on line 1.
+        let lines = ["## H"] + Array(repeating: "aa", count: 80)
+        let raw = lines.joined(separator: "\n")
+        let r = FileTextExtractor.truncate(rawText: raw, sizeBytes: raw.utf8.count, limits: limits)
+        XCTAssertTrue(r.truncated)
+        XCTAssertTrue(r.content.hasPrefix("## H\n"))
+        XCTAssertEqual(r.content.components(separatedBy: "\n").count, 61)
+    }
+
+    // Custom limits (D14)
+    /// A single line over the byte limit: hard-cut inside the line at a character boundary, keeping the beginning, never truncating to empty content.
     func testSingleOversizedLineIsCutInsideTheLine() throws {
         let limits = FileExtractionLimits(maxLines: 500, maxBytes: 10, totalCap: 204_800, maxInputFileBytes: 1_000_000, maxFiles: 3)
         // Each CJK character is 3 bytes: 10 bytes fit 3 characters, and the 4th must not be cut in half.
@@ -183,5 +225,38 @@ final class FileTextExtractorTests: XCTestCase {
             mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
         XCTAssertTrue(extracted.content.contains("hello docx"), extracted.content)
+    }
+
+    // MARK: - Deadline (attachment extraction spec section 14)
+
+    /// Injected monotonic clock: does not expire within 30 seconds, expires at (inclusive) the deadline, `check()` reports extraction_timeout.
+    func testExtractionDeadlineExpiresAfterThirtySecondsOfInjectedClock() {
+        final class ManualClock: @unchecked Sendable {
+            var nanoseconds: UInt64 = 5_000
+        }
+        let clock = ManualClock()
+        let deadline = ExtractionDeadline(now: { clock.nanoseconds })
+        XCTAssertEqual(deadline.expiresAtNanoseconds, 5_000 + 30_000_000_000)
+        XCTAssertFalse(deadline.isExpired)
+        XCTAssertNoThrow(try deadline.check())
+
+        clock.nanoseconds += 29_999_999_999
+        XCTAssertFalse(deadline.isExpired)
+
+        clock.nanoseconds += 1
+        XCTAssertTrue(deadline.isExpired)
+        XCTAssertThrowsError(try deadline.check()) { error in
+            XCTAssertEqual((error as? ExtractionError)?.code, .extractionTimeout)
+        }
+    }
+
+    /// By default uses the real monotonic clock: a freshly created deadline does not expire, and the expiry point is "now + 30 seconds".
+    func testExtractionDeadlineDefaultsToMonotonicClock() {
+        let before = ExtractionDeadline.monotonicNow()
+        let deadline = ExtractionDeadline()
+        let after = ExtractionDeadline.monotonicNow()
+        XCTAssertFalse(deadline.isExpired)
+        XCTAssertGreaterThanOrEqual(deadline.expiresAtNanoseconds, before + ExtractionDeadline.defaultBudgetNanoseconds)
+        XCTAssertLessThanOrEqual(deadline.expiresAtNanoseconds, after + ExtractionDeadline.defaultBudgetNanoseconds)
     }
 }

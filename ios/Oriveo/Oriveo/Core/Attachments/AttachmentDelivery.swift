@@ -112,8 +112,8 @@ enum AttachmentDelivery {
                AttachmentRouter.decide(attachment: attachment, provider: provider, model: model) == .native {
                 return nil
             }
-            // A file that failed extraction delivers an error note, which does not use body budget.
-            guard attachment.extractionErrorCode == nil else { return 0 }
+            // A file whose extraction failed is delivered as an error note and does not count against the body quota; an OCR-recognized scan counts as body text.
+            guard attachment.hasUsableExtractedText else { return 0 }
             return decodeAttachmentText(attachment.resolvedBase64Data)?.utf8.count ?? 0
         }
         var consumed = existing.reduce(0) { $0 + (textBytes($1) ?? 0) }
@@ -195,8 +195,9 @@ enum AttachmentDelivery {
         // 2. Inject file attachments by wrapper and limits
         let files = attachments.filter { $0.kind == .file }
         let fileAttachments: [(fileName: String, mimeType: String, sizeBytes: Int, extracted: ExtractedText?, errorCode: ExtractionErrorCode?)] = files.map { att in
-            // Failed attachment
-            if let codeStr = att.extractionErrorCode,
+            // Failed attachments (an OCR-recognized scan is still recorded as scanned_pdf but has body text, so it is injected as a success)
+            if !att.hasUsableExtractedText,
+               let codeStr = att.extractionErrorCode,
                let code = ExtractionErrorCode(rawValue: codeStr) {
                 return (att.fileName, att.mimeType, att.extractedSizeBytes ?? 0, nil, code)
             }
