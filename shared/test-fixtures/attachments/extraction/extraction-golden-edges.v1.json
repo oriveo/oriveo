@@ -1,0 +1,88 @@
+{
+  "v": 1,
+  "doc": "Attachment extraction output spec: corner cases (sections 3.3, 4A, 5, 7, 8, 9, 11)",
+  "cases": [
+    {
+      "id": "docx_edge",
+      "file": "files/docx/edge.docx",
+      "fileName": "edge.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "Link\n\n| Left | a1 a2; b / c; d |\n| --- | --- |\n\n1. One\n3. Three"
+      }
+    },
+    {
+      "id": "html_edge",
+      "file": "files/html/edge.html",
+      "fileName": "edge.html",
+      "mime": "text/html",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "- Alpha\n\n- Beta\n\n- One Two\n\n| H | K |\n| --- | --- |\n| Cell head<br>para1<br>para2 | x<br>a; b / c; d |\n\nEnd"
+      }
+    },
+    {
+      "id": "odt_table_repeat",
+      "file": "files/odt/table-repeat.odt",
+      "fileName": "table-repeat.odt",
+      "mime": "application/vnd.oasis.opendocument.text",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "Before\n\n| A |  |  |  | B |\n| --- | --- | --- | --- | --- |\n| C |  |  |  |  |"
+      }
+    },
+    {
+      "id": "pptx_missing_slide",
+      "file": "files/pptx/missing-slide.pptx",
+      "fileName": "missing-slide.pptx",
+      "mime": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "## Slide 1: First\n\n## Slide 2: Third"
+      }
+    },
+    {
+      "id": "rtf_edge",
+      "file": "files/rtf/edge.rtf",
+      "fileName": "edge.rtf",
+      "mime": "application/rtf",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "Visible  shown\nend"
+      }
+    }
+  ],
+  "errorCases": [
+    {
+      "id": "docx_empty_zip",
+      "file": "files/docx/empty-zip.docx",
+      "fileName": "empty-zip.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "error": "corrupted_file"
+      }
+    },
+    {
+      "id": "docx_no_main",
+      "file": "files/docx/no-main.docx",
+      "fileName": "no-main.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "error": "corrupted_file"
+      }
+    },
+    {
+      "id": "ods_no_content",
+      "file": "files/ods/no-content.ods",
+      "fileName": "no-content.ods",
+      "mime": "application/vnd.oasis.opendocument.spreadsheet",
+      "uiLanguage": "en",
+      "expect": {
+        "error": "corrupted_file"
+      }
+    }
+  ]
+}

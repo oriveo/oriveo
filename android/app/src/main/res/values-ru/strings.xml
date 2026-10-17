@@ -856,6 +856,7 @@
     <string name="file_extraction_error_encrypted_pdf">Файл %1$s защищён паролем. Снимите пароль и прикрепите файл заново.</string>
     <string name="file_extraction_error_corrupted">Не удалось прочитать %1$s — возможно, файл повреждён.</string>
     <string name="file_extraction_error_unsupported">Тип файла %1$s не поддерживается.</string>
+    <string name="file_extraction_error_legacy_format">Не удаётся прочитать файл %1$s. Сохраните его в формате .docx, .xlsx или .pptx и прикрепите заново.</string>
     <string name="file_extraction_error_too_large">Файл %1$s слишком большой (максимум %2$d МБ).</string>
     <string name="file_extraction_error_generic">Не удалось обработать %1$s. Попробуйте снова или выберите другой файл.</string>
     <string name="file_extraction_truncated_notice">Файл %1$s длинный, добавлено только начало (строк: %2$d из %3$d).</string>

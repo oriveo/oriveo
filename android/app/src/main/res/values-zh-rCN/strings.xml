@@ -927,6 +927,7 @@
     <string name="file_extraction_error_encrypted_pdf">%1$s 设有密码，请去掉密码后重新添加。</string>
     <string name="file_extraction_error_corrupted">无法读取 %1$s，文件可能已损坏。</string>
     <string name="file_extraction_error_unsupported">暂不支持 %1$s 这种文件类型。</string>
+    <string name="file_extraction_error_legacy_format">暂时读不了 %1$s，请另存为 .docx、.xlsx 或 .pptx 后重新添加。</string>
     <string name="file_extraction_error_too_large">%1$s 太大，不能超过 %2$d MB。</string>
     <string name="file_extraction_error_generic">无法处理 %1$s，请重试或选择其他文件。</string>
     <string name="file_extraction_truncated_notice">%1$s 内容较长，只加入了前 %2$d 行（共 %3$d 行）。</string>

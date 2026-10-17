@@ -1174,7 +1174,7 @@ final class AppState {
     func attachmentsWithFilePayloads(of message: ChatMessage, in conversationID: UUID) -> [Attachment] {
         let attachments = message.attachments ?? []
         let missingPayload = attachments.contains {
-            $0.kind == .file && ($0.base64Data?.isEmpty ?? true) && $0.extractionErrorCode == nil
+            $0.kind == .file && ($0.base64Data?.isEmpty ?? true) && $0.extractionErrorAllowsText
         }
         guard missingPayload,
               let fetched = try? conversationRuntimeBridge.fetchConversationProjections(

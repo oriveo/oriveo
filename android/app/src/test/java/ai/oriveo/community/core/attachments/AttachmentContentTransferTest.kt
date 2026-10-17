@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.attachments
 
+import ai.oriveo.community.core.data.attachment.StoredImage
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
 import kotlinx.coroutines.test.runTest
@@ -156,7 +157,7 @@ class AttachmentContentTransferTest {
         )
         val result = AttachmentSlimmer.slim(
             attachment,
-            saveImage = { saveImageCalls++; "new-id" },
+            saveImage = { saveImageCalls++; StoredImage("new-id", "image/jpeg") },
             saveBlob = { error("should not be called") },
         )
         assertNull(result.base64Data)
@@ -175,11 +176,30 @@ class AttachmentContentTransferTest {
         )
         val result = AttachmentSlimmer.slim(
             attachment,
-            saveImage = { "generated-id" },
+            saveImage = { StoredImage("generated-id", "image/png") },
             saveBlob = { error("should not be called") },
         )
         assertNull(result.base64Data)
         assertEquals("generated-id", result.localImageId)
+        // mimeType must follow the stored bytes, not the value declared on import
+        assertEquals("image/png", result.mimeType)
+    }
+
+    @Test
+    fun `slim image keeps inline content when store cannot decode it`() = runTest {
+        val attachment = Attachment(
+            id = "b3",
+            kind = AttachmentKind.Image,
+            fileName = "photo.jpg",
+            mimeType = "image/jpeg",
+            base64Data = b64("not-an-image"),
+        )
+        val result = AttachmentSlimmer.slim(
+            attachment,
+            saveImage = { null },
+            saveBlob = { error("should not be called") },
+        )
+        assertEquals(attachment, result)
     }
 
     @Test

@@ -488,6 +488,7 @@
         "errorCorrupted": "Tidak dapat membaca {fileName}; berkasnya mungkin rusak.",
         "errorNoText": "Tidak dapat mengekstrak teks dari {fileName} (sepertinya PDF hasil pindaian).",
         "errorUnsupported": "{fileName} bukan jenis berkas yang didukung.",
+        "errorLegacyFormat": "{fileName} tidak dapat dibaca. Simpan sebagai .docx, .xlsx, atau .pptx, lalu lampirkan lagi.",
         "errorTooLarge": "{fileName} terlalu besar (maks. {maxMB} MB).",
         "tooManyFiles": "Anda dapat melampirkan hingga {maxFiles} berkas untuk model ini.",
         "textBudgetExceeded": "{fileName} tidak ditambahkan: dengan file ini, teks yang dilampirkan pada pesan akan melebihi batas.",

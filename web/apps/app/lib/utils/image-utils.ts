@@ -73,6 +73,30 @@ export async function createImageThumbnail(base64Data: string, mimeType: string)
   }
 }
 
+/**
+ * The MIME sent upstream for an image follows its actual bytes; returns null when unrecognised so the
+ * caller falls back to the attachment's declared MIME.
+ *
+ * Anthropic rejects images whose media_type doesn't match the bytes (400 "Image does not match the provided
+ * media type"), and attachments created by older builds of other clients can carry the picker's MIME on
+ * compressed JPEG bytes. Only the first 12 bytes are decoded (16 base64 characters, enough to see WebP's bytes 8-11).
+ */
+export function detectImageMime(base64: string): string | null {
+  const head = base64.slice(0, 64).replace(/[^A-Za-z0-9+/]/g, '').slice(0, 16);
+  if (head.length < 16) return null;
+  let bytes: string;
+  try {
+    bytes = atob(head);
+  } catch {
+    return null;
+  }
+  if (bytes.charCodeAt(0) === 0xff && bytes.charCodeAt(1) === 0xd8 && bytes.charCodeAt(2) === 0xff) return 'image/jpeg';
+  if (bytes.charCodeAt(0) === 0x89 && bytes.slice(1, 4) === 'PNG') return 'image/png';
+  if (bytes.startsWith('GIF8')) return 'image/gif';
+  if (bytes.startsWith('RIFF') && bytes.slice(8, 12) === 'WEBP') return 'image/webp';
+  return null;
+}
+
 /** File -> base64 string. */
 export function readFileAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

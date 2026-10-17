@@ -78,7 +78,14 @@ describe('BoundedArchiveReader', () => {
       .rejects.toThrow(ExtractionError);
   });
 
-  it('holds one running total across the whole archive', async () => {
+  it('reading by bytes uses the same budget', async () => {
+    const reader = new BoundedArchiveReader(budget);
+    const bytes = (size: number) => ({ ...entry('c.xhtml', { declared: 1 }), async: async () => new Uint8Array(size) });
+    await expect(reader.readBytes(bytes(10))).resolves.toHaveLength(10);
+    await expect(reader.readBytes(bytes(101))).rejects.toThrow(ExtractionError);
+  });
+
+  it('the whole archive shares one running total', async () => {
     const reader = new BoundedArchiveReader(budget);
     await reader.readText(entry('a.xml', { declared: 90, text: 'a'.repeat(90) }));
     await expect(reader.readText(entry('b.xml', { declared: 90, text: 'b'.repeat(90) })))

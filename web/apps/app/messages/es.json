@@ -488,6 +488,7 @@
         "errorCorrupted": "No se pudo leer {fileName}: es posible que el archivo esté dañado.",
         "errorNoText": "No se pudo extraer texto de {fileName} (parece un PDF escaneado).",
         "errorUnsupported": "El tipo de archivo de {fileName} no es compatible.",
+        "errorLegacyFormat": "No se puede leer {fileName}. Guárdalo como .docx, .xlsx o .pptx y vuelve a adjuntarlo.",
         "errorTooLarge": "{fileName} es demasiado grande (máx. {maxMB} MB).",
         "tooManyFiles": "Puedes adjuntar hasta {maxFiles} archivos para este modelo.",
         "textBudgetExceeded": "{fileName} no se agregó: con este archivo, el texto adjunto al mensaje superaría el límite.",

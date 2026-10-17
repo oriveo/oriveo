@@ -172,7 +172,9 @@ nonisolated enum ChatDropImport {
     private static func looksLikeFile(_ item: Item) -> Bool {
         if item.isFileBacked { return true }
         guard let name = item.suggestedName, !URL(fileURLWithPath: name).pathExtension.isEmpty else { return false }
+        // Legacy formats also go by file, so they reach the entry point and get the "save as a new format" hint.
         return ChatAttachmentImportPolicy.isSupportedFile(fileName: name, detectedMimeType: nil)
+            || ChatAttachmentImportPolicy.isLegacyFormat(fileName: name, detectedMimeType: nil)
     }
 }
 

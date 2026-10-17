@@ -913,6 +913,7 @@
     <string name="file_extraction_error_encrypted_pdf">%1$s 設有密碼，請移除密碼後重新加入。</string>
     <string name="file_extraction_error_corrupted">無法讀取 %1$s，檔案可能已損毀。</string>
     <string name="file_extraction_error_unsupported">不支援 %1$s 這種檔案類型。</string>
+    <string name="file_extraction_error_legacy_format">目前無法讀取 %1$s，請另存為 .docx、.xlsx 或 .pptx 後重新加入。</string>
     <string name="file_extraction_error_too_large">%1$s 太大，不能超過 %2$d MB。</string>
     <string name="file_extraction_error_generic">無法處理 %1$s，請重試或選擇其他檔案。</string>
     <string name="file_extraction_truncated_notice">%1$s 內容較長，只加入了前 %2$d 行（共 %3$d 行）。</string>

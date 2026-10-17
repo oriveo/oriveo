@@ -488,6 +488,7 @@
         "errorCorrupted": "Не удалось прочитать {fileName} — возможно, файл повреждён.",
         "errorNoText": "Не удалось извлечь текст из {fileName} (похоже на отсканированный PDF).",
         "errorUnsupported": "Тип файла {fileName} не поддерживается.",
+        "errorLegacyFormat": "Не удаётся прочитать файл {fileName}. Сохраните его в формате .docx, .xlsx или .pptx и прикрепите заново.",
         "errorTooLarge": "Файл {fileName} слишком большой (максимум {maxMB} МБ).",
         "tooManyFiles": "Для этой модели можно прикрепить до {maxFiles} файлов.",
         "textBudgetExceeded": "Файл {fileName} не добавлен: с ним текст, прикреплённый к этому сообщению, превысил бы лимит.",

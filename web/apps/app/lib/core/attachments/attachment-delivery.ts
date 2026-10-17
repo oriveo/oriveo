@@ -15,7 +15,7 @@ import {
   AttachmentInjector,
 } from './attachment-injector';
 import { decideAttachmentRoute } from './attachment-router';
-import { type ExtractionErrorCode, resolveFileExtractionLimits } from './file-text-extractor';
+import { type ExtractionErrorCode, hasUsableExtractedText, resolveFileExtractionLimits } from './file-text-extractor';
 
 export type FileAttachmentDelivery =
   | { route: 'native'; originalBase64Data: string }
@@ -31,7 +31,9 @@ export function resolveFileAttachmentDelivery(
   if (route === 'native' && attachment.originalBase64Data) {
     return { route: 'native', originalBase64Data: attachment.originalBase64Data };
   }
-  const extracted = attachment.base64Data
+  // usable text (including fully scanned files synced from another platform after successful OCR, spec section 13) is injected as a successful extraction, without an error code.
+  const usable = hasUsableExtractedText(attachment.base64Data, attachment.extractionErrorCode);
+  const extracted = usable && attachment.base64Data
     ? {
         content: attachment.base64Data,
         totalLines: attachment.extractedTotalLines ?? attachment.base64Data.split('\n').length,
@@ -48,7 +50,7 @@ export function resolveFileAttachmentDelivery(
       mimeType: attachment.mimeType,
       sizeBytes: attachment.extractedSizeBytes ?? attachment.base64Data?.length ?? 0,
       extracted,
-      errorCode: attachment.extractionErrorCode as ExtractionErrorCode | undefined,
+      errorCode: usable ? undefined : attachment.extractionErrorCode as ExtractionErrorCode | undefined,
     },
   };
 }

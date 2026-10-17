@@ -384,23 +384,25 @@ struct ChatAttachmentPicker {
         let fileName = url.lastPathComponent
         let detectedMimeType = (try? url.resourceValues(forKeys: [.contentTypeKey]).contentType)?
             .preferredMIMEType
+        // Legacy formats (doc / xls / ppt / iWork) are blocked at the entry point with a hint to save as a new format (attachment extraction spec section 2).
+        if ChatAttachmentImportPolicy.isLegacyFormat(fileName: fileName, detectedMimeType: detectedMimeType) {
+            return .extractionFailed(reason: .legacyFormat, fileName: fileName)
+        }
         guard ChatAttachmentImportPolicy.isSupportedFile(fileName: fileName, detectedMimeType: detectedMimeType) else {
             return .unsupported
         }
 
-        let ext = url.pathExtension.lowercased()
+        // Unified FileTextExtractor: PDF/EPUB/HTML/ODF/RTF/Office/plain text/code all go through local extraction
         let resolvedMime = ChatAttachmentImportPolicy.resolveMimeType(
             fileName: fileName,
             detectedMimeType: detectedMimeType
         )
-        let isSupportedTextFile = FileTextExtractor.supportedMimes.contains(resolvedMime.lowercased())
-            || FileTextExtractor.textExtensions.contains(ext)
-            || ["pdf", "epub", "html", "htm", "rtf", "docx", "xlsx", "pptx",
-                "odt", "ods", "odp"].contains(ext)
+        let isSupportedTextFile = AttachmentTypeClassifier.classify(fileName: fileName, mimeType: resolvedMime) != .unsupported
 
         if isSupportedTextFile && !resolvedMime.hasPrefix("video/") {
             do {
-                let extracted = try FileTextExtractor.extract(
+                // Extraction runs on a background queue (scans must wait for Vision OCR) and does not occupy the main thread.
+                let extracted = try await FileTextExtractor.extractInBackground(
                     data: data,
                     fileName: fileName,
                     mimeType: resolvedMime,
@@ -419,6 +421,9 @@ struct ChatAttachmentPicker {
                     extractedTotalLines: extracted.totalLines,
                     extractedTruncated: extracted.truncated,
                     extractedSizeBytes: extracted.sizeBytes,
+                    // A fully scanned file recognized by OCR: import as a success with its body, still record scanned_pdf so routes with native capability still send the original as before
+                    // (attachment extraction spec sections 12, 13).
+                    extractionErrorCode: extracted.scanned ? ExtractionErrorCode.scannedPdf.rawValue : nil,
                     originalBase64Data: originalBase64
                 ))
             } catch let e as ExtractionError {

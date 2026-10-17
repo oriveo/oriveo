@@ -488,6 +488,7 @@
         "errorCorrupted": "{fileName} を読み取れませんでした。ファイルが破損している可能性があります。",
         "errorNoText": "{fileName} からテキストを抽出できませんでした（スキャンされた PDF のようです）。",
         "errorUnsupported": "{fileName} はサポートされていないファイル形式です。",
+        "errorLegacyFormat": "{fileName} は読み込めません。.docx・.xlsx・.pptx 形式で保存し直してから、もう一度追加してください。",
         "errorTooLarge": "{fileName} は大きすぎます（最大 {maxMB} MB）。",
         "tooManyFiles": "このモデルには最大 {maxFiles} 件のファイルを添付できます。",
         "textBudgetExceeded": "{fileName} は追加されませんでした。追加すると、このメッセージに添付できるテキスト量の上限を超えます。",

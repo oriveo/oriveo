@@ -1,0 +1,731 @@
+{
+  "v": 1,
+  "doc": "Attachment extraction output spec",
+  "cases": [
+    {
+      "id": "docx_fields",
+      "file": "files/docx/fields.docx",
+      "fileName": "fields.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "Contents\nIntro\t1\nDetails\t2\nSee the site now.\nPage 7\nResult: yes"
+      }
+    },
+    {
+      "id": "docx_hidden",
+      "file": "files/docx/hidden.docx",
+      "fileName": "hidden.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "Visible shown also text\nEnd"
+      }
+    },
+    {
+      "id": "docx_inline_marks",
+      "file": "files/docx/inline-marks.docx",
+      "fileName": "inline-marks.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "A\tB\nline1\nline2\nline3\npage\nbreak\ne-mail cooperate ok\npadded\ntwo  spaces"
+      }
+    },
+    {
+      "id": "docx_lists",
+      "file": "files/docx/lists.docx",
+      "fileName": "lists.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "- Apple\n  - Green\n1. Step one\n  1. Sub a\n  2. Sub b\n2. Step two\n  1. Sub again\nNo marker\n5. Fifth\nZero id\n- Missing num\n- Default level\n- Line wrap"
+      }
+    },
+    {
+      "id": "docx_lists_no_numbering",
+      "file": "files/docx/lists-no-numbering.docx",
+      "fileName": "lists-no-numbering.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "- First\n  - Nested\nPlain"
+      }
+    },
+    {
+      "id": "docx_notes",
+      "file": "files/docx/notes.docx",
+      "fileName": "notes.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "Main text[^1] continues.\nSecond ref[^2] and again[^1].\nClosing[^e1].\n\n[^1]: First note second para\n[^2]: Note two\n[^e1]: End note one"
+      }
+    },
+    {
+      "id": "docx_rels_path",
+      "file": "files/docx/rels-path.docx",
+      "fileName": "rels-path.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "## Found via rels\n\nBody text"
+      }
+    },
+    {
+      "id": "docx_revisions",
+      "file": "files/docx/revisions.docx",
+      "fileName": "revisions.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "Keep inserted end\nMoved: here\nvisible\nLast"
+      }
+    },
+    {
+      "id": "docx_sdt",
+      "file": "files/docx/sdt.docx",
+      "fileName": "sdt.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "Intro\nInside control\nSecond inside\n\n| K | V |\n| --- | --- |\n| 1 | 2 |\n\nName: Alice"
+      }
+    },
+    {
+      "id": "docx_styles_localized",
+      "file": "files/docx/styles-localized.docx",
+      "fileName": "styles-localized.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "# Document Title\n\n# 第一章 概述\n\n正文段落。\n\n## 1.1 背景\n\n# Custom based\n\nNot a heading\n\n### Outline three\n\n#### Override four\n\nBody level\n\n## Styled outline\n\n## Tab here\n\n###### Deep nine\n\nEnd."
+      }
+    },
+    {
+      "id": "docx_tables",
+      "file": "files/docx/tables.docx",
+      "fileName": "tables.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "Before table\n\n| Name | Score | Note |\n| --- | --- | --- |\n| Merged |  | x\\|y |\n| A | p1<br>p2 |  |\n|  | tab here | br<br>line |\n\nBetween\n\n| Outer | Inner:<br>a; b / c; d |\n| --- | --- |\n\n1x1 next\nSolo line 1\nSolo line 2\nAfter"
+      }
+    },
+    {
+      "id": "docx_textbox",
+      "file": "files/docx/textbox.docx",
+      "fileName": "textbox.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "Before box after\nBox text\nBox line 2\nNext paragraph"
+      }
+    },
+    {
+      "id": "epub_font_obfuscation",
+      "file": "files/epub/font-obfuscation.epub",
+      "fileName": "font-obfuscation.epub",
+      "mime": "application/epub+zip",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "Obfuscated fonts are fine."
+      }
+    },
+    {
+      "id": "epub_oebps_relative",
+      "file": "files/epub/oebps-relative.epub",
+      "fileName": "oebps-relative.epub",
+      "mime": "application/epub+zip",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "Intro text.\n\n## Two\n\nSpaced name.\n\nHTML media type."
+      }
+    },
+    {
+      "id": "epub_root_opf",
+      "file": "files/epub/root-opf.epub",
+      "fileName": "root-opf.epub",
+      "mime": "application/epub+zip",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "# Chapter 1\n\nBefore script\n\nAfter script continues.\n\nAppendix text."
+      }
+    },
+    {
+      "id": "html_basic",
+      "file": "files/html/basic.html",
+      "fileName": "basic.html",
+      "mime": "text/html",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "# Main Title\n\nEntities: 中文& ©…\n\nFirst paragraph with newline.\n\nSecond paragraph.\n\nDiv one\nDiv two\n\nLine one\nLine two\n\nInline bold and link.\n\n## Lists\n\n- Alpha\n- Beta\n  - Beta one\n\n3. Three\n4. Four\n\n### Tables\n\n| Name | Score |\n| --- | --- |\n| Zhang\\|San | 90 |\n\nWide\na\tb\n\ncode  line\n    indented\n\n---\n\nEnd."
+      }
+    },
+    {
+      "id": "html_gbk_meta",
+      "file": "files/html/gbk-meta.html",
+      "fileName": "gbk-meta.html",
+      "mime": "text/html",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "# 新闻\n\n朱镕基同志的讲话稿全文。"
+      }
+    },
+    {
+      "id": "odp_slides",
+      "file": "files/odp/slides.odp",
+      "fileName": "slides.odp",
+      "mime": "application/vnd.oasis.opendocument.presentation",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "## Slide 1: Opening\n\nSub text\n\n### Notes\n\nNote A\n\n## Slide 2\n\nBody one\nBody two\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n## Slide 3: Multi Title"
+      }
+    },
+    {
+      "id": "ods_sheets",
+      "file": "files/ods/sheets.ods",
+      "fileName": "sheets.ods",
+      "mime": "application/vnd.oasis.opendocument.spreadsheet",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "## Sheet: Data\n\n| Name | Qty |  |\n| --- | --- | --- |\n| Apple | 3 |  |\n| Merged |  | Str attr |\n| 42.5 | 2026-01-15 | true |\n|  |  |  |\n| R | R | R |\n| dup |  |  |\n| dup |  |  |\n\n## Sheet: Second\n\n| PT01H30M00S | Line1<br>Line2 |\n| --- | --- |\n\n## Sheet: Empty"
+      }
+    },
+    {
+      "id": "odt_document",
+      "file": "files/odt/document.odt",
+      "fileName": "document.odt",
+      "mime": "application/vnd.oasis.opendocument.text",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "# Chapter One\n\nSpaces:     end and one\nCol1\tCol2\nNext line\nCollapsed whitespace here\n\n## Section Two\n\n# Default level\n\n###### Deep\n\nHeader para\n- Item A\n  - Nested A1\n- Item B\nFootnoted[^1] sentence and endnote[^i].\nCommented word.\nRevised text added\nAnchor para\nBox para 1\nBox para 2\nIn section\n\n| K | V |\n| --- | --- |\n| a<br>b | x\\|y |\n\n[^1]: The note body. Second part.\n[^i]: Endnote text."
+      }
+    },
+    {
+      "id": "pptx_deck",
+      "file": "files/pptx/deck.pptx",
+      "fileName": "deck.pptx",
+      "mime": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "## Slide 1: Welcome Deck\n\nSubtitle here\n\n## Slide 2: Agenda\n\nIntro\nPlan\nQ&A\nLine A\nLine B\n\n## Slide 3: Hidden slide (hidden)\n\nSecret stuff\n\n## Slide 4: Grouped\n\nGroup one\nGroup two\n\n## Slide 5: Table\n\n| H1 |  | H3 |\n| --- | --- | --- |\n| A | B | C |\n|  | E | F |\n\n## Slide 6: With notes\n\nMain point\n\n### Notes\n\nSpeaker note line 1\nSpeaker note line 2\n\n## Slide 7: Alternate\n\nChoice text\n\n## Slide 8: Two Lines\n\nPage 8\n\n## Slide 9\n\nUntitled body\n\n## Slide 10\n\nAfter empty title\n\n## Slide 11: Pictures\n\nVisible text\n\n## Slide 12: The End\n\nSecond title"
+      }
+    },
+    {
+      "id": "pptx_no_presentation",
+      "file": "files/pptx/no-presentation.pptx",
+      "fileName": "no-presentation.pptx",
+      "mime": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "## Slide 1: One\n\n## Slide 2: Two\n\n## Slide 3: Ten"
+      }
+    },
+    {
+      "id": "rtf_big5_trail",
+      "file": "files/rtf/big5-trail.rtf",
+      "fileName": "big5-trail.rtf",
+      "mime": "application/rtf",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "許可"
+      }
+    },
+    {
+      "id": "rtf_gbk",
+      "file": "files/rtf/gbk.rtf",
+      "fileName": "gbk.rtf",
+      "mime": "application/rtf",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "中文\n粗体\nPlain English"
+      }
+    },
+    {
+      "id": "rtf_structures",
+      "file": "files/rtf/structures.rtf",
+      "fileName": "structures.rtf",
+      "mime": "application/rtf",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "Visit link now.\nA\tB\nC\tD\nImage:done\nDash—x–y•z‘q’“w”\nNon breaking softhyphen non-breaking\nShown visible\nBold text\nBefore page\n\nAfter page\nL1\nL2"
+      }
+    },
+    {
+      "id": "rtf_unicode",
+      "file": "files/rtf/unicode.rtf",
+      "fileName": "unicode.rtf",
+      "mime": "application/rtf",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "A▙B\n▙C\nD中E中F\n中G\n！H\n😀I\n€J"
+      }
+    },
+    {
+      "id": "text_big5_short",
+      "file": "files/text/big5-short.txt",
+      "fileName": "big5-short.txt",
+      "mime": "text/plain",
+      "uiLanguage": "zh-Hant",
+      "expect": {
+        "content": "中文測試"
+      }
+    },
+    {
+      "id": "text_cp1251_paragraph",
+      "file": "files/text/cp1251-paragraph.txt",
+      "fileName": "cp1251-paragraph.txt",
+      "mime": "text/plain",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "Привет, мир! Это проверка кодировки. Съешь же ещё этих мягких французских булок, да выпей чаю.\n"
+      }
+    },
+    {
+      "id": "text_cp1252_cafe",
+      "file": "files/text/cp1252-cafe.txt",
+      "fileName": "cp1252-cafe.txt",
+      "mime": "text/plain",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "café"
+      }
+    },
+    {
+      "id": "text_cp1252_creme",
+      "file": "files/text/cp1252-creme.txt",
+      "fileName": "cp1252-creme.txt",
+      "mime": "text/plain",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "Crème brûlée"
+      }
+    },
+    {
+      "id": "text_crlf",
+      "file": "files/text/crlf.txt",
+      "fileName": "crlf.txt",
+      "mime": "text/plain",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "line1\nline2\n\n\n  indented  \nold mac\nend\n"
+      }
+    },
+    {
+      "id": "text_euckr_paragraph",
+      "file": "files/text/euckr-paragraph.txt",
+      "fileName": "euckr-paragraph.txt",
+      "mime": "text/plain",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "대한민국은 민주공화국이다. 대한민국의 주권은 국민에게 있고, 모든 권력은 국민으로부터 나온다. 국가는 개인이 가지는 불가침의 기본적 인권을 확인하고 이를 보장할 의무를 진다.\n"
+      }
+    },
+    {
+      "id": "text_gbk_paragraph",
+      "file": "files/text/gbk-paragraph.txt",
+      "fileName": "gbk-paragraph.txt",
+      "mime": "text/plain",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "人工智能正在深刻改变我们的工作与生活方式。从自动翻译到智能写作，从医学影像分析到自动驾驶，越来越多的行业开始引入大语言模型。然而，模型的能力边界、数据安全与隐私保护，仍然是企业在落地过程中必须认真面对的问题。我们希望通过本报告，帮助读者理解相关技术的发展现状与未来趋势。\n"
+      }
+    },
+    {
+      "id": "text_gbk_short_en",
+      "file": "files/text/gbk-short.txt",
+      "fileName": "gbk-short.txt",
+      "mime": "text/plain",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "中文测试"
+      }
+    },
+    {
+      "id": "text_gbk_short_zh_hans",
+      "file": "files/text/gbk-short.txt",
+      "fileName": "gbk-short.txt",
+      "mime": "text/plain",
+      "uiLanguage": "zh-Hans",
+      "expect": {
+        "content": "中文测试"
+      }
+    },
+    {
+      "id": "text_sjis_paragraph",
+      "file": "files/text/sjis-paragraph.txt",
+      "fileName": "sjis-paragraph.txt",
+      "mime": "text/plain",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "吾輩は猫である。名前はまだ無い。どこで生れたかとんと見当がつかぬ。何でも薄暗いじめじめした所でニャーニャー泣いていた事だけは記憶している。\n"
+      }
+    },
+    {
+      "id": "text_utf16le_nobom",
+      "file": "files/text/utf16le-nobom.txt",
+      "fileName": "utf16le-nobom.txt",
+      "mime": "text/plain",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "Hi there"
+      }
+    },
+    {
+      "id": "text_utf8_bom",
+      "file": "files/text/utf8-bom.txt",
+      "fileName": "utf8-bom.txt",
+      "mime": "text/plain",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "Hello, 世界\n  indented\n"
+      }
+    },
+    {
+      "id": "xlsx_cell_types",
+      "file": "files/xlsx/cell-types.xlsx",
+      "fileName": "cell-types.xlsx",
+      "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "## Sheet: Types\n\n| Type | Value |\n| --- | --- |\n| s | Hello |\n| rich + rPh | Kanji |\n| str | Formula result |\n| inline | Inline |\n| bool true | TRUE |\n| bool false | FALSE |\n| error | #N/A |\n| date type | 2026-01-15T00:00:00 |\n| number | 42 |\n| no t | 3.5 |\n| formula no v |  |\n| s out of range |  |\n| trailing CR | Total |\n| hex escape | ABC |\n| pipe | a\\|b |"
+      }
+    },
+    {
+      "id": "xlsx_date1904",
+      "file": "files/xlsx/date1904.xlsx",
+      "fileName": "date1904.xlsx",
+      "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "## Sheet: Mac\n\n| zero | 1904-01-01 |\n| --- | --- |\n| later | 2029-01-02 |"
+      }
+    },
+    {
+      "id": "xlsx_dates",
+      "file": "files/xlsx/dates.xlsx",
+      "fileName": "dates.xlsx",
+      "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "## Sheet: Dates\n\n| fmt14 | 2025-01-01 |\n| --- | --- |\n| fmt22 | 2025-01-01 12:00:00 |\n| fmt20 | 18:00:00 |\n| fmt20 hms | 01:23:45 |\n| fmt57 | 2025-01-01 |\n| custom ymd | 2026-01-01 |\n| custom [h]:mm | 12:00:00 |\n| custom sci | 12345.678 |\n| builtin 11 | 0.5 |\n| serial 59 | 1900-02-28 |\n| serial 60 | 1900-02-29 |\n| serial 61 | 1900-03-01 |\n| negative | -1 |\n| round up | 2025-01-02 00:00:00 |\n| date drops time | 2025-01-01 |"
+      }
+    },
+    {
+      "id": "xlsx_layout",
+      "file": "files/xlsx/layout.xlsx",
+      "fileName": "layout.xlsx",
+      "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "## Sheet: Sparse\n\n|  |  | a | a2 | b |\n| --- | --- | --- | --- | --- |\n| c | d |  |  |  |\n|  |  |  |  |  |\n|  |  |  | e |  |\n\n## Sheet: Trim\n\n| x |  |\n| --- | --- |\n|  | y |\n\n## Sheet: Wide\n\n| C1 | C2 | C3 | C4 | C5 | C6 | C7 | C8 | C9 | C10 | C11 | C12 | C13 | C14 | C15 | C16 | C17 | C18 | C19 | C20 | C21 | C22 | C23 | C24 | C25 | C26 | C27 | C28 | C29 | C30 | C31 | C32 | C33 | C34 | C35 | C36 | C37 | C38 | C39 | C40 | C41 | C42 | C43 | C44 | C45 | C46 | C47 | C48 | C49 | C50 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 |\n\n(5 more columns not shown)\n\n## Sheet: Blank"
+      }
+    },
+    {
+      "id": "xlsx_numbers",
+      "file": "files/xlsx/numbers.xlsx",
+      "fileName": "numbers.xlsx",
+      "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "## Sheet: Numbers\n\n| n1 | 0.3 |\n| --- | --- |\n| n2 | 3 |\n| n3 | 12345678901234600 |\n| n4 | 1.23456789012346E-5 |\n| n5 | 0.1 |\n| n6 | -0.5 |\n| n7 | 100 |\n| n8 | 1.50 |\n| n9 | 100000000000000000 |\n| n10 | 0.000123456789012346 |\n| n11 | 1.00000000000001 |\n| n12 | -12345678901234600 |\n| n13 | 1e3 |"
+      }
+    },
+    {
+      "id": "xlsx_sheet_order",
+      "file": "files/xlsx/sheet-order.xlsx",
+      "fileName": "sheet-order.xlsx",
+      "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "uiLanguage": "en",
+      "expect": {
+        "content": "## Sheet: Summary\n\n| Summary | 1 |\n| --- | --- |\n\n## Sheet: Data\n\n| Data | 2 |\n| --- | --- |\n\n## Sheet: Hidden1 (hidden)\n\n| Hidden1 | 3 |\n| --- | --- |\n\n## Sheet: Q1\n\n| Q1 | 6 |\n| --- | --- |\n\n## Sheet: Q2\n\n| Q2 | 7 |\n| --- | --- |\n\n## Sheet: Q3\n\n| Q3 | 8 |\n| --- | --- |\n\n## Sheet: Q4\n\n| Q4 | 9 |\n| --- | --- |\n\n## Sheet: Q&A\n\n| Q&A | 10 |\n| --- | --- |\n\n## Sheet: Empty\n\n## Sheet: Last\n\n| Last | 12 |\n| --- | --- |"
+      }
+    }
+  ],
+  "errorCases": [
+    {
+      "id": "docx_doctype",
+      "file": "files/docx/doctype.docx",
+      "fileName": "doctype.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "error": "corrupted_file"
+      }
+    },
+    {
+      "id": "docx_not_zip",
+      "file": "files/docx/x.docx",
+      "fileName": "x.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "error": "corrupted_file"
+      }
+    },
+    {
+      "id": "docx_ole_encrypted",
+      "file": "files/docx/secret.docx",
+      "fileName": "secret.docx",
+      "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uiLanguage": "en",
+      "expect": {
+        "error": "password_protected_office"
+      }
+    },
+    {
+      "id": "epub_drm_aes",
+      "file": "files/epub/drm-aes.epub",
+      "fileName": "drm-aes.epub",
+      "mime": "application/epub+zip",
+      "uiLanguage": "en",
+      "expect": {
+        "error": "unsupported_format"
+      }
+    },
+    {
+      "id": "epub_drm_lcp",
+      "file": "files/epub/drm-lcp.epub",
+      "fileName": "drm-lcp.epub",
+      "mime": "application/epub+zip",
+      "uiLanguage": "en",
+      "expect": {
+        "error": "unsupported_format"
+      }
+    },
+    {
+      "id": "text_binary_png",
+      "file": "files/text/binary-png.txt",
+      "fileName": "binary-png.txt",
+      "mime": "text/plain",
+      "uiLanguage": "en",
+      "expect": {
+        "error": "unsupported_format"
+      }
+    },
+    {
+      "id": "xlsx_ole_encrypted",
+      "file": "files/xlsx/secret.xlsx",
+      "fileName": "secret.xlsx",
+      "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "uiLanguage": "en",
+      "expect": {
+        "error": "password_protected_office"
+      }
+    }
+  ],
+  "classification": [
+    {
+      "fileName": "report.doc",
+      "mime": "",
+      "kind": "legacy"
+    },
+    {
+      "fileName": "Dockerfile",
+      "mime": "",
+      "kind": "text"
+    },
+    {
+      "fileName": "a.weird",
+      "mime": "text/x-whatever",
+      "kind": "text"
+    },
+    {
+      "fileName": "a.bin",
+      "mime": "application/octet-stream",
+      "kind": "unsupported"
+    },
+    {
+      "fileName": "Deck.KEY",
+      "mime": "",
+      "kind": "legacy"
+    },
+    {
+      "fileName": "blob",
+      "mime": "application/vnd.ms-excel",
+      "kind": "legacy"
+    },
+    {
+      "fileName": ".gitignore",
+      "mime": "",
+      "kind": "text"
+    },
+    {
+      "fileName": "Makefile",
+      "mime": "",
+      "kind": "text"
+    },
+    {
+      "fileName": "LICENSE",
+      "mime": "",
+      "kind": "text"
+    },
+    {
+      "fileName": "notes.MD",
+      "mime": "",
+      "kind": "text"
+    },
+    {
+      "fileName": "x.TSX",
+      "mime": "",
+      "kind": "text"
+    },
+    {
+      "fileName": "notes.",
+      "mime": "text/plain",
+      "kind": "text"
+    },
+    {
+      "fileName": "data.unknownext",
+      "mime": "application/json",
+      "kind": "text"
+    },
+    {
+      "fileName": "icon.unknownext",
+      "mime": "image/svg+xml",
+      "kind": "text"
+    },
+    {
+      "fileName": "scan.pdf",
+      "mime": "application/octet-stream",
+      "kind": "pdf"
+    },
+    {
+      "fileName": "download",
+      "mime": "application/pdf",
+      "kind": "pdf"
+    },
+    {
+      "fileName": "page.xhtml",
+      "mime": "",
+      "kind": "html"
+    },
+    {
+      "fileName": "a.weird",
+      "mime": "text/html",
+      "kind": "html"
+    },
+    {
+      "fileName": "a.weird",
+      "mime": "text/rtf",
+      "kind": "rtf"
+    },
+    {
+      "fileName": "report.docx",
+      "mime": "application/msword",
+      "kind": "docx"
+    },
+    {
+      "fileName": "book.epub",
+      "mime": "",
+      "kind": "epub"
+    },
+    {
+      "fileName": "sheet.ods",
+      "mime": "",
+      "kind": "ods"
+    },
+    {
+      "fileName": "archive.tar.gz",
+      "mime": "application/gzip",
+      "kind": "unsupported"
+    },
+    {
+      "fileName": "noext",
+      "mime": "",
+      "kind": "unsupported"
+    }
+  ],
+  "pdfCases": [
+    {
+      "id": "pdf_two_pages",
+      "file": "files/pdf/two-pages.pdf",
+      "fileName": "two-pages.pdf",
+      "mime": "application/pdf",
+      "uiLanguage": "en",
+      "expect": {
+        "markers": [
+          "--- Page 1 ---",
+          "--- Page 2 ---"
+        ],
+        "contains": [
+          "Hello World page one",
+          "第二页"
+        ],
+        "notContains": [
+          "[no text layer]"
+        ],
+        "scanned": false
+      }
+    },
+    {
+      "id": "pdf_owner_password",
+      "file": "files/pdf/owner-password.pdf",
+      "fileName": "owner-password.pdf",
+      "mime": "application/pdf",
+      "uiLanguage": "en",
+      "expect": {
+        "markers": [
+          "--- Page 1 ---"
+        ],
+        "contains": [
+          "Hello"
+        ],
+        "notContains": [],
+        "scanned": false
+      }
+    },
+    {
+      "id": "pdf_user_password",
+      "file": "files/pdf/user-password.pdf",
+      "fileName": "user-password.pdf",
+      "mime": "application/pdf",
+      "uiLanguage": "en",
+      "expect": {
+        "error": "encrypted_pdf"
+      }
+    },
+    {
+      "id": "pdf_image_page",
+      "file": "files/pdf/image-page.pdf",
+      "fileName": "image-page.pdf",
+      "mime": "application/pdf",
+      "uiLanguage": "en",
+      "expect": {
+        "markers": [
+          "--- Page 1 ---",
+          "--- Page 2 --- [no text layer]",
+          "--- Page 3 ---"
+        ],
+        "contains": [
+          "Page one text",
+          "Page three text"
+        ],
+        "notContains": [],
+        "scanned": false
+      }
+    },
+    {
+      "id": "pdf_full_scan",
+      "file": "files/pdf/full-scan.pdf",
+      "fileName": "full-scan.pdf",
+      "mime": "application/pdf",
+      "uiLanguage": "zh-Hans",
+      "expect": {
+        "scannedWithoutOcr": {
+          "error": "scanned_pdf"
+        },
+        "ocr": {
+          "markers": [
+            "--- Page 1 (OCR) ---"
+          ],
+          "contains": [
+            "123"
+          ],
+          "scanned": true
+        }
+      }
+    }
+  ]
+}

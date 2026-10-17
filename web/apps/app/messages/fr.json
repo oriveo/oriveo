@@ -488,6 +488,7 @@
         "errorCorrupted": "Impossible de lire {fileName} : le fichier est peut-être endommagé.",
         "errorNoText": "Impossible d'extraire le texte de {fileName} (il s'agit sans doute d'un PDF numérisé).",
         "errorUnsupported": "Le type de fichier de {fileName} n'est pas pris en charge.",
+        "errorLegacyFormat": "Impossible de lire {fileName}. Enregistrez-le au format .docx, .xlsx ou .pptx, puis joignez-le à nouveau.",
         "errorTooLarge": "{fileName} est trop volumineux ({maxMB} Mo max.).",
         "tooManyFiles": "Vous pouvez joindre jusqu’à {maxFiles} fichiers pour ce modèle.",
         "textBudgetExceeded": "{fileName} n’a pas été ajouté : avec ce fichier, le texte joint à ce message dépasserait la limite.",

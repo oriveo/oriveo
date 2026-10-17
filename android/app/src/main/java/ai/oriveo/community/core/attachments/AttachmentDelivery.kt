@@ -109,14 +109,28 @@ object AttachmentDelivery {
     }
 
     /**
+     * This attachment carries usable extracted text: the text is non-empty, and there is no error code or the code is `scanned_pdf`.
+     * The latter is a fully scanned file whose text OCR recognized (spec section 13): the error code stays so routes with native capability still send the original,
+     * while text delivery injects it as a successful extraction. Injection, protocol fallback and relay first-route decisions all use this one predicate.
+     */
+    fun hasUsableText(attachment: Attachment): Boolean {
+        if (attachment.base64Data.isNullOrEmpty()) return false
+        val code = attachment.extractionErrorCode
+        return code == null || code == ExtractionErrorCode.ScannedPdf.raw
+    }
+
+    /**
      * Converts File attachments into payloads the injector can consume.
-     * Text content is decoded from base64Data; when extractionErrorCode is set, the error code fills the payload directly.
+     * Decodes text from base64Data; when extractionErrorCode is set, fills in the error code directly,
+     * except scanned files with text ([hasUsableText]), which are injected as successful extractions.
      */
     fun toAttachmentPayloads(
         attachments: List<Attachment>,
     ): List<AttachmentInjector.AttachmentPayload> {
         return attachments.filter { it.kind == AttachmentKind.File }.map { att ->
+            val usableScan = att.extractionErrorCode != null && hasUsableText(att)
             val errorCode = att.extractionErrorCode
+                ?.takeUnless { usableScan }
                 ?.let { raw -> ExtractionErrorCode.entries.firstOrNull { it.raw == raw } }
             val decoded = if (errorCode == null && att.base64Data != null) {
                 tryDecodeBase64Text(att.base64Data)

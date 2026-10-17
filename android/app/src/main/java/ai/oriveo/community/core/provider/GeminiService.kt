@@ -3,6 +3,7 @@ package ai.oriveo.community.core.provider
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.attachments.AttachmentDelivery
 import ai.oriveo.community.core.attachments.AttachmentTransportProfile
+import ai.oriveo.community.core.attachments.ImageMediaType
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ChatMessage
@@ -543,7 +544,7 @@ class GeminiService(
                 val media = attachments.mapNotNull { attachment ->
                     when (attachment.kind) {
                         AttachmentKind.Image -> (attachment.base64Data ?: attachment.thumbnailBase64)
-                            ?.let { interactionsMedia("image", it, attachment.mimeType) }
+                            ?.let { interactionsMedia("image", it, ImageMediaType.resolve(it, attachment.mimeType)) }
                         AttachmentKind.File -> (attachment.originalBase64Data ?: attachment.base64Data)
                             ?.let { interactionsMedia("document", it, attachment.mimeType) }
                         AttachmentKind.Video -> null

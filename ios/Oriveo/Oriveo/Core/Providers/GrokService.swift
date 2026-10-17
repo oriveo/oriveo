@@ -912,7 +912,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
             for img in imageAttachments {
                 let b64 = img.resolvedBase64Data
                 guard !b64.isEmpty else { continue }
-                let mime = img.mimeType
+                let mime = ImageMediaType.resolve(base64: b64, declared: img.mimeType)
                 let dataURL = "data:\(mime);base64,\(b64)"
                 parts.append(["type": "image_url", "image_url": ["url": dataURL]])
             }

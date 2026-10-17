@@ -57,11 +57,13 @@ internal class StreamingImageProcessor(
                 ) return@map att
                 runCatching {
                     val bytes = Base64.decode(att.base64Data, Base64.NO_WRAP)
-                    val localId = attachmentStore.saveImage(bytes, att.mimeType)
-                    val thumbBase64 = attachmentStore.loadThumbnailBase64(localId)
+                    // Generated images are finished output and are stored as-is; compression is only for images the user sends
+                    val stored = attachmentStore.saveOriginalImage(bytes) ?: return@map att
+                    val thumbBase64 = attachmentStore.loadThumbnailBase64(stored.id)
                     att.copy(
+                        mimeType = stored.mimeType,
                         base64Data = null,
-                        localImageId = localId,
+                        localImageId = stored.id,
                         thumbnailBase64 = thumbBase64,
                     )
                 }.getOrElse { att }

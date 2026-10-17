@@ -488,6 +488,7 @@
         "errorCorrupted": "無法讀取 {fileName}，檔案可能已損毀。",
         "errorNoText": "無法從 {fileName} 中提取文字（看起來是掃描版 PDF）。",
         "errorUnsupported": "不支援 {fileName} 這種檔案類型。",
+        "errorLegacyFormat": "目前無法讀取 {fileName}，請另存為 .docx、.xlsx 或 .pptx 後重新加入。",
         "errorTooLarge": "{fileName} 太大，不能超過 {maxMB} MB。",
         "tooManyFiles": "這個模型最多可加入 {maxFiles} 個附件。",
         "textBudgetExceeded": "{fileName} 沒有加入：加上它，這則訊息附帶的文字會超過上限。",

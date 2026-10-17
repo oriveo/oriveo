@@ -10,11 +10,7 @@ import { relayCapabilityEvidenceIdentity, resolveModelCapabilityEvidence } from 
 import { relayFirstSendTransport } from '../providers/relay-first-send-transport';
 import { isRelayNegativeCached } from './relay-negative-cache';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from './stream-options';
-
-// Text attachment extensions: providers with textFileInline=true receive these after local extraction.
-const TEXT_FILE_EXTS =
-  '.txt,.csv,.md,.json,.xml,.html,.css,.js,.ts,.jsx,.tsx,.py,.rb,.go,.rs,.java,.kt,.swift,.c,.cpp,.h,.hpp,.sh,.yaml,.yml,.toml,.ini,.env,.log,.sql,.graphql,.proto';
-const OFFICE_FILE_EXTS = '.docx,.xlsx,.pptx,.odt,.ods,.odp,.rtf';
+import { attachmentAcceptExtensions } from '../attachments/attachment-file-types';
 
 export interface AttachmentCapabilities {
   supportsImage: boolean;
@@ -140,9 +136,8 @@ export function buildAcceptAttribute(
   );
   const providerNativeFile = providerAttachmentSupport?.nativeFile ?? false;
   // nativeFile means native PDF upload is supported (OpenAI, Anthropic, Gemini and other direct connections); textFileInline covers text formats only.
-  const fileExts = providerNativeFile
-    ? `.pdf,${TEXT_FILE_EXTS},${OFFICE_FILE_EXTS}`
-    : `${TEXT_FILE_EXTS},${OFFICE_FILE_EXTS}`;
+  // The extensions come from the extractor's own type list (attachment extraction spec section 2); no second copy is kept.
+  const fileExts = attachmentAcceptExtensions({ includePdf: providerNativeFile });
   return supportsImage && supportsFile
     ? `image/*,${fileExts}`
     : supportsImage

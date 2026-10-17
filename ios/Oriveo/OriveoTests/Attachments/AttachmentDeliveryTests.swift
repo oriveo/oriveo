@@ -125,6 +125,58 @@ final class AttachmentDeliveryTests: XCTestCase {
         XCTAssertFalse(plan.injectedText.contains("two"))
     }
 
+    /// A fully scanned file recognized by OCR: carries a body and still records scanned_pdf (attachment extraction spec sections 12, 13).
+    private func ocrScannedPdf(_ text: String = "--- Page 1 (OCR) ---\nscanned body 123") -> Attachment {
+        Attachment(
+            id: UUID(),
+            kind: .file,
+            fileName: "scan.pdf",
+            mimeType: "application/pdf",
+            base64Data: Data(text.utf8).base64EncodedString(),
+            extractedTotalLines: 2,
+            extractedTruncated: false,
+            extractedSizeBytes: 5_000,
+            extractionErrorCode: ExtractionErrorCode.scannedPdf.rawValue,
+            originalBase64Data: "JVBERi0xLjQ="
+        )
+    }
+
+    func testUsableTextPredicateAcceptsScannedPdfWithBody() {
+        XCTAssertTrue(ocrScannedPdf().hasUsableExtractedText)
+        XCTAssertTrue(NativeFileFallback.hasExtractedText(ocrScannedPdf()))
+        XCTAssertTrue(textFile("a.txt").hasUsableExtractedText)
+
+        var scannedWithoutBody = ocrScannedPdf()
+        scannedWithoutBody.base64Data = ""
+        XCTAssertFalse(scannedWithoutBody.hasUsableExtractedText)
+        var corrupted = textFile("b.txt")
+        corrupted.extractionErrorCode = ExtractionErrorCode.corruptedFile.rawValue
+        XCTAssertFalse(corrupted.hasUsableExtractedText)
+
+        // Text quota: the body of a scan is counted as usual.
+        let body = String(repeating: "z", count: 150_000)
+        let admitted = AttachmentDelivery.admitWithinTextBudget(
+            existing: [textFile("big.txt", content: String(repeating: "x", count: 100_000))],
+            incoming: [ocrScannedPdf(body)],
+            provider: nil,
+            model: nil
+        )
+        XCTAssertEqual(admitted.accepted.count, 0)
+        XCTAssertEqual(admitted.rejected.count, 1)
+    }
+
+    func testScannedPdfWithOcrBodyIsInjectedAsSuccess() {
+        let plan = AttachmentDelivery.plan(
+            userText: "question",
+            attachments: [ocrScannedPdf()],
+            transport: profile(.deepseek),
+            model: nil
+        )
+        XCTAssertTrue(plan.injectedText.contains("--- Page 1 (OCR) ---\nscanned body 123"), plan.injectedText)
+        XCTAssertFalse(plan.injectedText.contains("[ERROR: extraction failed"), plan.injectedText)
+        XCTAssertTrue(plan.skipped.isEmpty)
+    }
+
     func testInjectedTextMatchesInjectAllByteForByte() {
         let image = Attachment(id: UUID(), kind: .image, fileName: "p.png", mimeType: "image/png", base64Data: nil)
         let failed = Attachment(

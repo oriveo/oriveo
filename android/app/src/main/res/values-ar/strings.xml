@@ -889,6 +889,7 @@
     <string name="file_extraction_error_encrypted_pdf">الملف \u2066%1$s\u2069 محمي بكلمة مرور. يرجى إزالة كلمة المرور ثم إرفاقه مرة أخرى.</string>
     <string name="file_extraction_error_corrupted">تعذّر قراءة \u2066%1$s\u2069؛ قد يكون الملف تالفًا.</string>
     <string name="file_extraction_error_unsupported">نوع الملف \u2066%1$s\u2069 غير مدعوم.</string>
+    <string name="file_extraction_error_legacy_format">تعذّرت قراءة الملف \u2066%1$s\u2069. احفظه بصيغة \u2066.docx\u2069 أو \u2066.xlsx\u2069 أو \u2066.pptx\u2069 ثم أرفقه مرة أخرى.</string>
     <string name="file_extraction_error_too_large">الملف \u2066%1$s\u2069 كبير جدًا (الحد الأقصى %2$d ميجابايت).</string>
     <string name="file_extraction_error_generic">تعذّر معالجة \u2066%1$s\u2069. حاول مجدداً أو اختر ملفاً آخر.</string>
     <string name="file_extraction_truncated_notice">الملف \u2066%1$s\u2069 طويل، فأُضيف أوله فقط (الأسطر: %2$d من أصل %3$d).</string>

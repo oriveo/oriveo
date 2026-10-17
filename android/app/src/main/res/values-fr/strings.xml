@@ -885,6 +885,7 @@
     <string name="file_extraction_error_encrypted_pdf">%1$s est protégé par un mot de passe. Retirez-le, puis joignez à nouveau le fichier.</string>
     <string name="file_extraction_error_corrupted">Impossible de lire %1$s : le fichier est peut-être endommagé.</string>
     <string name="file_extraction_error_unsupported">Le type de fichier de %1$s n\'est pas pris en charge.</string>
+    <string name="file_extraction_error_legacy_format">Impossible de lire %1$s. Enregistrez-le au format .docx, .xlsx ou .pptx, puis joignez-le à nouveau.</string>
     <string name="file_extraction_error_too_large">%1$s est trop volumineux (%2$d Mo max.).</string>
     <string name="file_extraction_error_generic">Impossible de traiter %1$s. Réessayez ou choisissez un autre fichier.</string>
     <string name="file_extraction_truncated_notice">%1$s est long : seules les %2$d premières lignes sur %3$d ont été ajoutées.</string>

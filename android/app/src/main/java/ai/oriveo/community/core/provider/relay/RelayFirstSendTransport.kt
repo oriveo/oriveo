@@ -4,7 +4,6 @@ import ai.oriveo.community.core.attachments.AttachmentDelivery
 import ai.oriveo.community.core.attachments.AttachmentTransportProfile
 import ai.oriveo.community.core.data.remote.RelayModelFamilyLookup
 import ai.oriveo.community.core.model.AIModel
-import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.Provider
@@ -63,7 +62,7 @@ object RelayFirstSendTransport {
         val effective = RelayEndpointResolver.effectiveTransport(provider, model)
         if (model == null || first == effective || first != RelayTransport.AnthropicMessages) return first
         val files = messages.flatMap { it.attachments.orEmpty() }.filter { it.kind == AttachmentKind.File }
-        if (files.isEmpty() || files.any(::hasExtractedText)) return first
+        if (files.isEmpty() || files.any(AttachmentDelivery::hasUsableText)) return first
         val native = AttachmentDelivery.plan(
             "",
             files,
@@ -72,7 +71,4 @@ object RelayFirstSendTransport {
         ).native
         return if (native.isEmpty()) effective else first
     }
-
-    private fun hasExtractedText(attachment: Attachment): Boolean =
-        attachment.extractionErrorCode == null && !attachment.base64Data.isNullOrEmpty()
 }

@@ -1,0 +1,39 @@
+{
+  "v": 1,
+  "doc": "Attachment extraction output spec, section 2",
+  "legacy": {
+    "extensions": ["doc", "xls", "ppt", "pages", "numbers", "key"],
+    "mimes": ["application/msword", "application/vnd.ms-excel", "application/vnd.ms-powerpoint", "application/vnd.apple.pages", "application/vnd.apple.numbers", "application/vnd.apple.keynote"]
+  },
+  "pdf": { "extensions": ["pdf"], "mimes": ["application/pdf"] },
+  "epub": { "extensions": ["epub"], "mimes": ["application/epub+zip"] },
+  "html": { "extensions": ["html", "htm", "xhtml"], "mimes": ["text/html", "application/xhtml+xml"] },
+  "rtf": { "extensions": ["rtf"], "mimes": ["application/rtf", "text/rtf"] },
+  "docx": { "extensions": ["docx"], "mimes": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"] },
+  "xlsx": { "extensions": ["xlsx"], "mimes": ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"] },
+  "pptx": { "extensions": ["pptx"], "mimes": ["application/vnd.openxmlformats-officedocument.presentationml.presentation"] },
+  "odt": { "extensions": ["odt"], "mimes": ["application/vnd.oasis.opendocument.text"] },
+  "ods": { "extensions": ["ods"], "mimes": ["application/vnd.oasis.opendocument.spreadsheet"] },
+  "odp": { "extensions": ["odp"], "mimes": ["application/vnd.oasis.opendocument.presentation"] },
+  "text": {
+    "extensions": [
+      "txt", "text", "md", "markdown", "mdx", "rst", "adoc", "asciidoc", "org", "tex", "bib", "srt", "vtt",
+      "json", "jsonl", "ndjson", "geojson", "ipynb", "csv", "tsv", "xml", "svg", "yaml", "yml", "toml", "ini",
+      "cfg", "conf", "properties", "env", "log", "diff", "patch", "gitignore", "editorconfig",
+      "py", "pyi", "js", "jsx", "ts", "tsx", "mjs", "cjs", "vue", "svelte", "astro",
+      "go", "rs", "java", "kt", "kts", "scala", "groovy", "gradle", "swift", "m", "mm",
+      "c", "h", "cpp", "hpp", "cc", "cs", "fs", "vb", "rb", "php", "pl", "pm", "lua", "dart", "r", "jl",
+      "hs", "ml", "ex", "exs", "erl", "clj", "zig", "nim",
+      "sh", "bash", "zsh", "fish", "ps1", "bat", "cmd", "sql", "graphql", "proto",
+      "css", "scss", "sass", "less", "tf", "hcl", "cmake"
+    ],
+    "filenames": ["dockerfile", "makefile", "license", "readme", "gitignore", "editorconfig"],
+    "mimes": [
+      "text/plain", "text/markdown", "text/csv", "text/tab-separated-values", "text/xml", "text/css",
+      "text/javascript", "text/x-yaml", "text/x-toml", "text/x-ini", "text/x-python", "text/x-go",
+      "application/json", "application/xml", "application/x-yaml", "application/javascript",
+      "application/typescript", "application/x-sh", "image/svg+xml"
+    ],
+    "anyTextMime": true
+  }
+}

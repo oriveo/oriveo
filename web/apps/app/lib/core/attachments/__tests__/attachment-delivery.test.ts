@@ -97,3 +97,44 @@ describe('findUnsendableTextAttachments', () => {
     expect(findUnsendableTextAttachments(attachments, tight, { transport: 'openai_responses' })).toEqual(injected.skipped);
   });
 });
+
+describe('fully scanned file with usable text (spec section 13: synced after OCR on another platform)', () => {
+  const scannedWithText: Attachment = {
+    id: 'scan.pdf',
+    kind: 'file',
+    fileName: 'scan.pdf',
+    mimeType: PDF,
+    base64Data: '--- Page 1 (OCR) ---\n123',
+    originalBase64Data: 'JVBERi0=',
+    extractedTotalLines: 2,
+    extractedSizeBytes: 4096,
+    extractionErrorCode: 'scanned_pdf',
+  };
+
+  it('with text injection, injects the text as a successful extraction: has FILE_LINES, no error instruction', () => {
+    const delivery = resolveFileAttachmentDelivery(scannedWithText, model(), undefined);
+    expect(delivery.route).toBe('client_extract');
+    if (delivery.route !== 'client_extract') return;
+    expect(delivery.payload.errorCode).toBeUndefined();
+    const block = AttachmentInjector.formatAttachmentXml(1, delivery.payload);
+    expect(block).toContain('<FILE_LINES>2</FILE_LINES>');
+    expect(block).toContain('--- Page 1 (OCR) ---\n123');
+    expect(block).not.toContain('[ERROR:');
+  });
+
+  it('scanned_pdf without text still injects the error instruction', () => {
+    const delivery = resolveFileAttachmentDelivery({ ...scannedWithText, base64Data: '' }, model(), undefined);
+    if (delivery.route !== 'client_extract') throw new Error('expected client_extract');
+    expect(delivery.payload.extracted).toBeNull();
+    expect(AttachmentInjector.formatAttachmentXml(1, delivery.payload)).toContain('[ERROR: extraction failed - scanned_pdf]');
+  });
+
+  it('other error codes are not injected as text even when they carry text', () => {
+    const delivery = resolveFileAttachmentDelivery(
+      { ...scannedWithText, extractionErrorCode: 'encrypted_pdf' }, model(), undefined,
+    );
+    if (delivery.route !== 'client_extract') throw new Error('expected client_extract');
+    expect(delivery.payload.extracted).toBeNull();
+    expect(delivery.payload.errorCode).toBe('encrypted_pdf');
+  });
+});

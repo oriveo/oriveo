@@ -8,6 +8,7 @@ import type { AIModel, ChatMessage, Provider } from '@oriveo/shared';
 import type { ContentPart, StreamOptions } from '../providers/types';
 import { type AttachmentLine, nativeFileModeOf } from '@oriveo/core/providers/attachment-transport';
 import { AttachmentOverLimitError, resolveFileAttachmentDelivery } from '../attachments/attachment-delivery';
+import { hasUsableExtractedText } from '../attachments/file-text-extractor';
 import { type OutboundHistoryMessage, attachTextFallback } from '../attachments/native-file-fallback';
 import type { SkippedAttachment } from '../attachments/attachment-injector';
 import { outboundHistoryHasVideo, relayNativeFileCacheKey, resolveAttachmentLineForMessages } from '../attachments/attachment-transport-resolver';
@@ -108,8 +109,7 @@ async function attachNativeFileTextFallback(
     && message.content.some((part) => part.type === 'file'))) return;
   const hasExtractedText = input.messages.some((message) => message.attachments?.some((attachment) =>
     attachment.kind === 'file'
-    && !attachment.extractionErrorCode
-    && Boolean(attachment.base64Data?.trim())
+    && hasUsableExtractedText(attachment.base64Data, attachment.extractionErrorCode)
     && resolveFileAttachmentDelivery(attachment, input.model, line).route === 'native'));
   if (!hasExtractedText) return;
   let fallback: OutboundHistoryMessage[];

@@ -6,6 +6,8 @@ nonisolated enum BoundedArchiveError: Error, Equatable {
     case entryTooLarge(path: String)
     case archiveTooLarge
     case invalidUTF8(path: String)
+    /// XML part carries a DTD (attachment extraction spec section 15): blocks XXE and billion-laughs in one go.
+    case doctypeDeclared(path: String)
 }
 
 nonisolated struct ArchiveExtractionBudget: Equatable, Sendable {
@@ -82,6 +84,48 @@ nonisolated struct BoundedArchiveReader {
         extractedBytes += result.count
         extractedEntries += 1
         return result
+    }
+
+    /// Reads a part to hand to the XML parser (OOXML / ODF parts, EPUB container.xml and OPF):
+    /// if the first 1024 bytes after the BOM contain `<!DOCTYPE` (case-insensitive), report `doctypeDeclared`.
+    mutating func xmlData(from archive: Archive, entry: Entry) throws -> Data {
+        let data = try data(from: archive, entry: entry)
+        if Self.declaresDoctype(data) {
+            throw BoundedArchiveError.doctypeDeclared(path: entry.path)
+        }
+        return data
+    }
+
+    static let doctypeScanBytes = 1024
+
+    static func declaresDoctype(_ data: Data) -> Bool {
+        let bytes = [UInt8](data.prefix(doctypeScanBytes + 3))
+        let head: String
+        if bytes.starts(with: [0xFF, 0xFE]) {
+            head = utf16Head(data, littleEndian: true)
+        } else if bytes.starts(with: [0xFE, 0xFF]) {
+            head = utf16Head(data, littleEndian: false)
+        } else {
+            let body = bytes.starts(with: [0xEF, 0xBB, 0xBF]) ? Array(bytes.dropFirst(3)) : bytes
+            head = String(decoding: body.prefix(doctypeScanBytes), as: UTF8.self)
+        }
+        return head.range(of: "<!doctype", options: .caseInsensitive) != nil
+    }
+
+    /// UTF-16 parts: decode the first 1024 bytes after the BOM as UTF-16, then search.
+    private static func utf16Head(_ data: Data, littleEndian: Bool) -> String {
+        let body = [UInt8](data.dropFirst(2).prefix(doctypeScanBytes))
+        var units: [UInt16] = []
+        units.reserveCapacity(body.count / 2)
+        var index = 0
+        while index + 1 < body.count {
+            let pair = littleEndian
+                ? UInt16(body[index]) | UInt16(body[index + 1]) << 8
+                : UInt16(body[index]) << 8 | UInt16(body[index + 1])
+            units.append(pair)
+            index += 2
+        }
+        return String(decoding: units, as: UTF16.self)
     }
 
     mutating func string(from archive: Archive, entry: Entry) throws -> String {

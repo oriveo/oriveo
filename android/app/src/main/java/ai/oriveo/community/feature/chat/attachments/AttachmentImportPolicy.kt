@@ -3,6 +3,8 @@ package ai.oriveo.community.feature.chat.attachments
 import android.content.ContentResolver
 import android.net.Uri
 import android.provider.OpenableColumns
+import ai.oriveo.community.core.attachments.ExtractionFileKind
+import ai.oriveo.community.core.attachments.ExtractionFileTypes
 import ai.oriveo.community.core.attachments.MAX_MOBILE_ATTACHMENT_BYTES
 
 object AttachmentImportPolicy {
@@ -13,19 +15,6 @@ object AttachmentImportPolicy {
      * it at once, which is enough to get the process killed.
      */
     const val MAX_ATTACHMENT_BYTES = MAX_MOBILE_ATTACHMENT_BYTES
-
-    private val textExtensions = setOf(
-        "txt", "csv", "md", "json", "xml", "html", "css",
-        "js", "ts", "jsx", "tsx", "py", "rb", "go", "rs",
-        "java", "kt", "swift", "c", "cpp", "h", "hpp",
-        "sh", "bash", "zsh", "yaml", "yml", "toml", "ini",
-        "env", "log", "sql", "graphql", "proto",
-    )
-
-    private val officeExtensions = setOf(
-        "docx", "xlsx", "pptx", "odt", "ods", "odp", "rtf",
-        "epub",
-    )
 
     private val videoExtensions = setOf(
         "mp4", "mov", "mpeg", "mpg", "avi", "flv", "webm", "wmv", "3gp",
@@ -152,23 +141,35 @@ object AttachmentImportPolicy {
     fun isOversized(byteCount: Long?): Boolean =
         byteCount != null && !isWithinSizeLimit(byteCount)
 
+    /**
+     * Types other than video use the same classification function as the extractor (attachment extraction spec section 2: classify by extension if recognized,
+     * only look at the mime if unknown or empty). Legacy formats are blocked first by the caller with a dedicated prompt and do not count as supported here.
+     */
     fun isSupportedFile(fileName: String, detectedMimeType: String?): Boolean {
         val ext = fileExtension(fileName)
-        if (ext.isNotEmpty()) {
-            return ext == "pdf" || textExtensions.contains(ext) || officeExtensions.contains(ext) || videoExtensions.contains(ext)
-        }
+        if (videoExtensions.contains(ext)) return true
+        val normalizedMime = normalizeMimeType(detectedMimeType)
+        if (ext.isEmpty() && normalizedMime.startsWith("video/") && isSupportedMimeType(normalizedMime)) return true
 
-        return isSupportedMimeType(normalizeMimeType(detectedMimeType))
+        val kind = ExtractionFileTypes.classify(fileName, detectedMimeType)
+        return kind != ExtractionFileKind.Unsupported && kind != ExtractionFileKind.Legacy
     }
 
     fun resolveMimeType(fileName: String, detectedMimeType: String?): String {
         val ext = fileExtension(fileName)
         if (ext.isNotEmpty()) {
-            return fallbackMimeType(ext)
+            val byExtension = fallbackMimeType(ext)
+            if (byExtension != OCTET_STREAM) return byExtension
         }
 
         val normalizedMime = normalizeMimeType(detectedMimeType)
-        return if (isSupportedMimeType(normalizedMime)) normalizedMime else "application/octet-stream"
+        if (isSupportedMimeType(normalizedMime)) return normalizedMime
+        // Not in the list but recognized as text by section 2 (text extensions, file names like Dockerfile, any text/*): hand to the extractor as plain text.
+        return if (ExtractionFileTypes.classify(fileName, detectedMimeType) == ExtractionFileKind.Text) {
+            "text/plain"
+        } else {
+            OCTET_STREAM
+        }
     }
 
     fun fallbackMimeType(ext: String): String {
@@ -201,9 +202,11 @@ object AttachmentImportPolicy {
             "webm" -> "video/webm"
             "wmv" -> "video/x-ms-wmv"
             "3gp" -> "video/3gpp"
-            else -> "application/octet-stream"
+            else -> OCTET_STREAM
         }
     }
+
+    private const val OCTET_STREAM = "application/octet-stream"
 
     private fun fileExtension(fileName: String): String =
         fileName.substringAfterLast('.', "").lowercase()

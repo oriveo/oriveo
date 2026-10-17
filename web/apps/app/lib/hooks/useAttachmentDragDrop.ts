@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import type { AIModel, Attachment } from '@oriveo/shared';
 import { importAttachmentFiles } from '../core/attachments/attachment-import';
 
@@ -27,6 +27,7 @@ export function useAttachmentDragDrop(
 ) {
   const [dragActive, setDragActive] = useState(false);
   const tfe = useTranslations('pages.chat.fileExtraction');
+  const locale = useLocale();
   const dragCountRef = useRef(0);
   const enabled = options.enabled ?? true;
   const canAcceptAttachment = options.canAcceptAttachment;
@@ -48,9 +49,10 @@ export function useAttachmentDragDrop(
       model: currentModel,
       canAcceptAttachment,
       onRejectedBySize: (rejected) => onOversizedFiles?.(rejected),
+      uiLanguage: locale,
       translate: tfe,
     }),
-    [canAcceptAttachment, currentModel, onFilesAccepted, onOversizedFiles, providerKind, tfe],
+    [canAcceptAttachment, currentModel, locale, onFilesAccepted, onOversizedFiles, providerKind, tfe],
   );
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {

@@ -51,6 +51,28 @@ describe('validateFile', () => {
     const result = validateFile(makeFile('archive.zip', 'application/zip', 1024));
     expect(result.valid).toBe(false);
   });
+
+  // Attachment extraction output spec section 2: legacy formats are blocked at the entry with a save-as-new-format hint; they count neither as unsupported type nor as too large.
+  it.each([
+    ['report.doc', ''],
+    ['Deck.KEY', ''],
+    ['blob', 'application/vnd.ms-excel'],
+  ])('legacy format %s (%s) is blocked and flagged legacyFormat', (name, type) => {
+    const result = validateFile(makeFile(name, type, 16));
+    expect(result.valid).toBe(false);
+    expect(result.legacyFormat).toBe(true);
+    expect(result.tooLarge).toBeUndefined();
+  });
+
+  // The entry and the extractor use the same list: filenames and extensions on the list and any text/* are accepted.
+  it.each([
+    ['Dockerfile', ''],
+    ['.gitignore', ''],
+    ['notes.mdx', ''],
+    ['a.weird', 'text/x-whatever'],
+  ])('listed text %s (%s) passes the entry', (name, type) => {
+    expect(validateFile(makeFile(name, type, 16)).valid).toBe(true);
+  });
 });
 
 describe('fileToAttachment', () => {
@@ -120,18 +142,19 @@ describe('fileToAttachment', () => {
       expect(attachment.originalBase64Data).toBe(btoa('PKDOCX'));
     });
 
-    it('when Office text is truncated by bytes, the cut falls back to a Sheet boundary and no half sheet is left', async () => {
+    // Attachment extraction output spec section 3.4: the section heading is `## Sheet:` and lookback recognizes `^#{1,6} ` (the old `===Sheet:` was never emitted and is obsolete)
+    it('when Office is truncated by bytes, the cut point backs off to a Sheet boundary, leaving no half table', async () => {
       const row = 'x'.repeat(1023);
       const text = [
-        '===Sheet: A',
+        '## Sheet: A',
         ...Array.from({ length: 190 }, () => row),
-        '===Sheet: B',
+        '## Sheet: B',
         ...Array.from({ length: 100 }, () => row),
       ].join('\n');
       vi.mocked(parseOfficeFile).mockResolvedValueOnce(text);
       const attachment = await fileToAttachment(new File(['PKXLSX'], 'book.xlsx', { type: XLSX }));
       expect(attachment.extractedTruncated).toBe(true);
-      expect(attachment.base64Data).not.toContain('===Sheet: B');
+      expect(attachment.base64Data).not.toContain('## Sheet: B');
       expect(attachment.base64Data?.split('\n')).toHaveLength(191);
     });
   });
@@ -152,6 +175,31 @@ describe('fileToAttachment', () => {
   it('accepts .htm and .xhtml, which reach the extractor rather than validation', () => {
     expect(validateFile(new File(['<p>hi</p>'], 'page.htm', { type: 'text/html' })).valid).toBe(true);
     expect(validateFile(new File(['<p>hi</p>'], 'page.xhtml', { type: 'application/xhtml+xml' })).valid).toBe(true);
+  });
+
+  // Attachment extraction output spec section 4: plain text encoding is detected by a deterministic algorithm; the UI language only breaks ties.
+  it('plain text is decoded per spec: GBK bytes yield Chinese rather than mojibake under the Simplified Chinese UI', async () => {
+    const gbk = new Uint8Array([0xd6, 0xd0, 0xce, 0xc4, 0xb2, 0xe2, 0xca, 0xd4]);
+    const attachment = await fileToAttachment(new File([gbk], 'gbk.txt', { type: 'text/plain' }), DEFAULT_LIMITS, 'zh-Hans');
+    expect(attachment.base64Data).toBe('\u4E2D\u6587\u6D4B\u8BD5');
+    expect(attachment.extractionErrorCode).toBeUndefined();
+  });
+
+  it('text extension but binary content: bytes are not treated as text, flagged unsupported_format', async () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]);
+    const attachment = await fileToAttachment(new File([png], 'image.txt', { type: 'text/plain' }));
+    expect(attachment.extractionErrorCode).toBe('unsupported_format');
+    expect(attachment.base64Data).toBe('');
+  });
+
+  // Spec section 16: a docx with an OLE header is an encrypted file, decided before opening the zip; the original bytes are kept as usual.
+  it('a docx with an OLE header reports password_protected_office and does not enter the Office parser', async () => {
+    vi.mocked(parseOfficeFile).mockClear();
+    const ole = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0x00, 0x00]);
+    const attachment = await fileToAttachment(new File([ole], 'secret.docx', { type: '' }));
+    expect(attachment.extractionErrorCode).toBe('password_protected_office');
+    expect(attachment.originalBase64Data).toBeDefined();
+    expect(parseOfficeFile).not.toHaveBeenCalled();
   });
 
   it('should convert video files into video attachments', async () => {
@@ -256,7 +304,24 @@ describe('validateAndConvertFiles', () => {
     expect(read.mock.calls.some(([blob]) => (blob as File).name === 'huge.txt')).toBe(false);
   });
 
-  it('does not report a file of an unsupported type as too large', async () => {
+  it('legacy formats are not read, do not enter the attachment bar, and only call onLegacyFormat', async () => {
+    const onFailed = vi.fn();
+    const onTooLarge = vi.fn();
+    const onLegacyFormat = vi.fn();
+    const legacy = new File(['x'], 'old.xls', { type: '' });
+    const ok = new File(['hello'], 'ok.txt', { type: 'text/plain' });
+
+    const attachments = await validateAndConvertFiles(
+      [legacy, ok], 'file', undefined, onFailed, onTooLarge, DEFAULT_LIMITS, { onLegacyFormat },
+    );
+
+    expect(attachments.map((a) => a.fileName)).toEqual(['ok.txt']);
+    expect(onLegacyFormat).toHaveBeenCalledExactlyOnceWith(legacy);
+    expect(onFailed).not.toHaveBeenCalled();
+    expect(onTooLarge).not.toHaveBeenCalled();
+  });
+
+  it('an unsupported-type file does not count as "file too large"', async () => {
     const onTooLarge = vi.fn();
     const exe = new File(['x'], 'tool.exe', { type: 'application/x-msdownload' });
 
@@ -318,10 +383,14 @@ describe('validateAndConvertFiles', () => {
 
   it('does not let a batch that failed as a whole block later imports', async () => {
     const telemetry = await import('../../core/telemetry');
-    vi.spyOn(telemetry, 'trackEvent').mockImplementationOnce(() => { throw new Error('telemetry down'); });
+    // Plain text also goes through the extractor (the extractor's own instrumentation is inside the single-file failure boundary), so only the batch layer's attachment_added throws.
+    const spy = vi.spyOn(telemetry, 'trackEvent').mockImplementation((event) => {
+      if (event === 'attachment_added') throw new Error('telemetry down');
+    });
     await expect(
       validateAndConvertFiles([new File(['x'], 'one.txt', { type: 'text/plain' })], 'file'),
     ).rejects.toThrow('telemetry down');
+    spy.mockRestore();
 
     const next = await validateAndConvertFiles([new File(['y'], 'two.txt', { type: 'text/plain' })], 'file');
     expect(next.map((a) => a.fileName)).toEqual(['two.txt']);

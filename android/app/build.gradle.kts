@@ -176,6 +176,15 @@ android {
             })
         }
     }
+
+    sourceSets {
+        // PdfOcrInstrumentedTest runs the shared scanned-PDF fixtures through the real ML Kit on an emulator.
+        // The shared directory is mounted directly instead of copied so there is a single source of truth;
+        // it only lands in the test APK (instrumentation.context.assets), never in the app package.
+        getByName("androidTest").assets.directories.add(
+            "$projectDir/../../shared/test-fixtures/attachments/extraction/files/pdf",
+        )
+    }
 }
 
 // Release artifacts must never be produced with the debug key by accident, so the check runs both
@@ -267,6 +276,12 @@ dependencies {
     // Document text extraction
     implementation(libs.pdfbox.android)
     implementation(libs.jsoup)
+
+    // OCR for scanned PDFs
+    implementation(libs.mlkit.text.recognition.chinese)
+    implementation(libs.mlkit.text.recognition.japanese)
+    implementation(libs.mlkit.text.recognition.korean)
+    implementation(libs.mlkit.text.recognition.devanagari)
 
     // LaTeX rendering in Markdown
     implementation(libs.jlatexmath.android)

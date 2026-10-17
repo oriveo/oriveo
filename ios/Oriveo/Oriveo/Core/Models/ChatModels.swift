@@ -494,7 +494,8 @@ nonisolated struct Attachment: Identifiable, Hashable, Codable, Sendable {
     var resolvedDataURL: String {
         let b64 = resolvedBase64Data
         guard !b64.isEmpty else { return "" }
-        return "data:\(mimeType);base64,\(b64)"
+        let mime = kind == .image ? ImageMediaType.resolve(base64: b64, declared: mimeType) : mimeType
+        return "data:\(mime);base64,\(b64)"
     }
 
 

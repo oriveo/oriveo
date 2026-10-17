@@ -930,7 +930,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             guard !b64.isEmpty else { continue }
             contentBlocks.append(.init(
                 type: "image",
-                source: .init(type: "base64", media_type: a.mimeType, data: b64)
+                source: .init(type: "base64", media_type: ImageMediaType.resolve(base64: b64, declared: a.mimeType), data: b64)
             ))
         }
         for f in nativeAtts {

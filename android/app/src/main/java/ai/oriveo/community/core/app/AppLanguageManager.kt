@@ -30,4 +30,20 @@ object AppLanguageManager {
     /** The language identifier sent outbound, with Unicode extensions removed (ar-u-nu-latn -> ar); servers and analytics only read language and region. */
     fun outboundLanguageTag(locale: Locale = Locale.getDefault()): String =
         Locale.Builder().setLocale(locale).clearExtensions().build().toLanguageTag()
+
+    /**
+     * uiLanguage from attachment extraction spec section 1: zh-Hans / zh-Hant / ja / ko / ru, everything else is en.
+     * Only used as the tie-breaker in plain-text encoding detection (section 4). When Chinese has no script, decide by region: Taiwan, Hong Kong and Macau are Traditional.
+     */
+    fun extractionUiLanguage(locale: Locale = Locale.getDefault()): String = when (locale.language) {
+        "zh" -> when {
+            locale.script == "Hant" -> "zh-Hant"
+            locale.script.isEmpty() && locale.country in TRADITIONAL_CHINESE_REGIONS -> "zh-Hant"
+            else -> "zh-Hans"
+        }
+        "ja", "ko", "ru" -> locale.language
+        else -> "en"
+    }
+
+    private val TRADITIONAL_CHINESE_REGIONS = setOf("TW", "HK", "MO")
 }

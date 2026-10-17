@@ -488,6 +488,7 @@
         "errorCorrupted": "อ่าน {fileName} ไม่ได้ — ไฟล์อาจเสียหาย",
         "errorNoText": "ไม่สามารถแยกข้อความจาก {fileName} ได้ (ดูเหมือนเป็น PDF ที่สแกนมา)",
         "errorUnsupported": "{fileName} ไม่ใช่ชนิดไฟล์ที่รองรับ",
+        "errorLegacyFormat": "อ่าน {fileName} ไม่ได้ บันทึกเป็น .docx, .xlsx หรือ .pptx แล้วอัปโหลดอีกครั้ง",
         "errorTooLarge": "{fileName} มีขนาดใหญ่เกินไป (สูงสุด {maxMB} MB)",
         "tooManyFiles": "คุณแนบไฟล์ได้สูงสุด {maxFiles} ไฟล์สำหรับโมเดลนี้",
         "textBudgetExceeded": "ไม่ได้เพิ่ม {fileName} เพราะจะทำให้เนื้อหาไฟล์ที่แนบกับข้อความนี้เกินขีดจำกัด",

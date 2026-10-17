@@ -64,6 +64,26 @@ struct ArchiveExtractionSafetyTests {
         }
     }
 
+    @Test("controlled failure when the first 1024 bytes of an XML part after the BOM contain DOCTYPE (case-insensitive)")
+    func rejectsDoctypeInXmlParts() throws {
+        let declared = Data([0xEF, 0xBB, 0xBF]) + Data("<?xml version=\"1.0\"?>\n<!DOCTYPE r [<!ENTITY x \"y\">]><r>&x;</r>".utf8)
+        let lowercase = Data("<?xml version=\"1.0\"?><!doctype r><r/>".utf8)
+        let late = Data(("<r>" + String(repeating: " ", count: 1_100) + "<!DOCTYPE x></r>").utf8)
+        let plain = Data("<?xml version=\"1.0\"?><r>ok</r>".utf8)
+        let archiveData = try makeArchive([("a.xml", declared), ("b.xml", lowercase), ("c.xml", late), ("d.xml", plain)])
+        let archive = try #require(Archive(data: archiveData, accessMode: .read))
+        var reader = BoundedArchiveReader(budget: .attachment(maxOutputBytes: 1_024))
+
+        for path in ["a.xml", "b.xml"] {
+            let entry = try #require(archive[path])
+            #expect(throws: BoundedArchiveError.doctypeDeclared(path: path)) {
+                _ = try reader.xmlData(from: archive, entry: entry)
+            }
+        }
+        #expect(try reader.xmlData(from: archive, entry: try #require(archive["c.xml"])) == late)
+        #expect(try reader.xmlData(from: archive, entry: try #require(archive["d.xml"])) == plain)
+    }
+
     private func makeArchive(_ entries: [(String, Data)]) throws -> Data {
         let archive = try #require(Archive(accessMode: .create))
         for (path, data) in entries {

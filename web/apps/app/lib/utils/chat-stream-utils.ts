@@ -15,6 +15,7 @@ import {
 } from '@oriveo/core/providers/tool-call-accumulator';
 import { imageSizeBytes, loadImageBase64 } from '../infra/storage/image-store';
 import { createCanonicalUUID } from './id-utils';
+import { detectImageMime } from './image-utils';
 import {
   type AttachmentLine,
   type AttachmentWrapperVersion,
@@ -95,7 +96,7 @@ export async function buildChatHistory(
             parts.push({
               type: 'image_url',
               // Send detail=auto explicitly so a future low/high UI toggle has something to build on.
-              image_url: { url: `data:${att.mimeType};base64,${b64}`, detail: 'auto' },
+              image_url: { url: `data:${detectImageMime(b64) ?? att.mimeType};base64,${b64}`, detail: 'auto' },
             });
           }
         } else if (att.kind === 'video' && att.base64Data) {

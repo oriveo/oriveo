@@ -3,6 +3,7 @@ package ai.oriveo.community.core.provider
 import ai.oriveo.community.core.attachments.AttachmentDelivery
 import ai.oriveo.community.core.attachments.AttachmentInjector
 import ai.oriveo.community.core.attachments.AttachmentTransportProfile
+import ai.oriveo.community.core.attachments.ImageMediaType
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
@@ -347,7 +348,7 @@ object MessageBuilder {
                 AttachmentKind.Image -> {
                     if (imagePlaceholder != null) continue
                     val base64 = att.base64Data ?: att.thumbnailBase64 ?: continue
-                    val dataUri = if (base64.startsWith("data:")) base64 else "data:${att.mimeType};base64,$base64"
+                    val dataUri = if (base64.startsWith("data:")) base64 else "data:${ImageMediaType.resolve(base64, att.mimeType)};base64,$base64"
                     // detail=auto is sent explicitly; OpenAI-compatible upstreams consume the field
                     // and everyone else ignores it.
                     parts.add("""{"type":"image_url","image_url":{"url":"$dataUri","detail":"auto"}}""")
@@ -418,7 +419,7 @@ object MessageBuilder {
             when (att.kind) {
                 AttachmentKind.Image -> {
                     val base64 = att.base64Data ?: att.thumbnailBase64 ?: continue
-                    val dataUri = if (base64.startsWith("data:")) base64 else "data:${att.mimeType};base64,$base64"
+                    val dataUri = if (base64.startsWith("data:")) base64 else "data:${ImageMediaType.resolve(base64, att.mimeType)};base64,$base64"
                     // detail=auto is sent explicitly: it makes the default visible and leaves room
                     // for a UI switch later.
                     parts.add("""{"type":"input_image","image_url":"$dataUri","detail":"auto"}""")
@@ -511,7 +512,7 @@ object MessageBuilder {
                 AttachmentKind.Image -> {
                     if (imagePlaceholder != null) continue
                     val base64 = att.base64Data ?: att.thumbnailBase64 ?: continue
-                    parts.add("""{"type":"image","source":{"type":"base64","media_type":"${att.mimeType}","data":"$base64"}}""")
+                    parts.add("""{"type":"image","source":{"type":"base64","media_type":"${ImageMediaType.resolve(base64, att.mimeType)}","data":"$base64"}}""")
                 }
                 AttachmentKind.Video -> Unit  // folded into the text part below
                 AttachmentKind.File -> Unit   // handled through the delivery plan
@@ -550,7 +551,8 @@ object MessageBuilder {
             AttachmentKind.Video -> att.base64Data
             AttachmentKind.File -> null // handled through the delivery plan
         } ?: return@mapNotNull null
-        """{"inlineData":{"mimeType":"${att.mimeType}","data":"$base64"}}"""
+        val mimeType = if (att.kind == AttachmentKind.Image) ImageMediaType.resolve(base64, att.mimeType) else att.mimeType
+        """{"inlineData":{"mimeType":"$mimeType","data":"$base64"}}"""
     }
 
     private fun buildGeminiParts(

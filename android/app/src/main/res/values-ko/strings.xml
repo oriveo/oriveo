@@ -886,6 +886,7 @@
     <string name="file_extraction_error_encrypted_pdf">%1$s 파일에 비밀번호가 걸려 있습니다. 비밀번호를 해제한 뒤 다시 첨부해 주세요.</string>
     <string name="file_extraction_error_corrupted">%1$s 파일을 읽을 수 없습니다. 손상되었을 수 있습니다.</string>
     <string name="file_extraction_error_unsupported">%1$s 파일은 지원되지 않는 형식입니다.</string>
+    <string name="file_extraction_error_legacy_format">%1$s 파일은 읽을 수 없습니다. .docx, .xlsx 또는 .pptx 형식으로 다시 저장한 뒤 첨부해 주세요.</string>
     <string name="file_extraction_error_too_large">%1$s 파일이 너무 큽니다(최대 %2$dMB).</string>
     <string name="file_extraction_error_generic">%1$s을(를) 처리할 수 없습니다. 다시 시도하거나 다른 파일을 선택하세요.</string>
     <string name="file_extraction_truncated_notice">%1$s 파일이 길어서 전체 %3$d줄 중 처음 %2$d줄만 추가했습니다.</string>

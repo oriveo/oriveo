@@ -8,6 +8,7 @@ import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderServiceError
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -90,6 +91,40 @@ class AttachmentDeliveryTest {
             assertEquals(transport.toString(), emptyList<Attachment>(), textOnly.native)
             assertEquals(transport.toString(), 3, textOnly.items.count { it.route == AttachmentDelivery.Route.Text })
         }
+    }
+
+    private fun scannedPdf(body: String) = Attachment(
+        id = "scan.pdf", kind = AttachmentKind.File, fileName = "scan.pdf", mimeType = "application/pdf",
+        base64Data = Base64.getEncoder().encodeToString(body.toByteArray()),
+        extractedSizeBytes = 5_000, originalBase64Data = "ZmFrZQ==",
+        extractionErrorCode = ExtractionErrorCode.ScannedPdf.raw,
+    )
+
+    @Test
+    fun `usable text means a non-empty body with no error code or the scanned code`() {
+        assertTrue(AttachmentDelivery.hasUsableText(textFile("a.txt", "alpha")))
+        assertTrue(AttachmentDelivery.hasUsableText(scannedPdf("--- Page 1 (OCR) ---\n123")))
+        assertFalse(AttachmentDelivery.hasUsableText(scannedPdf("").copy(base64Data = "")))
+        assertFalse(AttachmentDelivery.hasUsableText(scannedPdf("x").copy(extractionErrorCode = "corrupted_file")))
+        assertFalse(AttachmentDelivery.hasUsableText(textFile("b.txt", "").copy(base64Data = null)))
+    }
+
+    @Test
+    fun `a scanned pdf that carries recognized text is injected as a successful extraction`() {
+        val body = "--- Page 1 (OCR) ---\n123"
+        val payload = AttachmentDelivery.toAttachmentPayloads(listOf(scannedPdf(body))).single()
+        assertNull(payload.errorCode)
+        assertEquals(body, payload.extracted?.content)
+
+        val result = plan(listOf(scannedPdf(body)), model = null, allowNative = true)
+        assertEquals(listOf(AttachmentDelivery.Route.Text), result.items.map { it.route })
+        assertTrue(result.text, result.text.contains(body))
+        assertFalse(result.text, result.text.contains("scanned PDF without a text layer"))
+
+        // A scanned file without body text still carries the error instruction.
+        val empty = AttachmentDelivery.toAttachmentPayloads(listOf(scannedPdf("").copy(base64Data = ""))).single()
+        assertEquals(ExtractionErrorCode.ScannedPdf, empty.errorCode)
+        assertNull(empty.extracted)
     }
 
     @Test

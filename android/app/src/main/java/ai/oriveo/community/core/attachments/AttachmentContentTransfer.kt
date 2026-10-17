@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.attachments
 
+import ai.oriveo.community.core.data.attachment.StoredImage
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ChatMessage
@@ -80,7 +81,7 @@ object AttachmentSlimmer {
 
     suspend fun slim(
         attachment: Attachment,
-        saveImage: suspend (ByteArray) -> String,
+        saveImage: suspend (ByteArray) -> StoredImage?,
         saveBlob: suspend (ByteArray) -> String,
     ): Attachment {
         return when (attachment.kind) {
@@ -93,7 +94,7 @@ object AttachmentSlimmer {
     private fun decode(base64: String): ByteArray? =
         runCatching { Base64.getDecoder().decode(base64) }.getOrNull()
 
-    private suspend fun slimImage(attachment: Attachment, saveImage: suspend (ByteArray) -> String): Attachment {
+    private suspend fun slimImage(attachment: Attachment, saveImage: suspend (ByteArray) -> StoredImage?): Attachment {
         val base64 = attachment.base64Data
         if (base64.isNullOrEmpty()) return attachment
 
@@ -101,8 +102,8 @@ object AttachmentSlimmer {
             return attachment.copy(base64Data = null)
         }
         val bytes = decode(base64) ?: return attachment.copy(base64Data = null)
-        val localId = runCatching { saveImage(bytes) }.getOrNull() ?: return attachment
-        return attachment.copy(base64Data = null, localImageId = localId)
+        val stored = runCatching { saveImage(bytes) }.getOrNull() ?: return attachment
+        return attachment.copy(base64Data = null, localImageId = stored.id, mimeType = stored.mimeType)
     }
 
     private suspend fun slimVideo(attachment: Attachment, saveBlob: suspend (ByteArray) -> String): Attachment {

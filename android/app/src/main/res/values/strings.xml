@@ -964,6 +964,7 @@
     <string name="file_extraction_error_encrypted_pdf">%1$s is password-protected. Remove the password, then attach it again.</string>
     <string name="file_extraction_error_corrupted">Couldn\'t read %1$s — the file may be corrupted.</string>
     <string name="file_extraction_error_unsupported">%1$s is not a supported file type.</string>
+    <string name="file_extraction_error_legacy_format">Can\'t read %1$s. Save it as .docx, .xlsx, or .pptx, then attach it again.</string>
     <string name="file_extraction_error_too_large">%1$s is too large (max %2$d MB).</string>
     <string name="file_extraction_error_generic">Couldn\'t process %1$s. Try again or pick another file.</string>
     <string name="file_extraction_truncated_notice">%1$s is long, so only the first %2$d of %3$d lines were added.</string>

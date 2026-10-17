@@ -850,6 +850,7 @@
     <string name="file_extraction_error_encrypted_pdf">%1$s dilindungi kata sandi. Hapus kata sandinya, lalu lampirkan lagi.</string>
     <string name="file_extraction_error_corrupted">Tidak dapat membaca %1$s; berkasnya mungkin rusak.</string>
     <string name="file_extraction_error_unsupported">%1$s bukan jenis berkas yang didukung.</string>
+    <string name="file_extraction_error_legacy_format">%1$s tidak dapat dibaca. Simpan sebagai .docx, .xlsx, atau .pptx, lalu lampirkan lagi.</string>
     <string name="file_extraction_error_too_large">%1$s terlalu besar (maks. %2$d MB).</string>
     <string name="file_extraction_error_generic">Tidak dapat memproses %1$s. Coba lagi atau pilih file lain.</string>
     <string name="file_extraction_truncated_notice">%1$s panjang, sehingga hanya %2$d baris pertama dari %3$d baris yang ditambahkan.</string>

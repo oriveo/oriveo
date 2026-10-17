@@ -488,6 +488,7 @@
         "errorCorrupted": "{fileName} 파일을 읽을 수 없습니다. 손상되었을 수 있습니다.",
         "errorNoText": "{fileName}에서 텍스트를 추출할 수 없습니다(스캔한 PDF로 보입니다).",
         "errorUnsupported": "{fileName} 파일은 지원되지 않는 형식입니다.",
+        "errorLegacyFormat": "{fileName} 파일은 읽을 수 없습니다. .docx, .xlsx 또는 .pptx 형식으로 다시 저장한 뒤 첨부해 주세요.",
         "errorTooLarge": "{fileName} 파일이 너무 큽니다(최대 {maxMB}MB).",
         "tooManyFiles": "이 모델에는 최대 {maxFiles}개의 파일을 첨부할 수 있습니다.",
         "textBudgetExceeded": "{fileName} 파일은 추가되지 않았습니다. 추가하면 이 메시지에 첨부할 수 있는 텍스트 한도를 넘습니다.",

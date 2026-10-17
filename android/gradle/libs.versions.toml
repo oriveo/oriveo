@@ -36,6 +36,9 @@ kotlinxSerialization = "1.11.0"
 
 # PDF
 pdfboxAndroid = "2.0.27.0"
+# OCR for scanned PDFs: the Chinese recognizer ships in the app, Japanese / Korean / Devanagari come from Play services; both share common 19.1.0 and can be mixed
+mlkitTextRecognitionChinese = "16.0.1"
+mlkitTextRecognitionPlayServices = "16.0.1"
 
 # HTML text extraction for attached web pages
 jsoup = "1.23.2"
@@ -107,6 +110,10 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 
 # PDF
 pdfbox-android = { group = "com.tom-roush", name = "pdfbox-android", version.ref = "pdfboxAndroid" }
+mlkit-text-recognition-chinese = { group = "com.google.mlkit", name = "text-recognition-chinese", version.ref = "mlkitTextRecognitionChinese" }
+mlkit-text-recognition-japanese = { group = "com.google.android.gms", name = "play-services-mlkit-text-recognition-japanese", version.ref = "mlkitTextRecognitionPlayServices" }
+mlkit-text-recognition-korean = { group = "com.google.android.gms", name = "play-services-mlkit-text-recognition-korean", version.ref = "mlkitTextRecognitionPlayServices" }
+mlkit-text-recognition-devanagari = { group = "com.google.android.gms", name = "play-services-mlkit-text-recognition-devanagari", version.ref = "mlkitTextRecognitionPlayServices" }
 jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 
 androidx-metrics-performance = { group = "androidx.metrics", name = "metrics-performance", version.ref = "metricsPerformance" }

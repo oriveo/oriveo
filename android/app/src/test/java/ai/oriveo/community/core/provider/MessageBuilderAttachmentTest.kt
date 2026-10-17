@@ -329,6 +329,22 @@ class MessageBuilderAttachmentTest {
         assertEquals("hi\n\n[Image omitted: unsupported by DeepSeek]", deepSeek)
     }
 
+    /** Older builds stored PNG screenshots as JPEG but kept image/png; Anthropic validates bytes against media_type and returns 400. */
+    @Test
+    fun imageMimeSentUpstreamFollowsTheBytesNotTheLabel() {
+        val jpegBase64 = Base64.getEncoder().encodeToString(
+            byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte()) + ByteArray(32),
+        )
+        val image = Attachment(id = "img", kind = AttachmentKind.Image, fileName = "shot.png", mimeType = "image/png", base64Data = jpegBase64)
+        val messages = listOf(makeMsg(ProviderKind.Anthropic, "what is this", image))
+        for ((name, build) in builders(null).filterKeys { it in setOf("chat completions", "responses", "anthropic", "gemini") }) {
+            val body = build(messages)
+            assertTrue("$name: $body", body.contains(jpegBase64))
+            assertTrue("$name: $body", body.contains("image/jpeg"))
+            assertFalse("$name: $body", body.contains("image/png"))
+        }
+    }
+
     @Test
     fun llamaCppNativeRejectsTheMessageBeingSentWhenAFileCannotBeDelivered() {
         val options = ai.oriveo.community.core.model.ChatRequestOptions()

@@ -488,6 +488,7 @@
         "errorCorrupted": "{fileName} okunamadı; dosya bozuk olabilir.",
         "errorNoText": "{fileName} dosyasından metin çıkarılamadı (taranmış bir PDF gibi görünüyor).",
         "errorUnsupported": "{fileName} dosyasının türü desteklenmiyor.",
+        "errorLegacyFormat": "{fileName} okunamıyor. Dosyayı .docx, .xlsx veya .pptx olarak kaydedip yeniden ekleyin.",
         "errorTooLarge": "{fileName} çok büyük (en fazla {maxMB} MB).",
         "tooManyFiles": "Bu model için en fazla {maxFiles} dosya ekleyebilirsin.",
         "textBudgetExceeded": "{fileName} eklenmedi: eklenseydi bu mesaja iliştirilen metin izin verilen sınırı aşardı.",

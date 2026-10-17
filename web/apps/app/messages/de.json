@@ -488,6 +488,7 @@
         "errorCorrupted": "{fileName} konnte nicht gelesen werden – die Datei ist möglicherweise beschädigt.",
         "errorNoText": "Aus {fileName} ließ sich kein Text auslesen (vermutlich ein gescanntes PDF).",
         "errorUnsupported": "Der Dateityp von {fileName} wird nicht unterstützt.",
+        "errorLegacyFormat": "{fileName} kann nicht gelesen werden. Speichere die Datei als .docx, .xlsx oder .pptx und lade sie erneut hoch.",
         "errorTooLarge": "{fileName} ist zu groß (max. {maxMB} MB).",
         "tooManyFiles": "Für dieses Modell kannst du bis zu {maxFiles} Dateien anhängen.",
         "textBudgetExceeded": "{fileName} wurde nicht hinzugefügt: Damit würde der angehängte Text dieser Nachricht das Limit überschreiten.",
