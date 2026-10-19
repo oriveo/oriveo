@@ -25,8 +25,16 @@ enum ShotsLayoutProbe {
         var stableSince = Date()
         var nodes: [Node] = []
         var timedOut = true
+        let scrollToBottom = MemoryShots.isScrollToBottomRequested
         while Date().timeIntervalSince(start) < timeout {
             try? await Task.sleep(nanoseconds: 250_000_000)
+            // -SHOTS_SCROLL_BOTTOM: scroll to the bottom once the page has content; if it moved again, restart the stability window and write the layout tree only after scrolling settles
+            if scrollToBottom, !nodes.isEmpty, MemoryShots.scrollListToBottom() {
+                lastSignature = ""
+                stableSince = Date()
+                nodes = collect()
+                continue
+            }
             nodes = collect()
             // Digits are wiped out: a running timer must not keep the page from ever becoming "ready"
             let signature = nodes.map(\.signature).joined(separator: "\n").replacingOccurrences(of: "[0-9]", with: "#", options: .regularExpression)

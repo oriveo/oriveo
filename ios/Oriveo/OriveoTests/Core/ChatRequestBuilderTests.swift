@@ -1,4 +1,5 @@
 import Foundation
+import OriveoProviderKit
 import Testing
 @testable import Oriveo
 
@@ -25,13 +26,13 @@ struct ChatRequestBuilderTests {
             sendPath: .send(excludingMessageID: nil)
         )
 
-        let result = ChatRequestBuilder.build(from: snapshot)
-        let requestUser = try #require(result.requestMessages.first)
+        let result = ChatRequestBuilder.build(from: snapshot, assembly: RetiredAntiForgetProbe.assembly)
+        let requestUser = try #require(result.planned.messages.first)
         #expect(requestUser.text.contains("\"selected\":\"conclusion\""))
         #expect(requestUser.text.hasSuffix("[Current User Input]\nContinue this paragraph"))
         #expect(requestUser.quoteContext == nil)
         #expect(user.text == "Continue this paragraph")
-        #expect(result.requestOptions.systemPrompt.isEmpty)
+        #expect(result.planned.system.isEmpty)
     }
 
     @Test("send path preserves delivered attachment-only user messages")
@@ -63,13 +64,13 @@ struct ChatRequestBuilderTests {
             sendPath: .send(excludingMessageID: generatingAssistantID)
         )
 
-        let result = ChatRequestBuilder.build(from: snapshot)
+        let result = ChatRequestBuilder.build(from: snapshot, assembly: RetiredAntiForgetProbe.assembly)
 
-        #expect(result.requestMessages.count == 2)
-        #expect(result.requestMessages.first?.id == attachmentOnlyMessage.id)
-        #expect(result.requestMessages.first?.attachments?.first?.fileName == "diagram.png")
-        #expect(result.requestMessages.first?.text.isEmpty == true)
-        #expect(result.requestMessages.last?.id == deliveredAssistant.id)
+        #expect(result.planned.messages.count == 2)
+        #expect(result.planned.messages.first?.id == attachmentOnlyMessage.id)
+        #expect(result.planned.messages.first?.attachments?.first?.fileName == "diagram.png")
+        #expect(result.planned.messages.first?.text.isEmpty == true)
+        #expect(result.planned.messages.last?.id == deliveredAssistant.id)
     }
 
     @Test("send path strips AI-generated images off assistant messages but keeps their text")
@@ -91,11 +92,12 @@ struct ChatRequestBuilderTests {
             sendPath: .send(excludingMessageID: nil)
         )
 
-        let result = ChatRequestBuilder.build(from: snapshot)
+        let result = ChatRequestBuilder.build(from: snapshot, assembly: RetiredAntiForgetProbe.assembly)
 
-        #expect(result.requestMessages.map(\.role) == [.user, .assistant, .user])
-        let assistantTurn = result.requestMessages.first(where: { $0.role == .assistant })
+        #expect(result.planned.messages.map(\.role) == [.user, .assistant, .user])
+        let assistantTurn = result.planned.messages.first(where: { $0.role == .assistant })
         #expect(assistantTurn?.text == "Here is the image I generated for you")
+        // The generated image is stripped, so the assistant no longer carries any media attachment
         #expect(assistantTurn?.attachments?.isEmpty ?? true)
     }
 
@@ -117,13 +119,13 @@ struct ChatRequestBuilderTests {
             sendPath: .send(excludingMessageID: nil)
         )
 
-        let result = ChatRequestBuilder.build(from: snapshot)
+        let result = ChatRequestBuilder.build(from: snapshot, assembly: RetiredAntiForgetProbe.assembly)
 
         // The text-less generated-image assistant becomes empty and is dropped; the now adjacent users merge
         // into one, with the earlier text inside the unanswered envelope (contract sanitize.v1).
-        #expect(result.requestMessages.map(\.role) == [.user])
-        #expect(result.requestMessages.first?.id == followUp.id)
-        #expect(result.requestMessages.first?.text == "<oriveo-unanswered>\n<note>\(ChatRequestBuilder.unansweredEnvelopeNote)</note>\nDraw a farmer\n</oriveo-unanswered>\n\nNice")
+        #expect(result.planned.messages.map(\.role) == [.user])
+        #expect(result.planned.messages.first?.id == followUp.id)
+        #expect(result.planned.messages.first?.text == "<oriveo-unanswered>\n<note>\(ContextSanitizer.unansweredNote)</note>\nDraw a farmer\n</oriveo-unanswered>\n\nNice")
     }
 
     @Test("send path folds the older user left by a dropped mid-history empty failed assistant into the envelope")
@@ -149,11 +151,11 @@ struct ChatRequestBuilderTests {
             sendPath: .send(excludingMessageID: nil)
         )
 
-        let result = ChatRequestBuilder.build(from: snapshot)
+        let result = ChatRequestBuilder.build(from: snapshot, assembly: RetiredAntiForgetProbe.assembly)
 
-        #expect(result.requestMessages.map(\.role) == [.user, .assistant, .user])
-        #expect(result.requestMessages.map(\.text) == ["q1", "a1", "<oriveo-unanswered>\n<note>\(ChatRequestBuilder.unansweredEnvelopeNote)</note>\nq2\n</oriveo-unanswered>\n\nq3"])
-        #expect(result.requestMessages.last?.id == u3.id)
+        #expect(result.planned.messages.map(\.role) == [.user, .assistant, .user])
+        #expect(result.planned.messages.map(\.text) == ["q1", "a1", "<oriveo-unanswered>\n<note>\(ContextSanitizer.unansweredNote)</note>\nq2\n</oriveo-unanswered>\n\nq3"])
+        #expect(result.planned.messages.last?.id == u3.id)
     }
 
     @Test("send path keeps the orphaned earlier user as unanswered context when a stopped empty assistant is removed")
@@ -173,11 +175,11 @@ struct ChatRequestBuilderTests {
             sendPath: .send(excludingMessageID: nil)
         )
 
-        let result = ChatRequestBuilder.build(from: snapshot)
+        let result = ChatRequestBuilder.build(from: snapshot, assembly: RetiredAntiForgetProbe.assembly)
 
-        #expect(result.requestMessages.map(\.role) == [.user])
-        #expect(result.requestMessages.first?.id == uB.id)
-        #expect(result.requestMessages.first?.text == "<oriveo-unanswered>\n<note>\(ChatRequestBuilder.unansweredEnvelopeNote)</note>\nWhat is the micro-frontend framework called\n</oriveo-unanswered>\n\nWho is the boss of Film Typhoon")
+        #expect(result.planned.messages.map(\.role) == [.user])
+        #expect(result.planned.messages.first?.id == uB.id)
+        #expect(result.planned.messages.first?.text == "<oriveo-unanswered>\n<note>\(ContextSanitizer.unansweredNote)</note>\nWhat is the micro-frontend framework called\n</oriveo-unanswered>\n\nWho is the boss of Film Typhoon")
     }
 
     @Test("send path keeps a non-empty interrupted assistant to separate two user turns")
@@ -194,10 +196,10 @@ struct ChatRequestBuilderTests {
             sendPath: .send(excludingMessageID: nil)
         )
 
-        let result = ChatRequestBuilder.build(from: snapshot)
+        let result = ChatRequestBuilder.build(from: snapshot, assembly: RetiredAntiForgetProbe.assembly)
 
-        #expect(result.requestMessages.map(\.role) == [.user, .assistant, .user])
-        #expect(result.requestMessages.map(\.text) == ["What is the micro-frontend framework called", "You probably mean micro-app", "Who is the boss of Film Typhoon"])
+        #expect(result.planned.messages.map(\.role) == [.user, .assistant, .user])
+        #expect(result.planned.messages.map(\.text) == ["What is the micro-frontend framework called", "You probably mean micro-app", "Who is the boss of Film Typhoon"])
     }
 
     @Test("send path merges adjacent assistant messages from malformed history")
@@ -214,10 +216,10 @@ struct ChatRequestBuilderTests {
             sendPath: .send(excludingMessageID: nil)
         )
 
-        let result = ChatRequestBuilder.build(from: snapshot)
+        let result = ChatRequestBuilder.build(from: snapshot, assembly: RetiredAntiForgetProbe.assembly)
 
-        #expect(result.requestMessages.map(\.role) == [.user, .assistant])
-        #expect(result.requestMessages.last?.text == "part1\n\npart2")
+        #expect(result.planned.messages.map(\.role) == [.user, .assistant])
+        #expect(result.planned.messages.last?.text == "part1\n\npart2")
     }
 
     @Test("send path drops a failed assistant turn even when its text holds an error placeholder")
@@ -234,14 +236,14 @@ struct ChatRequestBuilderTests {
             sendPath: .send(excludingMessageID: nil)
         )
 
-        let result = ChatRequestBuilder.build(from: snapshot)
+        let result = ChatRequestBuilder.build(from: snapshot, assembly: RetiredAntiForgetProbe.assembly)
 
-        #expect(result.requestMessages.map(\.role) == [.user])
-        #expect(result.requestMessages.first?.text == "<oriveo-unanswered>\n<note>\(ChatRequestBuilder.unansweredEnvelopeNote)</note>\nq1\n</oriveo-unanswered>\n\nq2")
+        #expect(result.planned.messages.map(\.role) == [.user])
+        #expect(result.planned.messages.first?.text == "<oriveo-unanswered>\n<note>\(ContextSanitizer.unansweredNote)</note>\nq1\n</oriveo-unanswered>\n\nq2")
     }
 
-    @Test("continue path treats the current assistant as delivered and appends the continue instruction")
-    func continuePathTreatsAssistantAsDelivered() {
+    @Test("continue path is a plan of purpose continue: history through the delivered target plus the core continue prompt")
+    func continuePathTreatsAssistantAsDelivered() throws {
         let assistantMessageID = UUID()
         let userMessage = TestFactories.makeMessage(role: .user, text: "Explain GRDB observations.")
         let assistantMessage = TestFactories.makeMessage(
@@ -260,71 +262,30 @@ struct ChatRequestBuilderTests {
             messages: [userMessage, assistantMessage],
             preferences: ChatRequestPreferencesSnapshot(),
             skill: nil,
-            sendPath: .continueResponse(
-                assistantMessageID: assistantMessageID,
-                instruction: ChatManager.continueInstruction
-            )
+            sendPath: .continueResponse(assistantMessageID: assistantMessageID)
         )
 
-        let result = ChatRequestBuilder.build(from: snapshot)
+        let result = ChatRequestBuilder.build(from: snapshot, assembly: RetiredAntiForgetProbe.assembly)
+        let plan = result.planned.plan
 
-        #expect(result.requestMessages.count == 3)
-        #expect(result.requestMessages[0].id == userMessage.id)
-        #expect(result.requestMessages[1].id == assistantMessageID)
-        #expect(result.requestMessages[1].state == .delivered)
-        #expect(result.requestMessages[2].role == .user)
-        #expect(result.requestMessages[2].text == ChatManager.continueInstruction)
+        #expect(plan.purpose == .continue)
+        #expect(plan.reminder == false)
+        #expect(plan.messages?.map(\.id).prefix(2) == [userMessage.id.uuidString, assistantMessageID.uuidString])
+        #expect(result.planned.messages.count == 3)
+        #expect(result.planned.messages[0].id == userMessage.id)
+        #expect(result.planned.messages[1].id == assistantMessageID)
+        #expect(result.planned.messages[1].text == "Here is the partial answer")
+        #expect(result.planned.messages[2].role == .user)
+        #expect(result.planned.messages[2].text == ContextAssembler.continuePrompt)
+        #expect(result.requestOptions.statefulLegText == ContextAssembler.continuePrompt)
     }
 
-    @Test("continue instruction matches cross-platform contract")
+    @Test("continue prompt is the core constant shared by every platform")
     func continueInstructionMatchesCrossPlatformContract() {
         #expect(
-            ChatManager.continueInstruction ==
-                "Continue from where you stopped. Do not repeat what you have already said."
+            ContextAssembler.continuePrompt ==
+                "Continue exactly where your previous answer stopped. Do not repeat what you already wrote."
         )
-    }
-
-    @Test("builder composes skill prompt, knowledge files and memory; anti-forget never injects a reminder")
-    func builderComposesSkillMemoryWithoutAntiForgetReminder() {
-        var messages: [ChatMessage] = []
-        for index in 0..<10 {
-            messages.append(TestFactories.makeMessage(role: .user, text: "User message \(index)"))
-            messages.append(TestFactories.makeMessage(role: .assistant, text: "Assistant reply \(index)"))
-        }
-
-        let snapshot = ChatRequestSnapshot(
-            conversation: ChatRequestConversationSnapshot(
-                id: UUID(),
-                useMemory: true,
-                skillID: UUID()
-            ),
-            messages: messages,
-            preferences: ChatRequestPreferencesSnapshot(
-                memoryText: "User prefers concise Swift examples."
-            ),
-            skill: ChatRequestSkillSnapshot(
-                id: UUID(),
-                systemPrompt: "You are an iOS architecture copilot.",
-                knowledgeFiles: [
-                    ChatRequestKnowledgeFileSnapshot(
-                        name: "guardrails.md",
-                        content: "Prefer GRDB observations over legacy mirrors."
-                    )
-                ],
-                useMemory: true
-            ),
-            sendPath: .send(excludingMessageID: nil)
-        )
-
-        let result = ChatRequestBuilder.build(from: snapshot)
-
-        #expect(result.requestOptions.systemPrompt.contains("You are an iOS architecture copilot."))
-        #expect(result.requestOptions.systemPrompt.contains("--- Reference: guardrails.md ---"))
-        #expect(result.requestOptions.systemPrompt.contains("Prefer GRDB observations over legacy mirrors."))
-        #expect(result.requestOptions.systemPrompt.contains("[User context: User prefers concise Swift examples.]"))
-
-        // Anti-forget no longer injects anything: even past 10 rounds no reminder is appended to any message
-        #expect(RetiredAntiForgetProbe.containsReminder(result) == false)
     }
 
     @Test("anti-forget preference enabled with text still yields requests without [Reminder:")
@@ -349,16 +310,18 @@ struct ChatRequestBuilderTests {
 
         for sendPath in [
             ChatRequestSendPath.send(excludingMessageID: nil),
-            .continueResponse(assistantMessageID: messages[messages.count - 1].id, instruction: "Continue"),
+            .continueResponse(assistantMessageID: messages[messages.count - 1].id),
         ] {
             let result = ChatRequestBuilder.build(from: ChatRequestSnapshot(
                 conversation: ChatRequestConversationSnapshot(id: UUID(), useMemory: true, skillID: nil),
                 messages: messages,
-                preferences: ChatRequestPreferencesSnapshot(preference),
+                preferences: ChatRequestPreferencesSnapshot(
+                    memoryItems: RetiredAntiForgetProbe.memoryItems(preference.memoryText)
+                ),
                 skill: nil,
                 sendPath: sendPath
-            ))
-            #expect(result.requestOptions.systemPrompt.contains("User prefers concise Swift examples."))
+            ), assembly: RetiredAntiForgetProbe.assembly)
+            #expect(result.planned.system.contains("User prefers concise Swift examples."))
             #expect(RetiredAntiForgetProbe.containsReminder(result) == false)
         }
     }
@@ -376,7 +339,7 @@ struct ChatRequestBuilderTests {
                 TestFactories.makeMessage(role: .assistant, text: "world")
             ],
             preferences: ChatRequestPreferencesSnapshot(
-                memoryText: "User prefers concise Swift examples."
+                memoryItems: RetiredAntiForgetProbe.memoryItems("User prefers concise Swift examples.")
             ),
             skill: ChatRequestSkillSnapshot(
                 id: UUID(),
@@ -387,188 +350,13 @@ struct ChatRequestBuilderTests {
             sendPath: .send(excludingMessageID: nil)
         )
 
-        let result = ChatRequestBuilder.build(from: snapshot)
+        let result = ChatRequestBuilder.build(from: snapshot, assembly: RetiredAntiForgetProbe.assembly)
 
-        #expect(result.requestOptions.systemPrompt.contains("You are an iOS architecture copilot."))
-        #expect(result.requestOptions.systemPrompt.contains("[User context: User prefers concise Swift examples.]") == false)
+        #expect(result.planned.system.contains("You are an iOS architecture copilot."))
+        #expect(result.planned.system.contains("[User context: User prefers concise Swift examples.]") == false)
         #expect(RetiredAntiForgetProbe.containsReminder(result) == false)
     }
 
-    @Test("memory injection eligibility uses only snapshots, not full prompt assembly")
-    func memoryInjectionEligibilityUsesOnlySnapshots() {
-        let preferences = ChatRequestPreferencesSnapshot(
-            memoryText: "User prefers concise Swift examples."
-        )
-        let conversation = ChatRequestConversationSnapshot(
-            id: UUID(),
-            useMemory: true,
-            skillID: UUID()
-        )
-        let skill = ChatRequestSkillSnapshot(
-            id: UUID(),
-            systemPrompt: String(repeating: "System Prompt ", count: 200),
-            knowledgeFiles: [
-                ChatRequestKnowledgeFileSnapshot(
-                    name: "guardrails.md",
-                    content: String(repeating: "Large knowledge payload ", count: 500)
-                )
-            ],
-            useMemory: true
-        )
-
-        #expect(
-            ChatRequestBuilder.shouldInjectMemory(
-                skill: skill,
-                preferences: preferences,
-                conversation: conversation
-            ) == true
-        )
-        #expect(
-            ChatRequestBuilder.shouldInjectMemory(
-                skill: skill,
-                preferences: preferences,
-                conversation: ChatRequestConversationSnapshot(
-                    id: conversation.id,
-                    useMemory: false,
-                    skillID: conversation.skillID
-                )
-            ) == false
-        )
-        #expect(
-            ChatRequestBuilder.shouldInjectMemory(
-                skill: nil,
-                preferences: preferences,
-                conversation: ChatRequestConversationSnapshot(
-                    id: conversation.id,
-                    useMemory: false,
-                    skillID: nil
-                )
-            ) == false
-        )
-        #expect(
-            ChatRequestBuilder.shouldInjectMemory(
-                skill: nil,
-                preferences: ChatRequestPreferencesSnapshot(memoryText: "   "),
-                conversation: conversation
-            ) == false
-        )
-    }
-
-    @Test("memory injection availability respects prompt budget")
-    func memoryInjectionAvailabilityRespectsPromptBudget() {
-        let preferences = ChatRequestPreferencesSnapshot(
-            memoryText: "User prefers concise Swift examples."
-        )
-        let skill = ChatRequestSkillSnapshot(
-            id: UUID(),
-            systemPrompt: String(repeating: "S", count: 11_990),
-            knowledgeFiles: [],
-            useMemory: true
-        )
-        let conversation = ChatRequestConversationSnapshot(
-            id: UUID(),
-            useMemory: true,
-            skillID: UUID()
-        )
-
-        #expect(
-            ChatRequestBuilder.buildPromptInjectionContext(
-                skill: skill,
-                preferences: preferences,
-                conversation: conversation
-            )?.memoryInjected == false
-        )
-    }
-
-    @Test("knowledge base snippets are trimmed before reference files when prompt budget overflows")
-    func knowledgeBaseSnippetsTrimBeforeReferenceFiles() {
-        let skill = ChatRequestSkillSnapshot(
-            id: UUID(),
-            systemPrompt: "You are an iOS architecture copilot.",
-            knowledgeFiles: [
-                ChatRequestKnowledgeFileSnapshot(
-                    name: "rules.md",
-                    content: String(repeating: "R", count: 5_000)
-                )
-            ],
-            knowledgeBase: ChatRequestKnowledgeBaseSnapshot(
-                retrievalModel: "gpt-5.4-mini",
-                vectorStoreId: "vs_123",
-                readyFileCount: 1
-            ),
-            useMemory: true
-        )
-
-        let budgeted = ChatRequestBuilder.applyKnowledgeBudget(
-            skill: skill,
-            retrievalSnippets: [
-                ChatRequestRetrievedSnippet(
-                    fileName: "kb.txt",
-                    text: String(repeating: "K", count: 4_000),
-                    score: 1
-                )
-            ],
-            remainingChars: 7_000
-        )
-
-        #expect(budgeted.referenceFiles.count == 1)
-        #expect(budgeted.referenceFiles[0].content.count == 5_000)
-        #expect(budgeted.retrievalSnippets.count == 1)
-        #expect(budgeted.retrievalSnippets[0].text.count == 2_000)
-    }
-
-    @Test("builder injects knowledge base snippets after reference files")
-    func builderInjectsKnowledgeBaseSnippetsAfterReferenceFiles() {
-        let snapshot = ChatRequestSnapshot(
-            conversation: ChatRequestConversationSnapshot(
-                id: UUID(),
-                useMemory: true,
-                skillID: UUID()
-            ),
-            messages: [
-                TestFactories.makeMessage(role: .user, text: "Explain how to structure this app.")
-            ],
-            preferences: ChatRequestPreferencesSnapshot(
-                memoryText: "User prefers concise Swift examples."
-            ),
-            skill: ChatRequestSkillSnapshot(
-                id: UUID(),
-                systemPrompt: "You are an iOS architecture copilot.",
-                knowledgeFiles: [
-                    ChatRequestKnowledgeFileSnapshot(
-                        name: "guardrails.md",
-                        content: "Prefer focused services."
-                    )
-                ],
-                knowledgeBase: ChatRequestKnowledgeBaseSnapshot(
-                    retrievalModel: "gpt-5.4-mini",
-                    vectorStoreId: "vs_123",
-                    readyFileCount: 1
-                ),
-                useMemory: true
-            ),
-            retrievedSnippets: [
-                ChatRequestRetrievedSnippet(
-                    fileName: "kb.txt",
-                    text: "Retrieved guidance from the vector store.",
-                    score: 0.98
-                )
-            ],
-            sendPath: .send(excludingMessageID: nil)
-        )
-
-        let result = ChatRequestBuilder.build(from: snapshot)
-        let systemPrompt = result.requestOptions.systemPrompt
-
-        #expect(systemPrompt.contains("--- Reference: guardrails.md ---"))
-        #expect(systemPrompt.contains("Prefer focused services."))
-        #expect(systemPrompt.contains("--- Knowledge Base: kb.txt ---"))
-        #expect(systemPrompt.contains("Retrieved guidance from the vector store."))
-        #expect(
-            systemPrompt.range(of: "--- Reference: guardrails.md ---")?.lowerBound ?? systemPrompt.startIndex
-                < systemPrompt.range(of: "--- Knowledge Base: kb.txt ---")?.lowerBound ?? systemPrompt.endIndex
-        )
-    }
 }
 
 /// Anti-forget no longer injects reminders. Memory-related tests run the production
@@ -576,6 +364,11 @@ struct ChatRequestBuilderTests {
 /// (every message and the system prompt) never contains `[Reminder:`.
 enum RetiredAntiForgetProbe {
     static let reminderMarker = "[Reminder:"
+    /// Assembly parameters with an unknown window (no budget trimming): only the projected shape of the plan matters.
+    static let assembly = ChatRequestAssemblyContext(
+        window: ContextWindowInput(W: nil, windowKind: .total, maxOutput: ContextMaxOutputSources()),
+        rhoHi: 0.5
+    )
 
     static func build(
         _ messages: [ChatMessage],
@@ -585,14 +378,21 @@ enum RetiredAntiForgetProbe {
         ChatRequestBuilder.build(from: ChatRequestSnapshot(
             conversation: ChatRequestConversationSnapshot(id: UUID(), useMemory: useMemory, skillID: nil),
             messages: messages,
-            preferences: ChatRequestPreferencesSnapshot(memoryText: memoryText),
+            preferences: ChatRequestPreferencesSnapshot(memoryItems: memoryItems(memoryText)),
             skill: nil,
             sendPath: .send(excludingMessageID: nil)
-        ))
+        ), assembly: RetiredAntiForgetProbe.assembly)
+    }
+
+    /// Memory items are injected on read: the old memoryText fixture becomes a single global fact.
+    static func memoryItems(_ memoryText: String) -> [MemoryItem] {
+        memoryText.isEmpty
+            ? []
+            : [MemoryItem(id: "mem-probe", kind: .fact, content: memoryText, mutationId: "mut-probe", deviceId: "device-test")]
     }
 
     static func containsReminder(_ result: ChatRequestBuildResult) -> Bool {
-        result.requestOptions.systemPrompt.contains(reminderMarker)
-            || result.requestMessages.contains { $0.text.contains(reminderMarker) }
+        result.planned.system.contains(reminderMarker)
+            || result.planned.messages.contains { $0.text.contains(reminderMarker) }
     }
 }

@@ -331,6 +331,8 @@ struct ChatRowHeightParityTests {
     /// (covered by `StreamActivityPipelineTests`).
     ///
     /// The reply notice row is part of `estimatedRowHeight` (`replyNoticeHeight`); see the reply notice case in the matrix.
-    private static let expectedContentSlots = 10
+    /// The memory suggestion bar moved into the `AssistantMessageCell` contentStack, so slots went from 10 to 11.
+    private static let expectedContentSlots = 11
+    /// bodyStack: reasoning | textView | streaming code container | typing container
     private static let expectedBodySlots = 4
 }

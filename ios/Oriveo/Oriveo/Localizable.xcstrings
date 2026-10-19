@@ -8930,7 +8930,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Biên tập"
+            "value" : "Sửa"
           }
         },
         "zh-Hans" : {
@@ -14585,13 +14585,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "याद"
+            "value" : "मेमोरी"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ingatan"
+            "value" : "Memori"
           }
         },
         "ja" : {
@@ -14621,19 +14621,19 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "หน่วยความจำ"
+            "value" : "ความจำ"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hafıza"
+            "value" : "Bellek"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ký ức"
+            "value" : "Bộ nhớ"
           }
         },
         "zh-Hans" : {
@@ -18869,7 +18869,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Prix ​​inconnu"
+            "value" : "Prix inconnu"
           }
         },
         "hi" : {
@@ -39172,7 +39172,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tóm tắt các khiếu nại phổ biến nhất từ ​​nghiên cứu người dùng..."
+            "value" : "Tóm tắt các khiếu nại phổ biến nhất từ nghiên cứu người dùng..."
           }
         },
         "zh-Hans" : {

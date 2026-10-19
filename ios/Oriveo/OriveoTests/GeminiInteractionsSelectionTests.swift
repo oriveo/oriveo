@@ -302,7 +302,7 @@ struct GeminiInteractionsSelectionTests {
             conversation: ChatRequestConversationSnapshot(id: UUID(), useMemory: false, skillID: nil),
             messages: history + [pending], preferences: ChatRequestPreferencesSnapshot(), skill: nil,
             sendPath: .send(excludingMessageID: nil)
-        )).requestMessages
+        ), assembly: RetiredAntiForgetProbe.assembly).planned.messages
         #expect(GeminiService.historyHasVideo(outbound) == expectVideo, "\(label): outbound history video does not match the expectation")
         #expect(preflightVideo == GeminiService.historyHasVideo(outbound), "\(label): the pre-check disagrees with the outbound history")
         let model = TestFactories.makeModel(id: modelID, capabilities: [.text])

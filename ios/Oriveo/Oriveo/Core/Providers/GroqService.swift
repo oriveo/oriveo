@@ -129,8 +129,10 @@ final class GroqService: BaseAPIService, ProviderServiceProtocol {
                     defer {
                         if let flushed = toolCallDecoder.finishEvent() { continuation.yield(flushed) }
                     }
+                    var finishTracker = StreamFinishTracker(family: .openaiChat)
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
+                        finishTracker.observeSSELine(line)
                         guard line.hasPrefix("data: ") else { continue }
                         let payload = String(line.dropFirst(6))
                         if payload == "[DONE]" { break }
@@ -170,7 +172,8 @@ final class GroqService: BaseAPIService, ProviderServiceProtocol {
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
-                        costSource: source
+                        costSource: source,
+                        finish: finishTracker.finish()
                     )
                     continuation.yield(.done(result))
                     continuation.finish()
@@ -210,7 +213,7 @@ final class GroqService: BaseAPIService, ProviderServiceProtocol {
         if !systemPrompt.isEmpty {
             apiMessages.append(.init(role: "system", content: .text(systemPrompt)))
         }
-        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
 
         let reasoningEffort = capabilityIntent.reasoningMode.flatMap { allowedMode in
             ProfileParamsResolver.reasoningMergeParams(
@@ -402,3 +405,20 @@ extension GroqService {
     }
 }
 
+// GroqErrorEnvelope is no longer needed: the base class GenericErrorEnvelope accepts the same format
+
+// MARK: - Protocol entry with request options: a one-line forward to the options overload this service already has
+
+extension GroqService {
+    func sendMessage(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(apiKey: apiKey, modelID: modelID, messages: messages, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessageStream(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+}

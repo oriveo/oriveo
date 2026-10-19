@@ -1,4 +1,5 @@
 import Foundation
+import OriveoProviderKit
 
 final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
     private let baseURL = "https://api.anthropic.com/v1"
@@ -238,6 +239,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                     var replayInputJSON: [Int: String] = [:]
                     var sawMessageStop = false
 
+                    var finishTracker = StreamFinishTracker(family: .anthropic)
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
 
@@ -251,6 +253,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                         guard let jsonData = payload.data(using: .utf8) else { continue }
                         // Anthropic reports in-stream errors as `event: error` + `{"type":"error",...}`.
                         try Self.throwIfStreamErrorFrame(jsonData, beforeAnyContent: accumulatedText.isEmpty, redacting: [apiKey])
+                        finishTracker.observeFrame(jsonData, eventType: currentEvent.isEmpty ? nil : currentEvent)
 
                         for ev in antStrategy.parseStreamLine(payload, ctx: &antCtx, shape: antShape) {
                             switch ev {
@@ -330,7 +333,11 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
-                        costSource: source
+                        costSource: source,
+                        finish: finishTracker.finish()
+                    )
+                    try Self.throwIfContextWindowExceededBeforeAnswer(
+                        result.finish, answer: finalText, continuation: continuation
                     )
                     continuation.yield(.done(result))
                     continuation.finish()
@@ -416,6 +423,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                     var relayLastCitationsCount = 0
                     var bodyStartChecked = false
 
+                    var finishTracker = StreamFinishTracker(family: .anthropic)
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
                         // A fallback web page's Content-Type is not always html: recognize it once more on the first body line, before any output.
@@ -431,6 +439,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                         guard let jsonData = payload.data(using: .utf8) else { continue }
                         // Anthropic reports in-stream errors as `event: error` + `{"type":"error",...}`.
                         try Self.throwIfStreamErrorFrame(jsonData, beforeAnyContent: accumulatedText.isEmpty, redacting: [apiKey])
+                        finishTracker.observeFrame(jsonData, eventType: currentEvent.isEmpty ? nil : currentEvent)
 
                         for ev in relayStrategy.parseStreamLine(payload, ctx: &relayCtx, shape: relayShape) {
                             switch ev {
@@ -483,7 +492,11 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
-                        costSource: source
+                        costSource: source,
+                        finish: finishTracker.finish()
+                    )
+                    try Self.throwIfContextWindowExceededBeforeAnswer(
+                        result.finish, answer: finalText, continuation: continuation
                     )
                     continuation.yield(.done(result))
                     continuation.finish()
@@ -554,18 +567,41 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             requestedReasoningMode: recipeLegacyInput.reasoningMode,
             webSearchEnabled: recipeLegacyInput.webSearchEnabled
         )
-        let defaultMaxTokens = resolved?.maxOutputTokens.flatMap { $0 > 0 ? $0 : nil } ?? 8192
+        // The output budget comes from the catalog; 8192 is only the fallback when the snapshot is missing.
+        //
+        // Hardcoding 8192 used to be safe because the legacy `ant_budget` profile sent budget and max_tokens as a
+        // pair (fast 2048/8192, balanced 8192/12288, deep 16384/20480) and deepMerge let the paired max_tokens
+        // override it. Once the recipe became the only writer, `anthropic.messages.reasoning.v1` kept only the
+        // `/thinking` op and the paired max_tokens was lost, so the deep level became budget_tokens=16384 with
+        // max_tokens=8192: upstream truncates thinking back to 8192, deep becomes indistinguishable from balanced,
+        // and the UI still shows deep thinking.
+        //
+        // Why not add a max_tokens op back to the recipe: `max_tokens` is already the generation owner's wire target
+        // (`max_output_tokens -> max_tokens` in the `anthropic_messages` template), so the reasoning recipe writing
+        // `/max_tokens` too would be rejected as `ownerConflict` by `RequestPreferenceResolver.validateAssignments`.
+        // Why not lift the relay `max(8192, budget+4096)` formula up here: that would create a formula only iOS has
+        // and would need an extra ruling on who wins when the user explicitly sets max_output_tokens.
+        //
+        // A user-set output budget does not live at this layer: it goes through the generation parameter
+        // (canonical id `max_output_tokens`), and `ProfileParamsResolver.applyGenerationParameters` below writes it into
+        // the same `max_tokens` key after this payload, overriding this default. So the priority chain
+        // "explicit value > catalog maxOutputTokens > 8192" holds, and only the last two levels are decided here.
+        // On the main chat path the base value is plan.budget.oWire (already capped by the model limit and the window);
+        // non-chat paths keep the original fallback.
+        let defaultMaxTokens = requestOptions.maxOutputTokens
+            ?? resolved?.maxOutputTokens.flatMap { $0 > 0 ? $0 : nil } ?? 8192
         let payload = AnthropicChatRequest(
             model: modelID,
             max_tokens: defaultMaxTokens,
             system: systemPrompt.isEmpty ? nil : systemPrompt,
             stream: stream ? true : nil,
-            cache_control: .init(type: "ephemeral"),
+            cache_control: nil,
             thinking: nil,
             output_config: nil,
-            messages: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, transport: .anthropicMessages, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) }
+            messages: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, transport: .anthropicMessages, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) }
         )
         var body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
+        Self.applyCacheBreakpoint(to: &body, dynamicText: requestOptions.dynamicText)
         if capabilityIntent.webSearchEnabled,
            let webMerge = ProfileParamsResolver.webSearchMergeParams(
             providerKind: .anthropic,
@@ -586,6 +622,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
         ) {
             ProfileParamsResolver.deepMerge(&body, reasoningMerge)
         }
+        try ClientToolsInjector.apply(to: &body, protocol: .anthropicMessages, options: requestOptions)
         ProfileParamsResolver.applyTemperatureGate(to: &body, resolved: resolved)
         let generationApplication = ProfileParamsResolver.applyGenerationParameters(
             to: &body,
@@ -713,7 +750,10 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
         let outputConfig = shouldDropOutputConfig ? nil : plan.adaptiveEffort.map { AnthropicChatRequest.OutputConfig(effort: $0) }
 
         let systemPrompt = requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedMaxTokens = maxOutputTokens ?? max(
+        // Anthropic API constraint: budget_tokens is clamped to max_tokens, so a hardcoded 8192 would cap Deep/Max
+        // thinking at 8192. The formula matches the Web client.
+        // The main chat path uses plan.budget.oWire; when the thinking budget is >= that, applyAnthropicThinkingGuard below raises it to budget + 4096.
+        let resolvedMaxTokens = maxOutputTokens ?? requestOptions.maxOutputTokens ?? max(
             8192,
             (capabilityIntent.reasoningMode.flatMap(Self.relayAnthropicBudgetTokens) ?? 0) + 4096
         )
@@ -725,13 +765,14 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             cache_control: nil,
             thinking: thinking,
             output_config: outputConfig,
-            messages: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, transport: .relayAnthropicMessages, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) }
+            messages: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, transport: .relayAnthropicMessages, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) }
         )
         var body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
-        Self.applyRelayCacheBreakpoint(to: &body)
+        Self.applyCacheBreakpoint(to: &body, dynamicText: requestOptions.dynamicText)
         if let functionTools {
             body["tools"] = functionTools
         }
+        try ClientToolsInjector.apply(to: &body, protocol: .anthropicMessages, options: requestOptions)
         let generationApplication = ProfileParamsResolver.applyGenerationParameters(
             to: &body,
             options: requestOptions,
@@ -743,6 +784,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
         )
         // Relay web fragment: applied after the builder's output and before the additional request body.
         RelayWebFragments.apply(requestOptions.relayWebFragments, transport: .anthropicMessages, to: &body)
+        ClientToolsInjector.moveHostMemoryToolsLast(in: &body)
         try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
@@ -753,6 +795,26 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
         let thinking: AnthropicChatRequest.Thinking?
         /// The adaptive thinking level, written to `output_config.effort`.
         let adaptiveEffort: String?
+    }
+
+    /// In-stream model_context_window_exceeded: when no answer text was produced, deliver finish first and then throw, so the
+    /// caller takes the same recovery as an HTTP overflow; when text was already produced it finishes as usual and
+    /// finish records stopReason as context_window_exceeded.
+    static func throwIfContextWindowExceededBeforeAnswer(
+        _ finish: StreamFinish?,
+        answer: String,
+        continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
+    ) throws {
+        guard let finish, answer.isEmpty,
+              StopReasonResolver.resolve(
+                  family: finish.family, ended: finish.ended, finishRaw: finish.finishRaw, hadContent: false
+              ) == .contextWindowExceeded
+        else { return }
+        continuation.yield(.finish(finish))
+        throw ProviderServiceError.upstream(
+            statusCode: 200,
+            detail: "The model stopped because the context window was exceeded (stop_reason: model_context_window_exceeded)."
+        )
     }
 
     /// What `thinking` a Relay Anthropic-compatible endpoint receives at this level. The send path and the
@@ -859,26 +921,62 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
         return components?.url?.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? "\(baseString)/\(defaultVersion)"
     }
 
-    /// Relay Anthropic does not send a top-level `cache_control` (many relays do not accept it); instead it
-    /// places a single ephemeral breakpoint on the last content block of the last user message, the same
-    /// shape as Web. Plain-text content is first expanded into a single text block. The whole request carries
-    /// at most one block-level breakpoint, well below Anthropic's limit of 4.
-    static func applyRelayCacheBreakpoint(to body: inout [String: Any]) {
+    /// The same rule for the official route, Relay and tool legs: no top-level `cache_control`, and at most one
+    /// ephemeral breakpoint in the whole request (Anthropic allows at most 4).
+    /// - [D]: on the "current user message" (the last user message without a tool_result), when its last text block
+    ///   == dynamicText or ends with "\n\n"+dynamicText, D is split off as that message's last standalone text block
+    ///   (after the image / document blocks). Every tool-loop leg splits it the same way, so the prefix stays stable
+    ///   leg to leg. If it is not recognized the message is sent unchanged.
+    /// - Breakpoint: the last non-[D] block of the last user message in the whole request (on a tool leg that is the
+    ///   tool_result turn, landing on the notice if there is one); when that message has only the [D] block, it goes there.
+    /// Plain-text content is first expanded into a single text block.
+    static func applyCacheBreakpoint(to body: inout [String: Any], dynamicText: String?) {
         guard var messages = body["messages"] as? [[String: Any]],
-              let index = messages.lastIndex(where: { $0["role"] as? String == "user" })
+              let lastUserIndex = messages.lastIndex(where: { $0["role"] as? String == "user" })
         else { return }
-        let breakpoint: [String: Any] = ["type": "ephemeral"]
-        var message = messages[index]
-        if let text = message["content"] as? String {
-            guard !text.isEmpty else { return }
-            message["content"] = [["type": "text", "text": text, "cache_control": breakpoint]]
-        } else if var blocks = message["content"] as? [[String: Any]], !blocks.isEmpty {
-            blocks[blocks.count - 1]["cache_control"] = breakpoint
-            message["content"] = blocks
-        } else {
+
+        func blocks(of message: [String: Any]) -> [[String: Any]]? {
+            if let text = message["content"] as? String {
+                return text.isEmpty ? nil : [["type": "text", "text": text]]
+            }
+            if let existing = message["content"] as? [[String: Any]], !existing.isEmpty { return existing }
+            return nil
+        }
+
+        var dynamicSplitIndex: Int?
+        if let dynamicText, !dynamicText.isEmpty,
+           let currentIndex = messages.lastIndex(where: { message in
+               guard message["role"] as? String == "user" else { return false }
+               let content = message["content"] as? [[String: Any]] ?? []
+               return !content.contains { $0["type"] as? String == "tool_result" }
+           }),
+           var current = blocks(of: messages[currentIndex]),
+           let textIndex = current.lastIndex(where: { $0["type"] as? String == "text" }),
+           let text = current[textIndex]["text"] as? String {
+            let (head, dynamic) = AttachmentInjector.splitDynamic(text, dynamicText: dynamicText)
+            if let dynamic {
+                // Empty body (text == D): leave no empty text block
+                if head.isEmpty {
+                    current.remove(at: textIndex)
+                } else {
+                    current[textIndex]["text"] = head
+                }
+                current.append(["type": "text", "text": dynamic])
+                messages[currentIndex]["content"] = current
+                dynamicSplitIndex = currentIndex
+            }
+        }
+
+        guard var lastBlocks = blocks(of: messages[lastUserIndex]) else {
+            body["messages"] = messages
             return
         }
-        messages[index] = message
+        var breakpointIndex = lastBlocks.count - 1
+        if dynamicSplitIndex == lastUserIndex, lastBlocks.count > 1 {
+            breakpointIndex = lastBlocks.count - 2
+        }
+        lastBlocks[breakpointIndex]["cache_control"] = ["type": "ephemeral"] as [String: Any]
+        messages[lastUserIndex]["content"] = lastBlocks
         body["messages"] = messages
     }
 
@@ -918,10 +1016,10 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             return .init(role: role, content: .text(combinedText))
         }
 
-        // No block-level cache_control: Anthropic allows at most 4 cache breakpoints per request, so marking
-        // every image / document returns 400 once there are more than 4. The official route relies on the
-        // top-level cache_control for automatic caching; Relay places a single breakpoint on the last block
-        // of the last user message (see applyRelayCacheBreakpoint).
+        // Cache breakpoints are not set at block level: Anthropic allows at most 4 per request, so a breakpoint
+        // per image / document would 400 with 4+ attachments. Both the official route and Relay set a single breakpoint
+        // on the last user message at request-body level; [D] is also split off there as a standalone last block
+        // (see applyCacheBreakpoint).
         var contentBlocks: [AnthropicChatRequest.ContentBlock] = [
             .init(type: "text", text: combinedText)
         ]
@@ -1222,4 +1320,20 @@ extension AnthropicService {
         return parseUsage(usage)
     }
     #endif
+}
+
+// MARK: - Protocol entry points with request options: one-line forwards to this service's existing options overloads
+
+extension AnthropicService {
+    func sendMessage(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(apiKey: apiKey, modelID: modelID, messages: messages, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessageStream(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
 }

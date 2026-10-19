@@ -32,6 +32,10 @@ enum AppRoute: Hashable {
     case backup
     case folderDetail(folderID: UUID)
     case memory
+    /// Memory > memory suggestions: inbox of candidates awaiting confirmation.
+    case memoryInbox
+    /// Settings > AI > Context: how to trim when the context limit is exceeded (stored on this device only).
+    case contextSettings
     /// MCP server management ("MCP servers" in Settings, "Manage MCP servers" in the chat tool panel).
     case mcpServers
     /// Add an MCP server ("Add" on the list page, "Add MCP server" in the empty tool panel).

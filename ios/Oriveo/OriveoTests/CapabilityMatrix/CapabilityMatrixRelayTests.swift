@@ -216,8 +216,9 @@ struct CapabilityMatrixRelayTests {
             connectionID: responses.id, transport: .openaiResponses, raw: #"{"tools":[{"type":"web_search"}]}"#
         )
         let responsesBody = try await Self.send(provider: responses, modelID: responsesModel.id, webPreferenceOn: false).body
-        let types = Self.tools(responsesBody).compactMap { $0["type"] as? String }
-        #expect(types == ["image_generation", "web_search"], "\(Self.text(responsesBody))")
+        // With memory on, the host memory tool comes after the snippets.
+        let types = Self.tools(responsesBody).compactMap { $0["name"] as? String ?? $0["type"] as? String }
+        #expect(types == ["image_generation", "web_search", "propose_memory"], "\(Self.text(responsesBody))")
     }
 
     @Test("CAP-RELAY-WEB-02: no fragment and no legacy field, in-chat web switch never set (default off) -> the request body has no web-search field at all (neither the UI choice being on nor the model inheriting the official web profile counts)")
@@ -247,9 +248,11 @@ struct CapabilityMatrixRelayTests {
         let template = try #require(RelayWebFragments.template(for: .openaiResponses))
         let templateObject = try JSONSerialization.jsonObject(with: Data(template.utf8)) as? [String: Any]
         let templateTools = try #require(templateObject?["tools"] as? [[String: Any]])
+        // With memory on, the host memory tool comes after the snippets: [image_generation, web_search, propose_memory].
         let sent = Self.tools(body)
-        #expect(sent.count == 2, "\(Self.text(body))")
-        let last = try #require(sent.last)
+        #expect(sent.count == 3, "\(Self.text(body))")
+        #expect(sent.last?["name"] as? String == "propose_memory", "\(Self.text(body))")
+        let last = try #require(sent.dropLast().last)
         let expectedTool = try #require(templateTools.first)
         #expect(NSDictionary(dictionary: last).isEqual(to: expectedTool), "\(Self.text(body))")
         #expect(RelayWebFragmentStore.shared.stored(connectionID: provider.id).isEmpty, "The mapping is not written into storage")

@@ -26,7 +26,8 @@ enum AttachmentDelivery {
         userText: String,
         attachments: [Attachment],
         transport: AttachmentTransportProfile,
-        model: AIModel?
+        model: AIModel?,
+        dynamicText: String? = nil
     ) -> AttachmentDeliveryPlan {
         let (native, textPayload) = partition(
             attachments,
@@ -39,7 +40,8 @@ enum AttachmentDelivery {
             attachments: textPayload,
             wrapper: transport.wrapper,
             model: model,
-            imagePlaceholderText: transport.imagePlaceholderText
+            imagePlaceholderText: transport.imagePlaceholderText,
+            dynamicText: dynamicText
         )
         return AttachmentDeliveryPlan(
             native: native,
@@ -58,7 +60,8 @@ enum AttachmentDelivery {
         userText: String,
         attachments: [Attachment],
         transport: AttachmentTransport,
-        model: AIModel?
+        model: AIModel?,
+        dynamicText: String? = nil
     ) throws -> AttachmentDeliveryPlan {
         #if DEBUG
         AttachmentDeliveryObservation.onDeliver?(transport)
@@ -67,7 +70,8 @@ enum AttachmentDelivery {
             userText: userText,
             attachments: attachments,
             transport: transport.profile,
-            model: model
+            model: model,
+            dynamicText: dynamicText ?? AttachmentDynamicTurn.current
         )
         if isOutgoingTurn, let error = overLimitError(for: plan, model: model) {
             throw error
@@ -142,13 +146,20 @@ enum AttachmentDelivery {
     }
 
     /// Builds request messages one by one and tells the builder which one is the message being sent.
+    /// dynamicText ([D]) is appended only to the end of the last user message: while that message is built it is
+    /// visible to `deliver`, and file text is injected before it.
     static func mapTurns<T>(
         _ messages: [ChatMessage],
         isChatSend: Bool,
+        dynamicText: String? = nil,
         _ build: (_ message: ChatMessage, _ isOutgoingTurn: Bool) throws -> T
     ) rethrows -> [T] {
         let outgoing = outgoingTurnIndex(in: messages, isChatSend: isChatSend)
-        return try messages.enumerated().map { try build($0.element, $0.offset == outgoing) }
+        let dynamicIndex = dynamicText?.isEmpty == false ? messages.lastIndex(where: { $0.role == .user }) : nil
+        return try messages.enumerated().map { offset, message in
+            guard offset == dynamicIndex else { return try build(message, offset == outgoing) }
+            return try AttachmentDynamicTurn.$current.withValue(dynamicText) { try build(message, offset == outgoing) }
+        }
     }
 
     /// Splits attachments into native and text groups via `AttachmentRouter`; with the route mode off or a nil model everything goes as text.
@@ -176,12 +187,15 @@ enum AttachmentDelivery {
         attachments: [Attachment],
         wrapper: AttachmentWrapperVersion,
         model: AIModel?,
-        imagePlaceholderText: String?
+        imagePlaceholderText: String?,
+        dynamicText: String?
     ) -> (text: String, skipped: [(attachment: Attachment, reason: AttachmentInjector.SkipReason)]) {
         let limits = FileExtractionLimits.resolve(model: model)
+        // [D] is always the last segment: image placeholders and file text are both inserted before it.
+        let (body, dynamic) = AttachmentInjector.splitDynamic(userText, dynamicText: dynamicText)
 
         // 1. Image placeholders (for providers that do not support images)
-        var effectiveUserText = userText
+        var effectiveUserText = body
         if let placeholder = imagePlaceholderText {
             let imageCount = attachments.filter { $0.kind == .image }.count
             if imageCount > 0 {
@@ -215,10 +229,11 @@ enum AttachmentDelivery {
         }
 
         let result = AttachmentInjector.injectAllIndexed(
-            intoUserText: effectiveUserText,
+            intoUserText: AttachmentInjector.appendDynamic(dynamic, to: effectiveUserText),
             fileAttachments: fileAttachments,
             limits: limits,
-            wrapper: wrapper
+            wrapper: wrapper,
+            dynamicText: dynamic
         )
         return (result.text, result.skipped.map { (files[$0.index], $0.reason) })
     }
@@ -228,6 +243,11 @@ enum AttachmentDelivery {
               let d = Data(base64Encoded: base64) else { return nil }
         return String(data: d, encoding: .utf8)
     }
+}
+
+/// The dynamicText of the user message with [D] that is currently being built; bound by `AttachmentDelivery.mapTurns` and read by `deliver`.
+enum AttachmentDynamicTurn {
+    @TaskLocal static var current: String?
 }
 
 #if DEBUG

@@ -54,16 +54,17 @@ final class NoteAIManager {
         answer: String,
         model: CrosscheckModelOption
     ) throws -> AsyncThrowingStream<String, Error> {
-        let messages = NoteCrosscheckBuilder.messages(prompt: prompt, answer: answer, model: model)
+        let request = NoteCrosscheckBuilder.request(prompt: prompt, answer: answer, model: model)
 
         guard let provider = appState.provider(for: model.providerID) else {
             throw CrosscheckError.noProviderService
         }
         let providerManager = appState.providerManager
+        let transport = request.transportInput(ChatRequestOptions())
         let eventStream = try Self.crosscheckEventStream(
             provider: provider,
             model: model.model,
-            messages: messages,
+            transport: transport,
             services: providerManager.services,
             nativeService: { providerManager.service(for: $0) }
         )
@@ -101,10 +102,11 @@ final class NoteAIManager {
     /// Picks the service for a (provider, model) pair via `ProviderServiceRouter`: relays and official
     /// providers speaking a different protocol are dispatched by protocol, carrying the configuration resolved
     /// for that model; everything else uses the native service.
+    /// transport = the `transportInput` of `NoteCrosscheckBuilder.request`: the system prompt travels with the options, and the native route carries it too.
     static func crosscheckEventStream(
         provider: Provider,
         model: AIModel,
-        messages: [ChatMessage],
+        transport: TransportInput,
         services: ProviderServiceRouter.Services,
         nativeService: (ProviderKind) -> (any ProviderServiceProtocol)?
     ) throws -> AsyncThrowingStream<StreamEvent, Error> {
@@ -112,13 +114,16 @@ final class NoteAIManager {
         switch ProviderServiceRouter.route(provider: provider, model: model) {
         case .byProtocol(let route):
             return services.protocolStream(
-                route, apiKey: apiKey, modelID: model.id, messages: messages,
+                route, apiKey: apiKey, modelID: model.id, messages: transport.messages,
                 reasoningMode: .automatic, webSearchEnabled: false, supportsImageGen: false,
-                requestOptions: ChatRequestOptions()
+                requestOptions: transport.options
             )
         case .native(let kind):
             guard let service = nativeService(kind) else { throw CrosscheckError.noProviderService }
-            return service.sendMessageStream(apiKey: apiKey, modelID: model.id, messages: messages)
+            return service.sendMessageStream(
+                apiKey: apiKey, modelID: model.id,
+                messages: transport.messages, requestOptions: transport.options
+            )
         }
     }
 }

@@ -622,6 +622,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                     )
                     var responsesCtx = StreamContext()
                     var lastCitationsCount = 0
+                    var finishTracker = StreamFinishTracker(family: .openaiResponses)
 
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
@@ -639,6 +640,9 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         let framedData = currentEvent.isEmpty
                             ? jsonData
                             : (self.injectResponsesEventType(payload: payload, type: currentEvent).data(using: .utf8) ?? jsonData)
+                        finishTracker.observeFrame(framedData, eventType: currentEvent.isEmpty ? nil : currentEvent)
+                        // response.failed throws on the next line: hand out the finish first.
+                        if finishTracker.finishRaw == "failed" { continuation.yield(.finish(finishTracker.finish())) }
                         try Self.throwIfStreamErrorFrame(framedData, beforeAnyContent: accumulatedText.isEmpty, redacting: [apiKey])
 
                         if !currentEvent.isEmpty {
@@ -695,7 +699,8 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                                 AppLog.error(error, module: "OpenAI", context: ["frame": "output_image.done"])
                                 #endif
                             }
-                        case "response.completed":
+                        case "response.completed", "response.incomplete":
+                            // response.incomplete (e.g. max_output_tokens) still goes through done, and usage is taken the same way.
                             do {
                                 let completed = try self.decoder.decode(ResponsesStreamCompleted.self, from: jsonData)
                                 lastUsage = completed.resolvedUsage
@@ -745,7 +750,8 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
-                        costSource: source
+                        costSource: source,
+                        finish: finishTracker.finish()
                     )
                     continuation.yield(.done(result))
                     continuation.finish()
@@ -895,8 +901,10 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             for ev in OpenAIChatStrategy.flushToolCalls(ctx: &chatCtx) { continuation.yield(ev) }
         }
 
+        var finishTracker = StreamFinishTracker(family: .openaiChat)
         for try await line in bytes.utf8Lines {
             if Task.isCancelled { break }
+            finishTracker.observeSSELine(line)
             guard line.hasPrefix("data: ") else { continue }
             let payload = String(line.dropFirst(6))
             if payload == "[DONE]" { break }
@@ -944,7 +952,8 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             completionTokens: breakdown.completionTokens,
             estimatedCost: cost,
             usageBreakdown: breakdown,
-            costSource: source
+            costSource: source,
+            finish: finishTracker.finish()
         )
         continuation.yield(.done(result))
         continuation.finish()
@@ -976,16 +985,27 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             webSearchEnabled: webSearchEnabled, reasoningMode: reasoningMode,
             continuationKind: "previous_id", parser: { $0 == "openai_responses_web_v1" || $0 == "openai_responses_reasoning_v1" }
         )
-        let previousResponseID = continuationRecipe.flatMap { _ in
-            RecipeContinuationRuntime.previousResponseID(
-                explicitMessageID: requestOptions.localExplicitContinuationMessageID
+        let continuationDecision = continuationRecipe.map { recipe in
+            RecipeContinuationRuntime.continuationDecision(
+                explicitMessageID: requestOptions.localExplicitContinuationMessageID,
+                statefulLegText: requestOptions.statefulLegText,
+                instructionsMode: recipe.instructionsMode,
+                fingerprintMatches: requestOptions.continuationFingerprintMatches
             )
+        } ?? .fullPlan
+        var previousResponseID: String?
+        var sendInstructions = true
+        if case let .stateful(id, resend) = continuationDecision {
+            previousResponseID = id
+            sendInstructions = resend
         }
         // `previous_response_id` owns the historical leg server-side. Re-sending it alongside
         // ChatRequestBuilder's partial assistant duplicates context and violates Responses wire.
+        // A full plan keeps the whole input.
         let requestMessagesInput: [ChatMessage]
         if previousResponseID != nil,
-           let continuationUser = messages.last(where: { $0.role == .user }) {
+           var continuationUser = messages.last(where: { $0.role == .user }) {
+            if let legText = requestOptions.statefulLegText { continuationUser.text = legText }
             requestMessagesInput = [continuationUser]
         } else {
             requestMessagesInput = messages
@@ -1004,17 +1024,19 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             let trimmedTier = rawTier.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmedTier.isEmpty ? nil : trimmedTier
         }()
-        let systemPrompt = requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let systemPrompt = sendInstructions
+            ? requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines) : ""
         let payload = ResponsesRequest(
             model: modelID,
-            input: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildResponsesInputMessage($0, transport: .openAIResponses, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) },
+            input: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildResponsesInputMessage($0, transport: .openAIResponses, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) },
             instructions: systemPrompt.isEmpty ? nil : systemPrompt,
             stream: stream ? true : nil,
             reasoning: nil,
             tools: nil,
             service_tier: serviceTier,
             store: requestOptions.relayRequested?.disableResponseStorage == true ? false : nil,
-            max_output_tokens: resolved?.maxOutputTokens
+            // The main chat path uses plan.budget.oWire; non-chat paths keep the catalog value.
+            max_output_tokens: requestOptions.maxOutputTokens ?? resolved?.maxOutputTokens
         )
         var body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
         if capabilityIntent.webSearchEnabled,
@@ -1047,6 +1069,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         ) {
             ProfileParamsResolver.deepMerge(&body, reasoningMerge)
         }
+        try ClientToolsInjector.apply(to: &body, protocol: .openaiResponses, options: requestOptions)
         ProfileParamsResolver.applyTemperatureGate(to: &body, resolved: resolved)
         ProfileParamsResolver.applyGenerationParameters(
             to: &body,
@@ -1242,7 +1265,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         if !systemPrompt.isEmpty {
             apiMessages.append(.init(role: "system", content: .text(systemPrompt)))
         }
-        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, transport: .openAIChat, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, transport: .openAIChat, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
         let payload = ChatCompletionRequest(
             model: modelID,
             stream: stream ? true : nil,
@@ -1271,6 +1294,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
            ) {
             ProfileParamsResolver.deepMerge(&body, webMerge)
         }
+        try ClientToolsInjector.apply(to: &body, protocol: .openaiChat, options: requestOptions)
         ProfileParamsResolver.applyTemperatureGate(to: &body, resolved: resolved)
         ProfileParamsResolver.applyGenerationParameters(
             to: &body,
@@ -1347,7 +1371,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         let trimmedSystem = requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedSystem.isEmpty { lines.append("system: \(trimmedSystem)") }
         let turns = try AttachmentDelivery.mapTurns(
-            messages, isChatSend: requestOptions.capabilityEvidenceModel != nil
+            messages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText
         ) { message, isOutgoingTurn in
             (message.role, try AttachmentDelivery.deliver(
                 isOutgoingTurn: isOutgoingTurn,
@@ -1392,7 +1416,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                 relayTransport: error.effectiveTransport
             )
         }
-        let text = try llamaCppContent(from: data).trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = try Self.llamaCppContent(from: data).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { throw ProviderServiceError.emptyResponse }
         return ProviderChatResult(text: text, promptTokens: 0, completionTokens: 0, estimatedCost: 0)
     }
@@ -1418,21 +1442,13 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                     let (bytes, _) = try await self.executeRelayStreamRequest(
                         request, effectiveTransport: .llamacppNative
                     )
-                    var accumulated = ""
-                    for try await line in bytes.utf8Lines {
-                        if Task.isCancelled { break }
-                        let payload = line.hasPrefix("data: ") ? String(line.dropFirst(6)) : line
-                        guard !payload.isEmpty, payload != "[DONE]" else { continue }
-                        guard let data = payload.data(using: .utf8) else { continue }
-                        try Self.throwIfStreamErrorFrame(data, beforeAnyContent: accumulated.isEmpty, redacting: [apiKey])
-                        let delta = try self.llamaCppContent(from: data)
-                        guard !delta.isEmpty else { continue }
-                        accumulated += delta
-                        continuation.yield(.delta(delta))
-                    }
+                    let (accumulated, finish) = try await Self.pumpLlamaCppNative(
+                        lines: bytes.utf8Lines, apiKey: apiKey, continuation: continuation
+                    )
                     continuation.yield(.done(ProviderChatResult(
                         text: accumulated.trimmingCharacters(in: .whitespacesAndNewlines),
-                        promptTokens: 0, completionTokens: 0, estimatedCost: 0
+                        promptTokens: 0, completionTokens: 0, estimatedCost: 0,
+                        finish: finish
                     )))
                     continuation.finish()
                 } catch let error as RelayHTTPStatusError {
@@ -1469,7 +1485,30 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         if case .supported(_, _, true) = result { throw LocalEngineConnectionError.contextExceeded }
     }
 
-    private func llamaCppContent(from data: Data) throws -> String {
+    /// Read the native llama.cpp /completion stream line by line: the body is handed out as deltas, and the last frame (stop: true) records the finish
+    /// (family llama_cpp, finishRaw = stop_type, older servers are converted from stopped_*); a cut without receiving stop: true = eof_without_marker.
+    static func pumpLlamaCppNative<Lines: AsyncSequence>(
+        lines: Lines, apiKey: String,
+        continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
+    ) async throws -> (text: String, finish: StreamFinish) where Lines.Element == String {
+        var accumulated = ""
+        var finishTracker = StreamFinishTracker(family: .llamaCpp)
+        for try await line in lines {
+            if Task.isCancelled { break }
+            let payload = line.hasPrefix("data: ") ? String(line.dropFirst(6)) : line
+            guard !payload.isEmpty, payload != "[DONE]" else { continue }
+            guard let data = payload.data(using: .utf8) else { continue }
+            finishTracker.observeFrame(data)
+            try throwIfStreamErrorFrame(data, beforeAnyContent: accumulated.isEmpty, redacting: [apiKey])
+            let delta = try llamaCppContent(from: data)
+            guard !delta.isEmpty else { continue }
+            accumulated += delta
+            continuation.yield(.delta(delta))
+        }
+        return (accumulated, finishTracker.finish())
+    }
+
+    private static func llamaCppContent(from data: Data) throws -> String {
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw ProviderServiceError.network(detail: "Invalid llama.cpp response.")
         }
@@ -1561,7 +1600,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
 
         let payload = ResponsesRequest(
             model: modelID,
-            input: try AttachmentDelivery.mapTurns(messages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildResponsesInputMessage($0, transport: .codexSubscription, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) },
+            input: try AttachmentDelivery.mapTurns(messages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildResponsesInputMessage($0, transport: .codexSubscription, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) },
             instructions: systemPrompt.isEmpty ? nil : systemPrompt,
             stream: true,
             reasoning: ResponsesRequest.Reasoning(effort: effort, summary: "auto"),
@@ -1572,6 +1611,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         )
         var body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
         body["include"] = ["reasoning.encrypted_content"]
+        try ClientToolsInjector.apply(to: &body, protocol: .openaiResponses, options: requestOptions)
         try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return request
@@ -1665,7 +1705,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         if !systemPrompt.isEmpty {
             apiMessages.append(.init(role: "system", content: .text(systemPrompt)))
         }
-        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, transport: .relayOpenAIChat, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, transport: .relayOpenAIChat, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
 
         // reasoning_effort follows this turn's reasoningMode only; the stored connection-level level is void on read and is not sent.
         let reasoningEffort = omitReasoning ? nil : capabilityIntent.reasoningMode.flatMap { allowedMode in
@@ -1695,6 +1735,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         if let functionTools {
             body["tools"] = functionTools
         }
+        try ClientToolsInjector.apply(to: &body, protocol: .openaiChat, options: requestOptions)
         ProfileParamsResolver.applyGenerationParameters(
             to: &body,
             options: requestOptions,
@@ -1703,6 +1744,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         )
         // Relay web-search fragment: applied after the builder's output and before the additional request body.
         RelayWebFragments.apply(requestOptions.relayWebFragments, transport: .openaiChatCompletions, to: &body)
+        ClientToolsInjector.moveHostMemoryToolsLast(in: &body)
         try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
@@ -1799,7 +1841,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         let tools: [ResponsesRequest.Tool]? = toolsArray.isEmpty ? nil : toolsArray
         let payload = ResponsesRequest(
             model: modelID,
-            input: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildResponsesInputMessage($0, transport: .relayOpenAIResponses, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) },
+            input: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildResponsesInputMessage($0, transport: .relayOpenAIResponses, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) },
             instructions: systemPrompt.isEmpty ? nil : systemPrompt,
             stream: stream ? true : nil,
             reasoning: omitReasoning || capabilityIntent.reasoningMode == nil
@@ -1807,12 +1849,14 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             tools: tools,
             service_tier: serviceTier,
             store: relayRequested?.disableResponseStorage == true ? false : nil,
-            max_output_tokens: maxOutputTokens ?? 16384
+            // A limit passed in by the test capability takes priority; the main chat path uses plan.budget.oWire; everything else keeps the 16384 fallback.
+            max_output_tokens: maxOutputTokens ?? requestOptions.maxOutputTokens ?? 16384
         )
         var body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
         if let functionTools {
             body["tools"] = functionTools
         }
+        try ClientToolsInjector.apply(to: &body, protocol: .openaiResponses, options: requestOptions)
         ProfileParamsResolver.applyGenerationParameters(
             to: &body,
             options: requestOptions,
@@ -1821,6 +1865,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         )
         // Relay web-search fragment: applied after the builder's output and before the additional request body.
         RelayWebFragments.apply(requestOptions.relayWebFragments, transport: .openaiResponses, to: &body)
+        ClientToolsInjector.moveHostMemoryToolsLast(in: &body)
         try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         // Placed after the additional request body so a prompt_cache_key the user wrote themselves is kept.
         // The official cross-protocol route is not a relay, so its body is left alone.
@@ -2279,6 +2324,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         var accumulatedText: String
         var lastUsage: ResponsesUsage?
         var firstContentEmitted: Bool
+        var finishTracker = StreamFinishTracker(family: .openaiResponses)
     }
 
     private func streamRelayResponses(
@@ -2308,7 +2354,8 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: 0,
                         usageBreakdown: breakdown,
-                        costSource: nil
+                        costSource: nil,
+                        finish: firstResult.finishTracker.finish()
                     )))
                     continuation.finish()
                 } catch {
@@ -2376,6 +2423,9 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             let payload = String(line.dropFirst(6))
             if payload == "[DONE]" { break }
             guard let jsonData = payload.data(using: .utf8) else { continue }
+            result.finishTracker.observeFrame(jsonData, eventType: currentEvent.isEmpty ? nil : currentEvent)
+            // response.failed throws in the switch below: hand out the finish first.
+            if result.finishTracker.finishRaw == "failed" { continuation.yield(.finish(result.finishTracker.finish())) }
 
             if !currentEvent.isEmpty {
                 let injected = self.injectResponsesEventType(payload: payload, type: currentEvent)
@@ -2421,7 +2471,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         base64Data: base64
                     )))
                 }
-            case "response.completed":
+            case "response.completed", "response.incomplete":
                 if let completed = try? self.decoder.decode(ResponsesStreamCompleted.self, from: jsonData) {
                     result.lastUsage = completed.resolvedUsage
                 }
@@ -2475,9 +2525,11 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         for ev in OpenAIChatStrategy.flushToolCalls(ctx: &chatCtx) { continuation.yield(ev) }
                     }
 
+                    var finishTracker = StreamFinishTracker(family: .openaiChat)
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
-                        // The fallback web page's Content-Type is not necessarily html: check the first body line once more before any output.
+                        finishTracker.observeSSELine(line)
+                        // The Content-Type of a fallback web page is not necessarily html: check the first body line once more before any output.
                         try self.rejectRelayWebPageStreamStart(http, line: line, settled: &bodyStartChecked)
                         guard line.hasPrefix("data: ") else { continue }
                         let payload = String(line.dropFirst(6))
@@ -2532,7 +2584,8 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                                 completionTokens: relayBreakdown.completionTokens,
                                 estimatedCost: 0,
                                 usageBreakdown: relayBreakdown,
-                                costSource: nil
+                                costSource: nil,
+                                finish: finishTracker.finish()
                             )
                         )
                     )
@@ -3394,5 +3447,33 @@ extension OpenAIService {
             upstreamCost: nil,
             cacheReadObserved: usage.input_tokens_details?.cached_tokens != nil
         )
+    }
+}
+
+// MARK: - Protocol entry with request options: a one-line forward to the options overload this service already has
+
+extension OpenAIService {
+    func sendMessage(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(apiKey: apiKey, modelID: modelID, messages: messages, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessageStream(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessage(
+        apiKey: String, modelID: String, messages: [ChatMessage], baseURL: String, requestOptions: ChatRequestOptions
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: baseURL, reasoningMode: .automatic, requestOptions: requestOptions, relayRequested: nil)
+    }
+
+    func sendMessageStream(
+        apiKey: String, modelID: String, messages: [ChatMessage], baseURL: String, requestOptions: ChatRequestOptions
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: baseURL, reasoningMode: .automatic, requestOptions: requestOptions, relayRequested: nil)
     }
 }

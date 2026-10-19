@@ -67,11 +67,18 @@ final class AssistantMessageCell: UICollectionViewCell {
     let unhandledToolCallView = UIKitUnhandledToolCallView()
     // One secondary-colour line under the reply (e.g. the relay did not use web search): a permanent slot, hidden when there is no notice.
     let replyNoticeLabel = UILabel()
+    // Compaction separator row: the first item of outerStack, above contentStack; hidden when there is no separator.
+    let compactionSeparatorView = ContextCompactionSeparatorView()
 
     var recoveryCard: UIKitRecoveryCard?
     let recoveryCardHost = UIView()
 
     let metadataView = AssistantMetadataView()
+    /// "Save to memory?" bar: after the metadata action row; hidden unless this assistant
+    /// message carries the pending bar and is no longer streaming. Toggled via isHidden only.
+    let memorySuggestionView = MemorySuggestionBarView()
+    /// Minimum-height constraint on bodyStack while streaming: when reasoning and the typing dots are mutually exclusive,
+    /// bodyStack would be only as tall as the reasoning header and the metadata would sit flush under it, looking cut off.
     var bodyStackMinHeightConstraint: NSLayoutConstraint?
     var topPaddingConstraint: NSLayoutConstraint!
 
@@ -206,13 +213,19 @@ final class AssistantMessageCell: UICollectionViewCell {
         onSaveNote: (() -> Void)? = nil,
         onOpenNoteReferences: (() -> Void)? = nil,
         onCrosscheck: (() -> Void)? = nil,
+        onOpenMemoryUsed: (() -> Void)? = nil,
         onToolStepAction: ((McpToolStepAction) -> Void)? = nil,
         onSaveSelection: ((String) -> Void)? = nil,
         onAskSelection: ((QuoteSelectionContent) -> Void)? = nil,
         onReplaceSelection: ((String) -> Void)? = nil,
-        onSaveCodeBlock: ((String, String?) -> Void)? = nil
+        onSaveCodeBlock: ((String, String?) -> Void)? = nil,
+        onOpenCompactionDetail: (() -> Void)? = nil,
+        onSaveMemorySuggestion: (() -> Void)? = nil,
+        onEditMemorySuggestion: (() -> Void)? = nil,
+        onIgnoreMemorySuggestion: (() -> Void)? = nil
     ) {
         self.onToolStepAction = onToolStepAction
+        configureCompactionSeparator(model.compactionSeparator, onTap: onOpenCompactionDetail)
         let previousMessageID = boundMessageID
         let previousMessageState = currentMessageState
         let effectiveText = model.displayText ?? model.message.text
@@ -365,11 +378,16 @@ final class AssistantMessageCell: UICollectionViewCell {
                 onSaveNote: onSaveNote,
                 onOpenNoteReferences: onOpenNoteReferences,
                 onCrosscheck: onCrosscheck,
+                onOpenMemoryUsed: onOpenMemoryUsed,
                 isVisualRenderPending: shouldDeferFinalBody
             )
         } else {
             metadataView.resetForReuse()
         }
+        memorySuggestionView.onSave = onSaveMemorySuggestion
+        memorySuggestionView.onEdit = onEditMemorySuggestion
+        memorySuggestionView.onIgnore = onIgnoreMemorySuggestion
+        applyMemorySuggestion(isGenerating ? nil : model.memorySuggestion)
 
         if isGenerating || ((wasStreaming || didExitGenerating) && !shouldDeferFinalBody) {
             notifyContentDidChange()

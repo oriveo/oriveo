@@ -1,4 +1,5 @@
 import Foundation
+import OriveoProviderKit
 
 nonisolated enum ChatRole: String, Hashable, Codable, Sendable {
     case user
@@ -195,6 +196,12 @@ nonisolated struct ChatRequestOptions: Hashable, Codable, Sendable {
     var localContinuationMessageID: UUID? = nil
     /// Only `ChatManager.continueMessage` sets this. A fresh user send never reads sidecar state.
     var localExplicitContinuationMessageID: UUID? = nil
+    /// Whether the Responses stateful-continuation fingerprint (plan.system digest / served model id / checkpoint text digest) matches the previous leg.
+    /// Computed and written by the app layer; the default false = mismatch, and the continuation falls back to the full plan. Not encoded.
+    var continuationFingerprintMatches: Bool = false
+    /// The only user text a stateful continuation leg (carrying previous_response_id) sends; on continue it is the core continuation sentence, without [D].
+    /// When nil the last user message is used. Written by `ChatRequestBuilder`; not encoded.
+    var statefulLegText: String? = nil
     /// Multiple owners may independently select custom mode in one request. Keeping the fragments
     /// as an array preserves that orthogonality; the final writer validates every owner again.
     var localSafeCustomBodyFragments: [SafeCustomBodyFragment] = []
@@ -232,6 +239,18 @@ nonisolated struct ChatRequestOptions: Hashable, Codable, Sendable {
     var relayRequested: RelayRequestedConfig? = nil
     var grokSubscription: GrokSubscriptionRequestContext? = nil
     var openAISubscription: OpenAISubscriptionRequestContext? = nil
+    /// Output token cap for the main chat path = plan.budget.oWire, written by `ChatRequestBuilder.build(from:assembly:)`.
+    /// Used only as the base value by builders that already send max_tokens; when nil (non-chat paths) each builder keeps its own fallback.
+    /// **Deliberately not in CodingKeys**: the budget result of a single request, never persisted.
+    var maxOutputTokens: Int? = nil
+    /// The [D] blocks of this plan (joined by blank lines); nil when there is no [D]. Written only by `PlannedChatRequest.transportInput`.
+    /// In the body, [D] is still appended to the end of the last user message; this lets protocol families that need it as a separate block strip it out. **Deliberately not in CodingKeys**.
+    var dynamicText: String? = nil
+    /// Client tools (such as propose_memory): when non-empty, each protocol builder writes tools and
+    /// tool_choice by projecting them through this platform's ToolAdapter (`ClientToolsInjector`); empty = request body unchanged. **Deliberately not in CodingKeys**.
+    var clientTools: [ToolLoopToolDefinition] = []
+    /// The tool_choice for client tools; sent only when `clientTools` is non-empty. **Deliberately not in CodingKeys**.
+    var clientToolChoice: ClientToolChoice = .auto
 
     nonisolated init(
         systemPrompt: String = "",
@@ -599,6 +618,11 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
     /// Summaries of the remote MCP tool steps this answer ran. The raw arguments and results are not here:
     /// they stay in the local `mcp_step_payload` table.
     var toolSteps: [McpToolStep]? = nil
+    /// Why the stream ended; nil for older messages. Stored in the local database and serialized with backups.
+    var stopReason: StopReason? = nil
+    /// IDs of the memory items injected into this answer (plan.memoryIds): stored in the local database only, not in backups (not in CodingKeys).
+    var memoryItemIds: [String] = []
+    /// Set to the local time on creation; optional so that old backups can still be imported
     var createdAt: Date? = Date()
     var inputTokens: Int? = nil
     var outputTokens: Int? = nil
@@ -744,6 +768,8 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         quoteContext: QuoteContext? = nil,
         citations: [Citation]? = nil,
         toolSteps: [McpToolStep]? = nil,
+        stopReason: StopReason? = nil,
+        memoryItemIds: [String] = [],
         createdAt: Date? = Date(),
         inputTokens: Int? = nil,
         outputTokens: Int? = nil,
@@ -776,6 +802,8 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         self.quoteContext = quoteContext
         self.citations = citations
         self.toolSteps = toolSteps
+        self.stopReason = stopReason
+        self.memoryItemIds = memoryItemIds
         self.createdAt = createdAt
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
@@ -800,6 +828,8 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         case inputTokens, outputTokens, cachedInputTokens, cacheCreationInputTokens
         case cacheCreation5mTokens, cacheCreation1hTokens, costSource
         case recoveryPrimaryAction = "managedPrimaryAction"
+        // Why the stream ended, stored as the fixture raw value; unknown strings read as unknown.
+        case stopReason
     }
 
     init(from decoder: Decoder) throws {
@@ -843,6 +873,7 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         cacheCreation5mTokens = try c.decodeIfPresent(Int.self, forKey: .cacheCreation5mTokens)
         cacheCreation1hTokens = try c.decodeIfPresent(Int.self, forKey: .cacheCreation1hTokens)
         costSource = try c.decodeIfPresent(CostSource.self, forKey: .costSource)
+        stopReason = StopReason.fromStored(try? c.decodeIfPresent(String.self, forKey: .stopReason))
         capabilityExecution = nil
         unhandledToolCalls = nil
         toolFallbackNotice = nil
@@ -881,6 +912,7 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         try c.encodeIfPresent(cacheCreation1hTokens, forKey: .cacheCreation1hTokens)
         try c.encodeIfPresent(costSource, forKey: .costSource)
         try c.encodeIfPresent(recoveryPrimaryAction, forKey: .recoveryPrimaryAction)
+        try c.encodeIfPresent(stopReason?.rawValue, forKey: .stopReason)
     }
 }
 
@@ -925,6 +957,11 @@ struct Conversation: Identifiable, Hashable, Codable {
     var isConflictCopy: Bool = false
     var originalConversationId: UUID?
     var pinnedNoteIds: [UUID] = []
+    /// Conversation-level instructions (standing requirements the user wrote for this conversation), default "". Writers already go through `ConversationInstructions.normalize`, so the read path does not normalize again.
+    /// Not in CodingKeys: backups use a DTO.
+    var instructions: String = ""
+    /// Conversation-level context budget cap; nil = follow the global default. Not in CodingKeys: backups use a DTO.
+    var contextCap: ContextBudgetCap? = nil
 
     nonisolated var estimatedCostText: String {
         CostFormatter.format(estimatedCost)
@@ -1068,6 +1105,9 @@ extension Conversation {
         if useMemory != other.useMemory { return false }
         if previewText != other.previewText { return false }
         if messageCountOverride != other.messageCountOverride { return false }
+        if instructions != other.instructions { return false }
+        if contextCap != other.contextCap { return false }
+        // Soft-delete state also counts as "visible content": equal only when both sides are deleted
         if (deletedAt == nil) != (other.deletedAt == nil) { return false }
         return true
     }

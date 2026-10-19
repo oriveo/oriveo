@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import OriveoProviderKit
 @testable import Oriveo
 
 
@@ -147,36 +148,46 @@ struct MemoryInjectionTests {
         )
     }
 
+    // MARK: - Injection reads memory items
 
-    @Test("Injects when memory text and use memory")
-    func injectsWhenMemoryTextAndUseMemory() {
-        let memoryText = "I am a developer"
-        let systemPrompt = memoryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        #expect(!systemPrompt.isEmpty)
-        let options = ChatRequestOptions(systemPrompt: systemPrompt)
-        #expect(options.hasCustomizations)
+    /// The request snapshot carries only items; memoryText is a legacy dual-write and no longer enters the snapshot.
+    private func memorySystem(items: [MemoryItem], useMemory: Bool = true) -> String {
+        ChatRequestBuilder.build(from: ChatRequestSnapshot(
+            conversation: ChatRequestConversationSnapshot(id: UUID(), useMemory: useMemory, skillID: nil),
+            messages: [makeMessage(role: .user, text: "Hello")],
+            preferences: ChatRequestPreferencesSnapshot(memoryItems: items),
+            skill: nil,
+            sendPath: .send(excludingMessageID: nil)
+        ), assembly: RetiredAntiForgetProbe.assembly).planned.plan.system ?? ""
     }
 
-    @Test("No injection when empty")
-    func noInjectionWhenEmpty() {
-        let memoryText = ""
-        let systemPrompt = memoryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        #expect(systemPrompt.isEmpty)
+    private func item(_ id: String, _ kind: MemoryKind, _ content: String) -> MemoryItem {
+        MemoryItem(id: id, kind: kind, content: content, mutationId: "mut-\(id)", deviceId: "device-test")
     }
 
-    @Test("No injection when whitespace")
+    @Test("Items + useMemory true injects items, standing section before memory section")
+    func injectsWhenItemsAndUseMemory() throws {
+        let system = memorySystem(items: [item("m1", .fact, "I am a developer"), item("m2", .instruction, "Be concise")])
+        let standing = try #require(system.range(of: "<oriveo-standing-instructions>"))
+        let memory = try #require(system.range(of: "<oriveo-memory>"))
+        #expect(standing.lowerBound < memory.lowerBound)
+        #expect(system.contains("<entry>I am a developer</entry>"))
+        #expect(system.contains("<entry>Be concise</entry>"))
+    }
+
+    @Test("No items means no injection (memoryText is no longer injected wholesale)")
+    func noInjectionWhenNoItems() {
+        #expect(memorySystem(items: []).isEmpty)
+    }
+
+    @Test("Whitespace-only item content means no injection")
     func noInjectionWhenWhitespace() {
-        let memoryText = "   \n  "
-        let systemPrompt = memoryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        #expect(systemPrompt.isEmpty)
+        #expect(memorySystem(items: [item("m1", .fact, "   \n  ")]).isEmpty)
     }
 
     @Test("No injection when use memory false")
     func noInjectionWhenUseMemoryFalse() {
-        let memoryText = "I am a developer"
-        let useMemory = false
-        let shouldInject = !memoryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && useMemory
-        #expect(!shouldInject)
+        #expect(memorySystem(items: [item("m1", .fact, "I am a developer")], useMemory: false).isEmpty)
     }
 
 
@@ -190,7 +201,7 @@ struct MemoryInjectionTests {
 
         let result = RetiredAntiForgetProbe.build(messages, memoryText: "Developer, concise", useMemory: true)
         #expect(!RetiredAntiForgetProbe.containsReminder(result))
-        #expect(result.requestMessages.last(where: { $0.role == .user })?.text == "User message 9")
+        #expect(result.planned.messages.last(where: { $0.role == .user })?.text == "User message 9")
     }
 
     @Test("Anti-forget skips under 10")
@@ -474,7 +485,7 @@ struct AntiForgetFormatTests {
         }
 
         let result = RetiredAntiForgetProbe.build(messages, memoryText: "  Developer, concise  \n", useMemory: true)
-        #expect(result.requestMessages.last(where: { $0.role == .user })?.text == "User message 9")
+        #expect(result.planned.messages.last(where: { $0.role == .user })?.text == "User message 9")
         #expect(!RetiredAntiForgetProbe.containsReminder(result))
     }
 }
@@ -870,7 +881,7 @@ private func simulateApplyAntiForget(
     antiForgetText: String,
     useMemory: Bool
 ) {
-    messages = RetiredAntiForgetProbe.build(messages, memoryText: memoryText, useMemory: useMemory).requestMessages
+    messages = RetiredAntiForgetProbe.build(messages, memoryText: memoryText, useMemory: useMemory).planned.messages
 }
 
 

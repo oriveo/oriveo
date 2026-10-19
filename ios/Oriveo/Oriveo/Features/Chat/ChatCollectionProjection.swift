@@ -90,7 +90,6 @@ nonisolated enum ChatCollectionProjectionBuilder {
         let resolvedModelName: String?
         let relayKind: RelayKind?
         var relayAvatar: RelayAvatar? = nil
-        let resolvedContextLength: Int?
         let noteReferences: [NoteSummary]
         let noteBadgePresentation: NoteBadgePresentation
         var renderHint: MarkdownRenderHint?
@@ -98,6 +97,13 @@ nonisolated enum ChatCollectionProjectionBuilder {
         let isLastInConversation: Bool
         /// Secondary note under the reply (relay web search was not used); comes only from ChatManager in-process memory, not stored on the message.
         var replyNotice: RelayWebReplyNotice? = nil
+        /// Compaction separator row: attached only to the first message after coversTo, drawn at the top of that cell.
+        var compactionSeparator: ContextCompactionSeparator? = nil
+        /// "Set as instruction" suggestion bar: attached only to the user message the pending suggestion belongs to, drawn below the bubble.
+        var showsDirectiveSuggestion: Bool = false
+        /// "Save to memory?" bar: attached only to the assistant message of this turn that the suggestion belongs to,
+        /// appears only after streaming ends and is drawn after the metadata action row.
+        var memorySuggestion: MemorySuggestionBar? = nil
 
         nonisolated var id: UUID { message.id }
     }
@@ -118,7 +124,6 @@ nonisolated enum ChatCollectionProjectionBuilder {
         let relayKind: RelayKind?
         /// Avatar of the relay connection; nil means this is not a relay message and the plain relayKind logo is used.
         let relayAvatar: RelayAvatar?
-        let resolvedContextLength: Int?
         let noteReferences: [NoteSummary]
         let noteBadgePresentation: NoteBadgePresentation
         let renderHint: MarkdownRenderHint?
@@ -130,6 +135,12 @@ nonisolated enum ChatCollectionProjectionBuilder {
         let isLastInConversation: Bool
         /// Secondary note under the reply (passed through from MessageRow).
         let replyNotice: RelayWebReplyNotice?
+        /// Compaction separator (passed through from MessageRow); part of Equatable, so adding or removing the row triggers a reconfigure.
+        let compactionSeparator: ContextCompactionSeparator?
+        /// Suggestion bar (passed through from MessageRow); part of Equatable, so appearing / disappearing triggers a reconfigure.
+        let showsDirectiveSuggestion: Bool
+        /// Memory bar (passed through from MessageRow); part of Equatable, so appearing / disappearing / a new candidate triggers a reconfigure.
+        let memorySuggestion: MemorySuggestionBar?
 
         init(
             messageID: UUID,
@@ -140,7 +151,6 @@ nonisolated enum ChatCollectionProjectionBuilder {
             resolvedModelName: String?,
             relayKind: RelayKind?,
             relayAvatar: RelayAvatar? = nil,
-            resolvedContextLength: Int? = nil,
             noteReferences: [NoteSummary] = [],
             noteBadgePresentation: NoteBadgePresentation = .none,
             renderHint: MarkdownRenderHint?,
@@ -150,7 +160,10 @@ nonisolated enum ChatCollectionProjectionBuilder {
             isStreaming: Bool,
             providerMetadataVersion: UInt,
             isLastInConversation: Bool = true,
-            replyNotice: RelayWebReplyNotice? = nil
+            replyNotice: RelayWebReplyNotice? = nil,
+            compactionSeparator: ContextCompactionSeparator? = nil,
+            showsDirectiveSuggestion: Bool = false,
+            memorySuggestion: MemorySuggestionBar? = nil
         ) {
             self.messageID = messageID
             self.message = message
@@ -160,7 +173,6 @@ nonisolated enum ChatCollectionProjectionBuilder {
             self.resolvedModelName = resolvedModelName
             self.relayKind = relayKind
             self.relayAvatar = relayAvatar
-            self.resolvedContextLength = resolvedContextLength
             self.noteReferences = noteReferences
             self.noteBadgePresentation = noteBadgePresentation
             self.renderHint = renderHint
@@ -171,6 +183,9 @@ nonisolated enum ChatCollectionProjectionBuilder {
             self.providerMetadataVersion = providerMetadataVersion
             self.isLastInConversation = isLastInConversation
             self.replyNotice = replyNotice
+            self.compactionSeparator = compactionSeparator
+            self.showsDirectiveSuggestion = showsDirectiveSuggestion
+            self.memorySuggestion = memorySuggestion
         }
     }
 
@@ -201,14 +216,22 @@ nonisolated enum ChatCollectionProjectionBuilder {
         from messages: [ChatMessage],
         metadata: ChatCollectionProviderMetadata,
         noteReferencesByMessageID: [UUID: [NoteSummary]] = [:],
-        replyNotices: [UUID: RelayWebReplyNotice] = [:]
+        replyNotices: [UUID: RelayWebReplyNotice] = [:],
+        compactionSeparator: ContextCompactionSeparator? = nil,
+        directiveSuggestionMessageID: UUID? = nil,
+        memorySuggestion: MemorySuggestionBar? = nil
     ) -> [MessageRow] {
         var rows: [MessageRow] = []
         rows.reserveCapacity(messages.count)
+        let separatorAnchorID = compactionSeparator.flatMap { UUID(uuidString: $0.anchorMessageId) }
 
         for index in messages.indices {
             let message = messages[index]
             let previousRole = index > 0 ? messages[index - 1].role : nil
+            // The first message after coversTo carries the separator; it is not drawn when coversTo is outside the loaded window or is the last message.
+            let separator = index > 0 && separatorAnchorID != nil && messages[index - 1].id == separatorAnchorID
+                ? compactionSeparator
+                : nil
             let isLastAssistant = message.role == .assistant &&
                 (index == messages.count - 1 || messages[index + 1].role != .assistant)
             let isLastInConversation = index == messages.count - 1
@@ -229,7 +252,6 @@ nonisolated enum ChatCollectionProjectionBuilder {
                     resolvedModelName: metadata.resolvedModelName(for: message),
                     relayKind: metadata.relayKind(for: message),
                     relayAvatar: metadata.relayAvatar(for: message),
-                    resolvedContextLength: metadata.resolvedContextLength(for: message),
                     noteReferences: noteReferences,
                     noteBadgePresentation: noteBadgePresentation,
                     renderHint: nil,
@@ -237,7 +259,14 @@ nonisolated enum ChatCollectionProjectionBuilder {
                         ? compactTopPadding
                         : groupedTopPadding,
                     isLastInConversation: isLastInConversation,
-                    replyNotice: message.role == .assistant ? replyNotices[message.id] : nil
+                    replyNotice: message.role == .assistant ? replyNotices[message.id] : nil,
+                    compactionSeparator: separator,
+                    showsDirectiveSuggestion: message.role == .user && message.id == directiveSuggestionMessageID,
+                    memorySuggestion: message.role == .assistant
+                        && message.state != .generating
+                        && message.id == memorySuggestion?.messageID
+                        ? memorySuggestion
+                        : nil
                 )
             )
         }
@@ -278,7 +307,6 @@ nonisolated enum ChatCollectionProjectionBuilder {
                 resolvedModelName: row.resolvedModelName,
                 relayKind: row.relayKind,
                 relayAvatar: row.relayAvatar,
-                resolvedContextLength: row.resolvedContextLength,
                 noteReferences: row.noteReferences,
                 noteBadgePresentation: row.noteBadgePresentation,
                 renderHint: row.renderHint,
@@ -288,7 +316,10 @@ nonisolated enum ChatCollectionProjectionBuilder {
                 isStreaming: row.message.state == .generating,
                 providerMetadataVersion: providerMetadataVersion,
                 isLastInConversation: row.isLastInConversation,
-                replyNotice: row.replyNotice
+                replyNotice: row.replyNotice,
+                compactionSeparator: row.compactionSeparator,
+                showsDirectiveSuggestion: row.showsDirectiveSuggestion,
+                memorySuggestion: row.memorySuggestion
             )
         }
 
@@ -341,4 +372,10 @@ struct ChatCollectionViewModel {
     let pendingSearchScrollTarget: PendingSearchScrollTarget?
     let isBootstrappingPersistedConversation: Bool
     let retryCapabilitySelection: ChatCapabilitySelection
+    /// Separator for the latestValid compaction row (computed from the full history); the rows must be rebuilt when it changes, even if the message revision did not.
+    var compactionSeparator: ContextCompactionSeparator? = nil
+    /// The user message the pending "set as instruction" suggestion is attached to; rows must be rebuilt when it appears / disappears.
+    var directiveSuggestionMessageID: UUID? = nil
+    /// The pending memory bar (which assistant message it is attached to and what it shows); rows must be rebuilt when it appears / disappears.
+    var memorySuggestion: MemorySuggestionBar? = nil
 }

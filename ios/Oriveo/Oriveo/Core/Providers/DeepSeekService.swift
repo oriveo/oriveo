@@ -149,7 +149,15 @@ final class DeepSeekService: BaseAPIService, ProviderServiceProtocol, BalanceQue
                         if assembler.isDone { break }
                     }
                     try Task.checkCancellation()
-                    for event in streamState.consume(try assembler.finish()) {
+                    let finishedEvents: [ProviderStreamEvent]
+                    do {
+                        finishedEvents = try assembler.finish()
+                    } catch ProviderStreamWireError.truncated {
+                        // Stream cut off before the terminator: still throw truncated as before, but first deliver an eof-type finish so wrap-up can record stopReason.
+                        continuation.yield(.finish(streamState.streamFinish(sawDoneMarker: assembler.isDone)))
+                        throw ProviderStreamWireError.truncated
+                    }
+                    for event in streamState.consume(finishedEvents) {
                         continuation.yield(event)
                     }
 
@@ -184,7 +192,8 @@ final class DeepSeekService: BaseAPIService, ProviderServiceProtocol, BalanceQue
                                 completionTokens: breakdown.completionTokens,
                                 estimatedCost: cost,
                                 usageBreakdown: breakdown,
-                                costSource: source
+                                costSource: source,
+                                finish: streamState.streamFinish(sawDoneMarker: assembler.isDone)
                             )
                         )
                     )
@@ -299,7 +308,7 @@ final class DeepSeekService: BaseAPIService, ProviderServiceProtocol, BalanceQue
         if !systemPrompt.isEmpty {
             apiMessages.append(["role": "system", "content": systemPrompt])
         }
-        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
         // `localExplicitContinuationMessageID` is set only by ChatManager's continue/retry
         // action. A normal new send cannot load sidecar state, even if it shares a model.
         if let replayAssistantMessages {
@@ -526,5 +535,21 @@ private struct DeepSeekToolCall: Decodable {
         ]
         if let id, !id.isEmpty { value["id"] = id }
         return value
+    }
+}
+
+// MARK: - Protocol entry points with request options: one-line forwards to this service's existing options overloads
+
+extension DeepSeekService {
+    func sendMessage(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(apiKey: apiKey, modelID: modelID, messages: messages, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessageStream(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, reasoningMode: .automatic, requestOptions: requestOptions)
     }
 }

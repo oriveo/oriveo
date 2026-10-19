@@ -8,6 +8,8 @@ struct ChatToolbar: View {
     var transparentChrome: Bool = false
     @Binding var showModelSwitcher: Bool
     @Binding var showDeleteConfirmation: Bool
+    /// Opens the chat settings sheet; `true` = focus the instructions editor (badge tap).
+    var onOpenSettings: (_ focusEditor: Bool) -> Void = { _ in }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppState.self) private var appState
@@ -78,6 +80,10 @@ struct ChatToolbar: View {
             }
             .buttonStyle(ChatToolbarPressableStyle())
 
+            if hasInstructions && !usesVerticalBar {
+                instructionsBadge
+            }
+
             Spacer(minLength: 0)
 
             if projection.estimatedCost > 0 {
@@ -123,9 +129,8 @@ struct ChatToolbar: View {
                         }
                     }
 
-                    if hasMemoryText {
-                        useMemoryToggle
-                    }
+                    // Conversation settings (instructions and the use-memory switch live in the sheet)
+                    conversationSettingsButton
 
                     if projection.activeConversationID != nil {
                         Section {
@@ -261,35 +266,58 @@ struct ChatToolbar: View {
                 }
                 .visibilityPriority(.low)
 
-                if hasMemoryText || projection.activeConversationID != nil {
-                    ToolbarOverflowMenu {
-                        if hasMemoryText {
-                            useMemoryToggle
+                if hasInstructions {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            onOpenSettings(true)
+                        } label: {
+                            Label(L10n.tr("conversation_instructions_badge", table: .chat), systemImage: "text.quote")
                         }
-                        if projection.activeConversationID != nil {
-                            deleteButton
-                        }
+                        .accessibilityLabel(L10n.tr("conversation_instructions_badge_a11y", table: .chat))
+                    }
+                }
+
+                ToolbarOverflowMenu {
+                    conversationSettingsButton
+                    if projection.activeConversationID != nil {
+                        deleteButton
                     }
                 }
             }
         }
     }
 
-    private var hasMemoryText: Bool {
-        !appState.preferences.memoryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    private var hasInstructions: Bool {
+        !ConversationSettingsLogic.currentInstructions(
+            conversationID: projection.activeConversationID, appState: appState
+        ).isEmpty
     }
 
-    private var useMemoryToggle: some View {
-        Toggle(isOn: Binding(
-            get: { projection.useMemory },
-            set: { newValue in
-                if let conversationID = projection.activeConversationID {
-                    appState.setConversationUseMemory(conversationID, useMemory: newValue)
-                }
-            }
-        )) {
-            Label(L10n.tr("Use Memory", table: .chat), systemImage: "brain")
+    private var conversationSettingsButton: some View {
+        Button {
+            onOpenSettings(false)
+        } label: {
+            Label(L10n.tr("conversation_settings_title", table: .chat), systemImage: "slider.horizontal.3")
         }
+    }
+
+    /// Capsule next to the model name when this chat has instructions; tap opens settings focused on the editor.
+    private var instructionsBadge: some View {
+        Button {
+            onOpenSettings(true)
+        } label: {
+            Text(L10n.tr("conversation_instructions_badge", table: .chat))
+                .font(OriveoTheme.Typography.footnote.weight(.semibold))
+                .foregroundStyle(OriveoTheme.Palette.primary)
+                .lineLimit(1)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(OriveoTheme.Palette.primary.opacity(0.12), in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(ChatToolbarPressableStyle())
+        .fixedSize()
+        .accessibilityLabel(L10n.tr("conversation_instructions_badge_a11y", table: .chat))
     }
 
     private var deleteButton: some View {
@@ -317,12 +345,15 @@ struct ChatToolbar: View {
 
     // MARK: - Memory
 
+    /// The memory indicator follows active semantic items, not the legacy memoryText field.
     private var showMemoryIndicator: Bool {
-        hasMemoryText && projection.useMemory
+        MemoryUsedPresentation.showsToolbarIndicator(
+            useMemory: projection.useMemory, items: appState.memoryItemsCache.items
+        )
     }
 
     private var memoryPopoverContent: some View {
-        let previewText = ChatMemoryPopoverPresenter.previewText(for: appState.preferences.memoryText)
+        let previewText = MemoryUsedPresentation.toolbarPreview(items: appState.memoryItemsCache.items)
 
         return VStack(alignment: .leading, spacing: OriveoTheme.Spacing.lg) {
             HStack(alignment: .top, spacing: OriveoTheme.Spacing.md) {
@@ -413,18 +444,7 @@ struct ChatToolbar: View {
 
 }
 
-enum ChatMemoryPopoverPresenter {
-    private static let previewLimit = 300
-
-    static func previewText(for memoryText: String) -> String {
-        let trimmed = memoryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "" }
-
-        let preview = String(trimmed.prefix(previewLimit))
-        return preview + (trimmed.count > previewLimit ? "..." : "")
-    }
-}
-
+// MARK: - Embedded toolbar components
 
 private struct MemoryPopoverPreviewCard: View {
     let previewText: String

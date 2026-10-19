@@ -6,6 +6,8 @@ struct OpenAICompatibleStreamState {
     private(set) var accumulatedReasoning = ""
     private(set) var usage: ProviderTokenUsage?
     private(set) var toolCalls: [ProviderToolCall] = []
+    /// The finish_reason handed out when the assembler wraps up (`.finished` only arrives when terminal evidence holds, see `finish(requireTerminalEvidence:)`).
+    private(set) var finishReason: String?
 
     mutating func consume(_ providerEvents: [ProviderStreamEvent]) -> [StreamEvent] {
         var events: [StreamEvent] = []
@@ -27,14 +29,22 @@ struct OpenAICompatibleStreamState {
                 break
             case .citations:
                 break
-            case .finished:
-                break
+            case .finished(let reason):
+                finishReason = reason
             }
         }
         if !batchedToolCalls.isEmpty {
             events.append(.toolCallDeltas(batchedToolCalls))
         }
         return events
+    }
+
+    /// Stream finish info (openai_chat family): the stream is clean once the assembler has seen `[DONE]` or a non-empty finish_reason.
+    func streamFinish(sawDoneMarker: Bool) -> StreamFinish {
+        var tracker = StreamFinishTracker(family: .openaiChat)
+        if sawDoneMarker { tracker.markDoneMarker() }
+        tracker.observeFinishReason(finishReason)
+        return tracker.finish()
     }
 
     var usageBreakdown: UsageBreakdown {

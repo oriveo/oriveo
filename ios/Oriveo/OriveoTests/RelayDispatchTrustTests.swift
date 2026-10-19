@@ -206,10 +206,16 @@ struct RelayDispatchTrustTests {
         )
         provider.relayRequested = RelayRequestedConfig(transport: .openaiChatCompletions, authMode: .bearer)
 
+        let option = CrosscheckModelOption(
+            providerID: provider.id, providerKind: .relay, logoProviderKind: .relay, relayKind: nil,
+            providerName: "Relay", model: messagesModel, apiKey: "sk-relay", baseURL: nil
+        )
+        let transport = NoteCrosscheckBuilder.request(prompt: "check this", answer: "ok", model: option)
+            .transportInput(ChatRequestOptions())
         let sent = try await Self.capture { session in
             try! NoteAIManager.crosscheckEventStream(
                 provider: provider, model: messagesModel,
-                messages: [TestFactories.makeMessage(role: .user, text: "check this")],
+                transport: transport,
                 services: ProviderServiceRouter.Services(session: session),
                 nativeService: { _ in nil }
             )

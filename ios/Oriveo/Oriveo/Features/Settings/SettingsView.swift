@@ -66,6 +66,20 @@ struct SettingsView: View {
                                 icon: "brain",
                                 title: L10n.tr("Memory"),
                                 value: memorySubtitle,
+                                iconColor: aiColor,
+                                showsFeatureBadge: FeatureBadges.shared.isUnseen(FeatureBadges.settingsMemory)
+                            )
+                        }
+
+                        insetHairline()
+
+                        flatTapRow {
+                            navigation.attemptNavigate(to: .contextSettings)
+                        } label: {
+                            SettingsRow(
+                                icon: "rectangle.compress.vertical",
+                                title: L10n.tr("settings_context_title", table: .settings),
+                                value: ContextDefaultCapSetting.rowValue(in: appState),
                                 iconColor: aiColor
                             )
                         }

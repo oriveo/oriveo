@@ -149,8 +149,10 @@ final class MistralService: BaseAPIService, ProviderServiceProtocol {
                     defer {
                         if let flushed = toolCallDecoder.finishEvent() { continuation.yield(flushed) }
                     }
+                    var finishTracker = StreamFinishTracker(family: .openaiChat)
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
+                        finishTracker.observeSSELine(line)
                         guard line.hasPrefix("data: ") else { continue }
                         let payload = String(line.dropFirst(6))
                         if payload == "[DONE]" {
@@ -222,7 +224,8 @@ final class MistralService: BaseAPIService, ProviderServiceProtocol {
                                 completionTokens: breakdown.completionTokens,
                                 estimatedCost: cost,
                                 usageBreakdown: breakdown,
-                                costSource: source
+                                costSource: source,
+                                finish: finishTracker.finish()
                             )
                         )
                     )
@@ -274,7 +277,7 @@ final class MistralService: BaseAPIService, ProviderServiceProtocol {
         if !systemPrompt.isEmpty {
             apiMessages.append(["role": "system", "content": systemPrompt])
         }
-        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
         if let replayAssistantMessages {
             let insertAt = apiMessages.lastIndex(where: { $0["role"] as? String == "user" })
                 ?? apiMessages.count
@@ -586,4 +589,20 @@ private struct MistralStreamChoice: Decodable {
 private struct MistralDelta: Decodable {
     var tool_calls: [OpenAICompatibleChunk.Choice.ToolCallDelta]?
     let content: OpenAIChatMessageContent?
+}
+
+// MARK: - Protocol entry with request options: a one-line forward to the options overload this service already has
+
+extension MistralService {
+    func sendMessage(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(apiKey: apiKey, modelID: modelID, messages: messages, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessageStream(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
 }

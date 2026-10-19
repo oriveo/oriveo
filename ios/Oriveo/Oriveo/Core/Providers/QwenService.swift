@@ -200,8 +200,11 @@ final class QwenService: BaseAPIService, ProviderServiceProtocol, CustomBaseURLP
                     defer {
                         if let flushed = toolCallDecoder.finishEvent() { continuation.yield(flushed) }
                     }
+                    var finishTracker = StreamFinishTracker(family: .openaiChat)
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
+                        finishTracker.observeSSELine(line)
+                        // OpenAI-compatible SSE: the space after the `data:` colon is optional in the SSE spec, so trim uniformly after stripping the prefix.
                         guard line.hasPrefix("data:") else { continue }
                         let payload = line.dropFirst(5).trimmingCharacters(in: .whitespacesAndNewlines)
                         if payload.isEmpty { continue }
@@ -263,7 +266,8 @@ final class QwenService: BaseAPIService, ProviderServiceProtocol, CustomBaseURLP
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
-                        costSource: source
+                        costSource: source,
+                        finish: finishTracker.finish()
                     )
                     continuation.yield(.done(result))
                     continuation.finish()
@@ -375,7 +379,7 @@ final class QwenService: BaseAPIService, ProviderServiceProtocol, CustomBaseURLP
         if !systemPrompt.isEmpty {
             apiMessages.append(["role": "system", "content": systemPrompt])
         }
-        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
 
         var payload: [String: Any] = [
             "model": modelID,
@@ -732,4 +736,32 @@ extension QwenService {
         return parseUsage(usage)
     }
     #endif
+}
+
+// MARK: - Protocol entry with request options: a one-line forward to the options overload this service already has
+
+extension QwenService {
+    func sendMessage(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: nil, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessageStream(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: nil, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessage(
+        apiKey: String, modelID: String, messages: [ChatMessage], baseURL: String, requestOptions: ChatRequestOptions
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: Optional(baseURL), reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessageStream(
+        apiKey: String, modelID: String, messages: [ChatMessage], baseURL: String, requestOptions: ChatRequestOptions
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: Optional(baseURL), reasoningMode: .automatic, requestOptions: requestOptions)
+    }
 }

@@ -2,6 +2,18 @@ import SwiftUI
 import UIKit
 
 extension AssistantMessageCell {
+    // MARK: - Memory suggestion bar
+
+    /// Memory bar: candidate + buttons, or hint only when memory is off. Only isHidden flips; the height change
+    /// goes to self-sizing (the contentStack collapses a hidden arranged view).
+    func applyMemorySuggestion(_ bar: MemorySuggestionBar?) {
+        memorySuggestionView.apply(bar)
+        let shown = bar != nil
+        guard memorySuggestionView.isHidden == shown else { return }
+        memorySuggestionView.isHidden = !shown
+        notifyContentDidChange()
+    }
+
     // MARK: - Reply notice
 
     /// A secondary-color line under the reply; the copy is localized.
@@ -10,6 +22,13 @@ extension AssistantMessageCell {
         guard replyNoticeLabel.text != text || replyNoticeLabel.isHidden != (text == nil) else { return }
         replyNoticeLabel.text = text
         replyNoticeLabel.isHidden = text == nil
+        notifyContentDidChange()
+    }
+
+    /// The compaction separator row at the top of the cell; tapping it opens the compaction details.
+    func configureCompactionSeparator(_ separator: ContextCompactionSeparator?, onTap: (() -> Void)?) {
+        compactionSeparatorView.onTap = onTap
+        guard compactionSeparatorView.apply(separator) else { return }
         notifyContentDidChange()
     }
 
@@ -178,6 +197,8 @@ extension AssistantMessageCell {
         contentStack.spacing = OriveoTheme.Spacing.sm
         contentStack.setContentHuggingPriority(.required, for: .vertical)
         contentStack.setContentCompressionResistancePriority(.required, for: .vertical)
+        // The compaction separator has a permanent slot above the body; it collapses (hidden) when there is no separator.
+        outerStack.addArrangedSubview(compactionSeparatorView)
         outerStack.addArrangedSubview(contentStack)
 
         setupHeader()
@@ -313,6 +334,10 @@ extension AssistantMessageCell {
         contentStack.addArrangedSubview(attachmentsHost)
 
         contentStack.addArrangedSubview(metadataView)
+
+        // "Save to memory?" bar after the metadata action row; hidden collapses it to zero height.
+        memorySuggestionView.isHidden = true
+        contentStack.addArrangedSubview(memorySuggestionView)
 
         topPaddingConstraint = outerStack.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16)
         let outerStackBottom = outerStack.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor)

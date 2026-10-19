@@ -10,6 +10,14 @@ private struct ChatCrosscheckTarget: Identifiable {
     var id: UUID { message.id }
 }
 
+/// Target of the "Memory used" sheet: the item ids recorded for this reply.
+private struct ChatMemoryUsedTarget: Identifiable, Equatable {
+    let messageID: UUID
+    let memoryItemIds: [String]
+
+    var id: UUID { messageID }
+}
+
 enum ChatNoteReferences {
     nonisolated static func groupByMessageID(
         _ summaries: [NoteSummary],
@@ -148,6 +156,8 @@ struct ChatMessageList: View, Equatable {
     var onRestoreComposerText: (String) -> Void
     /// Editing puts the original message's attachments back into the composer (through the composer's own capability filtering and file count limit).
     var onRestoreComposerAttachments: ([Attachment]) -> Void = { _ in }
+    /// Tapping the compaction separator row in the transcript: the host presents the compaction detail.
+    var onOpenCompactionDetail: () -> Void = {}
     @Binding var pendingQuoteContext: QuoteContext?
     @Binding var showModelSwitcher: Bool
     var composerFocused: Binding<Bool>
@@ -170,6 +180,11 @@ struct ChatMessageList: View, Equatable {
     @State private var switchKeyOffer: RelaySwitchKey.Offer?
     @State private var noteReferenceChoices: [NoteSummary] = []
     @State private var showNoteReferenceChoices = false
+    @State private var memoryUsedTarget: ChatMemoryUsedTarget?
+    /// Item picked with "This is wrong": open the memory page only after the sheet dismisses, so navigation does not race the dismiss animation.
+    @State private var pendingMemoryFixItemID: String?
+    /// Memory bar "Edit": the item editor in new-item mode, prefilled from the candidate.
+    @State private var memorySuggestionEditTarget: MemorySuggestionEdit?
     @State private var cachedRowsKey = RowsCacheKey(
         conversationID: nil,
         messageRevision: .max,
@@ -177,6 +192,10 @@ struct ChatMessageList: View, Equatable {
         notesVersion: .max
     )
     @State private var cachedRows: [ChatCollectionProjectionBuilder.MessageRow] = []
+    /// Separator row for the latestValid compaction row (computed from the full history, not the paged window); refreshed by notification when compaction rows are added or removed.
+    @State private var compactionSeparator: ContextCompactionSeparator?
+    /// Separator refresh in flight; a newer refresh cancels it.
+    @State private var compactionSeparatorTask: Task<Void, Never>?
     /// A reference box: reading and writing it in body does not invalidate the view.
     @State private var outlineTicksMemo = ChatOutlineTicksMemo()
 
@@ -223,10 +242,32 @@ struct ChatMessageList: View, Equatable {
             from: projection.messages,
             metadata: Self.providerMetadata(in: appState),
             noteReferencesByMessageID: noteReferencesByMessageID(),
-            replyNotices: appState.chatManager.relayWebReplyNotices
+            replyNotices: appState.chatManager.relayWebReplyNotices,
+            compactionSeparator: compactionSeparator,
+            directiveSuggestionMessageID: directiveSuggestionMessageID,
+            memorySuggestion: memorySuggestionBar
         )
     }
 
+    /// The user message that the pending "Set as instruction" suggestion of the current conversation is attached to (the controller is @Observable, so rows refresh on change).
+    private var directiveSuggestionMessageID: UUID? {
+        appState.directiveSuggestions.pending(in: projection.activeConversationID)?.messageID
+    }
+
+    /// The pending "Save to memory?" bar of the current conversation (the controller is @Observable, so rows refresh on change).
+    private var memorySuggestionBar: MemorySuggestionBar? {
+        appState.memorySuggestions.pending(in: projection.activeConversationID)?.bar
+    }
+
+    /// Whether compaction rows of this conversation were added or removed (userInfo carries the conversation id).
+    nonisolated static func isCheckpointChange(_ note: Notification, conversationID: UUID?) -> Bool {
+        guard let conversationID,
+              let changed = note.userInfo?[ContextCompactionStore.conversationIdKey] as? String
+        else { return false }
+        return changed == conversationID.uuidString
+    }
+
+    /// Outline rail ticks (one per user question).
     private var outlineTicks: [OutlineTick] {
         outlineTicksMemo.ticks(
             from: projection.messages,
@@ -247,7 +288,10 @@ struct ChatMessageList: View, Equatable {
             },
             pendingSearchScrollTarget: appState.pendingSearchScrollTarget,
             isBootstrappingPersistedConversation: projection.isBootstrappingPersistedConversation,
-            retryCapabilitySelection: capabilitySelection
+            retryCapabilitySelection: capabilitySelection,
+            compactionSeparator: compactionSeparator,
+            directiveSuggestionMessageID: directiveSuggestionMessageID,
+            memorySuggestion: memorySuggestionBar
         )
     }
 
@@ -319,11 +363,33 @@ struct ChatMessageList: View, Equatable {
                     onOpenNoteReferences: openNoteReferences,
                     onCrosscheckMessage: handleCrosscheck,
                     onMcpStepAction: handleMcpStepAction,
+                    onOpenMemoryUsed: handleOpenMemoryUsed,
                     onSaveSelectionMessage: handleSaveSelection,
                     onAskSelectionMessage: handleAskSelection,
                     canReplaceCurrentNoteSelection: canReplaceCurrentNote,
                     onReplaceSelectionMessage: replaceSelectionHandler,
                     onSaveCodeBlockMessage: handleSaveCode,
+                    onOpenCompactionDetail: onOpenCompactionDetail,
+                    onAcceptDirectiveSuggestion: {
+                        guard let conversationID = projection.activeConversationID else { return }
+                        appState.directiveSuggestions.acceptWithUndoToast(conversationID: conversationID, appState: appState)
+                    },
+                    onIgnoreDirectiveSuggestion: {
+                        guard let conversationID = projection.activeConversationID else { return }
+                        appState.directiveSuggestions.ignore(conversationID: conversationID)
+                    },
+                    onSaveMemorySuggestion: {
+                        guard let conversationID = projection.activeConversationID else { return }
+                        appState.memorySuggestions.saveWithUndoToast(conversationID: conversationID, appState: appState)
+                    },
+                    onEditMemorySuggestion: {
+                        guard let conversationID = projection.activeConversationID else { return }
+                        memorySuggestionEditTarget = appState.memorySuggestions.edit(conversationID: conversationID)
+                    },
+                    onIgnoreMemorySuggestion: {
+                        guard let conversationID = projection.activeConversationID else { return }
+                        Task { await appState.memorySuggestions.ignore(conversationID: conversationID, appState: appState) }
+                    },
                     onRegenerateMessage: handleRegenerateMessage,
                     onEditMessage: handleEditMessage,
                     onSwitchModelRequested: { showModelSwitcher = true },
@@ -398,8 +464,33 @@ struct ChatMessageList: View, Equatable {
             }
             Button(L10n.tr("Cancel", table: .notes), role: .cancel) {}
         }
+        .sheet(item: $memorySuggestionEditTarget) { target in
+            // Cancel just closes the sheet and keeps the bar.
+            MemoryItemEditorSheet(state: target.state) { saved in
+                appState.memorySuggestions.saveEditedWithUndoToast(saved, for: target, appState: appState)
+            }
+        }
+        .sheet(item: $memoryUsedTarget, onDismiss: {
+            guard let itemID = pendingMemoryFixItemID else { return }
+            pendingMemoryFixItemID = nil
+            appState.openMemory(editItemId: itemID)
+        }) { target in
+            MemoryUsedSheet(
+                rows: MemoryUsedPresentation.rows(
+                    ids: target.memoryItemIds, items: appState.memoryItemsCache.items
+                ),
+                onFix: { itemID in
+                    pendingMemoryFixItemID = itemID
+                    memoryUsedTarget = nil
+                },
+                onDismiss: { memoryUsedTarget = nil }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
         .onAppear {
             refreshConversationModelLookup()
+            refreshCompactionSeparator()
             refreshCachedRows()
             finishEmptyStateOpenTraceIfNeeded()
             consumeNoteSourceJumpIfNeeded()
@@ -407,12 +498,22 @@ struct ChatMessageList: View, Equatable {
         .onChange(of: projection.activeConversationID) { _, _ in
             isAtBottom = true
             autoScrollEnabled = true
+            refreshCompactionSeparator()
             refreshCachedRows()
             finishEmptyStateOpenTraceIfNeeded()
         }
         .onChange(of: projection.messageRevision) { _, _ in
+            // Editing or deleting a message invalidates the compaction row, so recompute with the message revision.
+            refreshCompactionSeparator()
             refreshCachedRows()
             consumeNoteSourceJumpIfNeeded()
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .contextCheckpointsDidChange)
+                .receive(on: DispatchQueue.main)
+        ) { note in
+            guard Self.isCheckpointChange(note, conversationID: projection.activeConversationID) else { return }
+            refreshCompactionSeparator()
         }
         .onChange(of: windowLoader.failedAnchorMessageID) { _, _ in
             consumeNoteSourceJumpIfNeeded()
@@ -429,6 +530,12 @@ struct ChatMessageList: View, Equatable {
             refreshConversationModelLookup()
         }
         .onChange(of: appState.notesVersion) { _, _ in
+            refreshCachedRows()
+        }
+        .onChange(of: directiveSuggestionMessageID) { _, _ in
+            refreshCachedRows()
+        }
+        .onChange(of: memorySuggestionBar) { _, _ in
             refreshCachedRows()
         }
         .onChange(of: isSendingMessage) { oldValue, newValue in
@@ -589,6 +696,12 @@ struct ChatMessageList: View, Equatable {
         showNoteReferenceChoices = true
     }
 
+    private func handleOpenMemoryUsed(_ message: ChatMessage) {
+        guard !message.memoryItemIds.isEmpty else { return }
+        memoryUsedTarget = ChatMemoryUsedTarget(messageID: message.id, memoryItemIds: message.memoryItemIds)
+    }
+
+    /// Back from a note to the conversation: once the window is loaded around the target, locate sourceMessageId with the outline scroll mechanism and show the "Back to note" bar at the top.
     private func consumeNoteSourceJumpIfNeeded() {
         guard let jump = appState.pendingNoteSourceJump,
               jump.conversationID == projection.activeConversationID else { return }
@@ -718,8 +831,25 @@ struct ChatMessageList: View, Equatable {
             from: projection.messages,
             metadata: Self.providerMetadata(in: appState),
             noteReferencesByMessageID: noteReferencesByMessageID(),
-            replyNotices: appState.chatManager.relayWebReplyNotices
+            replyNotices: appState.chatManager.relayWebReplyNotices,
+            compactionSeparator: compactionSeparator,
+            directiveSuggestionMessageID: directiveSuggestionMessageID,
+            memorySuggestion: memorySuggestionBar
         )
+    }
+
+    /// The separator is computed in the background and only assigned back on the main thread; a newer refresh cancels the older one. Rows are rebuilt only when the separator changed (it is not part of the row cache key).
+    private func refreshCompactionSeparator() {
+        compactionSeparatorTask?.cancel()
+        let conversationID = projection.activeConversationID
+        compactionSeparatorTask = Task { @MainActor in
+            let next = await ContextCompactionSeparator.current(in: appState, conversationID: conversationID)
+            guard !Task.isCancelled, conversationID == projection.activeConversationID,
+                  next != compactionSeparator
+            else { return }
+            compactionSeparator = next
+            refreshCachedRows()
+        }
     }
 
     private func finishEmptyStateOpenTraceIfNeeded() {

@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import OriveoProviderKit
 
 final class ConversationStore: @unchecked Sendable {
     nonisolated private static let visibleUngroupedConversationWhereClause =
@@ -255,14 +256,18 @@ final class ConversationStore: @unchecked Sendable {
     /// carries message bodies, so this has to be SQL rather than a scan of `Conversation.messages`.
     nonisolated func sanitizeStaleGeneratingMessages() throws {
         try write { db in
+            // Being killed mid-generation is not a user stop: record stopReason in the same pass — incomplete when there is text, error otherwise.
             try db.execute(
                 sql: """
                     UPDATE message
-                    SET state = ?
+                    SET state = ?,
+                        stopReason = CASE WHEN trim(text, ' ' || char(9) || char(10) || char(13)) <> '' THEN ? ELSE ? END
                     WHERE role = ? AND state = ?
                     """,
                 arguments: [
                     ChatMessageState.interrupted.rawValue,
+                    StopReason.incomplete.rawValue,
+                    StopReason.error.rawValue,
                     ChatRole.assistant.rawValue,
                     ChatMessageState.generating.rawValue
                 ]
@@ -1352,6 +1357,8 @@ final class ConversationStore: @unchecked Sendable {
         let isConflictCopy: Bool
         let originalConversationId: String?
         let pinnedNoteIds: String?
+        let instructions: String
+        let contextCap: String?
 
         nonisolated init(from summary: ConversationSummary) {
             id = summary.id.uuidString
@@ -1378,6 +1385,8 @@ final class ConversationStore: @unchecked Sendable {
             isConflictCopy = summary.isConflictCopy
             originalConversationId = summary.originalConversationId?.uuidString
             pinnedNoteIds = RecordMappers.encodePinnedNoteIds(summary.pinnedNoteIds)
+            instructions = summary.instructions
+            contextCap = summary.contextCap?.storageText
         }
 
         nonisolated init(
@@ -1413,6 +1422,8 @@ final class ConversationStore: @unchecked Sendable {
             isConflictCopy = conversation.isConflictCopy
             originalConversationId = conversation.originalConversationId?.uuidString
             pinnedNoteIds = RecordMappers.encodePinnedNoteIds(conversation.pinnedNoteIds)
+            instructions = conversation.instructions
+            contextCap = conversation.contextCap?.storageText
         }
 
         nonisolated var arguments: [DatabaseValueConvertible?] {
@@ -1420,7 +1431,7 @@ final class ConversationStore: @unchecked Sendable {
              remoteMessageCount,
              estimatedCost, isDraft, draftText, createdAt, updatedAt, folderID,
              useMemory, skillId, metadataUpdatedAt, messagesHydratedAt, messagesStale,
-             deletedAt, isConflictCopy, originalConversationId, pinnedNoteIds]
+             deletedAt, isConflictCopy, originalConversationId, pinnedNoteIds, instructions, contextCap]
         }
     }
 
@@ -1430,8 +1441,8 @@ final class ConversationStore: @unchecked Sendable {
             remoteMessageCount,
             estimatedCost, isDraft, draftText, createdAt, updatedAt, folderID,
             useMemory, skillId, metadataUpdatedAt, messagesHydratedAt, messagesStale,
-            deletedAt, isConflictCopy, originalConversationId, pinnedNoteIds
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            deletedAt, isConflictCopy, originalConversationId, pinnedNoteIds, instructions, contextCap
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             title = excluded.title,
             hasCustomTitle = excluded.hasCustomTitle,
@@ -1455,7 +1466,9 @@ final class ConversationStore: @unchecked Sendable {
             deletedAt = excluded.deletedAt,
             isConflictCopy = excluded.isConflictCopy,
             originalConversationId = excluded.originalConversationId,
-            pinnedNoteIds = excluded.pinnedNoteIds
+            pinnedNoteIds = excluded.pinnedNoteIds,
+            instructions = excluded.instructions,
+            contextCap = excluded.contextCap
         """
 
     /// Metadata-only writeback: never touch the local `messageCount` or message rows.
@@ -1467,8 +1480,8 @@ final class ConversationStore: @unchecked Sendable {
             remoteMessageCount,
             estimatedCost, isDraft, draftText, createdAt, updatedAt, folderID,
             useMemory, skillId, metadataUpdatedAt, messagesHydratedAt, messagesStale,
-            deletedAt, isConflictCopy, originalConversationId, pinnedNoteIds
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            deletedAt, isConflictCopy, originalConversationId, pinnedNoteIds, instructions, contextCap
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             title = excluded.title,
             hasCustomTitle = excluded.hasCustomTitle,
@@ -1489,7 +1502,9 @@ final class ConversationStore: @unchecked Sendable {
             deletedAt = excluded.deletedAt,
             isConflictCopy = excluded.isConflictCopy,
             originalConversationId = excluded.originalConversationId,
-            pinnedNoteIds = excluded.pinnedNoteIds
+            pinnedNoteIds = excluded.pinnedNoteIds,
+            instructions = excluded.instructions,
+            contextCap = excluded.contextCap
         """
 
 
@@ -1612,8 +1627,8 @@ final class ConversationStore: @unchecked Sendable {
                         cachedInputTokens, cacheCreation5mTokens, cacheCreation1hTokens, costSource,
                         inputTokens, outputTokens, cacheCreationInputTokens,
                         capabilityExecution, unhandledToolCalls, toolSteps, toolFallbackNotice,
-                        recoveryPrimaryAction
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        recoveryPrimaryAction, stopReason, memoryItemIds
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         text = excluded.text,
                         quoteContext = excluded.quoteContext,
@@ -1637,7 +1652,9 @@ final class ConversationStore: @unchecked Sendable {
                         unhandledToolCalls = excluded.unhandledToolCalls,
                         toolSteps = excluded.toolSteps,
                         toolFallbackNotice = excluded.toolFallbackNotice,
-                        recoveryPrimaryAction = excluded.recoveryPrimaryAction
+                        recoveryPrimaryAction = excluded.recoveryPrimaryAction,
+                        stopReason = excluded.stopReason,
+                        memoryItemIds = excluded.memoryItemIds
                     """,
                 arguments: [
                     message.id.uuidString,
@@ -1672,6 +1689,8 @@ final class ConversationStore: @unchecked Sendable {
                     RecordMappers.encodeToolSteps(message.toolSteps),
                     message.toolFallbackNotice,
                     message.recoveryPrimaryAction,
+                    RecordMappers.encodeStopReason(message.stopReason),
+                    RecordMappers.encodeMemoryItemIds(message.memoryItemIds)
                 ]
             )
 
@@ -1815,8 +1834,8 @@ final class ConversationStore: @unchecked Sendable {
                         cachedInputTokens, cacheCreation5mTokens, cacheCreation1hTokens, costSource,
                         inputTokens, outputTokens, cacheCreationInputTokens,
                         capabilityExecution, unhandledToolCalls, toolSteps, toolFallbackNotice,
-                        recoveryPrimaryAction
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        recoveryPrimaryAction, stopReason, memoryItemIds
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         text = excluded.text,
                         quoteContext = excluded.quoteContext,
@@ -1840,7 +1859,9 @@ final class ConversationStore: @unchecked Sendable {
                         unhandledToolCalls = excluded.unhandledToolCalls,
                         toolSteps = excluded.toolSteps,
                         toolFallbackNotice = excluded.toolFallbackNotice,
-                        recoveryPrimaryAction = excluded.recoveryPrimaryAction
+                        recoveryPrimaryAction = excluded.recoveryPrimaryAction,
+                        stopReason = excluded.stopReason,
+                        memoryItemIds = excluded.memoryItemIds
                     """,
                 arguments: [
                     message.id.uuidString,
@@ -1875,6 +1896,8 @@ final class ConversationStore: @unchecked Sendable {
                     RecordMappers.encodeToolSteps(message.toolSteps),
                     message.toolFallbackNotice,
                     message.recoveryPrimaryAction,
+                    RecordMappers.encodeStopReason(message.stopReason),
+                    RecordMappers.encodeMemoryItemIds(message.memoryItemIds)
                 ]
             )
 

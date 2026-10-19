@@ -54,6 +54,10 @@ class BaseAPIService {
         resolved: MetadataClient.ResolvedModelMetadata?,
         finalRequest: URLRequest? = nil
     ) throws -> Data {
+        // Grok's Responses builder also funnels through here (the request body is `input`, not `messages`), so tools must be projected in the Responses shape.
+        let clientToolsProtocol: TransportKind = body["messages"] == nil && body["input"] != nil
+            ? .openaiResponses : .openaiChat
+        try ClientToolsInjector.apply(to: &body, protocol: clientToolsProtocol, options: options)
         ProfileParamsResolver.applyTemperatureGate(to: &body, resolved: resolved)
         ProfileParamsResolver.applyGenerationParameters(
             to: &body,
@@ -544,6 +548,8 @@ class BaseAPIService {
         NativeFileFallback.currentAttempt?.recordRejection(statusCode: statusCode)
         // Relay rejection loop: the sender uses it to decide the negative cache and protocol fallback. For a non-2xx response only the status code is judged.
         RelayPreOutputRejection.current?.record(status: statusCode, contentType: "application/json", body: data)
+        // Record the status and body in this send's failure scene (context-overflow recognition reads it).
+        ChatFailureDiagnostics.recordHTTPFailure(statusCode: statusCode, body: data)
         let upstreamSnippet = decodeErrorMessage(from: data, request: request)
         let detail = upstreamSnippet
             ?? HTTPURLResponse.localizedString(forStatusCode: statusCode)
@@ -687,6 +693,7 @@ class BaseAPIService {
         _ data: Data, beforeAnyContent: Bool, redacting credentials: [String] = []
     ) throws {
         guard let streamError = streamErrorFrame(in: data, redacting: credentials) else { return }
+        ChatFailureDiagnostics.recordStreamErrorFrame(data)
         if beforeAnyContent, case .upstream = streamError {
             CapabilityExecutionRuntime.recordStreamRejectionBeforeEvents()
         }

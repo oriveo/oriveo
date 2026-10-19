@@ -259,8 +259,10 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
                     defer {
                         if let flushed = toolCallDecoder.finishEvent() { continuation.yield(flushed) }
                     }
+                    var finishTracker = StreamFinishTracker(family: .openaiChat)
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
+                        finishTracker.observeSSELine(line)
                         guard line.hasPrefix("data: ") else { continue }
                         let payload = String(line.dropFirst(6))
                         if payload == "[DONE]" {
@@ -345,7 +347,8 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
-                        costSource: source
+                        costSource: source,
+                        finish: finishTracker.finish()
                     )
                     continuation.yield(.done(result))
                     continuation.finish()
@@ -441,9 +444,10 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
         }
         var body: [String: Any] = [
             "model": modelID,
-            "max_tokens": resolved?.maxOutputTokens ?? 8192,
+            // The main chat path uses plan.budget.oWire; non-chat paths keep the original fallback.
+            "max_tokens": requestOptions.maxOutputTokens ?? resolved?.maxOutputTokens ?? 8192,
             "stream": stream,
-            "messages": try AttachmentDelivery.mapTurns(requestMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildAnthropicWebMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) },
+            "messages": try AttachmentDelivery.mapTurns(requestMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildAnthropicWebMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) },
         ]
         let system = requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         if !system.isEmpty { body["system"] = system }
@@ -583,6 +587,7 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
                     var terminal = false
                     var replayStateValid = true
                     var yieldedAnyEvent = false
+                    var finishTracker = StreamFinishTracker(family: .anthropic)
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
                         guard line.hasPrefix("data: ") else { continue }
@@ -593,6 +598,7 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
                         guard let data = payload.data(using: .utf8),
                               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                               let type = object["type"] as? String else { continue }
+                        finishTracker.observeFrame(data)
                         for event in strategy.parseStreamLine(payload, ctx: &context, shape: shape) {
                             switch event {
                             case .delta, .reasoning, .toolCallDeltas, .activity:
@@ -651,7 +657,8 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
                         reasoningText: finalizedReasoning.isEmpty ? nil : finalizedReasoning,
                         promptTokens: breakdown.totalInputTokens,
                         completionTokens: breakdown.completionTokens,
-                        estimatedCost: cost, usageBreakdown: breakdown, costSource: source
+                        estimatedCost: cost, usageBreakdown: breakdown, costSource: source,
+                        finish: finishTracker.finish()
                     )))
                     continuation.finish()
                 } catch { continuation.finish(throwing: error) }
@@ -768,7 +775,7 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
         if !systemPrompt.isEmpty {
             apiMessages.append(["role": "system", "content": systemPrompt])
         }
-        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
         if let replayAssistantMessages {
             let insertAt = apiMessages.lastIndex(where: { $0["role"] as? String == "user" })
                 ?? apiMessages.count
@@ -1176,4 +1183,32 @@ extension MiniMaxService {
         return parseUsage(usage)
     }
     #endif
+}
+
+// MARK: - Protocol entry with request options: a one-line forward to the options overload this service already has
+
+extension MiniMaxService {
+    func sendMessage(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: nil, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessageStream(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: nil, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessage(
+        apiKey: String, modelID: String, messages: [ChatMessage], baseURL: String, requestOptions: ChatRequestOptions
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: Optional(baseURL), reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessageStream(
+        apiKey: String, modelID: String, messages: [ChatMessage], baseURL: String, requestOptions: ChatRequestOptions
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: Optional(baseURL), reasoningMode: .automatic, requestOptions: requestOptions)
+    }
 }

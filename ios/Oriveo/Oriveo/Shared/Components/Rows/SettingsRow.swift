@@ -9,6 +9,8 @@ struct SettingsRow: View {
     var tint: Color = OriveoTheme.Palette.textPrimary
     var iconColor: Color? = nil
     var showsChevron: Bool = true
+    /// Small "new" red dot to the right of the title (`FeatureBadges` decides whether it shows).
+    var showsFeatureBadge: Bool = false
 
     var body: some View {
         HStack(spacing: OriveoTheme.Spacing.md) {
@@ -30,9 +32,14 @@ struct SettingsRow: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(OriveoTheme.Typography.body)
-                    .foregroundStyle(tint)
+                HStack(alignment: .center, spacing: 6) {
+                    Text(title)
+                        .font(OriveoTheme.Typography.body)
+                        .foregroundStyle(tint)
+                    if showsFeatureBadge {
+                        OriveoFeatureBadgeDot()
+                    }
+                }
                 if let subtitle {
                     Text(subtitle)
                         .font(.system(size: 13))

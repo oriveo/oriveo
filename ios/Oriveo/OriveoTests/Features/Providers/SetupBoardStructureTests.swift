@@ -505,6 +505,11 @@ struct SetupBoardStructureTests {
         #expect(ollama.contextLength == nil)
         #expect(LocalSetupBoardModel.contextValue(ollama.contextLength).key == "Not available")
         #expect(LocalSetupBoardModel.contextValue(0).key == "Not available")
+        // Same convention as Android / Web, carrying at 1024: write M only when divisible by 1M, otherwise round to K; below 1024 give the raw value.
+        #expect(LocalSetupBoardModel.contextValue(131_072).text == "128K")
+        #expect(LocalSetupBoardModel.contextValue(1_500_000).text == "1465K")
+        #expect(LocalSetupBoardModel.contextValue(3_145_728).text == "3M")
+        #expect(LocalSetupBoardModel.contextValue(1_000).text == "1000")
 
         let succeeded = LocalSetupBoardModel.make(.init(summary: llama, engine: .llamacpp, canAct: true))
         #expect(succeeded.card == .succeeded)

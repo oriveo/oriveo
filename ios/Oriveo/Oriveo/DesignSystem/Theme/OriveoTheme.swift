@@ -32,6 +32,22 @@ enum OriveoTheme {
         static let warning = Color.dynamic(light: 0xF59E0B, dark: 0xFCD34D)
         static let warningText = Color.dynamic(light: 0x92400E, dark: 0xFCD34D)
         static let warningSoft = Color.dynamic(light: 0xF59E0B, dark: 0xFCD34D, lightAlpha: 0.10, darkAlpha: 0.14)
+        /// Outline for cards that need a look but are not errors (e.g. conflict cards); a line only, never text
+        static let warningLine = Color.dynamic(light: 0xF59E0B, dark: 0xFCD34D, lightAlpha: 0.40, darkAlpha: 0.32)
+        /// Grouped page background (memory page): one step darker than background so cards float
+        static let backgroundGrouped = Color.dynamic(light: 0xF4F4F6, dark: 0x0F1218)
+        /// Dot-grid background of the memory atlas
+        static let memoryAtlasDot = Color.dynamic(light: 0x18181B, dark: 0xFFFFFF, lightAlpha: 0.10, darkAlpha: 0.08)
+        /// Hues of the five memory groups: only for graphics such as star points, the spectrum and group glyphs; text always uses the body color (not part of contrast tests)
+        struct MemoryHue {
+            let about = Color.dynamic(light: 0x4F46E5, dark: 0x818CF8)
+            let preferences = Color.dynamic(light: 0x0D9488, dark: 0x2DD4BF)
+            let instructions = Color.dynamic(light: 0xEA580C, dark: 0xFB923C)
+            let workingOn = Color.dynamic(light: 0x0891B2, dark: 0x22D3EE)
+            let episodic = Color.dynamic(light: 0x7C3AED, dark: 0xA78BFA)
+        }
+        static let memoryHue = MemoryHue()
+        /// Semantic yellow for the quoted-selection preview; keeps clear contrast with body text in light and dark.
         static let quoteSelectionHighlight = Color.dynamic(light: 0xFDE68A, dark: 0x854D0E, lightAlpha: 0.82, darkAlpha: 0.92)
         static let danger = Color.dynamic(light: 0xEF4444, dark: 0xF8978F)
         static let dangerSoft = Color.dynamic(light: 0xEF4444, dark: 0xF8978F, lightAlpha: 0.10, darkAlpha: 0.14)
@@ -93,6 +109,11 @@ enum OriveoTheme {
         static let eyebrow = Font.system(size: 11, weight: .bold)
         static let monoCaption = Font.system(size: 13, weight: .semibold, design: .rounded).monospacedDigit()
         static let monoFootnote = Font.system(size: 11, weight: .medium, design: .rounded).monospacedDigit()
+
+        // Brand digits (memory page counts, date blocks, etc.): Plus Jakarta Bold + monospaced digits so the width does not jitter when they change
+        static func brandDigits(_ size: CGFloat) -> Font {
+            brandFont(size: size).monospacedDigit()
+        }
 
         private static func brandFont(size: CGFloat) -> Font {
             if UIFont(name: "PlusJakartaSans-Bold", size: size) != nil {

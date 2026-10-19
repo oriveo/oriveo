@@ -1,4 +1,6 @@
+import CryptoKit
 import Foundation
+import OriveoProviderKit
 
 /// Production-only bridge between a runtime-selected recipe and the local opaque
 /// continuation sidecar.  It deliberately resolves the same exact capability
@@ -69,9 +71,41 @@ enum RecipeContinuationRuntime {
         }
     }
 
+    /// Stateful continuation decision: the previousResponseId in the sidecar, the recipe's instructionsMode, and the fingerprint are handed together to
+    /// ContextContinuation.decide; a missing mode or a mismatched fingerprint falls back to the full plan.
+    /// Stateful continuation is only used for an explicit "continue" (send path continueResponse, where the request carries the continuation sentence statefulLegText).
+    /// Regenerate and failure retry never read it even when they carry the continuation record of the same message, and always use the full plan.
+    static func continuationDecision(
+        explicitMessageID: UUID?, kind: String = "previous_id",
+        statefulLegText: String?,
+        instructionsMode: ContextInstructionsMode?, fingerprintMatches: Bool
+    ) -> ContextContinuationDecision {
+        let explicitContinue = statefulLegText.map { !$0.isEmpty } ?? false
+        return ContextContinuation.decide(.init(
+            previousResponseId: explicitContinue
+                ? storedPreviousResponseID(explicitMessageID: explicitMessageID, kind: kind)
+                : nil,
+            instructionsMode: instructionsMode,
+            systemChangedSinceLastLeg: !fingerprintMatches,
+            modelChanged: !fingerprintMatches,
+            checkpointChanged: !fingerprintMatches
+        ))
+    }
+
+    /// Returns nil when the decision is the full plan, and the request carries no previous_response_id.
     static func previousResponseID(
-        explicitMessageID: UUID?, kind: String = "previous_id"
+        explicitMessageID: UUID?, kind: String = "previous_id",
+        statefulLegText: String?,
+        instructionsMode: ContextInstructionsMode?, fingerprintMatches: Bool
     ) -> String? {
+        guard case let .stateful(previousResponseId, _) = continuationDecision(
+            explicitMessageID: explicitMessageID, kind: kind, statefulLegText: statefulLegText,
+            instructionsMode: instructionsMode, fingerprintMatches: fingerprintMatches
+        ) else { return nil }
+        return previousResponseId
+    }
+
+    private static func storedPreviousResponseID(explicitMessageID: UUID?, kind: String) -> String? {
         guard let explicitMessageID,
               let snapshot = try? store().load(messageID: explicitMessageID),
               snapshot.kind == kind,
@@ -147,6 +181,62 @@ enum RecipeContinuationRuntime {
             kind: recipe.continuationKind ?? "",
             state: state
         )
+        // Answer completed: the fingerprint registered for this request is stored together with previousResponseId (in memory only, not persisted).
+        fingerprints.commit(messageID: messageID)
+    }
+
+    /// Stateful continuation fingerprint: a digest of plan.system, the wire model id, and a digest of the checkpoint text.
+    nonisolated struct Fingerprint: Equatable, Sendable {
+        let systemDigest: String
+        let modelID: String
+        let checkpointDigest: String
+
+        init(system: String?, modelID: String, checkpointText: String?) {
+            systemDigest = Self.digest(system ?? "")
+            self.modelID = modelID
+            checkpointDigest = Self.digest(checkpointText ?? "")
+        }
+
+        private static func digest(_ text: String) -> String {
+            SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+        }
+    }
+
+    /// Register this fingerprint before sending the request; it only becomes final when that answer is saved.
+    nonisolated static func stageFingerprint(_ fingerprint: Fingerprint, messageID: UUID) {
+        fingerprints.stage(fingerprint, messageID: messageID)
+    }
+
+    /// Compare with the fingerprint stored when that message last completed; if it cannot be read, treat it as "changed".
+    nonisolated static func fingerprintMatches(_ fingerprint: Fingerprint, messageID: UUID?) -> Bool {
+        guard let messageID else { return false }
+        return fingerprints.stored(messageID: messageID) == fingerprint
+    }
+
+    private nonisolated static let fingerprints = FingerprintBook()
+
+    private nonisolated final class FingerprintBook: @unchecked Sendable {
+        private let lock = NSLock()
+        private var staged: [UUID: Fingerprint] = [:]
+        private var committed: [UUID: Fingerprint] = [:]
+
+        func stage(_ fingerprint: Fingerprint, messageID: UUID) {
+            lock.withLock { staged[messageID] = fingerprint }
+        }
+
+        func commit(messageID: UUID) {
+            lock.withLock {
+                if let fingerprint = staged.removeValue(forKey: messageID) {
+                    committed[messageID] = fingerprint
+                } else {
+                    committed.removeValue(forKey: messageID)
+                }
+            }
+        }
+
+        func stored(messageID: UUID) -> Fingerprint? {
+            lock.withLock { committed[messageID] }
+        }
     }
 
     static func jsonValue(_ object: Any) -> MetadataClient.JSONValue? {
@@ -189,5 +279,12 @@ enum RecipeContinuationRuntime {
         case let .array(value): return .array(value.map(requestPreferenceValue))
         case let .object(value): return .object(value.mapValues(requestPreferenceValue))
         }
+    }
+}
+
+extension MetadataClient.CapabilityRecipe {
+    /// Only resend | omit are recognized; any other value counts as missing.
+    var instructionsMode: ContextInstructionsMode? {
+        continuationInstructionsMode.flatMap(ContextInstructionsMode.init(rawValue:))
     }
 }

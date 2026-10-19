@@ -108,11 +108,18 @@ final class ChatListViewController: UIViewController {
     private var onOpenNoteReferences: ([NoteSummary]) -> Void = { _ in }
     private var onCrosscheck: (ChatMessage) -> Void = { _ in }
     private var onMcpStepAction: (ChatMessage, McpToolStepAction) -> Void = { _, _ in }
+    private var onOpenMemoryUsed: (ChatMessage) -> Void = { _ in }
     private var onSaveSelection: (ChatMessage, String) -> Void = { _, _ in }
     private var onAskSelection: (ChatMessage, QuoteSelectionContent) -> Void = { _, _ in }
     private var canReplaceCurrentNoteSelection = false
     private var onReplaceSelection: (ChatMessage, String) -> Void = { _, _ in }
     private var onSaveCodeBlock: (ChatMessage, String, String?) -> Void = { _, _, _ in }
+    private var onOpenCompactionDetail: () -> Void = {}
+    private var onAcceptDirectiveSuggestion: () -> Void = {}
+    private var onIgnoreDirectiveSuggestion: () -> Void = {}
+    private var onSaveMemorySuggestion: () -> Void = {}
+    private var onEditMemorySuggestion: () -> Void = {}
+    private var onIgnoreMemorySuggestion: () -> Void = {}
     private var onRegenerate: (ChatMessage) -> Void = { _ in }
     private var onEditMessage: (ChatMessage) -> Void = { _ in }
     private var onSwitchModel: () -> Void = {}
@@ -176,6 +183,11 @@ final class ChatListViewController: UIViewController {
     private var lastConversationID: UUID?
     private var lastMessageRevision: UInt = .max
     private var lastProviderMetadataVersion: UInt = .max
+    /// Adding or removing the compaction separator does not change the message revision, so keep a separate copy to trigger a rebuild (reconfigures the cell that hosts the row).
+    private var lastCompactionSeparator: ContextCompactionSeparator?
+    /// The suggestion bar appearing or disappearing does not change the message revision either, so keep a separate copy to trigger a rebuild.
+    private var lastDirectiveSuggestionMessageID: UUID?
+    private var lastMemorySuggestion: MemorySuggestionBar?
     private var lastMeasuredWidth: CGFloat = 0
     private var contentDirty = false
     private var bottomSettleGeneration: UInt = 0
@@ -384,11 +396,18 @@ final class ChatListViewController: UIViewController {
         onOpenNoteReferences: @escaping ([NoteSummary]) -> Void = { _ in },
         onCrosscheck: @escaping (ChatMessage) -> Void = { _ in },
         onMcpStepAction: @escaping (ChatMessage, McpToolStepAction) -> Void = { _, _ in },
+        onOpenMemoryUsed: @escaping (ChatMessage) -> Void = { _ in },
         onSaveSelection: @escaping (ChatMessage, String) -> Void = { _, _ in },
         onAskSelection: @escaping (ChatMessage, QuoteSelectionContent) -> Void = { _, _ in },
         canReplaceCurrentNoteSelection: Bool = false,
         onReplaceSelection: @escaping (ChatMessage, String) -> Void = { _, _ in },
         onSaveCodeBlock: @escaping (ChatMessage, String, String?) -> Void = { _, _, _ in },
+        onOpenCompactionDetail: @escaping () -> Void = {},
+        onAcceptDirectiveSuggestion: @escaping () -> Void = {},
+        onIgnoreDirectiveSuggestion: @escaping () -> Void = {},
+        onSaveMemorySuggestion: @escaping () -> Void = {},
+        onEditMemorySuggestion: @escaping () -> Void = {},
+        onIgnoreMemorySuggestion: @escaping () -> Void = {},
         onRegenerate: @escaping (ChatMessage) -> Void,
         onEditMessage: @escaping (ChatMessage) -> Void,
         onSwitchModel: @escaping () -> Void,
@@ -418,11 +437,18 @@ final class ChatListViewController: UIViewController {
         self.onOpenNoteReferences = onOpenNoteReferences
         self.onCrosscheck = onCrosscheck
         self.onMcpStepAction = onMcpStepAction
+        self.onOpenMemoryUsed = onOpenMemoryUsed
         self.onSaveSelection = onSaveSelection
         self.onAskSelection = onAskSelection
         self.canReplaceCurrentNoteSelection = canReplaceCurrentNoteSelection
         self.onReplaceSelection = onReplaceSelection
         self.onSaveCodeBlock = onSaveCodeBlock
+        self.onOpenCompactionDetail = onOpenCompactionDetail
+        self.onAcceptDirectiveSuggestion = onAcceptDirectiveSuggestion
+        self.onIgnoreDirectiveSuggestion = onIgnoreDirectiveSuggestion
+        self.onSaveMemorySuggestion = onSaveMemorySuggestion
+        self.onEditMemorySuggestion = onEditMemorySuggestion
+        self.onIgnoreMemorySuggestion = onIgnoreMemorySuggestion
         self.onRegenerate = onRegenerate
         self.onEditMessage = onEditMessage
         self.onSwitchModel = onSwitchModel
@@ -464,7 +490,10 @@ final class ChatListViewController: UIViewController {
             || viewModel.messageRevision != lastMessageRevision
         if viewModel.conversationID != lastConversationID
             || viewModel.messageRevision != lastMessageRevision
-            || providerMetadataVersion != lastProviderMetadataVersion {
+            || providerMetadataVersion != lastProviderMetadataVersion
+            || viewModel.compactionSeparator != lastCompactionSeparator
+            || viewModel.directiveSuggestionMessageID != lastDirectiveSuggestionMessageID
+            || viewModel.memorySuggestion != lastMemorySuggestion {
             contentDirty = true
             prewarmMarkdown(rows: viewModel.rows)
         }
@@ -840,11 +869,18 @@ final class ChatListViewController: UIViewController {
             onOpenNoteReferences: onOpenNoteReferences,
             onCrosscheck: onCrosscheck,
             onMcpStepAction: onMcpStepAction,
+            onOpenMemoryUsed: onOpenMemoryUsed,
             onSaveSelection: onSaveSelection,
             onAskSelection: onAskSelection,
             canReplaceCurrentNoteSelection: canReplaceCurrentNoteSelection,
             onReplaceSelection: onReplaceSelection,
             onSaveCodeBlock: onSaveCodeBlock,
+            onOpenCompactionDetail: onOpenCompactionDetail,
+            onAcceptDirectiveSuggestion: onAcceptDirectiveSuggestion,
+            onIgnoreDirectiveSuggestion: onIgnoreDirectiveSuggestion,
+            onSaveMemorySuggestion: onSaveMemorySuggestion,
+            onEditMemorySuggestion: onEditMemorySuggestion,
+            onIgnoreMemorySuggestion: onIgnoreMemorySuggestion,
             onRegenerate: onRegenerate,
             onEditMessage: onEditMessage,
             onSwitchModel: onSwitchModel,
@@ -962,6 +998,9 @@ final class ChatListViewController: UIViewController {
         lastConversationID = viewModel.conversationID
         lastMessageRevision = viewModel.messageRevision
         lastProviderMetadataVersion = pendingProviderMetadataVersion
+        lastCompactionSeparator = viewModel.compactionSeparator
+        lastDirectiveSuggestionMessageID = viewModel.directiveSuggestionMessageID
+        lastMemorySuggestion = viewModel.memorySuggestion
         contentDirty = false
     }
 
@@ -1602,6 +1641,25 @@ extension ChatListViewController: ChatLayoutDelegate {
             height += replyNoticeHeight
         }
 
+        // Top of the cell: the compaction separator row (can be attached to both user and assistant).
+        if row.compactionSeparator != nil {
+            height += compactionSeparatorHeight
+        }
+
+        // Below the bubble: the "Set as instruction" suggestion bar (user only).
+        if isUser, row.showsDirectiveSuggestion {
+            height += directiveSuggestionHeight
+        }
+        // After the metadata action row: the "Save to memory?" bar (non-streaming assistant only); its height follows the candidate text line count.
+        if !isUser, let memorySuggestion = row.memorySuggestion {
+            height += memorySuggestionHeight(memorySuggestion, width: width)
+        }
+
+        // Recovery card (last failed assistant message, embedded by ChatListDataSource via
+        // `AssistantMessageRecoveryBuilder.makeConfig`): a failed message's `message.text` is often empty,
+        // so a text-length estimate only gives a lower bound, while the card itself measures 190-260pt
+        // (title + body + 48pt primary button + technical details entry).
+        // The estimate cannot see runtime state such as isDismissed / isSendingMessage, so assuming it is shown is the safe direction.
         if !isUser, message.state == .failed, row.isLastInConversation {
             height += estimatedRecoveryCardHeight(
                 charsPerLine: max(1, contentWidth / proseFullCharWidth)
@@ -1679,6 +1737,38 @@ extension ChatListViewController: ChatLayoutDelegate {
     nonisolated static let toolStepsCollapsedHeight: CGFloat = 54
     /// Reply notice line (two footnote lines plus the slot spacing).
     nonisolated static let replyNoticeHeight: CGFloat = 44
+    /// Compaction separator row (`ContextCompactionSeparatorView`: top 8 + two 12pt lines + line spacing 2 + bottom 12).
+    nonisolated static let compactionSeparatorHeight: CGFloat = 52
+    /// "Set as instruction" suggestion bar (`DirectiveSuggestionBarView`: top gap 8 + padding 10x2 + one footnote line + gap 6 + button 28).
+    nonisolated static let directiveSuggestionHeight: CGFloat = 80
+
+    /// "Save to memory?" bar (`MemorySuggestionBarView`): top gap 8 + padding 10x2 + one prompt line; with a candidate,
+    /// add gap 6 + body (footnote, up to 2 lines) + gap 6 + button 28. With memory off there is only the prompt text, counted as two lines.
+    nonisolated static func memorySuggestionHeight(_ bar: MemorySuggestionBar, width: CGFloat) -> CGFloat {
+        let chrome = MemorySuggestionBarView.topGap + MemorySuggestionBarView.padding * 2
+        guard let content = bar.content else {
+            return chrome + memorySuggestionLineHeight * 2
+        }
+        let textWidth = userContentWidth(for: width) - MemorySuggestionBarView.padding * 2 - 2
+        let lines = min(
+            MemorySuggestionBarView.contentMaxLines,
+            max(1, estimatedWrappedLines(
+                in: content,
+                contentWidth: textWidth,
+                fullCharWidth: memorySuggestionFullCharWidth,
+                halfCharWidth: memorySuggestionHalfCharWidth
+            ))
+        )
+        return chrome
+            + memorySuggestionLineHeight
+            + MemorySuggestionBarView.spacing + lines * memorySuggestionLineHeight
+            + MemorySuggestionBarView.spacing + MemorySuggestionBarView.buttonHeight
+    }
+
+    /// Footnote text metrics for the memory bar (13pt).
+    nonisolated static let memorySuggestionLineHeight: CGFloat = 18
+    nonisolated static let memorySuggestionFullCharWidth: CGFloat = 13
+    nonisolated static let memorySuggestionHalfCharWidth: CGFloat = 6.6
 
     nonisolated static let citationsHeaderHeight: CGFloat = 25
     nonisolated static let citationsRowHeight: CGFloat = 53

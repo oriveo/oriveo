@@ -26,11 +26,18 @@ struct ChatListViewControllerRepresentable: UIViewControllerRepresentable {
     var onOpenNoteReferences: ([NoteSummary]) -> Void = { _ in }
     var onCrosscheckMessage: (ChatMessage) -> Void = { _ in }
     var onMcpStepAction: (ChatMessage, McpToolStepAction) -> Void = { _, _ in }
+    var onOpenMemoryUsed: (ChatMessage) -> Void = { _ in }
     var onSaveSelectionMessage: (ChatMessage, String) -> Void = { _, _ in }
     var onAskSelectionMessage: (ChatMessage, QuoteSelectionContent) -> Void = { _, _ in }
     var canReplaceCurrentNoteSelection = false
     var onReplaceSelectionMessage: (ChatMessage, String) -> Void = { _, _ in }
     var onSaveCodeBlockMessage: (ChatMessage, String, String?) -> Void = { _, _, _ in }
+    var onOpenCompactionDetail: () -> Void = {}
+    var onAcceptDirectiveSuggestion: () -> Void = {}
+    var onIgnoreDirectiveSuggestion: () -> Void = {}
+    var onSaveMemorySuggestion: () -> Void = {}
+    var onEditMemorySuggestion: () -> Void = {}
+    var onIgnoreMemorySuggestion: () -> Void = {}
     var onRegenerateMessage: (ChatMessage) -> Void
     var onEditMessage: (ChatMessage) -> Void
     var onSwitchModelRequested: () -> Void
@@ -103,11 +110,18 @@ struct ChatListViewControllerRepresentable: UIViewControllerRepresentable {
             onOpenNoteReferences: onOpenNoteReferences,
             onCrosscheck: onCrosscheckMessage,
             onMcpStepAction: onMcpStepAction,
+            onOpenMemoryUsed: onOpenMemoryUsed,
             onSaveSelection: onSaveSelectionMessage,
             onAskSelection: onAskSelectionMessage,
             canReplaceCurrentNoteSelection: canReplaceCurrentNoteSelection,
             onReplaceSelection: onReplaceSelectionMessage,
             onSaveCodeBlock: onSaveCodeBlockMessage,
+            onOpenCompactionDetail: onOpenCompactionDetail,
+            onAcceptDirectiveSuggestion: onAcceptDirectiveSuggestion,
+            onIgnoreDirectiveSuggestion: onIgnoreDirectiveSuggestion,
+            onSaveMemorySuggestion: onSaveMemorySuggestion,
+            onEditMemorySuggestion: onEditMemorySuggestion,
+            onIgnoreMemorySuggestion: onIgnoreMemorySuggestion,
             onRegenerate: onRegenerateMessage,
             onEditMessage: onEditMessage,
             onSwitchModel: onSwitchModelRequested,

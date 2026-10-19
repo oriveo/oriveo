@@ -174,14 +174,36 @@ enum AttachmentInjector {
         return (result.text, result.skipped.map { (fileAttachments[$0.index].fileName, $0.reason) })
     }
 
+    /// The [D] at the end of the body: when the text == D or ends with "\n\n"+D it is split into (body, D).
+    /// Compared by UTF-8 bytes, not by Character canonical equivalence; if it is not recognized the text is returned
+    /// unchanged and dynamic is nil.
+    static func splitDynamic(_ text: String, dynamicText: String?) -> (body: String, dynamic: String?) {
+        guard let dynamicText, !dynamicText.isEmpty else { return (text, nil) }
+        let bytes = Array(text.utf8)
+        if bytes.elementsEqual(dynamicText.utf8) { return ("", dynamicText) }
+        let suffix = Array(("\n\n" + dynamicText).utf8)
+        guard bytes.count > suffix.count, bytes.suffix(suffix.count).elementsEqual(suffix) else { return (text, nil) }
+        return (String(decoding: bytes.dropLast(suffix.count), as: UTF8.self), dynamicText)
+    }
+
+    /// Appends [D] after the body: when the body is empty the result is D itself (no leading newline).
+    static func appendDynamic(_ dynamic: String?, to text: String) -> String {
+        guard let dynamic else { return text }
+        return text.isEmpty ? dynamic : text + "\n\n" + dynamic
+    }
+
     /// Same logic as `injectAll`, but skipped files are identified by index so files with the same name
     /// can still be matched back to their attachments.
+    /// When dynamicText is non-empty and the body ends with it (see `splitDynamic`), file text is injected before [D],
+    /// and [D] is always the last segment.
     static func injectAllIndexed(
-        intoUserText userText: String,
+        intoUserText rawUserText: String,
         fileAttachments: [(fileName: String, mimeType: String, sizeBytes: Int, extracted: ExtractedText?, errorCode: ExtractionErrorCode?)],
         limits: FileExtractionLimits = .default,
-        wrapper: AttachmentWrapperVersion = .xmlV1
+        wrapper: AttachmentWrapperVersion = .xmlV1,
+        dynamicText: String? = nil
     ) -> (text: String, skipped: [(index: Int, reason: SkipReason)]) {
+        let (userText, dynamic) = splitDynamic(rawUserText, dynamicText: dynamicText)
         var parts: [String] = []
         // Whitespace-only text is not placed in front of the attachment blocks; with no files to inject
         // the text is returned unchanged.
@@ -220,7 +242,7 @@ enum AttachmentInjector {
             emittedIndex += 1
         }
 
-        return (parts.joined(separator: "\n\n"), skipped)
+        return (appendDynamic(dynamic, to: parts.joined(separator: "\n\n")), skipped)
     }
 
     enum SkipReason {

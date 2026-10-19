@@ -2,38 +2,14 @@ import Foundation
 import Testing
 @testable import Oriveo
 
+/// Data derivation logic for the token usage sheet.
+///
+/// These checks used to live in the View with no assertions: the visibility rule of the cost row,
+/// and the contract invariant that cached tokens are a subset of input. The sheet redesign moved them onto the snapshot; these tests pin the semantics.
 @Suite("MessageTokenUsageSnapshot")
 struct MessageTokenUsageSnapshotTests {
 
-
-    @Test("Context Ratio Uses Input Not Total")
-    func contextRatioUsesInputNotTotal() throws {
-        let usage = MessageTokenUsageSnapshot(
-            inputTokens: 6_400,
-            outputTokens: 100_000,
-            contextLength: 128_000
-        )
-        let ratio = try #require(usage.contextUsageRatio)
-        #expect(abs(ratio - 0.05) < 0.0001)
-    }
-
-    @Test("Context Ratio Is Nil Without Context Length")
-    func contextRatioIsNilWithoutContextLength() {
-        let usage = MessageTokenUsageSnapshot(inputTokens: 6_400, outputTokens: 100)
-        #expect(usage.contextUsageRatio == nil)
-
-        let zeroWindow = MessageTokenUsageSnapshot(
-            inputTokens: 6_400, outputTokens: 100, contextLength: 0
-        )
-        #expect(zeroWindow.contextUsageRatio == nil)
-    }
-
-    @Test("Context Ratio Is Nil Without Input")
-    func contextRatioIsNilWithoutInput() {
-        let usage = MessageTokenUsageSnapshot(outputTokens: 100, contextLength: 128_000)
-        #expect(usage.contextUsageRatio == nil)
-    }
-
+    // MARK: - Cost row
 
     @Test("Cost Hidden For Platform Paid")
     func costHiddenForPlatformPaid() {
@@ -95,12 +71,11 @@ struct MessageTokenUsageSnapshotTests {
         message.estimatedCost = 0.0004
         message.costSource = .localEstimate
 
-        let usage = MessageTokenUsageSnapshot(message: message, contextLength: 200_000)
+        let usage = MessageTokenUsageSnapshot(message: message)
         #expect(usage.inputTokens == 6_000)
         #expect(usage.outputTokens == 1_000)
         #expect(usage.cacheReadTokens == 5_000)
         #expect(usage.cacheWriteTokens == 200)
-        #expect(usage.contextLength == 200_000)
         #expect(usage.estimatedCost == 0.0004)
         #expect(usage.costSource == .localEstimate)
         #expect(usage.isPlatformPaid == false)

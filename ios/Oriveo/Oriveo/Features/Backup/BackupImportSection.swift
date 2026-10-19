@@ -540,7 +540,7 @@ struct BackupImportSection: View {
                         throw BackupError.versionTooNew(backupFile.version)
                     }
 
-                    let checksumValid = BackupService.validateChecksum(backupFile)
+                    let checksumValid = BackupService.validateChecksum(backupFile, rawData: data)
 
                     var hasChecksumWarning = false
                     if let expectedChecksums = backupFile.attachmentChecksums {

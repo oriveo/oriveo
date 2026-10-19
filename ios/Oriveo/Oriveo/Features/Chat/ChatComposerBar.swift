@@ -309,12 +309,18 @@ struct ChatComposerBar: View {
     var toolsChip: ComposerToolsChipState?
     /// Opens the tool panel.
     var onOpenTools: () -> Void = {}
+    /// Input text went from empty to non-empty (context precompaction trigger).
+    var onComposerTextStarted: () -> Void = {}
     let onCancel: () -> Void
     let onShowPhotoPicker: () -> Void
     let onShowCamera: () -> Void
     let onShowFileImporter: () -> Void
     /// Reopens the model options panel after a carrier change: ChatView bumps it when the handoff says the panel was open.
     var modelControlsReopenToken: UInt = 0
+    /// Context usage of the active conversation; the ring shows only when it displays a percent.
+    var contextUsage: ContextUsageSummary? = nil
+    /// Tapping the usage ring opens the context panel.
+    var onOpenContextUsage: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -633,6 +639,16 @@ struct ChatComposerBar: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
 
+            if let compactionHintConversationID {
+                compactionHintBannerView(conversationID: compactionHintConversationID)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            if let compactingConversationID {
+                compactionInProgressView(conversationID: compactingConversationID)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
             noteContextSection
 
             if showsModeControls {
@@ -666,6 +682,8 @@ struct ChatComposerBar: View {
             }
         }
         .animation(preferredAnimation, value: showsModeControls)
+        .animation(preferredAnimation, value: compactionHintConversationID)
+        .animation(preferredAnimation, value: compactingConversationID)
         .animation(preferredAnimation, value: pendingAttachments.isEmpty)
         .animation(preferredAnimation, value: pendingQuoteContext)
         .animation(preferredAnimation, value: reasoningMode)
@@ -699,6 +717,9 @@ struct ChatComposerBar: View {
         .onChange(of: scenePhase) { _, phase in
             guard phase == .background else { return }
             commitDraft()
+        }
+        .onChange(of: composerText.isEmpty) { wasEmpty, isEmpty in
+            if wasEmpty, !isEmpty { onComposerTextStarted() }
         }
         .onChange(of: reduceMotion) { _, _ in configureHighlightPulse() }
         .onChange(of: currentModel?.id) { _, _ in syncStoredCapabilitySelection() }
@@ -842,14 +863,21 @@ struct ChatComposerBar: View {
     // MARK: - Capability Strip
 
     private var capabilityStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            capabilityStripContent
-                .padding(.horizontal, 2)
-                .padding(.vertical, 2)
+        HStack(spacing: 6) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                capabilityStripContent
+                    .padding(.horizontal, 2)
+                    .padding(.vertical, 2)
+            }
+            .scrollClipDisabled()
+            .mask(horizontalEdgeFadeMask)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Pinned at the trailing end, outside the scrolling chips.
+            if let contextUsage, ContextUsageRing.isVisible(contextUsage) {
+                ContextUsageRing(summary: contextUsage, onTap: onOpenContextUsage)
+            }
         }
-        .scrollClipDisabled()
-        .mask(horizontalEdgeFadeMask)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var capabilityStripContent: some View {
@@ -1205,7 +1233,101 @@ struct ChatComposerBar: View {
         }
     }
 
-    /// The row shown when the conversation's model was removed: the same compact style as the attachment sync banner, with one button on the right that opens the model picker.
+    /// Hint shown on the third compaction while ChatManager flags this conversation.
+    private var compactionHintConversationID: UUID? {
+        guard let conversationID, appState.pendingCompactionHint == conversationID else { return nil }
+        return conversationID
+    }
+
+    private func compactionHintBannerView(conversationID: UUID) -> some View {
+        let tint = OriveoTheme.Palette.primary
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "rectangle.compress.vertical")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .accessibilityHidden(true)
+                Text(L10n.tr("context_compaction_third_hint", table: .chat))
+                    .font(OriveoTheme.Typography.footnote)
+                    .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 16) {
+                Spacer(minLength: 0)
+                Button {
+                    appState.chatManager.dismissCompactionHint()
+                } label: {
+                    Text(L10n.tr("context_compaction_third_hint_dismiss", table: .chat))
+                }
+                .font(OriveoTheme.Typography.footnote)
+                .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                .buttonStyle(.plain)
+                Button {
+                    ContextCompactionActions(appState: appState, conversationID: conversationID)
+                        .startNewChatWithSummary()
+                } label: {
+                    Text(L10n.tr("context_compaction_third_hint_new_chat", table: .chat))
+                }
+                .font(OriveoTheme.Typography.footnote.weight(.semibold))
+                .foregroundStyle(OriveoTheme.Palette.primary)
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(tint.opacity(isDarkMode ? 0.14 : 0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(tint.opacity(isDarkMode ? 0.28 : 0.20), lineWidth: 1)
+                )
+        }
+    }
+
+    /// Shown only while an AI summary call is running for this conversation.
+    private var compactingConversationID: UUID? {
+        guard let conversationID, appState.aiCompactingConversationIDs.contains(conversationID) else { return nil }
+        return conversationID
+    }
+
+    private func compactionInProgressView(conversationID: UUID) -> some View {
+        let tint = OriveoTheme.Palette.primary
+        return HStack(alignment: .center, spacing: 8) {
+            ProgressView()
+                .controlSize(.mini)
+                .tint(tint)
+                .accessibilityHidden(true)
+            Text(L10n.tr("context_compaction_in_progress", table: .chat))
+                .font(OriveoTheme.Typography.footnote)
+                .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Button {
+                appState.chatManager.cancelCompaction(conversationId: conversationID)
+            } label: {
+                Text(L10n.tr("context_compaction_cancel", table: .chat))
+            }
+            .font(OriveoTheme.Typography.footnote.weight(.semibold))
+            .foregroundStyle(tint)
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(tint.opacity(isDarkMode ? 0.14 : 0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(tint.opacity(isDarkMode ? 0.28 : 0.20), lineWidth: 1)
+                )
+        }
+    }
+
+    /// The row shown when the conversation's model was removed: the same compact style as the other banners, with one button on the right that opens the model picker.
     private func modelRemovedBannerView(_ banner: ChatModelRemovedBanner) -> some View {
         let tint = OriveoTheme.Palette.warning
         return HStack(alignment: .center, spacing: 8) {
@@ -1582,5 +1704,15 @@ struct ComposerToolsChipState: Equatable {
     var accessibilityValue: String {
         guard isAvailable else { return L10n.tr("This model can't use tools", table: .mcp) }
         return enabledServerCount > 0 ? String(enabledServerCount) : L10n.tr("Disabled")
+    }
+
+    /// Whether the capability strip draws the "Tools" capsule: the master switch is on and at least one server has been added (even if all are off), the same rule as the library capsule.
+    /// Hidden when none has been added (the discovery entry is in Settings > MCP); also not drawn while the panel state has not been read yet (`.empty`).
+    static func resolve(featureEnabled: Bool, panelState: McpToolPanelState) -> ComposerToolsChipState? {
+        guard featureEnabled, panelState.hasServers else { return nil }
+        return ComposerToolsChipState(
+            enabledServerCount: panelState.enabledServerCount,
+            isAvailable: panelState.availability.isAvailable
+        )
     }
 }

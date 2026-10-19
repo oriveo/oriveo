@@ -402,7 +402,7 @@ struct MiniMaxServiceTests {
                 exposedReasoning += text
             case let .done(result):
                 finalResult = result
-            case .imagePart, .citations, .toolCallDeltas, .activity:
+            case .imagePart, .citations, .toolCallDeltas, .activity, .finish:
                 break
             }
         }
@@ -670,7 +670,7 @@ struct MiniMaxServiceTests {
                 case let .delta(value): text += value
                 case let .reasoning(value): reasoning += value
                 case let .citations(value): citations = value
-                case .toolCallDeltas, .done, .imagePart, .activity: break
+                case .toolCallDeltas, .done, .imagePart, .activity, .finish: break
                 }
             }
         }

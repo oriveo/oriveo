@@ -1,50 +1,521 @@
 import Foundation
+import OriveoProviderKit
 
 nonisolated struct ChatRequestBuildResult: Sendable {
-    let requestMessages: [ChatMessage]
+    /// Projection of the plan; chat entry points only take its `transportInput(_:)`.
+    let planned: PlannedChatRequest
+    /// Base options derived from the plan (max_tokens, stateful-continuation sentence); no system, which only `transportInput` writes.
     let requestOptions: ChatRequestOptions
+    /// The plan.budget produced by assembly.
+    var budget: ContextPlanBudget? = nil
+    /// Message id where the tail starts when a checkpoint was spliced in by the fallback (manifest.tailFrom).
+    var tailFrom: String? = nil
+    /// Checkpoint text spliced in by the fallback or a stored row (used for the stateful-continuation fingerprint); nil if none.
+    var checkpointText: String? = nil
+    /// checkpointId of the stored row this plan applied (manifest.checkpointId); nil for the in-memory fallback / overflow re-projection.
+    var checkpointId: String? = nil
+    /// Purpose chat: the plan is still required after applying a stored row (or no row), and the in-memory fallback did not run this time.
+    var compactionRequired: Bool = false
+    /// Raw material for the compaction snapshot: only present when compactionRequired.
+    var compactionInputs: ChatCompactionInputs? = nil
 }
 
-nonisolated struct ChatRequestPromptContext: Sendable, Equatable {
-    let systemPrompt: String
-    let remainingChars: Int
-    let useMemory: Bool
-    let memoryInjected: Bool
+/// Raw material for the coordinator snapshot: the history is the full history assembled this time (without the current message); budget and estimation parameters come from this plan.
+nonisolated struct ChatCompactionInputs: Sendable {
+    var messages: [ContextCheckpoint.Message]
+    var attachments: [String: [ContextCompactor.Attachment]]
+    var B: Int
+    var U: Int
+    var rhoHi: Double
+    var prefixTokens: Int
+    var fixedTokens: Int
+    /// System of this chat plan (reused when the summary request's system is nil).
+    var system: String
 }
 
-nonisolated struct ChatRequestKnowledgeBudgetResult: Sendable, Equatable {
-    let referenceFiles: [ChatRequestKnowledgeFileSnapshot]
-    let retrievalSnippets: [ChatRequestRetrievedSnippet]
+/// Budget parameters the main chat path hands to ContextAssembler: the window comes from the model, rho from the Context Ledger.
+nonisolated struct ChatRequestAssemblyContext: Sendable, Equatable {
+    let window: ContextWindowInput
+    let rhoHi: Double
+    /// Overflow-recovery resend: when non-nil the deterministic fallback runs regardless of the compaction suggestion; when the window is unknown it is B
+    /// (the estimatedInput of the request that failed).
+    var overflowFallbackB: Int? = nil
+    /// The stored row picked by latestValid; for purpose chat the tail starts after coversTo and the row's text is spliced in.
+    var checkpoint: ContextCheckpointRecord? = nil
+    /// false = skip the in-memory fallback (the send path hands off to the coordinator first); also skipped when a stored row applies. Overflow resends ignore it.
+    var memoryFallback: Bool = true
+    /// On overflow-recovery trial runs, purpose chat also produces the compaction snapshot material (B taken as in the fallback: plan.budget.B ?? overflowFallbackB).
+    var overflowCompactionInputs: Bool = false
+    /// oldSummary of the deterministic fallback: the non-empty summary of the latestValid winner; nil if none.
+    var fallbackOldSummary: String? = nil
 }
 
 nonisolated enum ChatRequestBuilder {
-    private static let maxSystemPromptChars = 12_000
     private static let maxPromptFileNameChars = 120
 
-    static func build(from snapshot: ChatRequestSnapshot) -> ChatRequestBuildResult {
-        var requestMessages = mergeAdjacentSameRole(buildRequestMessages(snapshot.messages, sendPath: snapshot.sendPath))
-        let promptContext = buildPromptInjectionContext(
-            skill: snapshot.skill,
-            preferences: snapshot.preferences,
-            conversation: snapshot.conversation,
-            retrievedSnippets: snapshot.retrievedSnippets,
-            pinnedNotes: snapshot.pinnedNotes
-        )
-        applyQuoteContexts(to: &requestMessages)
-        requestMessages = OutboundAttachmentBudget.apply(to: requestMessages)
+    /// Remote switch: when false the assembly input gets reminderEnabled = false, which only turns off <oriveo-reminder>; the directives section still goes into system.
+    static let reminderRemoteFlagKey = "context_reminder_enabled"
 
-        let hasFileAttachments = requestMessages.contains { msg in
-            msg.attachments?.contains { $0.kind == AttachmentKind.file } ?? false
+    /// The request is projected from the plan of `ContextAssembler.assemble`: send / retry / regenerate / send-after-edit use purpose chat,
+    /// continue-generating uses purpose continue (history is cut at the target assistant and keeps it; the current message is core's fixed continuation sentence).
+    /// system = plan.system; history = plan.messages mapped back to app messages by id (attachments are brought back by id, history attachment budget unchanged);
+    /// [D] is appended to the end of the current user text. When the plan gives no messages (send rejected) the request is empty: every entry point already blocks on the same check before creating messages.
+    /// When toolSafety is non-nil (MCP / library agent tool loop) the send path assembles with purpose toolLoopLeg:
+    /// the safety note is the last section of system, and every leg of the whole loop uses this same system.
+    static func build(
+        from snapshot: ChatRequestSnapshot,
+        assembly: ChatRequestAssemblyContext,
+        toolSafety: String? = nil
+    ) -> ChatRequestBuildResult {
+        let input = assembleInput(snapshot, assembly: assembly, toolSafety: toolSafety)
+        let isChat = input.input.purpose == .chat
+        let stored = isChat ? assembly.checkpoint.flatMap { applyingCheckpoint($0, to: input.input) } : nil
+        let base = stored?.plan ?? ContextAssembler.assemble(input.input)
+        let runsMemoryFallback = assembly.overflowFallbackB != nil || (assembly.memoryFallback && stored == nil)
+        let (plan, tailFrom, checkpointText) = runsMemoryFallback
+            ? compactedIfRequired(
+                base,
+                input: stored?.input ?? input.input,
+                overflowFallbackB: assembly.overflowFallbackB,
+                oldSummary: assembly.fallbackOldSummary
+            )
+            : (base, stored?.tailFrom, stored?.text)
+        let compactionRequired = isChat && !runsMemoryFallback && base.compaction == .required
+        let planned = PlannedChatRequest.projecting(
+            plan, messages: input.sources.messages, attachments: input.sources.attachments
+        )
+        var requestOptions = ChatRequestOptions()
+        // max_tokens = plan.budget.oWire: handed through request options to the builders that already send max_tokens.
+        requestOptions.maxOutputTokens = plan.budget.oWire
+        // A stateful continuation leg sends only the continuation sentence: no history and no [D].
+        if plan.purpose == .continue {
+            requestOptions.statefulLegText = ContextAssembler.continuePrompt
         }
-        let basePrompt = promptContext?.systemPrompt ?? ""
-        let finalSystemPrompt = BaseAPIService.appendAttachmentSystemGuidance(
-            to: basePrompt,
-            hasAttachments: hasFileAttachments
+        return ChatRequestBuildResult(
+            planned: planned,
+            requestOptions: requestOptions,
+            budget: plan.budget,
+            tailFrom: tailFrom,
+            checkpointText: checkpointText,
+            checkpointId: runsMemoryFallback ? nil : stored.flatMap { _ in assembly.checkpoint?.checkpointId },
+            compactionRequired: compactionRequired,
+            compactionInputs: compactionRequired || (isChat && assembly.overflowCompactionInputs)
+                ? compactionInputs(
+                    input.input, plan: base, sources: input.sources, window: assembly.window,
+                    fallbackB: assembly.overflowFallbackB
+                )
+                : nil
+        )
+    }
+
+    /// Conversation history used by latestValid: the same ids / text as the coordinator snapshot (the assembled history of the chat send path, without the current message).
+    static func checkpointHistory(from snapshot: ChatRequestSnapshot) -> [ContextCheckpoint.CoveredMessage] {
+        preparedMessages(snapshot.messages, sendPath: snapshot.sendPath).history
+            .map { ContextCheckpoint.CoveredMessage(id: $0.id, text: $0.text) }
+    }
+
+    /// Stored-row application: tail = after coversTo, row.text is handed to the assembler via input.checkpoint
+    /// (start of the first user text block after sanitize; not inside the <oriveo-unanswered> envelope).
+    /// Not applied when coversTo is not in the history or no messages can be assembled.
+    private static func applyingCheckpoint(
+        _ row: ContextCheckpointRecord,
+        to input: ContextAssembleInput
+    ) -> (plan: ContextPlan, input: ContextAssembleInput, tailFrom: String, text: String)? {
+        guard let coversIndex = input.history.firstIndex(where: { $0.id == row.coversTo }) else { return nil }
+        var applied = input
+        let tail = Array(input.history[(coversIndex + 1)...])
+        applied.history = tail
+        applied.checkpoint = row.text
+        let plan = ContextAssembler.assemble(applied)
+        guard plan.messages != nil else { return nil }
+        return (plan, applied, tail.first?.id ?? input.currentId, row.text)
+    }
+
+    /// Raw material for the coordinator snapshot: the full history (without a stored row applied) estimated message by message, with the full text (same rule as digest and latestValid);
+    /// fixedTokens = est(system) + est(all text blocks of the current plan messages, including [D]), same rule as the in-memory fallback.
+    private static func compactionInputs(
+        _ input: ContextAssembleInput,
+        plan: ContextPlan,
+        sources: AssemblySources,
+        window: ContextWindowInput,
+        fallbackB: Int? = nil
+    ) -> ChatCompactionInputs? {
+        guard let B = plan.budget.B ?? fallbackB, B > 0 else { return nil }
+        let rhoHi = input.rhoHi
+        let messages = input.history.map { message in
+            ContextCheckpoint.Message(
+                id: message.id,
+                role: message.role,
+                estTokens: ContextBudget.estimateMessage(message.text, rhoHi: rhoHi),
+                text: message.text,
+                // Compaction candidates: user messages are flagged as durable by the detector.
+                isDirective: message.role == .user && DirectiveDetector.detect(message.text).isDirective
+            )
+        }
+        var attachments: [String: [ContextCompactor.Attachment]] = [:]
+        for message in input.history where !message.attachments.isEmpty {
+            attachments[message.id] = message.attachments.compactMap { ref in
+                sources.attachments[ref.id].map { attachment in
+                    ContextCompactor.Attachment(kind: attachment.kind == .image ? .image : .file, name: attachment.fileName)
+                }
+            }
+        }
+        let system = plan.system ?? ""
+        let systemTokens = system.isEmpty ? 0 : ContextBudget.estimateMessage(system, rhoHi: rhoHi)
+        let currentPlanMessage = (plan.messages ?? []).last { $0.id == input.currentId && $0.role == .user }
+        let currentText = currentPlanMessage.map { $0.blocks.map(\.text).joined(separator: "\n\n") }
+            ?? input.current ?? ""
+        return ChatCompactionInputs(
+            messages: messages,
+            attachments: attachments,
+            B: B,
+            U: ContextBudget.window(window).U ?? B,
+            rhoHi: rhoHi,
+            prefixTokens: systemTokens,
+            fixedTokens: systemTokens + ContextBudget.estimateMessage(currentText, rhoHi: rhoHi),
+            system: system
+        )
+    }
+
+    /// Dedicated image generation: purpose imageGeneration, a single user message,
+    /// text = plan.imagePrompt, attachments = those of the last user message; no system, memory, [D] or checkpoint.
+    /// Same rule for official image generation and the Relay images endpoint; the message list is empty when the plan gives no prompt.
+    static func imageGenerationRequest(
+        from snapshot: ChatRequestSnapshot,
+        window: ContextWindowInput
+    ) -> PlannedChatRequest {
+        var messages = snapshot.messages
+        if case .send(let excluding) = snapshot.sendPath {
+            messages.removeAll { $0.id == excluding }
+        }
+        let plan = ContextAssembler.assemble(ContextAssembleInput(
+            purpose: .imageGeneration,
+            window: window,
+            conversation: ContextConversation(
+                id: snapshot.conversation?.id.uuidString ?? "",
+                useMemory: false,
+                instructions: snapshot.conversation?.instructions
+            ),
+            history: messages.map(contextMessage)
+        ))
+        return PlannedChatRequest.projectingImageGeneration(plan, history: messages)
+    }
+
+    /// Dedicated system request: purposeSystem goes into system, history is used as-is,
+    /// with no memory, conversation instructions or [D].
+    static func purposeRequest(
+        purpose: RequestPurpose,
+        purposeSystem: String,
+        history: [ChatMessage],
+        window: ContextWindowInput
+    ) -> PlannedChatRequest {
+        let plan = ContextAssembler.assemble(ContextAssembleInput(
+            purpose: purpose,
+            window: window,
+            conversation: ContextConversation(id: "", useMemory: false),
+            purposeSystem: purposeSystem,
+            history: history.map(contextMessage)
+        ))
+        return PlannedChatRequest.projectingPurpose(plan, history: history)
+    }
+
+    /// Pre-send rejection check: assemble once with the messages about to be sent; a non-empty plan.reject means do not send.
+    /// Only the skill + instructions and the current message matter and retrieved snippets do not change the verdict, so the snapshot without retrieval is enough.
+    static func rejectReason(
+        for snapshot: ChatRequestSnapshot,
+        assembly: ChatRequestAssemblyContext
+    ) -> ContextRejectReason? {
+        rejectPrecheck(for: snapshot, assembly: assembly).reject
+    }
+
+    /// The plan produced by the rejection pre-check: the rejection reason and plan.budget (B follows the effective tier in the window parameters).
+    static func rejectPrecheck(
+        for snapshot: ChatRequestSnapshot,
+        assembly: ChatRequestAssemblyContext
+    ) -> (reject: ContextRejectReason?, budget: ContextPlanBudget) {
+        let plan = ContextAssembler.assemble(assembleInput(snapshot, assembly: assembly).input)
+        return (plan.reject, plan.budget)
+    }
+
+    /// 0.90 deterministic fallback: when plan.compaction = required, run `ContextCheckpoint.fallback` over the history,
+    /// hand the checkpoint text to the assembler via input.checkpoint (start of the first user text block after sanitize), then assemble again.
+    /// It only changes this request and is not persisted; it is sent even when targetMet = false. Falls back to the original plan if no messages can be assembled after the fallback.
+    /// On the send path it only runs here when no stored row is usable and the coordinator is a noop (memoryFallback); overflow resends are unchanged.
+    /// Overflow-recovery resends (overflowFallbackB non-nil) ignore the compaction suggestion and take B from it when the window is unknown.
+    /// The second return value is the message id where the tail starts (only present when a checkpoint was spliced in; nil means the fallback produced no checkpoint, and overflow recovery does not resend based on that),
+    /// the third is the spliced-in checkpoint text (used for the stateful-continuation fingerprint).
+    private static func compactedIfRequired(
+        _ plan: ContextPlan,
+        input: ContextAssembleInput,
+        overflowFallbackB: Int?,
+        oldSummary: String?
+    ) -> (ContextPlan, String?, String?) {
+        let forced = overflowFallbackB != nil
+        guard plan.compaction == .required || forced,
+              let B = plan.budget.B ?? overflowFallbackB, B > 0 else { return (plan, nil, nil) }
+        let rhoHi = input.rhoHi
+        // The fallback input uses the plan history after sanitize: the current message is the last user message of the plan.
+        let planMessages = plan.messages ?? []
+        let currentPlanMessage = planMessages.last { $0.id == input.currentId && $0.role == .user }
+        let history: [ContextMessage] = planMessages
+            .filter { $0.id != currentPlanMessage?.id }
+            .map { message in
+                ContextMessage(
+                    id: message.id,
+                    role: message.role,
+                    text: message.blocks.filter { $0.kind == .text }.map(\.text).joined(separator: "\n\n"),
+                    state: .delivered,
+                    attachments: message.attachments
+                )
+            }
+        let messages = history.map { message in
+            ContextCheckpoint.Message(
+                id: message.id,
+                role: message.role,
+                estTokens: ContextBudget.estimateMessage(message.text, rhoHi: rhoHi),
+                text: message.role == .user ? message.text : nil,
+                // Compaction candidates: user messages are flagged as durable by the detector.
+                isDirective: message.role == .user && DirectiveDetector.detect(message.text).isDirective
+            )
+        }
+        // fixedTokens = est(system) + est(all text blocks of the current plan messages, including [D]).
+        let currentText = currentPlanMessage.map { $0.blocks.map(\.text).joined(separator: "\n\n") }
+            ?? input.current ?? ""
+        let fixedTokens = (plan.system.map { ContextBudget.estimateMessage($0, rhoHi: rhoHi) } ?? 0)
+            + ContextBudget.estimateMessage(currentText, rhoHi: rhoHi)
+        let fallback = ContextCheckpoint.fallback(
+            messages: messages, B: B, rhoHi: rhoHi, fixedTokens: fixedTokens, oldSummary: oldSummary
+        )
+        guard let checkpoint = fallback.checkpointText else { return (plan, nil, nil) }
+
+        let tailStart = fallback.tailStartId.flatMap { id in history.firstIndex { $0.id == id } }
+            ?? history.count
+        var compacted = input
+        let tail = Array(history[tailStart...])
+        // Earlier user messages that the original plan merged into the current message (unanswered after the failed reply) are not in the plan history: take the user messages
+        // after the last plan-history entry from the raw history and reattach them to the tail, so a rebuild's sanitize merges them into an <oriveo-unanswered> envelope again.
+        let mergedIntoCurrent: [ContextMessage]
+        if let lastKept = history.last {
+            mergedIntoCurrent = input.history.firstIndex { $0.id == lastKept.id }
+                .map { input.history[($0 + 1)...].filter { $0.role == .user } } ?? []
+        } else {
+            mergedIntoCurrent = input.history.filter { $0.role == .user }
+        }
+        compacted.history = tail + mergedIntoCurrent
+        compacted.checkpoint = checkpoint
+        let replanned = ContextAssembler.assemble(compacted)
+        // When the tail is empty (history fully folded) tailFrom is the current message id: once a checkpoint is spliced in there is always a tailFrom.
+        return replanned.messages == nil
+            ? (plan, nil, nil)
+            : (replanned, tail.first?.id ?? input.currentId, checkpoint)
+    }
+
+    /// Window parameters: W / O come from the model.
+    /// There is no matching recipe-level field on iOS, so it is left empty. The price line T looks up metadata by (kind, modelId) on demand.
+    /// budgetCap = conversation cap ?? global default (resolved by ChatManager); single-purpose callers such as crosscheck use the default auto.
+    static func contextWindowInput(
+        providerKind: ProviderKind,
+        model: AIModel,
+        userMaxOutput: Int? = nil,
+        budgetCap: ContextBudgetCap = .auto
+    ) -> ContextWindowInput {
+        ContextWindowInput(
+            W: model.contextLength,
+            windowKind: .total,
+            maxOutput: ContextMaxOutputSources(user: userMaxOutput, model: model.maxOutputTokens),
+            budgetCap: budgetCap,
+            priceLineTokens: priceLineTokens(providerKind: providerKind, modelID: model.id)
+        )
+    }
+
+    /// pricing.longContext.thresholdTokens from the official catalog metadata; never used for relays.
+    static func priceLineTokens(providerKind: ProviderKind, modelID: String) -> Int? {
+        guard !providerKind.usesServerOrderedModels, providerKind != .relay else { return nil }
+        return MetadataClient.shared.resolveCatalogModel(
+            modelID: modelID,
+            providerKind: providerKind
+        )?.longContext?.thresholdTokens
+    }
+
+    /// The output cap the user explicitly set in the evaluated generation parameters (canonical id `max_output_tokens`); nil if unset or non-positive.
+    static func userMaxOutputTokens(from parameters: GenerationParameterOverrides?) -> Int? {
+        guard let override = parameters?.values["max_output_tokens"],
+              override.state == .value,
+              case let .number(value)? = override.value,
+              value.isFinite, value >= 1 else {
+            return nil
+        }
+        return Int(value)
+    }
+
+    /// Clamps the user's explicit output cap to oWire when it exceeds oWire (sent value = min(user value, oWire)); returned unchanged when there is no oWire or it is not exceeded.
+    static func cappingUserMaxOutputTokens(
+        _ parameters: GenerationParameterOverrides?,
+        to oWire: Int?
+    ) -> GenerationParameterOverrides? {
+        guard var parameters, let oWire, oWire >= 1,
+              let user = userMaxOutputTokens(from: parameters), user > oWire else {
+            return parameters
+        }
+        parameters.values["max_output_tokens"]?.value = .number(Double(oWire))
+        return parameters
+    }
+
+    private struct AssemblySources {
+        var messages: [String: ChatMessage] = [:]
+        var attachments: [String: Attachment] = [:]
+    }
+
+    /// The purpose is decided by the send path: `.send` is chat (toolLoopLeg when toolSafety is present), `.continueResponse` is continue.
+    private static func assembleInput(
+        _ snapshot: ChatRequestSnapshot,
+        assembly: ChatRequestAssemblyContext,
+        toolSafety: String? = nil
+    ) -> (input: ContextAssembleInput, sources: AssemblySources) {
+        let prepared = preparedMessages(snapshot.messages, sendPath: snapshot.sendPath)
+        let purpose: RequestPurpose = prepared.isContinue ? .continue : (toolSafety == nil ? .chat : .toolLoopLeg)
+
+        let useMemory = snapshot.effectiveUseMemory
+        let memoryItems = useMemory
+            ? injectableMemory(snapshot.preferences.memoryItems, conversation: snapshot.conversation, now: Date())
+            : []
+        let knowledgeFiles = (snapshot.skill?.knowledgeFiles ?? []).map {
+            ContextKnowledgeFile(name: sanitizePromptFileName($0.name), text: $0.content)
+        } + snapshot.retrievedSnippets.map {
+            ContextKnowledgeFile(name: sanitizePromptFileName($0.fileName), text: $0.text)
+        }
+        let conversation = ContextConversation(
+            id: snapshot.conversation?.id.uuidString ?? "",
+            useMemory: useMemory,
+            skillPrompt: snapshot.skill?.systemPrompt,
+            instructions: snapshot.conversation?.instructions,
+            pinnedNotes: snapshot.pinnedNotes.map { ContextPinnedNote(title: $0.title, text: $0.body) },
+            knowledgeFiles: knowledgeFiles
         )
 
-        return ChatRequestBuildResult(
-            requestMessages: requestMessages,
-            requestOptions: ChatRequestOptions(systemPrompt: finalSystemPrompt)
+        // Attachment note: when the outbound history has file attachments it goes into [D], judged by the same rule as the old build.
+        let hasFileAttachments = outboundAttachmentHistory(snapshot.messages, sendPath: snapshot.sendPath)
+            .contains { $0.attachments?.contains { $0.kind == .file } ?? false }
+        // Library evidence: one entry per document goes into [D]'s <oriveo-library>, without rewriting system or the user text.
+        // L3 recall: already retrieved in the snapshot by the effective useMemory; empty when useMemory is off, no envelope.
+        let dynamic = ContextDynamicInput(
+            recall: useMemory ? snapshot.recall : [],
+            library: snapshot.library,
+            attachmentGuide: hasFileAttachments ? AttachmentInjector.systemPromptGuidance : nil
+        )
+
+        let input = ContextAssembleInput(
+            purpose: purpose,
+            window: assembly.window,
+            rhoHi: assembly.rhoHi,
+            conversation: conversation,
+            memoryItems: memoryItems,
+            toolSafety: purpose == .toolLoopLeg ? toolSafety : nil,
+            history: prepared.history,
+            current: prepared.current?.text,
+            currentId: prepared.current?.id ?? "current",
+            currentAttachments: prepared.current?.attachments ?? [],
+            keepAssistantId: prepared.keepAssistantID?.uuidString,
+            dynamic: dynamic,
+            reminderEnabled: MetadataClient.shared.syncFeatureFlag(reminderRemoteFlagKey, defaultValue: true)
+        )
+        return (input, prepared.sources)
+    }
+
+    /// Items are filtered by `MemoryItems.injectable` (conversation id, folder id, now), standing section first and memory section after,
+    /// keeping list order within a section; status / layer / scope are already filtered here, so the assembler no longer gets those fields.
+    /// Conversation / folder ids use `uuidString`, the same as the stored document ids.
+    private static func injectableMemory(
+        _ items: [MemoryItem],
+        conversation: ChatRequestConversationSnapshot?,
+        now: Date
+    ) -> [ContextMemoryItem] {
+        guard !items.isEmpty else { return [] }
+        let injection = MemoryItems.injectable(
+            items,
+            conversationId: conversation?.id.uuidString,
+            folderId: conversation?.folderID?.uuidString,
+            now: now
+        )
+        return (injection.standingInstructions + injection.memory).map {
+            ContextMemoryItem(id: $0.id, kind: $0.kind.rawValue, content: $0.content, pinned: $0.pinned)
+        }
+    }
+
+    private struct PreparedMessages {
+        var isContinue: Bool
+        var keepAssistantID: UUID?
+        var history: [ContextMessage]
+        var current: ContextMessage?
+        var sources: AssemblySources
+    }
+
+    /// Assembled messages decided by the send path: excluded messages are removed and quotes expanded, and the original message and attachments are recorded by id for the projection to fetch back.
+    /// chat: the last user message is the current message and the rest is history. continue: history is cut at the target assistant (inclusive),
+    /// the current message is core's fixed continuation sentence; here it only gets an id and a prototype that maps back to an app message.
+    private static func preparedMessages(_ snapshotMessages: [ChatMessage], sendPath: ChatRequestSendPath) -> PreparedMessages {
+        let isContinue: Bool
+        let excludingMessageID: UUID?
+        let keepAssistantID: UUID?
+        switch sendPath {
+        case .send(let excluding):
+            isContinue = false
+            excludingMessageID = excluding
+            keepAssistantID = nil
+        case .continueResponse(let assistantMessageID):
+            isContinue = true
+            excludingMessageID = nil
+            keepAssistantID = assistantMessageID
+        }
+        var messages = snapshotMessages.filter { $0.id != excludingMessageID }
+        applyQuoteContexts(to: &messages)
+
+        var sources = AssemblySources()
+        var contextMessages: [ContextMessage] = []
+        for message in messages {
+            sources.messages[message.id.uuidString] = message
+            for attachment in message.attachments ?? [] where sources.attachments[attachment.id.uuidString] == nil {
+                sources.attachments[attachment.id.uuidString] = attachment
+            }
+            contextMessages.append(contextMessage(message))
+        }
+        var current: ContextMessage?
+        if isContinue {
+            let prompt = makeInstructionMessage(ContextAssembler.continuePrompt, from: messages)
+            sources.messages[prompt.id.uuidString] = prompt
+            current = ContextMessage(
+                id: prompt.id.uuidString, role: .user, text: prompt.text, state: .delivered, attachments: []
+            )
+        } else if contextMessages.last?.role == .user {
+            current = contextMessages.removeLast()
+        }
+        return PreparedMessages(
+            isContinue: isContinue, keepAssistantID: keepAssistantID,
+            history: contextMessages, current: current, sources: sources
+        )
+    }
+
+    private static func contextMessage(_ message: ChatMessage) -> ContextMessage {
+        let state: ContextMessageState = switch message.state {
+        case .delivered: .delivered
+        case .generating: .generating
+        case .interrupted: .interrupted
+        case .failed: .failed
+        }
+        let attachments = (message.attachments ?? []).map { attachment in
+            let kind: ContextAttachmentKind = switch attachment.kind {
+            case .image: .image
+            case .video: .video
+            case .file: .file
+            }
+            return ContextAttachmentRef(id: attachment.id.uuidString, kind: kind)
+        }
+        return ContextMessage(
+            id: message.id.uuidString,
+            role: message.role == .user ? .user : .assistant,
+            text: message.text,
+            state: state,
+            attachments: attachments
         )
     }
 
@@ -54,345 +525,29 @@ nonisolated enum ChatRequestBuilder {
                 userInput: messages[index].text,
                 quoteContext: messages[index].quoteContext
             )
+            // Provider adapters only need standard role/content; the internal snapshot must not keep leaking into transport.
             messages[index].quoteContext = nil
         }
     }
 
-    static func shouldInjectMemory(
-        skill: ChatRequestSkillSnapshot?,
-        preferences: ChatRequestPreferencesSnapshot,
-        conversation: ChatRequestConversationSnapshot?
-    ) -> Bool {
-        let memoryText = preferences.memoryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !memoryText.isEmpty else { return false }
-
-        if let skill {
-            return conversation?.useMemory ?? skill.useMemory
-        }
-
-        return conversation?.useMemory ?? true
-    }
-
-    static func buildPromptInjectionContext(
-        skill: ChatRequestSkillSnapshot?,
-        preferences: ChatRequestPreferencesSnapshot,
-        conversation: ChatRequestConversationSnapshot?,
-        retrievedSnippets: [ChatRequestRetrievedSnippet] = [],
-        pinnedNotes: [ChatRequestPinnedNoteSnapshot] = []
-    ) -> ChatRequestPromptContext? {
-        var parts: [String] = []
-        let maxChars = maxSystemPromptChars
-        var remainingChars = maxChars
-        var memoryInjected = false
-
-        func injectPinnedNotes() {
-            guard !pinnedNotes.isEmpty, remainingChars > 0 else { return }
-            let budget = min(remainingChars, PinnedNotePromptBuilder.budgetChars)
-            let block = PinnedNotePromptBuilder.build(pinnedNotes, budgetChars: budget)
-            guard !block.isEmpty else { return }
-            parts.append(block)
-            remainingChars = max(0, remainingChars - block.count)
-        }
-
-        if let skill {
-            let useMemory = conversation?.useMemory ?? skill.useMemory
-            if !skill.systemPrompt.isEmpty {
-                parts.append(skill.systemPrompt)
-                remainingChars = max(0, remainingChars - skill.systemPrompt.count)
-            }
-
-            let budgeted = applyKnowledgeBudget(
-                skill: skill,
-                retrievalSnippets: retrievedSnippets,
-                remainingChars: remainingChars
-            )
-
-            for file in budgeted.referenceFiles {
-                guard let block = fitWrappedSegment(
-                    prefix: "--- Reference: \(sanitizePromptFileName(file.name)) ---\n",
-                    content: file.content,
-                    suffix: "\n--- End ---",
-                    remainingChars: remainingChars
-                ) else {
-                    break
-                }
-                parts.append(block)
-                remainingChars = max(0, remainingChars - block.count)
-            }
-
-            for snippet in budgeted.retrievalSnippets {
-                guard let block = fitWrappedSegment(
-                    prefix: "--- Knowledge Base: \(sanitizePromptFileName(snippet.fileName)) ---\n",
-                    content: snippet.text,
-                    suffix: "\n--- End ---",
-                    remainingChars: remainingChars
-                ) else {
-                    break
-                }
-                parts.append(block)
-                remainingChars = max(0, remainingChars - block.count)
-            }
-
-            injectPinnedNotes()
-
-            if shouldInjectMemory(
-                skill: skill,
-                preferences: preferences,
-                conversation: conversation
-            ) {
-                let memoryText = preferences.memoryText.trimmingCharacters(in: .whitespacesAndNewlines)
-                if let memoryBlock = fitWrappedSegment(
-                    prefix: "[User context: ",
-                    content: memoryText,
-                    suffix: "]",
-                    remainingChars: remainingChars
-                ) {
-                    parts.append(memoryBlock)
-                    remainingChars = max(0, remainingChars - memoryBlock.count)
-                    memoryInjected = true
-                }
-            }
-
-            let result = parts.joined(separator: "\n\n")
-            guard !result.isEmpty else { return nil }
-            return ChatRequestPromptContext(
-                systemPrompt: result,
-                remainingChars: remainingChars,
-                useMemory: useMemory,
-                memoryInjected: memoryInjected
-            )
-        }
-
-        injectPinnedNotes()
-
-        let memoryText = preferences.memoryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let useMemory = conversation?.useMemory ?? true
-        if shouldInjectMemory(
-            skill: nil,
-            preferences: preferences,
-            conversation: conversation
-        ) {
-            parts.append(memoryText)
-            remainingChars = max(0, remainingChars - memoryText.count)
-            memoryInjected = true
-        }
-
-        let result = parts.joined(separator: "\n\n")
-        guard !result.isEmpty else { return nil }
-        return ChatRequestPromptContext(
-            systemPrompt: result,
-            remainingChars: remainingChars,
-            useMemory: useMemory,
-            memoryInjected: memoryInjected
-        )
-    }
-
-    static func applyKnowledgeBudget(
-        skill: ChatRequestSkillSnapshot,
-        retrievalSnippets: [ChatRequestRetrievedSnippet],
-        remainingChars: Int
-    ) -> ChatRequestKnowledgeBudgetResult {
-        let referenceFiles = skill.knowledgeFiles
-        guard remainingChars > 0 else {
-            return ChatRequestKnowledgeBudgetResult(referenceFiles: [], retrievalSnippets: [])
-        }
-
-        let totalReferenceChars = referenceFiles.reduce(0) { $0 + $1.content.count }
-        let totalSnippetChars = retrievalSnippets.reduce(0) { $0 + $1.text.count }
-        var overflow = max(0, totalReferenceChars + totalSnippetChars - remainingChars)
-
-        let trimmedSnippets = retrievalSnippets.compactMap { snippet -> ChatRequestRetrievedSnippet? in
-            if overflow <= 0 { return snippet }
-            let snippetChars = snippet.text.count
-            if overflow >= snippetChars {
-                overflow -= snippetChars
-                return nil
-            }
-
-            let keepChars = snippetChars - overflow
-            overflow = 0
-            return ChatRequestRetrievedSnippet(
-                fileName: snippet.fileName,
-                text: String(snippet.text.prefix(keepChars)),
-                score: snippet.score
-            )
-        }
-
-        let trimmedReferences = referenceFiles.compactMap { file -> ChatRequestKnowledgeFileSnapshot? in
-            if overflow <= 0 { return file }
-            let fileChars = file.content.count
-            if overflow >= fileChars {
-                overflow -= fileChars
-                return nil
-            }
-
-            let keepChars = fileChars - overflow
-            overflow = 0
-            return ChatRequestKnowledgeFileSnapshot(
-                name: file.name,
-                content: String(file.content.prefix(keepChars))
-            )
-        }
-
-        return ChatRequestKnowledgeBudgetResult(
-            referenceFiles: trimmedReferences,
-            retrievalSnippets: trimmedSnippets
-        )
-    }
-
-    /// The attachment shape of the outbound history: normalized the same way as `build` (filtering, adjacent same-role merge, history attachment budget),
-    /// minus only the plain-text injections that do not touch attachments (citations). The pre-send check of the outbound route uses it.
+    /// Attachment shape of the outbound history: the same projection as `build` (core sanitize + the history attachment budget of `PlannedChatRequest.projecting`),
+    /// but with an empty context and no window, since system / memory / [D] and window trimming never touch attachments. Used to predict the outbound wire before sending.
+    /// There is no outbound history when the last message is not a user message (no plan can be assembled).
     static func outboundAttachmentHistory(_ messages: [ChatMessage], sendPath: ChatRequestSendPath) -> [ChatMessage] {
-        OutboundAttachmentBudget.apply(to: mergeAdjacentSameRole(buildRequestMessages(messages, sendPath: sendPath)))
-    }
-
-    private static func buildRequestMessages(_ messages: [ChatMessage], sendPath: ChatRequestSendPath) -> [ChatMessage] {
-        switch sendPath {
-        case .send(let excludingMessageID):
-            return filteredMessages(
-                messages,
-                excludingMessageID: excludingMessageID,
-                treatingAssistantMessageIDAsDelivered: nil
-            )
-        case .continueResponse(let assistantMessageID, let instruction):
-            var requestMessages = filteredMessages(
-                messages,
-                excludingMessageID: nil,
-                treatingAssistantMessageIDAsDelivered: assistantMessageID
-            )
-            requestMessages.append(makeInstructionMessage(instruction, from: requestMessages))
-            return requestMessages
-        }
-    }
-
-    private static func filteredMessages(
-        _ messages: [ChatMessage],
-        excludingMessageID: UUID?,
-        treatingAssistantMessageIDAsDelivered: UUID?
-    ) -> [ChatMessage] {
-        messages.compactMap { message in
-            if message.id == excludingMessageID {
-                return nil
-            }
-
-            var requestMessage = message
-            if requestMessage.id == treatingAssistantMessageIDAsDelivered {
-                requestMessage.state = .delivered
-            }
-
-            if requestMessage.role == .assistant, let attachments = requestMessage.attachments {
-                let kept = attachments.filter { $0.kind != .image && $0.kind != .video }
-                requestMessage.attachments = kept.isEmpty ? nil : kept
-            }
-
-            let hasText = !requestMessage.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            let hasAttachments = !(requestMessage.attachments?.isEmpty ?? true)
-            guard hasText || hasAttachments else {
-                return nil
-            }
-
-            if requestMessage.role == .user || requestMessage.state != .failed {
-                return requestMessage
-            }
-
-            return nil
-        }
-    }
-
-    /// Explanatory sentence inside the envelope that wraps unanswered user turns. Cross-platform contract
-    /// `shared/context-contracts/sanitize.v1.json` `unansweredEnvelope.note`; every platform uses it verbatim,
-    /// so any change must update the contract too.
-    static let unansweredEnvelopeNote = "The user sent this earlier but no reply was delivered. Treat it as context and answer the latest message."
-
-    /// Outbound history sanitizing (filtering + merging adjacent same-role turns), i.e. the part of `build`
-    /// without injections. `keepAssistantID` is the continue / retry target, kept as delivered for prefill.
-    /// The cross-platform contract test calls this directly.
-    static func sanitizeOutbound(_ messages: [ChatMessage], keepAssistantID: UUID?) -> [ChatMessage] {
-        mergeAdjacentSameRole(
-            filteredMessages(
-                messages,
-                excludingMessageID: nil,
-                treatingAssistantMessageIDAsDelivered: keepAssistantID
-            )
-        )
-    }
-
-    /// Normalizes adjacent same-role messages: once filteredMessages drops failed / empty assistants in
-    /// between, the user turns they separated become adjacent. Strict OpenAI-compatible relays require
-    /// user/assistant to alternate and reject consecutive turns with the same role.
-    /// - Adjacent users (contract sanitize.v1): a run of N >= 2 users collapses into one that keeps the last
-    ///   message's id and fields. Earlier non-empty texts are trimmed, XML-escaped and wrapped in an
-    ///   `<oriveo-unanswered>` envelope placed before the latest text; attachments are concatenated in order.
-    ///   Earlier users are often standing instructions ("reply in Arabic from now on") and must not be
-    ///   silently dropped; the envelope note tells the model to treat them as context and only answer
-    ///   the latest message instead of answering both questions at once.
-    /// - Adjacent assistants (rare): text (trimmed, joined by a blank line) and attachments (in order) are
-    ///   merged, keeping the first message's fields.
-    ///
-    /// Note: an interrupted assistant with partial text is kept and naturally separates two users, so it
-    /// never triggers the user merge.
-    private static func mergeAdjacentSameRole(_ messages: [ChatMessage]) -> [ChatMessage] {
-        var merged: [ChatMessage] = []
-        var userRun: [ChatMessage] = []
-        func flushUserRun() {
-            guard !userRun.isEmpty else { return }
-            merged.append(mergeUserRun(userRun))
-            userRun.removeAll()
-        }
-        for message in messages {
-            if message.role == .user {
-                userRun.append(message)
-                continue
-            }
-            flushUserRun()
-            if let last = merged.last, last.role == message.role {
-                var combinedLast = last
-                let lastText = combinedLast.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                let currentText = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                combinedLast.text = [lastText, currentText].filter { !$0.isEmpty }.joined(separator: "\n\n")
-                let combined = (combinedLast.attachments ?? []) + (message.attachments ?? [])
-                combinedLast.attachments = combined.isEmpty ? nil : combined
-                merged[merged.count - 1] = combinedLast
-            } else {
-                merged.append(message)
-            }
-        }
-        flushUserRun()
-        return merged
-    }
-
-    /// Collapses a run of consecutive user turns into one (contract sanitize.v1 `unansweredEnvelope.rules`).
-    private static func mergeUserRun(_ run: [ChatMessage]) -> ChatMessage {
-        guard var result = run.last else {
-            preconditionFailure("mergeUserRun requires a non-empty run")
-        }
-        guard run.count >= 2 else { return result }
-        let earlier = run.dropLast()
-        let earlierTexts = earlier
-            .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .map(escapeUnansweredXML)
-        if !earlierTexts.isEmpty {
-            let envelope = "<oriveo-unanswered>\n<note>\(unansweredEnvelopeNote)</note>\n"
-                + earlierTexts.joined(separator: "\n\n")
-                + "\n</oriveo-unanswered>"
-            let latest = result.text
-            result.text = latest.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? envelope
-                : envelope + "\n\n" + latest
-        }
-        let attachments = run.flatMap { $0.attachments ?? [] }
-        result.attachments = attachments.isEmpty ? nil : attachments
-        return result
-    }
-
-    /// Escapes only the earlier texts inside the envelope. `&` must be replaced first, otherwise the
-    /// entities produced afterwards would be escaped a second time.
-    private static func escapeUnansweredXML(_ text: String) -> String {
-        text
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
+        let prepared = preparedMessages(messages, sendPath: sendPath)
+        let plan = ContextAssembler.assemble(ContextAssembleInput(
+            purpose: prepared.isContinue ? .continue : .chat,
+            window: ContextWindowInput(W: nil, windowKind: .total, maxOutput: ContextMaxOutputSources()),
+            conversation: ContextConversation(id: "", useMemory: false),
+            history: prepared.history,
+            current: prepared.current?.text,
+            currentId: prepared.current?.id ?? "current",
+            currentAttachments: prepared.current?.attachments ?? [],
+            keepAssistantId: prepared.keepAssistantID?.uuidString
+        ))
+        return PlannedChatRequest.projecting(
+            plan, messages: prepared.sources.messages, attachments: prepared.sources.attachments
+        ).messages
     }
 
     private static func makeInstructionMessage(
@@ -420,77 +575,6 @@ nonisolated enum ChatRequestBuilder {
             modelName: prototype.modelName,
             state: .delivered
         )
-    }
-
-    private static func fitWrappedSegment(
-        prefix: String,
-        content: String,
-        suffix: String,
-        remainingChars: Int
-    ) -> String? {
-        guard remainingChars > 0 else { return nil }
-        let full = prefix + content + suffix
-        if full.count <= remainingChars {
-            return full
-        }
-
-        let contentLimit = remainingChars - prefix.count - suffix.count
-        guard contentLimit > 0 else { return nil }
-        return prefix + String(content.prefix(contentLimit)) + suffix
-    }
-
-    private static func remainingCharsBeforeMemory(
-        skill: ChatRequestSkillSnapshot?,
-        retrievedSnippets: [ChatRequestRetrievedSnippet] = []
-    ) -> Int {
-        var remainingChars = maxSystemPromptChars
-        guard let skill else { return remainingChars }
-
-        if !skill.systemPrompt.isEmpty {
-            remainingChars = max(0, remainingChars - skill.systemPrompt.count)
-        }
-
-        let budgeted = applyKnowledgeBudget(
-            skill: skill,
-            retrievalSnippets: retrievedSnippets,
-            remainingChars: remainingChars
-        )
-
-        for file in budgeted.referenceFiles {
-            let prefix = "--- Reference: \(sanitizePromptFileName(file.name)) ---\n"
-            let suffix = "\n--- End ---"
-            let fullLength = prefix.count + file.content.count + suffix.count
-
-            if fullLength <= remainingChars {
-                remainingChars -= fullLength
-                continue
-            }
-
-            let contentLimit = remainingChars - prefix.count - suffix.count
-            if contentLimit > 0 {
-                remainingChars = 0
-            }
-            break
-        }
-
-        for snippet in budgeted.retrievalSnippets {
-            let prefix = "--- Knowledge Base: \(sanitizePromptFileName(snippet.fileName)) ---\n"
-            let suffix = "\n--- End ---"
-            let fullLength = prefix.count + snippet.text.count + suffix.count
-
-            if fullLength <= remainingChars {
-                remainingChars -= fullLength
-                continue
-            }
-
-            let contentLimit = remainingChars - prefix.count - suffix.count
-            if contentLimit > 0 {
-                remainingChars = 0
-            }
-            break
-        }
-
-        return remainingChars
     }
 
     private static func sanitizePromptFileName(_ name: String) -> String {

@@ -62,6 +62,8 @@ nonisolated struct ToolCallLoop: Sendable {
         var stepLimitReached: Bool
         var receivedStructuredToolCalls: Bool
         var executedToolSteps: Int
+        /// Stream-end info of the last leg; nil when the leg handed none out.
+        var finish: StreamFinish? = nil
     }
 
     typealias ProgressHandler = @Sendable (ProgressEvent) async -> Void
@@ -140,7 +142,8 @@ nonisolated struct ToolCallLoop: Sendable {
                     endedWithoutToolCall: legIndex == 0,
                     stepLimitReached: false,
                     receivedStructuredToolCalls: receivedStructuredToolCalls,
-                    executedToolSteps: executedToolSteps
+                    executedToolSteps: executedToolSteps,
+                    finish: leg.finish
                 )
             }
             receivedStructuredToolCalls = true
@@ -157,7 +160,8 @@ nonisolated struct ToolCallLoop: Sendable {
                     endedWithoutToolCall: legIndex == 0,
                     stepLimitReached: false,
                     receivedStructuredToolCalls: true,
-                    executedToolSteps: executedToolSteps
+                    executedToolSteps: executedToolSteps,
+                    finish: leg.finish
                 )
             }
             await onProgress(.toolCallsAccepted(accepted))
@@ -303,7 +307,8 @@ nonisolated struct ToolCallLoop: Sendable {
             endedWithoutToolCall: false,
             stepLimitReached: stepLimitReached,
             receivedStructuredToolCalls: receivedStructuredToolCalls,
-            executedToolSteps: executedToolSteps
+            executedToolSteps: executedToolSteps,
+            finish: finalLeg.finish
         )
     }
 }
@@ -316,6 +321,7 @@ nonisolated extension ToolCallLoop {
         var usage: ToolLoopUsage?
         var replayBlocks: [ToolJSONValue] = []
         var assistantReplay: ToolJSONValue?
+        var finish: StreamFinish? = nil
     }
 
     private func partition(
@@ -347,6 +353,7 @@ nonisolated extension ToolCallLoop {
         var usage: ToolLoopUsage?
         var replayBlocks: [ToolJSONValue] = []
         var assistantReplay: ToolJSONValue?
+        var finish: StreamFinish?
         var accumulated: [Int: ToolLoopToolCallDelta] = [:]
         func consume(_ event: ToolLoopLegEvent) async {
             switch event {
@@ -364,6 +371,8 @@ nonisolated extension ToolCallLoop {
                 replayBlocks.append(contentsOf: blocks)
             case let .providerAssistantReplay(value):
                 assistantReplay = value
+            case let .finish(value):
+                finish = value
             }
         }
         do {
@@ -389,7 +398,8 @@ nonisolated extension ToolCallLoop {
             toolCalls: Self.finalizeToolCalls(accumulated, legIndex: legIndex),
             usage: usage,
             replayBlocks: replayBlocks,
-            assistantReplay: assistantReplay
+            assistantReplay: assistantReplay,
+            finish: finish
         )
     }
 

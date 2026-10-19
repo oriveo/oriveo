@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Oriveo
+import OriveoProviderKit
 
 final class AppStateSendMessageURLProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
@@ -179,6 +180,82 @@ struct AppStateSendMessageTests {
         let repaired = state.conversation(for: conversation.id)
         #expect(repaired?.providerID == fallbackProvider.id)
         #expect(repaired?.modelID == "gpt-4o")
+    }
+
+    /// A hardware Return and the send button fire a send in the same frame: only one round of messages is created; the later one reports "blocked while sending",
+    /// and the composer does not restore its text for it (only a rejected send restores).
+    @Test func hardware_return_and_button_same_frame_sends_once() async throws {
+        registerAppStateSendMessageMock()
+        defer {
+            AppStateSendMessageURLProtocol.requestHandler = nil
+            unregisterAppStateSendMessageMock()
+        }
+        AppStateSendMessageURLProtocol.requestHandler = { request in
+            (
+                appStateSendMessageHTTPResponse(url: request.url!, statusCode: 503),
+                Data()
+            )
+        }
+
+        let state = makeIsolatedAppState(prefix: "same-frame-send-")
+        let provider = TestFactories.makeProvider(
+            kind: .openAI,
+            models: [TestFactories.makeModel(id: "model-a", name: "Model A", isDefault: true)]
+        )
+        let conversation = TestFactories.makeConversation(
+            providerID: provider.id,
+            providerKind: provider.kind,
+            modelID: "model-a"
+        )
+        state.providers = [provider]
+        state.upsertConversationProjection(conversation)
+
+        async let viaReturn = state.sendMessageOutcome("Hello", in: conversation.id)
+        async let viaButton = state.sendMessageOutcome("Hello", in: conversation.id)
+        let outcomes = await [viaReturn, viaButton]
+
+        #expect(outcomes.filter { $0 == .sent(conversation.id) }.count == 1)
+        #expect(outcomes.filter { $0 == .blockedWhileSending }.count == 1)
+        let updated = try #require(state.conversation(for: conversation.id))
+        #expect(updated.messages.filter { $0.role == .user }.count == 1)
+        #expect(updated.messages.count == 2)
+
+        try? await Task.sleep(nanoseconds: 300_000_000)
+    }
+
+    /// Double send in the same frame for a new conversation (in: nil): the composer's in-flight gate creates only one conversation and one round of messages; the later one reports "blocked while sending".
+    @Test func new_conversation_same_frame_sends_once() async throws {
+        registerAppStateSendMessageMock()
+        defer {
+            AppStateSendMessageURLProtocol.requestHandler = nil
+            unregisterAppStateSendMessageMock()
+        }
+        AppStateSendMessageURLProtocol.requestHandler = { request in
+            (
+                appStateSendMessageHTTPResponse(url: request.url!, statusCode: 503),
+                Data()
+            )
+        }
+
+        let state = makeIsolatedAppState(prefix: "same-frame-new-conversation-")
+        let provider = TestFactories.makeProvider(
+            kind: .openAI,
+            models: [TestFactories.makeModel(id: "model-a", name: "Model A", isDefault: true)]
+        )
+        state.providers = [provider]
+        state.setActiveModel(providerID: provider.id, modelID: "model-a")
+
+        let gate = ComposerSendGate()
+        async let viaReturn = gate.send { await state.sendMessageOutcome("Hello", in: nil) }
+        async let viaButton = gate.send { await state.sendMessageOutcome("Hello", in: nil) }
+        let outcomes = await [viaReturn, viaButton]
+
+        #expect(outcomes.filter { $0.sentID != nil }.count == 1)
+        #expect(outcomes.filter { $0 == .blockedWhileSending }.count == 1)
+        #expect(state.conversations.count == 1)
+        #expect(state.conversations.first?.messages.filter { $0.role == .user }.count == 1)
+
+        try? await Task.sleep(nanoseconds: 300_000_000)
     }
 
     @Test("Existing Conversation Send Uses Selected Model After Switch")
@@ -620,10 +697,12 @@ struct AppStateSendMessageTests {
         let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
         #expect(payload["model"] as? String == "gpt-5.4")
         let tools = payload["tools"] as? [[String: Any]] ?? []
-        #expect(tools.count == 1)
+        // With memory on, the normal path appends propose_memory after the existing tools (existing tools are kept, the memory tool goes last).
+        #expect(tools.count == 2)
         #expect(tools.first?["type"] as? String == "image_generation")
-        #expect(tools.first?["model"] as? String == "gpt-image-2")
-        #expect(payload["stream"] as? Bool == true)
+        #expect(tools.last?["name"] as? String == MemoryPropose.toolName, "The memory tool should be appended after the existing tools")
+        #expect(tools.first?["model"] as? String == "gpt-image-2", "tool.model should be the user-selected gpt-image-2")
+        #expect(payload["stream"] as? Bool == true, "Responses transport + imageGen should force stream=true")
     }
 
     @Test("Relay Image Gen On Anthropic Throws Friendly Error")

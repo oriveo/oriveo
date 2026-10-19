@@ -15,11 +15,24 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
         var onCrosscheck: (ChatMessage) -> Void = { _ in }
         /// Actions on the MCP step block (re-authorize / skip this step).
         var onMcpStepAction: (ChatMessage, McpToolStepAction) -> Void = { _, _ in }
+        /// Opens the "memory used" sheet for this assistant reply.
+        var onOpenMemoryUsed: (ChatMessage) -> Void = { _ in }
+        /// Saves a selected piece of text from an assistant reply as a note (within a single block).
         var onSaveSelection: (ChatMessage, String) -> Void = { _, _ in }
         var onAskSelection: (ChatMessage, QuoteSelectionContent) -> Void = { _, _ in }
         var canReplaceCurrentNoteSelection = false
         var onReplaceSelection: (ChatMessage, String) -> Void = { _, _ in }
         var onSaveCodeBlock: (ChatMessage, String, String?) -> Void = { _, _, _ in }
+        /// Tapping the compaction separator: opens the details of the latestValid compaction row.
+        var onOpenCompactionDetail: () -> Void = {}
+        /// Accept / ignore of the "set as instruction" suggestion bar.
+        var onAcceptDirectiveSuggestion: () -> Void = {}
+        var onIgnoreDirectiveSuggestion: () -> Void = {}
+        /// Save / edit / ignore of the "save to memory?" bar.
+        var onSaveMemorySuggestion: () -> Void = {}
+        var onEditMemorySuggestion: () -> Void = {}
+        var onIgnoreMemorySuggestion: () -> Void = {}
+        // Inputs the recovery card needs to decide (failed messages)
         let onRegenerate: (ChatMessage) -> Void
         let onEditMessage: (ChatMessage) -> Void
         let onSwitchModel: () -> Void
@@ -120,7 +133,10 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
                 onAskSelection: { content in context.onAskSelection(message, content) },
                 onOpenNoteReferences: model.noteReferences.isEmpty
                     ? nil
-                    : { context.onOpenNoteReferences(model.noteReferences) }
+                    : { context.onOpenNoteReferences(model.noteReferences) },
+                onOpenCompactionDetail: { context.onOpenCompactionDetail() },
+                onAcceptDirectiveSuggestion: { context.onAcceptDirectiveSuggestion() },
+                onIgnoreDirectiveSuggestion: { context.onIgnoreDirectiveSuggestion() }
             )
             return cell
         }
@@ -147,6 +163,7 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
                 ? nil
                 : { context.onOpenNoteReferences(model.noteReferences) },
             onCrosscheck: { context.onCrosscheck(message) },
+            onOpenMemoryUsed: { context.onOpenMemoryUsed(message) },
             onToolStepAction: { action in context.onMcpStepAction(message, action) },
             onSaveSelection: { text in context.onSaveSelection(message, text) },
             onAskSelection: message.state == .generating
@@ -154,7 +171,11 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
                 ? nil
                 : { content in context.onAskSelection(message, content) },
             onReplaceSelection: replaceSelection,
-            onSaveCodeBlock: { code, lang in context.onSaveCodeBlock(message, code, lang) }
+            onSaveCodeBlock: { code, lang in context.onSaveCodeBlock(message, code, lang) },
+            onOpenCompactionDetail: { context.onOpenCompactionDetail() },
+            onSaveMemorySuggestion: { context.onSaveMemorySuggestion() },
+            onEditMemorySuggestion: { context.onEditMemorySuggestion() },
+            onIgnoreMemorySuggestion: { context.onIgnoreMemorySuggestion() }
         )
         // `notifyContentDidChange` → `invalidateIntrinsicContentSize` → ChatLayout `supportSelfSizingInvalidation`
         if let config = AssistantMessageRecoveryBuilder.makeConfig(

@@ -25,6 +25,8 @@ final class ToastManager {
     static let shared = ToastManager()
     private(set) var current: Toast?
     @ObservationIgnored private var currentAction: (@MainActor () -> Void)?
+    /// Display duration of the current toast in seconds; tests assert the undo window against it.
+    @ObservationIgnored private(set) var currentDuration: TimeInterval?
     private var dismissTask: Task<Void, Never>?
 
     func show(
@@ -37,6 +39,7 @@ final class ToastManager {
         dismissTask?.cancel()
         current = Toast(message: text, style: style, actionTitle: actionTitle)
         currentAction = action
+        currentDuration = duration
         dismissTask = Task {
             try? await Task.sleep(for: .seconds(duration))
             guard !Task.isCancelled else { return }

@@ -93,6 +93,7 @@ extension AssistantMessageCell {
         resetStreamActivityForReuse()
         statusPillContainer.isHidden = true
         metadataView.isHidden = true
+        applyMemorySuggestion(nil)
         toolStepsView.resetForReuse()
         onToolStepAction = nil
         runningToolStepCaption = nil
@@ -100,6 +101,8 @@ extension AssistantMessageCell {
         unhandledToolCallView.resetForReuse()
         replyNoticeLabel.text = nil
         replyNoticeLabel.isHidden = true
+        compactionSeparatorView.apply(nil)
+        compactionSeparatorView.onTap = nil
         tearDownAttachmentViews()
         tearDownCitationsBlock()
         boundCitations = []

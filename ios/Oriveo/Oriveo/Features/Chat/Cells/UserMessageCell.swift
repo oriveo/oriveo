@@ -251,6 +251,16 @@ final class UserMessageCell: UICollectionViewCell {
     private let fullTextButton = UIButton(type: .system)
     private let savedNoteReferenceButton = UIButton(type: .system)
     private let avatarView = UIKitAvatarView()
+    /// Compaction separator row: at the top of the cell, above the bubble; hidden when absent, and the bubble goes back to sitting at topPadding.
+    private let compactionSeparatorView = ContextCompactionSeparatorView()
+    /// With a separator the bubble hangs below it (exactly one of this and topPaddingConstraint is active).
+    private var bubbleBelowSeparatorConstraint: NSLayoutConstraint!
+    private var separatorTopConstraint: NSLayoutConstraint!
+    /// "Set as instruction" suggestion bar: below the bubble; hidden when not pending.
+    private let directiveSuggestionView = DirectiveSuggestionBarView()
+    /// Bubble bottom pins the cell bottom unless the suggestion bar is shown (one of the two is active).
+    private var bubbleBottomConstraint: NSLayoutConstraint!
+    private var suggestionBottomConstraint: NSLayoutConstraint!
 
     private var attachmentHostingController: UIHostingController<AnyView>?
     private var quoteHostingController: UIHostingController<AnyView>?
@@ -319,6 +329,8 @@ final class UserMessageCell: UICollectionViewCell {
         textView.onSaveSelection = nil
         textView.onAskSelection = nil
         textView.onReplaceSelection = nil
+        applyCompactionSeparator(nil, onTap: nil)
+        applyDirectiveSuggestion(false, onAccept: nil, onIgnore: nil)
         textView.text = nil
         textView.attributedText = nil
         textView.isHidden = false
@@ -336,7 +348,10 @@ final class UserMessageCell: UICollectionViewCell {
         onSaveNote: (() -> Void)? = nil,
         onSaveSelection: ((String) -> Void)? = nil,
         onAskSelection: ((QuoteSelectionContent) -> Void)? = nil,
-        onOpenNoteReferences: (() -> Void)? = nil
+        onOpenNoteReferences: (() -> Void)? = nil,
+        onOpenCompactionDetail: (() -> Void)? = nil,
+        onAcceptDirectiveSuggestion: (() -> Void)? = nil,
+        onIgnoreDirectiveSuggestion: (() -> Void)? = nil
     ) {
         boundMessageID = model.messageID
         self.parentViewController = parentViewController
@@ -348,6 +363,13 @@ final class UserMessageCell: UICollectionViewCell {
         textView.onReplaceSelection = nil
 
         topPaddingConstraint.constant = model.topPadding
+        separatorTopConstraint.constant = model.topPadding
+        applyCompactionSeparator(model.compactionSeparator, onTap: onOpenCompactionDetail)
+        applyDirectiveSuggestion(
+            model.showsDirectiveSuggestion,
+            onAccept: onAcceptDirectiveSuggestion,
+            onIgnore: onIgnoreDirectiveSuggestion
+        )
 
         let text = model.message.text
         currentText = text
@@ -589,6 +611,17 @@ final class UserMessageCell: UICollectionViewCell {
         avatarView.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(avatarView)
 
+        compactionSeparatorView.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(compactionSeparatorView)
+        separatorTopConstraint = compactionSeparatorView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16)
+        bubbleBelowSeparatorConstraint = shadowHost.topAnchor.constraint(equalTo: compactionSeparatorView.bottomAnchor)
+
+        directiveSuggestionView.translatesAutoresizingMaskIntoConstraints = false
+        directiveSuggestionView.isHidden = true
+        contentView.addSubview(directiveSuggestionView)
+        bubbleBottomConstraint = shadowHost.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
+        suggestionBottomConstraint = directiveSuggestionView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
+
         topPaddingConstraint = shadowHost.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16)
         bubbleWidthConstraint = shadowHost.widthAnchor.constraint(lessThanOrEqualToConstant: 320)
         bubbleEqualWidthConstraint = shadowHost.widthAnchor.constraint(equalToConstant: 320)
@@ -601,8 +634,19 @@ final class UserMessageCell: UICollectionViewCell {
         bubbleStackBottomConstraint = bubbleStack.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -14)
 
         NSLayoutConstraint.activate([
+            separatorTopConstraint,
+            compactionSeparatorView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: OriveoTheme.Spacing.xl),
+            compactionSeparatorView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -OriveoTheme.Spacing.xl),
             topPaddingConstraint,
-            shadowHost.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            bubbleBottomConstraint,
+            directiveSuggestionView.topAnchor.constraint(
+                equalTo: shadowHost.bottomAnchor, constant: DirectiveSuggestionBarView.topGap
+            ),
+            directiveSuggestionView.trailingAnchor.constraint(equalTo: shadowHost.trailingAnchor),
+            directiveSuggestionView.leadingAnchor.constraint(
+                greaterThanOrEqualTo: contentView.leadingAnchor, constant: OriveoTheme.Spacing.xl
+            ),
+            // The bubble is right-aligned to the left of the avatar; leading uses >= so the bubble can shrink to the right and hug the text (the core fix).
             shadowHost.trailingAnchor.constraint(equalTo: avatarView.leadingAnchor, constant: -OriveoTheme.Spacing.sm),
             shadowHost.leadingAnchor.constraint(greaterThanOrEqualTo: contentView.leadingAnchor, constant: OriveoTheme.Spacing.xl),
 
@@ -626,6 +670,43 @@ final class UserMessageCell: UICollectionViewCell {
         ])
     }
 
+    /// With a separator the bubble hangs below it; without one the bubble sits at topPadding.
+    private func applyCompactionSeparator(_ separator: ContextCompactionSeparator?, onTap: (() -> Void)?) {
+        compactionSeparatorView.onTap = onTap
+        guard compactionSeparatorView.apply(separator) else { return }
+        let shown = separator != nil
+        if shown {
+            topPaddingConstraint.isActive = false
+            bubbleBelowSeparatorConstraint.isActive = true
+        } else {
+            bubbleBelowSeparatorConstraint.isActive = false
+            topPaddingConstraint.isActive = true
+        }
+    }
+
+    /// With a suggestion bar the bar hangs below the bubble and stretches to the cell bottom; without one the bubble sits at the cell bottom.
+    private func applyDirectiveSuggestion(_ shown: Bool, onAccept: (() -> Void)?, onIgnore: (() -> Void)?) {
+        directiveSuggestionView.onAccept = onAccept
+        directiveSuggestionView.onIgnore = onIgnore
+        guard directiveSuggestionView.isHidden == shown else { return }
+        directiveSuggestionView.isHidden = !shown
+        updateSuggestionBottom()
+    }
+
+    /// Exactly one bottom constraint is active: the shown bar's, else the bubble's.
+    private func updateSuggestionBottom() {
+        bubbleBottomConstraint.isActive = false
+        suggestionBottomConstraint.isActive = false
+        if !directiveSuggestionView.isHidden {
+            suggestionBottomConstraint.isActive = true
+        } else {
+            bubbleBottomConstraint.isActive = true
+        }
+    }
+
+    /// Only handles style such as color / radius / offset; shadowPath is synced by bubbleView.onPathChanged (see GradientBubbleView).
+    /// Look: changed from a "downward cast shadow" (offset 10, like light from overhead) to a "surrounding ambient glow": larger radius, smaller offset,
+    /// one step lower intensity, so the bubble floats in light instead of dripping it downward.
     private func updateShadow() {
         let isDark = traitCollection.userInterfaceStyle == .dark
         shadowHost.layer.shadowColor = UIColor(OriveoTheme.Palette.primaryGlow).cgColor
@@ -769,5 +850,219 @@ extension UserMessageCell: UIContextMenuInteractionDelegate {
 
         let textLocation = textView.convert(location, from: bubbleView)
         return textView.bounds.contains(textLocation)
+    }
+}
+
+/// "Set as instruction" suggestion bar under a user bubble: prompt + accept / ignore.
+/// `ChatListViewController.directiveSuggestionHeight` mirrors its height.
+final class DirectiveSuggestionBarView: UIView {
+    nonisolated static let topGap: CGFloat = 8
+    nonisolated static let padding: CGFloat = 10
+
+    var onAccept: (() -> Void)?
+    var onIgnore: (() -> Void)?
+
+    private let promptLabel = UILabel()
+    private let acceptButton = UIButton(type: .system)
+    private let ignoreButton = UIButton(type: .system)
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        setup()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func setup() {
+        backgroundColor = .secondarySystemBackground
+        layer.cornerRadius = 12
+        layer.cornerCurve = .continuous
+        accessibilityIdentifier = "directive_suggestion_bar"
+
+        promptLabel.text = L10n.tr("directive_suggestion_prompt", table: .chat)
+        promptLabel.font = UIFont.preferredFont(forTextStyle: .footnote)
+        promptLabel.adjustsFontForContentSizeCategory = true
+        promptLabel.textColor = .secondaryLabel
+        promptLabel.numberOfLines = 0
+
+        configure(ignoreButton, title: L10n.tr("directive_suggestion_ignore", table: .chat), prominent: false)
+        ignoreButton.accessibilityIdentifier = "directive_suggestion_ignore"
+        ignoreButton.addTarget(self, action: #selector(ignoreTapped), for: .touchUpInside)
+        configure(acceptButton, title: L10n.tr("directive_suggestion_accept", table: .chat), prominent: true)
+        acceptButton.accessibilityIdentifier = "directive_suggestion_accept"
+        acceptButton.addTarget(self, action: #selector(acceptTapped), for: .touchUpInside)
+
+        let buttons = UIStackView(arrangedSubviews: [ignoreButton, acceptButton])
+        buttons.axis = .horizontal
+        buttons.spacing = 8
+        let stack = UIStackView(arrangedSubviews: [promptLabel, buttons])
+        stack.axis = .vertical
+        stack.alignment = .trailing
+        stack.spacing = 6
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: topAnchor, constant: Self.padding),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.padding),
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.padding + 2),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.padding),
+        ])
+    }
+
+    private func configure(_ button: UIButton, title: String, prominent: Bool) {
+        var config = prominent ? UIButton.Configuration.filled() : UIButton.Configuration.gray()
+        config.cornerStyle = .capsule
+        config.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 12, bottom: 5, trailing: 12)
+        var attributed = AttributedString(title)
+        attributed.font = UIFont.systemFont(
+            ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize,
+            weight: .semibold
+        )
+        config.attributedTitle = attributed
+        if prominent {
+            // AccentColor is empty, so an untinted filled button falls back to system blue.
+            config.baseBackgroundColor = UIColor(OriveoTheme.Palette.primary)
+            config.baseForegroundColor = .white
+        }
+        button.configuration = config
+    }
+
+    /// internal (not #if DEBUG) so the test build can read it regardless of configuration flags.
+    var acceptButtonConfigurationForTesting: UIButton.Configuration? { acceptButton.configuration }
+
+    @objc private func acceptTapped() {
+        onAccept?()
+    }
+
+    @objc private func ignoreTapped() {
+        onIgnore?()
+    }
+}
+
+/// "Save to memory?" bar under the turn's assistant answer: prompt + candidate body (max 2 lines)
+/// + [Ignore][Edit][Save]; memory off shows the hint text only. Buttons only render here; actions are wired by
+/// the caller. `ChatListViewController.memorySuggestionHeight` mirrors its height.
+final class MemorySuggestionBarView: UIView {
+    nonisolated static let topGap: CGFloat = 8
+    nonisolated static let padding: CGFloat = 10
+    nonisolated static let spacing: CGFloat = 6
+    nonisolated static let buttonHeight: CGFloat = 28
+    nonisolated static let contentMaxLines: CGFloat = 2
+
+    var onSave: (() -> Void)?
+    var onEdit: (() -> Void)?
+    var onIgnore: (() -> Void)?
+
+    private let promptLabel = UILabel()
+    private let contentLabel = UILabel()
+    private let buttons = UIStackView()
+    private let saveButton = UIButton(type: .system)
+    private let editButton = UIButton(type: .system)
+    private let ignoreButton = UIButton(type: .system)
+    private var applied: MemorySuggestionBar?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        setup()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    /// nil content = memory off: hint only, no candidate, no buttons.
+    func apply(_ bar: MemorySuggestionBar?) {
+        guard bar != applied else { return }
+        applied = bar
+        let content = bar?.content
+        promptLabel.text = content == nil
+            ? L10n.tr("memory_suggestion_memory_off", table: .chat)
+            : L10n.tr("memory_suggestion_prompt", table: .chat)
+        contentLabel.text = content
+        contentLabel.isHidden = content == nil
+        buttons.isHidden = content == nil
+    }
+
+    private func setup() {
+        backgroundColor = .secondarySystemBackground
+        layer.cornerRadius = 12
+        layer.cornerCurve = .continuous
+        accessibilityIdentifier = "memory_suggestion_bar"
+
+        promptLabel.font = UIFont.preferredFont(forTextStyle: .footnote)
+        promptLabel.adjustsFontForContentSizeCategory = true
+        promptLabel.textColor = .secondaryLabel
+        promptLabel.numberOfLines = 0
+
+        contentLabel.font = UIFont.preferredFont(forTextStyle: .footnote)
+        contentLabel.adjustsFontForContentSizeCategory = true
+        contentLabel.textColor = .label
+        contentLabel.numberOfLines = Int(Self.contentMaxLines)
+        contentLabel.lineBreakMode = .byTruncatingTail
+
+        configure(ignoreButton, title: L10n.tr("memory_suggestion_ignore", table: .chat), prominent: false)
+        ignoreButton.accessibilityIdentifier = "memory_suggestion_ignore"
+        ignoreButton.addTarget(self, action: #selector(ignoreTapped), for: .touchUpInside)
+        configure(editButton, title: L10n.tr("memory_suggestion_edit", table: .chat), prominent: false)
+        editButton.accessibilityIdentifier = "memory_suggestion_edit"
+        editButton.addTarget(self, action: #selector(editTapped), for: .touchUpInside)
+        configure(saveButton, title: L10n.tr("memory_suggestion_save", table: .chat), prominent: true)
+        saveButton.accessibilityIdentifier = "memory_suggestion_save"
+        saveButton.addTarget(self, action: #selector(saveTapped), for: .touchUpInside)
+
+        for button in [ignoreButton, editButton, saveButton] {
+            buttons.addArrangedSubview(button)
+        }
+        buttons.axis = .horizontal
+        buttons.spacing = 8
+        let stack = UIStackView(arrangedSubviews: [promptLabel, contentLabel, buttons])
+        stack.axis = .vertical
+        stack.alignment = .trailing
+        stack.spacing = Self.spacing
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: topAnchor, constant: Self.padding),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.padding),
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.padding + 2),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.padding),
+        ])
+    }
+
+    private func configure(_ button: UIButton, title: String, prominent: Bool) {
+        var config = prominent ? UIButton.Configuration.filled() : UIButton.Configuration.gray()
+        config.cornerStyle = .capsule
+        config.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 12, bottom: 5, trailing: 12)
+        var attributed = AttributedString(title)
+        attributed.font = UIFont.systemFont(
+            ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize,
+            weight: .semibold
+        )
+        config.attributedTitle = attributed
+        if prominent {
+            // AccentColor is empty, so an untinted filled button falls back to system blue.
+            config.baseBackgroundColor = UIColor(OriveoTheme.Palette.primary)
+            config.baseForegroundColor = .white
+        }
+        button.configuration = config
+    }
+
+    /// internal (not #if DEBUG) so the test build can read it regardless of configuration flags.
+    var saveButtonConfigurationForTesting: UIButton.Configuration? { saveButton.configuration }
+
+    @objc private func saveTapped() {
+        onSave?()
+    }
+
+    @objc private func editTapped() {
+        onEdit?()
+    }
+
+    @objc private func ignoreTapped() {
+        onIgnore?()
     }
 }

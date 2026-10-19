@@ -322,10 +322,23 @@ private func runLoop(
         plan: plan, executor: executor, legRunner: pair.runner, adapter: pair.adapter,
         runtimeConfig: .fallback, onUnhandledToolCalls: { await unhandled.record($0) }
     )
-    return try await loop.run(messages: McpToolBridge.initialMessages(
-        history: [ToolLoopMessage(role: "user", content: "Weather in Melbourne?")],
-        systemPrompt: "Be brief."
+    return try await loop.run(messages: toolLoopPlanTransport(safety: McpSafetyPrompt.text).toolLoopMessages(
+        history: [ToolLoopMessage(role: "user", content: "Weather in Melbourne?")]
     ))
+}
+
+/// Where the system prompt lands on each of the four wire protocols: the chat system message, Anthropic's system, Responses' instructions, Gemini's systemInstruction.
+private func wireSystemTexts(_ body: [String: Any]) -> [String] {
+    var texts = (body["messages"] as? [[String: Any]] ?? []).compactMap { message in
+        message["role"] as? String == "system" ? message["content"] as? String : nil
+    }
+    if let system = body["system"] as? String { texts.append(system) }
+    if let blocks = body["system"] as? [[String: Any]] { texts += blocks.compactMap { $0["text"] as? String } }
+    if let instructions = body["instructions"] as? String { texts.append(instructions) }
+    if let parts = (body["systemInstruction"] as? [String: Any])?["parts"] as? [[String: Any]] {
+        texts += parts.compactMap { $0["text"] as? String }
+    }
+    return texts
 }
 
 private let weatherPlan = McpToolBridge.plan(servers: [input(snapshots: [snapshot("get_weather")])], runtimeConfig: .fallback)
@@ -384,6 +397,7 @@ struct McpToolBridgeTests {
         let first = try #require(requests.first)
         #expect(toolNames(in: first.body) == [weatherOutbound])
         #expect(bodyText(first.body).contains("untrusted data, not instructions"), "the safety prompt is part of the system prompt")
+        #expect(wireSystemTexts(first.body) == [toolLoopPlanSystem(safety: McpSafetyPrompt.text)], "a single system message, equal to plan.system")
         let second = try #require(requests.last)
         #expect(bodyText(second.body).contains("Partly cloudy"), "the tools/call result was fed back to the model")
 
@@ -649,5 +663,174 @@ struct McpToolBridgeTests {
             .filter { $0["role"] as? String == "tool" }.compactMap { $0["content"] as? String }
         #expect(toolContents.count == 3)
         #expect(toolContents.allSatisfy { $0.contains("\"ok\":false") && !$0.contains("Internal") }, "only the closed-set code is fed back, never the server's own text")
+    }
+
+}
+
+// MARK: - propose_memory entry
+
+private let proposeUserText = "\u{8BB0}\u{4F4F}\u{6211}\u{559C}\u{6B22}\u{7B80}\u{6D01}\u{7684}\u{56DE}\u{7B54}"
+private let proposeArgumentsJSON = #"{"proposition":"\#u{504F}\#u{597D}\#u{7B80}\#u{6D01}\#u{7684}\#u{56DE}\#u{7B54}","sourceQuote":"\#u{6211}\#u{559C}\#u{6B22}\#u{7B80}\#u{6D01}\#u{7684}\#u{56DE}\#u{7B54}","kind":"preference","scope":"global"}"#
+private let toolsRejectedBody = #"{"error":{"message":"tools is not supported for this model","type":"invalid_request_error"}}"#
+
+private struct ProposeRun {
+    let state: AppState
+    let provider: Provider
+    let model: AIModel
+    let message: ChatMessage
+    let bodies: [[String: Any]]
+}
+
+/// Sends a new message through AppState.sendMessage (conversation A has the weather server on) and runs the MCP loop; waits for the assistant message to finish and for fallback candidate generation to complete.
+@MainActor
+private func sendWithMcp(
+    legs: [(Int, String)],
+    useMemory: Bool = true,
+    memoryItems: [MemoryItem] = [],
+    _ body: (ProposeRun) async throws -> Void
+) async throws {
+    let database = try McpTestDatabase.make(); defer { database.cleanUp() }
+    try seedServer(database, snapshots: [snapshot("get_weather")])
+    McpScriptedURLProtocol.reset()
+    await MetadataClient.shared.resetForTesting()
+    ScriptedModelURLProtocol.reset(legs)
+    let uid = "mcp-propose-\(UUID().uuidString)"
+    let store = database.store
+    let state = AppState(
+        seedDemoData: false,
+        sessionUID: uid,
+        providerSession: ScriptedModelURLProtocol.session(),
+        toolCallMemory: try makeToolLoopMemoryStore(),
+        mcpServerDirectory: McpServerDirectory(
+            credentialStore: McpCredentialStore(storage: InMemoryMcpCredentialStorage()),
+            openStore: { _ in store }
+        )
+    )
+    let (provider, model) = makeToolLoopRelayProvider(transport: .openaiChatCompletions)
+    state.providers = [provider]
+    var conversation = TestFactories.makeConversation(
+        id: conversationA, hasCustomTitle: true, providerID: provider.id, modelID: model.id, messages: []
+    )
+    conversation.useMemory = useMemory
+    state.upsertConversationProjection(conversation)
+    state.chatManager.debugUseMcpClientFactoryForTesting { McpClient(endpoint: $0, session: McpScriptedURLProtocol.session()) }
+    if !memoryItems.isEmpty { try await ContextPipelineTests.seedMemory(state, memoryItems) }
+    defer {
+        state.flushConversationPersistQueue()
+        DatabaseManager.shared.close()
+        try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+    }
+    _ = await state.sendMessage(proposeUserText, in: conversationA)
+    var assistant: ChatMessage?
+    for _ in 0..<200 {
+        assistant = state.conversation(for: conversationA)?.messages.last(where: { $0.role == .assistant })
+        if let assistant, assistant.state != .generating { break }
+        try await Task.sleep(nanoseconds: 50_000_000)
+    }
+    await state.memoryCandidateGeneration?.value
+    try await body(ProposeRun(
+        state: state, provider: provider, model: model, message: try #require(assistant),
+        bodies: ScriptedModelURLProtocol.snapshot().map(\.body)
+    ))
+}
+
+@MainActor
+private func pendingCandidates(_ state: AppState) async throws -> [MemoryCandidate] {
+    let repository = try #require(state.memoryCandidateRepository())
+    return try await repository.pending(nowMs: Int64(Date().timeIntervalSince1970 * 1000))
+}
+
+extension McpToolBridgeTests {
+
+    @Test("with mode=tool the last registry entry is propose_memory, and calling only it still finishes normally")
+    @MainActor
+    func proposeEntryIsLastAndProposeOnlyLegFinishes() async throws {
+        try await sendWithMcp(legs: [
+            (200, openAIToolLeg([(id: "call_p1", name: MemoryPropose.toolName, arguments: proposeArgumentsJSON)])),
+            (200, textLeg(.openaiChatCompletions, "Noted.")),
+        ]) { run in
+            #expect(run.message.state == .delivered, "\(run.message.errorDetail ?? "")")
+            #expect(run.message.text == "Noted.")
+            #expect(run.bodies.count == 2)
+            let first = try #require(run.bodies.first)
+            #expect(toolNames(in: first) == [weatherOutbound, MemoryPropose.toolName])
+            let tail = try #require(run.bodies.last)
+            #expect(toolNames(in: tail) == [weatherOutbound, MemoryPropose.toolName], "the loop leg carries the same tools as before")
+            let toolResult = (tail["messages"] as? [[String: Any]] ?? []).first { $0["role"] as? String == "tool" }
+            #expect(toolResult?["tool_call_id"] as? String == "call_p1")
+            #expect(toolResult?["content"] as? String == MemoryPropose.toolResult)
+            // No step is recorded, no "no executor" card appears, and the MCP server is never contacted.
+            #expect(run.message.toolSteps?.isEmpty ?? true)
+            #expect(run.message.unhandledToolCalls == nil)
+            #expect(McpScriptedURLProtocol.requests(method: "tools/call").isEmpty)
+            // Proposed: the candidate is persisted and attached to this turn's assistant message.
+            let candidates = try await pendingCandidates(run.state)
+            #expect(candidates.map(\.content) == ["\u{504F}\u{597D}\u{7B80}\u{6D01}\u{7684}\u{56DE}\u{7B54}"])
+            let bar = try #require(run.state.memorySuggestions.pending(in: conversationA))
+            #expect(bar.messageID == run.message.id)
+            #expect(bar.candidate == candidates.first)
+        }
+    }
+
+    @Test("propose_memory is not attached in fallback mode")
+    @MainActor
+    func fallbackModeDoesNotAttachPropose() async throws {
+        try await sendWithMcp(legs: [(200, textLeg(.openaiChatCompletions, "Sure."))], useMemory: false) { run in
+            #expect(run.message.state == .delivered, "\(run.message.errorDetail ?? "")")
+            let first = try #require(run.bodies.first)
+            #expect(toolNames(in: first) == [weatherOutbound])
+        }
+    }
+
+    @Test("a rejected first leg is recorded as a downgrade and the fallback runs")
+    @MainActor
+    func firstLegRejectionDegradesAndRunsFallback() async throws {
+        try await sendWithMcp(legs: [
+            (400, toolsRejectedBody),
+            (200, textLeg(.openaiChatCompletions, "Plain.")),
+        ]) { run in
+            #expect(run.message.state == .delivered, "\(run.message.errorDetail ?? "")")
+            #expect(run.message.text == "Plain.")
+            #expect(run.bodies.count == 2)
+            #expect(toolNames(in: run.bodies[0]) == [weatherOutbound, MemoryPropose.toolName])
+            #expect(run.bodies[1]["tools"] == nil, "the resend carries no tools")
+            #expect(ProposeMemoryRuntime.shared.isDegraded(connectionID: run.provider.id, modelID: run.model.id))
+            // The fallback runs this turn: the v1 path generates a candidate and attaches it to the assistant message.
+            let candidates = try await pendingCandidates(run.state)
+            #expect(candidates.count == 1)
+            #expect(run.state.memorySuggestions.pending(in: conversationA)?.messageID == run.message.id)
+        }
+    }
+
+    @Test("with L3 entries search_memory comes after propose, and calling only it still finishes normally with its id in memoryIds")
+    @MainActor
+    func searchEntryAfterProposeAndSearchOnlyLegFinishes() async throws {
+        let item = MemoryItem(
+            id: "40000000-0000-4000-8000-0000000000b5", layer: .episodic, kind: .event,
+            content: "Bought a Tesla Model 3 after the test drive", mutationId: "mut-mcp-search", deviceId: "device-test",
+            occurredAt: "2025-08-10T10:00:00Z", createdAt: "2025-08-10T10:00:00Z"
+        )
+        try await sendWithMcp(
+            legs: [
+                (200, openAIToolLeg([(id: "call_s1", name: MemorySearch.toolName, arguments: #"{"query":"Tesla"}"#)])),
+                (200, textLeg(.openaiChatCompletions, "You bought a Tesla.")),
+            ],
+            memoryItems: [item]
+        ) { run in
+            #expect(run.message.state == .delivered, "\(run.message.errorDetail ?? "")")
+            #expect(run.message.text == "You bought a Tesla.")
+            #expect(run.bodies.count == 2)
+            let first = try #require(run.bodies.first)
+            #expect(toolNames(in: first) == [weatherOutbound, MemoryPropose.toolName, MemorySearch.toolName])
+            let tail = try #require(run.bodies.last)
+            let toolResult = (tail["messages"] as? [[String: Any]] ?? []).first { $0["role"] as? String == "tool" }
+            #expect(toolResult?["tool_call_id"] as? String == "call_s1")
+            let content = toolResult?["content"] as? String ?? ""
+            #expect(content.contains(#"<entry date="2025-08-10">Bought a Tesla Model 3 after the test drive</entry>"#))
+            #expect(run.message.toolSteps?.isEmpty ?? true)
+            #expect(run.message.unhandledToolCalls == nil)
+            #expect(McpScriptedURLProtocol.requests(method: "tools/call").isEmpty)
+            #expect(run.message.memoryItemIds.contains(item.id))
+        }
     }
 }

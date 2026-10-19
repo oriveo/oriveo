@@ -22,7 +22,11 @@ struct OriveoApp: App {
         // that does not persist; without it, any assignment to `providers` would write the session snapshot and Keychain.
         let state = AppState(
             seedDemoData: launchConfiguration.shouldSeedDemoData || RelayFamilyDebugShots.isRequested
+                || MemoryShots.isRequested || ContextShots.isRequested
         )
+        // Memory and context sample pages: the demo seed is fixed to dark, so switch to following the system
+        // before the window is created; otherwise a sheet presented at launch (the raw page) keeps the old dark appearance.
+        if MemoryShots.isRequested || ContextShots.isRequested { state.preferences.theme = .system }
         #else
         let state = AppState(seedDemoData: launchConfiguration.shouldSeedDemoData)
         #endif
@@ -108,10 +112,15 @@ struct OriveoApp: App {
             }
         }
 
-        // Direct-open sample pages for the relay family: page names, demo data and navigation live in RelayFamilyDebugShots.
-        if let page = debugArgumentValue("-AUTO_OPEN_PAGE"),
-           let shot = RelayFamilyDebugShots.Shot(rawValue: page) {
-            await RelayFamilyDebugShots.open(shot, appState: appState)
+        // Direct-open sample pages: page names, demo data and navigation live in RelayFamilyDebugShots / MemoryShots / ContextShots.
+        if let page = debugArgumentValue("-AUTO_OPEN_PAGE") {
+            if let shot = RelayFamilyDebugShots.Shot(rawValue: page) {
+                await RelayFamilyDebugShots.open(shot, appState: appState)
+            } else if let shot = MemoryShots.Shot(rawValue: page) {
+                await MemoryShots.open(shot, appState: appState)
+            } else if let shot = ContextShots.Shot(rawValue: page) {
+                await ContextShots.open(shot, appState: appState)
+            }
         }
     }
 

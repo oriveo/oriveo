@@ -1917,7 +1917,17 @@ struct ProviderProductionBuilderMatrixTests {
     @Test("shared 19-row continuation coverage joins real Service producer, local-only sidecar, explicit wire, and CAS ACK")
     func continuationRecipeCoverageJoinedServiceSidecarAndExplicitWire() async throws {
         let fixture = try Self.executionFixture()
-        let registry = try Self.capabilityRuntimeRegistry()
+        var registry = try Self.capabilityRuntimeRegistry()
+        // Stateful continuation needs the recipe to declare instructionsMode with a matching fingerprint; the resend precondition is added here without changing the shared fixture.
+        if var recipes = registry["recipes"] as? [String: Any] {
+            for (id, raw) in recipes {
+                guard var recipe = raw as? [String: Any],
+                      recipe["continuationKind"] as? String == "previous_id" else { continue }
+                recipe["continuationInstructionsMode"] = "resend"
+                recipes[id] = recipe
+            }
+            registry["recipes"] = recipes
+        }
         #expect(fixture.continuationRecipeCoverage.count == 19)
 
         for row in fixture.continuationRecipeCoverage {
@@ -1950,6 +1960,9 @@ struct ProviderProductionBuilderMatrixTests {
             producerOptions.localContinuationMessageID = assistantID
             var explicitOptions = ChatRequestOptions()
             explicitOptions.localExplicitContinuationMessageID = assistantID
+            explicitOptions.continuationFingerprintMatches = true
+            // Contract: stateful continuation only honors an explicit "continue" - in production ChatRequestBuilder writes the continuation sentence when the purpose is continue.
+            explicitOptions.statefulLegText = ContextAssembler.continuePrompt
             let webEnabled = row.capability == "web"
             let reasoningMode: ReasoningMode = row.capability == "reasoning" ? .deep : .automatic
             let loopScript = row.continuationKind == "tool_loop"

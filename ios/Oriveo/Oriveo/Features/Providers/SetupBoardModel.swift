@@ -350,8 +350,13 @@ struct LocalSetupBoardModel: Equatable, Sendable {
         )
     }
 
+    /// The local engine reports a token count (n_ctx / max_context_length), scaled by 1024, the same as Android / Web:
+    /// write M only when divisible by 1M, otherwise round to K; below 1024 give the raw value; when unmeasurable (nil / <= 0) give "N/A", never 0.
     static func contextValue(_ contextLength: Int?) -> (text: String?, key: String?) {
-        if let text = CatalogModelBuilder.compactContextText(contextLength) { return (text, nil) }
-        return (nil, contextUnavailableKey)
+        guard let n = contextLength, n > 0 else { return (nil, contextUnavailableKey) }
+        let mebi = 1_048_576
+        if n >= mebi, n % mebi == 0 { return ("\(n / mebi)M", nil) }
+        if n >= 1_024 { return ("\((n + 512) / 1_024)K", nil) }
+        return ("\(n)", nil)
     }
 }

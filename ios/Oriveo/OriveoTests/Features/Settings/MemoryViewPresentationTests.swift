@@ -4,89 +4,66 @@ import Testing
 @Suite("MemoryViewPresentation")
 struct MemoryViewPresentationTests {
 
-    @Test("Starter Mode Prefers Draft Generation When Recent Conversations Exist")
-    func starterModePrefersDraftGenerationWhenRecentConversationsExist() {
+    @Test("With no items and recent conversations, shows the empty state: Add is primary and AI draft is secondary, without stacking repeated explanations")
+    func starterModeAddsItemFirstAndOffersDraftWhenRecentConversationsExist() {
         let presentation = MemoryViewPresentation.resolve(
-            memoryText: "",
-            isEditorFocused: false,
+            hasItems: false,
             hasRecentConversations: true
         )
 
         #expect(presentation.mode == .starter)
         #expect(presentation.heroStyle == .draftStarter)
         #expect(presentation.detailPanelStyle == .none)
-        #expect(presentation.primaryAction == .generateDraft)
-        #expect(presentation.secondaryAction == .focusEditor)
+        #expect(presentation.primaryAction == .addItem)
+        #expect(presentation.secondaryAction == .generateDraft)
         #expect(presentation.showsExampleCard == false)
         #expect(presentation.showsSupportCards == false)
     }
 
-    @Test("Starter Mode Falls Back To Manual Entry Without Recent Conversations")
-    func starterModeFallsBackToManualEntryWithoutRecentConversations() {
+    @Test("With no items and no recent conversations, only Add is offered")
+    func starterModeOnlyAddsItemWithoutRecentConversations() {
         let presentation = MemoryViewPresentation.resolve(
-            memoryText: "",
-            isEditorFocused: false,
+            hasItems: false,
             hasRecentConversations: false
         )
 
         #expect(presentation.mode == .starter)
         #expect(presentation.heroStyle == .manualStarter)
         #expect(presentation.detailPanelStyle == .none)
-        #expect(presentation.primaryAction == .focusEditor)
+        #expect(presentation.primaryAction == .addItem)
         #expect(presentation.secondaryAction == nil)
         #expect(presentation.showsExampleCard == false)
     }
 
-    @Test("Editor Mode Shows Support Cards Without Repeating Detail Panels")
-    func editorModeShowsSupportCardsWithoutRepeatingDetailPanels() {
-        let withContent = MemoryViewPresentation.resolve(
-            memoryText: "I prefer concise replies.",
-            isEditorFocused: false,
-            hasRecentConversations: true
-        )
-        let whileEditingEmpty = MemoryViewPresentation.resolve(
-            memoryText: "",
-            isEditorFocused: true,
-            hasRecentConversations: true
-        )
-
-        #expect(withContent.mode == .editor)
-        #expect(withContent.heroStyle == .activeMemory)
-        #expect(withContent.detailPanelStyle == .none)
-        #expect(withContent.showsExampleCard == false)
-        #expect(withContent.showsSupportCards == true)
-
-        #expect(whileEditingEmpty.mode == .editor)
-        #expect(whileEditingEmpty.heroStyle == .activeMemory)
-        #expect(whileEditingEmpty.detailPanelStyle == .none)
-        #expect(whileEditingEmpty.showsSupportCards == true)
-    }
-
-    @Test("Editor Mode Exposes Draft Generation When Recent Conversations Exist")
-    func editorModeExposesDraftGenerationWhenRecentConversationsExist() {
-        let withContent = MemoryViewPresentation.resolve(
-            memoryText: "I prefer concise replies.",
-            isEditorFocused: false,
-            hasRecentConversations: true
-        )
-        let whileEditingEmpty = MemoryViewPresentation.resolve(
-            memoryText: "",
-            isEditorFocused: true,
-            hasRecentConversations: true
-        )
-
-        #expect(withContent.primaryAction == .generateDraft)
-        #expect(withContent.secondaryAction == nil)
-
-        #expect(whileEditingEmpty.primaryAction == .generateDraft)
-        #expect(whileEditingEmpty.secondaryAction == nil)
-    }
-
-    @Test("Editor Mode Hides Primary Action Without Recent Conversations")
-    func editorModeHidesPrimaryActionWithoutRecentConversations() {
+    @Test("With items it enters the list state and shows the privacy notice without repeating the preview panel")
+    func listModeShowsSupportCardsWithoutRepeatingDetailPanels() {
         let presentation = MemoryViewPresentation.resolve(
-            memoryText: "I prefer concise replies.",
-            isEditorFocused: false,
+            hasItems: true,
+            hasRecentConversations: true
+        )
+
+        #expect(presentation.mode == .editor)
+        #expect(presentation.heroStyle == .activeMemory)
+        #expect(presentation.detailPanelStyle == .none)
+        #expect(presentation.showsExampleCard == false)
+        #expect(presentation.showsSupportCards == true)
+    }
+
+    @Test("In the list state, an AI draft entry is still offered when recent conversations exist")
+    func listModeExposesDraftGenerationWhenRecentConversationsExist() {
+        let presentation = MemoryViewPresentation.resolve(
+            hasItems: true,
+            hasRecentConversations: true
+        )
+
+        #expect(presentation.primaryAction == .generateDraft)
+        #expect(presentation.secondaryAction == nil)
+    }
+
+    @Test("In the list state, no hero action button is shown without recent conversations")
+    func listModeHidesPrimaryActionWithoutRecentConversations() {
+        let presentation = MemoryViewPresentation.resolve(
+            hasItems: true,
             hasRecentConversations: false
         )
 

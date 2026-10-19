@@ -1,4 +1,5 @@
 import Foundation
+import OriveoProviderKit
 
 struct HomeConversationSnapshot {
     let recentConversations: [Conversation]
@@ -518,7 +519,8 @@ final class ConversationManager {
         for conv in toRemove {
             if conv.messages.contains(where: { $0.state == .generating })
                 || appState.streamingConversationIDs.contains(conv.id) {
-                appState.cancelGeneration(in: conv.id)
+                // An interruption caused by deleting the conversation is not a user stop, so chat_message_stopped is not reported.
+                appState.chatManager.cancelGeneration(in: conv.id, userInitiated: false)
             }
         }
         let partitionUID = AppSessionStore.activeUID
@@ -553,6 +555,39 @@ final class ConversationManager {
         updated.hasCustomTitle = true
         updated.metadataUpdatedAt = Date()
         appState.upsertConversationProjection(updated)
+    }
+
+    /// Sets the conversation instructions: normalize and change only
+    /// `instructions` (business `updatedAt` untouched), then persist.
+    /// Returns false when the value is unchanged (no write).
+    @discardableResult
+    func setInstructions(id: UUID, text: String) -> Bool {
+        let normalized = ConversationInstructions.normalize(text)
+        guard let index = conversations.firstIndex(where: { $0.id == id }) else { return false }
+        var updated = conversations[index]
+        guard updated.instructions != normalized else { return false }
+        updated.instructions = normalized
+        appState.upsertConversationProjection(updated)
+        return true
+    }
+
+    /// Sets the per-conversation context cap (nil = follow global). Like `setInstructions`: only
+    /// `contextCap` changes (business `updatedAt` untouched), then persist.
+    /// Returns false when the value is unchanged (no write).
+    @discardableResult
+    func setContextCap(id: UUID, cap: ContextBudgetCap?) -> Bool {
+        guard let index = conversations.firstIndex(where: { $0.id == id }) else { return false }
+        var updated = conversations[index]
+        guard updated.contextCap != cap else { return false }
+        updated.contextCap = cap
+        appState.upsertConversationProjection(updated)
+        // The usage ring and panel recompute their denominator now, not at the next send.
+        NotificationCenter.default.post(
+            name: .contextUsageInputsDidChange,
+            object: nil,
+            userInfo: [ContextCompactionStore.conversationIdKey: id.uuidString]
+        )
+        return true
     }
 
     func updateDraftText(_ text: String, in conversationID: UUID) {

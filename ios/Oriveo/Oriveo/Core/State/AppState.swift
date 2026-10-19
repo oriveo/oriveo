@@ -1,5 +1,6 @@
 import Combine
 import Observation
+import OriveoProviderKit
 import SwiftUI
 
 struct PendingSearchScrollTarget: Equatable, Sendable {
@@ -96,6 +97,9 @@ final class AppState {
     /// and not kept across restarts.
     var relayModelProbeStates: [UUID: [String: RelayModelProbeState]] = [:]
     var chatManager: ChatManager
+    /// The confirmation gate before sending: the send waits here after context trimming and before going out,
+    /// and the chat page's confirmation dialog sends the user's choice back.
+    let contextCapConfirmCoordinator = ContextCapConfirmCoordinator()
     /// The confirmation gate for remote MCP tools: the tool loop suspends here and the confirmation sheet
     /// sends the user's choice back.
     let mcpConfirmationCoordinator = McpConfirmationCoordinator()
@@ -188,6 +192,12 @@ final class AppState {
     }
 
     var conversationManager = ConversationManager()
+    /// The "Set as instruction" suggestion bar; tests can swap in an instance with injected defaults.
+    var directiveSuggestions = DirectiveSuggestionController()
+    /// The "Save to memory?" suggestion bar; in memory only.
+    var memorySuggestions = MemorySuggestionController()
+    /// The background memory candidate generation triggered by the latest fresh send; tests await it before reading the repository.
+    @ObservationIgnored private(set) var memoryCandidateGeneration: Task<Void, Never>?
     var hasCompletedOnboarding: Bool {
         didSet { persistSessionIfNeeded() }
     }
@@ -245,6 +255,15 @@ final class AppState {
     /// Prefill only, never send: the checks that run before a first message hang off the send
     /// path, and going around them would put the message ahead of them.
     var pendingComposerPrefill: String?
+    /// A quote waiting to be attached to the composer (new conversation that carries the summary). ChatView consumes it when it appears and resets it to nil; nothing is sent automatically.
+    var pendingComposerQuote: QuoteContext?
+    /// Instructions written in conversation settings while still a draft (no conversation yet), already normalized. On the first send they are written
+    /// into the new object, saved, and then cleared; a new chat / switching conversations clears them. In memory only.
+    var pendingDraftInstructions: String = ""
+    /// The conversation that should show the third-trim hint; written by ChatManager, reset to nil once the UI taps "New chat" / "Got it".
+    var pendingCompactionHint: UUID?
+    /// Conversations with an AI summary trim in progress; written by ChatManager, and the composer shows "Organizing" and a cancel button accordingly.
+    var aiCompactingConversationIDs: Set<UUID> = []
 
     /// Whether the home conversation section has already played its entrance animation
     /// (UI only, not persisted, valid for the lifetime of the app).
@@ -385,6 +404,10 @@ final class AppState {
     @ObservationIgnored private var providerLookup: [UUID: Provider] = [:]
     @ObservationIgnored private var conversationLookup: [UUID: Conversation] = [:]
     @ObservationIgnored private var boundPartitionUID: String
+    /// In-memory copy of the current partition's memory items: request snapshots read it, so the database is not read on the main thread.
+    @ObservationIgnored let memoryItemsCache = MemoryItemsCache()
+    /// Lowercased id of the memory item to edit after "This one is wrong"; the memory page takes it when it appears.
+    var pendingMemoryEditItemID: String?
     private(set) var providersVersion: UInt = 0
     private(set) var conversationsVersion: UInt = 0
     /// The model display name lookup shared by Home and folder conversation rows (built in the background, reused by
@@ -768,6 +791,25 @@ final class AppState {
         return true
     }
 
+    /// The attachments of this message, with file payloads guaranteed to be loaded in memory.
+    ///
+    /// The in-memory thread may come from a projection that does not read file payloads (window loading, observation);
+    /// when a file is missing its payload, this one conversation is re-read from the database with payloads,
+    /// and the attachments are returned unchanged if that fails.
+    func attachmentsWithFilePayloads(of message: ChatMessage, in conversationID: UUID) -> [Attachment] {
+        let attachments = message.attachments ?? []
+        let missingPayload = attachments.contains {
+            $0.kind == .file && ($0.base64Data?.isEmpty ?? true) && $0.extractionErrorAllowsText
+        }
+        guard missingPayload,
+              let fetched = try? conversationRuntimeBridge.fetchConversationProjections(
+                  ids: [conversationID], uid: sessionPartitionUID, hydrateFilePayloads: true
+              ).first,
+              let hydrated = fetched.messages.first(where: { $0.id == message.id })?.attachments
+        else { return attachments }
+        return hydrated
+    }
+
     func upsertConversationProjections(
         _ updatedConversations: [Conversation],
         expectedUID: String? = nil
@@ -1098,6 +1140,9 @@ final class AppState {
     /// page and the user sees nothing happen. Compact pushes onto the outer stack, which covers
     /// the screen anyway, so the stack is only cleared at regular width.
     private func presentChat(conversationID: UUID?) {
+        // Switching conversations: pending suggestions disappear and are not counted as dismissed.
+        directiveSuggestions.clearAll()
+        memorySuggestions.clearAll()
         if navigation.isRegularWidth {
             selectedTab = .home
             navigation.popToRoot()
@@ -1164,25 +1209,6 @@ final class AppState {
             guard !pendingPinnedNoteIds.contains(noteID) else { return }
             pendingPinnedNoteIds = Array((pendingPinnedNoteIds + [noteID]).suffix(Self.maxPinnedNotes))
         }
-    }
-
-    /// This message's attachments, with file payloads guaranteed to be in memory.
-    ///
-    /// A thread in memory may come from a projection that does not read file payloads (window loading, observation,
-    /// sync merges). When a file is missing its payload, this one conversation is re-read from the database with
-    /// payloads; if it cannot be read the attachments are returned as they are.
-    func attachmentsWithFilePayloads(of message: ChatMessage, in conversationID: UUID) -> [Attachment] {
-        let attachments = message.attachments ?? []
-        let missingPayload = attachments.contains {
-            $0.kind == .file && ($0.base64Data?.isEmpty ?? true) && $0.extractionErrorAllowsText
-        }
-        guard missingPayload,
-              let fetched = try? conversationRuntimeBridge.fetchConversationProjections(
-                  ids: [conversationID], uid: sessionPartitionUID, hydrateFilePayloads: true
-              ).first,
-              let hydrated = fetched.messages.first(where: { $0.id == message.id })?.attachments
-        else { return attachments }
-        return hydrated
     }
 
     func unpinNote(_ noteID: UUID, from convID: UUID?) {
@@ -1458,6 +1484,9 @@ final class AppState {
     }
 
     func startNewChat(preferredProviderID: UUID? = nil, preferredModelID: String? = nil) {
+        pendingDraftInstructions = ""
+        directiveSuggestions.clearAll()
+        memorySuggestions.clearAll()
         let resolvedProvider: Provider
         let resolvedModelID: String
 
@@ -1476,6 +1505,33 @@ final class AppState {
         setActiveModel(providerID: resolvedProvider.id, modelID: resolvedModelID)
 
         presentChat(conversationID: nil)
+    }
+
+    /// Start a new conversation with the original conversation's provider/model and attach a reference to the
+    /// latest valid checkpoint row to the composer (the caller passes the localized label).
+    /// If there is no row or nothing quotable, no new conversation is started and false is returned.
+    @discardableResult
+    func startNewChatWithSummary(conversationId conversationID: UUID, label: String) -> Bool {
+        guard hydrateConversationMessagesIfNeeded(id: conversationID),
+              let conversation = conversations.first(where: { $0.id == conversationID }),
+              let store = ContextCompactionStore.forPartition(sessionPartitionUID)
+        else { return false }
+        let quote: QuoteContext?
+        do {
+            quote = try ContextCompactionQuote.resolve(
+                store: store,
+                conversationId: conversationID.uuidString,
+                messages: conversation.messages,
+                label: label
+            )
+        } catch {
+            print("[AppState] checkpoint latestValid failed: \(error.localizedDescription)")
+            return false
+        }
+        guard let quote else { return false }
+        pendingComposerQuote = quote
+        startNewChat(preferredProviderID: conversation.providerID, preferredModelID: conversation.modelID)
+        return true
     }
 
     func startNewChatWithProviderFallback() async {
@@ -1645,32 +1701,56 @@ final class AppState {
         )
     }
 
+    /// For callers that only need the conversation id; the composer, which must tell "blocked while sending" from "refused", uses `sendMessageOutcome`.
     func sendMessage(
         _ text: String,
         attachments: [Attachment] = [],
         quoteContext: QuoteContext? = nil,
         in conversationID: UUID?,
         generationParameterDraftSessionID: UUID? = nil,
-        capabilitySelection: ChatCapabilitySelection = ChatCapabilitySelection()
+        capabilitySelection: ChatCapabilitySelection = ChatCapabilitySelection(),
+        evaluatesDirectiveSuggestion: Bool = true
     ) async -> UUID? {
+        await sendMessageOutcome(
+            text,
+            attachments: attachments,
+            quoteContext: quoteContext,
+            in: conversationID,
+            generationParameterDraftSessionID: generationParameterDraftSessionID,
+            capabilitySelection: capabilitySelection,
+            evaluatesDirectiveSuggestion: evaluatesDirectiveSuggestion
+        ).sentID
+    }
+
+    /// `.sent` in the result carries the conversation id (not the user message id).
+    func sendMessageOutcome(
+        _ text: String,
+        attachments: [Attachment] = [],
+        quoteContext: QuoteContext? = nil,
+        in conversationID: UUID?,
+        generationParameterDraftSessionID: UUID? = nil,
+        capabilitySelection: ChatCapabilitySelection = ChatCapabilitySelection(),
+        evaluatesDirectiveSuggestion: Bool = true
+    ) async -> ChatSendOutcome {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedText.isEmpty || !attachments.isEmpty else { return nil }
+        guard !trimmedText.isEmpty || !attachments.isEmpty else { return .refused }
 
         let targetConversationID: UUID
         let isNewConversation = conversationID == nil
         if let conversationID {
             targetConversationID = conversationID
         } else {
-            guard let active = activeModel else { return nil }
-            let newConversation = createConversation(provider: active.provider, modelID: active.model.id)
-            upsertConversationProjection(newConversation)
+            guard let active = activeModel else {
+                return .refused
+            }
+            let newConversation = createConversationForFirstSend(provider: active.provider, modelID: active.model.id)
             targetConversationID = newConversation.id
 
             presentChat(conversationID: targetConversationID)
         }
 
         guard let targetConversation = conversation(for: targetConversationID) else {
-            return nil
+            return .refused
         }
 
         if isNewConversation, let generationParameterDraftSessionID {
@@ -1725,16 +1805,193 @@ final class AppState {
             )
         }
 
-        guard await chatManager.sendMessage(
+        // The edit-resend marker is consumed by chatManager.sendMessage, so read it first: an edit-resend does not evaluate the suggestion bar.
+        let isEditResend = chatManager.isPendingEditResend(targetConversationID)
+        // The propose_memory mode is only decided for a fresh send; with mode=tool the request carries propose_memory.
+        let useMemory = effectiveUseMemory(targetConversation)
+        let memoryMode = memoryProposeMode(
+            conversation: targetConversation,
+            freshSend: evaluatesDirectiveSuggestion && !isEditResend,
+            useMemory: useMemory,
+            capabilitySelection: capabilitySelection
+        )
+        let outcome = await chatManager.sendMessageOutcome(
             text,
             attachments: attachments,
             quoteContext: quoteContext,
             in: targetConversationID,
-            capabilitySelection: capabilitySelection
-        ) != nil else {
-            return nil
+            capabilitySelection: capabilitySelection,
+            proposeMemory: memoryMode == .tool
+                ? proposeMemoryContext(text: text, conversationID: targetConversationID, useMemory: useMemory)
+                : nil
+        )
+        guard case .sent(let userMessageID) = outcome else { return outcome }
+        // Only a freshly sent message is evaluated: edit-resend and automatic sends from guided flows are not; resend / regenerate do not come through here.
+        guard evaluatesDirectiveSuggestion, !isEditResend, memoryMode != .none else { return .sent(targetConversationID) }
+        // Routing: memory -> memory bar; conversationInstruction -> instruction bar; none -> nothing.
+        // With mode=tool the v1 memory routing does not run and the instruction bar works as before.
+        let suggestion = MemoryIntent.classify(text).suggestion
+        memorySuggestions.reset(conversationID: targetConversationID)
+        directiveSuggestions.evaluate(
+            text: text,
+            messageID: userMessageID,
+            conversationID: targetConversationID,
+            instructions: conversation(for: targetConversationID)?.instructions ?? "",
+            suggestion: suggestion
+        )
+        generateMemoryCandidate(
+            text: text,
+            messageID: userMessageID,
+            assistantMessageID: assistantMessageID(after: userMessageID, in: targetConversationID),
+            conversationID: targetConversationID,
+            suggestion: suggestion,
+            mode: memoryMode,
+            useMemory: useMemory
+        )
+        return .sent(targetConversationID)
+    }
+
+    /// Same decision as injection: conversation ?? Skill ?? true.
+    private func effectiveUseMemory(_ conversation: Conversation?) -> Bool {
+        conversation?.useMemory
+            ?? conversation?.skillId.flatMap { skillManager.skill(by: $0) }?.useMemory
+            ?? true
+    }
+
+    /// The propose_memory mode for this send.
+    private func memoryProposeMode(
+        conversation: Conversation,
+        freshSend: Bool,
+        useMemory: Bool,
+        capabilitySelection: ChatCapabilitySelection
+    ) -> MemoryPropose.Mode {
+        let provider = provider(for: conversation.providerID)
+        let model = provider.flatMap {
+            ProviderSelectionSnapshot.currentModel(storedModelID: conversation.modelID, in: $0)
         }
-        return targetConversationID
+        // Relay web search uses the same criterion as ChatManager when sending (switch + default layer + user override), not the composer's raw selection.
+        var webSearchEnabled = capabilitySelection.webSearchEnabled
+        if let provider, let model, ProviderForm.of(provider) == .relay {
+            webSearchEnabled = ChatManager.relayWebIsOn(
+                provider: provider, model: model, conversationID: conversation.id, skillID: conversation.skillId
+            )
+        }
+        return ProposeMemoryRuntime.shared.mode(
+            purpose: .chat,
+            freshSend: freshSend,
+            memoryEnabled: useMemory,
+            autoSuggest: memoryCandidateRepository()?.autoSuggestEnabled() ?? true,
+            provider: provider,
+            model: model,
+            webSearchEnabled: webSearchEnabled,
+            structuredOutputActive: provider.flatMap { provider in
+                model.map { chatManager.structuredOutputActive(provider: provider, model: $0, conversationID: conversation.id) }
+            } ?? false,
+            toolCallMemory: chatManager.toolCallMemory
+        )
+    }
+
+    /// The propose context handed to ChatManager for mode=tool: the first candidate created becomes this turn's bar;
+    /// if the first leg is rejected and degrades, this turn runs the fallback (v1 path) and the bar is attached to the same assistant message.
+    /// If the repository cannot be opened, no tool is carried.
+    private func proposeMemoryContext(text: String, conversationID: UUID, useMemory: Bool) -> ProposeMemoryTurnContext? {
+        guard let repository = memoryCandidateRepository() else { return nil }
+        return ProposeMemoryTurnContext(
+            repository: repository,
+            userText: text,
+            folderID: conversation(for: conversationID)?.folderID?.uuidString,
+            onCandidate: { [weak self] candidate, assistantMessageID in
+                self?.memorySuggestions.presentProposed(
+                    candidate, messageID: assistantMessageID, conversationID: conversationID
+                )
+            },
+            onDegraded: { [weak self] userMessageID, assistantMessageID in
+                self?.generateMemoryCandidate(
+                    text: text,
+                    messageID: userMessageID,
+                    assistantMessageID: assistantMessageID,
+                    conversationID: conversationID,
+                    suggestion: MemoryIntent.classify(text).suggestion,
+                    mode: .fallback,
+                    useMemory: useMemory
+                )
+            }
+        )
+    }
+
+    /// This turn's assistant message: it lands right after the user message when sending.
+    private func assistantMessageID(after userMessageID: UUID, in conversationID: UUID) -> UUID? {
+        guard let messages = conversation(for: conversationID)?.messages,
+              let index = messages.firstIndex(where: { $0.id == userMessageID }),
+              messages.indices.contains(index + 1),
+              messages[index + 1].role == .assistant
+        else { return nil }
+        return messages[index + 1].id
+    }
+
+    /// The last assistant message of this conversation.
+    private func latestAssistantMessageID(in conversationID: UUID) -> UUID? {
+        conversation(for: conversationID)?.messages.last(where: { $0.role == .assistant })?.id
+    }
+
+    /// After a fresh user send, generate a memory candidate in the background; failures are only logged.
+    /// mode=tool: v1 does not run and only waits for this turn's first propose candidate.
+    /// mode=fallback: the memory bar is shown only for a new candidate while this turn's assistant message is still the latest
+    /// assistant message of the conversation; suggestion=memory with memory turned off shows only a hint.
+    /// The bar is always attached to this turn's assistant message, and the candidate source still records the user message id.
+    private func generateMemoryCandidate(
+        text: String,
+        messageID: UUID,
+        assistantMessageID: UUID?,
+        conversationID: UUID,
+        suggestion: MemoryIntent.Suggestion,
+        mode: MemoryPropose.Mode,
+        useMemory: Bool
+    ) {
+        if mode == .tool {
+            memoryCandidateGeneration = nil
+            if let assistantMessageID {
+                memorySuggestions.awaitCandidate(messageID: assistantMessageID, conversationID: conversationID)
+            }
+            return
+        }
+        if suggestion == .memory, !useMemory, let assistantMessageID {
+            memorySuggestions.showMemoryOffHint(messageID: assistantMessageID, conversationID: conversationID)
+        }
+        guard let repository = memoryCandidateRepository() else { return }
+        let folderID = conversation(for: conversationID)?.folderID?.uuidString
+        let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+        let barMessageID = suggestion == .memory && useMemory ? assistantMessageID : nil
+        if let barMessageID {
+            memorySuggestions.awaitCandidate(messageID: barMessageID, conversationID: conversationID)
+        }
+        memoryCandidateGeneration = Task { [weak self] in
+            do {
+                let candidate = try await repository.generate(
+                    text: text,
+                    messageId: messageID.uuidString,
+                    conversationId: conversationID.uuidString,
+                    folderId: folderID,
+                    useMemory: useMemory,
+                    nowMs: nowMs
+                )
+                guard let barMessageID, let self else { return }
+                self.memorySuggestions.present(
+                    candidate,
+                    messageID: barMessageID,
+                    conversationID: conversationID,
+                    latestAssistantMessageID: self.latestAssistantMessageID(in: conversationID)
+                )
+            } catch {
+                #if DEBUG
+                print("[AppState] generateMemoryCandidate failed: \(error)")
+                #endif
+            }
+        }
+    }
+
+    func resolveContextCapConfirmation(id: UUID, choice: ContextCapConfirmChoice) {
+        contextCapConfirmCoordinator.resolve(id: id, choice: choice)
     }
 
     nonisolated static func persistedConversationModelID(
@@ -1766,11 +2023,17 @@ final class AppState {
 
     /// Edit a user message: truncates the conversation and returns the text and original attachments to put back in the composer.
     func beginEditingUserMessage(messageID: UUID, in conversationID: UUID) -> ComposerEditDraft? {
-        chatManager.beginEditingUserMessage(messageID: messageID, in: conversationID)
+        let historyIds = checkpointHistoryIds(of: conversationID)
+        let draft = chatManager.beginEditingUserMessage(messageID: messageID, in: conversationID)
+        invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds)
+        return draft
     }
 
     func beginEditingPromptingMessage(for assistantMessageID: UUID, in conversationID: UUID) -> ComposerEditDraft? {
-        chatManager.beginEditingPromptingMessage(for: assistantMessageID, in: conversationID)
+        let historyIds = checkpointHistoryIds(of: conversationID)
+        let draft = chatManager.beginEditingPromptingMessage(for: assistantMessageID, in: conversationID)
+        invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds)
+        return draft
     }
 
     func continueMessage(
@@ -1778,11 +2041,14 @@ final class AppState {
         in conversationID: UUID,
         capabilitySelection: ChatCapabilitySelection = ChatCapabilitySelection()
     ) async {
+        // Continuing deletes no messages; when an empty interruption falls back to regenerate, the checkpoints of the truncated segment are invalidated.
+        let historyIds = checkpointHistoryIds(of: conversationID)
         await chatManager.continueMessage(
             messageID: messageID,
             in: conversationID,
             capabilitySelection: capabilitySelection
         )
+        invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds)
     }
 
     func regenerateMessage(
@@ -1790,10 +2056,38 @@ final class AppState {
         in conversationID: UUID,
         capabilitySelection: ChatCapabilitySelection = ChatCapabilitySelection()
     ) async {
+        let historyIds = checkpointHistoryIds(of: conversationID)
         await chatManager.regenerateMessage(
             messageID: messageID,
             in: conversationID,
             capabilitySelection: capabilitySelection
+        )
+        invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds)
+    }
+
+    /// The full history ids before truncation (complete the summary projection first, otherwise the pre-change history is incomplete).
+    private func checkpointHistoryIds(of conversationID: UUID) -> [String] {
+        guard hydrateConversationMessagesIfNeeded(id: conversationID),
+              let conversation = conversations.first(where: { $0.id == conversationID })
+        else { return [] }
+        return conversation.messages.map(\.id.uuidString)
+    }
+
+    /// Invalidation hook for edit / regenerate: messages in the pre-change history that are gone after truncation are affected;
+    /// when the send is refused or nothing is truncated the set is empty and invalidate deletes nothing.
+    private func invalidateCheckpointsAfterTruncation(conversationID: UUID, historyIdsBefore: [String]) {
+        guard !historyIdsBefore.isEmpty,
+              let conversation = conversations.first(where: { $0.id == conversationID })
+        else { return }
+        let remaining = Set(conversation.messages.map(\.id.uuidString))
+        let affected = historyIdsBefore.filter { !remaining.contains($0) }
+        guard !affected.isEmpty,
+              let store = ContextCompactionStore.forPartition(sessionPartitionUID)
+        else { return }
+        _ = store.invalidateAndPropagate(
+            conversationId: conversationID.uuidString,
+            historyIds: historyIdsBefore,
+            affectedIds: affected
         )
     }
 
@@ -1803,12 +2097,25 @@ final class AppState {
         capabilitySelection: ChatCapabilitySelection = ChatCapabilitySelection(),
         localCustomFragmentDisposition: LocalCustomFragmentDisposition = .include
     ) async {
+        // Rewriting a failed message in place deletes no messages, so an empty affected set deletes nothing; when it falls back to regenerate, the checkpoints of the truncated segment are invalidated.
+        let historyIds = checkpointHistoryIds(of: conversationID)
         await chatManager.retryMessage(
             messageID: messageID,
             in: conversationID,
             capabilitySelection: capabilitySelection,
             localCustomFragmentDisposition: localCustomFragmentDisposition
         )
+        invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds)
+    }
+
+    /// Create the conversation for the first send: pending instructions are written into the object first, then saved, and then cleared.
+    @discardableResult
+    func createConversationForFirstSend(provider: Provider, modelID: String) -> Conversation {
+        var conversation = createConversation(provider: provider, modelID: modelID)
+        conversation.instructions = ConversationInstructions.normalize(pendingDraftInstructions)
+        pendingDraftInstructions = ""
+        upsertConversationProjection(conversation)
+        return conversation
     }
 
     private func createConversation(provider: Provider, modelID: String) -> Conversation {
@@ -1836,6 +2143,9 @@ final class AppState {
         preferences = AppPreferencesStore.load()
         let activeUID = uid ?? AppSessionStore.activeUID
         boundPartitionUID = activeUID
+        // Partition activation: migrate legacy fields into memory items / reflow edits from old clients
+        reconcileMemoryItems()
+        memoryItemsCache.bind(uid: activeUID)
 
         let snapshot = AppSessionStore.load(for: activeUID)
 
@@ -2109,6 +2419,46 @@ final class AppState {
         preferences.memoryAntiForgetText = antiForgetText
         preferences.memoryUpdatedAt = Date()
         AppPreferencesStore.save(preferences)
+        // The old settings page only changes memoryText without a summary, so edit it back into the items as an old client would (transition bridge)
+        reconcileMemoryItems()
+    }
+
+    /// The memory item repository of the current partition; legacy field reads and writes go through this object's preferences. nil when the database cannot be opened.
+    func memoryItemRepository() -> MemoryItemRepository? {
+        MemoryItemRepository.forPartition(
+            sessionPartitionUID,
+            bridge: MemoryLegacyPrefsBridge(
+                read: { [weak self] in
+                    self?.preferences.memoryLegacyPrefs ?? MemoryLegacyPrefs(memoryText: nil)
+                },
+                write: { [weak self] compiled in self?.writeMemoryLegacy(compiled) }
+            )
+        )
+    }
+
+    /// The memory candidate repository of the current partition; once confirmed, a candidate becomes an item through the same partition's item repository. nil when the database cannot be opened.
+    func memoryCandidateRepository() -> MemoryCandidateRepository? {
+        guard let items = memoryItemRepository() else { return nil }
+        return MemoryCandidateRepository.forPartition(sessionPartitionUID, items: items)
+    }
+
+    /// Runs when a partition is activated or memoryText changes: migrate / reflow, and dual-write the legacy fields when needed.
+    func reconcileMemoryItems() {
+        do {
+            try memoryItemRepository()?.reconcileLegacy()
+        } catch {
+            #if DEBUG
+            print("[AppState] reconcileMemoryItems failed: \(error)")
+            #endif
+        }
+    }
+
+    /// Dual-write memory items back to the legacy fields (same as updateMemory): save the preferences locally.
+    private func writeMemoryLegacy(_ compiled: MemoryLegacyCompile) {
+        let updated = preferences.applyingMemoryLegacy(compiled, now: Date())
+        guard updated != preferences else { return }
+        AppPreferencesStore.save(updated)
+        preferences = updated
     }
 
     func setConversationUseMemory(_ conversationID: UUID, useMemory: Bool) {
@@ -2144,8 +2494,17 @@ final class AppState {
         }
     }
 
-    func openMemory() {
+    /// Open the Settings memory page; when `editItemId` is non-nil, the memory page edits that item right after appearing
+    /// ("This one is wrong" in "Memory used").
+    func openMemory(editItemId: String? = nil) {
+        pendingMemoryEditItemID = editItemId?.lowercased()
         navigation.openMemory()
+    }
+
+    /// The memory page takes the pending item id to edit (cleared once taken).
+    func consumePendingMemoryEditItemID() -> String? {
+        defer { pendingMemoryEditItemID = nil }
+        return pendingMemoryEditItemID
     }
 
     // MARK: - Skills

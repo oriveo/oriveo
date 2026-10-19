@@ -29,9 +29,71 @@ actor MetadataClient {
         let cacheCreationInputPerMToken: Double?
         let cacheWrite5mPerMToken: Double?
         let cacheWrite1hPerMToken: Double?
+        /// Long-context price tier; nil when absent or malformed (a bad shape drops only this field).
+        let longContext: LongContextPricing?
 
         var promptPerToken: Double? { promptPerMToken.map { $0 / 1_000_000 } }
         var completionPerToken: Double? { completionPerMToken.map { $0 / 1_000_000 } }
+
+        nonisolated init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            promptPerMToken = try container.decodeIfPresent(Double.self, forKey: .promptPerMToken)
+            completionPerMToken = try container.decodeIfPresent(Double.self, forKey: .completionPerMToken)
+            cachedInputPerMToken = try container.decodeIfPresent(Double.self, forKey: .cachedInputPerMToken)
+            costPerUnit = try container.decodeIfPresent(Double.self, forKey: .costPerUnit)
+            costInputBatches = try container.decodeIfPresent(Double.self, forKey: .costInputBatches)
+            costOutputBatches = try container.decodeIfPresent(Double.self, forKey: .costOutputBatches)
+            costInputPriority = try container.decodeIfPresent(Double.self, forKey: .costInputPriority)
+            costOutputPriority = try container.decodeIfPresent(Double.self, forKey: .costOutputPriority)
+            cacheReadInputPerMToken = try container.decodeIfPresent(Double.self, forKey: .cacheReadInputPerMToken)
+            cacheCreationInputPerMToken = try container.decodeIfPresent(Double.self, forKey: .cacheCreationInputPerMToken)
+            cacheWrite5mPerMToken = try container.decodeIfPresent(Double.self, forKey: .cacheWrite5mPerMToken)
+            cacheWrite1hPerMToken = try container.decodeIfPresent(Double.self, forKey: .cacheWrite1hPerMToken)
+            // A malformed shape only drops longContext; the rest of the pricing stays as is.
+            longContext = try? container.decodeIfPresent(LongContextPricing.self, forKey: .longContext)
+        }
+    }
+
+    /// pricing.longContext: once the input exceeds thresholdTokens, this tier is used for pricing (same rules on all three platforms).
+    /// thresholdTokens must be an integer value (200000.0 is accepted) with 1 <= t <= 2147483647; the prompt / completion unit prices must be finite and >= 0;
+    /// cacheRead may be omitted, and if present it must likewise be finite and >= 0. If any part is invalid the whole segment fails to decode (swallowed by ModelPricing, treated as having no surcharge line).
+    struct LongContextPricing: Codable, Sendable, Equatable {
+        let thresholdTokens: Int
+        let promptPerMToken: Double
+        let completionPerMToken: Double
+        let cacheReadPerMToken: Double?
+
+        nonisolated static let maxThresholdTokens = Int(Int32.max)
+
+        nonisolated init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            // JSONDecoder decodes an integer-valued float (200000.0) as Int, and decoding fails for a non-integer value (200000.5).
+            let threshold = try container.decode(Int.self, forKey: .thresholdTokens)
+            guard threshold > 0, threshold <= Self.maxThresholdTokens else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .thresholdTokens, in: container,
+                    debugDescription: "thresholdTokens must be an integer in 1...2147483647"
+                )
+            }
+            func price(_ key: CodingKeys, _ value: Double) throws -> Double {
+                guard value.isFinite, value >= 0 else {
+                    throw DecodingError.dataCorruptedError(
+                        forKey: key, in: container,
+                        debugDescription: "\(key.stringValue) must be a finite non-negative number"
+                    )
+                }
+                return value
+            }
+            thresholdTokens = threshold
+            promptPerMToken = try price(
+                .promptPerMToken, container.decode(Double.self, forKey: .promptPerMToken)
+            )
+            completionPerMToken = try price(
+                .completionPerMToken, container.decode(Double.self, forKey: .completionPerMToken)
+            )
+            cacheReadPerMToken = try container.decodeIfPresent(Double.self, forKey: .cacheReadPerMToken)
+                .map { try price(.cacheReadPerMToken, $0) }
+        }
     }
 
     struct ModelSourceSummary: Codable, Sendable {
@@ -199,6 +261,8 @@ actor MetadataClient {
         let responseParserKind: String?
         let continuationKind: String?
         let continuationVariant: String?
+        /// How instructions are handled when continuing with previous_id (resend | omit); when omitted or any other value, the full plan is sent.
+        var continuationInstructionsMode: String? = nil
         let maxToolLoops: Int?
         let formula: CapabilityRecipeFormula?
         let fallbackPolicy: String?
@@ -360,6 +424,8 @@ actor MetadataClient {
         var pdfNativeDefault: Bool = false
         /// Per-model file extraction limit overrides from the catalog; nil means the client default limits.
         var attachmentExtraction: AttachmentExtractionLimits? = nil
+        /// pricing.longContext is carried through as is; the surcharge line T = longContext.thresholdTokens (not written into AIModel).
+        var longContext: LongContextPricing? = nil
     }
 
     struct AttachmentSupport: Codable, Sendable, Equatable {
@@ -504,14 +570,17 @@ actor MetadataClient {
     }
 
     fileprivate struct RawRuntimeConfig: Codable, Sendable {
+        let featureFlags: [String: Bool]?
         let selfHealPatterns: [SelfHealPatternDefinition]?
 
         private enum CodingKeys: String, CodingKey {
+            case featureFlags
             case selfHealPatterns
         }
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
+            featureFlags = try? container.decode([String: Bool].self, forKey: .featureFlags)
             selfHealPatterns = try? container.decode(
                 [SelfHealPatternDefinition].self,
                 forKey: .selfHealPatterns
@@ -1440,7 +1509,13 @@ actor MetadataClient {
         modelID: String,
         providerKind: ProviderKind
     ) -> ResolvedModelMetadata? {
-        Self.withSharedState { snapshot, etag in
+#if DEBUG
+        // Screenshot-only: when the context page family has pinned a fixture catalog, providers present in the fixture are resolved only from the fixture (see ContextShots).
+        if let pinned = Self.shotsCatalogLock.withLock({ $0 }), Self.providerData(for: providerKind, in: pinned) != nil {
+            return Self.resolveCatalogModel(in: pinned, modelID: modelID, providerKind: providerKind)
+        }
+#endif
+        return Self.withSharedState { snapshot, etag in
             Self.resolveCatalogModel(
                 in: snapshot, modelID: modelID, providerKind: providerKind, metadataRevision: etag
             )
@@ -1896,6 +1971,12 @@ actor MetadataClient {
         McpRuntimeConfig(json: Self.withSharedSnapshot { $0?.mcpRuntimeConfig }?.mcpJSONValue)
     }
 
+    /// Reads one switch from `/api/metadata.runtimeConfig.featureFlags`.
+    /// A missing key (an old server, or nothing delivered) falls back to `defaultValue`, which the caller picks as the safe default.
+    nonisolated func syncFeatureFlag(_ key: String, defaultValue: Bool) -> Bool {
+        Self.withSharedSnapshot { $0?.runtimeConfig?.featureFlags?[key] } ?? defaultValue
+    }
+
     nonisolated func syncRelayRuntimeConfig() -> RelayRuntimeConfig {
         Self.withSharedSnapshot { snapshot -> RelayRuntimeConfig in
             guard let remote = snapshot?.relayRuntimeConfig else {
@@ -2089,6 +2170,38 @@ actor MetadataClient {
         }
     }
 
+#if DEBUG
+    /// DEBUG only: how many times `resolveCatalogModel` actually recomputed a
+    /// `ResolvedModelMetadata`. Used by the catalog list cost measurement to size the
+    /// per-row constant factor. Not compiled into release builds.
+    private static let debugResolveCatalogModelCountLock = OSAllocatedUnfairLock<Int>(initialState: 0)
+
+    nonisolated static var debugResolveCatalogModelCount: Int {
+        get { debugResolveCatalogModelCountLock.withLock { $0 } }
+        set { debugResolveCatalogModelCountLock.withLock { $0 = newValue } }
+    }
+
+    /// Screenshot-only: the fixture catalog of the context page family (/api/metadata shape, decoded by the production decoder); nil = not pinned.
+    private static let shotsCatalogLock = OSAllocatedUnfairLock<MetadataResponse?>(initialState: nil)
+
+    /// Screenshot-only: decode the /api/metadata payload assembled from the fixture with the production decoder and pin it as the data source of `resolveCatalogModel`
+    /// (it only takes over providers that appear in the payload); pass nil to unpin.
+    nonisolated static func pinCatalogForShots(_ payload: Data?) throws {
+        let decoded = try payload.map { try JSONDecoder().decode(MetadataResponse.self, from: $0) }
+        shotsCatalogLock.withLock { $0 = decoded }
+    }
+
+    /// Screenshot-test-only: the same payload goes through production decoding and resolution directly without pinning, leaving the shared snapshot untouched.
+    nonisolated static func resolveShotsCatalogModel(
+        _ payload: Data,
+        modelID: String,
+        providerKind: ProviderKind
+    ) throws -> ResolvedModelMetadata? {
+        let decoded = try JSONDecoder().decode(MetadataResponse.self, from: payload)
+        return resolveCatalogModel(in: decoded, modelID: modelID, providerKind: providerKind)
+    }
+#endif
+
     nonisolated private static func resolveCatalogModel(
         in table: MetadataResponse?,
         modelID: String,
@@ -2197,7 +2310,8 @@ actor MetadataClient {
             capabilityEvidenceViewMalformed: evidence.malformed,
             nativeFileMimes: (model.nativeFileMimes ?? []).map { $0.lowercased() },
             pdfNativeDefault: model.pdfNativeDefault ?? false,
-            attachmentExtraction: model.attachmentExtraction
+            attachmentExtraction: model.attachmentExtraction,
+            longContext: pricing?.longContext
         )
     }
 

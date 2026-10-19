@@ -1,4 +1,5 @@
 import Foundation
+import OriveoProviderKit
 
 final class GeminiService: BaseAPIService, ProviderServiceProtocol {
     private let baseURL = "https://generativelanguage.googleapis.com/v1beta"
@@ -25,7 +26,8 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         systemPrompt: String = "",
         safeCustomBodyFragments: [SafeCustomBodyFragment] = [],
         additionalRequestBody: AdditionalRequestBodyPayload? = nil,
-        capabilityEvidenceModel: AIModel? = nil
+        capabilityEvidenceModel: AIModel? = nil,
+        dynamicText: String? = nil
     ) throws -> URLRequest {
         guard recipe.executionKind == "endpoint_route",
               recipe.providerKind == "gemini",
@@ -39,7 +41,8 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             reasoningRecipe: reasoningRecipe, reasoningIntent: reasoningIntent,
             reasoningAvailableIntents: reasoningAvailableIntents,
             systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments,
-            additionalRequestBody: additionalRequestBody, capabilityEvidenceModel: capabilityEvidenceModel
+            additionalRequestBody: additionalRequestBody, capabilityEvidenceModel: capabilityEvidenceModel,
+            dynamicText: dynamicText
         )
     }
 
@@ -87,7 +90,8 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                 reasoningMode: reasoningMode, systemPrompt: requestOptions.systemPrompt,
                 safeCustomBodyFragments: requestOptions.localSafeCustomBodyFragments,
                 additionalRequestBody: requestOptions.localAdditionalRequestBody,
-                capabilityEvidenceModel: requestOptions.capabilityEvidenceModel
+                capabilityEvidenceModel: requestOptions.capabilityEvidenceModel,
+                dynamicText: requestOptions.dynamicText
             )
         }
 
@@ -257,6 +261,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                             safeCustomBodyFragments: requestOptions.localSafeCustomBodyFragments,
                             additionalRequestBody: requestOptions.localAdditionalRequestBody,
                             capabilityEvidenceModel: requestOptions.capabilityEvidenceModel,
+                            dynamicText: requestOptions.dynamicText,
                             continuation: continuation
                         )
                         continuation.finish()
@@ -297,6 +302,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                     )
                     var gemCtx = StreamContext()
                     var gemLastCitationsCount = 0
+                    var finishTracker = StreamFinishTracker(family: .gemini)
 
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
@@ -315,6 +321,12 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                         }
                         latestReplayBlocks = Self.geminiReplayBlocks(from: jsonData) ?? latestReplayBlocks
 
+                        finishTracker.observeFrame(jsonData)
+                        // A blocked finishReason / promptFeedback.blockReason throws on the next line: hand out the finish first.
+                        if Self.isBlockedFinishChunk(chunk) || Self.isBlockedPromptChunk(chunk) {
+                            continuation.yield(.finish(finishTracker.finish()))
+                        }
+                        // A blocked termination must throw so the error card is shown; the partial text already emitted is kept by the upper Failed path
                         try Self.throwIfBlockedChunk(chunk)
 
                         if let usage = chunk.usageMetadata {
@@ -368,7 +380,8 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
-                        costSource: source
+                        costSource: source,
+                        finish: finishTracker.finish()
                     )
                     continuation.yield(.done(result))
                     continuation.finish()
@@ -455,6 +468,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                     var relayCtx = StreamContext()
                     var relayLastCitationsCount = 0
                     var bodyStartChecked = false
+                    var finishTracker = StreamFinishTracker(family: .gemini)
 
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
@@ -474,6 +488,12 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                             continue
                         }
 
+                        finishTracker.observeFrame(jsonData)
+                        // A blocked finishReason / promptFeedback.blockReason throws on the next line: hand out the finish first.
+                        if Self.isBlockedFinishChunk(chunk) || Self.isBlockedPromptChunk(chunk) {
+                            continuation.yield(.finish(finishTracker.finish()))
+                        }
+                        // A blocked termination must throw so the error card is shown; the partial text already emitted is kept by the upper Failed path
                         try Self.throwIfBlockedChunk(chunk)
 
                         if let usage = chunk.usageMetadata {
@@ -515,7 +535,8 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
-                        costSource: source
+                        costSource: source,
+                        finish: finishTracker.finish()
                     )
                     continuation.yield(.done(result))
                     continuation.finish()
@@ -553,7 +574,8 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         systemPrompt: String = "",
         safeCustomBodyFragments: [SafeCustomBodyFragment] = [],
         additionalRequestBody: AdditionalRequestBodyPayload? = nil,
-        capabilityEvidenceModel: AIModel? = nil
+        capabilityEvidenceModel: AIModel? = nil,
+        dynamicText: String? = nil
     ) throws -> URLRequest {
         try validateAPIKey(apiKey)
         guard route.protocolName == "gemini_interactions",
@@ -589,7 +611,8 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             // An assistant turn whose body is empty after trimming (failed or interrupted before any text was written) does not replay an empty model_output; the user turns before and after it each become their own step.
             "input": try AttachmentDelivery.mapTurns(
                 messages.filter { $0.role == .user || !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty },
-                isChatSend: capabilityEvidenceModel != nil
+                isChatSend: capabilityEvidenceModel != nil,
+                dynamicText: dynamicText
             ) { message, isOutgoingTurn in
                 // The assistant replays only the body text, never thoughts or signatures.
                 guard message.role == .user else {
@@ -711,7 +734,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         modelID: String, messages: [ChatMessage], apiKey: String, stream: Bool,
         recipe: MetadataClient.CapabilityRecipe, reasoningMode: ReasoningMode, systemPrompt: String,
         safeCustomBodyFragments: [SafeCustomBodyFragment], additionalRequestBody: AdditionalRequestBodyPayload?,
-        capabilityEvidenceModel: AIModel?
+        capabilityEvidenceModel: AIModel?, dynamicText: String?
     ) throws -> URLRequest {
         let reasoning = Self.interactionsReasoning(modelID: modelID, reasoningMode: reasoningMode)
         return try buildInteractionsRequest(
@@ -719,7 +742,8 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             reasoningRecipe: reasoning?.recipe, reasoningIntent: reasoning?.intent,
             reasoningAvailableIntents: reasoning?.intents,
             systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments,
-            additionalRequestBody: additionalRequestBody, capabilityEvidenceModel: capabilityEvidenceModel
+            additionalRequestBody: additionalRequestBody, capabilityEvidenceModel: capabilityEvidenceModel,
+            dynamicText: dynamicText
         )
     }
 
@@ -727,12 +751,13 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         apiKey: String, modelID: String, messages: [ChatMessage], stream: Bool,
         recipe: MetadataClient.CapabilityRecipe, reasoningMode: ReasoningMode, systemPrompt: String,
         safeCustomBodyFragments: [SafeCustomBodyFragment], additionalRequestBody: AdditionalRequestBodyPayload?,
-        capabilityEvidenceModel: AIModel?
+        capabilityEvidenceModel: AIModel?, dynamicText: String?
     ) async throws -> ProviderChatResult {
         let request = try buildProductionInteractionsRequest(
             modelID: modelID, messages: messages, apiKey: apiKey, stream: stream, recipe: recipe,
             reasoningMode: reasoningMode, systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments,
-            additionalRequestBody: additionalRequestBody, capabilityEvidenceModel: capabilityEvidenceModel
+            additionalRequestBody: additionalRequestBody, capabilityEvidenceModel: capabilityEvidenceModel,
+            dynamicText: dynamicText
         )
         // This route uses the session directly, bypassing BaseAPIService's send wrapper, so it records the requested fact itself.
         CapabilityExecutionRuntime.confirmRequestDispatched()
@@ -767,13 +792,14 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         apiKey: String, modelID: String, messages: [ChatMessage], recipe: MetadataClient.CapabilityRecipe,
         reasoningMode: ReasoningMode, systemPrompt: String, safeCustomBodyFragments: [SafeCustomBodyFragment],
         additionalRequestBody: AdditionalRequestBodyPayload?,
-        capabilityEvidenceModel: AIModel?,
+        capabilityEvidenceModel: AIModel?, dynamicText: String?,
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
     ) async throws {
         let request = try buildProductionInteractionsRequest(
             modelID: modelID, messages: messages, apiKey: apiKey, stream: true, recipe: recipe,
             reasoningMode: reasoningMode, systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments,
-            additionalRequestBody: additionalRequestBody, capabilityEvidenceModel: capabilityEvidenceModel
+            additionalRequestBody: additionalRequestBody, capabilityEvidenceModel: capabilityEvidenceModel,
+            dynamicText: dynamicText
         )
         // Same as above: this route confirms the dispatch itself because it uses the session directly.
         CapabilityExecutionRuntime.confirmRequestDispatched()
@@ -786,13 +812,9 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             throw mapHTTPError(statusCode: http.statusCode, data: data)
         }
         var parser = InteractionsStreamParser(redacting: [apiKey])
-        for try await line in bytes.utf8Lines {
-            // A user cancellation goes through ChatManager's existing cancel wrap-up and does not go through the terminal-state judgment.
-            guard !Task.isCancelled else { return }
-            for event in try parser.consume(line: line) { continuation.yield(event) }
-        }
-        guard !Task.isCancelled else { return }
-        try parser.finish()
+        guard let finish = try await Self.pumpInteractions(
+            lines: bytes.utf8Lines, parser: &parser, continuation: continuation
+        ) else { return }
         let breakdown = parser.usage?.breakdown ?? UsageBreakdown()
         let (cost, source) = await MetadataClient.shared.calcCost(
             breakdown: breakdown, modelID: modelID, providerKind: .gemini
@@ -800,8 +822,40 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         continuation.yield(.done(ProviderChatResult(
             text: parser.text.trimmingCharacters(in: .whitespacesAndNewlines),
             promptTokens: breakdown.totalInputTokens, completionTokens: breakdown.completionTokens,
-            estimatedCost: cost, usageBreakdown: breakdown, costSource: source
+            estimatedCost: cost, usageBreakdown: breakdown, costSource: source,
+            // Reaching here means an interaction terminal state was seen (otherwise finish() has already thrown for the cut stream).
+            finish: finish
         )))
+    }
+
+    /// Feed the Interactions parser line by line and hand out the finish (family gemini_interactions, finishRaw = terminal status).
+    /// failed / requires_action / cancelled still throw from the parser as before, and (clean, status) is handed out before throwing;
+    /// a stream cut without a terminal state hands out an eof-type finish first and then throws. Returns the finish that done carries on a normal ending; returns nil when the user cancels.
+    static func pumpInteractions<Lines: AsyncSequence>(
+        lines: Lines, parser: inout InteractionsStreamParser,
+        continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
+    ) async throws -> StreamFinish? where Lines.Element == String {
+        var finishTracker = StreamFinishTracker(family: .geminiInteractions)
+        for try await line in lines {
+            // A user cancellation goes through the existing cancel wrap-up in ChatManager and skips the terminal-state judgment.
+            guard !Task.isCancelled else { return nil }
+            if let data = BaseAPIService.sseDataPayload(line) { finishTracker.observeFrame(data) }
+            let events: [StreamEvent]
+            do {
+                events = try parser.consume(line: line)
+            } catch {
+                // Terminal states failed / requires_action / cancelled throw here: hand out the finish first (the error frame does not carry one).
+                if finishTracker.sawMarker { continuation.yield(.finish(finishTracker.finish())) }
+                throw error
+            }
+            for event in events { continuation.yield(event) }
+        }
+        guard !Task.isCancelled else { return nil }
+        let finish = finishTracker.finish()
+        // The stream was cut without an interaction terminal state: parser.finish() will throw, so hand out an eof-type finish first.
+        if !finishTracker.sawMarker { continuation.yield(.finish(finish)) }
+        try parser.finish()
+        return finish
     }
 
     /// The three totals of `interaction.usage` (official Interactions API reference).
@@ -842,6 +896,8 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         private(set) var usage: InteractionsUsage?
         private var citations = CitationAccumulator()
         private var completed = false
+        /// The raw Interaction terminal state received (completed / incomplete), used as the finishRaw of StreamFinish.
+        private(set) var terminalStatus: String?
         private let credentials: [String]
 
         init(redacting credentials: [String] = [], receivedText: String = "") {
@@ -878,9 +934,11 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
 
         /// The terminal state of an Interaction resource (shared by streaming interaction.completed and the non-streaming root object).
         mutating func consumeInteraction(_ interaction: [String: Any]) throws {
-            switch interaction["status"] as? String {
+            let status = interaction["status"] as? String
+            switch status {
             case "completed", "incomplete":
                 completed = true
+                terminalStatus = status
                 usage = InteractionsUsage(interaction["usage"])
             case "failed":
                 throw streamError(code: "interaction_failed", message: nil)
@@ -1032,6 +1090,31 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         "SAFETY", "RECITATION", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII",
     ]
 
+    /// Gemini reports content blocking in fields inside an HTTP 200 stream rather than as an HTTP error:
+    ///   - top-level `error`: an error in the middle of the stream (quota exhausted midway, etc.); the protocol cuts the stream right after it is sent;
+    ///   - `promptFeedback.blockReason`: the prompt is rejected as a whole, usually with no candidates and zero output throughout;
+    ///   - `candidates[].finishReason ∈ blockedFinishReasons`: generation is cut off midway by the content policy.
+    /// If none of them throws, the user only sees an empty response or a truncated reply with no error card or retry entry (while still being billed).
+    /// The type is upstream(200): the stream already returned 2xx and no finer HTTP status is available, consistent with Android Upstream(200).
+    /// Keeping the partial text already emitted in the upper Failed path is expected.
+    /// This frame throws because of a blocked finishReason (frames where a top-level error / blockReason throws first do not count).
+    private static func isBlockedFinishChunk(_ chunk: GeminiGenerateContentResponse) -> Bool {
+        let errorMessage = chunk.error?.message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let errorStatus = chunk.error?.status?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let blockReason = chunk.promptFeedback?.blockReason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard errorMessage.isEmpty, errorStatus.isEmpty, blockReason.isEmpty,
+              let finishReason = chunk.candidates?.first?.finishReason else { return false }
+        return blockedFinishReasons.contains(finishReason)
+    }
+
+    /// This frame throws because of promptFeedback.blockReason (frames where a top-level error throws first do not count).
+    private static func isBlockedPromptChunk(_ chunk: GeminiGenerateContentResponse) -> Bool {
+        let errorMessage = chunk.error?.message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let errorStatus = chunk.error?.status?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let blockReason = chunk.promptFeedback?.blockReason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return errorMessage.isEmpty && errorStatus.isEmpty && !blockReason.isEmpty
+    }
+
     private static func throwIfBlockedChunk(_ chunk: GeminiGenerateContentResponse) throws {
         if let error = chunk.error {
             let message = error.message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -1079,6 +1162,8 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         let detail = decodeErrorMessage(from: data, request: request)
             ?? HTTPURLResponse.localizedString(forStatusCode: statusCode)
         if statusCode == 400, detail.lowercased().contains("api key") {
+            // Early return skips the base class: record the status and body here (overflow recognition reads it).
+            ChatFailureDiagnostics.recordHTTPFailure(statusCode: statusCode, body: data)
             return .invalidAPIKey(detail: detail)
         }
         return super.mapHTTPError(
@@ -1137,7 +1222,9 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             requestedReasoningMode: supportsImageGen ? reasoningMode : recipeLegacyInput.reasoningMode,
             webSearchEnabled: supportsImageGen ? webSearchEnabled : recipeLegacyInput.webSearchEnabled
         )
-        let contents = try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildContent($0, transport: .geminiGenerateContent, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) }
+        let contents = try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildContent($0, transport: .geminiGenerateContent, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) }
+        // Only image models send responseModalities (TEXT+IMAGE, with the same value as a fallback in the imageGen profile below);
+        // non-image models do not send it and are driven by the metadata profile (aligned with web: text models carry no responseModalities).
         let modalities: [String]? = supportsImageGen ? ["TEXT", "IMAGE"] : nil
         let config = GeminiGenerateContentRequest.GenerationConfig(
             responseModalities: modalities,
@@ -1207,6 +1294,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         ) {
             ProfileParamsResolver.deepMerge(&body, reasoningMerge)
         }
+        try ClientToolsInjector.apply(to: &body, protocol: .geminiGenerate, options: requestOptions)
         ProfileParamsResolver.applyTemperatureGate(to: &body, resolved: resolved)
         ProfileParamsResolver.applyGenerationParameters(
             to: &body,
@@ -1322,7 +1410,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             webSearchEnabled: requestOptions.officialForeignRoute && webSearchEnabled,
             keepImageAttachments: keepImageAttachments
         )
-        let contents = try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildContent($0, transport: .relayGeminiGenerateContent, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) }
+        let contents = try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildContent($0, transport: .relayGeminiGenerateContent, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) }
         let modalities = supportsImageGen ? ["TEXT", "IMAGE"] : ["TEXT"]
         let shouldDropThinkingConfig = droppedParams.contains("thinking_config")
         let thinkingBudget = shouldDropThinkingConfig
@@ -1358,6 +1446,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         if let functionTools {
             body["tools"] = functionTools
         }
+        try ClientToolsInjector.apply(to: &body, protocol: .geminiGenerate, options: requestOptions)
         ProfileParamsResolver.applyGenerationParameters(
             to: &body,
             options: requestOptions,
@@ -1366,6 +1455,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         )
         // Relay web fragment: applied after the builder's output and before the additional request body.
         RelayWebFragments.apply(requestOptions.relayWebFragments, transport: .geminiGenerateContent, to: &body)
+        ClientToolsInjector.moveHostMemoryToolsLast(in: &body)
         try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
@@ -1759,4 +1849,20 @@ extension GeminiService {
         return parseUsage(usage)
     }
     #endif
+}
+
+// MARK: - Protocol entry with request options: a one-line forward to the options overload this service already has
+
+extension GeminiService {
+    func sendMessage(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(apiKey: apiKey, modelID: modelID, messages: messages, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessageStream(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
 }

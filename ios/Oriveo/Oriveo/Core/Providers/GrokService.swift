@@ -1,4 +1,5 @@
 import Foundation
+import OriveoProviderKit
 
 final class GrokService: BaseAPIService, ProviderServiceProtocol {
     private let baseURL = "https://api.x.ai/v1"
@@ -273,8 +274,10 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
                     var frameLog = GrokSSEFrameLog(
                         lane: requestOptions.grokSubscription == nil ? "key" : "subscription"
                     )
+                    var finishTracker = StreamFinishTracker(family: .openaiChat)
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
+                        finishTracker.observeSSELine(line)
                         guard line.hasPrefix("data: ") else { continue }
                         let payload = String(line.dropFirst(6))
                         if payload == "[DONE]" {
@@ -328,7 +331,8 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
-                        costSource: source
+                        costSource: source,
+                        finish: finishTracker.finish()
                     )))
                     continuation.finish()
                 } catch {
@@ -356,16 +360,44 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
         request.httpMethod = "POST"
         request.timeoutInterval = stream ? 120 : 60
         applyGrokHeaders(to: &request, apiKey: apiKey, subscription: requestOptions.grokSubscription)
+        let continuationDecision = Self.responsesPreviousIDRecipe(
+            modelID: modelID, reasoningMode: reasoningMode, webSearchEnabled: webSearchEnabled
+        ).map { recipe in
+            RecipeContinuationRuntime.continuationDecision(
+                explicitMessageID: requestOptions.localExplicitContinuationMessageID,
+                statefulLegText: requestOptions.statefulLegText,
+                instructionsMode: recipe.instructionsMode,
+                fingerprintMatches: requestOptions.continuationFingerprintMatches
+            )
+        } ?? .fullPlan
+        var previousResponseID: String?
+        var sendInstructions = true
+        if case let .stateful(id, resend) = continuationDecision {
+            previousResponseID = id
+            sendInstructions = resend
+        }
+        // Stateful: the provider already holds the earlier legs, send only the current user turn.
+        // Full plan keeps the whole input.
+        let requestMessagesInput: [ChatMessage]
+        if previousResponseID != nil,
+           var continuationUser = messages.last(where: { $0.role == .user }) {
+            if let legText = requestOptions.statefulLegText { continuationUser.text = legText }
+            requestMessagesInput = [continuationUser]
+        } else {
+            requestMessagesInput = messages
+        }
         let capabilityIntent = CapabilityEvidenceProductionAdapter.finalChatIntent(
-            messages: messages, request: request, effectiveTransport: resolved?.transport ?? "",
+            messages: requestMessagesInput, request: request, effectiveTransport: resolved?.transport ?? "",
             model: requestOptions.capabilityEvidenceModel,
             requestedReasoningMode: reasoningMode, webSearchEnabled: webSearchEnabled
         )
 
-        let systemPrompt = requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Grok rejects `instructions` together with `previous_response_id` (mode omit).
+        let systemPrompt = sendInstructions
+            ? requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines) : ""
         let payload = GrokResponsesRequest(
             model: modelID,
-            input: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildResponsesInputMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) },
+            input: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildResponsesInputMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) },
             instructions: systemPrompt.isEmpty ? nil : systemPrompt,
             stream: stream ? true : nil
         )
@@ -392,14 +424,8 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
             webSearchEnabled: webSearchEnabled, reasoningMode: reasoningMode,
             capabilityPreferences: requestOptions.capabilityPreferences
         )
-        if Self.responsesPreviousIDRecipe(
-            modelID: modelID, reasoningMode: reasoningMode, webSearchEnabled: webSearchEnabled
-        ) != nil {
-            body.merge(CapabilityRecipeExecution.openAIResponsesPreviousID(
-                RecipeContinuationRuntime.previousResponseID(
-                    explicitMessageID: requestOptions.localExplicitContinuationMessageID
-                )
-            )) { _, latest in latest }
+        if let previousResponseID {
+            body.merge(CapabilityRecipeExecution.openAIResponsesPreviousID(previousResponseID)) { _, latest in latest }
         }
         request.httpBody = try encodeChatBody(&body, options: requestOptions, resolved: resolved, finalRequest: request)
         return request
@@ -480,6 +506,8 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
         var currentEvent = ""
         var completedResponseID: String?
         var frameLog = GrokResponsesSSEFrameLog(lane: subscriptionLane == nil ? "key" : "subscription")
+        var finishTracker = StreamFinishTracker(family: .openaiResponses)
+        // Even when a cut stream throws, hand out the function_call proposals accumulated so far (no tool response may be silently dropped).
         defer {
             for ev in OpenAIResponsesStrategy.flushToolCalls(ctx: &ctx) { continuation.yield(ev) }
             frameLog.flushSummary()
@@ -512,7 +540,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
             for ev in strategy.parseStreamLine(strategyPayload, ctx: &ctx, shape: shape) {
                 switch ev {
                 case .toolCallDeltas, .activity: continuation.yield(ev)
-                case .delta, .reasoning, .imagePart, .citations, .done: break
+                case .delta, .reasoning, .imagePart, .citations, .finish, .done: break
                 }
             }
             let citations = ctx.citationsAccumulator.citations
@@ -525,6 +553,9 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
                 currentEvent = ""
                 continue
             }
+            finishTracker.observeFrame(data, eventType: eventType)
+            // response.failed throws in the switch below: hand out the finish first.
+            if finishTracker.finishRaw == "failed" { continuation.yield(.finish(finishTracker.finish())) }
             switch eventType {
             case "response.output_text.delta":
                 if let raw = try? decoder.decode(GrokResponsesStreamDelta.self, from: data).delta,
@@ -539,7 +570,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
                     accumulatedReasoning += delta
                     continuation.yield(.reasoning(delta))
                 }
-            case "response.completed":
+            case "response.completed", "response.incomplete":
                 let completed = try? decoder.decode(GrokResponsesStreamCompleted.self, from: data)
                 lastUsage = completed?.resolvedUsage
                 completedResponseID = completed?.resolvedID ?? completedResponseID
@@ -579,7 +610,8 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
             completionTokens: breakdown.completionTokens,
             estimatedCost: cost,
             usageBreakdown: breakdown,
-            costSource: source
+            costSource: source,
+            finish: finishTracker.finish()
         )))
     }
 
@@ -608,7 +640,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
         let model = requestOptions.capabilityEvidenceModel
         var body: [String: Any] = [
             "model": modelID,
-            "input": try AttachmentDelivery.mapTurns(messages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildSubscriptionResponsesInputItem($0, model: model, isOutgoingTurn: $1) },
+            "input": try AttachmentDelivery.mapTurns(messages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildSubscriptionResponsesInputItem($0, model: model, isOutgoingTurn: $1) },
             "store": false,
         ]
         if stream { body["stream"] = true }
@@ -854,7 +886,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
         if !systemPrompt.isEmpty {
             apiMessages.append(["role": "system", "content": systemPrompt])
         }
-        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
 
         var payload: [String: Any] = [
             "model": modelID,
@@ -1249,4 +1281,20 @@ extension GrokService {
         return parseUsage(usage)
     }
     #endif
+}
+
+// MARK: - Protocol entry with request options: a one-line forward to the options overload this service already has
+
+extension GrokService {
+    func sendMessage(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(apiKey: apiKey, modelID: modelID, messages: messages, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessageStream(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
 }

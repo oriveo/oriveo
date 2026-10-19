@@ -1,4 +1,5 @@
 import Foundation
+import OriveoProviderKit
 import SwiftUI
 
 
@@ -128,8 +129,15 @@ enum AppPreferencesStore {
         static let memoryAntiForgetText = "oriveo.preferences.memoryAntiForgetText"
         static let memoryUpdatedAt = "oriveo.preferences.memoryUpdatedAt"
         static let memoryHasSeen = "oriveo.preferences.memoryHasSeen"
+        static let memoryTextDigest = "oriveo.preferences.memoryTextDigest"
+        static let memoryItemsMigrated = "oriveo.preferences.memoryItemsMigrated"
+        static let memoryDeviceId = "oriveo.preferences.memoryDeviceId"
         static let pinnedConversationIDs = "oriveo.preferences.pinnedConversationIDs"
         static let pinnedConversationIDsUpdatedAt = "oriveo.preferences.pinnedConversationIDsUpdatedAt"
+        static let contextAISummaryEnabled = "oriveo.preferences.contextAISummaryEnabled"
+        static let contextDefaultCap = "oriveo.preferences.contextDefaultCap"
+        static let contextPriceLineReminderEnabled = "oriveo.preferences.contextPriceLineReminderEnabled"
+        static let memoryAutoSuggestEnabled = "oriveo.preferences.memoryAutoSuggestEnabled"
     }
 
     private static let lock = NSLock()
@@ -142,8 +150,13 @@ enum AppPreferencesStore {
         Key.memoryAntiForgetText,
         Key.memoryUpdatedAt,
         Key.memoryHasSeen,
+        Key.memoryTextDigest,
         Key.pinnedConversationIDs,
         Key.pinnedConversationIDsUpdatedAt,
+        Key.contextAISummaryEnabled,
+        Key.contextDefaultCap,
+        Key.contextPriceLineReminderEnabled,
+        Key.memoryAutoSuggestEnabled,
     ]
 
     private static func scopedKey(_ key: String, uid: String = AppSessionStore.activeUID) -> String {
@@ -165,7 +178,11 @@ enum AppPreferencesStore {
         return nil
     }
 
-    private static func accountBool(_ key: String, uid: String = AppSessionStore.activeUID) -> Bool {
+    private static func accountBool(
+        _ key: String,
+        uid: String = AppSessionStore.activeUID,
+        defaultValue: Bool = false
+    ) -> Bool {
         let defaults = UserDefaults.standard
         let scoped = scopedKey(key, uid: uid)
         if defaults.object(forKey: scoped) != nil {
@@ -174,7 +191,7 @@ enum AppPreferencesStore {
         if shouldFallbackToLegacyKey(for: uid), defaults.object(forKey: key) != nil {
             return defaults.bool(forKey: key)
         }
-        return false
+        return defaultValue
     }
 
     private static func accountDate(_ key: String, uid: String = AppSessionStore.activeUID) -> Date? {
@@ -245,6 +262,40 @@ enum AppPreferencesStore {
         set { UserDefaults.standard.set(newValue, forKey: scopedKey(Key.memoryHasSeen)) }
     }
 
+    static var savedMemoryTextDigest: String? {
+        get { accountString(Key.memoryTextDigest) }
+        set {
+            let scoped = scopedKey(Key.memoryTextDigest)
+            if let newValue {
+                UserDefaults.standard.set(newValue, forKey: scoped)
+            } else {
+                UserDefaults.standard.removeObject(forKey: scoped)
+            }
+        }
+    }
+
+    /// Whether the partition's legacy fields have been migrated into memory items. Stored locally only, and not copied along with guest data (each partition migrates on its own).
+    static func memoryItemsMigrated(uid: String) -> Bool {
+        UserDefaults.standard.bool(forKey: scopedKey(Key.memoryItemsMigrated, uid: uid))
+    }
+
+    static func setMemoryItemsMigrated(_ migrated: Bool, uid: String) {
+        UserDefaults.standard.set(migrated, forKey: scopedKey(Key.memoryItemsMigrated, uid: uid))
+    }
+
+    /// This device's memory item deviceId (a random lowercase UUID generated on first read); not partitioned.
+    static var memoryDeviceId: String {
+        lock.lock()
+        defer { lock.unlock() }
+        let defaults = UserDefaults.standard
+        if let existing = defaults.string(forKey: Key.memoryDeviceId), !existing.isEmpty {
+            return existing
+        }
+        let created = UUID().uuidString.lowercased()
+        defaults.set(created, forKey: Key.memoryDeviceId)
+        return created
+    }
+
     // MARK: - Pinned Conversations
 
     static var savedPinnedConversationIDs: [UUID] {
@@ -269,6 +320,37 @@ enum AppPreferencesStore {
         }
     }
 
+    // MARK: - Context compaction
+
+    /// Defaults to false (old data has no such key).
+    static var savedContextAISummaryEnabled: Bool {
+        get { accountBool(Key.contextAISummaryEnabled) }
+        set { UserDefaults.standard.set(newValue, forKey: scopedKey(Key.contextAISummaryEnabled)) }
+    }
+
+    /// Global default context cap, stored as storageText; missing or undecodable falls back to .auto.
+    static var savedContextDefaultCap: ContextBudgetCap {
+        get { accountString(Key.contextDefaultCap).flatMap(ContextBudgetCap.init(storageText:)) ?? .auto }
+        set { UserDefaults.standard.set(newValue.storageText, forKey: scopedKey(Key.contextDefaultCap)) }
+    }
+
+    /// Reminder when the price line is crossed; defaults to true (old data has no such key).
+    static var savedContextPriceLineReminderEnabled: Bool {
+        get { accountBool(Key.contextPriceLineReminderEnabled, defaultValue: true) }
+        set { UserDefaults.standard.set(newValue, forKey: scopedKey(Key.contextPriceLineReminderEnabled)) }
+    }
+
+    // MARK: - Memory auto-suggest
+
+    /// Memory auto-suggestion switch: a local preference scoped per partition, on by default; not included in backups (not part of AppPreference).
+    static func memoryAutoSuggestEnabled(uid: String = AppSessionStore.activeUID) -> Bool {
+        accountBool(Key.memoryAutoSuggestEnabled, uid: uid, defaultValue: true)
+    }
+
+    static func setMemoryAutoSuggestEnabled(_ enabled: Bool, uid: String = AppSessionStore.activeUID) {
+        UserDefaults.standard.set(enabled, forKey: scopedKey(Key.memoryAutoSuggestEnabled, uid: uid))
+    }
+
     // MARK: - Load / Save
 
     static func load() -> AppPreference {
@@ -281,8 +363,12 @@ enum AppPreferencesStore {
             memoryAntiForgetEnabled: savedMemoryAntiForgetEnabled,
             memoryAntiForgetText: savedMemoryAntiForgetText,
             memoryUpdatedAt: savedMemoryUpdatedAt,
+            memoryTextDigest: savedMemoryTextDigest,
             pinnedConversationIDs: savedPinnedConversationIDs,
-            pinnedConversationIDsUpdatedAt: savedPinnedConversationIDsUpdatedAt
+            pinnedConversationIDsUpdatedAt: savedPinnedConversationIDsUpdatedAt,
+            contextAISummaryEnabled: savedContextAISummaryEnabled,
+            contextDefaultCap: savedContextDefaultCap,
+            contextPriceLineReminderEnabled: savedContextPriceLineReminderEnabled
         )
     }
 
@@ -303,6 +389,7 @@ enum AppPreferencesStore {
         defaults.set(preference.memoryAntiForgetEnabled, forKey: scopedKey(Key.memoryAntiForgetEnabled))
         defaults.set(preference.memoryAntiForgetText, forKey: scopedKey(Key.memoryAntiForgetText))
         defaults.set(preference.memoryUpdatedAt, forKey: scopedKey(Key.memoryUpdatedAt))
+        savedMemoryTextDigest = preference.memoryTextDigest
         defaults.set(
             preference.pinnedConversationIDs.map { $0.uuidString },
             forKey: scopedKey(Key.pinnedConversationIDs)
@@ -313,6 +400,12 @@ enum AppPreferencesStore {
         } else {
             defaults.removeObject(forKey: pinnedTsKey)
         }
+        defaults.set(preference.contextAISummaryEnabled, forKey: scopedKey(Key.contextAISummaryEnabled))
+        defaults.set(preference.contextDefaultCap.storageText, forKey: scopedKey(Key.contextDefaultCap))
+        defaults.set(
+            preference.contextPriceLineReminderEnabled,
+            forKey: scopedKey(Key.contextPriceLineReminderEnabled)
+        )
         L10n.invalidateCache()
     }
 
@@ -333,6 +426,7 @@ enum AppPreferencesStore {
             defaults.removeObject(forKey: scopedKey(key, uid: uid))
             defaults.removeObject(forKey: key)
         }
+        defaults.removeObject(forKey: scopedKey(Key.memoryItemsMigrated, uid: uid))
     }
 }
 
@@ -434,11 +528,21 @@ enum L10n {
     /// Formats by the in-app language: `String.localizedStringWithFormat` picks plural forms from the
     /// system `Locale.current`, which selects the wrong form when the app language differs (e.g. ru 5 falls into other).
     static func format(_ format: String, _ arguments: CVarArg...) -> String {
-        String(format: format, locale: AppLocalization.currentLocale, arguments: arguments)
+        String(format: format, locale: formattingLocale(AppLocalization.currentLocale), arguments: arguments)
     }
 
     /// Same, with an explicit locale (for tests and known target languages).
     static func format(_ format: String, locale: Locale, _ arguments: CVarArg...) -> String {
-        String(format: format, locale: locale, arguments: arguments)
+        String(format: format, locale: formattingLocale(locale), arguments: arguments)
+    }
+
+    /// Counts in the Arabic UI always use Latin digits: since CLDR 46 ar defaults to latn, but the ICU of older systems
+    /// still produces Arabic-Indic digits, so it is pinned explicitly. Plural categories depend only on the language,
+    /// not on the numbering system. Other languages are returned unchanged.
+    static func formattingLocale(_ locale: Locale) -> Locale {
+        guard locale.language.languageCode?.identifier == "ar" else { return locale }
+        var components = Locale.Components(locale: locale)
+        components.numberingSystem = Locale.NumberingSystem("latn")
+        return Locale(components: components)
     }
 }

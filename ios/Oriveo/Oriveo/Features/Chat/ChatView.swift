@@ -168,6 +168,14 @@ private func makeHistoricalProviderFallback(
     )
 }
 
+/// A pending quote follows the conversation: it is cleared when the conversation id changes; a draft being promoted to a conversation on send (nil to id) is the same draft and is not cleared.
+nonisolated enum ChatPendingQuoteReset {
+    static func shouldClear(from oldID: UUID?, to newID: UUID?) -> Bool {
+        guard let oldID else { return false }
+        return oldID != newID
+    }
+}
+
 struct ChatView: View {
     let conversationID: UUID?
 
@@ -181,7 +189,21 @@ struct ChatView: View {
     /// (list, toolbar, capability strip). The live text and draft persistence live in
     /// ChatComposerBar; this only pushes on send-clear / fail-restore / edit-restore.
     @State private var composerTextPush = ChatComposerTextPush()
+    @State private var composerSendGate = ComposerSendGate()
     @State private var modelPickerPresentation: ModelPickerPresentationSnapshot?
+    @State private var compactionDetailPresentation: ContextCompactionDetailPresentation?
+    /// Usage summary for the ring; tagged with the conversation it was computed for.
+    @State private var contextUsage: (conversationID: UUID, summary: ContextUsageSummary)?
+    /// Bumped when the active conversation's checkpoint rows change, so the usage summary recomputes.
+    @State private var contextUsageCheckpointToken: UInt = 0
+    @State private var conversationSettingsPresentation: ConversationSettingsPresentation?
+    @State private var contextUsagePanelPresentation: ContextUsagePanelPresentation?
+    /// Usage row tapped in the settings sheet: open the panel once that sheet has dismissed.
+    @State private var pendingContextUsagePanelID: UUID?
+    /// Composer capability selection when the settings sheet opened; the panel reached from it reads the same B as send.
+    @State private var conversationSettingsCapabilitySelection = ChatCapabilitySelection()
+    /// In-flight precompaction; cancelled when the page disappears or the conversation switches.
+    @State private var precompactionTask: Task<Void, Never>?
     @State private var pendingModelSelection: ModelPickerSelection?
     @State private var reasoningMode: ReasoningMode = .automatic
     @State private var reasoningIntentSelection: String?
@@ -240,6 +262,48 @@ struct ChatView: View {
         let attachments: [Attachment]
         let quoteContext: QuoteContext?
         let capabilitySelection: ChatCapabilitySelection
+    }
+
+    /// Context precompaction (U4 item 10): on composer focus or first input. The chat manager
+    /// skips non-AI mode, Free, small contexts and conversations already compacting.
+    private func precompactConversationIfNeeded() {
+        guard let conversationID = projection.activeConversationID else { return }
+        let chatManager = appState.chatManager
+        precompactionTask?.cancel()
+        precompactionTask = Task { await chatManager.precompactIfNeeded(conversationId: conversationID) }
+    }
+
+    /// Summary for the active conversation only; nil for drafts and while a switched-to conversation loads.
+    private var activeContextUsage: ContextUsageSummary? {
+        guard let contextUsage, contextUsage.conversationID == projection.activeConversationID else { return nil }
+        return contextUsage.summary
+    }
+
+    /// Store reads run off the main actor inside `ContextUsageSummary.current`; drafts without an id read nothing.
+    private func refreshContextUsage() async {
+        guard let conversationID = projection.activeConversationID else {
+            contextUsage = nil
+            return
+        }
+        guard let next = await ContextUsageSummary.current(in: appState, conversationID: conversationID),
+              !Task.isCancelled, conversationID == projection.activeConversationID
+        else { return }
+        contextUsage = (conversationID, next)
+    }
+
+    /// Context panel entry from the composer ring. The composer's capability selection
+    /// goes along so the panel's cap rows resolve generation parameters like the send path.
+    private func openContextUsage(capabilitySelection: ChatCapabilitySelection) {
+        guard let conversationID = projection.activeConversationID else { return }
+        contextUsagePanelPresentation = ContextUsagePanelPresentation(
+            conversationID: conversationID,
+            capabilitySelection: capabilitySelection
+        )
+    }
+
+    private func cancelPrecompaction() {
+        precompactionTask?.cancel()
+        precompactionTask = nil
     }
 
     private var projection: ChatScreenProjection {
@@ -528,19 +592,46 @@ struct ChatView: View {
         }
         withAnimation { expensiveModelHint = nil }
         Task {
-            let sentConversationID = await appState.sendMessage(
-                text,
-                attachments: attachments,
-                quoteContext: quoteContext,
-                in: projection.activeConversationID,
-                generationParameterDraftSessionID: generationParameterDraftSessionID,
-                capabilitySelection: capabilitySelection
-            )
-            if sentConversationID == nil {
+            let outcome = await composerSendGate.send {
+                await appState.sendMessageOutcome(
+                    text,
+                    attachments: attachments,
+                    quoteContext: quoteContext,
+                    in: projection.activeConversationID,
+                    generationParameterDraftSessionID: generationParameterDraftSessionID,
+                    capabilitySelection: capabilitySelection
+                )
+            }
+            switch outcome {
+            case .blockedWhileSending:
+                // A send is already in flight (hardware Return and the send button in the same frame; a new conversation is judged the same way): the content went out with that one, so do not refill.
+                break
+            case .refused:
                 composerTextPush.push(text)
                 pendingAttachments = attachments
                 pendingQuoteContext = quoteContext
+            case .sent:
+                break
             }
+        }
+    }
+
+    /// A send cancelled at the confirmation gate comes back to this conversation's composer, only when
+    /// the composer is empty (otherwise the rolled-back payload is dropped).
+    private func restoreComposerAfterContextCapRollback(_ rollback: ContextCapSendRollback) {
+        guard rollback.conversationID == (projection.activeConversationID ?? conversationID) else { return }
+        let current = navigation.chatHandoff.liveComposerText() ?? composerTextPush.text
+        guard let restored = ContextCapComposerRestore.restoration(
+            for: rollback,
+            composerText: current,
+            composerAttachments: pendingAttachments
+        ) else { return }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            composerTextPush.push(restored.text)
+            pendingAttachments = restored.attachments
+            pendingQuoteContext = restored.quoteContext
         }
     }
 
@@ -809,6 +900,58 @@ struct ChatView: View {
                 .presentationDragIndicator(.visible)
                 .environment(appState)
         }
+        .sheet(item: $compactionDetailPresentation) { presentation in
+            ContextCompactionDetailSheet(detail: presentation.detail, conversationID: presentation.conversationID)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .environment(appState)
+        }
+        .sheet(item: $conversationSettingsPresentation, onDismiss: {
+            guard let conversationID = pendingContextUsagePanelID else { return }
+            pendingContextUsagePanelID = nil
+            contextUsagePanelPresentation = ContextUsagePanelPresentation(
+                conversationID: conversationID,
+                capabilitySelection: conversationSettingsCapabilitySelection
+            )
+        }) { presentation in
+            ConversationSettingsSheet(
+                presentation: presentation,
+                usageValue: ContextUsagePanel.settingsUsageValue(
+                    contextUsage?.conversationID == presentation.conversationID ? contextUsage?.summary : nil
+                ),
+                onOpenUsage: presentation.conversationID.map { conversationID in
+                    {
+                        pendingContextUsagePanelID = conversationID
+                        conversationSettingsPresentation = nil
+                    }
+                }
+            )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .environment(appState)
+        }
+        .sheet(item: $contextUsagePanelPresentation) { presentation in
+            let summary = contextUsage?.conversationID == presentation.conversationID
+                ? contextUsage?.summary ?? .empty
+                : .empty
+            ContextUsagePanelSheet(
+                conversationID: presentation.conversationID,
+                summary: summary,
+                isSending: projection.isSendingMessage,
+                capRows: ContextCapPresentation.panelSource(
+                    in: appState,
+                    conversationID: presentation.conversationID,
+                    capabilitySelection: presentation.capabilitySelection
+                )
+                    .map { ContextUsagePanel.CapRows(source: $0, used: summary.used ?? 0) },
+                onCapChange: { cap in
+                    appState.conversationManager.setContextCap(id: presentation.conversationID, cap: cap)
+                }
+            )
+                .contextUsagePanelDetents()
+                .presentationDragIndicator(.visible)
+                .environment(appState)
+        }
         .sheet(item: $disclosureProvider) { kind in
             ProviderDisclosureSheet(
                 provider: kind,
@@ -846,6 +989,10 @@ struct ChatView: View {
         }
         .task(id: mcpPanelReloadKey) { reloadMcpPanelState() }
         .mcpReauthorizationInlineHost(conversationID: projection.activeConversationID ?? conversationID)
+        .contextCapConfirmPresenter(conversationID: projection.activeConversationID ?? conversationID)
+        .onReceive(appState.chatManager.contextCapRollbacks) { rollback in
+            restoreComposerAfterContextCapRollback(rollback)
+        }
         .alert(
             L10n.tr("Add an API Key"),
             isPresented: $showsMissingProviderKeyPrompt
@@ -860,9 +1007,71 @@ struct ChatView: View {
         } message: {
             Text(L10n.tr("Add a provider API key to send messages."))
         }
+        .onAppear {
+            #if DEBUG
+            // Screenshots only: the upper layers of the context page family are opened through their own production entry (ContextShots.open).
+            if let overlay = ContextShots.takeOverlay(conversationID: conversationID), let conversationID {
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 600_000_000)
+                    switch overlay {
+                    case .detail:
+                        presentCompactionDetail(conversationID: conversationID)
+                    case .panel, .picker:
+                        openContextUsage(capabilitySelection: ChatCapabilitySelection())
+                    case .conversationSettings:
+                        conversationSettingsPresentation = ConversationSettingsPresentation(
+                            conversationID: conversationID,
+                            useMemory: projection.useMemory,
+                            focusEditor: false
+                        )
+                    case .confirm:
+                        break
+                    }
+                }
+            }
+            #endif
+        }
         .task(id: conversationID) {
             await bootstrapObservations(for: conversationID)
         }
+        // Recompute on conversation switch, message changes and checkpoint changes.
+        .task(id: ContextUsageRefreshKey(
+            conversationID: projection.activeConversationID,
+            messageRevision: projection.messageRevision,
+            checkpointToken: contextUsageCheckpointToken
+        )) {
+            await refreshContextUsage()
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .contextCheckpointsDidChange)
+                .receive(on: DispatchQueue.main)
+        ) { note in
+            guard ChatMessageList.isCheckpointChange(note, conversationID: projection.activeConversationID) else { return }
+            contextUsageCheckpointToken &+= 1
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .contextUsageInputsDidChange)
+                .receive(on: DispatchQueue.main)
+        ) { note in
+            guard ChatMessageList.isCheckpointChange(note, conversationID: projection.activeConversationID) else { return }
+            contextUsageCheckpointToken &+= 1
+        }
+        // When switching conversations on a wide screen ChatView is not rebuilt and @State is kept: a pending quote from the previous conversation must not carry into the new one.
+        .onChange(of: conversationID) { oldID, newID in
+            if oldID != newID {
+                cancelPrecompaction()
+                // Pending draft instructions belong to the draft being left.
+                appState.pendingDraftInstructions = ""
+            }
+            guard ChatPendingQuoteReset.shouldClear(from: oldID, to: newID) else { return }
+            pendingQuoteContext = nil
+            pendingQuoteAttachedAt = nil
+        }
+        // The skeleton must have an upper bound. When the time is up and loading/backfilling is still going, switch to an explicit stalled error state.
+        //
+        // The id must carry `historyRetryGeneration`: with only conversationID, `.task` does not rerun after the user taps Retry
+        // (the id did not change), so the watchdog is not re-armed. If the retried backfill hangs (an unresponsive connection
+        // never throws by itself), the user is back to a skeleton with no upper bound, which is exactly the state this invariant forbids.
         .task(id: WatchdogKey(
             conversationID: conversationID,
             generation: historyRetryGeneration
@@ -1073,7 +1282,15 @@ struct ChatView: View {
                     get: { modelPickerPresentation != nil },
                     set: { if $0 { presentModelPicker() } else { modelPickerPresentation = nil } }
                 ),
-                showDeleteConfirmation: $showDeleteConfirmation
+                showDeleteConfirmation: $showDeleteConfirmation,
+                onOpenSettings: { focusEditor in
+                    conversationSettingsCapabilitySelection = capabilitySelection
+                    conversationSettingsPresentation = ConversationSettingsPresentation(
+                        conversationID: projection.activeConversationID,
+                        useMemory: projection.useMemory,
+                        focusEditor: focusEditor
+                    )
+                }
             )
 
             if let noteID = appState.activeReturnToNoteID {
@@ -1159,6 +1376,9 @@ struct ChatView: View {
         .onChange(of: pendingQuoteContext) { oldValue, newValue in
             guard oldValue != newValue else { return }
             pendingQuoteAttachedAt = newValue == nil ? nil : Date()
+        }
+        .onChange(of: composerFocused) { _, focused in
+            if focused { precompactConversationIfNeeded() }
         }
         .onDisappear(perform: handleDisappear)
         // Menu bar commands: register the current conversation (its id changes once a draft is sent) and the last copyable reply with this window
@@ -1310,18 +1530,16 @@ struct ChatView: View {
                     )
                 },
                 onChooseModel: presentModelPicker,
-                // With the feature switched off in the catalog the entry is hidden; existing configuration
-                // is kept.
-                toolsChip: MetadataClient.shared.syncMcpRuntimeConfig().enabled
-                    ? ComposerToolsChipState(
-                        enabledServerCount: mcpPanelState.enabledServerCount,
-                        isAvailable: mcpPanelState.availability.isAvailable
-                    )
-                    : nil,
+                // The entry is hidden when the master switch is off or no server has been added; existing configuration is kept.
+                toolsChip: ComposerToolsChipState.resolve(
+                    featureEnabled: MetadataClient.shared.syncMcpRuntimeConfig().enabled,
+                    panelState: mcpPanelState
+                ),
                 onOpenTools: {
                     reloadMcpPanelState()
                     showsMcpToolPanel = true
                 },
+                onComposerTextStarted: precompactConversationIfNeeded,
                 onCancel: {
                     guard let conversationID = projection.activeConversationID else { return }
                     appState.cancelGeneration(in: conversationID)
@@ -1329,7 +1547,9 @@ struct ChatView: View {
                 onShowPhotoPicker: { showPhotoPicker = true },
                 onShowCamera: { showCamera = true },
                 onShowFileImporter: { showFileImporter = true },
-                modelControlsReopenToken: composerModelControlsReopenToken
+                modelControlsReopenToken: composerModelControlsReopenToken,
+                contextUsage: activeContextUsage,
+                onOpenContextUsage: { openContextUsage(capabilitySelection: capabilitySelection) }
             )
             .overlay {
                 if isDropTargeted {
@@ -1362,6 +1582,7 @@ struct ChatView: View {
             autoScrollEnabled: $autoScrollEnabled,
             onRestoreComposerText: restoreComposerText,
             onRestoreComposerAttachments: restoreComposerAttachments,
+            onOpenCompactionDetail: { presentCompactionDetail(conversationID: conversationID) },
             pendingQuoteContext: $pendingQuoteContext,
             showModelSwitcher: Binding(
                 get: { modelPickerPresentation != nil },
@@ -1661,6 +1882,7 @@ struct ChatView: View {
         // does not depend on the order relative to this.
         conversationObservation.stop()
         windowLoader.stop()
+        cancelPrecompaction()
         appState.activeReturnToNoteID = nil
         if let carrierHandoffToken {
             navigation.chatHandoff.unregister(carrierHandoffToken)
@@ -1748,6 +1970,17 @@ struct ChatView: View {
         applyImportedAttachments(attachments, source: "edit", announcesTruncation: false)
     }
 
+    /// Separator tap: resolve the latestValid row at tap time; no row means nothing to show.
+    private func presentCompactionDetail(conversationID: UUID?) {
+        guard let conversationID,
+              let detail = ContextCompactionDetail.current(in: appState, conversationID: conversationID)
+        else { return }
+        compactionDetailPresentation = ContextCompactionDetailPresentation(
+            conversationID: conversationID,
+            detail: detail
+        )
+    }
+
     private func handleAppear(currentModel: AIModel?) {
         // No draft push here: when returning to this page the observation was just stopped and the
         // projected draft is "", which would clear unsent text in the composer.
@@ -1758,6 +1991,10 @@ struct ChatView: View {
         if let prefill = appState.pendingComposerPrefill {
             appState.pendingComposerPrefill = nil
             composerTextPush.push(prefill)
+        }
+        // "New chat with summary" quote: attach once, never auto-send.
+        if let quote = appState.consumePendingComposerQuote() {
+            pendingQuoteContext = quote
         }
     }
 }
@@ -1783,4 +2020,11 @@ func evaluateExpensiveModelMultiplier(
 #Preview {
     ChatView(conversationID: AppState.preview.recentConversations.first!.id)
         .environment(AppState.preview)
+}
+
+/// `.task(id:)` key for the context usage summary.
+private struct ContextUsageRefreshKey: Hashable {
+    var conversationID: UUID?
+    var messageRevision: UInt
+    var checkpointToken: UInt
 }

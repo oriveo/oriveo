@@ -1,4 +1,5 @@
 import Foundation
+import OriveoProviderKit
 
 final class ZhipuService: BaseAPIService, ProviderServiceProtocol, CustomBaseURLProvider {
     /// Used only when the caller gave no base address; official request entry points pass the result of the endpoint-source resolver.
@@ -173,8 +174,10 @@ final class ZhipuService: BaseAPIService, ProviderServiceProtocol, CustomBaseURL
                     }
                     var zhipuLastCitationsCount = 0
 
+                    var finishTracker = StreamFinishTracker(family: .openaiChat)
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
+                        finishTracker.observeSSELine(line)
                         guard line.hasPrefix("data: ") else { continue }
                         let payload = String(line.dropFirst(6))
                         if payload == "[DONE]" { break }
@@ -223,7 +226,8 @@ final class ZhipuService: BaseAPIService, ProviderServiceProtocol, CustomBaseURL
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
-                        costSource: source
+                        costSource: source,
+                        finish: finishTracker.finish()
                     )
                     continuation.yield(.done(result))
                     continuation.finish()
@@ -266,7 +270,7 @@ final class ZhipuService: BaseAPIService, ProviderServiceProtocol, CustomBaseURL
         if !systemPrompt.isEmpty {
             apiMessages.append(["role": "system", "content": systemPrompt])
         }
-        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
 
         var payload: [String: Any] = [
             "model": modelID,
@@ -490,4 +494,32 @@ extension ZhipuService {
         return parseUsage(usage)
     }
     #endif
+}
+
+// MARK: - Protocol entry with request options: a one-line forward to the options overload this service already has
+
+extension ZhipuService {
+    func sendMessage(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: nil, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessageStream(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: nil, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessage(
+        apiKey: String, modelID: String, messages: [ChatMessage], baseURL: String, requestOptions: ChatRequestOptions
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: Optional(baseURL), reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessageStream(
+        apiKey: String, modelID: String, messages: [ChatMessage], baseURL: String, requestOptions: ChatRequestOptions
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: Optional(baseURL), reasoningMode: .automatic, requestOptions: requestOptions)
+    }
 }

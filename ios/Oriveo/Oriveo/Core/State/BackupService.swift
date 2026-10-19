@@ -1,4 +1,5 @@
 import Foundation
+import OriveoProviderKit
 import CryptoKit
 import ZIPFoundation
 import UniformTypeIdentifiers
@@ -194,8 +195,20 @@ enum BackupService {
         let backupNotes = notes.map { BackupNote(from: $0) }
         let backupNoteFolders = noteFolders.map { BackupNoteFolder(from: $0) }
 
+        // Memory items section (including tombstones); legacy fields such as memoryText are still written in preferences. A table read failure is only logged.
+        var memorySection: MemoryBackupSection?
+        do {
+            memorySection = try backupMemorySection(
+                store: imagePartitionUID.flatMap { MemoryItemStore.forPartition($0) }
+            )
+        } catch {
+            print("[BackupService] export memory items failed: \(error.localizedDescription)")
+        }
+        // Live memory items alone also count as exportable data (tombstones do not)
+        let hasLiveMemoryItems = memorySection?.memoryItems.contains { $0.status != .deleted } == true
+
         guard allowEmpty || !backupProviders.isEmpty || !backupConversations.isEmpty
-            || !backupSkills.isEmpty || !backupNotes.isEmpty else {
+            || !backupSkills.isEmpty || !backupNotes.isEmpty || hasLiveMemoryItems else {
             throw BackupError.noDataToExport
         }
 
@@ -209,6 +222,15 @@ enum BackupService {
         )
 
         let backupFolders = folders.isEmpty ? nil : folders.map { BackupFolder(from: $0) }
+        // Checkpoints are rebuildable derived data: a table read failure is only logged and does not fail the whole backup.
+        var backupContextCheckpoints: [BackupContextCheckpoint]?
+        do {
+            backupContextCheckpoints = try backupCheckpoints(
+                store: imagePartitionUID.flatMap { ContextCompactionStore.forPartition($0) }
+            )
+        } catch {
+            print("[BackupService] export checkpoints failed: \(error.localizedDescription)")
+        }
         let backupData = BackupData(
             providers: backupProviders,
             conversations: backupConversations,
@@ -217,7 +239,10 @@ enum BackupService {
             lastUsedModelRef: lastUsedModelRef,
             folders: backupFolders,
             notes: backupNotes.isEmpty ? nil : backupNotes,
-            noteFolders: backupNoteFolders.isEmpty ? nil : backupNoteFolders
+            noteFolders: backupNoteFolders.isEmpty ? nil : backupNoteFolders,
+            checkpoints: backupContextCheckpoints,
+            memorySchemaVersion: memorySection?.memorySchemaVersion,
+            memoryItems: memorySection?.memoryItems
         )
 
         let dataJSON = try CanonicalJSON.encode(backupData)
@@ -400,7 +425,10 @@ enum BackupService {
                     lastUsedModelRef: headerBackupFile.data.lastUsedModelRef,
                     folders: headerBackupFile.data.folders,
                     notes: headerBackupFile.data.notes,
-                    noteFolders: headerBackupFile.data.noteFolders
+                    noteFolders: headerBackupFile.data.noteFolders,
+                    checkpoints: headerBackupFile.data.checkpoints,
+                    memorySchemaVersion: headerBackupFile.data.memorySchemaVersion,
+                    memoryItems: headerBackupFile.data.memoryItems
                 )
                 let fullBackupFile = BackupFile(
                     version: headerBackupFile.version,
@@ -503,10 +531,34 @@ enum BackupService {
     }
 
 
-    nonisolated static func validateChecksum(_ backupFile: BackupFile) -> Bool {
-        guard let dataJSON = try? CanonicalJSON.encode(backupFile.data) else { return false }
-        let computed = CanonicalJSON.checksum(of: dataJSON)
-        return computed == backupFile.checksum
+    /// Verify the data checksum. First criterion: re-encode with this app's CanonicalJSON (sorted keys, nil omitted).
+    /// The checksum exported by Android / Web is computed over their own serialization (explicit null, insertion-order keys), so re-encoding cannot match;
+    /// when the first criterion fails and the raw file bytes are provided, the second criterion recomputes over the data bytes as they appear in the file (whitespace outside strings removed),
+    /// matching Android `storedDataMatchesChecksum`. The sharded manifest format has no data.json and only uses the first criterion.
+    nonisolated static func validateChecksum(_ backupFile: BackupFile, rawData: Data? = nil) -> Bool {
+        if let dataJSON = try? CanonicalJSON.encode(backupFile.data),
+           CanonicalJSON.checksum(of: dataJSON) == backupFile.checksum {
+            return true
+        }
+        guard let rawData else { return false }
+        return storedDataMatchesChecksum(rawData, expected: backupFile.checksum)
+    }
+
+    /// Second criterion: take the raw bytes of the top-level `data` of the file (data.json inside the ZIP, or plain JSON), compact them, and compute SHA-256.
+    nonisolated private static func storedDataMatchesChecksum(_ bytes: Data, expected: String) -> Bool {
+        guard !expected.isEmpty else { return false }
+        let jsonBytes: Data
+        if bytes.count >= 2, bytes[bytes.startIndex] == 0x50, bytes[bytes.startIndex + 1] == 0x4B {
+            guard let archive = Archive(data: bytes, accessMode: .read),
+                  let entry = archive["data.json"] else { return false }
+            var reader = BoundedArchiveReader(budget: ImportLimits.currentDevice.archiveBudget)
+            guard let data = try? boundedData(from: archive, entry: entry, reader: &reader) else { return false }
+            jsonBytes = data
+        } else {
+            jsonBytes = bytes
+        }
+        guard let raw = RawJSONScanner.topLevelValue(Array(jsonBytes), key: "data") else { return false }
+        return CanonicalJSON.checksum(of: Data(RawJSONScanner.compact(raw))) == expected
     }
 
     nonisolated static func validateAttachmentChecksums(
@@ -621,6 +673,15 @@ enum BackupService {
             }
         }
 
+        // Memory items changed: right after the preferences restore, dual-write the legacy fields (memoryText is compiled from the items)
+        if result.memoryItemsChanged > 0 {
+            await MainActor.run {
+                guard appState.sessionPartitionUID == partitionUID else { return }
+                appState.memoryItemRepository()?.dualWriteLegacy()
+            }
+        }
+
+        // Restore the last used model
         if let ref = backupFile.data.lastUsedModelRef {
             await MainActor.run { appState.lastUsedModelRef = ref }
             result.restoredLastUsedModel = true
@@ -731,6 +792,12 @@ enum BackupService {
             localConvIDs.insert(conv.id)
             result.newConversations += 1
         }
+        await importCheckpointsAfterConversations(
+            backupFile, partitionUID: partitionUID, appState: appState, drainPersistQueue: true
+        )
+        result.memoryItemsChanged = await importMemoryItems(
+            backupFile, mode: .newOnly, partitionUID: partitionUID, appState: appState
+        )
 
         if let backupFolders = backupFile.data.folders {
             let localFolderIDs = Set(appState.folders.map(\.id))
@@ -773,6 +840,22 @@ enum BackupService {
         return result
     }
 
+
+    /// Merge imported conversation metadata: take the side with the later updatedAt; instructions / contextCap follow title and come from the same side.
+    static func applyMergeMetadata(
+        from bc: BackupConversation,
+        localUpdatedAt: Date,
+        into updated: inout Conversation
+    ) {
+        guard bc.updatedAt > localUpdatedAt else { return }
+        updated.title = bc.title
+        updated.hasCustomTitle = bc.hasCustomTitle
+        updated.previewText = bc.previewText
+        updated.estimatedCost = bc.estimatedCost
+        updated.folderID = bc.folderID
+        updated.instructions = ConversationInstructions.normalize(bc.instructions ?? "")
+        updated.contextCap = bc.contextCap?.cap
+    }
 
     private static func importMerge(
         backupFile: BackupFile,
@@ -854,13 +937,7 @@ enum BackupService {
                     var updated = appState.conversations[localIdx]
                     updated.messages = merged
                     updated.updatedAt = mergedUpdatedAt
-                    if bc.updatedAt > local.updatedAt {
-                        updated.title = bc.title
-                        updated.hasCustomTitle = bc.hasCustomTitle
-                        updated.previewText = bc.previewText
-                        updated.estimatedCost = bc.estimatedCost
-                        updated.folderID = bc.folderID
-                    }
+                    applyMergeMetadata(from: bc, localUpdatedAt: local.updatedAt, into: &updated)
                     appState.upsertConversationProjection(updated)
                 }
                 result.mergedConversations += 1
@@ -873,6 +950,12 @@ enum BackupService {
                 result.newConversations += 1
             }
         }
+        await importCheckpointsAfterConversations(
+            backupFile, partitionUID: partitionUID, appState: appState, drainPersistQueue: true
+        )
+        result.memoryItemsChanged = await importMemoryItems(
+            backupFile, mode: .merge, partitionUID: partitionUID, appState: appState
+        )
 
         if let backupFolders = backupFile.data.folders {
             await MainActor.run {
@@ -1020,8 +1103,96 @@ enum BackupService {
         }
 
         finalizeImageStoreReplacement(replacement)
+        // persistSessionNow above has already drained the conversation write queue synchronously, so the replaced conversations are persisted.
+        await importCheckpointsAfterConversations(
+            backupFile, partitionUID: partitionUID, appState: appState, drainPersistQueue: false
+        )
+        // Memory items: the backup lands as a whole, and items alive on this device but absent from the backup become tombstones
+        result.memoryItemsChanged = await importMemoryItems(
+            backupFile, mode: .replace, partitionUID: partitionUID, appState: appState
+        )
 
         return result
+    }
+
+    // MARK: - Context checkpoints
+
+    /// Export the whole checkpoint table; nil when there is no store or the table is empty (the section is not written).
+    nonisolated static func backupCheckpoints(store: ContextCompactionStore?) throws -> [BackupContextCheckpoint]? {
+        guard let store else { return nil }
+        let rows = try store.listAll().map { BackupContextCheckpoint(from: $0) }
+        return rows.isEmpty ? nil : rows
+    }
+
+    /// Only rows whose conversation exists after import are accepted, upserted by primary key; skipped when rows is nil (old backups). Returns the number of rows written.
+    @discardableResult
+    nonisolated static func importCheckpoints(
+        _ rows: [BackupContextCheckpoint]?,
+        store: ContextCompactionStore?
+    ) throws -> Int {
+        guard let rows, !rows.isEmpty, let store else { return 0 }
+        return try store.importRecords(rows.compactMap { $0.toRecord() })
+    }
+
+    /// Shared by the three import modes: write checkpoints after the conversations are written. Persisting the conversation projection happens on a background serial queue,
+    /// so drain it first when needed, otherwise checkpoints would be dropped because the conversation rows are not persisted yet. Failures are only logged and do not block the import.
+    private static func importCheckpointsAfterConversations(
+        _ backupFile: BackupFile,
+        partitionUID: String,
+        appState: AppState,
+        drainPersistQueue: Bool
+    ) async {
+        guard let rows = backupFile.data.checkpoints, !rows.isEmpty else { return }
+        if drainPersistQueue {
+            await appState.persistSessionNowOffMainThread(for: partitionUID)
+        }
+        do {
+            try importCheckpoints(rows, store: ContextCompactionStore.forPartition(partitionUID))
+        } catch {
+            print("[BackupService] import checkpoints failed: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Memory items
+
+    /// Export section: the whole table (including tombstones) via `MemoryItems.backupSection`; nil when there is no store (the section is not written).
+    nonisolated static func backupMemorySection(store: MemoryItemStore?) throws -> MemoryBackupSection? {
+        guard let store else { return nil }
+        return MemoryItems.backupSection(try store.all())
+    }
+
+    /// The memory part of a backup: carries the memoryItems section and the legacy preference fields (old backups without the section are migrated from them).
+    nonisolated static func memoryBackupInput(_ data: BackupData) -> MemoryBackupInput {
+        MemoryBackupInput(
+            memoryItems: data.memoryItems,
+            preferences: data.preferences.map { prefs in
+                MemoryLegacyPrefs(
+                    memoryText: prefs.memoryText,
+                    antiForgetEnabled: prefs.memoryAntiForgetEnabled ?? false,
+                    antiForgetText: prefs.memoryAntiForgetText,
+                    memoryUpdatedAt: prefs.memoryUpdatedAt
+                )
+            }
+        )
+    }
+
+    /// Shared by the three import modes: write memory items according to the mode and return the number of changes. If the session no longer belongs to the partition or the database write fails, it is only logged and the import is not blocked.
+    private static func importMemoryItems(
+        _ backupFile: BackupFile,
+        mode: MemoryBackupImportMode,
+        partitionUID: String,
+        appState: AppState
+    ) async -> Int {
+        await MainActor.run {
+            guard appState.sessionPartitionUID == partitionUID,
+                  let repository = appState.memoryItemRepository() else { return 0 }
+            do {
+                return try repository.importBackup(memoryBackupInput(backupFile.data), mode: mode)
+            } catch {
+                print("[BackupService] import memory items failed: \(error.localizedDescription)")
+                return 0
+            }
+        }
     }
 
     @MainActor
@@ -1299,5 +1470,117 @@ extension BackupProvider {
             relayRequested: relayRequested,
             relayKind: relayKind
         )
+    }
+}
+
+/// A JSON byte scan that only locates: it takes the raw bytes of the value of a key in the top-level object, without decoding or reordering keys.
+nonisolated enum RawJSONScanner {
+    private static let quote: UInt8 = 0x22
+    private static let backslash: UInt8 = 0x5C
+
+    static func isWhitespace(_ byte: UInt8) -> Bool {
+        byte == 0x20 || byte == 0x09 || byte == 0x0A || byte == 0x0D
+    }
+
+    /// The value bytes of `key` in the top-level object; nil when it is not an object, the key is missing, or the structure is incomplete.
+    static func topLevelValue(_ bytes: [UInt8], key: String) -> ArraySlice<UInt8>? {
+        var index = 0
+        // Skip the UTF-8 BOM.
+        if bytes.starts(with: [0xEF, 0xBB, 0xBF]) { index = 3 }
+        index = skipWhitespace(bytes, index)
+        guard index < bytes.count, bytes[index] == 0x7B else { return nil }
+        index += 1
+        let wanted = Array(key.utf8)
+        while true {
+            index = skipWhitespace(bytes, index)
+            guard index < bytes.count else { return nil }
+            if bytes[index] == 0x7D { return nil }
+            guard bytes[index] == quote, let keyEnd = stringEnd(bytes, index) else { return nil }
+            let keyBytes = bytes[(index + 1)..<(keyEnd - 1)]
+            index = skipWhitespace(bytes, keyEnd)
+            guard index < bytes.count, bytes[index] == 0x3A else { return nil }
+            index = skipWhitespace(bytes, index + 1)
+            guard let valueEnd = valueEnd(bytes, index) else { return nil }
+            if keyBytes.elementsEqual(wanted) { return bytes[index..<valueEnd] }
+            index = skipWhitespace(bytes, valueEnd)
+            guard index < bytes.count else { return nil }
+            if bytes[index] == 0x2C { index += 1; continue }
+            return nil
+        }
+    }
+
+    /// Strip whitespace outside strings: same shape as the Android / Web compact serialization, with string contents and key order preserved.
+    static func compact(_ bytes: ArraySlice<UInt8>) -> [UInt8] {
+        var out: [UInt8] = []
+        out.reserveCapacity(bytes.count)
+        var inString = false
+        var escaped = false
+        for byte in bytes {
+            if inString {
+                out.append(byte)
+                if escaped { escaped = false } else if byte == backslash { escaped = true } else if byte == quote { inString = false }
+            } else if byte == quote {
+                inString = true
+                out.append(byte)
+            } else if !isWhitespace(byte) {
+                out.append(byte)
+            }
+        }
+        return out
+    }
+
+    private static func skipWhitespace(_ bytes: [UInt8], _ start: Int) -> Int {
+        var index = start
+        while index < bytes.count, isWhitespace(bytes[index]) { index += 1 }
+        return index
+    }
+
+    /// `start` is at the opening quote; returns the index after the closing quote.
+    private static func stringEnd(_ bytes: [UInt8], _ start: Int) -> Int? {
+        var index = start + 1
+        while index < bytes.count {
+            switch bytes[index] {
+            case backslash: index += 2
+            case quote: return index + 1
+            default: index += 1
+            }
+        }
+        return nil
+    }
+
+    /// The index after the end of a value: string, object / array (matched by brackets, skipping strings), literal / number.
+    private static func valueEnd(_ bytes: [UInt8], _ start: Int) -> Int? {
+        guard start < bytes.count else { return nil }
+        switch bytes[start] {
+        case quote:
+            return stringEnd(bytes, start)
+        case 0x7B, 0x5B:
+            var depth = 0
+            var index = start
+            while index < bytes.count {
+                switch bytes[index] {
+                case quote:
+                    guard let end = stringEnd(bytes, index) else { return nil }
+                    index = end
+                    continue
+                case 0x7B, 0x5B:
+                    depth += 1
+                case 0x7D, 0x5D:
+                    depth -= 1
+                    if depth == 0 { return index + 1 }
+                default:
+                    break
+                }
+                index += 1
+            }
+            return nil
+        default:
+            var index = start
+            while index < bytes.count, !isWhitespace(bytes[index]),
+                  bytes[index] != 0x2C, bytes[index] != 0x7D, bytes[index] != 0x5D {
+                index += 1
+            }
+            return index > start ? index : nil
+        }
     }
 }

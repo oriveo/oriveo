@@ -124,8 +124,10 @@ nonisolated final class MoonshotToolLoopLegRunner: ToolLoopLegRunning, @unchecke
                     let credential = urlRequest.value(forHTTPHeaderField: "Authorization")
                         .map { $0.replacingOccurrences(of: "Bearer ", with: "") } ?? ""
                     var yieldedAnyEvent = false
+                    var finishTracker = StreamFinishTracker(family: .openaiChat)
                     for try await line in bytes.utf8Lines {
                         try Task.checkCancellation()
+                        finishTracker.observeSSELine(line)
                         // Same as DeepSeek: the shared assembler does not carry the upstream text, so recognize
                         // the error frame here and redact credentials.
                         if let frame = BaseAPIService.sseDataPayload(line) {
@@ -159,6 +161,7 @@ nonisolated final class MoonshotToolLoopLegRunner: ToolLoopLegRunning, @unchecke
                     if let usage = state.usage {
                         lock.withLock { legUsages.append(usage) }
                     }
+                    continuation.yield(.finish(finishTracker.finish()))
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)

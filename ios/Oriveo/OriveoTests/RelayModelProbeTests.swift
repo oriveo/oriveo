@@ -689,7 +689,8 @@ struct RelayModelProbeTests {
         "messages", "input", "contents",
         "system", "instructions", "systemInstruction",
         "stream", "stream_options",
-        "tools", "tool_choice", "parallel_tool_calls",
+        // toolConfig is Gemini's tool_choice: with memory on, chat attaches propose_memory and carries it.
+        "tools", "tool_choice", "toolConfig", "parallel_tool_calls",
         "reasoning", "reasoning_effort", "thinking", "output_config",
         "temperature", "top_p", "top_k",
         "max_tokens", "max_completion_tokens", "max_output_tokens", "generationConfig",

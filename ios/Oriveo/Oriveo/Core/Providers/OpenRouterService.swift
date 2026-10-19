@@ -18,6 +18,8 @@ struct ProviderChatResult {
     var costSource: CostSource? = nil
     var toolCalls: [ProviderToolCall]? = nil
     var citations: [Citation]? = nil
+    /// Stream finish info: the streaming parser attaches it to `.done`; it is nil for non-streaming and for families not wired up.
+    var finish: StreamFinish? = nil
 }
 
 /// Every failure a provider request can surface to the user.
@@ -255,6 +257,9 @@ enum StreamEvent {
     /// `tool_use` / `function_call` proposals go through `.toolCallDeltas` and must not produce
     /// this event.
     case activity(StreamActivity)
+    /// When a stream ends with a throw but upstream gave a termination signal first (Responses `response.failed`, Gemini blocked finishReason,
+    /// Gemini Interactions cut early), hand out the stream finish info before the throw. A normal ending does not send this event, and finish is attached to `.done`.
+    case finish(StreamFinish)
     case done(ProviderChatResult)
 }
 
@@ -409,7 +414,7 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
         if !systemPrompt.isEmpty {
             apiMessages.append(.init(role: "system", content: .text(systemPrompt)))
         }
-        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
 
         let payload = OpenRouterChatRequest(
             model: modelID,
@@ -638,7 +643,7 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
                     if !systemPrompt.isEmpty {
                         apiMessages.append(.init(role: "system", content: .text(systemPrompt)))
                     }
-                    apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
+                    apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
 
                     let payload = OpenRouterChatRequest(
                         model: modelID,
@@ -734,8 +739,10 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
                             providerKind: .openRouter
                         )?.profiles.webSearch
                     )
+                    var finishTracker = StreamFinishTracker(family: .openaiChat)
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
+                        finishTracker.observeSSELine(line)
 
                         guard line.hasPrefix("data: ") else { continue }
                         let payload = String(line.dropFirst(6))
@@ -819,7 +826,8 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
                         estimatedCost: cost,
                         servedModelID: lastModel,
                         usageBreakdown: breakdown,
-                        costSource: source
+                        costSource: source,
+                        finish: finishTracker.finish()
                     )
                     continuation.yield(.done(result))
                     continuation.finish()
@@ -1723,5 +1731,21 @@ extension URLSession.AsyncBytes {
                 task.cancel()
             }
         }
+    }
+}
+
+// MARK: - Protocol entry with request options: a one-line forward to the options overload this service already has
+
+extension OpenRouterService {
+    func sendMessage(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(apiKey: apiKey, modelID: modelID, messages: messages, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessageStream(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, reasoningMode: .automatic, requestOptions: requestOptions)
     }
 }

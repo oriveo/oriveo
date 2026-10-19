@@ -1,4 +1,5 @@
 import Foundation
+import OriveoProviderKit
 
 enum RecordMappers {
     nonisolated static func sortMessages(_ messages: [ChatMessage]) -> [ChatMessage] {
@@ -45,7 +46,9 @@ enum RecordMappers {
             deletedAt: record.deletedAt.map(Date.init(timeIntervalSince1970:)),
             isConflictCopy: record.isConflictCopy,
             originalConversationId: record.originalConversationId.flatMap(UUID.init(uuidString:)),
-            pinnedNoteIds: RecordMappers.decodePinnedNoteIds(record.pinnedNoteIds)
+            pinnedNoteIds: RecordMappers.decodePinnedNoteIds(record.pinnedNoteIds),
+            instructions: record.instructions,
+            contextCap: record.contextCap
         )
     }
 
@@ -92,6 +95,8 @@ enum RecordMappers {
         conversation.isConflictCopy = thread.summary.isConflictCopy
         conversation.originalConversationId = thread.summary.originalConversationId
         conversation.pinnedNoteIds = thread.summary.pinnedNoteIds
+        conversation.instructions = thread.summary.instructions
+        conversation.contextCap = thread.summary.contextCap
         return conversation
     }
 
@@ -153,6 +158,8 @@ enum RecordMappers {
             quoteContext: quoteContext,
             citations: citations,
             toolSteps: toolSteps,
+            stopReason: StopReason.fromStored(record.stopReason),
+            memoryItemIds: decodeMemoryItemIds(record.memoryItemIds),
             createdAt: record.createdAt.map(Date.init(timeIntervalSince1970:)),
             inputTokens: record.inputTokens,
             outputTokens: record.outputTokens,
@@ -177,6 +184,25 @@ enum RecordMappers {
               let decoded = try? JSONDecoder().decode([McpToolStep].self, from: data),
               !decoded.isEmpty else { return nil }
         return messageState == .generating ? decoded : McpToolStep.interruptingRunning(decoded)
+    }
+
+    /// stopReason is stored as the raw fixture string; nil is stored as NULL.
+    nonisolated static func encodeStopReason(_ reason: StopReason?) -> String? {
+        reason?.rawValue
+    }
+
+    /// memoryItemIds is stored as a JSON array; an empty array is stored as NULL (device-local only).
+    nonisolated static func encodeMemoryItemIds(_ ids: [String]) -> String? {
+        guard !ids.isEmpty,
+              let data = try? JSONEncoder().encode(ids),
+              let json = String(data: data, encoding: .utf8) else { return nil }
+        return json
+    }
+
+    nonisolated static func decodeMemoryItemIds(_ raw: String?) -> [String] {
+        guard let raw, let data = raw.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode([String].self, from: data) else { return [] }
+        return decoded
     }
 
     nonisolated static func encodeToolSteps(_ steps: [McpToolStep]?) -> String? {
@@ -273,5 +299,35 @@ enum RecordMappers {
             extractionErrorCode: record.extractionErrorCode,
             originalBase64Data: originalBase64Data
         )
+    }
+}
+
+extension ContextBudgetCap {
+    /// Storage form for a local text column / local preference (the shared `conversation-context-cap.v1.json` storageCases):
+    /// accepts only "auto" / "unlimited" / an unsigned decimal integer with no spaces or leading zeros, which then goes through the budget cap rules; anything else returns nil (follow the global default).
+    nonisolated init?(storageText text: String) {
+        switch text {
+        case "auto":
+            self = .auto
+        case "unlimited":
+            self = .unlimited
+        default:
+            let scalars = text.unicodeScalars
+            guard let first = scalars.first, ("1"..."9").contains(first),
+                  scalars.allSatisfy({ ("0"..."9").contains($0) }),
+                  let value = Int(text),
+                  let cap = ContextBudgetCap.parse(value)
+            else { return nil }
+            self = cap
+        }
+    }
+
+    /// The storage text; `ContextBudgetCap(storageText: cap.storageText) == cap`.
+    nonisolated var storageText: String {
+        switch self {
+        case .auto: "auto"
+        case .unlimited: "unlimited"
+        case .custom(let tokens): String(tokens)
+        }
     }
 }

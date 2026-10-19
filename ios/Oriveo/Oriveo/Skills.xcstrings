@@ -465,7 +465,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "กำหนดค่าการกำหนดลักษณะโมเดลและการแทรกหน่วยความจำ"
+            "value" : "กำหนดค่าการกำหนดลักษณะโมเดลและการแทรกความจำ"
           }
         },
         "tr" : {
@@ -2579,7 +2579,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्राथमिकताएँ याद रखें"
+            "value" : "मेरी पसंद याद रखें"
           }
         },
         "id" : {
@@ -2621,7 +2621,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tercihleri ​​Hatırla"
+            "value" : "Tercihleri Hatırla"
           }
         },
         "vi" : {

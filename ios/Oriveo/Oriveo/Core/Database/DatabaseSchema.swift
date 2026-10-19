@@ -215,6 +215,36 @@ enum DatabaseSchema {
             // Primary recovery action of an error card; nullable, so existing messages stay empty.
             try db.execute(sql: "ALTER TABLE message ADD COLUMN recoveryPrimaryAction TEXT")
         }
+        migrator.registerMigration("v34_context_stop_reason_ledger") { db in
+            // Messages record why the stream ended (raw StopReason; old rows stay NULL and are not backfilled);
+            // also creates the two Ledger tables (ρ calibration, per-request context manifest). The Ledger is local diagnostic data and is not included in backups.
+            try db.execute(sql: "ALTER TABLE message ADD COLUMN stopReason TEXT")
+            try ContextLedgerStore.createTables(in: db)
+        }
+        migrator.registerMigration("v35_context_checkpoint") { db in
+            // Context checkpoint table: cascade-deleted with the conversation, newest 8 kept per conversation (see ContextCompactionStore).
+            try ContextCompactionStore.createTables(in: db)
+        }
+        migrator.registerMigration("v36_conversation_instructions") { db in
+            // Conversation-level instructions. A non-destructive ADD COLUMN; old conversations default to the empty string (= no instructions).
+            try db.execute(sql: "ALTER TABLE conversation ADD COLUMN instructions TEXT NOT NULL DEFAULT ''")
+        }
+        migrator.registerMigration("v37_memory_items") { db in
+            // Local memory item table (one database per partition), including the push state syncState.
+            try MemoryItemStore.createTables(in: db)
+        }
+        migrator.registerMigration("v38_message_memory_item_ids") { db in
+            // IDs of the memory items used by the answer (JSON array, NULL when empty). Stored on this device only: not included in backups.
+            try db.execute(sql: "ALTER TABLE message ADD COLUMN memoryItemIds TEXT")
+        }
+        migrator.registerMigration("v39_memory_candidates") { db in
+            // Local memory candidate table (one database per partition). Stored on this device only: not included in backups.
+            try MemoryCandidateStore.createTables(in: db)
+        }
+        migrator.registerMigration("v40_conversation_context_cap") { db in
+            // Conversation-level context budget cap, stored as text (auto / unlimited / decimal); NULL = follow the global default.
+            try db.execute(sql: "ALTER TABLE conversation ADD COLUMN contextCap TEXT")
+        }
         return migrator
     }
 

@@ -501,6 +501,78 @@ struct BackupServiceTests {
         #expect(BackupService.validateChecksum(backupFile) == false)
     }
 
+    /// Android export: data.json is inside the ZIP, data carries explicit nulls with keys in declaration order; the checksum is computed over its compact serialization.
+    @Test("android_export_with_explicit_null_imports_without_warning")
+    func android_export_with_explicit_null_imports_without_warning() throws {
+        let dataJSON = #"{"providers":[],"conversations":[],"preferences":{"theme":"dark","language":"english","memoryText":null,"memoryAntiForgetEnabled":null},"lastUsedModelRef":null,"folders":null,"notes":null}"#
+        let checksum = CanonicalJSON.checksum(of: Data(dataJSON.utf8))
+        let fileJSON = #"{"version":1,"createdAt":"2026-10-15T08:00:00Z","appVersion":"2.3.0","platform":"android","checksum":""#
+            + checksum + #"","containsKeys":false,"data":"# + dataJSON + #","attachmentChecksums":null,"encryptedKeys":null}"#
+        let zip = try Self.zip(dataJSON: Data(fileJSON.utf8))
+
+        let (parsed, images) = try BackupService.parseBackup(from: zip)
+        #expect(images.isEmpty)
+        // Re-encoding on this side (sorted keys, nil omitted) does not match Android's bytes: relying on the first criterion alone would raise a false warning.
+        #expect(BackupService.validateChecksum(parsed) == false)
+        #expect(BackupService.validateChecksum(parsed, rawData: zip) == true)
+
+        // Real tampering is still reported: data content changed, checksum unchanged.
+        let tampered = fileJSON.replacingOccurrences(of: #""theme":"dark""#, with: #""theme":"light""#)
+        let tamperedZip = try Self.zip(dataJSON: Data(tampered.utf8))
+        let (tamperedParsed, _) = try BackupService.parseBackup(from: tamperedZip)
+        #expect(BackupService.validateChecksum(tamperedParsed, rawData: tamperedZip) == false)
+    }
+
+    /// Web export: plain JSON, indented, with a data key order different from this side; the checksum is computed over data's compact serialization.
+    @Test("web_export_imports_without_warning")
+    func web_export_imports_without_warning() throws {
+        let compactData = #"{"preferences":{"theme":"system","language":"english","memoryText":"Likes \"tea\" {x}"},"providers":[],"conversations":[],"lastUsedModelRef":null}"#
+        let checksum = CanonicalJSON.checksum(of: Data(compactData.utf8))
+        let fileJSON = """
+        {
+          "version": 1,
+          "createdAt": "2026-10-15T08:00:00.000Z",
+          "appVersion": "web-1.0",
+          "platform": "web",
+          "checksum": "\(checksum)",
+          "containsKeys": false,
+          "data": {
+            "preferences": {
+              "theme": "system",
+              "language": "english",
+              "memoryText": "Likes \\"tea\\" {x}"
+            },
+            "providers": [],
+            "conversations": [],
+            "lastUsedModelRef": null
+          }
+        }
+        """
+        let raw = Data(fileJSON.utf8)
+        let (parsed, _) = try BackupService.parseBackup(from: raw)
+        #expect(parsed.data.preferences?.memoryText == #"Likes "tea" {x}"#)
+        #expect(BackupService.validateChecksum(parsed) == false)
+        #expect(BackupService.validateChecksum(parsed, rawData: raw) == true)
+        // Tampering with string content (whitespace inside strings is not swallowed) is still reported.
+        let tampered = Data(fileJSON.replacingOccurrences(of: "{x}", with: "{ x }").utf8)
+        let (tamperedParsed, _) = try BackupService.parseBackup(from: tampered)
+        #expect(BackupService.validateChecksum(tamperedParsed, rawData: tampered) == false)
+    }
+
+    private static func zip(dataJSON: Data) throws -> Data {
+        let archive = try #require(Archive(accessMode: .create))
+        try archive.addEntry(
+            with: "data.json",
+            type: .file,
+            uncompressedSize: UInt32(dataJSON.count),
+            provider: { (position: Int, size: Int) in
+                dataJSON[position..<(position + size)]
+            }
+        )
+        return try #require(archive.data)
+    }
+
+    // MARK: - Attachment checksum verification
 
     @Test("Attachment Checksums All Match")
     func attachmentChecksumsAllMatch() {

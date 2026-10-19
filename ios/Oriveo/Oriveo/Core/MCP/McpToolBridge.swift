@@ -304,28 +304,22 @@ nonisolated enum McpToolBridge {
         legRunner: any ToolLoopLegRunning,
         adapter: any ToolProtocolAdapter,
         runtimeConfig: McpRuntimeConfig,
-        onUnhandledToolCalls: @escaping ToolCallLoop.UnhandledHandler
+        onUnhandledToolCalls: @escaping ToolCallLoop.UnhandledHandler,
+        /// The propose_memory entry when mode=tool: registered last, without changing the limits or the fixed prompt.
+        proposeEntry: (any ToolRegistryEntry)? = nil,
+        /// The search_memory entry: registered after propose_memory.
+        searchEntry: (any ToolRegistryEntry)? = nil
     ) -> ToolCallLoop {
         ToolCallLoop(
-            registry: ToolRegistry(entries: entries(for: plan, executor: executor)),
+            registry: ToolRegistry(
+                entries: entries(for: plan, executor: executor) + [proposeEntry, searchEntry].compactMap { $0 }
+            ),
             legRunner: legRunner,
             adapter: adapter,
             limits: limits(runtimeConfig: runtimeConfig),
             prompts: prompts,
             onUnhandledToolCalls: onUnhandledToolCalls
         )
-    }
-
-    /// Messages for the first leg: the system prompt (the user's plus the safety prompt) first, then the
-    /// conversation history.
-    static func initialMessages(history: [ToolLoopMessage], systemPrompt: String) -> [ToolLoopMessage] {
-        [ToolLoopMessage(role: "system", content: Self.systemPrompt(appendingTo: systemPrompt))] + history
-    }
-
-    /// The fixed text appended to the system prompt when MCP tools are enabled (shared fixture `safety-prompt.txt`).
-    static func systemPrompt(appendingTo base: String) -> String {
-        let trimmed = base.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? McpSafetyPrompt.text : trimmed + "\n\n" + McpSafetyPrompt.text
     }
 
     /// Loop limits when MCP tools are attached. The consecutive-failure breaker is switched off: one failing

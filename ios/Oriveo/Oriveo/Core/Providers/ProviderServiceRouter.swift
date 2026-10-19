@@ -235,28 +235,32 @@ enum ProviderServiceRouter {
         }
 
         /// One-off non-streaming send that bypasses the main chat path (memory drafts etc.): route by (provider, model).
+        /// The transport comes from `PlannedChatRequest.transportInput`: the system prompt travels with the options, and native routes carry it too.
+        /// nativeService is only for injecting a stub in tests; nil means take the native service for this kind from this table.
         func sendMessage(
             provider: Provider,
             model: AIModel,
-            messages: [ChatMessage]
+            transport: TransportInput,
+            nativeService: ((ProviderKind) -> (any ProviderServiceProtocol)?)? = nil
         ) async throws -> ProviderChatResult? {
             let modelID = model.id
             switch ProviderServiceRouter.route(provider: provider, model: model) {
             case .byProtocol(let route):
                 return try await protocolSend(
-                    route, apiKey: ProviderCredentialResolver.apiKey(provider: provider, modelID: modelID), modelID: modelID, messages: messages,
+                    route, apiKey: ProviderCredentialResolver.apiKey(provider: provider, modelID: modelID), modelID: modelID, messages: transport.messages,
                     reasoningMode: .automatic, webSearchEnabled: false, supportsImageGen: false,
-                    requestOptions: ChatRequestOptions()
+                    requestOptions: transport.options
                 )
             case .native(let kind):
-                guard let service = native(for: kind) else { return nil }
+                guard let service = nativeService?(kind) ?? native(for: kind) else { return nil }
                 return try await service.sendMessage(
                     apiKey: ProviderCredentialResolver.apiKey(provider: provider, modelID: modelID),
                     modelID: modelID,
-                    messages: messages,
+                    messages: transport.messages,
                     // The base URL always comes from the endpoint source resolver. The OpenAI official provider is the exception and passes nil:
                     // `OpenAIService.sendMessage(baseURL:)` has Relay semantics, and passing one would divert into the Relay path.
-                    baseURL: kind == .openAI ? nil : provider.requestBaseURLText()
+                    baseURL: kind == .openAI ? nil : provider.requestBaseURLText(),
+                    requestOptions: transport.options
                 )
             }
         }

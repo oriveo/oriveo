@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Oriveo
+import OriveoProviderKit
 
 /// End-to-end coverage for model-level parameter facts. Every assertion is made on the
 /// `URLRequest` the production send path really emits (AppState → ChatManager → provider service
@@ -77,6 +78,32 @@ struct GenerationModelLevelProductionRequestTests {
         let named = try #require((body["response_format"] as? [String: Any])?["json_schema"] as? [String: Any])
         #expect(named["strict"] == nil, "a model that does not declare strict should not carry the key")
         #expect(named["schema"] != nil)
+    }
+
+    @Test("json_schema_active_uses_fallback_memory_mode: with structured output active no memory tool is attached and response_format is kept; without it the same fixture attaches propose_memory")
+    func jsonSchemaActiveUsesFallbackMemoryMode() async throws {
+        func send(_ defaults: [String: GenerationParameterOverride]) async throws -> [String: Any] {
+            try await Self.send(
+                providerKind: .openAI, providerKey: "openAI", modelTransport: "openai_chat",
+                template: "openai_chat_completions", recipeRef: "openai.chat.generation.v1",
+                templateWire: ["max_output_tokens": "max_tokens", "json_schema": "response_format"],
+                modelParameters: [
+                    ["id": "max_output_tokens", "support": "supported", "source": "authoritative_metadata"],
+                    ["id": "json_schema", "support": "supported", "source": "provider_metadata"],
+                ],
+                defaults: defaults
+            )
+        }
+        // An active json_schema counts as a negative condition for "this path can send tools", so memory uses the fallback this turn.
+        let structured = try await send(["json_schema": .init(state: .value, value: Self.schema)])
+        #expect(structured["response_format"] != nil, "request body: \(structured.keys.sorted())")
+        #expect(structured["tools"] == nil, "the memory tool must not be attached while structured output is active")
+        #expect(structured["tool_choice"] == nil)
+
+        // Control: the same fixture without structured output still attaches the memory tool (proving the "no tools" above comes from the json_schema check).
+        let plain = try await send(["max_output_tokens": .init(state: .value, value: .number(2_048))])
+        let names = (plain["tools"] as? [[String: Any]] ?? []).compactMap { ($0["function"] as? [String: Any])?["name"] as? String }
+        #expect(names.contains(MemoryPropose.toolName), "request body: \(plain.keys.sorted())")
     }
 
     // MARK: - Fixture

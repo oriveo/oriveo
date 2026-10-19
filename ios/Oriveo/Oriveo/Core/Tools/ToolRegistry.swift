@@ -4,6 +4,8 @@ import OriveoProviderKit
 nonisolated enum ToolScope: String, Sendable, Equatable {
     case web
     case mcp
+    /// propose_memory: the last entry of the MCP / library loop registry.
+    case memory
 }
 
 nonisolated struct ToolCallRejection: Error, Equatable, Sendable {

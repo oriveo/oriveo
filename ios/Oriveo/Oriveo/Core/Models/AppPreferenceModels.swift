@@ -1,4 +1,5 @@
 import Foundation
+import OriveoProviderKit
 import SwiftUI
 
 enum AppTab: String, CaseIterable, Hashable, Codable {
@@ -203,6 +204,15 @@ struct AppPreference: Hashable {
     var memoryAntiForgetEnabled: Bool = false
     var memoryAntiForgetText: String = ""
     var memoryUpdatedAt: Date? = nil
+    /// SHA-256 of memoryText (written alongside it); a mismatch means memoryText was changed by an older build.
+    var memoryTextDigest: String? = nil
+    // Pinned conversations (kept in array order; coexists with folders)
     var pinnedConversationIDs: [UUID] = []
     var pinnedConversationIDsUpdatedAt: Date? = nil
+    /// Use an AI summary when compacting context (off = deterministic fallback only). Stored locally only.
+    var contextAISummaryEnabled: Bool = false
+    /// Global default context cap (conversations with contextCap = nil follow it). Stored locally only.
+    var contextDefaultCap: ContextBudgetCap = .auto
+    /// Remind when the price line is crossed. Stored locally only.
+    var contextPriceLineReminderEnabled: Bool = true
 }

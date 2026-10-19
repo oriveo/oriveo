@@ -124,6 +124,36 @@ private struct SimpleReasoningReplayAccumulator {
 
 /// Runs one model leg of the tool loop over the `openai_chat` protocol: send the request, decode
 /// the stream, emit leg events. It never executes a tool call itself.
+/// The vision gate of a tool-loop leg (shared by both runners): when the outbound route does not allow vision_input, image_url parts are removed and
+/// each removed image is replaced with one placeholder line, so a turn carrying only images does not become an empty body.
+/// A route that declares a text-only placeholder uses it; otherwise the generic placeholder is used.
+nonisolated enum ToolLoopVisionGate {
+    static let defaultPlaceholder = "[Image omitted: this route sends text only]"
+
+    static func placeholder(providerKind: ProviderKind) -> String {
+        AttachmentTransport.toolLoop(providerKind).profile.imagePlaceholderText ?? defaultPlaceholder
+    }
+
+    static func removingVisionInput(_ message: ToolLoopMessage, placeholder: String) -> ToolLoopMessage {
+        guard let parts = message.contentParts, parts.contains(where: { $0.type == "image_url" }) else { return message }
+        var copy = message
+        // Each image is replaced in place with a text placeholder; when only text is left, the body is composed from it
+        // (the placeholder and the body are separated by a single newline).
+        let replaced = parts.map { part -> ToolLoopMessage.ContentPart in
+            part.type == "image_url" ? .init(type: "text", text: placeholder, imageURL: nil) : part
+        }
+        if replaced.allSatisfy({ $0.type == "text" }) {
+            copy.contentParts = nil
+            copy.content = ([message.content ?? ""] + replaced.map { $0.text ?? "" })
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+        } else {
+            copy.contentParts = replaced
+        }
+        return copy
+    }
+}
+
 nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchecked Sendable {
     private struct Configuration: Sendable {
         var url: URL
@@ -274,9 +304,11 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
                     var replayAccumulator = self.configuration.reasoningReplayParserKind
                         .flatMap(OpenAIChatReasoningReplayAccumulator.init(parserKind:))
                     var visibleText = ""
+                    var finishTracker = StreamFinishTracker(family: .openaiChat)
                     for try await line in bytes.utf8Lines {
                         try Task.checkCancellation()
                         guard let payload = Self.ssePayload(from: line) else { continue }
+                        finishTracker.observePayload(payload)
                         if payload == "[DONE]" { break }
                         if let data = payload.data(using: .utf8) {
                             replayAccumulator?.ingest(data)
@@ -293,6 +325,7 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
                        let value = try? ToolJSONValue.make(replay) {
                         continuation.yield(.providerAssistantReplay(value))
                     }
+                    continuation.yield(.finish(finishTracker.finish()))
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -309,9 +342,12 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
         from chatMessages: [ChatMessage],
         providerKind: ProviderKind,
         model: AIModel,
-        isChatSend: Bool
+        isChatSend: Bool,
+        dynamicText: String? = nil
     ) throws -> [ToolLoopMessage] {
         let outgoingTurnIndex = AttachmentDelivery.outgoingTurnIndex(in: chatMessages, isChatSend: isChatSend)
+        // [D] is appended only to the end of the last user message; the file text injection comes before it.
+        let dynamicIndex = chatMessages.lastIndex(where: { $0.role == .user })
         return try chatMessages.enumerated().compactMap { index, message in
             let attachments = message.attachments ?? []
             let delivery = try AttachmentDelivery.deliver(
@@ -319,7 +355,8 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
                 userText: message.text,
                 attachments: attachments,
                 transport: .toolLoop(providerKind),
-                model: model
+                model: model,
+                dynamicText: index == dynamicIndex ? dynamicText : nil
             )
             let injected = delivery.injectedText
             let images = attachments.filter { $0.kind == .image && !$0.resolvedDataURL.isEmpty }
@@ -438,7 +475,7 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
             )
         }
         let outboundMessages = hasVisionInput && !capabilityIntent.permitsOutbound("vision_input")
-            ? leg.messages.map(Self.removingVisionInput)
+            ? leg.messages.map { Self.removingVisionInput($0, providerKind: configuration.providerKind) }
             : leg.messages
         let allowedReasoningMode: ReasoningMode? = {
             let selected = requestedReasoningMode == .automatic
@@ -504,14 +541,11 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
         return request
     }
 
-    private static func removingVisionInput(_ message: ToolLoopMessage) -> ToolLoopMessage {
-        var copy = message
-        if let parts = message.contentParts {
-            let filtered = parts.filter { $0.type != "image_url" }
-            copy.contentParts = filtered.isEmpty ? nil : filtered
-            if filtered.isEmpty, copy.content == nil { copy.content = "" }
-        }
-        return copy
+    /// Vision gate: drops the images and replaces each with one placeholder line (the placeholder declared by the route comes first), so a user turn never becomes empty.
+    private static func removingVisionInput(_ message: ToolLoopMessage, providerKind: ProviderKind) -> ToolLoopMessage {
+        ToolLoopVisionGate.removingVisionInput(
+            message, placeholder: ToolLoopVisionGate.placeholder(providerKind: providerKind)
+        )
     }
 
     private static func semanticReasoningMode(
@@ -785,6 +819,13 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
     private let configuration: Configuration
     private let session: URLSession
 
+    /// Output cap base: the chat main path uses plan.budget.oWire. Only legs that already sent a cap are replaced -
+    /// anthropic_messages always sends max_tokens, the other protocols only when the catalog has a value; a cap that was not sent is not added.
+    private static func legMaxOutputTokens(oWire: Int?, catalog: Int?, transport: TransportKind) -> Int? {
+        guard catalog != nil || transport == .anthropicMessages else { return nil }
+        return oWire ?? catalog
+    }
+
     var effectiveTransportForEvidence: String { configuration.effectiveTransport }
 
     @MainActor
@@ -827,7 +868,11 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
                 ? GenerationParameterAvailability.profile(provider: provider, model: model)
                 : (catalog?.generationProfile ?? model.generationProfile),
             effectiveTransport: effectiveTransport,
-            maxOutputTokens: catalog?.maxOutputTokens.flatMap { $0 > 0 ? $0 : nil },
+            maxOutputTokens: Self.legMaxOutputTokens(
+                oWire: requestOptions.maxOutputTokens,
+                catalog: catalog?.maxOutputTokens.flatMap { $0 > 0 ? $0 : nil },
+                transport: wire.transportKind
+            ),
             capabilityEvidenceModel: provider.kind == .relay
                 ? model
                 : MetadataClient.shared.syncCurrentCapabilityEvidenceModel(model, providerKind: provider.kind),
@@ -874,6 +919,7 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
                     var usage: ToolLoopUsage?
                     var currentEvent = ""
                     var proposals: [ProviderToolCall] = []
+                    var finishTracker = Self.finishFamily(self.wire.transportKind).map { StreamFinishTracker(family: $0) }
                     for try await line in bytes.utf8Lines {
                         try Task.checkCancellation()
                         if line.hasPrefix("event:") {
@@ -881,6 +927,11 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
                             continue
                         }
                         guard let payload = Self.ssePayload(from: line) else { continue }
+                        if finishTracker?.family == .openaiChat {
+                            finishTracker?.observePayload(payload)
+                        } else if finishTracker != nil, let frameData = payload.data(using: .utf8) {
+                            finishTracker?.observeFrame(frameData, eventType: currentEvent.isEmpty ? nil : currentEvent)
+                        }
                         if payload == "[DONE]" { break }
                         guard let data = payload.data(using: .utf8),
                               var frame = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -890,7 +941,13 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
                             frame["type"] = currentEvent
                         }
                         currentEvent = ""
-                        if let error = self.wire.streamError(in: frame) { throw error }
+                        if let error = self.wire.streamError(in: frame) {
+                            // A blocked frame (blockReason / a blocked finishReason) already recorded the termination: hand out this leg's finish before throwing.
+                            if let finishTracker, finishTracker.sawMarker {
+                                continuation.yield(.finish(finishTracker.finish()))
+                            }
+                            throw error
+                        }
                         if let next = self.wire.usage(from: frame, current: usage) { usage = next }
 
                         // Text and reasoning go through the chat strategy; tool calls go through the
@@ -900,7 +957,7 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
                             switch event {
                             case let .delta(text): continuation.yield(.textDelta(text))
                             case let .reasoning(text): continuation.yield(.reasoningDelta(text))
-                            case .toolCallDeltas, .citations, .imagePart, .activity, .done: break
+                            case .toolCallDeltas, .citations, .imagePart, .activity, .finish, .done: break
                             }
                         }
                         proposals.append(contentsOf: decoder.ingest(frame: frame))
@@ -911,6 +968,7 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
                         continuation.yield(.providerReplayBlocks(decoder.replayBlocks))
                     }
                     if let event = Self.toolCallEvent(proposals) { continuation.yield(event) }
+                    if let finishTracker { continuation.yield(.finish(finishTracker.finish())) }
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -977,7 +1035,7 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
             )
         }
         let outboundMessages = hasVisionInput && !capabilityIntent.permitsOutbound("vision_input")
-            ? leg.messages.map(Self.removingVisionInput)
+            ? leg.messages.map { Self.removingVisionInput($0, providerKind: configuration.providerKind) }
             : leg.messages
         let allowedReasoningMode: ReasoningMode? = {
             let selected = requestedReasoningMode == .automatic
@@ -1000,6 +1058,11 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
             toolChoice: leg.toolChoice,
             maxOutputTokens: configuration.maxOutputTokens
         )
+        // The tool leg assembles its own Anthropic turns, with the same breakpoint rule as chat: a single breakpoint on the last non-[D] block
+        // of the last user message of the whole request (the tool_result turn if there is one; the notice if there is one).
+        if wire.transportKind == .anthropicMessages {
+            AnthropicService.applyCacheBreakpoint(to: &payload, dynamicText: configuration.generationOptions.dynamicText)
+        }
         if let allowedReasoningMode,
            let reasoningParams = ProfileParamsResolver.reasoningMergeParams(
             providerKind: configuration.providerKind,
@@ -1118,14 +1181,11 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
     }
 
 
-    private static func removingVisionInput(_ message: ToolLoopMessage) -> ToolLoopMessage {
-        var copy = message
-        if let parts = message.contentParts {
-            let filtered = parts.filter { $0.type != "image_url" }
-            copy.contentParts = filtered.isEmpty ? nil : filtered
-            if filtered.isEmpty, copy.content == nil { copy.content = "" }
-        }
-        return copy
+    /// Vision gate: drops the images and replaces each with one placeholder line (the placeholder declared by the route comes first), so a user turn never becomes empty.
+    private static func removingVisionInput(_ message: ToolLoopMessage, providerKind: ProviderKind) -> ToolLoopMessage {
+        ToolLoopVisionGate.removingVisionInput(
+            message, placeholder: ToolLoopVisionGate.placeholder(providerKind: providerKind)
+        )
     }
 
     private static func ssePayload(from line: String) -> String? {
@@ -1136,6 +1196,17 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
     private static func serialized(_ frame: [String: Any]) throws -> String {
         let data = try JSONSerialization.data(withJSONObject: frame)
         return String(decoding: data, as: UTF8.self)
+    }
+
+    /// The leg's protocol family -> the family of the stream-finish info; a protocol without a termination signal criterion hands out no finish.
+    private static func finishFamily(_ kind: TransportKind) -> StopFamily? {
+        switch kind {
+        case .openaiChat: return .openaiChat
+        case .openaiResponses: return .openaiResponses
+        case .anthropicMessages: return .anthropic
+        case .geminiGenerate: return .gemini
+        default: return nil
+        }
     }
 
     /// Assembled proposals become one `.toolCallDeltas`, each entry a complete call.

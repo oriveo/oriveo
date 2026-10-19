@@ -1,29 +1,30 @@
 import Foundation
+import OriveoProviderKit
 
 nonisolated enum ChatRequestSendPath: Sendable, Equatable {
     case send(excludingMessageID: UUID?)
-    case continueResponse(assistantMessageID: UUID, instruction: String)
+    case continueResponse(assistantMessageID: UUID)
 }
 
 nonisolated struct ChatRequestConversationSnapshot: Sendable, Equatable {
     let id: UUID
     let useMemory: Bool
     let skillID: UUID?
+    /// Conversation instructions (already normalized); passed in when assembling chat / continue / toolLoopLeg / imageGeneration.
+    var instructions: String = ""
+    /// The folder the conversation lives in; memory items with folder scope are filtered by it.
+    var folderID: UUID? = nil
 }
 
-/// Request building only reads the memory text. Anti-forget (`memoryAntiForgetEnabled/Text`) no longer
-/// injects anything: the preference fields are still stored / synced / backed up so existing values
-/// survive, but they are not part of the request snapshot.
+/// Request building only reads memory items: a copy of the current partition's items (no tombstones), taken from
+/// AppState's in-memory cache so the database is never read on the main thread. The injection filter runs
+/// `MemoryItems.injectable` at assembly time. memoryText is only dual-written for older clients and is no longer injected.
+/// Anti-forget (`memoryAntiForgetEnabled/Text`) no longer injects anything.
 nonisolated struct ChatRequestPreferencesSnapshot: Sendable, Equatable {
-    var memoryText: String
+    var memoryItems: [MemoryItem]
 
-    init(memoryText: String = "") {
-        self.memoryText = memoryText
-    }
-
-    @MainActor
-    init(_ preferences: AppPreference) {
-        memoryText = preferences.memoryText
+    init(memoryItems: [MemoryItem] = []) {
+        self.memoryItems = memoryItems
     }
 }
 
@@ -114,6 +115,12 @@ nonisolated struct ChatRequestSnapshot: Sendable {
     let retrievedSnippets: [ChatRequestRetrievedSnippet]
     let pinnedNotes: [ChatRequestPinnedNoteSnapshot]
     let sendPath: ChatRequestSendPath
+    /// Library evidence for this message (goes into [D] `<oriveo-library>`). nil = the library was not searched; empty array = searched but no evidence.
+    /// The evidence is read back inside the send task, so it is not part of init; `withLibrary` fills it in before the builder gets it.
+    private(set) var library: [ContextLibraryEntry]?
+    /// This turn's L3 recall (goes into [D] `<oriveo-recall>`): searched once in the send task from the item snapshot (same source as L2);
+    /// every leg of the same turn and the overflow-fallback reassembly reuse this one copy; empty when effective useMemory is off.
+    private(set) var recall: [ContextRecallEntry] = []
 
     init(
         conversation: ChatRequestConversationSnapshot?,
@@ -131,5 +138,22 @@ nonisolated struct ChatRequestSnapshot: Sendable {
         self.retrievedSnippets = retrievedSnippets
         self.pinnedNotes = pinnedNotes
         self.sendPath = sendPath
+    }
+
+    func withLibrary(_ entries: [ContextLibraryEntry]) -> ChatRequestSnapshot {
+        var snapshot = self
+        snapshot.library = entries
+        return snapshot
+    }
+
+    func withRecall(_ entries: [ContextRecallEntry]) -> ChatRequestSnapshot {
+        var snapshot = self
+        snapshot.recall = entries
+        return snapshot
+    }
+
+    /// The useMemory that actually applies to this request: the conversation switch wins, then the skill, default on (same rule as builder assembly).
+    var effectiveUseMemory: Bool {
+        conversation?.useMemory ?? skill?.useMemory ?? true
     }
 }

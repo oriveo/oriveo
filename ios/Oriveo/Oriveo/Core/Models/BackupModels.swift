@@ -1,4 +1,5 @@
 import Foundation
+import OriveoProviderKit
 import UniformTypeIdentifiers
 import CryptoKit
 
@@ -28,9 +29,13 @@ nonisolated struct BackupData: Codable {
     var skills: [Skill]?
     let preferences: BackupPreferences?
     let lastUsedModelRef: LastUsedModelRef?
-    var folders: [BackupFolder]?
-    var notes: [BackupNote]?
-    var noteFolders: [BackupNoteFolder]?
+    var folders: [BackupFolder]?    // Optional: backward compatible with old backups
+    var notes: [BackupNote]?              // Optional: backward compatible (old backups lack this field)
+    var noteFolders: [BackupNoteFolder]?  // Optional: backward compatible
+    var checkpoints: [BackupContextCheckpoint]?  // Optional: backward compatible (old backups lack this field)
+    /// Memory item section (including tombstones); old backups lack it and are migrated from the legacy fields in preferences on import. Key names are identical on all platforms.
+    var memorySchemaVersion: Int?
+    var memoryItems: [MemoryItem]?
 
     init(
         providers: [BackupProvider],
@@ -40,7 +45,10 @@ nonisolated struct BackupData: Codable {
         lastUsedModelRef: LastUsedModelRef?,
         folders: [BackupFolder]? = nil,
         notes: [BackupNote]? = nil,
-        noteFolders: [BackupNoteFolder]? = nil
+        noteFolders: [BackupNoteFolder]? = nil,
+        checkpoints: [BackupContextCheckpoint]? = nil,
+        memorySchemaVersion: Int? = nil,
+        memoryItems: [MemoryItem]? = nil
     ) {
         self.providers = providers
         self.conversations = conversations
@@ -50,6 +58,9 @@ nonisolated struct BackupData: Codable {
         self.folders = folders
         self.notes = notes
         self.noteFolders = noteFolders
+        self.checkpoints = checkpoints
+        self.memorySchemaVersion = memorySchemaVersion
+        self.memoryItems = memoryItems
     }
 }
 
@@ -89,7 +100,9 @@ nonisolated struct BackupConversation: Codable {
     var messages: [ChatMessage]
     var updatedAt: Date
     var folderID: UUID?
-    var pinnedNoteIds: [UUID]?
+    var pinnedNoteIds: [UUID]?   // Optional: backward compatible with old backups (missing key = no pinned notes)
+    var instructions: String?    // Optional: empty is written as nil; a missing key in old backups = ""
+    var contextCap: BackupContextCap?   // Optional: nil writes no key; a missing key or invalid value = follow the global default
 
     init(from conversation: Conversation) {
         self.id = conversation.id
@@ -104,6 +117,8 @@ nonisolated struct BackupConversation: Codable {
         self.updatedAt = conversation.updatedAt
         self.folderID = conversation.folderID
         self.pinnedNoteIds = conversation.pinnedNoteIds.isEmpty ? nil : conversation.pinnedNoteIds
+        self.instructions = conversation.instructions.isEmpty ? nil : conversation.instructions
+        self.contextCap = conversation.contextCap.map(BackupContextCap.init(cap:))
     }
 
     func toConversation() -> Conversation {
@@ -123,10 +138,53 @@ nonisolated struct BackupConversation: Codable {
         )
         conv.hasCustomTitle = hasCustomTitle
         conv.pinnedNoteIds = pinnedNoteIds ?? []
+        conv.instructions = ConversationInstructions.normalize(instructions ?? "")
+        conv.contextCap = contextCap?.cap
         return conv
     }
 }
 
+/// A conversation context cap inside a backup: written in wire form ("auto" / "unlimited" / integer), decoded leniently.
+/// Invalid values (numeric strings, out-of-range integers, booleans, objects, ...) decode to cap = nil (follow the
+/// global default) and never throw; ContextBudgetCap's strict Codable cannot be used directly because it throws on
+/// invalid values, which would fail the whole backup import.
+nonisolated struct BackupContextCap: Codable, Equatable {
+    let cap: ContextBudgetCap?
+
+    init(cap: ContextBudgetCap?) {
+        self.cap = cap
+    }
+
+    init(from decoder: Decoder) throws {
+        guard let container = try? decoder.singleValueContainer() else {
+            self.cap = nil
+            return
+        }
+        if (try? container.decode(Bool.self)) != nil {
+            self.cap = nil
+        } else if let value = try? container.decode(Int.self) {
+            self.cap = ContextBudgetCap.parse(value)
+        } else if let value = try? container.decode(Double.self) {
+            self.cap = ContextBudgetCap.parse(value)
+        } else if let value = try? container.decode(String.self) {
+            self.cap = ContextBudgetCap.parse(value)
+        } else {
+            self.cap = nil
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch cap {
+        case .auto: try container.encode("auto")
+        case .unlimited: try container.encode("unlimited")
+        case .custom(let tokens): try container.encode(tokens)
+        case nil: try container.encodeNil()
+        }
+    }
+}
+
+// MARK: - Folder in backups
 
 nonisolated struct BackupFolder: Codable {
     let id: UUID
@@ -261,6 +319,67 @@ nonisolated struct BackupNoteFolder: Codable {
     }
 }
 
+// MARK: - Context checkpoint in backups (createdAt is an integer in milliseconds; empty optional fields are not encoded)
+
+nonisolated struct BackupContextCheckpoint: Codable, Equatable {
+    var conversationId: String
+    var checkpointId: String
+    var kind: String
+    var coversFrom: String
+    var coversTo: String
+    var coversDigest: String
+    var messagesCovered: Int
+    var userMessageIds: [String]
+    var text: String
+    var summary: String?
+    var language: String?
+    var model: String
+    var packerVersion: String
+    var createdAt: Int64
+    var cost: Double?
+
+    init(from record: ContextCheckpointRecord) {
+        conversationId = record.conversationId
+        checkpointId = record.checkpointId
+        kind = record.kind.rawValue
+        coversFrom = record.coversFrom
+        coversTo = record.coversTo
+        coversDigest = record.coversDigest
+        messagesCovered = record.messagesCovered
+        userMessageIds = record.userMessageIds
+        text = record.text
+        summary = record.summary
+        language = record.language
+        model = record.model
+        packerVersion = record.packerVersion
+        createdAt = record.createdAt
+        cost = record.cost
+    }
+
+    /// Nil when the kind is not recognized (the row is dropped on import).
+    func toRecord() -> ContextCheckpointRecord? {
+        guard let kind = ContextCheckpointRecord.Kind(rawValue: kind) else { return nil }
+        return ContextCheckpointRecord(
+            conversationId: conversationId,
+            checkpointId: checkpointId,
+            kind: kind,
+            coversFrom: coversFrom,
+            coversTo: coversTo,
+            coversDigest: coversDigest,
+            messagesCovered: messagesCovered,
+            userMessageIds: userMessageIds,
+            text: text,
+            summary: summary,
+            language: language,
+            model: model,
+            packerVersion: packerVersion,
+            createdAt: createdAt,
+            cost: cost
+        )
+    }
+}
+
+// MARK: - Preferences
 
 nonisolated struct BackupPreferences: Codable {
     let theme: String
@@ -331,6 +450,8 @@ struct ImportResult {
     var skippedImages = 0
     var restoredPreferences = false
     var restoredLastUsedModel = false
+    /// Number of memory items changed (used after import to dual-write the legacy fields).
+    var memoryItemsChanged = 0
 
     var hasChanges: Bool {
         newConversations > 0 ||
@@ -340,7 +461,8 @@ struct ImportResult {
         mergedSkills > 0 ||
         restoredKeys > 0 ||
         restoredPreferences ||
-        restoredLastUsedModel
+        restoredLastUsedModel ||
+        memoryItemsChanged > 0
     }
 }
 

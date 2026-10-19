@@ -1,3 +1,4 @@
+import OriveoProviderKit
 import SwiftUI
 import UIKit
 
@@ -15,6 +16,9 @@ final class AssistantMetadataView: UIStackView {
     private let modelLabel = UILabel()
     private let dot2 = UILabel()
     private let costLabel = UILabel()
+    private let dot3 = UILabel()
+    /// Small "memory" marker at the end of the meta row, same font size and color as the row.
+    private let memoryChipButton = UIButton(type: .system)
     private let capabilityExecutionLabel = UILabel()
     private let copyButton = UIButton(type: .system)
     private let savedNoteReferenceButton = UIButton(type: .system)
@@ -22,6 +26,9 @@ final class AssistantMetadataView: UIStackView {
     private let readAloudButton = ReadAloudButton()
     private let moreButton = UIButton(type: .system)
     private let continueButton = UIButton(type: .system)
+    private let replyNoticeRow = UIStackView()
+    private let replyNoticeIcon = UIImageView()
+    private let replyNoticeLabel = UILabel()
     private let metaFont = UIFont(descriptor: UIFontDescriptor.preferredFontDescriptor(withTextStyle: .footnote), size: 0)
 
     private var currentMessageText = ""
@@ -33,6 +40,7 @@ final class AssistantMetadataView: UIStackView {
     private var onSaveNote: (() -> Void)?
     private var onOpenNoteReferences: (() -> Void)?
     private var onCrosscheck: (() -> Void)?
+    private var onOpenMemoryUsed: (() -> Void)?
     private var messageStateAllowsFooterActions = false
     private var hasConfiguredFooterActions = false
     private var isVisualRenderPending = false
@@ -61,6 +69,7 @@ final class AssistantMetadataView: UIStackView {
         onSaveNote: (() -> Void)? = nil,
         onOpenNoteReferences: (() -> Void)? = nil,
         onCrosscheck: (() -> Void)? = nil,
+        onOpenMemoryUsed: (() -> Void)? = nil,
         isVisualRenderPending: Bool = false
     ) {
         self.onRetry = onRetry
@@ -68,6 +77,7 @@ final class AssistantMetadataView: UIStackView {
         self.onSaveNote = onSaveNote
         self.onOpenNoteReferences = onOpenNoteReferences
         self.onCrosscheck = onCrosscheck
+        self.onOpenMemoryUsed = onOpenMemoryUsed
 
         providerLabel.text = providerName
         modelLabel.text = modelName
@@ -79,19 +89,30 @@ final class AssistantMetadataView: UIStackView {
         if showCost {
             costLabel.text = model.message.estimatedCostText
         }
+        let showMemoryChip = onOpenMemoryUsed != nil
+            && MemoryUsedPresentation.showsChip(for: model.message, isStreaming: model.isStreaming)
+        dot3.isHidden = !showMemoryChip
+        memoryChipButton.isHidden = !showMemoryChip
 
         let canOfferRecovery = shouldOfferMessageRecovery(
             state: model.message.state,
             role: model.message.role,
             isLastInConversation: model.isLastInConversation
         )
-        continueButton.isHidden = model.message.state != .interrupted || onContinue == nil || !canOfferRecovery
+        // Notice line for incomplete / filtered answers; the last failed / interrupted message is handled by RecoveryCard, so no notice is stacked on it.
+        let replyNotice = ReplyNoticePresentation.make(
+            stopReason: model.message.stopReason,
+            isLastAssistant: model.message.role == .assistant && model.isLastInConversation,
+            isStreaming: model.isStreaming || model.message.state == .generating,
+            hasRecoveryCard: canOfferRecovery && (model.message.state == .failed || model.message.state == .interrupted)
+        )
+        applyReplyNotice(replyNotice)
+        let showsInterruptedContinue = model.message.state == .interrupted && canOfferRecovery
+        continueButton.isHidden = onContinue == nil
+            || !(showsInterruptedContinue || replyNotice?.showsContinue == true)
 
         currentMessageText = model.message.text
-        currentTokenUsage = MessageTokenUsageSnapshot(
-            message: model.message,
-            contextLength: model.resolvedContextLength
-        )
+        currentTokenUsage = MessageTokenUsageSnapshot(message: model.message)
         currentCapabilityExecution = model.message.capabilityExecution
         let capabilityStatusText = Self.capabilityExecutionText(currentCapabilityExecution)
         capabilityExecutionLabel.text = capabilityStatusText
@@ -145,11 +166,15 @@ final class AssistantMetadataView: UIStackView {
         capabilityExecutionLabel.text = nil
         capabilityExecutionLabel.accessibilityLabel = nil
         capabilityExecutionLabel.isHidden = true
+        applyReplyNotice(nil)
         onRetry = nil
         onContinue = nil
         onSaveNote = nil
         onOpenNoteReferences = nil
         onCrosscheck = nil
+        onOpenMemoryUsed = nil
+        dot3.isHidden = true
+        memoryChipButton.isHidden = true
         messageStateAllowsFooterActions = false
         hasConfiguredFooterActions = false
         isVisualRenderPending = false
@@ -178,7 +203,7 @@ final class AssistantMetadataView: UIStackView {
 
         let metaColor = UIColor(OriveoTheme.Palette.textTertiary)
 
-        for label in [providerLabel, dot1, modelLabel, dot2, costLabel] {
+        for label in [providerLabel, dot1, modelLabel, dot2, costLabel, dot3] {
             label.font = metaFont
             label.textColor = metaColor
             label.numberOfLines = 1
@@ -188,6 +213,9 @@ final class AssistantMetadataView: UIStackView {
         dot2.text = "•"
         dot2.isHidden = true
         costLabel.isHidden = true
+        dot3.text = "·"
+        dot3.isHidden = true
+        configureMemoryChip(color: metaColor)
 
         providerLabel.setContentHuggingPriority(.required, for: .horizontal)
         providerLabel.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
@@ -217,6 +245,8 @@ final class AssistantMetadataView: UIStackView {
         infoRow.addArrangedSubview(modelLabel)
         infoRow.addArrangedSubview(dot2)
         infoRow.addArrangedSubview(costLabel)
+        infoRow.addArrangedSubview(dot3)
+        infoRow.addArrangedSubview(memoryChipButton)
         configureTrailingSpacer(infoTrailingSpacer)
         infoRow.addArrangedSubview(infoTrailingSpacer)
 
@@ -274,10 +304,67 @@ final class AssistantMetadataView: UIStackView {
         configureTrailingSpacer(savedNoteTrailingSpacer)
         savedNoteRow.addArrangedSubview(savedNoteTrailingSpacer)
 
+        configureReplyNoticeRow()
+        addArrangedSubview(replyNoticeRow)
         addArrangedSubview(infoRow)
         addArrangedSubview(capabilityExecutionLabel)
         addArrangedSubview(actionRow)
         addArrangedSubview(savedNoteRow)
+    }
+
+    private func configureMemoryChip(color: UIColor) {
+        var configuration = UIButton.Configuration.plain()
+        configuration.contentInsets = .zero
+        configuration.title = L10n.tr("memory_used_chip", table: .chat)
+        configuration.baseForegroundColor = color
+        let font = metaFont
+        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+            var outgoing = incoming
+            outgoing.font = font
+            return outgoing
+        }
+        memoryChipButton.configuration = configuration
+        memoryChipButton.accessibilityLabel = L10n.tr("memory_used_a11y", table: .chat)
+        memoryChipButton.addTarget(self, action: #selector(memoryChipTapped), for: .touchUpInside)
+        memoryChipButton.isHidden = true
+        dot3.setContentHuggingPriority(.required, for: .horizontal)
+        dot3.setContentCompressionResistancePriority(.required, for: .horizontal)
+        memoryChipButton.setContentHuggingPriority(.required, for: .horizontal)
+        memoryChipButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+    }
+
+    @objc private func memoryChipTapped() {
+        onOpenMemoryUsed?()
+    }
+
+    private func configureReplyNoticeRow() {
+        configureRow(replyNoticeRow, alignment: .center, spacing: 4)
+        replyNoticeRow.isHidden = true
+        replyNoticeIcon.contentMode = .scaleAspectFit
+        replyNoticeIcon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(font: metaFont, scale: .small)
+        replyNoticeIcon.setContentHuggingPriority(.required, for: .horizontal)
+        replyNoticeIcon.setContentCompressionResistancePriority(.required, for: .horizontal)
+        replyNoticeIcon.isAccessibilityElement = false
+        replyNoticeLabel.font = metaFont
+        replyNoticeLabel.adjustsFontForContentSizeCategory = true
+        replyNoticeLabel.numberOfLines = 0
+        replyNoticeRow.addArrangedSubview(replyNoticeIcon)
+        replyNoticeRow.addArrangedSubview(replyNoticeLabel)
+    }
+
+    private func applyReplyNotice(_ notice: ReplyNoticePresentation?) {
+        guard let notice else {
+            replyNoticeLabel.text = nil
+            replyNoticeIcon.image = nil
+            replyNoticeRow.isHidden = true
+            return
+        }
+        let color = UIColor(notice.tone == .secondary ? OriveoTheme.Palette.textSecondary : OriveoTheme.Palette.warningText)
+        replyNoticeLabel.text = L10n.tr(notice.titleKey, table: .chat)
+        replyNoticeLabel.textColor = color
+        replyNoticeIcon.image = UIImage(systemName: notice.systemImage)
+        replyNoticeIcon.tintColor = color
+        replyNoticeRow.isHidden = false
     }
 
     private func updateLeadingInset(_ leading: CGFloat) {
@@ -510,7 +597,10 @@ final class AssistantMetadataView: UIStackView {
     }
 
     private static func compactTokenCount(_ value: Int) -> String {
-        value.formatted(.number.notation(.compactName).locale(AppLocalization.currentLocale))
+        // The in-app language switch swaps the bundle by hand and leaves Locale.current alone; without passing the app
+        // language explicitly, numbers would follow the device language (a Chinese UI would show "13K" instead of the localized compact form).
+        // Uses the table shared by all three clients and only rounds down.
+        ContextCompactNumber.format(value, locale: AppLocalization.currentLocale.identifier)
     }
 
     private func configureSavedNoteReferenceButton() {
@@ -589,7 +679,6 @@ nonisolated struct MessageTokenUsageSnapshot: Equatable, Sendable {
     var outputTokens: Int?
     var cacheReadTokens: Int?
     var cacheWriteTokens: Int?
-    var contextLength: Int?
     var estimatedCost: Double
     var costSource: CostSource?
     var isPlatformPaid: Bool
@@ -599,7 +688,6 @@ nonisolated struct MessageTokenUsageSnapshot: Equatable, Sendable {
         outputTokens: Int? = nil,
         cacheReadTokens: Int? = nil,
         cacheWriteTokens: Int? = nil,
-        contextLength: Int? = nil,
         estimatedCost: Double = 0,
         costSource: CostSource? = nil,
         isPlatformPaid: Bool = false
@@ -608,19 +696,17 @@ nonisolated struct MessageTokenUsageSnapshot: Equatable, Sendable {
         self.outputTokens = outputTokens
         self.cacheReadTokens = cacheReadTokens
         self.cacheWriteTokens = cacheWriteTokens
-        self.contextLength = contextLength
         self.estimatedCost = estimatedCost
         self.costSource = costSource
         self.isPlatformPaid = isPlatformPaid
     }
 
-    nonisolated init(message: ChatMessage, contextLength: Int? = nil) {
+    nonisolated init(message: ChatMessage) {
         self.init(
             inputTokens: message.inputTokens,
             outputTokens: message.outputTokens,
             cacheReadTokens: message.cachedInputTokens,
             cacheWriteTokens: message.cacheCreationInputTokens,
-            contextLength: contextLength,
             estimatedCost: message.estimatedCost,
             costSource: message.costSource,
             isPlatformPaid: false
@@ -632,11 +718,7 @@ nonisolated struct MessageTokenUsageSnapshot: Equatable, Sendable {
         return inputTokens + outputTokens
     }
 
-    nonisolated var contextUsageRatio: Double? {
-        guard let inputTokens, let contextLength, contextLength > 0 else { return nil }
-        return Double(inputTokens) / Double(contextLength)
-    }
-
+    /// A cost deserves its own line only when it is not platform-paid and a positive value was actually computed.
     nonisolated var showsCost: Bool {
         !isPlatformPaid && estimatedCost > CostFormatter.costEpsilon
     }
@@ -682,7 +764,6 @@ private struct MessageTokenUsageContent: View {
         metric(
             L10n.tr("Input", table: .chat),
             usage.inputTokens,
-            footnote: contextFootnote,
             breakdown: cacheBreakdown
         )
     }
@@ -718,18 +799,6 @@ private struct MessageTokenUsageContent: View {
         .padding(.top, 28)
         .padding(.bottom, 20)
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var contextFootnote: String? {
-        guard let ratio = usage.contextUsageRatio,
-              let contextText = CatalogModelBuilder.compactContextText(usage.contextLength) else {
-            return nil
-        }
-        let percent = ratio.formatted(
-            .percent.precision(.fractionLength(ratio < 0.01 ? 2 : 1))
-                .locale(AppLocalization.currentLocale)
-        )
-        return "\(L10n.tr("Context", table: .chat)) \(percent) • \(contextText)"
     }
 
     private var header: some View {
@@ -818,11 +887,9 @@ private struct MessageTokenUsageContent: View {
     private func metric(
         _ title: String,
         _ value: Int?,
-        footnote: String? = nil,
         breakdown: [(title: String, value: Int)] = []
     ) -> some View {
         let text = formatted(value)
-        let headlineLabel: String = footnote.map { "\(title), \($0)" } ?? title
         return VStack(alignment: .leading, spacing: 7) {
             VStack(alignment: .leading, spacing: 7) {
                 Text(title)
@@ -835,18 +902,10 @@ private struct MessageTokenUsageContent: View {
                     .foregroundStyle(OriveoTheme.Palette.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-
-                if let footnote {
-                    Text(footnote)
-                        .font(.caption2)
-                        .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(headlineLabel)
+            .accessibilityLabel(title)
             .accessibilityValue(text)
 
             if !breakdown.isEmpty {

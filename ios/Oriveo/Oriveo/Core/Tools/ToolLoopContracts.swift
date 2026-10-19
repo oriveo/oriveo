@@ -233,6 +233,8 @@ nonisolated enum ToolLoopLegEvent: Equatable, Sendable {
     case usage(ToolLoopUsage)
     case providerReplayBlocks([ToolJSONValue])
     case providerAssistantReplay(ToolJSONValue)
+    /// Stream-end info of this leg: handed out when the leg finishes; the tool loop records the stopReason of the last leg.
+    case finish(StreamFinish)
 }
 
 nonisolated protocol ToolLoopLegRunning: Sendable {

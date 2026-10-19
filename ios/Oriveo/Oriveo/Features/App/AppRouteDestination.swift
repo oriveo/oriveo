@@ -48,6 +48,12 @@ struct AppRouteDestination: View {
         case .memory:
             MemoryView()
                 .oriveoNavigationChrome()
+        case .memoryInbox:
+            MemoryInboxView()
+                .oriveoNavigationChrome()
+        case .contextSettings:
+            ContextSettingsView()
+                .oriveoNavigationChrome()
         case .mcpServers:
             McpServersView()
                 .oriveoNavigationChrome()

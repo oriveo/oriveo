@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import OriveoProviderKit
 
 struct ConversationSummary: Identifiable, Hashable {
     let id: UUID
@@ -26,6 +27,9 @@ struct ConversationSummary: Identifiable, Hashable {
     var isConflictCopy: Bool = false
     var originalConversationId: UUID?
     var pinnedNoteIds: [UUID] = []
+    var instructions: String = ""
+    /// nil = follow the global default.
+    var contextCap: ContextBudgetCap? = nil
 
     nonisolated var isVisibleInConversationList: Bool {
         ConversationVisibility.isVisible(
@@ -70,6 +74,8 @@ struct ConversationRecord {
     let isConflictCopy: Bool
     let originalConversationId: String?
     let pinnedNoteIds: String?
+    let instructions: String
+    let contextCap: ContextBudgetCap?
 
     nonisolated init(row: Row) {
         id = row["id"]
@@ -96,6 +102,9 @@ struct ConversationRecord {
         isConflictCopy = row["isConflictCopy"]
         originalConversationId = row["originalConversationId"]
         pinnedNoteIds = row["pinnedNoteIds"]
+        instructions = row["instructions"] ?? ""
+        // Rows from before v40 are NULL; text that cannot be decoded also counts as following the global default.
+        contextCap = (row["contextCap"] as String?).flatMap(ContextBudgetCap.init(storageText:))
     }
 }
 
@@ -134,6 +143,10 @@ struct MessageRecord {
     /// Code of a device-local notice shown with the tool steps (`ToolFallbackNotice`).
     let toolFallbackNotice: String?
     let recoveryPrimaryAction: String?
+    /// Raw StopReason (context ledger migration); nil for older messages.
+    let stopReason: String?
+    /// IDs of the memory items injected into this answer (JSON array, stored on this device only); NULL when none.
+    let memoryItemIds: String?
 
     nonisolated init(row: Row) {
         id = row["id"]
@@ -168,6 +181,8 @@ struct MessageRecord {
         toolSteps = row["toolSteps"]
         toolFallbackNotice = row["toolFallbackNotice"]
         recoveryPrimaryAction = row["recoveryPrimaryAction"]
+        stopReason = row["stopReason"]
+        memoryItemIds = row["memoryItemIds"]
     }
 }
 

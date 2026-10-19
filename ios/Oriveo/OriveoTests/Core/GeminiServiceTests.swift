@@ -1,4 +1,5 @@
 import Foundation
+import OriveoProviderKit
 import Testing
 @testable import Oriveo
 
@@ -55,6 +56,7 @@ private struct GeminiStreamRunResult {
     var deltas = ""
     var sawDone = false
     var thrown: Error?
+    var finishes: [StreamFinish] = []
 }
 
 private func driveGeminiStream(
@@ -68,6 +70,8 @@ private func driveGeminiStream(
                 result.deltas += text
             case .done:
                 result.sawDone = true
+            case let .finish(value):
+                result.finishes.append(value)
             case .reasoning, .imagePart, .citations, .toolCallDeltas, .activity:
                 break
             }
@@ -161,6 +165,12 @@ struct GeminiServiceTests {
         #expect(!result.sawDone,
                 Comment(rawValue: "a full block (zero output) that does not throw falls through to generic EmptyResponse, leaving the user with no diagnosis"))
         try expectGeminiUpstream200(result.thrown, detailContains: "blockReason=PROHIBITED_CONTENT")
+        // Before throwing, hands over (gemini, clean, blockReason:<value>); persistence classifies it as content_filter.
+        #expect(result.finishes == [StreamFinish(family: .gemini, ended: .clean, finishRaw: "blockReason:PROHIBITED_CONTENT")],
+                "\(result.finishes)")
+        let finish = try #require(result.finishes.last)
+        #expect(StopReasonResolver.resolve(family: finish.family, ended: finish.ended, finishRaw: finish.finishRaw, hadContent: false)
+                == .contentFilter)
     }
 
     @Test("streaming STOP / MAX_TOKENS is normal completion and must not be intercepted", arguments: ["STOP", "MAX_TOKENS"])

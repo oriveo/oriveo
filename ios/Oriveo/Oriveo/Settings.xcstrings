@@ -1664,7 +1664,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "المساعدة والتعليقات"
+            "value" : "المساعدة والملاحظات"
           }
         },
         "de" : {
@@ -1688,7 +1688,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "सहायता एवं प्रतिक्रिया"
+            "value" : "सहायता और फ़ीडबैक"
           }
         },
         "id" : {
@@ -1724,7 +1724,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ความช่วยเหลือและข้อเสนอแนะ"
+            "value" : "ความช่วยเหลือและคำติชม"
           }
         },
         "tr" : {
@@ -1736,7 +1736,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Trợ giúp & Phản hồi"
+            "value" : "Trợ giúp & phản hồi"
           }
         },
         "zh-Hans" : {
@@ -1748,7 +1748,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "幫助與回饋"
+            "value" : "說明與意見回饋"
           }
         }
       }
@@ -2021,7 +2021,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "เนื้อหาหน่วยความจำจะถูกส่งพร้อมกับทุกคำขอ AI ไปยังผู้ให้บริการที่คุณเลือก อย่าป้อนรหัสผ่านหรือข้อมูลที่ละเอียดอ่อนอื่น ๆ"
+            "value" : "เนื้อหาความจำจะถูกส่งพร้อมกับทุกคำขอ AI ไปยังผู้ให้บริการที่คุณเลือก อย่าป้อนรหัสผ่านหรือข้อมูลที่ละเอียดอ่อนอื่น ๆ"
           }
         },
         "tr" : {
@@ -2626,107 +2626,6 @@
         }
       }
     },
-    "Replay Onboarding" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "إعادة عرض الجولة التعريفية"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Einführung erneut ansehen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Replay Onboarding"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ver la introducción de nuevo"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Revoir l'introduction"
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "परिचय फिर से देखें"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Putar Ulang Perkenalan"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "オンボーディングをもう一度見る"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "온보딩 다시 보기"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rever a introdução"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Посмотреть знакомство снова"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ดูการแนะนำอีกครั้ง"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tanıtımı yeniden izle"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Xem lại phần giới thiệu"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重看新手引导"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重看新手引導"
-          }
-        }
-      }
-    },
     "Report an Issue" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2824,6 +2723,1319 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "回報問題"
+          }
+        }
+      }
+    },
+    "settings_context_cap_footer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«تلقائي»: يُحدَّد وفق نافذة سياق النموذج بحدٍّ أقصى %1$@، مع البقاء دون سعر السياق الطويل. «مخصص»: يُدخَل رقم لا يقل عن %2$@، وإذا كانت سعة النموذج أقل يُطبَّق حدّه الأقصى. ويمكن تعيين حدّ مختلف لمحادثة واحدة من لوحة السياق."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei „Automatisch“ richtet sich das Limit nach dem Kontextfenster des Modells (höchstens %1$@) und bleibt unter dem Langkontext-Aufpreis. Bei „Benutzerdefiniert“ gibst du eine Zahl ein (mindestens %2$@); hat ein Modell weniger Platz, gilt sein eigenes Maximum. Für einzelne Chats kannst du im Kontext-Panel ein eigenes Limit festlegen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic sizes to the model’s window, up to %1$@, and stays below the model’s long-context pricing. For Custom, enter a number (at least %2$@); a model with less room uses its own maximum. You can set a different limit for one chat in the context panel."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En Automático, el límite se ajusta a la ventana del modelo, hasta %1$@, y se mantiene por debajo del precio de contexto largo. En Personalizado, ingresa un número (mínimo %2$@); si un modelo admite menos, se usa su propio máximo. Puedes fijar otro límite para un chat en el panel de contexto."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En mode Automatique, la limite s’adapte à la fenêtre du modèle, jusqu’à %1$@, en restant sous le tarif de contexte long. En mode Personnalisé, saisissez une valeur (au moins %2$@) ; si un modèle a moins de place, son propre maximum s’applique. Vous pouvez définir une autre limite pour une conversation dans le panneau Contexte."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "स्वचालित: मॉडल की विंडो के हिसाब से अधिकतम %1$@ तक सेट होता है और लॉन्ग कॉन्टेक्स्ट की ऊँची दर शुरू होने से पहले रुक जाता है। कस्टम में कोई संख्या डालें (कम से कम %2$@); अगर किसी मॉडल में इतनी जगह नहीं है, तो उसी मॉडल की अधिकतम सीमा लागू होगी। किसी एक चैट के लिए अलग सीमा कॉन्टेक्स्ट पैनल में सेट की जा सकती है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otomatis menyesuaikan dengan jendela konteks model, maksimal %1$@, dan tetap di bawah harga konteks panjang. Untuk Kustom, masukkan angka (minimal %2$@); jika kapasitas model lebih kecil, batas maksimum model itu yang dipakai. Anda bisa mengatur batas berbeda untuk satu percakapan di panel konteks."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動：モデルのウィンドウに合わせて最大 %1$@ まで設定し、ロングコンテキストの割増料金がかからない範囲に抑えます。カスタムでは数値を入力します（最小 %2$@）。モデルの使用可能量を超える場合は、そのモデルの上限が適用されます。会話ごとの上限はコンテキストパネルで個別に設定できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동: 모델 윈도우에 맞춰 최대 %1$@까지 정하고, 긴 컨텍스트 할증 요금은 피해요. 사용자 지정은 숫자를 직접 입력하고(최소 %2$@), 모델이 쓸 수 있는 양보다 크면 그 모델의 최대치가 적용돼요. 대화별 한도는 컨텍스트 패널에서 따로 설정할 수 있어요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No modo Automático, o limite se ajusta à janela do modelo, até %1$@, e fica abaixo do preço de contexto longo. No Personalizado, digite um número (mínimo %2$@); se um modelo comportar menos, vale o máximo dele. Você pode definir outro limite para uma conversa no painel de contexto."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«Автоматически» подбирает лимит по окну модели — не больше %1$@ и ниже ценового порога длинного контекста. В режиме «Пользовательский» введите число (не меньше %2$@); если модели доступно меньше, действует её собственный максимум. Для отдельного чата лимит можно задать в панели контекста."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "อัตโนมัติ: ตั้งตามหน้าต่างบริบทของโมเดล สูงสุด %1$@ และไม่ให้เกินเกณฑ์ขึ้นราคาบริบทยาว กำหนดเอง: ใส่ตัวเลข (อย่างน้อย %2$@) หากโมเดลรับได้น้อยกว่านั้น จะใช้ค่าสูงสุดของโมเดลนั้น ตั้งค่าแยกสำหรับแต่ละแชทได้ในแผงบริบท"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otomatik, modelin penceresine göre en fazla %1$@ seçer ve uzun bağlam fiyatına girmez. Özel seçeneğinde bir sayı girin (en az %2$@); bir modelin kapasitesi daha düşükse o modelin üst sınırı geçerli olur. Tek bir sohbet için bağlam panelinden ayrı bir sınır belirleyebilirsiniz."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tự động: lấy theo cửa sổ ngữ cảnh của mô hình, tối đa %1$@, và tránh mức giá ngữ cảnh dài. Tùy chỉnh: nhập một số (tối thiểu %2$@); nếu mô hình chứa được ít hơn, sẽ dùng mức tối đa của mô hình đó. Bạn có thể đặt giới hạn riêng cho từng cuộc trò chuyện trong bảng ngữ cảnh."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动：按模型窗口取值，最多 %1$@，并避开模型的长上下文加价。自定义填一个数值（最少 %2$@），超过某个模型的可用量时按该模型封顶。单个对话可以在上下文面板里单独设置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動：依模型視窗取值，最多 %1$@，並避開模型的長上下文加價。自訂可填一個數值（最少 %2$@），超過某個模型的可用量時，以該模型的上限為準。個別對話可在上下文面板中單獨設定。"
+          }
+        }
+      }
+    },
+    "settings_context_cap_header" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الحد الافتراضي"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standardlimit"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default limit"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Límite predeterminado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limite par défaut"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "डिफ़ॉल्ट सीमा"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batas default"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デフォルトの上限"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본 한도"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limite padrão"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лимит по умолчанию"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ขีดจำกัดเริ่มต้น"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Varsayılan sınır"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giới hạn mặc định"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "默认上限"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預設上限"
+          }
+        }
+      }
+    },
+    "settings_context_mode_ai" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ملخّص بالذكاء الاصطناعي"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KI-Zusammenfassung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI summary"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resumen con IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Résumé par l’IA"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI सारांश"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ringkasan AI"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 要約"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 요약"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resumo por IA"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сводка ИИ"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "สรุปด้วย AI"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yapay zekâ özeti"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tóm tắt bằng AI"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 摘要"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 摘要"
+          }
+        }
+      }
+    },
+    "settings_context_mode_ai_hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يكتب النموذج الحالي ملخّصًا للمحادثة السابقة، فيُحفَظ قدر أكبر منها. كل اختصار يضيف استدعاءً إضافيًا للنموذج بتكلفة إضافية."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das aktuelle Modell fasst den früheren Verlauf zusammen, so bleibt mehr im Gedächtnis. Jedes Verdichten kostet einen zusätzlichen Modellaufruf und damit extra."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current model writes a summary of the earlier conversation, so more is remembered. Each time adds one extra model call, which costs extra."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El modelo actual escribe un resumen de la conversación anterior, así se recuerda más. Cada vez se suma una llamada extra al modelo, con costo adicional."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le modèle actuel rédige un résumé de la conversation antérieure, pour en retenir davantage. Chaque condensation ajoute un appel au modèle, facturé en plus."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "मौजूदा मॉडल पहले की बातचीत का सारांश लिखता है, जिससे ज़्यादा बातें याद रहती हैं। हर बार संक्षिप्त करने पर मॉडल को एक बार और कॉल किया जाता है, जिसका खर्च अलग से लगता है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model saat ini menulis ringkasan percakapan sebelumnya, jadi lebih banyak yang diingat. Setiap pemadatan menambah satu panggilan model dan dikenai biaya tambahan."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のモデルが以前の会話の要約を作成するため、より多くの内容を覚えておけます。整理のたびにモデルの呼び出しが 1 回増え、追加料金がかかります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 모델이 이전 대화를 요약해서 더 많은 내용을 기억해요. 정리할 때마다 모델을 한 번 더 호출해서 추가 비용이 들어요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O modelo atual escreve um resumo da conversa anterior, então mais coisas são lembradas. Cada vez adiciona uma chamada extra ao modelo, com custo adicional."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текущая модель составляет сводку более раннего разговора, поэтому запоминается больше. Каждое сжатие — это ещё один вызов модели и дополнительные расходы."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "โมเดลปัจจุบันจะเขียนสรุปบทสนทนาก่อนหน้า จึงจำได้ครบกว่า การย่อแต่ละครั้งจะเรียกโมเดลเพิ่มอีกหนึ่งครั้งและมีค่าใช้จ่ายเพิ่ม"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geçerli model önceki konuşmanın özetini yazar, böylece daha fazlası hatırlanır. Her sıkıştırma modele bir çağrı daha ekler ve ek ücrete yol açar."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mô hình hiện tại viết bản tóm tắt phần trò chuyện trước đó nên ghi nhớ được nhiều hơn. Mỗi lần rút gọn sẽ gọi mô hình thêm một lần và tốn thêm phí."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用当前模型把较早的对话写成摘要，记得更全；每次整理会多调用一次模型，有额外费用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用目前的模型把較早的對話寫成摘要，記得更完整；每次整理會多呼叫一次模型，會產生額外費用。"
+          }
+        }
+      }
+    },
+    "settings_context_mode_fallback" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الإبقاء على رسائلك فقط"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur deine Nachrichten behalten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep only your messages"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conservar solo tus mensajes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conserver uniquement vos messages"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "सिर्फ़ आपके मैसेज रखें"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simpan pesan Anda saja"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あなたのメッセージのみ残す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "보낸 메시지만 유지"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manter só suas mensagens"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранять только ваши сообщения"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เก็บเฉพาะข้อความของคุณ"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yalnızca mesajlarınızı koru"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chỉ giữ tin nhắn của bạn"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只保留你说过的话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只保留你說過的話"
+          }
+        }
+      }
+    },
+    "settings_context_mode_fallback_hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "دون تكلفة إضافية. لم تعد ردود الذكاء الاصطناعي السابقة تُرسَل، وتبقى رسائلك محفوظة، وإذا لزم الاقتطاع فإنه يتوقف عند نهاية جملة."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Zusatzkosten. Frühere KI-Antworten werden nicht mehr gesendet; deine eigenen Nachrichten bleiben erhalten, und gekürzt wird nur am Satzende."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No extra cost. Earlier AI replies are no longer sent; your own messages are kept, and any cut ends at a sentence boundary."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin costo adicional. Las respuestas anteriores de la IA ya no se envían; tus propios mensajes se conservan y, si hay que recortar, el corte se hace al final de una oración."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sans coût supplémentaire. Les réponses antérieures de l’IA ne sont plus envoyées ; vos propres messages sont conservés, et toute coupure se fait en fin de phrase."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "कोई अतिरिक्त खर्च नहीं। AI के पहले के जवाब अब नहीं भेजे जाते; आपके अपने मैसेज रखे जाते हैं, और काटना पड़े तो वाक्य के अंत पर ही काटा जाता है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tanpa biaya tambahan. Balasan AI sebelumnya tidak lagi dikirim; pesan Anda sendiri tetap disimpan, dan jika perlu dipotong, potongannya berhenti di akhir kalimat."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加料金はかかりません。以前の AI の回答は送信せず、あなたのメッセージはそのまま残します。切り詰める場合も文の終わりで区切ります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가 비용이 없어요. 이전 AI 답변은 보내지 않고, 직접 보낸 메시지는 그대로 유지해요. 잘라낼 때는 문장이 끝나는 곳에서 잘라요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sem custo extra. As respostas anteriores da IA não são mais enviadas; suas próprias mensagens são mantidas, e qualquer corte termina no fim de uma frase."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без дополнительных затрат. Предыдущие ответы ИИ больше не отправляются; ваши собственные сообщения сохраняются, а если текст приходится сокращать, он обрезается по концу предложения."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ไม่มีค่าใช้จ่ายเพิ่ม คำตอบของ AI ก่อนหน้าจะไม่ถูกส่งอีก ส่วนข้อความของคุณยังเก็บไว้ตามปกติ และถ้าต้องตัดทอนจะตัดที่ท้ายประโยค"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ek ücret yok. Önceki yapay zekâ yanıtları artık gönderilmez; kendi mesajlarınız korunur ve kesme gerekirse cümle sonunda yapılır."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không tốn thêm phí. Các câu trả lời AI trước đó không còn được gửi; tin nhắn của bạn vẫn được giữ, và nếu phải cắt bớt thì sẽ dừng ở cuối câu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不额外花钱。较早的 AI 回答不再发送，你说过的话照常保留，截断处停在句子结尾。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不額外花費。較早的 AI 回覆不再傳送，你說過的話照常保留，截斷處停在句子結尾。"
+          }
+        }
+      }
+    },
+    "settings_context_overflow_footer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يقتصر أثر الخيارين على ما يُرسَل إلى النموذج، وتبقى رسائلك على هذا الجهاز كاملة دائمًا."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beides ändert nur, was an das Modell gesendet wird. Deine Nachrichten auf diesem Gerät bleiben vollständig."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Both only change what’s sent to the model. Your messages on this device stay complete."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ambas opciones solo cambian lo que se envía al modelo. Tus mensajes en este dispositivo se conservan completos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les deux options ne modifient que ce qui est envoyé au modèle. Vos messages sur cet appareil restent complets."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "दोनों तरीके सिर्फ़ यह बदलते हैं कि मॉडल को क्या भेजा जाता है। इस डिवाइस पर आपके मैसेज हमेशा पूरे रहते हैं।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kedua opsi hanya mengubah apa yang dikirim ke model. Pesan Anda di perangkat ini tetap lengkap."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "どちらの方法も、モデルに送信する内容が変わるだけです。この端末のメッセージはすべてそのまま残ります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "두 방식 모두 모델에 보내는 내용만 바뀌어요. 이 기기에 있는 메시지는 항상 그대로 남아요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As duas opções só mudam o que é enviado ao modelo. Suas mensagens neste dispositivo continuam completas."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оба варианта меняют только то, что отправляется модели. Ваши сообщения на этом устройстве всегда сохраняются полностью."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ทั้งสองแบบเปลี่ยนเฉพาะสิ่งที่ส่งให้โมเดล ข้อความในอุปกรณ์นี้ยังอยู่ครบเสมอ"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İki seçenek de yalnızca modele gönderilenleri değiştirir. Bu cihazdaki mesajlarınız her zaman eksiksiz kalır."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cả hai cách chỉ thay đổi nội dung gửi cho mô hình. Tin nhắn trên thiết bị này luôn được giữ đầy đủ."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "两种方式都只影响发给模型的内容，本地消息始终完整保留。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兩種方式都只影響傳送給模型的內容，本機訊息始終完整保留。"
+          }
+        }
+      }
+    },
+    "settings_context_overflow_header" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "عند بلوغ الحد"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn das Limit erreicht ist"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When the limit is reached"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al llegar al límite"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quand la limite est atteinte"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "सीमा पूरी होने पर"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saat batas tercapai"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上限に達したとき"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "한도에 도달하면"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ao atingir o limite"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "При достижении лимита"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เมื่อถึงขีดจำกัด"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sınıra ulaşıldığında"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khi đạt giới hạn"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超出上限时"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超出上限時"
+          }
+        }
+      }
+    },
+    "settings_context_price_line_reminder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "التنبيه قبل تجاوز عتبة السعر"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vor dem Langkontext-Preis nachfragen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask before long-context pricing"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preguntar antes del precio de contexto largo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmer avant le tarif de contexte long"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ऊँची दर की रेखा पार करने से पहले पूछें"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tanya sebelum melewati ambang harga"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "割増ラインを超える前に確認"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "할증 기준선을 넘기 전에 묻기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perguntar antes do preço de contexto longo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Предупреждать о тарифе для длинного контекста"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ถามก่อนเกินเกณฑ์ขึ้นราคา"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uzun bağlam fiyatından önce sor"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hỏi trước khi vượt ngưỡng tăng giá"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "越过加价线时提醒"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "越過加價門檻時提醒"
+          }
+        }
+      }
+    },
+    "settings_context_price_line_reminder_footer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يُطلب تأكيدك مع تقدير للتكلفة قبل أن تتجاوز المحادثة عتبة سعر السياق الطويل للنموذج لأول مرة. أما تجاوز الحد المحدد فيستلزم التأكيد دائمًا."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bevor ein Chat zum ersten Mal die Langkontext-Preisschwelle eines Modells überschreitet, wirst du mit einer Kostenschätzung gefragt. Bei einem selbst festgelegten Limit wirst du vor dem Überschreiten immer gefragt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Asks before a chat first goes past a model's long-context price threshold, with a cost estimate. Going over a limit you set always asks."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Antes de que un chat supere por primera vez el umbral de precio de contexto largo de un modelo, te pregunta y estima el costo. Superar un límite que hayas fijado siempre requiere confirmación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demande confirmation, avec une estimation du coût, avant qu’une conversation ne dépasse pour la première fois le seuil tarifaire de contexte long d’un modèle. Le dépassement d’une limite que vous avez définie demande toujours confirmation."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "किसी चैट के पहली बार मॉडल की लॉन्ग कॉन्टेक्स्ट वाली ऊँची दर की रेखा पार करने से पहले आपसे पूछा जाएगा, साथ में खर्च का अनुमान भी दिखेगा। आपकी तय की गई सीमा से ऊपर जाने पर हर बार पूछा जाएगा।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anda akan ditanya dulu, disertai perkiraan biaya, sebelum percakapan pertama kali melewati ambang harga konteks panjang model. Jika melebihi batas yang Anda tetapkan, Anda selalu ditanya."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会話が初めてモデルのロングコンテキスト割増ラインを超える前に、今回の料金の概算とあわせて確認します。設定した上限を超える場合は毎回確認します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "대화가 모델의 긴 컨텍스트 할증 기준선을 처음 넘기 전에 이번 비용을 추정해서 먼저 물어봐요. 직접 정한 한도를 넘을 때는 항상 물어봐요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pergunta antes de uma conversa passar pela primeira vez do patamar de preço de contexto longo de um modelo, com uma estimativa do custo. Passar de um limite que você definiu sempre exige confirmação."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перед тем как чат впервые превысит ценовой порог длинного контекста модели, вас спросят и покажут оценку стоимости. При превышении заданного вами лимита спрашивают всегда."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "จะถามคุณพร้อมประมาณค่าใช้จ่ายก่อนที่แชทจะเกินเกณฑ์ขึ้นราคาบริบทยาวของโมเดลเป็นครั้งแรก ส่วนการเกินขีดจำกัดที่คุณตั้งไว้จะถามทุกครั้ง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bir sohbet, modelin uzun bağlam fiyat eşiğini ilk kez aşmadan önce size sorulur ve maliyet tahmini gösterilir. Belirlediğiniz sınır aşılacaksa her zaman sorulur."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hỏi bạn trước khi cuộc trò chuyện lần đầu vượt ngưỡng tăng giá ngữ cảnh dài của mô hình, kèm chi phí ước tính. Khi vượt giới hạn bạn đặt thì luôn hỏi trước."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对话第一次越过模型的长上下文加价线前先问你，并估算这次的费用。超过你设的上限时总会先问。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對話第一次越過模型的長上下文加價門檻前，會先問你並估算這次的費用。超過你設定的上限時一律會先問。"
+          }
+        }
+      }
+    },
+    "settings_context_row_value" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "settings_context_row_value_fallback" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "رسائلك فقط"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur deine Nachrichten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your messages only"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo tus mensajes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vos messages uniquement"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "सिर्फ़ आपके मैसेज"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pesan Anda saja"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あなたのメッセージのみ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "보낸 메시지만"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Só suas mensagens"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Только ваши сообщения"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เฉพาะข้อความของคุณ"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yalnızca mesajlarınız"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chỉ tin nhắn của bạn"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只保留原话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只保留原話"
+          }
+        }
+      }
+    },
+    "settings_context_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "السياق"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kontext"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Context"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contexto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contexte"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "कॉन्टेक्स्ट"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konteks"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンテキスト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "컨텍스트"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contexto"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Контекст"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "บริบท"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bağlam"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ngữ cảnh"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上下文"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上下文"
           }
         }
       }

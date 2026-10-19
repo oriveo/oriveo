@@ -25,6 +25,8 @@ enum ConversationProjectionBuilder {
         conversation.skillId = summary.skillId
         conversation.metadataUpdatedAt = summary.metadataUpdatedAt
         conversation.messageCountOverride = max(summary.messageCount, summary.remoteMessageCount)
+        conversation.instructions = summary.instructions
+        conversation.contextCap = summary.contextCap
         // Callers pass conversation rows only (lists, search, pins): empty messages were not read,
         // the thread is not empty.
         conversation.messagesAreLoaded = !messages.isEmpty

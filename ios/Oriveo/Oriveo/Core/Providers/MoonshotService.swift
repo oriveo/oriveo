@@ -577,8 +577,22 @@ final class MoonshotService: BaseAPIService, ProviderServiceProtocol, CustomBase
             providerKind: .moonshot, modelID: modelID,
             webSearchEnabled: webSearchEnabled, reasoningMode: reasoningMode
         )
+        let reasoningReplayRecipe = RecipeContinuationRuntime.selectedRecipe(
+            provider: .moonshot, modelID: modelID, transport: resolved?.transport ?? "openai_chat",
+            webSearchEnabled: webSearchEnabled, reasoningMode: reasoningMode,
+            continuationKind: "replay_reasoning", parser: { $0 == "moonshot_reasoning_v1" }
+        )
+        let replayAssistantMessages = reasoningReplayRecipe.flatMap { _ in
+            RecipeContinuationRuntime.replayAssistantMessages(
+                explicitMessageID: requestOptions.localExplicitContinuationMessageID
+            )
+        }
+        // Replay owns the target assistant: drop the flattened outbound copy so it appears once.
+        let requestMessagesInput = replayAssistantMessages == nil ? messages : messages.filter {
+            $0.id != requestOptions.localExplicitContinuationMessageID
+        }
         let capabilityIntent = CapabilityEvidenceProductionAdapter.finalChatIntent(
-            messages: messages, request: request, effectiveTransport: resolved?.transport ?? "",
+            messages: requestMessagesInput, request: request, effectiveTransport: resolved?.transport ?? "",
             model: requestOptions.capabilityEvidenceModel,
             requestedReasoningMode: recipeLegacyInput.reasoningMode, webSearchEnabled: recipeLegacyInput.webSearchEnabled
         )
@@ -588,17 +602,11 @@ final class MoonshotService: BaseAPIService, ProviderServiceProtocol, CustomBase
         if !systemPrompt.isEmpty {
             apiMessages.append(["role": "system", "content": systemPrompt])
         }
-        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
-        let reasoningReplayRecipe = RecipeContinuationRuntime.selectedRecipe(
-            provider: .moonshot, modelID: modelID, transport: resolved?.transport ?? "openai_chat",
-            webSearchEnabled: webSearchEnabled, reasoningMode: reasoningMode,
-            continuationKind: "replay_reasoning", parser: { $0 == "moonshot_reasoning_v1" }
-        )
-        if reasoningReplayRecipe != nil,
-           let assistantMessages = RecipeContinuationRuntime.replayAssistantMessages(
-                explicitMessageID: requestOptions.localExplicitContinuationMessageID
-           ) {
-            apiMessages.append(contentsOf: assistantMessages)
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
+        // Replayed assistant goes before the continue user turn, never after it.
+        if let replayAssistantMessages {
+            let insertAt = apiMessages.lastIndex(where: { $0["role"] as? String == "user" }) ?? apiMessages.count
+            apiMessages.insert(contentsOf: replayAssistantMessages, at: insertAt)
         }
 
         var payload: [String: Any] = [
@@ -824,5 +832,33 @@ private extension MoonshotService {
         guard let object = value as? [String: Any] else { return nil }
         if let function = object["function"] as? [String: Any], let name = function["name"] as? String { return name }
         return object["name"] as? String
+    }
+}
+
+// MARK: - Protocol entry with request options: a one-line forward to the options overload this service already has
+
+extension MoonshotService {
+    func sendMessage(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: nil, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessageStream(
+        apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: nil, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessage(
+        apiKey: String, modelID: String, messages: [ChatMessage], baseURL: String, requestOptions: ChatRequestOptions
+    ) async throws -> ProviderChatResult {
+        try await sendMessage(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: Optional(baseURL), reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+
+    func sendMessageStream(
+        apiKey: String, modelID: String, messages: [ChatMessage], baseURL: String, requestOptions: ChatRequestOptions
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, baseURL: Optional(baseURL), reasoningMode: .automatic, requestOptions: requestOptions)
     }
 }
