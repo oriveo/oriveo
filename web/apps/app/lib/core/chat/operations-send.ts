@@ -1767,7 +1767,7 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
       }
     }
   }
-  const observedInput = observedChatInputOf(provider, pipeline.usage);
+  const observedInput = observedChatInputOf(pipeline.usage);
   // Outbound options actually delivered (they differ from the requested ones after a first-send protocol switch / protocol-level fallback).
   const deliveredOptions = pipeline.relaySentStreamOptions ?? attempt.transport.options;
   const wireModelId = chatWireModelIdOf(model, deliveredOptions);

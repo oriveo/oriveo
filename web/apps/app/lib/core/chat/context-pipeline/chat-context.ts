@@ -681,10 +681,7 @@ export function failureAnyOutputStarted(error: unknown): boolean {
 }
 
 /** Observed input tokens: taken from the in-stream usage; undefined when missing. */
-export function observedChatInputOf(
-  provider: Provider,
-  usage: StreamUsage | undefined,
-): number | undefined {
+export function observedChatInputOf(usage: StreamUsage | undefined): number | undefined {
   const value = usage?.prompt_tokens ?? usage?.messageUsage?.inputTokens;
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
 }
