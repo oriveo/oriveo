@@ -144,7 +144,7 @@ class ContextContractCheckpointTest {
     @Test
     fun normalizeHeadings() {
         val cases = ContextContractFixture.cases(fixture, "normalizeHeadingCases")
-        assertEquals(9, cases.size)
+        assertEquals(12, cases.size)
         assertNoFailures(
             cases.mapNotNull { case ->
                 val got = ContextCheckpoint.normalizeHeadings(case["input"]!!.jsonObject.stringOrNull("summary")!!)

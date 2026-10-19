@@ -133,7 +133,7 @@ struct ContextContractCheckpointTests {
     @Test("normalizeHeadings")
     func normalizeHeadings() throws {
         let cases = try contract.cases("normalizeHeadingCases")
-        #expect(cases.count == 9)
+        #expect(cases.count == 12)
         for raw in cases {
             let id = try #require(raw["id"] as? String)
             let input = try #require(raw["input"] as? [String: Any], "\(id)")

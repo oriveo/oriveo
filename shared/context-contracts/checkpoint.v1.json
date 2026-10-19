@@ -1870,7 +1870,10 @@
       "expected": {
         "summary": "Goal — a\n - ## Goal — b"
       }
-    }
+    },
+    {"id": "trailing_whitespace_without_dash_unchanged", "input": {"summary": "## Goal   \n## Open Threads\t"}, "expected": {"summary": "## Goal   \n## Open Threads\t"}},
+    {"id": "ideographic_space_and_nbsp_before_dash_unchanged", "input": {"summary": "## Goal　— a\n## Goal — b"}, "expected": {"summary": "## Goal　— a\n## Goal — b"}},
+    {"id": "inline_cr_and_line_separator_are_part_of_the_line", "input": {"summary": "## Goal — a\rb\n## Open Threads — c d"}, "expected": {"summary": "## Goal\n## Open Threads"}}
   ],
   "idCases": [
     {

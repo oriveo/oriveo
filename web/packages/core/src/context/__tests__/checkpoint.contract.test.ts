@@ -159,7 +159,7 @@ describe('ContextContractCheckpoint', () => {
 
   describe('normalizeHeadings', () => {
     it('case_count', () => {
-      expect(contract.normalizeHeadingCases).toHaveLength(9);
+      expect(contract.normalizeHeadingCases).toHaveLength(12);
     });
 
     for (const c of contract.normalizeHeadingCases) {
