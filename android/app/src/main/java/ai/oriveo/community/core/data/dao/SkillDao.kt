@@ -25,7 +25,8 @@ interface SkillDao {
     )
     fun observeAll(accountId: String): Flow<List<SkillEntity>>
 
-    @Query("SELECT * FROM skills WHERE id = :id LIMIT 1")
+    // A conversation's skillId may arrive in another UUID case than the catalog id (iOS writes uppercase), so match case-insensitively.
+    @Query("SELECT * FROM skills WHERE id = :id COLLATE NOCASE LIMIT 1")
     suspend fun getById(id: String): SkillEntity?
 
     @Query(

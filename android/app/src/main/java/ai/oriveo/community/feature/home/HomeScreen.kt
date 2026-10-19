@@ -107,6 +107,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import ai.oriveo.community.core.model.Skill
+import ai.oriveo.community.core.util.normalizeUuid
 import ai.oriveo.community.feature.skills.SkillChip
 import ai.oriveo.community.ui.component.ConversationRow
 import ai.oriveo.community.ui.component.OriveoEmptyState
@@ -241,7 +242,8 @@ fun HomeScreen(
     val providersById = remember(providers) { providers.associateBy { it.id } }
     // Built and index-prewarmed in the background per providers emission; composition only reads it (indexing a 22k relay catalog takes tens of milliseconds)
     val modelDisplayLookup by viewModel.modelDisplayLookup.collectAsStateWithLifecycle()
-    val skillsById = remember(homeSkills) { homeSkills.associateBy { it.id } }
+    // Normalized keys: a conversation's skillId may use another UUID case than the catalog id
+    val skillsById = remember(homeSkills) { homeSkills.associateBy { normalizeUuid(it.id) } }
 
     val foldersById = remember(folders) { folders.associateBy { it.id } }
     // The search text is not subscribed to in the root scope: it changes on every keystroke and would
