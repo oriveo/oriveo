@@ -1,0 +1,2113 @@
+{
+  "$comment": "WireAdapter contract (context pipeline §3.3, §4.1, §9.4). Every adapter takes the same ContextPlan and must produce the request-body subset below (deep JSON equality on these keys only; other request fields are out of scope). Attachments keep each provider's existing part builders and are not covered here.",
+  "schema": "oriveo.context.wire-system",
+  "version": 1,
+  "families": {
+    "openai_chat": "OpenAI Chat Completions and compatible providers that accept content parts",
+    "openai_chat_string_only": "OpenAI-compatible providers whose recipe marks content as string-only",
+    "free": "hosted chat-stream channel (string content only)",
+    "llamacpp": "local llama.cpp native engine (string content only)",
+    "managed": "hosted managed chat channel (string or text parts)",
+    "openai_responses": "OpenAI Responses API and Responses-compatible providers",
+    "anthropic": "Anthropic Messages (official and Relay)",
+    "gemini": "Gemini generateContent / streamGenerateContent"
+  },
+  "rules": [
+    "system: chat-shaped families → first message role=system; Responses → instructions; Anthropic → top-level system string; Gemini → systemInstruction.parts[0].text. Omitted when plan.system is null. Never more than one system carrier.",
+    "Block-capable families keep blocks: a message with one text block is a string (chat / managed / Responses) or a one-element array (Anthropic content, Gemini parts); more blocks → text parts (Responses uses input_text for user and output_text for assistant). String-only families join blocks with \\n\\n.",
+    "Anthropic: exactly one cache_control {type: ephemeral}, on the last non-dynamic block of the last user message; no top-level cache_control.",
+    "Gemini maps role assistant → model.",
+    "Stateful continuation (Responses previous_response_id) only when instructionsMode is resend or omit AND system, model and checkpoint are unchanged since the referenced leg; resend sends instructions, omit does not; otherwise send the full plan.",
+    "Tool-call arguments: chat-shaped families and Responses pass the arguments string through unchanged; Anthropic tool_use.input and Gemini functionCall.args decode it to an object — empty or all-whitespace → {}; invalid JSON or a non-object value is an error."
+  ],
+  "cases": [
+    {
+      "id": "system_history_and_dynamic_block",
+      "plan": {
+        "system": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+        "messages": [
+          {
+            "role": "user",
+            "blocks": [
+              {
+                "kind": "text",
+                "text": "Write chapter 1."
+              }
+            ]
+          },
+          {
+            "role": "assistant",
+            "blocks": [
+              {
+                "kind": "text",
+                "text": "Chapter 1 …"
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "blocks": [
+              {
+                "kind": "text",
+                "text": "Write chapter 2."
+              },
+              {
+                "kind": "dynamic",
+                "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "openai_chat": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+            },
+            {
+              "role": "user",
+              "content": "Write chapter 1."
+            },
+            {
+              "role": "assistant",
+              "content": "Chapter 1 …"
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Write chapter 2."
+                },
+                {
+                  "type": "text",
+                  "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                }
+              ]
+            }
+          ]
+        },
+        "openai_chat_string_only": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+            },
+            {
+              "role": "user",
+              "content": "Write chapter 1."
+            },
+            {
+              "role": "assistant",
+              "content": "Chapter 1 …"
+            },
+            {
+              "role": "user",
+              "content": "Write chapter 2.\n\n<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+            }
+          ]
+        },
+        "free": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+            },
+            {
+              "role": "user",
+              "content": "Write chapter 1."
+            },
+            {
+              "role": "assistant",
+              "content": "Chapter 1 …"
+            },
+            {
+              "role": "user",
+              "content": "Write chapter 2.\n\n<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+            }
+          ]
+        },
+        "llamacpp": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+            },
+            {
+              "role": "user",
+              "content": "Write chapter 1."
+            },
+            {
+              "role": "assistant",
+              "content": "Chapter 1 …"
+            },
+            {
+              "role": "user",
+              "content": "Write chapter 2.\n\n<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+            }
+          ]
+        },
+        "managed": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+            },
+            {
+              "role": "user",
+              "content": "Write chapter 1."
+            },
+            {
+              "role": "assistant",
+              "content": "Chapter 1 …"
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Write chapter 2."
+                },
+                {
+                  "type": "text",
+                  "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                }
+              ]
+            }
+          ]
+        },
+        "openai_responses": {
+          "instructions": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+          "input": [
+            {
+              "role": "user",
+              "content": "Write chapter 1."
+            },
+            {
+              "role": "assistant",
+              "content": "Chapter 1 …"
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "input_text",
+                  "text": "Write chapter 2."
+                },
+                {
+                  "type": "input_text",
+                  "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                }
+              ]
+            }
+          ]
+        },
+        "anthropic": {
+          "system": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+          "messages": [
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Write chapter 1."
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Chapter 1 …"
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Write chapter 2.",
+                  "cache_control": {
+                    "type": "ephemeral"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                }
+              ]
+            }
+          ]
+        },
+        "gemini": {
+          "systemInstruction": {
+            "parts": [
+              {
+                "text": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+              }
+            ]
+          },
+          "contents": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "text": "Write chapter 1."
+                }
+              ]
+            },
+            {
+              "role": "model",
+              "parts": [
+                {
+                  "text": "Chapter 1 …"
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "text": "Write chapter 2."
+                },
+                {
+                  "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "note": "System lands in each family's own field byte-exact; [D] is the last separate block (string-only families join blocks with \\n\\n); Anthropic puts the single cache breakpoint on the block before [D] and no top-level cache_control."
+    },
+    {
+      "id": "no_system_field_when_plan_has_none",
+      "plan": {
+        "system": null,
+        "messages": [
+          {
+            "role": "user",
+            "blocks": [
+              {
+                "kind": "text",
+                "text": "Hi"
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "openai_chat": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "Hi"
+            }
+          ]
+        },
+        "openai_chat_string_only": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "Hi"
+            }
+          ]
+        },
+        "free": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "Hi"
+            }
+          ]
+        },
+        "llamacpp": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "Hi"
+            }
+          ]
+        },
+        "managed": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "Hi"
+            }
+          ]
+        },
+        "openai_responses": {
+          "input": [
+            {
+              "role": "user",
+              "content": "Hi"
+            }
+          ]
+        },
+        "anthropic": {
+          "messages": [
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Hi",
+                  "cache_control": {
+                    "type": "ephemeral"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gemini": {
+          "contents": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "text": "Hi"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "two_turn_prefix_is_stable",
+      "turns": [
+        {
+          "system": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+          "messages": [
+            {
+              "role": "user",
+              "blocks": [
+                {
+                  "kind": "text",
+                  "text": "Write chapter 1."
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "blocks": [
+                {
+                  "kind": "text",
+                  "text": "Chapter 1 …"
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "blocks": [
+                {
+                  "kind": "text",
+                  "text": "Write chapter 2."
+                },
+                {
+                  "kind": "dynamic",
+                  "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "system": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+          "messages": [
+            {
+              "role": "user",
+              "blocks": [
+                {
+                  "kind": "text",
+                  "text": "Write chapter 1."
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "blocks": [
+                {
+                  "kind": "text",
+                  "text": "Chapter 1 …"
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "blocks": [
+                {
+                  "kind": "text",
+                  "text": "Write chapter 2."
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "blocks": [
+                {
+                  "kind": "text",
+                  "text": "Chapter 2 …"
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "blocks": [
+                {
+                  "kind": "text",
+                  "text": "Write chapter 3."
+                },
+                {
+                  "kind": "dynamic",
+                  "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "openai_chat": [
+          {
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 1."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 1 …"
+              },
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Write chapter 2."
+                  },
+                  {
+                    "type": "text",
+                    "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 1."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 1 …"
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 2."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 2 …"
+              },
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Write chapter 3."
+                  },
+                  {
+                    "type": "text",
+                    "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "openai_chat_string_only": [
+          {
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 1."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 1 …"
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 2.\n\n<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+              }
+            ]
+          },
+          {
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 1."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 1 …"
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 2."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 2 …"
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 3.\n\n<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+              }
+            ]
+          }
+        ],
+        "free": [
+          {
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 1."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 1 …"
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 2.\n\n<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+              }
+            ]
+          },
+          {
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 1."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 1 …"
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 2."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 2 …"
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 3.\n\n<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+              }
+            ]
+          }
+        ],
+        "llamacpp": [
+          {
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 1."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 1 …"
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 2.\n\n<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+              }
+            ]
+          },
+          {
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 1."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 1 …"
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 2."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 2 …"
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 3.\n\n<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+              }
+            ]
+          }
+        ],
+        "managed": [
+          {
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 1."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 1 …"
+              },
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Write chapter 2."
+                  },
+                  {
+                    "type": "text",
+                    "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 1."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 1 …"
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 2."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 2 …"
+              },
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Write chapter 3."
+                  },
+                  {
+                    "type": "text",
+                    "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "openai_responses": [
+          {
+            "instructions": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+            "input": [
+              {
+                "role": "user",
+                "content": "Write chapter 1."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 1 …"
+              },
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "input_text",
+                    "text": "Write chapter 2."
+                  },
+                  {
+                    "type": "input_text",
+                    "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "instructions": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+            "input": [
+              {
+                "role": "user",
+                "content": "Write chapter 1."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 1 …"
+              },
+              {
+                "role": "user",
+                "content": "Write chapter 2."
+              },
+              {
+                "role": "assistant",
+                "content": "Chapter 2 …"
+              },
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "input_text",
+                    "text": "Write chapter 3."
+                  },
+                  {
+                    "type": "input_text",
+                    "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "anthropic": [
+          {
+            "system": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+            "messages": [
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Write chapter 1."
+                  }
+                ]
+              },
+              {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Chapter 1 …"
+                  }
+                ]
+              },
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Write chapter 2.",
+                    "cache_control": {
+                      "type": "ephemeral"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "system": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+            "messages": [
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Write chapter 1."
+                  }
+                ]
+              },
+              {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Chapter 1 …"
+                  }
+                ]
+              },
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Write chapter 2."
+                  }
+                ]
+              },
+              {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Chapter 2 …"
+                  }
+                ]
+              },
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Write chapter 3.",
+                    "cache_control": {
+                      "type": "ephemeral"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gemini": [
+          {
+            "systemInstruction": {
+              "parts": [
+                {
+                  "text": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+                }
+              ]
+            },
+            "contents": [
+              {
+                "role": "user",
+                "parts": [
+                  {
+                    "text": "Write chapter 1."
+                  }
+                ]
+              },
+              {
+                "role": "model",
+                "parts": [
+                  {
+                    "text": "Chapter 1 …"
+                  }
+                ]
+              },
+              {
+                "role": "user",
+                "parts": [
+                  {
+                    "text": "Write chapter 2."
+                  },
+                  {
+                    "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "systemInstruction": {
+              "parts": [
+                {
+                  "text": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+                }
+              ]
+            },
+            "contents": [
+              {
+                "role": "user",
+                "parts": [
+                  {
+                    "text": "Write chapter 1."
+                  }
+                ]
+              },
+              {
+                "role": "model",
+                "parts": [
+                  {
+                    "text": "Chapter 1 …"
+                  }
+                ]
+              },
+              {
+                "role": "user",
+                "parts": [
+                  {
+                    "text": "Write chapter 2."
+                  }
+                ]
+              },
+              {
+                "role": "model",
+                "parts": [
+                  {
+                    "text": "Chapter 2 …"
+                  }
+                ]
+              },
+              {
+                "role": "user",
+                "parts": [
+                  {
+                    "text": "Write chapter 3."
+                  },
+                  {
+                    "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "assert": "For every family: system field equal across turns; turn2 messages[0..k-1] equal turn1 messages[0..k-1] where k = index of turn1's last user message; turn2 message k equals turn1 message k without its [D] block. Anthropic cache_control is ignored in this comparison (Anthropic matches cached prefixes at earlier block boundaries)."
+    },
+    {
+      "id": "checkpoint_merges_with_first_tail_user",
+      "plan": {
+        "system": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+        "messages": [
+          {
+            "role": "user",
+            "blocks": [
+              {
+                "kind": "text",
+                "text": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a3\" messages=\"6\">\n<note>…</note>\n<user-messages count=\"0\" truncated=\"0\">\n</user-messages>\n<summary>## Goal\n(none)</summary>\n</oriveo-context-checkpoint>"
+              },
+              {
+                "kind": "text",
+                "text": "Write chapter 4."
+              }
+            ]
+          },
+          {
+            "role": "assistant",
+            "blocks": [
+              {
+                "kind": "text",
+                "text": "Chapter 4 …"
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "blocks": [
+              {
+                "kind": "text",
+                "text": "Write chapter 5."
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "openai_chat": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a3\" messages=\"6\">\n<note>…</note>\n<user-messages count=\"0\" truncated=\"0\">\n</user-messages>\n<summary>## Goal\n(none)</summary>\n</oriveo-context-checkpoint>"
+                },
+                {
+                  "type": "text",
+                  "text": "Write chapter 4."
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "content": "Chapter 4 …"
+            },
+            {
+              "role": "user",
+              "content": "Write chapter 5."
+            }
+          ]
+        },
+        "openai_chat_string_only": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+            },
+            {
+              "role": "user",
+              "content": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a3\" messages=\"6\">\n<note>…</note>\n<user-messages count=\"0\" truncated=\"0\">\n</user-messages>\n<summary>## Goal\n(none)</summary>\n</oriveo-context-checkpoint>\n\nWrite chapter 4."
+            },
+            {
+              "role": "assistant",
+              "content": "Chapter 4 …"
+            },
+            {
+              "role": "user",
+              "content": "Write chapter 5."
+            }
+          ]
+        },
+        "free": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+            },
+            {
+              "role": "user",
+              "content": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a3\" messages=\"6\">\n<note>…</note>\n<user-messages count=\"0\" truncated=\"0\">\n</user-messages>\n<summary>## Goal\n(none)</summary>\n</oriveo-context-checkpoint>\n\nWrite chapter 4."
+            },
+            {
+              "role": "assistant",
+              "content": "Chapter 4 …"
+            },
+            {
+              "role": "user",
+              "content": "Write chapter 5."
+            }
+          ]
+        },
+        "llamacpp": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+            },
+            {
+              "role": "user",
+              "content": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a3\" messages=\"6\">\n<note>…</note>\n<user-messages count=\"0\" truncated=\"0\">\n</user-messages>\n<summary>## Goal\n(none)</summary>\n</oriveo-context-checkpoint>\n\nWrite chapter 4."
+            },
+            {
+              "role": "assistant",
+              "content": "Chapter 4 …"
+            },
+            {
+              "role": "user",
+              "content": "Write chapter 5."
+            }
+          ]
+        },
+        "managed": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a3\" messages=\"6\">\n<note>…</note>\n<user-messages count=\"0\" truncated=\"0\">\n</user-messages>\n<summary>## Goal\n(none)</summary>\n</oriveo-context-checkpoint>"
+                },
+                {
+                  "type": "text",
+                  "text": "Write chapter 4."
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "content": "Chapter 4 …"
+            },
+            {
+              "role": "user",
+              "content": "Write chapter 5."
+            }
+          ]
+        },
+        "openai_responses": {
+          "instructions": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+          "input": [
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "input_text",
+                  "text": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a3\" messages=\"6\">\n<note>…</note>\n<user-messages count=\"0\" truncated=\"0\">\n</user-messages>\n<summary>## Goal\n(none)</summary>\n</oriveo-context-checkpoint>"
+                },
+                {
+                  "type": "input_text",
+                  "text": "Write chapter 4."
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "content": "Chapter 4 …"
+            },
+            {
+              "role": "user",
+              "content": "Write chapter 5."
+            }
+          ]
+        },
+        "anthropic": {
+          "system": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+          "messages": [
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a3\" messages=\"6\">\n<note>…</note>\n<user-messages count=\"0\" truncated=\"0\">\n</user-messages>\n<summary>## Goal\n(none)</summary>\n</oriveo-context-checkpoint>"
+                },
+                {
+                  "type": "text",
+                  "text": "Write chapter 4."
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Chapter 4 …"
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Write chapter 5.",
+                  "cache_control": {
+                    "type": "ephemeral"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gemini": {
+          "systemInstruction": {
+            "parts": [
+              {
+                "text": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic."
+              }
+            ]
+          },
+          "contents": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "text": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a3\" messages=\"6\">\n<note>…</note>\n<user-messages count=\"0\" truncated=\"0\">\n</user-messages>\n<summary>## Goal\n(none)</summary>\n</oriveo-context-checkpoint>"
+                },
+                {
+                  "text": "Write chapter 4."
+                }
+              ]
+            },
+            {
+              "role": "model",
+              "parts": [
+                {
+                  "text": "Chapter 4 …"
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "text": "Write chapter 5."
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "note": "[C] and the first [L] user share one user message as two blocks so roles alternate (§8.4)."
+    },
+    {
+      "id": "host_loop_notice_after_tool_results",
+      "legs": "Leg 1 sends system S + user question with tools; the model calls a tool; leg 2 sends the tool result and, because the step limit was reached, a host notice telling the model to answer in text.",
+      "expected": {
+        "all": {
+          "systemEqualsFirstLeg": true,
+          "noSystemRoleMessagesAdded": true
+        },
+        "openai_chat": {
+          "noticePlacement": "separate user message right after the last role=tool message"
+        },
+        "openai_chat_string_only": {
+          "noticePlacement": "separate user message right after the last role=tool message"
+        },
+        "managed": {
+          "noticePlacement": "separate user message right after the last role=tool message"
+        },
+        "openai_responses": {
+          "noticePlacement": "user input item right after the last function_call_output item"
+        },
+        "anthropic": {
+          "noticePlacement": "text block after the tool_result blocks in the same user turn"
+        },
+        "gemini": {
+          "noticePlacement": "text part after the functionResponse parts in the same user content"
+        },
+        "free": {
+          "noticePlacement": "n/a: Free sends no tools"
+        },
+        "llamacpp": {
+          "noticePlacement": "separate user message right after the last role=tool message"
+        }
+      },
+      "note": "Locks the host-loop notice wording."
+    },
+    {
+      "id": "host_loop_leg_bodies",
+      "plan": {
+        "system": "You are a meticulous editor.",
+        "messages": [
+          {
+            "role": "user",
+            "blocks": [
+              {
+                "kind": "text",
+                "text": "What is the weather in Oslo?"
+              }
+            ]
+          }
+        ]
+      },
+      "toolLeg": {
+        "calls": [
+          {
+            "id": "call_1",
+            "name": "weather",
+            "arguments": "{\"city\":\"Oslo\"}"
+          }
+        ],
+        "results": [
+          {
+            "callId": "call_1",
+            "name": "weather",
+            "output": "4°C, rain"
+          }
+        ],
+        "notice": "Step limit reached. Answer in text now without calling tools."
+      },
+      "expected": {
+        "openai_chat": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor."
+            },
+            {
+              "role": "user",
+              "content": "What is the weather in Oslo?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "weather",
+                    "arguments": "{\"city\":\"Oslo\"}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "call_1",
+              "content": "4°C, rain"
+            },
+            {
+              "role": "user",
+              "content": "Step limit reached. Answer in text now without calling tools."
+            }
+          ]
+        },
+        "openai_chat_string_only": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor."
+            },
+            {
+              "role": "user",
+              "content": "What is the weather in Oslo?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "weather",
+                    "arguments": "{\"city\":\"Oslo\"}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "call_1",
+              "content": "4°C, rain"
+            },
+            {
+              "role": "user",
+              "content": "Step limit reached. Answer in text now without calling tools."
+            }
+          ]
+        },
+        "free": {
+          "throws": true
+        },
+        "llamacpp": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor."
+            },
+            {
+              "role": "user",
+              "content": "What is the weather in Oslo?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "weather",
+                    "arguments": "{\"city\":\"Oslo\"}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "call_1",
+              "content": "4°C, rain"
+            },
+            {
+              "role": "user",
+              "content": "Step limit reached. Answer in text now without calling tools."
+            }
+          ]
+        },
+        "managed": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor."
+            },
+            {
+              "role": "user",
+              "content": "What is the weather in Oslo?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "weather",
+                    "arguments": "{\"city\":\"Oslo\"}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "call_1",
+              "content": "4°C, rain"
+            },
+            {
+              "role": "user",
+              "content": "Step limit reached. Answer in text now without calling tools."
+            }
+          ]
+        },
+        "openai_responses": {
+          "instructions": "You are a meticulous editor.",
+          "input": [
+            {
+              "role": "user",
+              "content": "What is the weather in Oslo?"
+            },
+            {
+              "type": "function_call",
+              "call_id": "call_1",
+              "name": "weather",
+              "arguments": "{\"city\":\"Oslo\"}"
+            },
+            {
+              "type": "function_call_output",
+              "call_id": "call_1",
+              "output": "4°C, rain"
+            },
+            {
+              "role": "user",
+              "content": "Step limit reached. Answer in text now without calling tools."
+            }
+          ]
+        },
+        "anthropic": {
+          "system": "You are a meticulous editor.",
+          "messages": [
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "What is the weather in Oslo?"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "tool_use",
+                  "id": "call_1",
+                  "name": "weather",
+                  "input": {
+                    "city": "Oslo"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "tool_result",
+                  "tool_use_id": "call_1",
+                  "content": "4°C, rain"
+                },
+                {
+                  "type": "text",
+                  "text": "Step limit reached. Answer in text now without calling tools.",
+                  "cache_control": {
+                    "type": "ephemeral"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gemini": {
+          "systemInstruction": {
+            "parts": [
+              {
+                "text": "You are a meticulous editor."
+              }
+            ]
+          },
+          "contents": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "text": "What is the weather in Oslo?"
+                }
+              ]
+            },
+            {
+              "role": "model",
+              "parts": [
+                {
+                  "functionCall": {
+                    "name": "weather",
+                    "args": {
+                      "city": "Oslo"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "functionResponse": {
+                    "name": "weather",
+                    "response": {
+                      "content": "4°C, rain"
+                    }
+                  }
+                },
+                {
+                  "text": "Step limit reached. Answer in text now without calling tools."
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "note": "Full request-body subsets for the host_loop_notice_after_tool_results leg; notice placement per that case. Anthropic's single breakpoint lands on the last non-dynamic block of the last user turn (the notice)."
+    },
+    {
+      "id": "host_loop_leg_bodies_with_dynamic",
+      "plan": {
+        "system": "You are a meticulous editor.",
+        "messages": [
+          {
+            "role": "user",
+            "blocks": [
+              {
+                "kind": "text",
+                "text": "What is the weather in Oslo?"
+              },
+              {
+                "kind": "dynamic",
+                "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+              }
+            ]
+          }
+        ]
+      },
+      "toolLeg": {
+        "calls": [
+          {
+            "id": "call_1",
+            "name": "weather",
+            "arguments": "{\"city\":\"Oslo\"}"
+          }
+        ],
+        "results": [
+          {
+            "callId": "call_1",
+            "name": "weather",
+            "output": "4°C, rain"
+          }
+        ],
+        "notice": "Step limit reached. Answer in text now without calling tools."
+      },
+      "expected": {
+        "openai_chat": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor."
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "What is the weather in Oslo?"
+                },
+                {
+                  "type": "text",
+                  "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "weather",
+                    "arguments": "{\"city\":\"Oslo\"}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "call_1",
+              "content": "4°C, rain"
+            },
+            {
+              "role": "user",
+              "content": "Step limit reached. Answer in text now without calling tools."
+            }
+          ]
+        },
+        "openai_chat_string_only": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor."
+            },
+            {
+              "role": "user",
+              "content": "What is the weather in Oslo?\n\n<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "weather",
+                    "arguments": "{\"city\":\"Oslo\"}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "call_1",
+              "content": "4°C, rain"
+            },
+            {
+              "role": "user",
+              "content": "Step limit reached. Answer in text now without calling tools."
+            }
+          ]
+        },
+        "free": {
+          "throws": true
+        },
+        "llamacpp": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor."
+            },
+            {
+              "role": "user",
+              "content": "What is the weather in Oslo?\n\n<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "weather",
+                    "arguments": "{\"city\":\"Oslo\"}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "call_1",
+              "content": "4°C, rain"
+            },
+            {
+              "role": "user",
+              "content": "Step limit reached. Answer in text now without calling tools."
+            }
+          ]
+        },
+        "managed": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a meticulous editor."
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "What is the weather in Oslo?"
+                },
+                {
+                  "type": "text",
+                  "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "weather",
+                    "arguments": "{\"city\":\"Oslo\"}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "call_1",
+              "content": "4°C, rain"
+            },
+            {
+              "role": "user",
+              "content": "Step limit reached. Answer in text now without calling tools."
+            }
+          ]
+        },
+        "openai_responses": {
+          "instructions": "You are a meticulous editor.",
+          "input": [
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "input_text",
+                  "text": "What is the weather in Oslo?"
+                },
+                {
+                  "type": "input_text",
+                  "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                }
+              ]
+            },
+            {
+              "type": "function_call",
+              "call_id": "call_1",
+              "name": "weather",
+              "arguments": "{\"city\":\"Oslo\"}"
+            },
+            {
+              "type": "function_call_output",
+              "call_id": "call_1",
+              "output": "4°C, rain"
+            },
+            {
+              "role": "user",
+              "content": "Step limit reached. Answer in text now without calling tools."
+            }
+          ]
+        },
+        "anthropic": {
+          "system": "You are a meticulous editor.",
+          "messages": [
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "What is the weather in Oslo?"
+                },
+                {
+                  "type": "text",
+                  "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "tool_use",
+                  "id": "call_1",
+                  "name": "weather",
+                  "input": {
+                    "city": "Oslo"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "tool_result",
+                  "tool_use_id": "call_1",
+                  "content": "4°C, rain"
+                },
+                {
+                  "type": "text",
+                  "text": "Step limit reached. Answer in text now without calling tools.",
+                  "cache_control": {
+                    "type": "ephemeral"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gemini": {
+          "systemInstruction": {
+            "parts": [
+              {
+                "text": "You are a meticulous editor."
+              }
+            ]
+          },
+          "contents": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "text": "What is the weather in Oslo?"
+                },
+                {
+                  "text": "<oriveo-reminder>\n<note>Reminder of the conversation instructions above. Follow them unless the user's message says otherwise.</note>\nWrite only in Arabic.\n</oriveo-reminder>"
+                }
+              ]
+            },
+            {
+              "role": "model",
+              "parts": [
+                {
+                  "functionCall": {
+                    "name": "weather",
+                    "args": {
+                      "city": "Oslo"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "functionResponse": {
+                    "name": "weather",
+                    "response": {
+                      "content": "4°C, rain"
+                    }
+                  }
+                },
+                {
+                  "text": "Step limit reached. Answer in text now without calling tools."
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "note": "host_loop_leg_bodies with a dynamic [D] block on the current user message. Every leg keeps [D] as the current user message's own last block/part (string-only families join it with \\n\\n), so the prefix is identical leg to leg. Anthropic's single breakpoint stays on the last non-dynamic block of the last user turn (the notice in the tool_result turn), never on [D]."
+    }
+  ],
+  "continuationPlan": {
+    "system": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+    "history": [
+      {
+        "role": "user",
+        "text": "Write chapter 1."
+      },
+      {
+        "role": "assistant",
+        "text": "Chapter 1 …"
+      }
+    ],
+    "current": "Continue exactly where your previous answer stopped. Do not repeat what you already wrote."
+  },
+  "continuationCases": [
+    {
+      "id": "responses_resend",
+      "state": {
+        "previousResponseId": "resp_1",
+        "instructionsMode": "resend",
+        "systemChangedSinceLastLeg": false,
+        "modelChanged": false,
+        "checkpointChanged": false
+      },
+      "expected": {
+        "instructions": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+        "previous_response_id": "resp_1",
+        "input": [
+          {
+            "role": "user",
+            "content": "Continue exactly where your previous answer stopped. Do not repeat what you already wrote."
+          }
+        ]
+      }
+    },
+    {
+      "id": "grok_omit",
+      "state": {
+        "previousResponseId": "resp_1",
+        "instructionsMode": "omit",
+        "systemChangedSinceLastLeg": false,
+        "modelChanged": false,
+        "checkpointChanged": false
+      },
+      "expected": {
+        "previous_response_id": "resp_1",
+        "input": [
+          {
+            "role": "user",
+            "content": "Continue exactly where your previous answer stopped. Do not repeat what you already wrote."
+          }
+        ]
+      },
+      "note": "Grok cli-chat-proxy returns 400 when instructions and previous_response_id are both present."
+    },
+    {
+      "id": "mode_missing_falls_back_to_full_plan",
+      "state": {
+        "previousResponseId": "resp_1",
+        "instructionsMode": null,
+        "systemChangedSinceLastLeg": false,
+        "modelChanged": false,
+        "checkpointChanged": false
+      },
+      "expected": {
+        "instructions": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+        "input": [
+          {
+            "role": "user",
+            "content": "Write chapter 1."
+          },
+          {
+            "role": "assistant",
+            "content": "Chapter 1 …"
+          },
+          {
+            "role": "user",
+            "content": "Continue exactly where your previous answer stopped. Do not repeat what you already wrote."
+          }
+        ]
+      }
+    },
+    {
+      "id": "system_changed_falls_back",
+      "state": {
+        "previousResponseId": "resp_1",
+        "instructionsMode": "omit",
+        "systemChangedSinceLastLeg": true,
+        "modelChanged": false,
+        "checkpointChanged": false
+      },
+      "expected": {
+        "instructions": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+        "input": [
+          {
+            "role": "user",
+            "content": "Write chapter 1."
+          },
+          {
+            "role": "assistant",
+            "content": "Chapter 1 …"
+          },
+          {
+            "role": "user",
+            "content": "Continue exactly where your previous answer stopped. Do not repeat what you already wrote."
+          }
+        ]
+      }
+    },
+    {
+      "id": "model_changed_falls_back",
+      "state": {
+        "previousResponseId": "resp_1",
+        "instructionsMode": "resend",
+        "systemChangedSinceLastLeg": false,
+        "modelChanged": true,
+        "checkpointChanged": false
+      },
+      "expected": {
+        "instructions": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+        "input": [
+          {
+            "role": "user",
+            "content": "Write chapter 1."
+          },
+          {
+            "role": "assistant",
+            "content": "Chapter 1 …"
+          },
+          {
+            "role": "user",
+            "content": "Continue exactly where your previous answer stopped. Do not repeat what you already wrote."
+          }
+        ]
+      }
+    },
+    {
+      "id": "checkpoint_changed_falls_back",
+      "state": {
+        "previousResponseId": "resp_1",
+        "instructionsMode": "resend",
+        "systemChangedSinceLastLeg": false,
+        "modelChanged": false,
+        "checkpointChanged": true
+      },
+      "expected": {
+        "instructions": "You are a meticulous editor.\n\nConversation instructions (set by the user for this conversation):\nWrite only in Arabic.",
+        "input": [
+          {
+            "role": "user",
+            "content": "Write chapter 1."
+          },
+          {
+            "role": "assistant",
+            "content": "Chapter 1 …"
+          },
+          {
+            "role": "user",
+            "content": "Continue exactly where your previous answer stopped. Do not repeat what you already wrote."
+          }
+        ]
+      }
+    }
+  ]
+}

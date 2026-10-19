@@ -170,6 +170,8 @@ public struct ProviderRecipe: Codable, Hashable, Sendable {
     public var responseParserKind: String
     public var continuationKind: String
     public var continuationVariant: String?
+    /// How instructions are handled when continuing with previous_id (resend | omit); a missing or other value sends the full plan.
+    public var continuationInstructionsMode: String?
     public var controlRefs: [String]
     public var fallbackPolicy: String
     public var sourceRefs: [String]
@@ -177,6 +179,11 @@ public struct ProviderRecipe: Codable, Hashable, Sendable {
     public var maxToolLoops: Int?
     public var route: ProviderRecipeRoute?
     public var formula: ProviderRecipeValue?
+
+    /// Only resend | omit are recognized; other values are treated as missing.
+    public var instructionsMode: ContextInstructionsMode? {
+        continuationInstructionsMode.flatMap(ContextInstructionsMode.init(rawValue:))
+    }
 }
 
 public struct ProviderCapabilityControl: Codable, Hashable, Sendable {

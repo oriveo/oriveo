@@ -1,0 +1,5881 @@
+{
+  "$comment": "Memory write-intent contract . Deterministic: classifies one user message into a closed intent, extracts the proposition, scope and kind, flags secret / special-category content, and decides the single suggestion bar (memory candidate, conversation instruction, or none). A classification only ever produces a pending candidate: nothing becomes an active memory item without the user accepting it. Candidates are local only (never cloud-synced, never in backups or desktop goldens). Builds on directive-detector.v2 (same primitives, its production detector is called for directives). Lexicon v1 covers zh-Hans and en (and their mix); in other languages only directive-detector global directives reach the memory route. `label` is the human judgement; `expected` is what every client must output exactly. Cases with golden=true are the §9 golden matrix and must equal their label. Clients embed the lexicon through scripts/context-memory-intent-lexicon-gen.mjs.",
+  "schema": "oriveo.context.memory-intent",
+  "version": 1,
+  "dependsOn": {
+    "directive-detector": 2,
+    "memory-items": 2
+  },
+  "intents": [
+    "explicit_persist",
+    "implicit_persist",
+    "transient",
+    "recall",
+    "delete_or_supersede",
+    "ack_or_meta",
+    "uncertain",
+    "none"
+  ],
+  "rules": [
+    "quoted",
+    "meta",
+    "question",
+    "recall",
+    "delete",
+    "supersede",
+    "transient",
+    "reminder",
+    "reminisce",
+    "anaphor",
+    "persist",
+    "directive",
+    "loose_directive",
+    "ack",
+    "anaphor_directive"
+  ],
+  "scopes": [
+    "global",
+    "folder",
+    "conversation",
+    "unspecified"
+  ],
+  "kinds": [
+    "instruction",
+    "project",
+    "goal",
+    "preference",
+    "identity",
+    "fact"
+  ],
+  "sensitiveValues": [
+    "none",
+    "secret",
+    "special"
+  ],
+  "blockedValues": [
+    "conversation_scope",
+    "secret",
+    "special",
+    "too_long"
+  ],
+  "suggestions": [
+    "memory",
+    "conversationInstruction",
+    "none"
+  ],
+  "candidateStatuses": [
+    "pending",
+    "accepted",
+    "rejected",
+    "superseded",
+    "expired"
+  ],
+  "skipReasons": [
+    "no_suggestion",
+    "duplicate_active",
+    "exists",
+    "duplicate_pending",
+    "rejected_recently",
+    "auto_suggest_off"
+  ],
+  "transitionErrors": [
+    "not_pending",
+    "expired",
+    "empty",
+    "too_long"
+  ],
+  "constants": {
+    "candidateTtlMs": 2592000000,
+    "contentMaxCodePoints": 2000,
+    "uuidNamespace": "7b430abd-757c-5561-bdc9-40d1e677748c",
+    "confidence": {
+      "explicit_persist": 1,
+      "implicit_persist": 0.8
+    },
+    "codeTokenChars": "_(){}[]<>=/\\#$@;|",
+    "separators": "，,、:：;；-—–!！.。…~～"
+  },
+  "algorithm": [
+    "1 Primitives. Scan only the first directive-detector maxScanCodePoints code points. trim, norm, wordform, term matching per mode, mask, sentence split, isQuestion and the filler-dropping start check are exactly directive-detector.v2 algorithm rules 1–9. detect(s) is the client's production directive detector. Lexicon languages are zh-Hans and en, in that order, each with the mode its directive-detector language has (lexiconModes). has(s, key): some term of lexicon[L][key] matches s in L's mode for some L. dirHas(s, key): same over directive-detector lexicon[L][key] for L in zh-Hans, en; dirHasAny(s, key): over all directive-detector languages. head(s, key): for some L, rule 9 with L's directive-detector fillers and lexicon[L][key] in place of starts.",
+    "2 hasExcept(s, key, exKey): per L, substring mode: in norm(s) replace every occurrence of norm(e) (each e of lexicon[L][exKey] in list order, left to right, non-overlapping) by one space, then test norm(term) as a substring; word mode: in wordform(s), for each e in list order repeatedly replace the first occurrence of ' ' + wordform-core(e) + ' ' by ' ' until none is left, then test ' ' + wordform-core(term) + ' '.",
+    "3 codeMask(m): find the maximal runs of code points in U+0021..U+007E. A run is code when it contains a codeTokenChars code point, or an ASCII lowercase letter directly followed by an ASCII uppercase letter, or an ASCII letter or digit followed by '.' followed by an ASCII letter. Every code point of a code run becomes U+0020 (length unchanged).",
+    "4 Sentences are directive-detector sentences of the scanned text. For each: O = the original code points of its [start, end) range (untrimmed), M1 = the same range of the directive mask, M2 = codeMask(M1), span = trim(O). The first matching step decides the sentence; a sentence matching no step is ignored. (a) has(O, memoryWords) and not has(M2, memoryWords) → ack_or_meta/quoted. (b) has(M2, memoryWords) and has(M2, metaTerms) → ack_or_meta/meta. (c) isQuestion(M1) (directive rule 5, which trims M1 itself): recall/question when (has(M2, memoryWords) and has(M2, recallAddressees)) or has(M2, recallTerms), otherwise the sentence is ignored. (d) has(M2, recallTerms) → recall/recall. (e) hasExcept(M2, deleteTerms, deleteExceptions) → delete_or_supersede/delete. (f) has(M2, supersedeTerms) → delete_or_supersede/supersede. (g) hasExcept(M2, transientTerms, transientExceptions) → transient/transient. (h) head(M2, reminderStarts): detect(span).isDirective → implicit_persist/directive as in (j), else transient/reminder. (i) head(M2, persistStarts) and not head(M2, ackTerms): P = proposition(span); P non-empty and head(P, reminisceStarts) → ack_or_meta/reminisce; anaphorOnly(P) → uncertain/anaphor; else explicit_persist/persist with proposition P, kind kindOf(P), scope global if dirHasAny(M2, globalMarkers), else folder if has(M2, folderMarkers), else conversation if has(M2, conversationMarkers), else unspecified. (j) detect(span).isDirective → implicit_persist/directive. (k) has(M2, implicitMarkers) and dirHas(M2, verbs) and not dirHas(M2, vetoes) and not has(M2, ackTerms) → implicit_persist/loose_directive. (l) has(M2, ackTerms) → ack_or_meta/ack. (m) has(M2, uncertainMarkers) and has(M2, anaphorDirective) → uncertain/anaphor_directive. Implicit results: proposition = span, kind instruction, scope global if ((j)/(h): the detection scope is global; (k): dirHasAny(M2, globalMarkers)), else folder if has(M2, folderMarkers), else conversation.",
+    "5 proposition(span), on the span's code points: fold maps ASCII A–Z to a–z and nothing else; a term matches at i when its code points equal the folded code points from i and, for a term of a word-mode language, the next code point is absent or outside Unicode L*/N*/M*. Separators are White_Space and the `separators` code points. Phase 1: repeat { skip separators; when some persistStarts term (any lexicon language) matches go to phase 2; otherwise remove the longest matching term among the zh-Hans and en directive-detector fillers and the zh-Hans and en politePrefixes; when none matches return trim(span) }. Phase 2: remove the longest matching persistStarts term. Phase 3: repeat { skip separators; remove the longest matching linkers term; stop when none matches }. Return trim(rest).",
+    "6 anaphorOnly(P): drop trailing separators from trim(P); empty → true; else true when for some L and some anaphorOnly term t: substring mode norm(P') = norm(t), word mode wordform-core(P) = wordform-core(t). kindOf(P): instruction when detect(P).isDirective or, for L in zh-Hans / en, rule 9 accepts P with L's directive fillers and directive starts; else the first of project, goal, preference, identity with head(P, kindStarts[k]) (kindStarts[k] of each L); else fact.",
+    "7 Message intent: the decided sentence with the highest rank — delete_or_supersede 80, explicit_persist 70, implicit_persist 60 (+5 when its scope is not conversation), uncertain 50, recall 40, transient 30, ack_or_meta 20; ties keep the earlier sentence. No decided sentence → intent none, rule null, span null.",
+    "8 sensitive(text) over the scanned text, unmasked: secret when has(text, secretTerms) or any secretPatterns regex matches (scan all leftmost non-overlapping matches; a pattern with luhn true counts only when the match's ASCII digits pass the Luhn check); else special when has(text, specialTerms); else none. Patterns use ASCII classes and lookarounds only and are case-sensitive.",
+    "9 Output {intent, rule, span, proposition, kind, scope, sensitive, blocked, suggestion}. proposition / kind / scope / blocked are null unless the intent is explicit_persist or implicit_persist. blocked = conversation_scope when scope is conversation; else secret / special from sensitive; else too_long when the proposition has more than contentMaxCodePoints code points; else null. suggestion = none when sensitive is secret; memory when the intent persists and blocked is null; conversationInstruction when detect(text).isDirective (the conversation-instruction bar condition on the whole text); none otherwise. One message gets at most one suggestion bar.",
+    "10 fingerprint(content) = lowercase sha256 hex of the UTF-8 of canonical(content); canonical = norm(content) with every run of White_Space collapsed to one U+0020 and both ends trimmed.",
+    "11 makeCandidate(classification, context): suggestion ≠ memory → skip no_suggestion. context.autoSuggest = false (absent means true) and intent implicit_persist → skip auto_suggest_off (explicit_persist still creates: the user asked). fp = fingerprint(proposition); fp equal to the fingerprint of some activeContents entry → skip duplicate_active. id = UUIDv5(uuidNamespace, messageId + '\\n' + fp). The first record (list order) with the same id → skip exists, or with the same fingerprint and status pending → skip duplicate_pending, or with the same fingerprint, status rejected and nowMs < expiresAtMs → skip rejected_recently. Otherwise create a pending record: proposedLayer semantic, proposedKind = kind, content = proposition, scope global → {global, null}; folder → {folder, folderId} or {conversation, conversationId} without folder; unspecified → {folder, folderId} or {global, null} without folder; source {conversation, conversationId, [messageId], observedAtMs = nowMs}; sensitivity normal; confidence from constants by intent; createdAtMs = nowMs; expiresAtMs = nowMs + candidateTtlMs; resolvedAtMs null.",
+    "12 accept(record, edit, nowMs): status ≠ pending → error not_pending; nowMs ≥ expiresAtMs → expired; content = trim(edit.content) when given, else the record content; empty → empty; more than contentMaxCodePoints → too_long. Result: the record cleared to accepted, and an item draft {layer = proposedLayer, kind = edit.kind or proposedKind, status active, content, scope = edit.scope or the record scope, source {conversation, conversationId, messageIds, observedAtMs} from the record, sensitivity, confidence = record confidence when content equals the record content, else 1}. The client creates a new Memory Item from the draft through its normal create path; the candidate never turns into the item. Cleared = content '', source {conversation, null, [], null}, resolvedAtMs = nowMs, expiresAtMs unchanged.",
+    "13 reject(record, nowMs): status ≠ pending → error not_pending; else cleared to rejected with expiresAtMs = nowMs + candidateTtlMs: only the fingerprint is kept (no body, no source pointers) for short-term de-duplication.",
+    "14 sweep(records, activeContents, nowMs), records in order: pending and nowMs ≥ expiresAtMs → expired and purged; pending whose fingerprint is the fingerprint of an activeContents entry → superseded and purged; other pending → kept; rejected with nowMs < expiresAtMs → kept; everything else → purged. Returns keptIds, expiredIds, supersededIds, purgedIds in input order. A store therefore only holds pending and live rejected records."
+  ],
+  "lexiconModes": {
+    "zh-Hans": "substring",
+    "en": "word"
+  },
+  "lexicon": {
+    "zh-Hans": {
+      "memoryWords": [
+        "记住",
+        "记得",
+        "记下",
+        "记着",
+        "记一下",
+        "记忆",
+        "别忘",
+        "忘记",
+        "忘掉",
+        "忘了",
+        "记不住",
+        "记不清"
+      ],
+      "metaTerms": [
+        "什么意思",
+        "啥意思",
+        "怎么翻译",
+        "怎么拼",
+        "怎么读",
+        "这个词",
+        "这个单词",
+        "的意思是",
+        "近义词",
+        "同义词",
+        "有什么区别",
+        "的区别"
+      ],
+      "recallAddressees": [
+        "你",
+        "您"
+      ],
+      "recallTerms": [
+        "你记得关于我",
+        "你还记得关于我",
+        "你都记得什么",
+        "你记得我什么",
+        "你记住了什么",
+        "你记得哪些",
+        "看看你记得",
+        "列出你记得",
+        "列出你的记忆",
+        "查看记忆",
+        "看看你的记忆"
+      ],
+      "deleteTerms": [
+        "别记",
+        "不要记",
+        "不用记",
+        "不必记",
+        "别记住",
+        "不要记住",
+        "忘掉",
+        "忘了它",
+        "忘了这",
+        "忘记这",
+        "忘记我说",
+        "忘记刚才",
+        "别保存",
+        "不要保存",
+        "不用保存",
+        "别存",
+        "不要存",
+        "从记忆里删",
+        "从记忆中删",
+        "从记忆里去掉",
+        "删掉这条记忆",
+        "删除这条记忆",
+        "删掉记忆",
+        "删除记忆",
+        "清除记忆",
+        "清空记忆"
+      ],
+      "deleteExceptions": [
+        "别忘了",
+        "不要忘了",
+        "别忘记",
+        "不要忘记",
+        "不能忘",
+        "不会忘",
+        "千万别忘",
+        "可别忘"
+      ],
+      "supersedeTerms": [
+        "现在改成",
+        "现在改用",
+        "现在换成",
+        "现在换了",
+        "改主意",
+        "我换成了",
+        "我改用了",
+        "我已经不用",
+        "我已经不再",
+        "我不再"
+      ],
+      "transientTerms": [
+        "这次",
+        "这一次",
+        "本轮",
+        "这一轮",
+        "这轮",
+        "这个问题",
+        "这道题",
+        "这一题",
+        "暂时",
+        "临时",
+        "先这样",
+        "只这次",
+        "仅此一次",
+        "就这一次",
+        "今天先",
+        "下次提醒",
+        "提醒我",
+        "待会",
+        "等会",
+        "明天提醒"
+      ],
+      "transientExceptions": [
+        "这次对话",
+        "本次对话",
+        "这次会话",
+        "本次会话",
+        "这次聊天",
+        "这一次对话"
+      ],
+      "persistStarts": [
+        "记住",
+        "请记住",
+        "请你记住",
+        "你要记住",
+        "你记住",
+        "帮我记住",
+        "帮我记一下",
+        "帮我记下",
+        "帮我记着",
+        "记一下",
+        "记下",
+        "记下来",
+        "记着",
+        "你记着",
+        "请记下",
+        "请记一下",
+        "别忘了",
+        "不要忘了",
+        "别忘记",
+        "不要忘记",
+        "千万别忘了",
+        "保存到记忆",
+        "存到记忆",
+        "存进记忆",
+        "加到记忆",
+        "加入记忆",
+        "写进记忆",
+        "记到记忆",
+        "请保存到记忆",
+        "帮我保存到记忆"
+      ],
+      "reminderStarts": [
+        "记得",
+        "别忘了要",
+        "不要忘了要",
+        "到时候提醒",
+        "提醒我"
+      ],
+      "ackTerms": [
+        "记住了",
+        "记下了",
+        "记得了",
+        "记着呢",
+        "记着了",
+        "我记得",
+        "我记住",
+        "我会记",
+        "我还记得",
+        "我记着",
+        "我忘了",
+        "我忘记",
+        "我不记得",
+        "我记不住",
+        "我记不清",
+        "我记不得"
+      ],
+      "reminisceStarts": [
+        "那次",
+        "那天",
+        "当时",
+        "上次",
+        "小时候",
+        "以前我们"
+      ],
+      "politePrefixes": [
+        "请",
+        "麻烦",
+        "拜托",
+        "帮忙"
+      ],
+      "linkers": [
+        "一下",
+        "下来",
+        "以下内容",
+        "以下几点",
+        "以下"
+      ],
+      "anaphorOnly": [
+        "这",
+        "这个",
+        "这些",
+        "那个",
+        "那些",
+        "这点",
+        "这一点",
+        "这件事",
+        "这句话",
+        "这句",
+        "上面的",
+        "上面这些",
+        "上面的内容",
+        "以上",
+        "以上内容",
+        "刚才的",
+        "刚才说的",
+        "刚才那个",
+        "我说的",
+        "我刚说的",
+        "它"
+      ],
+      "anaphorDirective": [
+        "这样",
+        "这么做",
+        "这么写",
+        "照这样",
+        "照此",
+        "如此",
+        "这种方式",
+        "这个样子"
+      ],
+      "uncertainMarkers": [
+        "以后",
+        "今后",
+        "从现在起",
+        "从现在开始",
+        "往后",
+        "每次",
+        "一直",
+        "总是"
+      ],
+      "implicitMarkers": [
+        "以后",
+        "今后",
+        "从现在起",
+        "从现在开始",
+        "往后",
+        "别再",
+        "不要再",
+        "不许再",
+        "每次都",
+        "一律"
+      ],
+      "folderMarkers": [
+        "这个项目",
+        "本项目",
+        "该项目",
+        "这个文件夹",
+        "本文件夹",
+        "这个分组"
+      ],
+      "conversationMarkers": [
+        "这个对话",
+        "本次对话",
+        "这次对话",
+        "本对话",
+        "这个会话",
+        "本次会话",
+        "这次会话",
+        "这个聊天",
+        "这次聊天",
+        "本次聊天"
+      ],
+      "kindStarts": {
+        "project": [
+          "我在做",
+          "我正在做",
+          "我的项目",
+          "我们的项目",
+          "我在开发",
+          "我正在开发",
+          "我在写",
+          "我正在写",
+          "我负责"
+        ],
+        "goal": [
+          "我的目标",
+          "我想学会",
+          "我打算",
+          "我计划",
+          "我准备"
+        ],
+        "preference": [
+          "我喜欢",
+          "我偏好",
+          "我更喜欢",
+          "我更偏好",
+          "我倾向于",
+          "我讨厌",
+          "我不喜欢",
+          "我爱",
+          "我习惯",
+          "我偏爱",
+          "我不爱",
+          "我比较喜欢"
+        ],
+        "identity": [
+          "我是",
+          "我叫",
+          "我的名字",
+          "我名字",
+          "我今年",
+          "我住在",
+          "我来自",
+          "我的职业",
+          "我的工作是",
+          "我在",
+          "我家"
+        ]
+      },
+      "secretTerms": [
+        "密码",
+        "口令",
+        "验证码",
+        "校验码",
+        "动态码",
+        "短信码",
+        "银行卡号",
+        "银行账号",
+        "信用卡",
+        "卡号",
+        "安全码",
+        "身份证",
+        "护照号",
+        "社保号",
+        "社会保障号",
+        "驾驶证号",
+        "私钥",
+        "助记词",
+        "密钥",
+        "令牌"
+      ],
+      "specialTerms": [
+        "确诊",
+        "诊断",
+        "病史",
+        "处方",
+        "抑郁症",
+        "焦虑症",
+        "双相",
+        "精神分裂",
+        "精神疾病",
+        "心理疾病",
+        "癌症",
+        "肿瘤",
+        "艾滋",
+        "怀孕",
+        "流产",
+        "残疾",
+        "性取向",
+        "同性恋",
+        "双性恋",
+        "跨性别",
+        "变性",
+        "宗教",
+        "信仰",
+        "基督徒",
+        "穆斯林",
+        "佛教徒",
+        "天主教",
+        "伊斯兰",
+        "政治立场",
+        "政治倾向",
+        "党员",
+        "民族",
+        "种族",
+        "犯罪记录",
+        "前科",
+        "坐过牢",
+        "服刑",
+        "被判",
+        "被起诉",
+        "被逮捕",
+        "案底",
+        "移民身份",
+        "签证状态",
+        "非法移民",
+        "黑户"
+      ]
+    },
+    "en": {
+      "memoryWords": [
+        "remember",
+        "remembers",
+        "remembered",
+        "remembering",
+        "memory",
+        "memories",
+        "memorize",
+        "memorise",
+        "forget",
+        "forgot",
+        "forgotten",
+        "recall",
+        "keep in mind"
+      ],
+      "metaTerms": [
+        "what does",
+        "meaning of",
+        "definition of",
+        "how do you spell",
+        "spelling of",
+        "synonym",
+        "synonyms",
+        "the word",
+        "pronounce",
+        "pronunciation",
+        "difference between",
+        "past tense"
+      ],
+      "recallAddressees": [
+        "you",
+        "your"
+      ],
+      "recallTerms": [
+        "what do you remember",
+        "what do you know about me",
+        "tell me what you remember",
+        "list what you remember",
+        "show me your memory",
+        "show my memories",
+        "what is in your memory"
+      ],
+      "deleteTerms": [
+        "don't remember",
+        "do not remember",
+        "forget that",
+        "forget this",
+        "forget what i",
+        "forget about",
+        "forget it",
+        "forget my",
+        "forget everything",
+        "don't save",
+        "do not save",
+        "don't store",
+        "do not store",
+        "remove from memory",
+        "remove it from memory",
+        "delete from memory",
+        "delete that memory",
+        "delete this memory",
+        "delete the memory",
+        "erase that",
+        "erase this",
+        "stop remembering",
+        "no need to remember",
+        "you don't need to remember"
+      ],
+      "deleteExceptions": [
+        "don't forget",
+        "do not forget",
+        "never forget",
+        "not forget",
+        "won't forget",
+        "can't forget"
+      ],
+      "supersedeTerms": [
+        "i no longer",
+        "i'm no longer",
+        "i am no longer",
+        "i used to",
+        "i've switched",
+        "i have switched",
+        "i switched to",
+        "i've moved to",
+        "i have moved to",
+        "changed my mind"
+      ],
+      "transientTerms": [
+        "this time",
+        "just this once",
+        "only this once",
+        "this once",
+        "for now",
+        "for this task",
+        "for this question",
+        "for this answer",
+        "for this reply",
+        "for this one",
+        "right now",
+        "remind me",
+        "today only",
+        "just for today",
+        "temporarily"
+      ],
+      "transientExceptions": [],
+      "persistStarts": [
+        "remember",
+        "please remember",
+        "remember that",
+        "keep in mind",
+        "please keep in mind",
+        "bear in mind",
+        "don't forget",
+        "do not forget",
+        "please don't forget",
+        "never forget",
+        "save this to memory",
+        "save to memory",
+        "save this to your memory",
+        "save to your memory",
+        "add this to memory",
+        "add to memory",
+        "add this to your memory",
+        "add to your memory",
+        "store this",
+        "memorize",
+        "memorise",
+        "commit to memory",
+        "make a note",
+        "for future reference"
+      ],
+      "reminderStarts": [
+        "remember to",
+        "please remember to",
+        "don't forget to",
+        "do not forget to",
+        "please don't forget to",
+        "remind me"
+      ],
+      "ackTerms": [
+        "i remember",
+        "i'll remember",
+        "i will remember",
+        "i remembered",
+        "i do remember",
+        "i can remember",
+        "i can't remember",
+        "i cannot remember",
+        "i don't remember",
+        "i forgot",
+        "i forget",
+        "i'll keep that in mind",
+        "i will keep that in mind",
+        "i'll keep it in mind",
+        "noted"
+      ],
+      "reminisceStarts": [
+        "when",
+        "how",
+        "where",
+        "what",
+        "who",
+        "why",
+        "the time",
+        "the day",
+        "back when",
+        "last time",
+        "that time"
+      ],
+      "politePrefixes": [
+        "please",
+        "kindly",
+        "hey",
+        "hi"
+      ],
+      "linkers": [
+        "that",
+        "the following:",
+        "the following",
+        "this:",
+        "these:"
+      ],
+      "anaphorOnly": [
+        "this",
+        "that",
+        "it",
+        "these",
+        "those",
+        "the above",
+        "what i said",
+        "what i just said",
+        "this one",
+        "that one",
+        "all of this",
+        "all that"
+      ],
+      "anaphorDirective": [
+        "like this",
+        "like that",
+        "this way",
+        "that way",
+        "the same way",
+        "do this",
+        "do that"
+      ],
+      "uncertainMarkers": [
+        "from now on",
+        "going forward",
+        "from here on",
+        "in the future",
+        "always",
+        "every time"
+      ],
+      "implicitMarkers": [
+        "from now on",
+        "going forward",
+        "from here on",
+        "from this point on",
+        "in the future",
+        "never again",
+        "every time"
+      ],
+      "folderMarkers": [
+        "this project",
+        "this folder"
+      ],
+      "conversationMarkers": [
+        "this chat",
+        "this conversation"
+      ],
+      "kindStarts": {
+        "project": [
+          "i'm working on",
+          "i am working on",
+          "i'm building",
+          "i am building",
+          "i'm developing",
+          "i am developing",
+          "i'm writing",
+          "i am writing",
+          "my project",
+          "our project",
+          "we're building",
+          "we are building"
+        ],
+        "goal": [
+          "my goal",
+          "i want to learn",
+          "i plan to",
+          "i'm planning to",
+          "i am planning to",
+          "i'm trying to",
+          "i am trying to"
+        ],
+        "preference": [
+          "i prefer",
+          "i like",
+          "i love",
+          "i hate",
+          "i dislike",
+          "i don't like",
+          "i do not like",
+          "i enjoy",
+          "i'd rather",
+          "i would rather"
+        ],
+        "identity": [
+          "i am",
+          "i'm",
+          "my name is",
+          "i live in",
+          "i work as",
+          "i work at",
+          "i work for",
+          "i'm from",
+          "i am from",
+          "call me"
+        ]
+      },
+      "secretTerms": [
+        "password",
+        "passwords",
+        "passcode",
+        "passphrase",
+        "pin code",
+        "pin number",
+        "verification code",
+        "security code",
+        "one-time code",
+        "otp",
+        "2fa code",
+        "api key",
+        "api keys",
+        "apikey",
+        "api token",
+        "access token",
+        "refresh token",
+        "secret key",
+        "private key",
+        "seed phrase",
+        "recovery phrase",
+        "mnemonic phrase",
+        "credit card",
+        "debit card",
+        "card number",
+        "cvv",
+        "cvc",
+        "ssn",
+        "social security number",
+        "passport number",
+        "driver's license number",
+        "bank account",
+        "account number",
+        "routing number",
+        "iban",
+        "login credentials"
+      ],
+      "specialTerms": [
+        "diagnosed",
+        "diagnosis",
+        "medical history",
+        "prescription",
+        "medication",
+        "depression",
+        "anxiety disorder",
+        "bipolar",
+        "schizophrenia",
+        "cancer",
+        "hiv",
+        "aids",
+        "pregnant",
+        "miscarriage",
+        "disability",
+        "sexual orientation",
+        "gay",
+        "lesbian",
+        "bisexual",
+        "transgender",
+        "religion",
+        "religious",
+        "christian",
+        "muslim",
+        "jewish",
+        "buddhist",
+        "hindu",
+        "atheist",
+        "political views",
+        "political party",
+        "democrat",
+        "republican",
+        "ethnicity",
+        "criminal record",
+        "convicted",
+        "arrested",
+        "felony",
+        "prison",
+        "immigration status",
+        "undocumented",
+        "visa status"
+      ]
+    }
+  },
+  "secretPatterns": [
+    {
+      "id": "openai_anthropic_key",
+      "regex": "sk-[A-Za-z0-9_-]{20,}",
+      "luhn": false
+    },
+    {
+      "id": "aws_access_key",
+      "regex": "AKIA[0-9A-Z]{16}",
+      "luhn": false
+    },
+    {
+      "id": "google_api_key",
+      "regex": "AIza[0-9A-Za-z_-]{35}",
+      "luhn": false
+    },
+    {
+      "id": "github_token",
+      "regex": "gh[pousr]_[A-Za-z0-9]{36,}",
+      "luhn": false
+    },
+    {
+      "id": "slack_token",
+      "regex": "xox[abprs]-[A-Za-z0-9-]{10,}",
+      "luhn": false
+    },
+    {
+      "id": "private_key_block",
+      "regex": "-----BEGIN [A-Z ]*PRIVATE KEY-----",
+      "luhn": false
+    },
+    {
+      "id": "jwt",
+      "regex": "eyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}",
+      "luhn": false
+    },
+    {
+      "id": "cn_resident_id",
+      "regex": "(?<![0-9])[1-9][0-9]{16}[0-9Xx](?![0-9])",
+      "luhn": false
+    },
+    {
+      "id": "payment_card",
+      "regex": "(?<![0-9])[0-9](?:[ -]?[0-9]){12,18}(?![0-9])",
+      "luhn": true
+    }
+  ],
+  "cases": [
+    {
+      "id": "zh_explicit_01_golden",
+      "lang": "zh",
+      "group": "explicit",
+      "golden": true,
+      "text": "记住我偏好简洁回答",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住我偏好简洁回答",
+        "proposition": "我偏好简洁回答",
+        "kind": "preference",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_explicit_01_golden",
+      "lang": "en",
+      "group": "explicit",
+      "golden": true,
+      "text": "Remember that I use TypeScript",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember that I use TypeScript",
+        "proposition": "I use TypeScript",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_explicit_02",
+      "lang": "zh",
+      "group": "explicit",
+      "golden": false,
+      "text": "请记住：我是一名中学数学老师。",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "请记住：我是一名中学数学老师。",
+        "proposition": "我是一名中学数学老师。",
+        "kind": "identity",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_explicit_03_golden",
+      "lang": "zh",
+      "group": "explicit",
+      "golden": true,
+      "text": "帮我记一下，我住在杭州",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "帮我记一下，我住在杭州",
+        "proposition": "我住在杭州",
+        "kind": "identity",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_explicit_04",
+      "lang": "zh",
+      "group": "explicit",
+      "golden": false,
+      "text": "记下来：我对花生过敏",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记下来：我对花生过敏",
+        "proposition": "我对花生过敏",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_explicit_05",
+      "lang": "zh",
+      "group": "explicit",
+      "golden": false,
+      "text": "别忘了我不吃辣",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "别忘了我不吃辣",
+        "proposition": "我不吃辣",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_explicit_06",
+      "lang": "zh",
+      "group": "explicit",
+      "golden": false,
+      "text": "好的，记住我叫小林",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "好的，记住我叫小林",
+        "proposition": "我叫小林",
+        "kind": "identity",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_explicit_07",
+      "lang": "zh",
+      "group": "explicit",
+      "golden": false,
+      "text": "记住，我正在写一本关于宋代的历史小说",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住，我正在写一本关于宋代的历史小说",
+        "proposition": "我正在写一本关于宋代的历史小说",
+        "kind": "project",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_explicit_08",
+      "lang": "zh",
+      "group": "explicit",
+      "golden": false,
+      "text": "保存到记忆：我的目标是明年考过 N1",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "保存到记忆：我的目标是明年考过 N1",
+        "proposition": "我的目标是明年考过 N1",
+        "kind": "goal",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_explicit_09_golden",
+      "lang": "zh",
+      "group": "explicit",
+      "golden": true,
+      "text": "记住，以后所有对话都用中文回答",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住，以后所有对话都用中文回答",
+        "proposition": "以后所有对话都用中文回答",
+        "kind": "instruction",
+        "scope": "global",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_explicit_10",
+      "lang": "zh",
+      "group": "explicit",
+      "golden": false,
+      "text": "请你记住，回答尽量不要超过三段",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "请你记住，回答尽量不要超过三段",
+        "proposition": "回答尽量不要超过三段",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_explicit_11",
+      "lang": "zh",
+      "group": "explicit",
+      "golden": false,
+      "text": "记住我喜欢用表格对比方案",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住我喜欢用表格对比方案",
+        "proposition": "我喜欢用表格对比方案",
+        "kind": "preference",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_explicit_02",
+      "lang": "en",
+      "group": "explicit",
+      "golden": false,
+      "text": "Please remember: my name is Dana.",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Please remember: my name is Dana.",
+        "proposition": "my name is Dana.",
+        "kind": "identity",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_explicit_03",
+      "lang": "en",
+      "group": "explicit",
+      "golden": false,
+      "text": "Keep in mind that I'm vegetarian.",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Keep in mind that I'm vegetarian.",
+        "proposition": "I'm vegetarian.",
+        "kind": "identity",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_explicit_04",
+      "lang": "en",
+      "group": "explicit",
+      "golden": false,
+      "text": "Don't forget I live in Lisbon",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Don't forget I live in Lisbon",
+        "proposition": "I live in Lisbon",
+        "kind": "identity",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_explicit_05",
+      "lang": "en",
+      "group": "explicit",
+      "golden": false,
+      "text": "Remember: I prefer metric units",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember: I prefer metric units",
+        "proposition": "I prefer metric units",
+        "kind": "preference",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_explicit_06",
+      "lang": "en",
+      "group": "explicit",
+      "golden": false,
+      "text": "Remember I'm building a Rust CLI called sprout",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember I'm building a Rust CLI called sprout",
+        "proposition": "I'm building a Rust CLI called sprout",
+        "kind": "project",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_explicit_07",
+      "lang": "en",
+      "group": "explicit",
+      "golden": false,
+      "text": "For future reference, my goal is to run a marathon next spring.",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "For future reference, my goal is to run a marathon next spring.",
+        "proposition": "my goal is to run a marathon next spring.",
+        "kind": "goal",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_explicit_08",
+      "lang": "en",
+      "group": "explicit",
+      "golden": false,
+      "text": "Save this to memory: I work as a nurse on night shifts.",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Save this to memory: I work as a nurse on night shifts.",
+        "proposition": "I work as a nurse on night shifts.",
+        "kind": "identity",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_explicit_09_golden",
+      "lang": "en",
+      "group": "explicit",
+      "golden": true,
+      "text": "Remember that in all chats you should answer in British English",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember that in all chats you should answer in British English",
+        "proposition": "in all chats you should answer in British English",
+        "kind": "instruction",
+        "scope": "global",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_explicit_10",
+      "lang": "en",
+      "group": "explicit",
+      "golden": false,
+      "text": "OK. Remember that my daughter is called Mia.",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember that my daughter is called Mia.",
+        "proposition": "my daughter is called Mia.",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_explicit_11",
+      "lang": "en",
+      "group": "explicit",
+      "golden": false,
+      "text": "Remember, never use emoji when you reply to me.",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember, never use emoji when you reply to me.",
+        "proposition": "never use emoji when you reply to me.",
+        "kind": "instruction",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "mixed_explicit_01_golden",
+      "lang": "mixed",
+      "group": "explicit",
+      "golden": true,
+      "text": "Remember 我喜欢简洁回答",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember 我喜欢简洁回答",
+        "proposition": "我喜欢简洁回答",
+        "kind": "preference",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "mixed_explicit_02_golden",
+      "lang": "mixed",
+      "group": "explicit",
+      "golden": true,
+      "text": "记住 I prefer TypeScript over JavaScript",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住 I prefer TypeScript over JavaScript",
+        "proposition": "I prefer TypeScript over JavaScript",
+        "kind": "preference",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "mixed_explicit_03",
+      "lang": "mixed",
+      "group": "explicit",
+      "golden": false,
+      "text": "记住：我的 GitHub 用户名是 lin-dev",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住：我的 GitHub 用户名是 lin-dev",
+        "proposition": "我的 GitHub 用户名是 lin-dev",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "mixed_explicit_04",
+      "lang": "mixed",
+      "group": "explicit",
+      "golden": false,
+      "text": "Please remember 我在上海工作",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Please remember 我在上海工作",
+        "proposition": "我在上海工作",
+        "kind": "identity",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "mixed_explicit_05",
+      "lang": "mixed",
+      "group": "explicit",
+      "golden": false,
+      "text": "帮我记住 my timezone is UTC+8",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "帮我记住 my timezone is UTC+8",
+        "proposition": "my timezone is UTC+8",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_explicit_12",
+      "lang": "zh",
+      "group": "explicit",
+      "golden": false,
+      "text": "记住，这个项目里的代码都用 Kotlin 写",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住，这个项目里的代码都用 Kotlin 写",
+        "proposition": "这个项目里的代码都用 Kotlin 写",
+        "kind": "fact",
+        "scope": "folder",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_explicit_12",
+      "lang": "en",
+      "group": "explicit",
+      "golden": false,
+      "text": "Remember that this project uses pnpm, not npm.",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember that this project uses pnpm, not npm.",
+        "proposition": "this project uses pnpm, not npm.",
+        "kind": "fact",
+        "scope": "folder",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_explicit_13",
+      "lang": "zh",
+      "group": "explicit",
+      "golden": false,
+      "text": "记住，这个对话里我的角色叫阿青",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住，这个对话里我的角色叫阿青",
+        "proposition": "这个对话里我的角色叫阿青",
+        "kind": "instruction",
+        "scope": "conversation",
+        "sensitive": "none",
+        "blocked": "conversation_scope",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_explicit_13",
+      "lang": "en",
+      "group": "explicit",
+      "golden": false,
+      "text": "Remember for this chat that the villain is called Morrow.",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember for this chat that the villain is called Morrow.",
+        "proposition": "for this chat that the villain is called Morrow.",
+        "kind": "instruction",
+        "scope": "conversation",
+        "sensitive": "none",
+        "blocked": "conversation_scope",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_implicit_01_golden",
+      "lang": "zh",
+      "group": "implicit",
+      "golden": true,
+      "text": "以后总结都用中文",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "loose_directive",
+        "span": "以后总结都用中文",
+        "proposition": "以后总结都用中文",
+        "kind": "instruction",
+        "scope": "conversation",
+        "sensitive": "none",
+        "blocked": "conversation_scope",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_implicit_01_golden",
+      "lang": "en",
+      "group": "implicit",
+      "golden": true,
+      "text": "From now on, keep answers concise",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "From now on, keep answers concise",
+        "proposition": "From now on, keep answers concise",
+        "kind": "instruction",
+        "scope": "conversation",
+        "sensitive": "none",
+        "blocked": "conversation_scope",
+        "suggestion": "conversationInstruction"
+      }
+    },
+    {
+      "id": "zh_implicit_02_golden",
+      "lang": "zh",
+      "group": "implicit",
+      "golden": true,
+      "text": "别再用英文写总结",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "别再用英文写总结",
+        "proposition": "别再用英文写总结",
+        "kind": "instruction",
+        "scope": "conversation",
+        "sensitive": "none",
+        "blocked": "conversation_scope",
+        "suggestion": "conversationInstruction"
+      }
+    },
+    {
+      "id": "zh_implicit_03_golden",
+      "lang": "zh",
+      "group": "implicit",
+      "golden": true,
+      "text": "从现在起，回答都用繁体中文",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "从现在起，回答都用繁体中文",
+        "proposition": "从现在起，回答都用繁体中文",
+        "kind": "instruction",
+        "scope": "conversation",
+        "sensitive": "none",
+        "blocked": "conversation_scope",
+        "suggestion": "conversationInstruction"
+      }
+    },
+    {
+      "id": "zh_implicit_04_golden",
+      "lang": "zh",
+      "group": "implicit",
+      "golden": true,
+      "text": "以后所有对话都用简体中文回复我",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "以后所有对话都用简体中文回复我",
+        "proposition": "以后所有对话都用简体中文回复我",
+        "kind": "instruction",
+        "scope": "global",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_implicit_05",
+      "lang": "zh",
+      "group": "implicit",
+      "golden": false,
+      "text": "在所有聊天里都不要用表情符号",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "在所有聊天里都不要用表情符号",
+        "proposition": "在所有聊天里都不要用表情符号",
+        "kind": "instruction",
+        "scope": "global",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_implicit_06",
+      "lang": "zh",
+      "group": "implicit",
+      "golden": false,
+      "text": "以后每次回答都先给结论",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "以后每次回答都先给结论",
+        "proposition": "以后每次回答都先给结论",
+        "kind": "instruction",
+        "scope": "conversation",
+        "sensitive": "none",
+        "blocked": "conversation_scope",
+        "suggestion": "conversationInstruction"
+      }
+    },
+    {
+      "id": "zh_implicit_07",
+      "lang": "zh",
+      "group": "implicit",
+      "golden": false,
+      "text": "不要再加免责声明了",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "不要再加免责声明了",
+        "proposition": "不要再加免责声明了",
+        "kind": "instruction",
+        "scope": "conversation",
+        "sensitive": "none",
+        "blocked": "conversation_scope",
+        "suggestion": "conversationInstruction"
+      }
+    },
+    {
+      "id": "zh_implicit_08",
+      "lang": "zh",
+      "group": "implicit",
+      "golden": false,
+      "text": "这个项目里以后都用 TypeScript 写",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "loose_directive",
+        "span": "这个项目里以后都用 TypeScript 写",
+        "proposition": "这个项目里以后都用 TypeScript 写",
+        "kind": "instruction",
+        "scope": "folder",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_implicit_02_golden",
+      "lang": "en",
+      "group": "implicit",
+      "golden": true,
+      "text": "In all chats, always answer in Spanish.",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "In all chats, always answer in Spanish.",
+        "proposition": "In all chats, always answer in Spanish.",
+        "kind": "instruction",
+        "scope": "global",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_implicit_03",
+      "lang": "en",
+      "group": "implicit",
+      "golden": false,
+      "text": "Stop adding disclaimers to your replies.",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_implicit_04",
+      "lang": "en",
+      "group": "implicit",
+      "golden": false,
+      "text": "Going forward, write all code comments in English.",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "Going forward, write all code comments in English.",
+        "proposition": "Going forward, write all code comments in English.",
+        "kind": "instruction",
+        "scope": "conversation",
+        "sensitive": "none",
+        "blocked": "conversation_scope",
+        "suggestion": "conversationInstruction"
+      }
+    },
+    {
+      "id": "en_implicit_05",
+      "lang": "en",
+      "group": "implicit",
+      "golden": false,
+      "text": "Never use bullet points in your answers again.",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "Never use bullet points in your answers again.",
+        "proposition": "Never use bullet points in your answers again.",
+        "kind": "instruction",
+        "scope": "conversation",
+        "sensitive": "none",
+        "blocked": "conversation_scope",
+        "suggestion": "conversationInstruction"
+      }
+    },
+    {
+      "id": "en_implicit_06",
+      "lang": "en",
+      "group": "implicit",
+      "golden": false,
+      "text": "In all future conversations, use metric units.",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "In all future conversations, use metric units.",
+        "proposition": "In all future conversations, use metric units.",
+        "kind": "instruction",
+        "scope": "global",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "mixed_implicit_01",
+      "lang": "mixed",
+      "group": "implicit",
+      "golden": false,
+      "text": "以后都用 English 回答我",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "以后都用 English 回答我",
+        "proposition": "以后都用 English 回答我",
+        "kind": "instruction",
+        "scope": "conversation",
+        "sensitive": "none",
+        "blocked": "conversation_scope",
+        "suggestion": "conversationInstruction"
+      }
+    },
+    {
+      "id": "mixed_implicit_02_golden",
+      "lang": "mixed",
+      "group": "implicit",
+      "golden": true,
+      "text": "From now on 都用中文回答",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "loose_directive",
+        "span": "From now on 都用中文回答",
+        "proposition": "From now on 都用中文回答",
+        "kind": "instruction",
+        "scope": "conversation",
+        "sensitive": "none",
+        "blocked": "conversation_scope",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "mixed_implicit_03",
+      "lang": "mixed",
+      "group": "implicit",
+      "golden": false,
+      "text": "以后所有对话 reply in English",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "loose_directive",
+        "span": "以后所有对话 reply in English",
+        "proposition": "以后所有对话 reply in English",
+        "kind": "instruction",
+        "scope": "global",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_implicit_09",
+      "lang": "zh",
+      "group": "implicit",
+      "golden": false,
+      "text": "记得以后都用中文回复",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "记得以后都用中文回复",
+        "proposition": "记得以后都用中文回复",
+        "kind": "instruction",
+        "scope": "conversation",
+        "sensitive": "none",
+        "blocked": "conversation_scope",
+        "suggestion": "conversationInstruction"
+      }
+    },
+    {
+      "id": "en_implicit_07",
+      "lang": "en",
+      "group": "implicit",
+      "golden": false,
+      "text": "Remember to always reply in English.",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "Remember to always reply in English.",
+        "proposition": "Remember to always reply in English.",
+        "kind": "instruction",
+        "scope": "conversation",
+        "sensitive": "none",
+        "blocked": "conversation_scope",
+        "suggestion": "conversationInstruction"
+      }
+    },
+    {
+      "id": "zh_transient_01_golden",
+      "lang": "zh",
+      "group": "transient",
+      "golden": true,
+      "text": "这次先简短回答",
+      "label": "transient",
+      "expected": {
+        "intent": "transient",
+        "rule": "transient",
+        "span": "这次先简短回答",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_transient_01_golden",
+      "lang": "en",
+      "group": "transient",
+      "golden": true,
+      "text": "For this task only, use bullet points.",
+      "label": "transient",
+      "expected": {
+        "intent": "transient",
+        "rule": "transient",
+        "span": "For this task only, use bullet points.",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_transient_02_golden",
+      "lang": "zh",
+      "group": "transient",
+      "golden": true,
+      "text": "下次提醒我一次",
+      "label": "transient",
+      "expected": {
+        "intent": "transient",
+        "rule": "transient",
+        "span": "下次提醒我一次",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_transient_03",
+      "lang": "zh",
+      "group": "transient",
+      "golden": false,
+      "text": "这个问题用英文回答就行",
+      "label": "transient",
+      "expected": {
+        "intent": "transient",
+        "rule": "transient",
+        "span": "这个问题用英文回答就行",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_transient_04",
+      "lang": "zh",
+      "group": "transient",
+      "golden": false,
+      "text": "暂时先别管格式",
+      "label": "transient",
+      "expected": {
+        "intent": "transient",
+        "rule": "transient",
+        "span": "暂时先别管格式",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_transient_05",
+      "lang": "zh",
+      "group": "transient",
+      "golden": false,
+      "text": "记住，这次先用英文回答",
+      "label": "transient",
+      "expected": {
+        "intent": "transient",
+        "rule": "transient",
+        "span": "记住，这次先用英文回答",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_transient_06",
+      "lang": "zh",
+      "group": "transient",
+      "golden": false,
+      "text": "记得带伞",
+      "label": "transient",
+      "expected": {
+        "intent": "transient",
+        "rule": "reminder",
+        "span": "记得带伞",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_transient_02",
+      "lang": "en",
+      "group": "transient",
+      "golden": false,
+      "text": "Just this once, answer in French.",
+      "label": "transient",
+      "expected": {
+        "intent": "transient",
+        "rule": "transient",
+        "span": "Just this once, answer in French.",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_transient_03",
+      "lang": "en",
+      "group": "transient",
+      "golden": false,
+      "text": "Remind me to call mom tomorrow.",
+      "label": "transient",
+      "expected": {
+        "intent": "transient",
+        "rule": "transient",
+        "span": "Remind me to call mom tomorrow.",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_transient_04",
+      "lang": "en",
+      "group": "transient",
+      "golden": false,
+      "text": "Remember to buy milk.",
+      "label": "transient",
+      "expected": {
+        "intent": "transient",
+        "rule": "reminder",
+        "span": "Remember to buy milk.",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_transient_05",
+      "lang": "en",
+      "group": "transient",
+      "golden": false,
+      "text": "For now, skip the tests.",
+      "label": "transient",
+      "expected": {
+        "intent": "transient",
+        "rule": "transient",
+        "span": "For now, skip the tests.",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "mixed_transient_01",
+      "lang": "mixed",
+      "group": "transient",
+      "golden": false,
+      "text": "这次 answer in English 就好",
+      "label": "transient",
+      "expected": {
+        "intent": "transient",
+        "rule": "transient",
+        "span": "这次 answer in English 就好",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "mixed_transient_02",
+      "lang": "mixed",
+      "group": "transient",
+      "golden": false,
+      "text": "Just this once 用英文回答",
+      "label": "transient",
+      "expected": {
+        "intent": "transient",
+        "rule": "transient",
+        "span": "Just this once 用英文回答",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_recall_01_golden",
+      "lang": "zh",
+      "group": "recall",
+      "golden": true,
+      "text": "你还记得我的语言偏好吗？",
+      "label": "recall",
+      "expected": {
+        "intent": "recall",
+        "rule": "question",
+        "span": "你还记得我的语言偏好吗？",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_recall_01_golden",
+      "lang": "en",
+      "group": "recall",
+      "golden": true,
+      "text": "Do you remember my name?",
+      "label": "recall",
+      "expected": {
+        "intent": "recall",
+        "rule": "question",
+        "span": "Do you remember my name?",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_recall_02",
+      "lang": "zh",
+      "group": "recall",
+      "golden": false,
+      "text": "你记得我上次说的项目吗",
+      "label": "recall",
+      "expected": {
+        "intent": "recall",
+        "rule": "question",
+        "span": "你记得我上次说的项目吗",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_recall_03",
+      "lang": "zh",
+      "group": "recall",
+      "golden": false,
+      "text": "你都记得什么关于我的事？",
+      "label": "recall",
+      "expected": {
+        "intent": "recall",
+        "rule": "question",
+        "span": "你都记得什么关于我的事？",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_recall_04",
+      "lang": "zh",
+      "group": "recall",
+      "golden": false,
+      "text": "列出你记得的关于我的内容",
+      "label": "recall",
+      "expected": {
+        "intent": "recall",
+        "rule": "recall",
+        "span": "列出你记得的关于我的内容",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_recall_02",
+      "lang": "en",
+      "group": "recall",
+      "golden": false,
+      "text": "What do you remember about me?",
+      "label": "recall",
+      "expected": {
+        "intent": "recall",
+        "rule": "question",
+        "span": "What do you remember about me?",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_recall_03",
+      "lang": "en",
+      "group": "recall",
+      "golden": false,
+      "text": "Tell me what you remember about my projects.",
+      "label": "recall",
+      "expected": {
+        "intent": "recall",
+        "rule": "recall",
+        "span": "Tell me what you remember about my projects.",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_recall_04",
+      "lang": "en",
+      "group": "recall",
+      "golden": false,
+      "text": "Can you remember that I use TypeScript?",
+      "label": "recall",
+      "expected": {
+        "intent": "recall",
+        "rule": "question",
+        "span": "Can you remember that I use TypeScript?",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "mixed_recall_01",
+      "lang": "mixed",
+      "group": "recall",
+      "golden": false,
+      "text": "你还 remember 我的名字吗？",
+      "label": "recall",
+      "expected": {
+        "intent": "recall",
+        "rule": "question",
+        "span": "你还 remember 我的名字吗？",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "mixed_recall_02",
+      "lang": "mixed",
+      "group": "recall",
+      "golden": false,
+      "text": "Do you remember 我住在哪里？",
+      "label": "recall",
+      "expected": {
+        "intent": "recall",
+        "rule": "question",
+        "span": "Do you remember 我住在哪里？",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_delete_01_golden",
+      "lang": "zh",
+      "group": "delete",
+      "golden": true,
+      "text": "别记这个",
+      "label": "delete_or_supersede",
+      "expected": {
+        "intent": "delete_or_supersede",
+        "rule": "delete",
+        "span": "别记这个",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_delete_02_golden",
+      "lang": "zh",
+      "group": "delete",
+      "golden": true,
+      "text": "以前用英文，现在改成中文",
+      "label": "delete_or_supersede",
+      "expected": {
+        "intent": "delete_or_supersede",
+        "rule": "supersede",
+        "span": "以前用英文，现在改成中文",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_delete_03",
+      "lang": "zh",
+      "group": "delete",
+      "golden": false,
+      "text": "忘掉我刚才说的地址",
+      "label": "delete_or_supersede",
+      "expected": {
+        "intent": "delete_or_supersede",
+        "rule": "delete",
+        "span": "忘掉我刚才说的地址",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_delete_04",
+      "lang": "zh",
+      "group": "delete",
+      "golden": false,
+      "text": "这个不要保存到记忆里",
+      "label": "delete_or_supersede",
+      "expected": {
+        "intent": "delete_or_supersede",
+        "rule": "delete",
+        "span": "这个不要保存到记忆里",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_delete_05",
+      "lang": "zh",
+      "group": "delete",
+      "golden": false,
+      "text": "从记忆里删掉我的公司名",
+      "label": "delete_or_supersede",
+      "expected": {
+        "intent": "delete_or_supersede",
+        "rule": "delete",
+        "span": "从记忆里删掉我的公司名",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_delete_06",
+      "lang": "zh",
+      "group": "delete",
+      "golden": false,
+      "text": "我不再用 Vue 了",
+      "label": "delete_or_supersede",
+      "expected": {
+        "intent": "delete_or_supersede",
+        "rule": "supersede",
+        "span": "我不再用 Vue 了",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_delete_01",
+      "lang": "en",
+      "group": "delete",
+      "golden": false,
+      "text": "Don't remember this.",
+      "label": "delete_or_supersede",
+      "expected": {
+        "intent": "delete_or_supersede",
+        "rule": "delete",
+        "span": "Don't remember this.",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_delete_02",
+      "lang": "en",
+      "group": "delete",
+      "golden": false,
+      "text": "Forget what I said about my job.",
+      "label": "delete_or_supersede",
+      "expected": {
+        "intent": "delete_or_supersede",
+        "rule": "delete",
+        "span": "Forget what I said about my job.",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_delete_03",
+      "lang": "en",
+      "group": "delete",
+      "golden": false,
+      "text": "Please delete that memory.",
+      "label": "delete_or_supersede",
+      "expected": {
+        "intent": "delete_or_supersede",
+        "rule": "delete",
+        "span": "Please delete that memory.",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_delete_04",
+      "lang": "en",
+      "group": "delete",
+      "golden": false,
+      "text": "I no longer live in Berlin.",
+      "label": "delete_or_supersede",
+      "expected": {
+        "intent": "delete_or_supersede",
+        "rule": "supersede",
+        "span": "I no longer live in Berlin.",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_delete_05",
+      "lang": "en",
+      "group": "delete",
+      "golden": false,
+      "text": "I've switched to Neovim.",
+      "label": "delete_or_supersede",
+      "expected": {
+        "intent": "delete_or_supersede",
+        "rule": "supersede",
+        "span": "I've switched to Neovim.",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "mixed_delete_01",
+      "lang": "mixed",
+      "group": "delete",
+      "golden": false,
+      "text": "别记 my address",
+      "label": "delete_or_supersede",
+      "expected": {
+        "intent": "delete_or_supersede",
+        "rule": "delete",
+        "span": "别记 my address",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "mixed_delete_02",
+      "lang": "mixed",
+      "group": "delete",
+      "golden": false,
+      "text": "忘掉 what I said about my job",
+      "label": "delete_or_supersede",
+      "expected": {
+        "intent": "delete_or_supersede",
+        "rule": "delete",
+        "span": "忘掉 what I said about my job",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_ack_01_golden",
+      "lang": "zh",
+      "group": "ack",
+      "golden": true,
+      "text": "记住了",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "ack",
+        "span": "记住了",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_ack_01_golden",
+      "lang": "en",
+      "group": "ack",
+      "golden": true,
+      "text": "I remember why",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "ack",
+        "span": "I remember why",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_ack_02_golden",
+      "lang": "en",
+      "group": "ack",
+      "golden": true,
+      "text": "I remember this",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "ack",
+        "span": "I remember this",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_ack_02",
+      "lang": "zh",
+      "group": "ack",
+      "golden": false,
+      "text": "好的，记住了",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "ack",
+        "span": "好的，记住了",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_ack_03",
+      "lang": "zh",
+      "group": "ack",
+      "golden": false,
+      "text": "我记得以前学过这个",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "ack",
+        "span": "我记得以前学过这个",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_ack_04",
+      "lang": "zh",
+      "group": "ack",
+      "golden": false,
+      "text": "我忘了带钥匙",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "ack",
+        "span": "我忘了带钥匙",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_ack_05",
+      "lang": "zh",
+      "group": "ack",
+      "golden": false,
+      "text": "记下了，谢谢",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "ack",
+        "span": "记下了，谢谢",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_ack_03",
+      "lang": "en",
+      "group": "ack",
+      "golden": false,
+      "text": "I'll remember that, thanks.",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "ack",
+        "span": "I'll remember that, thanks.",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_ack_04",
+      "lang": "en",
+      "group": "ack",
+      "golden": false,
+      "text": "I can't remember the exact date.",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "ack",
+        "span": "I can't remember the exact date.",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_ack_05",
+      "lang": "en",
+      "group": "ack",
+      "golden": false,
+      "text": "I forgot my umbrella at the office.",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "ack",
+        "span": "I forgot my umbrella at the office.",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_ack_06",
+      "lang": "en",
+      "group": "ack",
+      "golden": false,
+      "text": "Remember when we went to Kyoto",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "reminisce",
+        "span": "Remember when we went to Kyoto",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "mixed_ack_01",
+      "lang": "mixed",
+      "group": "ack",
+      "golden": false,
+      "text": "OK 记住了",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "ack",
+        "span": "OK 记住了",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "mixed_ack_02",
+      "lang": "mixed",
+      "group": "ack",
+      "golden": false,
+      "text": "我 remember 这个",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_meta_01_golden",
+      "lang": "zh",
+      "group": "meta",
+      "golden": true,
+      "text": "他说‘记住密码’",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "quoted",
+        "span": "他说‘记住密码’",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "secret",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_meta_02_golden",
+      "lang": "zh",
+      "group": "meta",
+      "golden": true,
+      "text": "remember 是什么意思？",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "meta",
+        "span": "remember 是什么意思？",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_meta_01",
+      "lang": "en",
+      "group": "meta",
+      "golden": false,
+      "text": "What does \"remember\" mean in this sentence?",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "quoted",
+        "span": "What does \"remember\" mean in this sentence?",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_meta_02",
+      "lang": "en",
+      "group": "meta",
+      "golden": false,
+      "text": "She told me \"remember to lock the door\".",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "quoted",
+        "span": "She told me \"remember to lock the door\".",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_meta_03",
+      "lang": "zh",
+      "group": "meta",
+      "golden": false,
+      "text": "歌词里有一句“记住我”",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "quoted",
+        "span": "歌词里有一句“记住我”",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_meta_04",
+      "lang": "zh",
+      "group": "meta",
+      "golden": false,
+      "text": "“记住”和“记得”有什么区别",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "quoted",
+        "span": "“记住”和“记得”有什么区别",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_meta_03",
+      "lang": "en",
+      "group": "meta",
+      "golden": false,
+      "text": "What's the past tense of remember",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "meta",
+        "span": "What's the past tense of remember",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_code_01_golden",
+      "lang": "en",
+      "group": "code",
+      "golden": true,
+      "text": "The rememberMe flag is broken",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_code_02",
+      "lang": "en",
+      "group": "code",
+      "golden": false,
+      "text": "Why does remember_me stay false after login?",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "quoted",
+        "span": "Why does remember_me stay false after login?",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_code_03",
+      "lang": "en",
+      "group": "code",
+      "golden": false,
+      "text": "Call `remember(key)` before the cache is warmed",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "quoted",
+        "span": "Call `remember(key)` before the cache is warmed",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_code_01_golden",
+      "lang": "zh",
+      "group": "code",
+      "golden": true,
+      "text": "```\nfun remember(x: Int) = x\n```\n这段代码报错了",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "quoted",
+        "span": "fun remember(x: Int) = x",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "mixed_code_01",
+      "lang": "mixed",
+      "group": "code",
+      "golden": false,
+      "text": "useRemember() 这个 hook 怎么写",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "mixed_code_02",
+      "lang": "mixed",
+      "group": "code",
+      "golden": false,
+      "text": "把 rememberToken 改成 sessionToken",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_uncertain_01_golden",
+      "lang": "en",
+      "group": "uncertain",
+      "golden": true,
+      "text": "remember",
+      "label": "uncertain",
+      "expected": {
+        "intent": "uncertain",
+        "rule": "anaphor",
+        "span": "remember",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_uncertain_01_golden",
+      "lang": "zh",
+      "group": "uncertain",
+      "golden": true,
+      "text": "以后这样",
+      "label": "uncertain",
+      "expected": {
+        "intent": "uncertain",
+        "rule": "anaphor_directive",
+        "span": "以后这样",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_uncertain_02_golden",
+      "lang": "zh",
+      "group": "uncertain",
+      "golden": true,
+      "text": "记住这个",
+      "label": "uncertain",
+      "expected": {
+        "intent": "uncertain",
+        "rule": "anaphor",
+        "span": "记住这个",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_uncertain_03",
+      "lang": "zh",
+      "group": "uncertain",
+      "golden": false,
+      "text": "记住刚才说的",
+      "label": "uncertain",
+      "expected": {
+        "intent": "uncertain",
+        "rule": "anaphor",
+        "span": "记住刚才说的",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_uncertain_02",
+      "lang": "en",
+      "group": "uncertain",
+      "golden": false,
+      "text": "Remember that.",
+      "label": "uncertain",
+      "expected": {
+        "intent": "uncertain",
+        "rule": "anaphor",
+        "span": "Remember that.",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_uncertain_03",
+      "lang": "en",
+      "group": "uncertain",
+      "golden": false,
+      "text": "From now on do it like this.",
+      "label": "uncertain",
+      "expected": {
+        "intent": "uncertain",
+        "rule": "anaphor_directive",
+        "span": "From now on do it like this.",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "mixed_uncertain_01",
+      "lang": "mixed",
+      "group": "uncertain",
+      "golden": false,
+      "text": "记住 this",
+      "label": "uncertain",
+      "expected": {
+        "intent": "uncertain",
+        "rule": "anaphor",
+        "span": "记住 this",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "mixed_uncertain_02",
+      "lang": "mixed",
+      "group": "uncertain",
+      "golden": false,
+      "text": "Remember 这个",
+      "label": "uncertain",
+      "expected": {
+        "intent": "uncertain",
+        "rule": "anaphor",
+        "span": "Remember 这个",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_sensitive_01_golden",
+      "lang": "zh",
+      "group": "sensitive",
+      "golden": true,
+      "text": "记住我的密码是 hunter2",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住我的密码是 hunter2",
+        "proposition": "我的密码是 hunter2",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "secret",
+        "blocked": "secret",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_sensitive_02",
+      "lang": "zh",
+      "group": "sensitive",
+      "golden": false,
+      "text": "记住我的验证码 384912",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住我的验证码 384912",
+        "proposition": "我的验证码 384912",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "secret",
+        "blocked": "secret",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_sensitive_03",
+      "lang": "zh",
+      "group": "sensitive",
+      "golden": false,
+      "text": "记住我的身份证号 11010519491231002X",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住我的身份证号 11010519491231002X",
+        "proposition": "我的身份证号 11010519491231002X",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "secret",
+        "blocked": "secret",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_sensitive_04",
+      "lang": "zh",
+      "group": "sensitive",
+      "golden": false,
+      "text": "记住我的银行卡 6222 0212 3456 7890 128",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住我的银行卡 6222 0212 3456 7890 128",
+        "proposition": "我的银行卡 6222 0212 3456 7890 128",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "secret",
+        "blocked": "secret",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_sensitive_01_golden",
+      "lang": "en",
+      "group": "sensitive",
+      "golden": true,
+      "text": "Remember my API key sk-proj-abcdefghijklmnopqrstuvwx",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember my API key sk-proj-abcdefghijklmnopqrstuvwx",
+        "proposition": "my API key sk-proj-abcdefghijklmnopqrstuvwx",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "secret",
+        "blocked": "secret",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_sensitive_02",
+      "lang": "en",
+      "group": "sensitive",
+      "golden": false,
+      "text": "Remember my card 4111 1111 1111 1111",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember my card 4111 1111 1111 1111",
+        "proposition": "my card 4111 1111 1111 1111",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "secret",
+        "blocked": "secret",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_sensitive_03",
+      "lang": "en",
+      "group": "sensitive",
+      "golden": false,
+      "text": "Remember my AWS key AKIAIOSFODNN7EXAMPLE",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember my AWS key AKIAIOSFODNN7EXAMPLE",
+        "proposition": "my AWS key AKIAIOSFODNN7EXAMPLE",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "secret",
+        "blocked": "secret",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_sensitive_04",
+      "lang": "en",
+      "group": "sensitive",
+      "golden": false,
+      "text": "Remember my password is correct-horse-battery",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember my password is correct-horse-battery",
+        "proposition": "my password is correct-horse-battery",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "secret",
+        "blocked": "secret",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_sensitive_05",
+      "lang": "zh",
+      "group": "sensitive",
+      "golden": false,
+      "text": "记住我确诊了抑郁症",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住我确诊了抑郁症",
+        "proposition": "我确诊了抑郁症",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "special",
+        "blocked": "special",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_sensitive_06",
+      "lang": "zh",
+      "group": "sensitive",
+      "golden": false,
+      "text": "记住我是基督徒",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住我是基督徒",
+        "proposition": "我是基督徒",
+        "kind": "identity",
+        "scope": "unspecified",
+        "sensitive": "special",
+        "blocked": "special",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_sensitive_05",
+      "lang": "en",
+      "group": "sensitive",
+      "golden": false,
+      "text": "Remember that I was diagnosed with diabetes.",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember that I was diagnosed with diabetes.",
+        "proposition": "I was diagnosed with diabetes.",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "special",
+        "blocked": "special",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_sensitive_06",
+      "lang": "en",
+      "group": "sensitive",
+      "golden": false,
+      "text": "Remember I have a criminal record.",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember I have a criminal record.",
+        "proposition": "I have a criminal record.",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "special",
+        "blocked": "special",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "mixed_sensitive_01",
+      "lang": "mixed",
+      "group": "sensitive",
+      "golden": false,
+      "text": "记住 my password is Tr0ub4dor",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住 my password is Tr0ub4dor",
+        "proposition": "my password is Tr0ub4dor",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "secret",
+        "blocked": "secret",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "mixed_sensitive_02",
+      "lang": "mixed",
+      "group": "sensitive",
+      "golden": false,
+      "text": "以后所有对话都用中文，我的 API key 是 sk-abcdefghijklmnopqrstuvwx",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "以后所有对话都用中文，我的 API key 是 sk-abcdefghijklmnopqrstuvwx",
+        "proposition": "以后所有对话都用中文，我的 API key 是 sk-abcdefghijklmnopqrstuvwx",
+        "kind": "instruction",
+        "scope": "global",
+        "sensitive": "secret",
+        "blocked": "secret",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_sensitive_07",
+      "lang": "zh",
+      "group": "sensitive",
+      "golden": false,
+      "text": "帮我写一个校验 4111 1111 1111 1112 的函数",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_none_01",
+      "lang": "zh",
+      "group": "none",
+      "golden": false,
+      "text": "帮我写一首关于秋天的诗",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_none_02",
+      "lang": "zh",
+      "group": "none",
+      "golden": false,
+      "text": "这段代码为什么报错？",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_none_01",
+      "lang": "en",
+      "group": "none",
+      "golden": false,
+      "text": "Summarize this article in three bullets.",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_none_02",
+      "lang": "en",
+      "group": "none",
+      "golden": false,
+      "text": "What is the capital of Australia?",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "mixed_none_01",
+      "lang": "mixed",
+      "group": "none",
+      "golden": false,
+      "text": "帮我把这段 translate 成英文",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_none_03",
+      "lang": "zh",
+      "group": "none",
+      "golden": false,
+      "text": "记忆力怎么提高",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_none_04",
+      "lang": "zh",
+      "group": "none",
+      "golden": false,
+      "text": "如何记住英语单词？",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_none_03",
+      "lang": "en",
+      "group": "none",
+      "golden": false,
+      "text": "Can you help me remember vocabulary words?",
+      "label": "none",
+      "expected": {
+        "intent": "recall",
+        "rule": "question",
+        "span": "Can you help me remember vocabulary words?",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_none_04",
+      "lang": "en",
+      "group": "none",
+      "golden": false,
+      "text": "I need to remember to submit the report.",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_none_05",
+      "lang": "en",
+      "group": "none",
+      "golden": false,
+      "text": "Write a story about a robot who cannot forget anything.",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_multi_01",
+      "lang": "zh",
+      "group": "multi",
+      "golden": false,
+      "text": "记住我喜欢简洁。这次先详细一点。",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住我喜欢简洁。",
+        "proposition": "我喜欢简洁。",
+        "kind": "preference",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_multi_02",
+      "lang": "zh",
+      "group": "multi",
+      "golden": false,
+      "text": "以后都用中文回答。以后所有对话都别用表情。",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "以后所有对话都别用表情。",
+        "proposition": "以后所有对话都别用表情。",
+        "kind": "instruction",
+        "scope": "global",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_multi_03",
+      "lang": "zh",
+      "group": "multi",
+      "golden": false,
+      "text": "别记那个。记住我叫小明。",
+      "label": "delete_or_supersede",
+      "expected": {
+        "intent": "delete_or_supersede",
+        "rule": "delete",
+        "span": "别记那个。",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_multi_01",
+      "lang": "en",
+      "group": "multi",
+      "golden": false,
+      "text": "Thanks! Remember that I am left-handed.",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember that I am left-handed.",
+        "proposition": "I am left-handed.",
+        "kind": "identity",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_multi_02",
+      "lang": "en",
+      "group": "multi",
+      "golden": false,
+      "text": "Remember to call me tomorrow. Thanks!",
+      "label": "transient",
+      "expected": {
+        "intent": "transient",
+        "rule": "reminder",
+        "span": "Remember to call me tomorrow.",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_boundary_01",
+      "lang": "zh",
+      "group": "boundary",
+      "golden": false,
+      "text": "",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_boundary_02",
+      "lang": "zh",
+      "group": "boundary",
+      "golden": false,
+      "text": "   \n  ",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_boundary_03",
+      "lang": "zh",
+      "group": "boundary",
+      "golden": false,
+      "text": "记住aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "proposition": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": "too_long",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_boundary_01",
+      "lang": "en",
+      "group": "boundary",
+      "golden": false,
+      "text": "ＲＥＭＥＭＢＥＲ ｔｈａｔ Ｉ ｕｓｅ Ｖｉｍ",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "ＲＥＭＥＭＢＥＲ ｔｈａｔ Ｉ ｕｓｅ Ｖｉｍ",
+        "proposition": "ＲＥＭＥＭＢＥＲ ｔｈａｔ Ｉ ｕｓｅ Ｖｉｍ",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_boundary_02",
+      "lang": "en",
+      "group": "boundary",
+      "golden": false,
+      "text": "REMEMBER THAT I USE VIM",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "REMEMBER THAT I USE VIM",
+        "proposition": "I USE VIM",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_boundary_04",
+      "lang": "zh",
+      "group": "boundary",
+      "golden": false,
+      "text": "记住我喜欢🐱和🐶",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住我喜欢🐱和🐶",
+        "proposition": "我喜欢🐱和🐶",
+        "kind": "preference",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "zh_boundary_05",
+      "lang": "zh",
+      "group": "boundary",
+      "golden": false,
+      "text": "好的\n记住我用 Vim",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住我用 Vim",
+        "proposition": "我用 Vim",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_boundary_03",
+      "lang": "en",
+      "group": "boundary",
+      "golden": false,
+      "text": "Remember:",
+      "label": "uncertain",
+      "expected": {
+        "intent": "uncertain",
+        "rule": "anaphor",
+        "span": "Remember:",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_boundary_06",
+      "lang": "zh",
+      "group": "boundary",
+      "golden": false,
+      "text": "记住：",
+      "label": "uncertain",
+      "expected": {
+        "intent": "uncertain",
+        "rule": "anaphor",
+        "span": "记住：",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_boundary_04",
+      "lang": "en",
+      "group": "boundary",
+      "golden": false,
+      "text": "remember.me is the domain we bought",
+      "label": "ack_or_meta",
+      "expected": {
+        "intent": "ack_or_meta",
+        "rule": "quoted",
+        "span": "remember.me is the domain we bought",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_boundary_07",
+      "lang": "zh",
+      "group": "boundary",
+      "golden": false,
+      "text": "他说“记住我",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_boundary_05",
+      "lang": "en",
+      "group": "boundary",
+      "golden": false,
+      "text": "OK. ¿remember that I like tea",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_boundary_08",
+      "lang": "zh",
+      "group": "boundary",
+      "golden": false,
+      "text": "看 `x`\n  ¿记住我喜欢茶",
+      "label": "none",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_boundary_09",
+      "lang": "zh",
+      "group": "boundary",
+      "golden": false,
+      "text": "你记得吗",
+      "label": "recall",
+      "expected": {
+        "intent": "recall",
+        "rule": "question",
+        "span": "你记得吗",
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "zh_boundary_10",
+      "lang": "zh",
+      "group": "boundary",
+      "golden": false,
+      "text": "记住我的工号是 123456789012345678901",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "记住我的工号是 123456789012345678901",
+        "proposition": "我的工号是 123456789012345678901",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "en_boundary_06",
+      "lang": "en",
+      "group": "boundary",
+      "golden": false,
+      "text": "Remember my token ghp_abcdefghijklmnopqrstuvwxyz0123456789",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember my token ghp_abcdefghijklmnopqrstuvwxyz0123456789",
+        "proposition": "my token ghp_abcdefghijklmnopqrstuvwxyz0123456789",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "secret",
+        "blocked": "secret",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_boundary_07",
+      "lang": "en",
+      "group": "boundary",
+      "golden": false,
+      "text": "Remember this key: -----BEGIN RSA PRIVATE KEY-----",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember this key: -----BEGIN RSA PRIVATE KEY-----",
+        "proposition": "this key: -----BEGIN RSA PRIVATE KEY-----",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "secret",
+        "blocked": "secret",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_boundary_08",
+      "lang": "en",
+      "group": "boundary",
+      "golden": false,
+      "text": "Remember eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.sig",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.sig",
+        "proposition": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.sig",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "secret",
+        "blocked": "secret",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_boundary_09",
+      "lang": "en",
+      "group": "boundary",
+      "golden": false,
+      "text": "Remember my Google key AIzaSyA1234567890abcdefghijklmnopqrstuv",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember my Google key AIzaSyA1234567890abcdefghijklmnopqrstuv",
+        "proposition": "my Google key AIzaSyA1234567890abcdefghijklmnopqrstuv",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "secret",
+        "blocked": "secret",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_boundary_10",
+      "lang": "en",
+      "group": "boundary",
+      "golden": false,
+      "text": "Remember the bot token xoxb-1234567890-abcdef",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember the bot token xoxb-1234567890-abcdef",
+        "proposition": "the bot token xoxb-1234567890-abcdef",
+        "kind": "fact",
+        "scope": "unspecified",
+        "sensitive": "secret",
+        "blocked": "secret",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_boundary_11",
+      "lang": "en",
+      "group": "boundary",
+      "golden": false,
+      "text": "Remember I am gay",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember I am gay",
+        "proposition": "I am gay",
+        "kind": "identity",
+        "scope": "unspecified",
+        "sensitive": "special",
+        "blocked": "special",
+        "suggestion": "none"
+      }
+    },
+    {
+      "id": "en_boundary_12",
+      "lang": "en",
+      "group": "boundary",
+      "golden": false,
+      "text": "Remember I'm into gaywood furniture",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "explicit_persist",
+        "rule": "persist",
+        "span": "Remember I'm into gaywood furniture",
+        "proposition": "I'm into gaywood furniture",
+        "kind": "identity",
+        "scope": "unspecified",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "ja_other_01",
+      "lang": "ja",
+      "group": "other",
+      "golden": false,
+      "text": "新しいチャットを開いても、マークダウンの見出しは使わずに普通の文章で書いてね。",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "新しいチャットを開いても、マークダウンの見出しは使わずに普通の文章で書いてね。",
+        "proposition": "新しいチャットを開いても、マークダウンの見出しは使わずに普通の文章で書いてね。",
+        "kind": "instruction",
+        "scope": "global",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "ja_other_02",
+      "lang": "ja",
+      "group": "other",
+      "golden": false,
+      "text": "以後、コードを書くときは必ずTypeScriptでお願いします。",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "以後、コードを書くときは必ずTypeScriptでお願いします。",
+        "proposition": "以後、コードを書くときは必ずTypeScriptでお願いします。",
+        "kind": "instruction",
+        "scope": "conversation",
+        "sensitive": "none",
+        "blocked": "conversation_scope",
+        "suggestion": "conversationInstruction"
+      }
+    },
+    {
+      "id": "ar_other_01",
+      "lang": "ar",
+      "group": "other",
+      "golden": false,
+      "text": "في كل محادثاتنا القادمة ردّ عليّ بالعربية الفصحى حتى لو كتبت بالإنجليزية.",
+      "label": "implicit_persist",
+      "expected": {
+        "intent": "implicit_persist",
+        "rule": "directive",
+        "span": "في كل محادثاتنا القادمة ردّ عليّ بالعربية الفصحى حتى لو كتبت بالإنجليزية.",
+        "proposition": "في كل محادثاتنا القادمة ردّ عليّ بالعربية الفصحى حتى لو كتبت بالإنجليزية.",
+        "kind": "instruction",
+        "scope": "global",
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "memory"
+      }
+    },
+    {
+      "id": "de_other_01",
+      "lang": "de",
+      "group": "other",
+      "golden": false,
+      "text": "Merk dir, dass ich Vegetarier bin.",
+      "label": "explicit_persist",
+      "expected": {
+        "intent": "none",
+        "rule": null,
+        "span": null,
+        "proposition": null,
+        "kind": null,
+        "scope": null,
+        "sensitive": "none",
+        "blocked": null,
+        "suggestion": "none"
+      }
+    }
+  ],
+  "fingerprintCases": [
+    {
+      "id": "fp_ascii_spaces",
+      "content": "Hello   World",
+      "expected": {
+        "canonical": "hello world",
+        "fingerprint": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+      }
+    },
+    {
+      "id": "fp_trim_newlines",
+      "content": "  我偏好简洁回答\n",
+      "expected": {
+        "canonical": "我偏好简洁回答",
+        "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15"
+      }
+    },
+    {
+      "id": "fp_fullwidth",
+      "content": "ＡＢＣ　１２３",
+      "expected": {
+        "canonical": "abc 123",
+        "fingerprint": "58384e9216293c79c817a333c0098482f2d59f826cac1e3dae7a8b904c1ea3a4"
+      }
+    },
+    {
+      "id": "fp_dotted_capital_i",
+      "content": "İstanbul",
+      "expected": {
+        "canonical": "istanbul",
+        "fingerprint": "751c59fe1fa734e61bec7c142171bfcbca97ff8223171b4bd63d8165a67a4d74"
+      }
+    },
+    {
+      "id": "fp_arabic_ta_marbuta",
+      "content": "مدرسة",
+      "expected": {
+        "canonical": "مدرسه",
+        "fingerprint": "b0b3027c46f634ed2a10f1ef57b418e19bb1703652441b3f9e055b29f2e1e90b"
+      }
+    },
+    {
+      "id": "fp_tabs_collapse",
+      "content": "a\t\tb\r\nc",
+      "expected": {
+        "canonical": "a b c",
+        "fingerprint": "0e9f64031fcb2bc708b531c2a20441580425d151a38503f38592a7dd36019d3b"
+      }
+    },
+    {
+      "id": "fp_empty",
+      "content": "",
+      "expected": {
+        "canonical": "",
+        "fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "id": "fp_emoji",
+      "content": "我喜欢🐱",
+      "expected": {
+        "canonical": "我喜欢🐱",
+        "fingerprint": "3c19acb79af33292f0c46a5caabbdb7236f4cdac151ebc9e12a803de5d04eeea"
+      }
+    }
+  ],
+  "candidateCases": [
+    {
+      "id": "create_explicit_no_folder_global",
+      "text": "记住我偏好简洁回答",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": []
+      },
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "我偏好简洁回答",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_explicit_in_folder",
+      "text": "记住我偏好简洁回答",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d",
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": []
+      },
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "我偏好简洁回答",
+          "scope": {
+            "type": "folder",
+            "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_folder_marker_without_folder_is_conversation",
+      "text": "记住，这个项目里的代码都用 Kotlin 写",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": []
+      },
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "5d57e813-2af6-5b96-a039-3e01cd773960",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "fact",
+          "content": "这个项目里的代码都用 Kotlin 写",
+          "scope": {
+            "type": "conversation",
+            "id": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "a0c40462c950470dfd0d89a87e84f733ed8609d3538518840900138ffe0c3202",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_folder_marker_with_folder",
+      "text": "记住，这个项目里的代码都用 Kotlin 写",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d",
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": []
+      },
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "5d57e813-2af6-5b96-a039-3e01cd773960",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "fact",
+          "content": "这个项目里的代码都用 Kotlin 写",
+          "scope": {
+            "type": "folder",
+            "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "a0c40462c950470dfd0d89a87e84f733ed8609d3538518840900138ffe0c3202",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_implicit_global_ignores_folder",
+      "text": "以后所有对话都用简体中文回复我",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d",
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": []
+      },
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "649c4802-ff99-575c-8fc6-526c9e8e67d1",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "instruction",
+          "content": "以后所有对话都用简体中文回复我",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "a08425a336a275c312cc939240238deac8a169e734f2b01194910c5ef60429f2",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_mixed_language",
+      "text": "Remember 我喜欢简洁回答",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": []
+      },
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "88663408-579b-5514-9f4d-7a1cef81d6aa",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "我喜欢简洁回答",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "8550bbcc17b5001332c1dbd4b600c7f170bb15caf16218df1fa517bcda5c8dd2",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "skip_conversation_scope",
+      "text": "From now on, keep answers concise",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": []
+      },
+      "expected": {
+        "action": "skip",
+        "reason": "no_suggestion",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_secret",
+      "text": "记住我的密码是 hunter2",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": []
+      },
+      "expected": {
+        "action": "skip",
+        "reason": "no_suggestion",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_special",
+      "text": "Remember that I was diagnosed with diabetes.",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": []
+      },
+      "expected": {
+        "action": "skip",
+        "reason": "no_suggestion",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_too_long",
+      "text": "记住aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": []
+      },
+      "expected": {
+        "action": "skip",
+        "reason": "no_suggestion",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_ack",
+      "text": "记住了",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": []
+      },
+      "expected": {
+        "action": "skip",
+        "reason": "no_suggestion",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_duplicate_active_canonical",
+      "text": "Remember that I use TypeScript",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [
+          "other",
+          "  i  use   TYPESCRIPT "
+        ],
+        "records": []
+      },
+      "expected": {
+        "action": "skip",
+        "reason": "duplicate_active",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_duplicate_pending_other_message",
+      "text": "记住我偏好简洁回答",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [
+          {
+            "id": "ef5a8355-8f50-5a10-a7ee-475ba830788c",
+            "status": "pending",
+            "proposedLayer": "semantic",
+            "proposedKind": "preference",
+            "content": "我偏好简洁回答",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "conversation",
+              "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+              "messageIds": [
+                "1c2d3e4f-5061-4728-899a-bbccddeeff00"
+              ],
+              "observedAtMs": 1792137600000
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+            "createdAtMs": 1792137600000,
+            "expiresAtMs": 1794729600000,
+            "resolvedAtMs": null
+          }
+        ]
+      },
+      "expected": {
+        "action": "skip",
+        "reason": "duplicate_pending",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_rejected_recently",
+      "text": "记住我偏好简洁回答",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [
+          {
+            "id": "ef5a8355-8f50-5a10-a7ee-475ba830788c",
+            "status": "rejected",
+            "proposedLayer": "semantic",
+            "proposedKind": "preference",
+            "content": "",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "conversation",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAtMs": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+            "createdAtMs": 1792137599000,
+            "expiresAtMs": 1794729599000,
+            "resolvedAtMs": 1792137599000
+          }
+        ]
+      },
+      "expected": {
+        "action": "skip",
+        "reason": "rejected_recently",
+        "candidate": null
+      }
+    },
+    {
+      "id": "create_after_rejection_expired",
+      "text": "记住我偏好简洁回答",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [
+          {
+            "id": "ef5a8355-8f50-5a10-a7ee-475ba830788c",
+            "status": "rejected",
+            "proposedLayer": "semantic",
+            "proposedKind": "preference",
+            "content": "",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "conversation",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAtMs": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+            "createdAtMs": 1789545595000,
+            "expiresAtMs": 1792137600000,
+            "resolvedAtMs": 1789545600000
+          }
+        ]
+      },
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "我偏好简洁回答",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "skip_exists_same_message",
+      "text": "记住我偏好简洁回答",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [
+          {
+            "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+            "status": "pending",
+            "proposedLayer": "semantic",
+            "proposedKind": "preference",
+            "content": "我偏好简洁回答",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "conversation",
+              "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+              "messageIds": [
+                "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+              ],
+              "observedAtMs": 1792137600000
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+            "createdAtMs": 1792137600000,
+            "expiresAtMs": 1794729600000,
+            "resolvedAtMs": null
+          }
+        ]
+      },
+      "expected": {
+        "action": "skip",
+        "reason": "exists",
+        "candidate": null
+      }
+    },
+    {
+      "id": "create_ignores_accepted_record",
+      "text": "记住我偏好简洁回答",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [
+          {
+            "id": "ef5a8355-8f50-5a10-a7ee-475ba830788c",
+            "status": "accepted",
+            "proposedLayer": "semantic",
+            "proposedKind": "preference",
+            "content": "",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "conversation",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAtMs": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+            "createdAtMs": 1792137599000,
+            "expiresAtMs": 1794729599000,
+            "resolvedAtMs": 1792137599500
+          }
+        ]
+      },
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "我偏好简洁回答",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "skip_implicit_auto_suggest_off",
+      "text": "以后所有对话都用简体中文回复我",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d",
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "autoSuggest": false
+      },
+      "expected": {
+        "action": "skip",
+        "reason": "auto_suggest_off",
+        "candidate": null
+      }
+    },
+    {
+      "id": "create_explicit_auto_suggest_off",
+      "text": "记住我偏好简洁回答",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "autoSuggest": false
+      },
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "我偏好简洁回答",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_implicit_auto_suggest_on",
+      "text": "以后所有对话都用简体中文回复我",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d",
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "autoSuggest": true
+      },
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "649c4802-ff99-575c-8fc6-526c9e8e67d1",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "instruction",
+          "content": "以后所有对话都用简体中文回复我",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "a08425a336a275c312cc939240238deac8a169e734f2b01194910c5ef60429f2",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    }
+  ],
+  "transitionCases": [
+    {
+      "id": "accept_unchanged_keeps_confidence",
+      "op": "accept",
+      "record": {
+        "id": "649c4802-ff99-575c-8fc6-526c9e8e67d1",
+        "status": "pending",
+        "proposedLayer": "semantic",
+        "proposedKind": "instruction",
+        "content": "以后所有对话都用简体中文回复我",
+        "scope": {
+          "type": "global",
+          "id": null
+        },
+        "source": {
+          "type": "conversation",
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "messageIds": [
+            "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+          ],
+          "observedAtMs": 1792137600000
+        },
+        "sensitivity": "normal",
+        "confidence": 0.8,
+        "fingerprint": "a08425a336a275c312cc939240238deac8a169e734f2b01194910c5ef60429f2",
+        "createdAtMs": 1792137600000,
+        "expiresAtMs": 1794729600000,
+        "resolvedAtMs": null
+      },
+      "edit": null,
+      "nowMs": 1792137601000,
+      "expected": {
+        "record": {
+          "id": "649c4802-ff99-575c-8fc6-526c9e8e67d1",
+          "status": "accepted",
+          "proposedLayer": "semantic",
+          "proposedKind": "instruction",
+          "content": "",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAtMs": null
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "a08425a336a275c312cc939240238deac8a169e734f2b01194910c5ef60429f2",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": 1792137601000
+        },
+        "item": {
+          "layer": "semantic",
+          "kind": "instruction",
+          "status": "active",
+          "content": "以后所有对话都用简体中文回复我",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8
+        }
+      }
+    },
+    {
+      "id": "accept_edited_content_confidence_1",
+      "op": "accept",
+      "record": {
+        "id": "649c4802-ff99-575c-8fc6-526c9e8e67d1",
+        "status": "pending",
+        "proposedLayer": "semantic",
+        "proposedKind": "instruction",
+        "content": "以后所有对话都用简体中文回复我",
+        "scope": {
+          "type": "global",
+          "id": null
+        },
+        "source": {
+          "type": "conversation",
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "messageIds": [
+            "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+          ],
+          "observedAtMs": 1792137600000
+        },
+        "sensitivity": "normal",
+        "confidence": 0.8,
+        "fingerprint": "a08425a336a275c312cc939240238deac8a169e734f2b01194910c5ef60429f2",
+        "createdAtMs": 1792137600000,
+        "expiresAtMs": 1794729600000,
+        "resolvedAtMs": null
+      },
+      "edit": {
+        "content": "  以后所有对话都用简体中文  "
+      },
+      "nowMs": 1792137601000,
+      "expected": {
+        "record": {
+          "id": "649c4802-ff99-575c-8fc6-526c9e8e67d1",
+          "status": "accepted",
+          "proposedLayer": "semantic",
+          "proposedKind": "instruction",
+          "content": "",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAtMs": null
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "a08425a336a275c312cc939240238deac8a169e734f2b01194910c5ef60429f2",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": 1792137601000
+        },
+        "item": {
+          "layer": "semantic",
+          "kind": "instruction",
+          "status": "active",
+          "content": "以后所有对话都用简体中文",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 1
+        }
+      }
+    },
+    {
+      "id": "accept_edit_kind_and_scope",
+      "op": "accept",
+      "record": {
+        "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+        "status": "pending",
+        "proposedLayer": "semantic",
+        "proposedKind": "preference",
+        "content": "我偏好简洁回答",
+        "scope": {
+          "type": "folder",
+          "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+        },
+        "source": {
+          "type": "conversation",
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "messageIds": [
+            "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+          ],
+          "observedAtMs": 1792137600000
+        },
+        "sensitivity": "normal",
+        "confidence": 1,
+        "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+        "createdAtMs": 1792137600000,
+        "expiresAtMs": 1794729600000,
+        "resolvedAtMs": null
+      },
+      "edit": {
+        "kind": "preference",
+        "scope": {
+          "type": "global",
+          "id": null
+        }
+      },
+      "nowMs": 1792137601000,
+      "expected": {
+        "record": {
+          "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+          "status": "accepted",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "",
+          "scope": {
+            "type": "folder",
+            "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAtMs": null
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": 1792137601000
+        },
+        "item": {
+          "layer": "semantic",
+          "kind": "preference",
+          "status": "active",
+          "content": "我偏好简洁回答",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 1
+        }
+      }
+    },
+    {
+      "id": "accept_same_text_after_trim_is_unchanged",
+      "op": "accept",
+      "record": {
+        "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+        "status": "pending",
+        "proposedLayer": "semantic",
+        "proposedKind": "preference",
+        "content": "我偏好简洁回答",
+        "scope": {
+          "type": "folder",
+          "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+        },
+        "source": {
+          "type": "conversation",
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "messageIds": [
+            "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+          ],
+          "observedAtMs": 1792137600000
+        },
+        "sensitivity": "normal",
+        "confidence": 1,
+        "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+        "createdAtMs": 1792137600000,
+        "expiresAtMs": 1794729600000,
+        "resolvedAtMs": null
+      },
+      "edit": {
+        "content": " 我偏好简洁回答 "
+      },
+      "nowMs": 1792137601000,
+      "expected": {
+        "record": {
+          "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+          "status": "accepted",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "",
+          "scope": {
+            "type": "folder",
+            "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAtMs": null
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": 1792137601000
+        },
+        "item": {
+          "layer": "semantic",
+          "kind": "preference",
+          "status": "active",
+          "content": "我偏好简洁回答",
+          "scope": {
+            "type": "folder",
+            "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 1
+        }
+      }
+    },
+    {
+      "id": "accept_empty_edit",
+      "op": "accept",
+      "record": {
+        "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+        "status": "pending",
+        "proposedLayer": "semantic",
+        "proposedKind": "preference",
+        "content": "我偏好简洁回答",
+        "scope": {
+          "type": "folder",
+          "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+        },
+        "source": {
+          "type": "conversation",
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "messageIds": [
+            "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+          ],
+          "observedAtMs": 1792137600000
+        },
+        "sensitivity": "normal",
+        "confidence": 1,
+        "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+        "createdAtMs": 1792137600000,
+        "expiresAtMs": 1794729600000,
+        "resolvedAtMs": null
+      },
+      "edit": {
+        "content": " \n "
+      },
+      "nowMs": 1792137601000,
+      "expected": {
+        "error": "empty"
+      }
+    },
+    {
+      "id": "accept_too_long_edit",
+      "op": "accept",
+      "record": {
+        "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+        "status": "pending",
+        "proposedLayer": "semantic",
+        "proposedKind": "preference",
+        "content": "我偏好简洁回答",
+        "scope": {
+          "type": "folder",
+          "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+        },
+        "source": {
+          "type": "conversation",
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "messageIds": [
+            "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+          ],
+          "observedAtMs": 1792137600000
+        },
+        "sensitivity": "normal",
+        "confidence": 1,
+        "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+        "createdAtMs": 1792137600000,
+        "expiresAtMs": 1794729600000,
+        "resolvedAtMs": null
+      },
+      "edit": {
+        "content": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "nowMs": 1792137601000,
+      "expected": {
+        "error": "too_long"
+      }
+    },
+    {
+      "id": "accept_at_expiry_boundary",
+      "op": "accept",
+      "record": {
+        "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+        "status": "pending",
+        "proposedLayer": "semantic",
+        "proposedKind": "preference",
+        "content": "我偏好简洁回答",
+        "scope": {
+          "type": "folder",
+          "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+        },
+        "source": {
+          "type": "conversation",
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "messageIds": [
+            "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+          ],
+          "observedAtMs": 1792137600000
+        },
+        "sensitivity": "normal",
+        "confidence": 1,
+        "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+        "createdAtMs": 1792137600000,
+        "expiresAtMs": 1794729600000,
+        "resolvedAtMs": null
+      },
+      "edit": null,
+      "nowMs": 1794729600000,
+      "expected": {
+        "error": "expired"
+      }
+    },
+    {
+      "id": "accept_one_ms_before_expiry",
+      "op": "accept",
+      "record": {
+        "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+        "status": "pending",
+        "proposedLayer": "semantic",
+        "proposedKind": "preference",
+        "content": "我偏好简洁回答",
+        "scope": {
+          "type": "folder",
+          "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+        },
+        "source": {
+          "type": "conversation",
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "messageIds": [
+            "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+          ],
+          "observedAtMs": 1792137600000
+        },
+        "sensitivity": "normal",
+        "confidence": 1,
+        "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+        "createdAtMs": 1792137600000,
+        "expiresAtMs": 1794729600000,
+        "resolvedAtMs": null
+      },
+      "edit": null,
+      "nowMs": 1794729599999,
+      "expected": {
+        "record": {
+          "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+          "status": "accepted",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "",
+          "scope": {
+            "type": "folder",
+            "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAtMs": null
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": 1794729599999
+        },
+        "item": {
+          "layer": "semantic",
+          "kind": "preference",
+          "status": "active",
+          "content": "我偏好简洁回答",
+          "scope": {
+            "type": "folder",
+            "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 1
+        }
+      }
+    },
+    {
+      "id": "accept_not_pending",
+      "op": "accept",
+      "record": {
+        "id": "ef5a8355-8f50-5a10-a7ee-475ba830788c",
+        "status": "rejected",
+        "proposedLayer": "semantic",
+        "proposedKind": "preference",
+        "content": "",
+        "scope": {
+          "type": "global",
+          "id": null
+        },
+        "source": {
+          "type": "conversation",
+          "conversationId": null,
+          "messageIds": [],
+          "observedAtMs": null
+        },
+        "sensitivity": "normal",
+        "confidence": 1,
+        "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+        "createdAtMs": 1792137599000,
+        "expiresAtMs": 1794729599000,
+        "resolvedAtMs": 1792137599000
+      },
+      "edit": null,
+      "nowMs": 1792137600000,
+      "expected": {
+        "error": "not_pending"
+      }
+    },
+    {
+      "id": "reject_pending_keeps_fingerprint_only",
+      "op": "reject",
+      "record": {
+        "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+        "status": "pending",
+        "proposedLayer": "semantic",
+        "proposedKind": "preference",
+        "content": "我偏好简洁回答",
+        "scope": {
+          "type": "folder",
+          "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+        },
+        "source": {
+          "type": "conversation",
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "messageIds": [
+            "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+          ],
+          "observedAtMs": 1792137600000
+        },
+        "sensitivity": "normal",
+        "confidence": 1,
+        "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+        "createdAtMs": 1792137600000,
+        "expiresAtMs": 1794729600000,
+        "resolvedAtMs": null
+      },
+      "edit": null,
+      "nowMs": 1792137602000,
+      "expected": {
+        "record": {
+          "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+          "status": "rejected",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "",
+          "scope": {
+            "type": "folder",
+            "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAtMs": null
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729602000,
+          "resolvedAtMs": 1792137602000
+        }
+      }
+    },
+    {
+      "id": "reject_not_pending",
+      "op": "reject",
+      "record": {
+        "id": "ef5a8355-8f50-5a10-a7ee-475ba830788c",
+        "status": "accepted",
+        "proposedLayer": "semantic",
+        "proposedKind": "preference",
+        "content": "",
+        "scope": {
+          "type": "global",
+          "id": null
+        },
+        "source": {
+          "type": "conversation",
+          "conversationId": null,
+          "messageIds": [],
+          "observedAtMs": null
+        },
+        "sensitivity": "normal",
+        "confidence": 1,
+        "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+        "createdAtMs": 1792137599000,
+        "expiresAtMs": 1794729599000,
+        "resolvedAtMs": 1792137599500
+      },
+      "edit": null,
+      "nowMs": 1792137600000,
+      "expected": {
+        "error": "not_pending"
+      }
+    }
+  ],
+  "sweepCases": [
+    {
+      "id": "mixed_store",
+      "records": [
+        {
+          "id": "00000000-0000-5000-8000-000000000001",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "我偏好简洁回答",
+          "scope": {
+            "type": "folder",
+            "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        },
+        {
+          "id": "00000000-0000-5000-8000-000000000002",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "我偏好简洁回答",
+          "scope": {
+            "type": "folder",
+            "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1792137600000,
+          "resolvedAtMs": null
+        },
+        {
+          "id": "00000000-0000-5000-8000-000000000003",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "I use Vim",
+          "scope": {
+            "type": "folder",
+            "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "79a6094923f6ff8f0bdf7499575019dd5e4b73b6e8d79b6b83be03f9a5e55a0f",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        },
+        {
+          "id": "00000000-0000-5000-8000-000000000004",
+          "status": "accepted",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAtMs": null
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137599000,
+          "expiresAtMs": 1794729599000,
+          "resolvedAtMs": 1792137599500
+        },
+        {
+          "id": "00000000-0000-5000-8000-000000000005",
+          "status": "rejected",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAtMs": null
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137599000,
+          "expiresAtMs": 1794729599000,
+          "resolvedAtMs": 1792137599000
+        },
+        {
+          "id": "00000000-0000-5000-8000-000000000006",
+          "status": "rejected",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAtMs": null
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137599000,
+          "expiresAtMs": 1792137600000,
+          "resolvedAtMs": 1792137599000
+        },
+        {
+          "id": "00000000-0000-5000-8000-000000000007",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "我偏好简洁回答",
+          "scope": {
+            "type": "folder",
+            "id": "8a7b6c5d-4e3f-4a2b-8c1d-0e9f8a7b6c5d"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1792137600001,
+          "resolvedAtMs": null
+        }
+      ],
+      "activeContents": [
+        "i use vim"
+      ],
+      "nowMs": 1792137600000,
+      "expected": {
+        "keptIds": [
+          "00000000-0000-5000-8000-000000000001",
+          "00000000-0000-5000-8000-000000000005",
+          "00000000-0000-5000-8000-000000000007"
+        ],
+        "expiredIds": [
+          "00000000-0000-5000-8000-000000000002"
+        ],
+        "supersededIds": [
+          "00000000-0000-5000-8000-000000000003"
+        ],
+        "purgedIds": [
+          "00000000-0000-5000-8000-000000000002",
+          "00000000-0000-5000-8000-000000000003",
+          "00000000-0000-5000-8000-000000000004",
+          "00000000-0000-5000-8000-000000000006"
+        ]
+      }
+    },
+    {
+      "id": "empty_store",
+      "records": [],
+      "activeContents": [
+        "x"
+      ],
+      "nowMs": 1792137600000,
+      "expected": {
+        "keptIds": [],
+        "expiredIds": [],
+        "supersededIds": [],
+        "purgedIds": []
+      }
+    }
+  ]
+}

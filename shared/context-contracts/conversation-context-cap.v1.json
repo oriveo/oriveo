@@ -1,0 +1,58 @@
+{
+  "$comment": "Per-conversation context cap (field `contextCap`). Absent / null means the conversation follows the global default. A value is one of the budget.v1.json cap options: \"auto\", \"unlimited\" or an integer in [customCapMin, customCapMax]; anything budget.v1.json capCases rejects reads as null (follow global), never as a default cap. remoteReadCases: reading the key from a remote-store conversation document; backup import applies the same rule to the backup DTO field (an old backup without the key follows global). writeCases: full conversation upload writes the key only when a cap is set and never writes a delete sentinel. updateCases: the dedicated merge update writes the wire value, or the platform delete sentinel when the conversation goes back to follow global (always together with metadataUpdatedAt; updatedAt untouched). mergeCases: remote metadata merge; a present key always wins (rejected values become null); a missing key clears the local value only on a full document (one that has createdAt), a partial document keeps it. storageCases: iOS and Android local text column and local preference codec (Web stores the wire value as is and skips this group): exactly \"auto\" / \"unlimited\" / a decimal integer without sign, spaces or leading zeros, then the budget cap rule; encode is the inverse and must round-trip.",
+  "schema": "oriveo.context.conversation-context-cap",
+  "version": 1,
+  "field": "contextCap",
+  "remoteReadCases": [
+    { "id": "read_missing_follows_global", "input": { "present": false }, "expected": { "cap": null } },
+    { "id": "read_null_follows_global", "input": { "present": true, "value": null }, "expected": { "cap": null } },
+    { "id": "read_auto", "input": { "present": true, "value": "auto" }, "expected": { "cap": "auto" } },
+    { "id": "read_unlimited", "input": { "present": true, "value": "unlimited" }, "expected": { "cap": "unlimited" } },
+    { "id": "read_custom_190000", "input": { "present": true, "value": 190000 }, "expected": { "cap": 190000 } },
+    { "id": "read_custom_min", "input": { "present": true, "value": 32000 }, "expected": { "cap": 32000 } },
+    { "id": "read_custom_integral_float", "input": { "present": true, "value": 190000.0 }, "expected": { "cap": 190000 } },
+    { "id": "read_reject_numeric_string", "input": { "present": true, "value": "190000" }, "expected": { "cap": null } },
+    { "id": "read_reject_below_min", "input": { "present": true, "value": 31999 }, "expected": { "cap": null } },
+    { "id": "read_reject_above_int32", "input": { "present": true, "value": 2147483648 }, "expected": { "cap": null } },
+    { "id": "read_reject_fraction", "input": { "present": true, "value": 64000.5 }, "expected": { "cap": null } },
+    { "id": "read_reject_upper_auto", "input": { "present": true, "value": "Auto" }, "expected": { "cap": null } },
+    { "id": "read_reject_empty_string", "input": { "present": true, "value": "" }, "expected": { "cap": null } },
+    { "id": "read_reject_bool", "input": { "present": true, "value": true }, "expected": { "cap": null } }
+  ],
+  "writeCases": [
+    { "id": "write_follow_global_omits_key", "input": { "cap": null }, "expected": { "present": false } },
+    { "id": "write_auto", "input": { "cap": "auto" }, "expected": { "present": true, "value": "auto" } },
+    { "id": "write_unlimited", "input": { "cap": "unlimited" }, "expected": { "present": true, "value": "unlimited" } },
+    { "id": "write_custom_190000", "input": { "cap": 190000 }, "expected": { "present": true, "value": 190000 } }
+  ],
+  "updateCases": [
+    { "id": "update_follow_global_deletes", "input": { "cap": null }, "expected": { "delete": true } },
+    { "id": "update_unlimited", "input": { "cap": "unlimited" }, "expected": { "value": "unlimited" } },
+    { "id": "update_custom_190000", "input": { "cap": 190000 }, "expected": { "value": 190000 } }
+  ],
+  "mergeCases": [
+    { "id": "merge_full_missing_clears", "input": { "local": 190000, "fullDocument": true, "present": false }, "expected": { "cap": null } },
+    { "id": "merge_partial_missing_keeps", "input": { "local": 190000, "fullDocument": false, "present": false }, "expected": { "cap": 190000 } },
+    { "id": "merge_full_present_takes_remote", "input": { "local": "auto", "fullDocument": true, "present": true, "value": "unlimited" }, "expected": { "cap": "unlimited" } },
+    { "id": "merge_partial_present_takes_remote", "input": { "local": null, "fullDocument": false, "present": true, "value": 64000 }, "expected": { "cap": 64000 } },
+    { "id": "merge_present_null_follows_global", "input": { "local": "auto", "fullDocument": false, "present": true, "value": null }, "expected": { "cap": null } },
+    { "id": "merge_present_rejected_follows_global", "input": { "local": 190000, "fullDocument": true, "present": true, "value": "190000" }, "expected": { "cap": null } }
+  ],
+  "storageCases": [
+    { "id": "storage_auto", "input": "auto", "expected": { "cap": "auto" } },
+    { "id": "storage_unlimited", "input": "unlimited", "expected": { "cap": "unlimited" } },
+    { "id": "storage_custom_190000", "input": "190000", "expected": { "cap": 190000 } },
+    { "id": "storage_custom_min", "input": "32000", "expected": { "cap": 32000 } },
+    { "id": "storage_custom_int32_max", "input": "2147483647", "expected": { "cap": 2147483647 } },
+    { "id": "storage_reject_below_min", "input": "31999", "expected": { "cap": null } },
+    { "id": "storage_reject_above_int32", "input": "2147483648", "expected": { "cap": null } },
+    { "id": "storage_reject_huge", "input": "99999999999999999999", "expected": { "cap": null } },
+    { "id": "storage_reject_leading_zero", "input": "0190000", "expected": { "cap": null } },
+    { "id": "storage_reject_plus_sign", "input": "+190000", "expected": { "cap": null } },
+    { "id": "storage_reject_space", "input": " 190000", "expected": { "cap": null } },
+    { "id": "storage_reject_fraction", "input": "190000.0", "expected": { "cap": null } },
+    { "id": "storage_reject_upper_auto", "input": "Auto", "expected": { "cap": null } },
+    { "id": "storage_reject_legacy_64k", "input": "64k", "expected": { "cap": null } },
+    { "id": "storage_reject_empty", "input": "", "expected": { "cap": null } }
+  ]
+}

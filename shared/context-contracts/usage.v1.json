@@ -1,0 +1,711 @@
+{
+  "$comment": "Context usage summary for the composer ring and the context panel (P4 U4, D-174..). Clients run their production summary function on the conversation's ledger manifests (createdAt order, latest last) plus the latest valid checkpoint, and compare every expected field exactly. Percent / tone reuse budget.v1 rule 12.",
+  "schema": "oriveo.context.usage",
+  "version": 1,
+  "segmentGroups": {
+    "instructions": [
+      "skill",
+      "instructions",
+      "standingInstructions",
+      "purposeSystem",
+      "toolSafety"
+    ],
+    "memory": [
+      "memory"
+    ],
+    "library": [
+      "notes",
+      "knowledge"
+    ]
+  },
+  "rules": [
+    "No manifests -> display none (ring hidden, panel says usage appears after the first send).",
+    "latest = last manifest. A checkpoint created after latest.createdAt -> unavailable / compacted_since; only B and W are reported.",
+    "latest.checkpointId non-null (the request was built on a stored checkpoint) while input.checkpoint is null (no valid checkpoint now: compaction cleared or the row invalidated by deleted messages) -> unavailable / cleared_since; only B and W are reported; the panel hint is the same as no manifests (D-285, D-294). Manifests written without a checkpointId (in-memory fallback, overflow re-projection) never trigger this.",
+    "input.currentB, when the key is present, replaces latest.B everywhere (B, percent, free): it is the window recomputed now with the current cap, from the same source as the send path. currentB null -> unavailable / window_unknown. Key absent (not wired, or the conversation / connection / model cannot be resolved) -> latest.B (D-285, P8 review).",
+    "used = latest.observedInput when present (basis observed), else latest.estimatedInput (basis estimated). manifest.basis is ignored.",
+    "omitted = per-kind sum of segment.omitted for notes / knowledge / memory.",
+    "latest.B null -> unavailable / window_unknown; segments null.",
+    "segments: instructions / memory / library sum segment tokens by segmentGroups; summary = checkpoint.latestSummaryTokens (estimateMessage of the checkpoint text) when a checkpoint exists, else 0; conversation = max(0, used - instructions - memory - library - summary); free = max(0, B - used).",
+    "percent = ceil(100 * used / B). No manifest with observedInput ever -> unavailable / never_observed with estimatedPercent = percent (panel only).",
+    "tone: error when latest.stopReason is context_window_exceeded, warm at percent >= 70, else neutral.",
+    "ring: label \"!\" with tone error when tone is error or percent >= 100, else label = percent as decimal string with the same tone; null unless display is percent."
+  ],
+  "summaryCases": [
+    {
+      "id": "observed_38",
+      "input": {
+        "manifests": [
+          {
+            "createdAt": 2000,
+            "B": 115200,
+            "W": 128000,
+            "estimatedInput": 45000,
+            "observedInput": 43776,
+            "stopReason": "stop",
+            "segments": [
+              {
+                "kind": "instructions",
+                "tokens": 300
+              },
+              {
+                "kind": "skill",
+                "tokens": 200
+              },
+              {
+                "kind": "memory",
+                "tokens": 2000
+              },
+              {
+                "kind": "notes",
+                "tokens": 8000,
+                "omitted": 2
+              },
+              {
+                "kind": "knowledge",
+                "tokens": 3000
+              },
+              {
+                "kind": "purposeSystem",
+                "tokens": 100
+              }
+            ]
+          }
+        ],
+        "checkpoint": null
+      },
+      "expected": {
+        "display": "percent",
+        "reason": null,
+        "percent": 38,
+        "estimatedPercent": null,
+        "tone": "neutral",
+        "ring": {
+          "label": "38",
+          "tone": "neutral"
+        },
+        "basis": "observed",
+        "used": 43776,
+        "B": 115200,
+        "W": 128000,
+        "segments": {
+          "conversation": 30176,
+          "library": 11000,
+          "summary": 0,
+          "instructions": 600,
+          "memory": 2000,
+          "free": 71424
+        },
+        "omitted": {
+          "notes": 2,
+          "knowledge": 0,
+          "memory": 0
+        }
+      }
+    },
+    {
+      "id": "warm_76",
+      "input": {
+        "manifests": [
+          {
+            "createdAt": 2000,
+            "B": 115200,
+            "W": 128000,
+            "estimatedInput": 45000,
+            "observedInput": 87552,
+            "stopReason": "stop",
+            "segments": []
+          }
+        ],
+        "checkpoint": null
+      },
+      "expected": {
+        "display": "percent",
+        "reason": null,
+        "percent": 76,
+        "estimatedPercent": null,
+        "tone": "warm",
+        "ring": {
+          "label": "76",
+          "tone": "warm"
+        },
+        "basis": "observed",
+        "used": 87552,
+        "B": 115200,
+        "W": 128000,
+        "segments": {
+          "conversation": 87552,
+          "library": 0,
+          "summary": 0,
+          "instructions": 0,
+          "memory": 0,
+          "free": 27648
+        },
+        "omitted": {
+          "notes": 0,
+          "knowledge": 0,
+          "memory": 0
+        }
+      }
+    },
+    {
+      "id": "over_100_without_overflow_shows_bang",
+      "input": {
+        "manifests": [
+          {
+            "createdAt": 2000,
+            "B": 115200,
+            "W": 128000,
+            "estimatedInput": 45000,
+            "observedInput": 116000,
+            "stopReason": "stop",
+            "segments": []
+          }
+        ],
+        "checkpoint": null
+      },
+      "expected": {
+        "display": "percent",
+        "reason": null,
+        "percent": 101,
+        "estimatedPercent": null,
+        "tone": "warm",
+        "ring": {
+          "label": "!",
+          "tone": "error"
+        },
+        "basis": "observed",
+        "used": 116000,
+        "B": 115200,
+        "W": 128000,
+        "segments": {
+          "conversation": 116000,
+          "library": 0,
+          "summary": 0,
+          "instructions": 0,
+          "memory": 0,
+          "free": 0
+        },
+        "omitted": {
+          "notes": 0,
+          "knowledge": 0,
+          "memory": 0
+        }
+      }
+    },
+    {
+      "id": "overflow_is_error",
+      "input": {
+        "manifests": [
+          {
+            "createdAt": 1000,
+            "B": 115200,
+            "W": 128000,
+            "estimatedInput": 45000,
+            "observedInput": 90000,
+            "stopReason": "stop",
+            "segments": []
+          },
+          {
+            "createdAt": 2000,
+            "B": 115200,
+            "W": 128000,
+            "estimatedInput": 120000,
+            "observedInput": null,
+            "stopReason": "context_window_exceeded",
+            "segments": []
+          }
+        ],
+        "checkpoint": null
+      },
+      "expected": {
+        "display": "percent",
+        "reason": null,
+        "percent": 105,
+        "estimatedPercent": null,
+        "tone": "error",
+        "ring": {
+          "label": "!",
+          "tone": "error"
+        },
+        "basis": "estimated",
+        "used": 120000,
+        "B": 115200,
+        "W": 128000,
+        "segments": {
+          "conversation": 120000,
+          "library": 0,
+          "summary": 0,
+          "instructions": 0,
+          "memory": 0,
+          "free": 0
+        },
+        "omitted": {
+          "notes": 0,
+          "knowledge": 0,
+          "memory": 0
+        }
+      }
+    },
+    {
+      "id": "latest_estimated_after_earlier_observed",
+      "input": {
+        "manifests": [
+          {
+            "createdAt": 1000,
+            "B": 115200,
+            "W": 128000,
+            "estimatedInput": 45000,
+            "observedInput": 30000,
+            "stopReason": "stop",
+            "segments": []
+          },
+          {
+            "createdAt": 2000,
+            "B": 115200,
+            "W": 128000,
+            "estimatedInput": 50000,
+            "observedInput": null,
+            "stopReason": "stop",
+            "segments": []
+          }
+        ],
+        "checkpoint": null
+      },
+      "expected": {
+        "display": "percent",
+        "reason": null,
+        "percent": 44,
+        "estimatedPercent": null,
+        "tone": "neutral",
+        "ring": {
+          "label": "44",
+          "tone": "neutral"
+        },
+        "basis": "estimated",
+        "used": 50000,
+        "B": 115200,
+        "W": 128000,
+        "segments": {
+          "conversation": 50000,
+          "library": 0,
+          "summary": 0,
+          "instructions": 0,
+          "memory": 0,
+          "free": 65200
+        },
+        "omitted": {
+          "notes": 0,
+          "knowledge": 0,
+          "memory": 0
+        }
+      }
+    },
+    {
+      "id": "never_observed_unavailable_with_estimate",
+      "input": {
+        "manifests": [
+          {
+            "createdAt": 2000,
+            "B": 115200,
+            "W": 128000,
+            "estimatedInput": 20000,
+            "observedInput": null,
+            "stopReason": "stop",
+            "segments": []
+          }
+        ],
+        "checkpoint": null
+      },
+      "expected": {
+        "display": "unavailable",
+        "reason": "never_observed",
+        "percent": null,
+        "estimatedPercent": 18,
+        "tone": null,
+        "ring": null,
+        "basis": "estimated",
+        "used": 20000,
+        "B": 115200,
+        "W": 128000,
+        "segments": {
+          "conversation": 20000,
+          "library": 0,
+          "summary": 0,
+          "instructions": 0,
+          "memory": 0,
+          "free": 95200
+        },
+        "omitted": {
+          "notes": 0,
+          "knowledge": 0,
+          "memory": 0
+        }
+      }
+    },
+    {
+      "id": "window_unknown",
+      "input": {
+        "manifests": [
+          {
+            "createdAt": 2000,
+            "B": null,
+            "W": null,
+            "estimatedInput": 45000,
+            "observedInput": 20000,
+            "stopReason": "stop",
+            "segments": [
+              {
+                "kind": "memory",
+                "tokens": 500,
+                "omitted": 1
+              }
+            ]
+          }
+        ],
+        "checkpoint": null
+      },
+      "expected": {
+        "display": "unavailable",
+        "reason": "window_unknown",
+        "percent": null,
+        "estimatedPercent": null,
+        "tone": null,
+        "ring": null,
+        "basis": "observed",
+        "used": 20000,
+        "B": null,
+        "W": null,
+        "segments": null,
+        "omitted": {
+          "notes": 0,
+          "knowledge": 0,
+          "memory": 1
+        }
+      }
+    },
+    {
+      "id": "compacted_since_last_request",
+      "input": {
+        "manifests": [
+          {
+            "createdAt": 2000,
+            "B": 115200,
+            "W": 128000,
+            "estimatedInput": 45000,
+            "observedInput": 60000,
+            "stopReason": "stop",
+            "segments": []
+          }
+        ],
+        "checkpoint": {
+          "count": 1,
+          "latestCreatedAt": 3000,
+          "latestSummaryTokens": 1800
+        }
+      },
+      "expected": {
+        "display": "unavailable",
+        "reason": "compacted_since",
+        "percent": null,
+        "estimatedPercent": null,
+        "tone": null,
+        "ring": null,
+        "basis": null,
+        "used": null,
+        "B": 115200,
+        "W": 128000,
+        "segments": null,
+        "omitted": null
+      }
+    },
+    {
+      "id": "summary_counted_after_checkpoint",
+      "input": {
+        "manifests": [
+          {
+            "createdAt": 2000,
+            "B": 115200,
+            "W": 128000,
+            "estimatedInput": 45000,
+            "observedInput": 30000,
+            "stopReason": "stop",
+            "segments": [
+              {
+                "kind": "instructions",
+                "tokens": 500
+              }
+            ]
+          }
+        ],
+        "checkpoint": {
+          "count": 2,
+          "latestCreatedAt": 1500,
+          "latestSummaryTokens": 4000
+        }
+      },
+      "expected": {
+        "display": "percent",
+        "reason": null,
+        "percent": 27,
+        "estimatedPercent": null,
+        "tone": "neutral",
+        "ring": {
+          "label": "27",
+          "tone": "neutral"
+        },
+        "basis": "observed",
+        "used": 30000,
+        "B": 115200,
+        "W": 128000,
+        "segments": {
+          "conversation": 25500,
+          "library": 0,
+          "summary": 4000,
+          "instructions": 500,
+          "memory": 0,
+          "free": 85200
+        },
+        "omitted": {
+          "notes": 0,
+          "knowledge": 0,
+          "memory": 0
+        }
+      }
+    },
+    {
+      "id": "conversation_clamped_at_zero",
+      "input": {
+        "manifests": [
+          {
+            "createdAt": 2000,
+            "B": 115200,
+            "W": 128000,
+            "estimatedInput": 45000,
+            "observedInput": 5000,
+            "stopReason": "stop",
+            "segments": [
+              {
+                "kind": "notes",
+                "tokens": 6000
+              },
+              {
+                "kind": "toolSafety",
+                "tokens": 50
+              }
+            ]
+          }
+        ],
+        "checkpoint": null
+      },
+      "expected": {
+        "display": "percent",
+        "reason": null,
+        "percent": 5,
+        "estimatedPercent": null,
+        "tone": "neutral",
+        "ring": {
+          "label": "5",
+          "tone": "neutral"
+        },
+        "basis": "observed",
+        "used": 5000,
+        "B": 115200,
+        "W": 128000,
+        "segments": {
+          "conversation": 0,
+          "library": 6000,
+          "summary": 0,
+          "instructions": 50,
+          "memory": 0,
+          "free": 110200
+        },
+        "omitted": {
+          "notes": 0,
+          "knowledge": 0,
+          "memory": 0
+        }
+      }
+    },
+    {
+      "id": "no_manifests",
+      "input": {
+        "manifests": [],
+        "checkpoint": null
+      },
+      "expected": {
+        "display": "none",
+        "reason": null,
+        "percent": null,
+        "estimatedPercent": null,
+        "tone": null,
+        "ring": null,
+        "basis": null,
+        "used": null,
+        "B": null,
+        "W": null,
+        "segments": null,
+        "omitted": null
+      }
+    },
+    {
+      "id": "cleared_since_checkpoint_gone",
+      "input": {
+        "manifests": [
+          {
+            "createdAt": 2000,
+            "B": 115200,
+            "W": 128000,
+            "estimatedInput": 45000,
+            "observedInput": 60000,
+            "stopReason": "stop",
+            "segments": [],
+            "checkpointId": "ck-1"
+          }
+        ],
+        "checkpoint": null
+      },
+      "expected": {
+        "display": "unavailable",
+        "reason": "cleared_since",
+        "percent": null,
+        "estimatedPercent": null,
+        "tone": null,
+        "ring": null,
+        "basis": null,
+        "used": null,
+        "B": 115200,
+        "W": 128000,
+        "segments": null,
+        "omitted": null
+      }
+    },
+    {
+      "id": "no_checkpoint_id_not_cleared",
+      "input": {
+        "manifests": [
+          {
+            "createdAt": 2000,
+            "B": 115200,
+            "W": 128000,
+            "estimatedInput": 45000,
+            "observedInput": 57600,
+            "stopReason": "stop",
+            "segments": []
+          }
+        ],
+        "checkpoint": null
+      },
+      "expected": {
+        "display": "percent",
+        "reason": null,
+        "percent": 50,
+        "estimatedPercent": null,
+        "tone": "neutral",
+        "ring": {
+          "label": "50",
+          "tone": "neutral"
+        },
+        "basis": "observed",
+        "used": 57600,
+        "B": 115200,
+        "W": 128000,
+        "segments": {
+          "conversation": 57600,
+          "library": 0,
+          "summary": 0,
+          "instructions": 0,
+          "memory": 0,
+          "free": 57600
+        },
+        "omitted": {
+          "notes": 0,
+          "knowledge": 0,
+          "memory": 0
+        }
+      }
+    },
+    {
+      "id": "current_b_null_window_unknown",
+      "input": {
+        "manifests": [
+          {
+            "createdAt": 2000,
+            "B": 115200,
+            "W": 128000,
+            "estimatedInput": 45000,
+            "observedInput": 60000,
+            "stopReason": "stop",
+            "segments": []
+          }
+        ],
+        "checkpoint": null,
+        "currentB": null
+      },
+      "expected": {
+        "display": "unavailable",
+        "reason": "window_unknown",
+        "percent": null,
+        "estimatedPercent": null,
+        "tone": null,
+        "ring": null,
+        "basis": "observed",
+        "used": 60000,
+        "B": null,
+        "W": 128000,
+        "segments": null,
+        "omitted": {
+          "notes": 0,
+          "knowledge": 0,
+          "memory": 0
+        }
+      }
+    },
+    {
+      "id": "current_b_overrides_ledger_b",
+      "input": {
+        "manifests": [
+          {
+            "createdAt": 2000,
+            "B": 115200,
+            "W": 128000,
+            "estimatedInput": 45000,
+            "observedInput": 60000,
+            "stopReason": "stop",
+            "segments": []
+          }
+        ],
+        "checkpoint": null,
+        "currentB": 80000
+      },
+      "expected": {
+        "display": "percent",
+        "reason": null,
+        "percent": 75,
+        "estimatedPercent": null,
+        "tone": "warm",
+        "ring": {
+          "label": "75",
+          "tone": "warm"
+        },
+        "basis": "observed",
+        "used": 60000,
+        "B": 80000,
+        "W": 128000,
+        "segments": {
+          "conversation": 60000,
+          "library": 0,
+          "summary": 0,
+          "instructions": 0,
+          "memory": 0,
+          "free": 20000
+        },
+        "omitted": {
+          "notes": 0,
+          "knowledge": 0,
+          "memory": 0
+        }
+      }
+    }
+  ]
+}

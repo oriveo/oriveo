@@ -1,0 +1,1647 @@
+{
+  "$comment": "Context cap settings UI presentation. Every value is derived from the budget.v1.json window rule (B / U / limitedBy, see windowCases) and slider ticks (capTickCases); input keys W, windowKind, maxOutput, priceLineTokens have the windowCases shape, conversationCap null means the conversation follows globalCap. pickerCases: the per-conversation cap picker (options follow / auto / unlimited / custom, slider, price-line hint). commitCases: committing the typed custom number. panelCases: the context panel cap row and window row (price line distance, long-context price multiplier). settingsCases: the global default cap row read from the raw stored value. Text keys, locales and number formatting are platform tests, not this fixture.",
+  "schema": "oriveo.context-cap-presentation",
+  "version": 1,
+  "rules": [
+    "pickerCases: selected = follow when conversationCap is null, else auto | unlimited | custom. effective = window rule with (conversationCap ?? globalCap) -> {B, limitedBy}; auto and unlimited = the same rule with that option -> {B, limitedBy}. ticks = capTickCases rule with (U, priceLineTokens).",
+    "pickerCases: customStart = B of the conversation custom cap when the conversation is custom, otherwise effective.B ?? 128000. sliderIndex = index of the tick nearest to customStart; on a tie the lower tick wins. priceLineTickIndex = index of priceLineTokens in ticks, null when absent. unlimitedCrossesPriceLine = U > T (false when U or T is null).",
+    "pickerCases: customHint compares customStart with T = priceLineTokens: T null -> none; customStart > T -> over; = T -> at; < T -> under with gap = T - customStart. gap is null unless under.",
+    "commitCases (text, U, previous): remove White_Space (including U+00A0 and U+202F) and the separators , . ' U+2019 _ ; the rest must be a non-empty run of ASCII digits 0-9, otherwise {value: previous, adjusted: false, restored: true}. Digits are counted after dropping leading zeros; more than 10 digits reads as n = 2147483647 and is always adjusted. value = min(max(n, 32000), U ?? 2147483647), so U below 32000 yields U; adjusted = (more than 10 digits) or value != n; restored = false.",
+    "panelCases: cap = conversationCap ?? globalCap through the window rule. capValue = effective B (null when the window is unknown and the cap is auto / unlimited: show the option name). limitedByModel = cap is custom and c > U; actual = B when limitedByModel, else null.",
+    "panelCases: windowLine = unknown (U null) | window (no priceLineTokens) | windowPriceLine (T >= B) | aboveLine (T < B). priceLineDistance = max(T - used, 0) only for aboveLine (0 = already past the line), else null.",
+    "panelCases: pricing {base, long} {prompt, completion} per million tokens. Each side tenths = round(long / base * 10); null when base <= 0 or missing, and null unless tenths > 10. multiplier = null when both sides are null or pricing is absent, else {input, output}. Equal sides use the \"both\" sentence.",
+    "settingsCases: stored is the raw stored global cap, parsed with the capCases rule (an integral number such as 190000.0 is custom). selected = auto | unlimited | custom; anything that does not parse is auto. customPrefill = c when custom, else 256000."
+  ],
+  "pickerCases": [
+    {
+      "id": "picker_w2m_line200k_follow_auto",
+      "input": {
+        "W": 2000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": 200000,
+        "conversationCap": null,
+        "globalCap": "auto"
+      },
+      "expected": {
+        "selected": "follow",
+        "effective": {
+          "B": 200000,
+          "limitedBy": "priceLine"
+        },
+        "auto": {
+          "B": 200000,
+          "limitedBy": "priceLine"
+        },
+        "unlimited": {
+          "B": 1800000,
+          "limitedBy": "window"
+        },
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          200000,
+          256000,
+          384000,
+          512000,
+          768000,
+          1000000,
+          1500000,
+          1800000
+        ],
+        "customStart": 200000,
+        "sliderIndex": 3,
+        "priceLineTickIndex": 3,
+        "unlimitedCrossesPriceLine": true,
+        "customHint": {
+          "kind": "at",
+          "gap": null
+        }
+      },
+      "note": "Auto lands exactly on the price line."
+    },
+    {
+      "id": "picker_w1m_line272k_auto_below_line",
+      "input": {
+        "W": 1000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": 272000,
+        "conversationCap": null,
+        "globalCap": "auto"
+      },
+      "expected": {
+        "selected": "follow",
+        "effective": {
+          "B": 256000,
+          "limitedBy": "autoDefault"
+        },
+        "auto": {
+          "B": 256000,
+          "limitedBy": "autoDefault"
+        },
+        "unlimited": {
+          "B": 900000,
+          "limitedBy": "window"
+        },
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          256000,
+          272000,
+          384000,
+          512000,
+          768000,
+          900000
+        ],
+        "customStart": 256000,
+        "sliderIndex": 3,
+        "priceLineTickIndex": 4,
+        "unlimitedCrossesPriceLine": true,
+        "customHint": {
+          "kind": "under",
+          "gap": 16000
+        }
+      },
+      "note": "Auto 256000 already sits below the 272000 line; unlimited crosses it."
+    },
+    {
+      "id": "picker_w1m_line272k_conv_unlimited",
+      "input": {
+        "W": 1000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": 272000,
+        "conversationCap": "unlimited",
+        "globalCap": "auto"
+      },
+      "expected": {
+        "selected": "unlimited",
+        "effective": {
+          "B": 900000,
+          "limitedBy": "window"
+        },
+        "auto": {
+          "B": 256000,
+          "limitedBy": "autoDefault"
+        },
+        "unlimited": {
+          "B": 900000,
+          "limitedBy": "window"
+        },
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          256000,
+          272000,
+          384000,
+          512000,
+          768000,
+          900000
+        ],
+        "customStart": 900000,
+        "sliderIndex": 8,
+        "priceLineTickIndex": 4,
+        "unlimitedCrossesPriceLine": true,
+        "customHint": {
+          "kind": "over",
+          "gap": null
+        }
+      }
+    },
+    {
+      "id": "picker_w128k_no_line",
+      "input": {
+        "W": 128000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8000
+        },
+        "priceLineTokens": null,
+        "conversationCap": null,
+        "globalCap": "auto"
+      },
+      "expected": {
+        "selected": "follow",
+        "effective": {
+          "B": 115200,
+          "limitedBy": "window"
+        },
+        "auto": {
+          "B": 115200,
+          "limitedBy": "window"
+        },
+        "unlimited": {
+          "B": 115200,
+          "limitedBy": "window"
+        },
+        "ticks": [
+          32000,
+          64000,
+          115200
+        ],
+        "customStart": 115200,
+        "sliderIndex": 2,
+        "priceLineTickIndex": null,
+        "unlimitedCrossesPriceLine": false,
+        "customHint": {
+          "kind": "none",
+          "gap": null
+        }
+      },
+      "note": "No price line: no tick index, hint none."
+    },
+    {
+      "id": "picker_w200k_input_only_no_line",
+      "input": {
+        "W": 200000,
+        "windowKind": "inputOnly",
+        "maxOutput": {
+          "model": 8192
+        },
+        "priceLineTokens": null,
+        "conversationCap": "auto",
+        "globalCap": "unlimited"
+      },
+      "expected": {
+        "selected": "auto",
+        "effective": {
+          "B": 200000,
+          "limitedBy": "window"
+        },
+        "auto": {
+          "B": 200000,
+          "limitedBy": "window"
+        },
+        "unlimited": {
+          "B": 200000,
+          "limitedBy": "window"
+        },
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          200000
+        ],
+        "customStart": 200000,
+        "sliderIndex": 3,
+        "priceLineTickIndex": null,
+        "unlimitedCrossesPriceLine": false,
+        "customHint": {
+          "kind": "none",
+          "gap": null
+        }
+      }
+    },
+    {
+      "id": "picker_unknown_follow",
+      "input": {
+        "W": null,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "priceLineTokens": null,
+        "conversationCap": null,
+        "globalCap": "auto"
+      },
+      "expected": {
+        "selected": "follow",
+        "effective": {
+          "B": null,
+          "limitedBy": null
+        },
+        "auto": {
+          "B": null,
+          "limitedBy": null
+        },
+        "unlimited": {
+          "B": null,
+          "limitedBy": null
+        },
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          256000,
+          384000,
+          512000,
+          768000,
+          1000000,
+          1500000,
+          2000000
+        ],
+        "customStart": 128000,
+        "sliderIndex": 2,
+        "priceLineTickIndex": null,
+        "unlimitedCrossesPriceLine": false,
+        "customHint": {
+          "kind": "none",
+          "gap": null
+        }
+      },
+      "note": "Unknown window: ladder without upper bound, custom starts at 128000."
+    },
+    {
+      "id": "picker_unknown_auto",
+      "input": {
+        "W": null,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "priceLineTokens": null,
+        "conversationCap": "auto",
+        "globalCap": "unlimited"
+      },
+      "expected": {
+        "selected": "auto",
+        "effective": {
+          "B": null,
+          "limitedBy": null
+        },
+        "auto": {
+          "B": null,
+          "limitedBy": null
+        },
+        "unlimited": {
+          "B": null,
+          "limitedBy": null
+        },
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          256000,
+          384000,
+          512000,
+          768000,
+          1000000,
+          1500000,
+          2000000
+        ],
+        "customStart": 128000,
+        "sliderIndex": 2,
+        "priceLineTickIndex": null,
+        "unlimitedCrossesPriceLine": false,
+        "customHint": {
+          "kind": "none",
+          "gap": null
+        }
+      }
+    },
+    {
+      "id": "picker_unknown_unlimited",
+      "input": {
+        "W": null,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "priceLineTokens": null,
+        "conversationCap": "unlimited",
+        "globalCap": "auto"
+      },
+      "expected": {
+        "selected": "unlimited",
+        "effective": {
+          "B": null,
+          "limitedBy": null
+        },
+        "auto": {
+          "B": null,
+          "limitedBy": null
+        },
+        "unlimited": {
+          "B": null,
+          "limitedBy": null
+        },
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          256000,
+          384000,
+          512000,
+          768000,
+          1000000,
+          1500000,
+          2000000
+        ],
+        "customStart": 128000,
+        "sliderIndex": 2,
+        "priceLineTickIndex": null,
+        "unlimitedCrossesPriceLine": false,
+        "customHint": {
+          "kind": "none",
+          "gap": null
+        }
+      }
+    },
+    {
+      "id": "picker_unknown_custom",
+      "input": {
+        "W": null,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "priceLineTokens": null,
+        "conversationCap": 300000,
+        "globalCap": "auto"
+      },
+      "expected": {
+        "selected": "custom",
+        "effective": {
+          "B": 300000,
+          "limitedBy": "custom"
+        },
+        "auto": {
+          "B": null,
+          "limitedBy": null
+        },
+        "unlimited": {
+          "B": null,
+          "limitedBy": null
+        },
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          256000,
+          384000,
+          512000,
+          768000,
+          1000000,
+          1500000,
+          2000000
+        ],
+        "customStart": 300000,
+        "sliderIndex": 3,
+        "priceLineTickIndex": null,
+        "unlimitedCrossesPriceLine": false,
+        "customHint": {
+          "kind": "none",
+          "gap": null
+        }
+      }
+    },
+    {
+      "id": "picker_custom_over_u",
+      "input": {
+        "W": 128000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8000
+        },
+        "priceLineTokens": null,
+        "conversationCap": 500000,
+        "globalCap": "auto"
+      },
+      "expected": {
+        "selected": "custom",
+        "effective": {
+          "B": 115200,
+          "limitedBy": "window"
+        },
+        "auto": {
+          "B": 115200,
+          "limitedBy": "window"
+        },
+        "unlimited": {
+          "B": 115200,
+          "limitedBy": "window"
+        },
+        "ticks": [
+          32000,
+          64000,
+          115200
+        ],
+        "customStart": 115200,
+        "sliderIndex": 2,
+        "priceLineTickIndex": null,
+        "unlimitedCrossesPriceLine": false,
+        "customHint": {
+          "kind": "none",
+          "gap": null
+        }
+      },
+      "note": "Custom above U is capped by the window; customStart is the capped B."
+    },
+    {
+      "id": "picker_custom_equals_line",
+      "input": {
+        "W": 1000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": 272000,
+        "conversationCap": 272000,
+        "globalCap": "auto"
+      },
+      "expected": {
+        "selected": "custom",
+        "effective": {
+          "B": 272000,
+          "limitedBy": "custom"
+        },
+        "auto": {
+          "B": 256000,
+          "limitedBy": "autoDefault"
+        },
+        "unlimited": {
+          "B": 900000,
+          "limitedBy": "window"
+        },
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          256000,
+          272000,
+          384000,
+          512000,
+          768000,
+          900000
+        ],
+        "customStart": 272000,
+        "sliderIndex": 4,
+        "priceLineTickIndex": 4,
+        "unlimitedCrossesPriceLine": true,
+        "customHint": {
+          "kind": "at",
+          "gap": null
+        }
+      }
+    },
+    {
+      "id": "picker_custom_under_line_gap",
+      "input": {
+        "W": 2000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": 200000,
+        "conversationCap": 150000,
+        "globalCap": "auto"
+      },
+      "expected": {
+        "selected": "custom",
+        "effective": {
+          "B": 150000,
+          "limitedBy": "custom"
+        },
+        "auto": {
+          "B": 200000,
+          "limitedBy": "priceLine"
+        },
+        "unlimited": {
+          "B": 1800000,
+          "limitedBy": "window"
+        },
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          200000,
+          256000,
+          384000,
+          512000,
+          768000,
+          1000000,
+          1500000,
+          1800000
+        ],
+        "customStart": 150000,
+        "sliderIndex": 2,
+        "priceLineTickIndex": 3,
+        "unlimitedCrossesPriceLine": true,
+        "customHint": {
+          "kind": "under",
+          "gap": 50000
+        }
+      }
+    },
+    {
+      "id": "picker_custom_over_line",
+      "input": {
+        "W": 2000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": 200000,
+        "conversationCap": 600000,
+        "globalCap": "auto"
+      },
+      "expected": {
+        "selected": "custom",
+        "effective": {
+          "B": 600000,
+          "limitedBy": "custom"
+        },
+        "auto": {
+          "B": 200000,
+          "limitedBy": "priceLine"
+        },
+        "unlimited": {
+          "B": 1800000,
+          "limitedBy": "window"
+        },
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          200000,
+          256000,
+          384000,
+          512000,
+          768000,
+          1000000,
+          1500000,
+          1800000
+        ],
+        "customStart": 600000,
+        "sliderIndex": 6,
+        "priceLineTickIndex": 3,
+        "unlimitedCrossesPriceLine": true,
+        "customHint": {
+          "kind": "over",
+          "gap": null
+        }
+      }
+    },
+    {
+      "id": "picker_tick_tie_prefers_lower",
+      "input": {
+        "W": 1000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": null,
+        "conversationCap": 192000,
+        "globalCap": "auto"
+      },
+      "expected": {
+        "selected": "custom",
+        "effective": {
+          "B": 192000,
+          "limitedBy": "custom"
+        },
+        "auto": {
+          "B": 256000,
+          "limitedBy": "autoDefault"
+        },
+        "unlimited": {
+          "B": 900000,
+          "limitedBy": "window"
+        },
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          256000,
+          384000,
+          512000,
+          768000,
+          900000
+        ],
+        "customStart": 192000,
+        "sliderIndex": 2,
+        "priceLineTickIndex": null,
+        "unlimitedCrossesPriceLine": false,
+        "customHint": {
+          "kind": "none",
+          "gap": null
+        }
+      },
+      "note": "192000 is equally far from 128000 and 256000; the lower tick wins."
+    },
+    {
+      "id": "picker_u_below_min",
+      "input": {
+        "W": 30000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 4096
+        },
+        "priceLineTokens": null,
+        "conversationCap": null,
+        "globalCap": "auto"
+      },
+      "expected": {
+        "selected": "follow",
+        "effective": {
+          "B": 25904,
+          "limitedBy": "window"
+        },
+        "auto": {
+          "B": 25904,
+          "limitedBy": "window"
+        },
+        "unlimited": {
+          "B": 25904,
+          "limitedBy": "window"
+        },
+        "ticks": [
+          25904
+        ],
+        "customStart": 25904,
+        "sliderIndex": 0,
+        "priceLineTickIndex": null,
+        "unlimitedCrossesPriceLine": false,
+        "customHint": {
+          "kind": "none",
+          "gap": null
+        }
+      },
+      "note": "U < customCapMin: a single tick at U."
+    },
+    {
+      "id": "picker_u_below_min_custom",
+      "input": {
+        "W": 30000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 4096
+        },
+        "priceLineTokens": null,
+        "conversationCap": 64000,
+        "globalCap": "auto"
+      },
+      "expected": {
+        "selected": "custom",
+        "effective": {
+          "B": 25904,
+          "limitedBy": "window"
+        },
+        "auto": {
+          "B": 25904,
+          "limitedBy": "window"
+        },
+        "unlimited": {
+          "B": 25904,
+          "limitedBy": "window"
+        },
+        "ticks": [
+          25904
+        ],
+        "customStart": 25904,
+        "sliderIndex": 0,
+        "priceLineTickIndex": null,
+        "unlimitedCrossesPriceLine": false,
+        "customHint": {
+          "kind": "none",
+          "gap": null
+        }
+      }
+    },
+    {
+      "id": "picker_follow_global_custom",
+      "input": {
+        "W": 1000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": 272000,
+        "conversationCap": null,
+        "globalCap": 190000
+      },
+      "expected": {
+        "selected": "follow",
+        "effective": {
+          "B": 190000,
+          "limitedBy": "custom"
+        },
+        "auto": {
+          "B": 256000,
+          "limitedBy": "autoDefault"
+        },
+        "unlimited": {
+          "B": 900000,
+          "limitedBy": "window"
+        },
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          256000,
+          272000,
+          384000,
+          512000,
+          768000,
+          900000
+        ],
+        "customStart": 190000,
+        "sliderIndex": 2,
+        "priceLineTickIndex": 4,
+        "unlimitedCrossesPriceLine": true,
+        "customHint": {
+          "kind": "under",
+          "gap": 82000
+        }
+      },
+      "note": "Follow with a custom global cap: customStart takes the effective B."
+    },
+    {
+      "id": "picker_follow_global_unlimited_line",
+      "input": {
+        "W": 2000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": 200000,
+        "conversationCap": null,
+        "globalCap": "unlimited"
+      },
+      "expected": {
+        "selected": "follow",
+        "effective": {
+          "B": 1800000,
+          "limitedBy": "window"
+        },
+        "auto": {
+          "B": 200000,
+          "limitedBy": "priceLine"
+        },
+        "unlimited": {
+          "B": 1800000,
+          "limitedBy": "window"
+        },
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          200000,
+          256000,
+          384000,
+          512000,
+          768000,
+          1000000,
+          1500000,
+          1800000
+        ],
+        "customStart": 1800000,
+        "sliderIndex": 10,
+        "priceLineTickIndex": 3,
+        "unlimitedCrossesPriceLine": true,
+        "customHint": {
+          "kind": "over",
+          "gap": null
+        }
+      }
+    },
+    {
+      "id": "picker_line_below_cap_min_ignored_by_auto",
+      "input": {
+        "W": 400000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": 48000,
+        "conversationCap": null,
+        "globalCap": "auto"
+      },
+      "expected": {
+        "selected": "follow",
+        "effective": {
+          "B": 256000,
+          "limitedBy": "autoDefault"
+        },
+        "auto": {
+          "B": 256000,
+          "limitedBy": "autoDefault"
+        },
+        "unlimited": {
+          "B": 360000,
+          "limitedBy": "window"
+        },
+        "ticks": [
+          32000,
+          48000,
+          64000,
+          128000,
+          256000,
+          360000
+        ],
+        "customStart": 256000,
+        "sliderIndex": 4,
+        "priceLineTickIndex": 1,
+        "unlimitedCrossesPriceLine": true,
+        "customHint": {
+          "kind": "over",
+          "gap": null
+        }
+      },
+      "note": "A 48000 line never caps auto (< priceLineCapMin) but is still a tick and the hint reference."
+    }
+  ],
+  "commitCases": [
+    {
+      "id": "commit_plain",
+      "input": {
+        "text": "200000",
+        "U": 900000,
+        "previous": 256000
+      },
+      "expected": {
+        "value": 200000,
+        "adjusted": false,
+        "restored": false
+      }
+    },
+    {
+      "id": "commit_comma_group",
+      "input": {
+        "text": "200,000",
+        "U": 900000,
+        "previous": 256000
+      },
+      "expected": {
+        "value": 200000,
+        "adjusted": false,
+        "restored": false
+      }
+    },
+    {
+      "id": "commit_nbsp_group",
+      "input": {
+        "text": "200\u00a0000",
+        "U": 900000,
+        "previous": 256000
+      },
+      "expected": {
+        "value": 200000,
+        "adjusted": false,
+        "restored": false
+      }
+    },
+    {
+      "id": "commit_narrow_nbsp_group",
+      "input": {
+        "text": "200\u202f000",
+        "U": 900000,
+        "previous": 256000
+      },
+      "expected": {
+        "value": 200000,
+        "adjusted": false,
+        "restored": false
+      }
+    },
+    {
+      "id": "commit_apostrophe_group",
+      "input": {
+        "text": "1'000'000",
+        "U": null,
+        "previous": 256000
+      },
+      "expected": {
+        "value": 1000000,
+        "adjusted": false,
+        "restored": false
+      }
+    },
+    {
+      "id": "commit_right_quote_and_underscore",
+      "input": {
+        "text": "1’500_000",
+        "U": 2000000,
+        "previous": 256000
+      },
+      "expected": {
+        "value": 1500000,
+        "adjusted": false,
+        "restored": false
+      }
+    },
+    {
+      "id": "commit_dot_is_grouping",
+      "input": {
+        "text": "1.5",
+        "U": 900000,
+        "previous": 256000
+      },
+      "expected": {
+        "value": 32000,
+        "adjusted": true,
+        "restored": false
+      },
+      "note": "1.5 reads as 15, then clamps to customCapMin."
+    },
+    {
+      "id": "commit_empty_restores",
+      "input": {
+        "text": "",
+        "U": 900000,
+        "previous": 190000
+      },
+      "expected": {
+        "value": 190000,
+        "adjusted": false,
+        "restored": true
+      }
+    },
+    {
+      "id": "commit_whitespace_restores",
+      "input": {
+        "text": " \u00a0\t",
+        "U": 900000,
+        "previous": 190000
+      },
+      "expected": {
+        "value": 190000,
+        "adjusted": false,
+        "restored": true
+      }
+    },
+    {
+      "id": "commit_letters_restore",
+      "input": {
+        "text": "abc",
+        "U": 900000,
+        "previous": 190000
+      },
+      "expected": {
+        "value": 190000,
+        "adjusted": false,
+        "restored": true
+      }
+    },
+    {
+      "id": "commit_minus_restores",
+      "input": {
+        "text": "-5",
+        "U": 900000,
+        "previous": 190000
+      },
+      "expected": {
+        "value": 190000,
+        "adjusted": false,
+        "restored": true
+      }
+    },
+    {
+      "id": "commit_plus_restores",
+      "input": {
+        "text": "+5",
+        "U": 900000,
+        "previous": 190000
+      },
+      "expected": {
+        "value": 190000,
+        "adjusted": false,
+        "restored": true
+      }
+    },
+    {
+      "id": "commit_arabic_indic_restores",
+      "input": {
+        "text": "٣٢٠٠٠",
+        "U": 900000,
+        "previous": 190000
+      },
+      "expected": {
+        "value": 190000,
+        "adjusted": false,
+        "restored": true
+      },
+      "note": "Only ASCII digits are accepted."
+    },
+    {
+      "id": "commit_fullwidth_restores",
+      "input": {
+        "text": "１２３",
+        "U": 900000,
+        "previous": 190000
+      },
+      "expected": {
+        "value": 190000,
+        "adjusted": false,
+        "restored": true
+      }
+    },
+    {
+      "id": "commit_eleven_digits_saturates",
+      "input": {
+        "text": "12345678901",
+        "U": 900000,
+        "previous": 256000
+      },
+      "expected": {
+        "value": 900000,
+        "adjusted": true,
+        "restored": false
+      },
+      "note": "More than 10 digits reads as 2147483647 before clamping."
+    },
+    {
+      "id": "commit_eleven_digits_u_null",
+      "input": {
+        "text": "12345678901",
+        "U": null,
+        "previous": 256000
+      },
+      "expected": {
+        "value": 2147483647,
+        "adjusted": true,
+        "restored": false
+      },
+      "note": "Over 10 digits is always adjusted, even when the saturated value fits."
+    },
+    {
+      "id": "commit_ten_digits_over_int32",
+      "input": {
+        "text": "9999999999",
+        "U": null,
+        "previous": 256000
+      },
+      "expected": {
+        "value": 2147483647,
+        "adjusted": true,
+        "restored": false
+      }
+    },
+    {
+      "id": "commit_below_min",
+      "input": {
+        "text": "1000",
+        "U": 900000,
+        "previous": 256000
+      },
+      "expected": {
+        "value": 32000,
+        "adjusted": true,
+        "restored": false
+      }
+    },
+    {
+      "id": "commit_above_u",
+      "input": {
+        "text": "1000000",
+        "U": 900000,
+        "previous": 256000
+      },
+      "expected": {
+        "value": 900000,
+        "adjusted": true,
+        "restored": false
+      }
+    },
+    {
+      "id": "commit_u_null_keeps",
+      "input": {
+        "text": "3000000",
+        "U": null,
+        "previous": 256000
+      },
+      "expected": {
+        "value": 3000000,
+        "adjusted": false,
+        "restored": false
+      }
+    },
+    {
+      "id": "commit_leading_zero",
+      "input": {
+        "text": "064000",
+        "U": 900000,
+        "previous": 256000
+      },
+      "expected": {
+        "value": 64000,
+        "adjusted": false,
+        "restored": false
+      }
+    },
+    {
+      "id": "commit_leading_zeros_long",
+      "input": {
+        "text": "00000000064000",
+        "U": 900000,
+        "previous": 256000
+      },
+      "expected": {
+        "value": 64000,
+        "adjusted": false,
+        "restored": false
+      }
+    },
+    {
+      "id": "commit_leading_zeros_below_min",
+      "input": {
+        "text": "0001000",
+        "U": 900000,
+        "previous": 256000
+      },
+      "expected": {
+        "value": 32000,
+        "adjusted": true,
+        "restored": false
+      }
+    },
+    {
+      "id": "commit_u_below_min",
+      "input": {
+        "text": "64000",
+        "U": 20000,
+        "previous": 20000
+      },
+      "expected": {
+        "value": 20000,
+        "adjusted": true,
+        "restored": false
+      }
+    },
+    {
+      "id": "commit_all_zeros",
+      "input": {
+        "text": "0000",
+        "U": 900000,
+        "previous": 256000
+      },
+      "expected": {
+        "value": 32000,
+        "adjusted": true,
+        "restored": false
+      }
+    }
+  ],
+  "panelCases": [
+    {
+      "id": "panel_grok_both_double",
+      "input": {
+        "W": 2000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": 200000,
+        "conversationCap": null,
+        "globalCap": "auto",
+        "used": 50000,
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        }
+      },
+      "expected": {
+        "capValue": 200000,
+        "limitedByModel": false,
+        "actual": null,
+        "windowLine": "windowPriceLine",
+        "priceLineDistance": null,
+        "multiplier": {
+          "input": 20,
+          "output": 20
+        }
+      },
+      "note": "Both sides x2: the \"both\" sentence."
+    },
+    {
+      "id": "panel_long_split_multiplier",
+      "input": {
+        "W": 2000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": 200000,
+        "conversationCap": null,
+        "globalCap": "auto",
+        "used": 50000,
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 9
+          }
+        }
+      },
+      "expected": {
+        "capValue": 200000,
+        "limitedByModel": false,
+        "actual": null,
+        "windowLine": "windowPriceLine",
+        "priceLineDistance": null,
+        "multiplier": {
+          "input": 20,
+          "output": 15
+        }
+      }
+    },
+    {
+      "id": "panel_input_only_surcharge",
+      "input": {
+        "W": 2000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": 200000,
+        "conversationCap": null,
+        "globalCap": "auto",
+        "used": 50000,
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 6
+          }
+        }
+      },
+      "expected": {
+        "capValue": 200000,
+        "limitedByModel": false,
+        "actual": null,
+        "windowLine": "windowPriceLine",
+        "priceLineDistance": null,
+        "multiplier": {
+          "input": 20,
+          "output": null
+        }
+      }
+    },
+    {
+      "id": "panel_base_zero",
+      "input": {
+        "W": 2000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": 200000,
+        "conversationCap": null,
+        "globalCap": "auto",
+        "used": 50000,
+        "pricing": {
+          "base": {
+            "prompt": 0,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 6
+          }
+        }
+      },
+      "expected": {
+        "capValue": 200000,
+        "limitedByModel": false,
+        "actual": null,
+        "windowLine": "windowPriceLine",
+        "priceLineDistance": null,
+        "multiplier": null
+      },
+      "note": "Base <= 0 hides that side; nothing above x1 left -> null."
+    },
+    {
+      "id": "panel_above_line_not_crossed",
+      "input": {
+        "W": 1000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": 272000,
+        "conversationCap": "unlimited",
+        "globalCap": "auto",
+        "used": 100000
+      },
+      "expected": {
+        "capValue": 900000,
+        "limitedByModel": false,
+        "actual": null,
+        "windowLine": "aboveLine",
+        "priceLineDistance": 172000,
+        "multiplier": null
+      }
+    },
+    {
+      "id": "panel_above_line_crossed",
+      "input": {
+        "W": 1000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": 272000,
+        "conversationCap": "unlimited",
+        "globalCap": "auto",
+        "used": 300000
+      },
+      "expected": {
+        "capValue": 900000,
+        "limitedByModel": false,
+        "actual": null,
+        "windowLine": "aboveLine",
+        "priceLineDistance": 0,
+        "multiplier": null
+      }
+    },
+    {
+      "id": "panel_window_price_line",
+      "input": {
+        "W": 1000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": 272000,
+        "conversationCap": null,
+        "globalCap": "auto",
+        "used": 100000
+      },
+      "expected": {
+        "capValue": 256000,
+        "limitedByModel": false,
+        "actual": null,
+        "windowLine": "windowPriceLine",
+        "priceLineDistance": null,
+        "multiplier": null
+      }
+    },
+    {
+      "id": "panel_no_line",
+      "input": {
+        "W": 128000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8000
+        },
+        "priceLineTokens": null,
+        "conversationCap": null,
+        "globalCap": "auto",
+        "used": 20000
+      },
+      "expected": {
+        "capValue": 115200,
+        "limitedByModel": false,
+        "actual": null,
+        "windowLine": "window",
+        "priceLineDistance": null,
+        "multiplier": null
+      }
+    },
+    {
+      "id": "panel_unknown_unlimited",
+      "input": {
+        "W": null,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "priceLineTokens": null,
+        "conversationCap": "unlimited",
+        "globalCap": "auto",
+        "used": 20000
+      },
+      "expected": {
+        "capValue": null,
+        "limitedByModel": false,
+        "actual": null,
+        "windowLine": "unknown",
+        "priceLineDistance": null,
+        "multiplier": null
+      },
+      "note": "capValue null: show the option name."
+    },
+    {
+      "id": "panel_unknown_custom",
+      "input": {
+        "W": null,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "priceLineTokens": 200000,
+        "conversationCap": 190000,
+        "globalCap": "auto",
+        "used": 20000
+      },
+      "expected": {
+        "capValue": 190000,
+        "limitedByModel": false,
+        "actual": null,
+        "windowLine": "unknown",
+        "priceLineDistance": null,
+        "multiplier": null
+      }
+    },
+    {
+      "id": "panel_custom_over_u",
+      "input": {
+        "W": 128000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8000
+        },
+        "priceLineTokens": null,
+        "conversationCap": 500000,
+        "globalCap": "auto",
+        "used": 20000
+      },
+      "expected": {
+        "capValue": 115200,
+        "limitedByModel": true,
+        "actual": 115200,
+        "windowLine": "window",
+        "priceLineDistance": null,
+        "multiplier": null
+      }
+    },
+    {
+      "id": "panel_follow_global_custom_over_u",
+      "input": {
+        "W": 128000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8000
+        },
+        "priceLineTokens": null,
+        "conversationCap": null,
+        "globalCap": 500000,
+        "used": 20000
+      },
+      "expected": {
+        "capValue": 115200,
+        "limitedByModel": true,
+        "actual": 115200,
+        "windowLine": "window",
+        "priceLineDistance": null,
+        "multiplier": null
+      }
+    },
+    {
+      "id": "panel_custom_within_u",
+      "input": {
+        "W": 1000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "priceLineTokens": 272000,
+        "conversationCap": 190000,
+        "globalCap": "unlimited",
+        "used": 20000
+      },
+      "expected": {
+        "capValue": 190000,
+        "limitedByModel": false,
+        "actual": null,
+        "windowLine": "windowPriceLine",
+        "priceLineDistance": null,
+        "multiplier": null
+      }
+    }
+  ],
+  "settingsCases": [
+    {
+      "id": "settings_auto",
+      "input": {
+        "stored": "auto"
+      },
+      "expected": {
+        "selected": "auto",
+        "customPrefill": 256000
+      }
+    },
+    {
+      "id": "settings_unlimited",
+      "input": {
+        "stored": "unlimited"
+      },
+      "expected": {
+        "selected": "unlimited",
+        "customPrefill": 256000
+      }
+    },
+    {
+      "id": "settings_custom",
+      "input": {
+        "stored": 190000
+      },
+      "expected": {
+        "selected": "custom",
+        "customPrefill": 190000
+      }
+    },
+    {
+      "id": "settings_custom_float_literal",
+      "input": {
+        "stored": 190000.0
+      },
+      "expected": {
+        "selected": "custom",
+        "customPrefill": 190000
+      }
+    },
+    {
+      "id": "settings_legacy_64k",
+      "input": {
+        "stored": "64k"
+      },
+      "expected": {
+        "selected": "auto",
+        "customPrefill": 256000
+      }
+    },
+    {
+      "id": "settings_null",
+      "input": {
+        "stored": null
+      },
+      "expected": {
+        "selected": "auto",
+        "customPrefill": 256000
+      }
+    },
+    {
+      "id": "settings_below_min",
+      "input": {
+        "stored": 31999
+      },
+      "expected": {
+        "selected": "auto",
+        "customPrefill": 256000
+      }
+    },
+    {
+      "id": "settings_upper_auto",
+      "input": {
+        "stored": "Auto"
+      },
+      "expected": {
+        "selected": "auto",
+        "customPrefill": 256000
+      }
+    }
+  ]
+}

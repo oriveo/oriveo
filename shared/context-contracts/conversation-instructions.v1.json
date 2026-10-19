@@ -1,0 +1,20 @@
+{
+  "$comment": "Conversation instructions normalization (context pipeline §7.1). One function per client normalizes every value before it is stored locally: on user edit, on remote sync ingest and on backup import. Rules: if the value is empty after trimming Unicode White_Space it becomes the empty string; otherwise the original text is kept as is (no trim) and cut to the first maxCodePoints Unicode code points. Inputs and expected values are written as parts: each part is text repeated `repeat` times (default 1), concatenated in order.",
+  "schema": "oriveo.context.conversation-instructions",
+  "version": 1,
+  "maxCodePoints": 8000,
+  "cases": [
+    { "id": "empty_stays_empty", "input": [], "expected": [] },
+    { "id": "whitespace_only_becomes_empty", "input": [{ "text": " \n\t　 \r\n" }], "expected": [] },
+    { "id": "long_whitespace_only_becomes_empty", "input": [{ "text": " ", "repeat": 9000 }], "expected": [] },
+    { "id": "plain_text_unchanged", "input": [{ "text": "Reply in Arabic. Every chapter at least 2000 words." }], "expected": [{ "text": "Reply in Arabic. Every chapter at least 2000 words." }] },
+    { "id": "surrounding_whitespace_kept", "input": [{ "text": "  Use metric units.\n" }], "expected": [{ "text": "  Use metric units.\n" }] },
+    { "id": "zero_width_space_is_not_whitespace", "input": [{ "text": "​" }], "expected": [{ "text": "​" }] },
+    { "id": "exactly_limit_unchanged", "input": [{ "text": "a", "repeat": 8000 }], "expected": [{ "text": "a", "repeat": 8000 }] },
+    { "id": "over_limit_cut_to_limit", "input": [{ "text": "a", "repeat": 8001 }], "expected": [{ "text": "a", "repeat": 8000 }] },
+    { "id": "astral_counts_as_one_code_point", "input": [{ "text": "a", "repeat": 7999 }, { "text": "😀b" }], "expected": [{ "text": "a", "repeat": 7999 }, { "text": "😀" }] },
+    { "id": "cjk_cut_by_code_points", "input": [{ "text": "中", "repeat": 8000 }, { "text": "x" }], "expected": [{ "text": "中", "repeat": 8000 }] },
+    { "id": "combining_mark_cut_by_code_points", "input": [{ "text": "a", "repeat": 7999 }, { "text": "é" }], "expected": [{ "text": "a", "repeat": 7999 }, { "text": "e" }] },
+    { "id": "cut_tail_may_be_whitespace", "input": [{ "text": "a", "repeat": 7999 }, { "text": " tail" }], "expected": [{ "text": "a", "repeat": 7999 }, { "text": " " }] }
+  ]
+}

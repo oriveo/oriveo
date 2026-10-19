@@ -1,0 +1,1421 @@
+{
+  "$comment": "L3 recall . One in-memory tokenizer + BM25 shared by the three clients so the same items and query give the same hits byte for byte; client FTS engines are not used. Ranking, the coverage gate, Top-K, conflict detection and resolution are fixed here; [D] rendering and the recallMax fitting live in assemble.v1. Items are memory-items.v2 inputs, canonicalised with defaults before use.",
+  "schema": "oriveo.context.memory-recall",
+  "version": 1,
+  "dependsOn": [
+    "memory-items",
+    "assemble"
+  ],
+  "constants": {
+    "k1": 1.2,
+    "b": 0.75,
+    "topK": 5,
+    "coverageMin": 0.25,
+    "minMatchedTerms": 2,
+    "idfPriorDocs": 20,
+    "scopeFactor": {
+      "conversation": 1.2,
+      "folder": 1.1,
+      "global": 1
+    },
+    "pinnedFactor": 1.2,
+    "halfLifeDays": 180,
+    "timeFloor": 0.5,
+    "confidenceFloor": 0.5,
+    "maxQueryCodePoints": 8000,
+    "conflictJaccardMin": 0.5,
+    "joiners": "_.-/#",
+    "cjkRanges": [
+      [
+        4352,
+        4607
+      ],
+      [
+        12352,
+        12447
+      ],
+      [
+        12448,
+        12543
+      ],
+      [
+        12592,
+        12687
+      ],
+      [
+        12784,
+        12799
+      ],
+      [
+        13312,
+        19903
+      ],
+      [
+        19968,
+        40959
+      ],
+      [
+        44032,
+        55215
+      ],
+      [
+        63744,
+        64255
+      ],
+      [
+        131072,
+        201551
+      ]
+    ]
+  },
+  "rules": [
+    "1 Normalise: NFKC, then lowercase (locale-independent), then fold ς (U+03C2) to σ; work on Unicode code points.",
+    "2 Word chars = general category L*, N* or M*. A CJK char is a word char whose code point lies in a cjkRanges interval (inclusive). A maximal run of word chars splits where CJK-ness changes; a non-CJK sub-run is one token; a CJK sub-run of length 1 is that char, of length ≥ 2 its adjacent bigrams in order.",
+    "3 Compound tokens, appended after all word tokens in text order: a maximal run of word chars and joiners (constants.joiners), with leading and trailing joiners stripped, that still contains a joiner, is one extra token.",
+    "4 Index: only items with layer episodic, status active and at least one token; N = their count, df(t) = items containing t, avgdl = mean token count. idf(t) = ln(1 + (N + idfPriorDocs − df + 0.5)/(df + 0.5)) (idfPriorDocs empty pseudo-documents keep a few same-topic items from pushing their shared terms to idf ≈ 0). Rebuild whenever the item set changes.",
+    "5 Query = the first maxQueryCodePoints code points of the fresh user message; its distinct tokens form Q. Empty Q or empty index → no hits.",
+    "6 Per indexed item, in order: drop when expiresAt is set and not after now; drop when scope is not visible (global; conversation id = this conversation; folder id = this folder; ids compared lowercased). bm25 = Σ over the item's distinct terms t ∈ Q of idf(t)·tf·(k1+1)/(tf + k1·(1 − b + b·len/avgdl)); drop when bm25 ≤ 0 or fewer than min(minMatchedTerms, distinct terms of the item) of its distinct terms are in Q. coverage = round6(Σ idf of its distinct terms in Q / Σ idf of all its distinct terms); drop when coverage < coverageMin.",
+    "7 score = round6(bm25 × scopeFactor[conversation|folder|global] × (pinned ? pinnedFactor : 1) × (timeFloor + (1 − timeFloor)·0.5^(ageDays/halfLifeDays)) × (confidenceFloor + (1 − confidenceFloor)·clamp(confidence, 0, 1))). time = first of occurredAt, source.observedAt, createdAt that parses as RFC 3339; ageDays = max(0, (now − time)/86400000 ms), 0 when no time. round6(x) = floor(x·1e6 + 0.5)/1e6.",
+    "8 Order by score descending, then id ascending (code-unit order of the lowercase UUID); keep the first topK. A hit = {id, text: content, date: UTC YYYY-MM-DD of time or null, score, coverage}.",
+    "9 Caller: only for fresh chat sends with effective useMemory on (any account, Free included: L3 is local); the hits go to assemble dynamic.recall as {id, text, date} and the same entries are reused by every leg, retry and continue of that turn. A new L3 item created locally gets occurredAt = now when none was given.",
+    "10 Conflict (on saving an L3 item): against active episodic items other than itself with the same kind and the same scope (type equal, ids equal lowercased): Jaccard of distinct token sets, round6; conflict when Jaccard ≥ conflictJaccardMin and < 1 (equal sets are a duplicate). Pick the highest Jaccard, then lowest id. The caller then sets both to conflicted with conflictGroupId = the older id; conflicted items are never recalled.",
+    "11 Resolve: useNew → newer active with supersedes += older id, older superseded; useOld → newer superseded, older active; keepBoth → both active. Both get conflictGroupId null; nothing is deleted. The repository writes them as ordinary local edits (L3 never syncs)."
+  ],
+  "tokenizeCases": [
+    {
+      "id": "english_words",
+      "text": "We decided the Saga ends in 1453!",
+      "expected": [
+        "we",
+        "decided",
+        "the",
+        "saga",
+        "ends",
+        "in",
+        "1453"
+      ]
+    },
+    {
+      "id": "chinese_bigrams",
+      "text": "我们决定小说结局定在1453年",
+      "expected": [
+        "我们",
+        "们决",
+        "决定",
+        "定小",
+        "小说",
+        "说结",
+        "结局",
+        "局定",
+        "定在",
+        "1453",
+        "年"
+      ]
+    },
+    {
+      "id": "lone_cjk_char",
+      "text": "猫 is cute",
+      "expected": [
+        "猫",
+        "is",
+        "cute"
+      ]
+    },
+    {
+      "id": "japanese_mixed",
+      "text": "DBはPostgreSQLに決めた",
+      "expected": [
+        "db",
+        "は",
+        "postgresql",
+        "に決",
+        "決め",
+        "めた"
+      ]
+    },
+    {
+      "id": "korean_hangul",
+      "text": "데이터베이스는 포스트그레스로 결정",
+      "expected": [
+        "데이",
+        "이터",
+        "터베",
+        "베이",
+        "이스",
+        "스는",
+        "포스",
+        "스트",
+        "트그",
+        "그레",
+        "레스",
+        "스로",
+        "결정"
+      ]
+    },
+    {
+      "id": "arabic",
+      "text": "قررنا أن تنتهي الرواية عام ١٤٥٣",
+      "expected": [
+        "قررنا",
+        "أن",
+        "تنتهي",
+        "الرواية",
+        "عام",
+        "١٤٥٣"
+      ]
+    },
+    {
+      "id": "hindi_marks",
+      "text": "हमने तय किया कि कहानी 1453 में ख़त्म होगी",
+      "expected": [
+        "हमने",
+        "तय",
+        "किया",
+        "कि",
+        "कहानी",
+        "1453",
+        "में",
+        "ख़त्म",
+        "होगी"
+      ]
+    },
+    {
+      "id": "greek_final_sigma",
+      "text": "ΟΔΟΣ Οδός",
+      "expected": [
+        "οδοσ",
+        "οδόσ"
+      ]
+    },
+    {
+      "id": "fullwidth_nfkc",
+      "text": "ＡＰＩ　ｖ２．３ を使う",
+      "expected": [
+        "api",
+        "v2",
+        "3",
+        "を使",
+        "使う",
+        "v2.3"
+      ]
+    },
+    {
+      "id": "identifiers",
+      "text": "Rename foo_bar.ts to src/app-core.ts in #1453",
+      "expected": [
+        "rename",
+        "foo",
+        "bar",
+        "ts",
+        "to",
+        "src",
+        "app",
+        "core",
+        "ts",
+        "in",
+        "1453",
+        "foo_bar.ts",
+        "src/app-core.ts"
+      ]
+    },
+    {
+      "id": "dates_versions",
+      "text": "Shipped v2.3.1 on 2026-10-03.",
+      "expected": [
+        "shipped",
+        "v2",
+        "3",
+        "1",
+        "on",
+        "2026",
+        "10",
+        "03",
+        "v2.3.1",
+        "2026-10-03"
+      ]
+    },
+    {
+      "id": "trailing_joiners",
+      "text": "--x-- end. a..b",
+      "expected": [
+        "x",
+        "end",
+        "a",
+        "b",
+        "a..b"
+      ]
+    },
+    {
+      "id": "emoji_and_symbols",
+      "text": "Launch 🚀 day ★ done",
+      "expected": [
+        "launch",
+        "day",
+        "done"
+      ]
+    },
+    {
+      "id": "empty",
+      "text": "",
+      "expected": []
+    },
+    {
+      "id": "whitespace_only",
+      "text": " \n\t ",
+      "expected": []
+    }
+  ],
+  "recallCases": [
+    {
+      "id": "zh_en_basic_ranking",
+      "note": "bigram and word matches; the unrelated item does not clear the gate",
+      "input": {
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000001",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "决定小说结局定在1453年",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000002",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Decided the saga ends in 1453.",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000003",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "决定封面用深蓝色",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000004",
+            "layer": "episodic",
+            "kind": "event",
+            "content": "Moved the team standup to 10am",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          }
+        ],
+        "query": "小说的结局定在哪一年？",
+        "context": {
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "folderId": null,
+          "now": "2026-10-17T00:00:00Z"
+        }
+      },
+      "expected": [
+        {
+          "id": "30000000-0000-4000-8000-000000000001",
+          "text": "决定小说结局定在1453年",
+          "date": "2026-10-01",
+          "score": 9.781746,
+          "coverage": 0.463131
+        }
+      ]
+    },
+    {
+      "id": "english_paraphrase_partial",
+      "note": "item-side coverage gate",
+      "input": {
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000005",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Decided the saga ends in 1453.",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000006",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Decided the saga has three volumes.",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000007",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Picked Venice for the epilogue.",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          }
+        ],
+        "query": "what year did we pick for the ending of the saga",
+        "context": {
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "folderId": null,
+          "now": "2026-10-17T00:00:00Z"
+        }
+      },
+      "expected": [
+        {
+          "id": "30000000-0000-4000-8000-000000000007",
+          "text": "Picked Venice for the epilogue.",
+          "date": "2026-10-01",
+          "score": 4.791312,
+          "coverage": 0.360941
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000005",
+          "text": "Decided the saga ends in 1453.",
+          "date": "2026-10-01",
+          "score": 3.969286,
+          "coverage": 0.283549
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000006",
+          "text": "Decided the saga has three volumes.",
+          "date": "2026-10-01",
+          "score": 3.969286,
+          "coverage": 0.283549
+        }
+      ]
+    },
+    {
+      "id": "scope_filter_case_insensitive",
+      "note": "conversation / folder ids compare case-insensitively; other conversation and other folder are invisible",
+      "input": {
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000008",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Database choice: Postgres for the backend",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z",
+            "scope": {
+              "type": "conversation",
+              "id": "3F1C9A52-7D4E-4B8A-9C21-5E6F7A8B9C0D"
+            }
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000009",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Database choice: Postgres for analytics",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z",
+            "scope": {
+              "type": "folder",
+              "id": "7A1B2C3D-4E5F-4A6B-8C7D-9E0F1A2B3C4D"
+            }
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000010",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Database choice: Postgres everywhere",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z",
+            "scope": {
+              "type": "global",
+              "id": null
+            }
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000011",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Database choice: Postgres in the other chat",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z",
+            "scope": {
+              "type": "conversation",
+              "id": "11111111-1111-4111-8111-111111111111"
+            }
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000012",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Database choice: Postgres in the other folder",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z",
+            "scope": {
+              "type": "folder",
+              "id": "22222222-2222-4222-8222-222222222222"
+            }
+          }
+        ],
+        "query": "database choice postgres",
+        "context": {
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "folderId": "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+          "now": "2026-10-17T00:00:00Z"
+        }
+      },
+      "expected": [
+        {
+          "id": "30000000-0000-4000-8000-000000000008",
+          "text": "Database choice: Postgres for the backend",
+          "date": "2026-10-01",
+          "score": 5.353265,
+          "coverage": 0.392927
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000009",
+          "text": "Database choice: Postgres for analytics",
+          "date": "2026-10-01",
+          "score": 5.273974,
+          "coverage": 0.472886
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000010",
+          "text": "Database choice: Postgres everywhere",
+          "date": "2026-10-01",
+          "score": 5.181871,
+          "coverage": 0.620291
+        }
+      ]
+    },
+    {
+      "id": "status_layer_expiry_filters",
+      "note": "only active, unexpired episodic items; paused / conflicted / superseded / deleted / semantic / expired never recalled",
+      "input": {
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000013",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Release date for version two is November 3",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000014",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Release date for version two is November 4",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z",
+            "status": "paused"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000015",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Release date for version two is November 5",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z",
+            "status": "conflicted",
+            "conflictGroupId": "30000000-0000-4000-8000-000000000099"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000016",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Release date for version two is November 6",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z",
+            "status": "superseded"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000017",
+            "layer": "semantic",
+            "kind": "project",
+            "content": "Release date for version two is November 7",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000018",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Release date for version two is November 8",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z",
+            "expiresAt": "2026-10-16T00:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000019",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Release date for version two is November 9",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z",
+            "expiresAt": "2026-12-01T00:00:00Z"
+          }
+        ],
+        "query": "release date for version two",
+        "context": {
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "folderId": null,
+          "now": "2026-10-17T00:00:00Z"
+        }
+      },
+      "expected": [
+        {
+          "id": "30000000-0000-4000-8000-000000000013",
+          "text": "Release date for version two is November 3",
+          "date": "2026-10-01",
+          "score": 9.345388,
+          "coverage": 0.592411
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000019",
+          "text": "Release date for version two is November 9",
+          "date": "2026-10-01",
+          "score": 9.345388,
+          "coverage": 0.592411
+        }
+      ]
+    },
+    {
+      "id": "pinned_time_confidence_factors",
+      "note": "same text: pinned and recent score higher; low confidence lower; no parsable time = age 0",
+      "input": {
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000020",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Chose the blue logo",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2025-10-17T00:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000021",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Chose the blue logo",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-16T00:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000022",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Chose the blue logo",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2025-10-17T00:00:00Z",
+            "pinned": true
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000023",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Chose the blue logo",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-16T00:00:00Z",
+            "confidence": 0.2
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000024",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Chose the blue logo",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": null,
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": "2026-04-20T08:00:00Z"
+            }
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000025",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Chose the blue logo",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": null
+          }
+        ],
+        "query": "chose the blue logo",
+        "context": {
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "folderId": null,
+          "now": "2026-10-17T00:00:00Z"
+        }
+      },
+      "expected": [
+        {
+          "id": "30000000-0000-4000-8000-000000000025",
+          "text": "Chose the blue logo",
+          "date": null,
+          "score": 5.696139,
+          "coverage": 1
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000021",
+          "text": "Chose the blue logo",
+          "date": "2026-10-16",
+          "score": 5.685192,
+          "coverage": 1
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000024",
+          "text": "Chose the blue logo",
+          "date": "2026-04-20",
+          "score": 4.273933,
+          "coverage": 1
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000022",
+          "text": "Chose the blue logo",
+          "date": "2025-10-17",
+          "score": 4.25581,
+          "coverage": 1
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000020",
+          "text": "Chose the blue logo",
+          "date": "2025-10-17",
+          "score": 3.546509,
+          "coverage": 1
+        }
+      ]
+    },
+    {
+      "id": "tie_breaks_by_id",
+      "note": "equal rounded scores order by id ascending",
+      "input": {
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000026",
+            "layer": "episodic",
+            "kind": "event",
+            "content": "Kickoff meeting happened",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000027",
+            "layer": "episodic",
+            "kind": "event",
+            "content": "Kickoff meeting happened",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          }
+        ],
+        "query": "kickoff meeting happened",
+        "context": {
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "folderId": null,
+          "now": "2026-10-17T00:00:00Z"
+        }
+      },
+      "expected": [
+        {
+          "id": "30000000-0000-4000-8000-000000000026",
+          "text": "Kickoff meeting happened",
+          "date": "2026-10-01",
+          "score": 6.463226,
+          "coverage": 1
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000027",
+          "text": "Kickoff meeting happened",
+          "date": "2026-10-01",
+          "score": 6.463226,
+          "coverage": 1
+        }
+      ]
+    },
+    {
+      "id": "top_k_cap",
+      "note": "more than topK hits keep the best topK",
+      "input": {
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000028",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Sprint review decision 1",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-01-01T00:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000029",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Sprint review decision 2!",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-02-01T00:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000030",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Sprint review decision 3!!",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-03-01T00:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000031",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Sprint review decision 4!!!",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-04-01T00:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000032",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Sprint review decision 5!!!!",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-05-01T00:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000033",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Sprint review decision 6!!!!!",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-06-01T00:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000034",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Sprint review decision 7!!!!!!",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-07-01T00:00:00Z"
+          }
+        ],
+        "query": "sprint review decision",
+        "context": {
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "folderId": null,
+          "now": "2026-10-17T00:00:00Z"
+        }
+      },
+      "expected": [
+        {
+          "id": "30000000-0000-4000-8000-000000000034",
+          "text": "Sprint review decision 7!!!!!!",
+          "date": "2026-07-01",
+          "score": 3.279595,
+          "coverage": 0.574518
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000033",
+          "text": "Sprint review decision 6!!!!!",
+          "date": "2026-06-01",
+          "score": 3.137365,
+          "coverage": 0.574518
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000032",
+          "text": "Sprint review decision 5!!!!",
+          "date": "2026-05-01",
+          "score": 3.006677,
+          "coverage": 0.574518
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000031",
+          "text": "Sprint review decision 4!!!",
+          "date": "2026-04-01",
+          "score": 2.894224,
+          "coverage": 0.574518
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000030",
+          "text": "Sprint review decision 3!!",
+          "date": "2026-03-01",
+          "score": 2.790895,
+          "coverage": 0.574518
+        }
+      ]
+    },
+    {
+      "id": "identifier_exact_token",
+      "note": "compound identifier tokens match exactly",
+      "input": {
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000035",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Rename foo_bar.ts to core.ts",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000036",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Rename foo.ts to bar.ts",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000037",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Keep the bar chart",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          }
+        ],
+        "query": "what did we decide about foo_bar.ts?",
+        "context": {
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "folderId": null,
+          "now": "2026-10-17T00:00:00Z"
+        }
+      },
+      "expected": [
+        {
+          "id": "30000000-0000-4000-8000-000000000035",
+          "text": "Rename foo_bar.ts to core.ts",
+          "date": "2026-10-01",
+          "score": 8.84393,
+          "coverage": 0.478038
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000036",
+          "text": "Rename foo.ts to bar.ts",
+          "date": "2026-10-01",
+          "score": 6.742871,
+          "coverage": 0.390423
+        }
+      ]
+    },
+    {
+      "id": "below_gate_returns_nothing",
+      "note": "a single common word is not enough",
+      "input": {
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000038",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Decided the saga ends in 1453.",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000039",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Chose the blue logo",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          }
+        ],
+        "query": "the",
+        "context": {
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "folderId": null,
+          "now": "2026-10-17T00:00:00Z"
+        }
+      },
+      "expected": []
+    },
+    {
+      "id": "empty_query",
+      "note": "no query tokens → no hits",
+      "input": {
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000040",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Decided the saga ends in 1453.",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          }
+        ],
+        "query": "？！ …",
+        "context": {
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "folderId": null,
+          "now": "2026-10-17T00:00:00Z"
+        }
+      },
+      "expected": []
+    },
+    {
+      "id": "no_items",
+      "note": "empty index",
+      "input": {
+        "items": [],
+        "query": "saga ending",
+        "context": {
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "folderId": null,
+          "now": "2026-10-17T00:00:00Z"
+        }
+      },
+      "expected": []
+    },
+    {
+      "id": "japanese_query",
+      "note": "kana / kanji bigrams",
+      "input": {
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000041",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "データベースはPostgreSQLに決めた",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000042",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "ロゴは青に決めた",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          }
+        ],
+        "query": "データベースは何に決めたっけ",
+        "context": {
+          "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+          "folderId": null,
+          "now": "2026-10-17T00:00:00Z"
+        }
+      },
+      "expected": [
+        {
+          "id": "30000000-0000-4000-8000-000000000041",
+          "text": "データベースはPostgreSQLに決めた",
+          "date": "2026-10-01",
+          "score": 20.859261,
+          "coverage": 0.894053
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000042",
+          "text": "ロゴは青に決めた",
+          "date": "2026-10-01",
+          "score": 6.966128,
+          "coverage": 0.378753
+        }
+      ]
+    }
+  ],
+  "conflictCases": [
+    {
+      "id": "similar_differs_conflicts",
+      "note": "Jaccard ≥ 0.5 and < 1 → conflict",
+      "input": {
+        "saved": {
+          "id": "30000000-0000-4000-8000-000000000102",
+          "layer": "episodic",
+          "kind": "decision",
+          "content": "Decided the saga ends in 1460 in Constantinople",
+          "mutationId": "00000000-0000-4000-8000-000000000000",
+          "deviceId": "d",
+          "occurredAt": "2026-10-01T09:00:00Z"
+        },
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000101",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Decided the saga ends in 1453 in Constantinople",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          }
+        ]
+      },
+      "expected": {
+        "conflictWith": "30000000-0000-4000-8000-000000000101"
+      }
+    },
+    {
+      "id": "identical_tokens_is_duplicate",
+      "note": "equal token sets are not a conflict",
+      "input": {
+        "saved": {
+          "id": "30000000-0000-4000-8000-000000000103",
+          "layer": "episodic",
+          "kind": "decision",
+          "content": "decided the SAGA ends in 1453, in Constantinople!",
+          "mutationId": "00000000-0000-4000-8000-000000000000",
+          "deviceId": "d",
+          "occurredAt": "2026-10-01T09:00:00Z"
+        },
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000101",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Decided the saga ends in 1453 in Constantinople",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          }
+        ]
+      },
+      "expected": {
+        "conflictWith": null
+      }
+    },
+    {
+      "id": "different_kind_never_conflicts",
+      "note": "kind must match",
+      "input": {
+        "saved": {
+          "id": "30000000-0000-4000-8000-000000000104",
+          "layer": "episodic",
+          "kind": "event",
+          "content": "Decided the saga ends in 1460 in Constantinople",
+          "mutationId": "00000000-0000-4000-8000-000000000000",
+          "deviceId": "d",
+          "occurredAt": "2026-10-01T09:00:00Z"
+        },
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000101",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Decided the saga ends in 1453 in Constantinople",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          }
+        ]
+      },
+      "expected": {
+        "conflictWith": null
+      }
+    },
+    {
+      "id": "different_scope_never_conflicts",
+      "note": "scope must match",
+      "input": {
+        "saved": {
+          "id": "30000000-0000-4000-8000-000000000105",
+          "layer": "episodic",
+          "kind": "decision",
+          "content": "Decided the saga ends in 1460 in Constantinople",
+          "mutationId": "00000000-0000-4000-8000-000000000000",
+          "deviceId": "d",
+          "occurredAt": "2026-10-01T09:00:00Z",
+          "scope": {
+            "type": "conversation",
+            "id": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d"
+          }
+        },
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000101",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Decided the saga ends in 1453 in Constantinople",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          }
+        ]
+      },
+      "expected": {
+        "conflictWith": null
+      }
+    },
+    {
+      "id": "low_overlap_no_conflict",
+      "note": "Jaccard < 0.5",
+      "input": {
+        "saved": {
+          "id": "30000000-0000-4000-8000-000000000106",
+          "layer": "episodic",
+          "kind": "decision",
+          "content": "Decided the cover is dark blue",
+          "mutationId": "00000000-0000-4000-8000-000000000000",
+          "deviceId": "d",
+          "occurredAt": "2026-10-01T09:00:00Z"
+        },
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000101",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Decided the saga ends in 1453 in Constantinople",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          }
+        ]
+      },
+      "expected": {
+        "conflictWith": null
+      }
+    },
+    {
+      "id": "inactive_or_semantic_ignored",
+      "note": "only active episodic items are compared",
+      "input": {
+        "saved": {
+          "id": "30000000-0000-4000-8000-000000000107",
+          "layer": "episodic",
+          "kind": "decision",
+          "content": "Decided the saga ends in 1460 in Constantinople",
+          "mutationId": "00000000-0000-4000-8000-000000000000",
+          "deviceId": "d",
+          "occurredAt": "2026-10-01T09:00:00Z"
+        },
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000108",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Decided the saga ends in 1453 in Constantinople",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z",
+            "status": "paused"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000109",
+            "layer": "semantic",
+            "kind": "decision",
+            "content": "Decided the saga ends in 1453 in Constantinople",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          }
+        ]
+      },
+      "expected": {
+        "conflictWith": null
+      }
+    },
+    {
+      "id": "best_jaccard_wins",
+      "note": "highest Jaccard, then id",
+      "input": {
+        "saved": {
+          "id": "30000000-0000-4000-8000-000000000110",
+          "layer": "episodic",
+          "kind": "decision",
+          "content": "Decided the saga ends in 1460 in Constantinople",
+          "mutationId": "00000000-0000-4000-8000-000000000000",
+          "deviceId": "d",
+          "occurredAt": "2026-10-01T09:00:00Z"
+        },
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000111",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Decided the saga ends in 1453 in Rome",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000101",
+            "layer": "episodic",
+            "kind": "decision",
+            "content": "Decided the saga ends in 1453 in Constantinople",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "occurredAt": "2026-10-01T09:00:00Z"
+          }
+        ]
+      },
+      "expected": {
+        "conflictWith": "30000000-0000-4000-8000-000000000101"
+      }
+    }
+  ],
+  "resolveCases": [
+    {
+      "id": "resolve_useNew",
+      "input": {
+        "newer": {
+          "id": "30000000-0000-4000-8000-000000000112",
+          "layer": "episodic",
+          "kind": "decision",
+          "content": "Decided the saga ends in 1460 in Constantinople",
+          "mutationId": "00000000-0000-4000-8000-000000000000",
+          "deviceId": "d",
+          "occurredAt": "2026-10-01T09:00:00Z",
+          "status": "conflicted",
+          "conflictGroupId": "30000000-0000-4000-8000-000000000101",
+          "supersedes": []
+        },
+        "older": {
+          "id": "30000000-0000-4000-8000-000000000101",
+          "layer": "episodic",
+          "kind": "decision",
+          "content": "Decided the saga ends in 1453 in Constantinople",
+          "mutationId": "00000000-0000-4000-8000-000000000000",
+          "deviceId": "d",
+          "occurredAt": "2026-10-01T09:00:00Z",
+          "status": "conflicted",
+          "conflictGroupId": "30000000-0000-4000-8000-000000000101",
+          "supersedes": [
+            "30000000-0000-4000-8000-000000000050"
+          ]
+        },
+        "resolution": "useNew"
+      },
+      "expected": [
+        {
+          "id": "30000000-0000-4000-8000-000000000112",
+          "status": "active",
+          "conflictGroupId": null,
+          "supersedes": [
+            "30000000-0000-4000-8000-000000000101"
+          ]
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000101",
+          "status": "superseded",
+          "conflictGroupId": null,
+          "supersedes": [
+            "30000000-0000-4000-8000-000000000050"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resolve_keepBoth",
+      "input": {
+        "newer": {
+          "id": "30000000-0000-4000-8000-000000000112",
+          "layer": "episodic",
+          "kind": "decision",
+          "content": "Decided the saga ends in 1460 in Constantinople",
+          "mutationId": "00000000-0000-4000-8000-000000000000",
+          "deviceId": "d",
+          "occurredAt": "2026-10-01T09:00:00Z",
+          "status": "conflicted",
+          "conflictGroupId": "30000000-0000-4000-8000-000000000101",
+          "supersedes": []
+        },
+        "older": {
+          "id": "30000000-0000-4000-8000-000000000101",
+          "layer": "episodic",
+          "kind": "decision",
+          "content": "Decided the saga ends in 1453 in Constantinople",
+          "mutationId": "00000000-0000-4000-8000-000000000000",
+          "deviceId": "d",
+          "occurredAt": "2026-10-01T09:00:00Z",
+          "status": "conflicted",
+          "conflictGroupId": "30000000-0000-4000-8000-000000000101",
+          "supersedes": [
+            "30000000-0000-4000-8000-000000000050"
+          ]
+        },
+        "resolution": "keepBoth"
+      },
+      "expected": [
+        {
+          "id": "30000000-0000-4000-8000-000000000112",
+          "status": "active",
+          "conflictGroupId": null,
+          "supersedes": []
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000101",
+          "status": "active",
+          "conflictGroupId": null,
+          "supersedes": [
+            "30000000-0000-4000-8000-000000000050"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resolve_useOld",
+      "input": {
+        "newer": {
+          "id": "30000000-0000-4000-8000-000000000112",
+          "layer": "episodic",
+          "kind": "decision",
+          "content": "Decided the saga ends in 1460 in Constantinople",
+          "mutationId": "00000000-0000-4000-8000-000000000000",
+          "deviceId": "d",
+          "occurredAt": "2026-10-01T09:00:00Z",
+          "status": "conflicted",
+          "conflictGroupId": "30000000-0000-4000-8000-000000000101",
+          "supersedes": []
+        },
+        "older": {
+          "id": "30000000-0000-4000-8000-000000000101",
+          "layer": "episodic",
+          "kind": "decision",
+          "content": "Decided the saga ends in 1453 in Constantinople",
+          "mutationId": "00000000-0000-4000-8000-000000000000",
+          "deviceId": "d",
+          "occurredAt": "2026-10-01T09:00:00Z",
+          "status": "conflicted",
+          "conflictGroupId": "30000000-0000-4000-8000-000000000101",
+          "supersedes": [
+            "30000000-0000-4000-8000-000000000050"
+          ]
+        },
+        "resolution": "useOld"
+      },
+      "expected": [
+        {
+          "id": "30000000-0000-4000-8000-000000000112",
+          "status": "superseded",
+          "conflictGroupId": null,
+          "supersedes": []
+        },
+        {
+          "id": "30000000-0000-4000-8000-000000000101",
+          "status": "active",
+          "conflictGroupId": null,
+          "supersedes": [
+            "30000000-0000-4000-8000-000000000050"
+          ]
+        }
+      ]
+    }
+  ]
+}

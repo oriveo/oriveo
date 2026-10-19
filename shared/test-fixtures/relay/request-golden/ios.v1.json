@@ -15,12 +15,12 @@
       "url" : "https://api.openai.com/v1/chat/completions"
     },
     {
-      "body" : "{\"cache_control\":{\"type\":\"ephemeral\"},\"max_tokens\":8192,\"messages\":[{\"content\":\"Hello\",\"role\":\"user\"},{\"content\":\"Hi there.\",\"role\":\"assistant\"},{\"content\":\"Summarize in one word.\",\"role\":\"user\"}],\"model\":\"claude-sonnet-4-5\",\"stream\":true,\"system\":\"You are a golden fixture.\"}",
+      "body" : "{\"max_tokens\":8192,\"messages\":[{\"content\":\"Hello\",\"role\":\"user\"},{\"content\":\"Hi there.\",\"role\":\"assistant\"},{\"content\":[{\"cache_control\":{\"type\":\"ephemeral\"},\"text\":\"Summarize in one word.\",\"type\":\"text\"}],\"role\":\"user\"}],\"model\":\"claude-sonnet-4-5\",\"stream\":true,\"system\":\"You are a golden fixture.\"}",
       "caseId" : "official_anthropic",
       "headers" : {
         "accept" : "application/json",
         "anthropic-version" : "2023-06-01",
-        "content-length" : "276",
+        "content-length" : "301",
         "content-type" : "application/json",
         "user-agent" : "Oriveo/<app-version> (iOS <os-version>)",
         "x-api-key" : "sk-golden-0000"

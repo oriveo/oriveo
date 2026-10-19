@@ -316,6 +316,7 @@
       ],
       "responseParserKind": "openai_responses_web_v1",
       "continuationKind": "previous_id",
+      "continuationInstructionsMode": "resend",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
       "sourceRefs": [
@@ -575,6 +576,7 @@
       ],
       "responseParserKind": "grok_web_search_v1",
       "continuationKind": "previous_id",
+      "continuationInstructionsMode": "omit",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
       "sourceRefs": [
@@ -786,6 +788,7 @@
       ],
       "responseParserKind": "openai_responses_reasoning_v1",
       "continuationKind": "previous_id",
+      "continuationInstructionsMode": "resend",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
       "sourceRefs": [
@@ -1414,6 +1417,7 @@
       ],
       "responseParserKind": "grok_reasoning_v1",
       "continuationKind": "previous_id",
+      "continuationInstructionsMode": "omit",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
       "sourceRefs": [

@@ -1,0 +1,945 @@
+{
+  "$comment": "Stop reason contract (context pipeline §8.6, D-12). Clients map each protocol family's terminal signal to the persisted stopReason enum with their production parsers. Sources: OpenAI chat finish_reason / Responses status+incomplete_details.reason (platform.openai.com API reference); Anthropic stop_reason (platform.claude.com/docs/en/api/handling-stop-reasons, 7 values incl. model_context_window_exceeded); Gemini Candidate.FinishReason (ai.google.dev/api/generate-content, read 2026-10-15). Gemini Interactions status (ai.google.dev/api/interactions-api, read 2026-10-18); Gemini PromptFeedback.BlockReason (ai.google.dev/api/generate-content, read 2026-10-18); llama.cpp server stop_type (github.com/ggml-org/llama.cpp tools/server/README.md + server-task.h enum stop_type, read 2026-10-18).",
+  "schema": "oriveo.context.stop-reason",
+  "version": 1,
+  "enum": [
+    "stop",
+    "length",
+    "content_filter",
+    "tool",
+    "context_window_exceeded",
+    "interrupted",
+    "incomplete",
+    "error",
+    "unknown"
+  ],
+  "ended": {
+    "clean": "the family's terminal marker was seen: OpenAI chat [DONE] or a non-null finish_reason; Responses response.completed / response.incomplete / response.failed; Anthropic message_stop; Gemini a candidate finishReason; managed message.completed; Free [DONE]",
+    "eof_without_marker": "the byte stream ended before the terminal marker",
+    "error_frame": "an in-stream error frame ended the answer (Free free_stream_incomplete, managed request.error)",
+    "transport_error": "the connection failed",
+    "user_cancelled": "the user pressed stop"
+  },
+  "mapping": {
+    "openai_chat": {
+      "stop": "stop",
+      "length": "length",
+      "content_filter": "content_filter",
+      "tool_calls": "tool",
+      "function_call": "tool"
+    },
+    "openai_responses": {
+      "completed": "stop",
+      "incomplete:max_output_tokens": "length",
+      "incomplete:content_filter": "content_filter",
+      "failed": "error"
+    },
+    "anthropic": {
+      "end_turn": "stop",
+      "stop_sequence": "stop",
+      "max_tokens": "length",
+      "tool_use": "tool",
+      "pause_turn": "incomplete",
+      "refusal": "content_filter",
+      "model_context_window_exceeded": "context_window_exceeded"
+    },
+    "gemini": {
+      "STOP": "stop",
+      "MAX_TOKENS": "length",
+      "SAFETY": "content_filter",
+      "RECITATION": "content_filter",
+      "BLOCKLIST": "content_filter",
+      "PROHIBITED_CONTENT": "content_filter",
+      "SPII": "content_filter",
+      "IMAGE_SAFETY": "content_filter",
+      "IMAGE_PROHIBITED_CONTENT": "content_filter",
+      "IMAGE_RECITATION": "content_filter",
+      "LANGUAGE": "content_filter",
+      "ESCALATION": "content_filter",
+      "PUP_LIMITED_DISABLED": "content_filter",
+      "CONTINUATION": "length",
+      "MALFORMED_FUNCTION_CALL": "error",
+      "MALFORMED_RESPONSE": "error",
+      "MISSING_THOUGHT_SIGNATURE": "error",
+      "UNEXPECTED_TOOL_CALL": "error",
+      "TOO_MANY_TOOL_CALLS": "error",
+      "OTHER": "unknown",
+      "FINISH_REASON_UNSPECIFIED": "unknown",
+      "IMAGE_OTHER": "unknown",
+      "NO_IMAGE": "unknown"
+    },
+    "managed": {
+      "stop": "stop",
+      "length": "length",
+      "content_filter": "content_filter",
+      "tool": "tool",
+      "context_window_exceeded": "context_window_exceeded",
+      "incomplete": "incomplete",
+      "error": "error",
+      "unknown": "unknown"
+    },
+    "free": {
+      "stop": "stop",
+      "length": "length",
+      "content_filter": "content_filter",
+      "tool_calls": "tool"
+    },
+    "gemini_interactions": {
+      "completed": "stop",
+      "incomplete": "length",
+      "requires_action": "tool",
+      "failed": "error"
+    },
+    "llama_cpp": {
+      "eos": "stop",
+      "word": "stop",
+      "limit": "length"
+    }
+  },
+  "rules": [
+    "user_cancelled -> interrupted.",
+    "transport_error / error_frame -> incomplete when any answer text arrived, else error.",
+    "eof_without_marker -> incomplete, even when a finish value was seen earlier.",
+    "clean -> mapping[family][finishRaw]; null or unmapped finishRaw -> unknown.",
+    "Responses finishRaw is status, or 'incomplete:' + incomplete_details.reason; an unmapped incomplete:* reason -> incomplete.",
+    "Gemini Interactions (family gemini_interactions) finishRaw = the interaction status of the terminal event (interaction.completed / the final interaction object); in_progress / queued are not terminal and cancelled is left unmapped (unknown). The Interactions API has no promptFeedback.",
+    "Gemini generateContent prompt block (promptFeedback.blockReason set and no candidate): family gemini, ended clean, finishRaw = 'blockReason:' + blockReason; any blockReason:* -> content_filter except blockReason:BLOCK_REASON_UNSPECIFIED -> unknown. These keys are resolved by this rule, not by mapping.gemini.",
+    "llama.cpp native /completion (family llama_cpp): the final chunk (stop: true) ends clean with finishRaw = stop_type; servers older than stop_type (b4000-era) set it from stopped_eos -> eos, stopped_word -> word, stopped_limit -> limit, else none. none is unmapped (unknown). A stream that closes before a stop: true chunk is eof_without_marker."
+  ],
+  "ui": {
+    "length": {
+      "notice": "incomplete_output_limit",
+      "continueAction": true
+    },
+    "incomplete": {
+      "notice": "incomplete_connection",
+      "continueAction": true
+    },
+    "content_filter": {
+      "notice": "filtered",
+      "continueAction": false
+    },
+    "context_window_exceeded": {
+      "notice": "context_overflow",
+      "continueAction": false
+    },
+    "stop": null,
+    "tool": null,
+    "interrupted": null,
+    "error": null,
+    "unknown": null
+  },
+  "cases": [
+    {
+      "id": "openai_chat__stop",
+      "input": {
+        "family": "openai_chat",
+        "ended": "clean",
+        "finishRaw": "stop",
+        "hadContent": true
+      },
+      "expected": "stop"
+    },
+    {
+      "id": "openai_chat__length",
+      "input": {
+        "family": "openai_chat",
+        "ended": "clean",
+        "finishRaw": "length",
+        "hadContent": true
+      },
+      "expected": "length"
+    },
+    {
+      "id": "openai_chat__content_filter",
+      "input": {
+        "family": "openai_chat",
+        "ended": "clean",
+        "finishRaw": "content_filter",
+        "hadContent": true
+      },
+      "expected": "content_filter"
+    },
+    {
+      "id": "openai_chat__tool_calls",
+      "input": {
+        "family": "openai_chat",
+        "ended": "clean",
+        "finishRaw": "tool_calls",
+        "hadContent": true
+      },
+      "expected": "tool"
+    },
+    {
+      "id": "openai_chat__function_call",
+      "input": {
+        "family": "openai_chat",
+        "ended": "clean",
+        "finishRaw": "function_call",
+        "hadContent": true
+      },
+      "expected": "tool"
+    },
+    {
+      "id": "openai_responses__completed",
+      "input": {
+        "family": "openai_responses",
+        "ended": "clean",
+        "finishRaw": "completed",
+        "hadContent": true
+      },
+      "expected": "stop"
+    },
+    {
+      "id": "openai_responses__incomplete_max_output_tokens",
+      "input": {
+        "family": "openai_responses",
+        "ended": "clean",
+        "finishRaw": "incomplete:max_output_tokens",
+        "hadContent": true
+      },
+      "expected": "length"
+    },
+    {
+      "id": "openai_responses__incomplete_content_filter",
+      "input": {
+        "family": "openai_responses",
+        "ended": "clean",
+        "finishRaw": "incomplete:content_filter",
+        "hadContent": true
+      },
+      "expected": "content_filter"
+    },
+    {
+      "id": "openai_responses__failed",
+      "input": {
+        "family": "openai_responses",
+        "ended": "clean",
+        "finishRaw": "failed",
+        "hadContent": true
+      },
+      "expected": "error"
+    },
+    {
+      "id": "anthropic__end_turn",
+      "input": {
+        "family": "anthropic",
+        "ended": "clean",
+        "finishRaw": "end_turn",
+        "hadContent": true
+      },
+      "expected": "stop"
+    },
+    {
+      "id": "anthropic__stop_sequence",
+      "input": {
+        "family": "anthropic",
+        "ended": "clean",
+        "finishRaw": "stop_sequence",
+        "hadContent": true
+      },
+      "expected": "stop"
+    },
+    {
+      "id": "anthropic__max_tokens",
+      "input": {
+        "family": "anthropic",
+        "ended": "clean",
+        "finishRaw": "max_tokens",
+        "hadContent": true
+      },
+      "expected": "length"
+    },
+    {
+      "id": "anthropic__tool_use",
+      "input": {
+        "family": "anthropic",
+        "ended": "clean",
+        "finishRaw": "tool_use",
+        "hadContent": true
+      },
+      "expected": "tool"
+    },
+    {
+      "id": "anthropic__pause_turn",
+      "input": {
+        "family": "anthropic",
+        "ended": "clean",
+        "finishRaw": "pause_turn",
+        "hadContent": true
+      },
+      "expected": "incomplete"
+    },
+    {
+      "id": "anthropic__refusal",
+      "input": {
+        "family": "anthropic",
+        "ended": "clean",
+        "finishRaw": "refusal",
+        "hadContent": true
+      },
+      "expected": "content_filter"
+    },
+    {
+      "id": "anthropic__model_context_window_exceeded",
+      "input": {
+        "family": "anthropic",
+        "ended": "clean",
+        "finishRaw": "model_context_window_exceeded",
+        "hadContent": true
+      },
+      "expected": "context_window_exceeded"
+    },
+    {
+      "id": "gemini__stop",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "STOP",
+        "hadContent": true
+      },
+      "expected": "stop"
+    },
+    {
+      "id": "gemini__max_tokens",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "MAX_TOKENS",
+        "hadContent": true
+      },
+      "expected": "length"
+    },
+    {
+      "id": "gemini__safety",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "SAFETY",
+        "hadContent": true
+      },
+      "expected": "content_filter"
+    },
+    {
+      "id": "gemini__recitation",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "RECITATION",
+        "hadContent": true
+      },
+      "expected": "content_filter"
+    },
+    {
+      "id": "gemini__blocklist",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "BLOCKLIST",
+        "hadContent": true
+      },
+      "expected": "content_filter"
+    },
+    {
+      "id": "gemini__prohibited_content",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "PROHIBITED_CONTENT",
+        "hadContent": true
+      },
+      "expected": "content_filter"
+    },
+    {
+      "id": "gemini__spii",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "SPII",
+        "hadContent": true
+      },
+      "expected": "content_filter"
+    },
+    {
+      "id": "gemini__image_safety",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "IMAGE_SAFETY",
+        "hadContent": true
+      },
+      "expected": "content_filter"
+    },
+    {
+      "id": "gemini__image_prohibited_content",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "IMAGE_PROHIBITED_CONTENT",
+        "hadContent": true
+      },
+      "expected": "content_filter"
+    },
+    {
+      "id": "gemini__image_recitation",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "IMAGE_RECITATION",
+        "hadContent": true
+      },
+      "expected": "content_filter"
+    },
+    {
+      "id": "gemini__language",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "LANGUAGE",
+        "hadContent": true
+      },
+      "expected": "content_filter"
+    },
+    {
+      "id": "gemini__escalation",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "ESCALATION",
+        "hadContent": true
+      },
+      "expected": "content_filter"
+    },
+    {
+      "id": "gemini__pup_limited_disabled",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "PUP_LIMITED_DISABLED",
+        "hadContent": true
+      },
+      "expected": "content_filter"
+    },
+    {
+      "id": "gemini__continuation",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "CONTINUATION",
+        "hadContent": true
+      },
+      "expected": "length"
+    },
+    {
+      "id": "gemini__malformed_function_call",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "MALFORMED_FUNCTION_CALL",
+        "hadContent": true
+      },
+      "expected": "error"
+    },
+    {
+      "id": "gemini__malformed_response",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "MALFORMED_RESPONSE",
+        "hadContent": true
+      },
+      "expected": "error"
+    },
+    {
+      "id": "gemini__missing_thought_signature",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "MISSING_THOUGHT_SIGNATURE",
+        "hadContent": true
+      },
+      "expected": "error"
+    },
+    {
+      "id": "gemini__unexpected_tool_call",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "UNEXPECTED_TOOL_CALL",
+        "hadContent": true
+      },
+      "expected": "error"
+    },
+    {
+      "id": "gemini__too_many_tool_calls",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "TOO_MANY_TOOL_CALLS",
+        "hadContent": true
+      },
+      "expected": "error"
+    },
+    {
+      "id": "gemini__other",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "OTHER",
+        "hadContent": true
+      },
+      "expected": "unknown"
+    },
+    {
+      "id": "gemini__finish_reason_unspecified",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "FINISH_REASON_UNSPECIFIED",
+        "hadContent": true
+      },
+      "expected": "unknown"
+    },
+    {
+      "id": "gemini__image_other",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "IMAGE_OTHER",
+        "hadContent": true
+      },
+      "expected": "unknown"
+    },
+    {
+      "id": "gemini__no_image",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "NO_IMAGE",
+        "hadContent": true
+      },
+      "expected": "unknown"
+    },
+    {
+      "id": "managed__stop",
+      "input": {
+        "family": "managed",
+        "ended": "clean",
+        "finishRaw": "stop",
+        "hadContent": true
+      },
+      "expected": "stop"
+    },
+    {
+      "id": "managed__length",
+      "input": {
+        "family": "managed",
+        "ended": "clean",
+        "finishRaw": "length",
+        "hadContent": true
+      },
+      "expected": "length"
+    },
+    {
+      "id": "managed__content_filter",
+      "input": {
+        "family": "managed",
+        "ended": "clean",
+        "finishRaw": "content_filter",
+        "hadContent": true
+      },
+      "expected": "content_filter"
+    },
+    {
+      "id": "managed__tool",
+      "input": {
+        "family": "managed",
+        "ended": "clean",
+        "finishRaw": "tool",
+        "hadContent": true
+      },
+      "expected": "tool"
+    },
+    {
+      "id": "managed__context_window_exceeded",
+      "input": {
+        "family": "managed",
+        "ended": "clean",
+        "finishRaw": "context_window_exceeded",
+        "hadContent": true
+      },
+      "expected": "context_window_exceeded"
+    },
+    {
+      "id": "managed__incomplete",
+      "input": {
+        "family": "managed",
+        "ended": "clean",
+        "finishRaw": "incomplete",
+        "hadContent": true
+      },
+      "expected": "incomplete"
+    },
+    {
+      "id": "managed__error",
+      "input": {
+        "family": "managed",
+        "ended": "clean",
+        "finishRaw": "error",
+        "hadContent": true
+      },
+      "expected": "error"
+    },
+    {
+      "id": "managed__unknown",
+      "input": {
+        "family": "managed",
+        "ended": "clean",
+        "finishRaw": "unknown",
+        "hadContent": true
+      },
+      "expected": "unknown"
+    },
+    {
+      "id": "free__stop",
+      "input": {
+        "family": "free",
+        "ended": "clean",
+        "finishRaw": "stop",
+        "hadContent": true
+      },
+      "expected": "stop"
+    },
+    {
+      "id": "free__length",
+      "input": {
+        "family": "free",
+        "ended": "clean",
+        "finishRaw": "length",
+        "hadContent": true
+      },
+      "expected": "length"
+    },
+    {
+      "id": "free__content_filter",
+      "input": {
+        "family": "free",
+        "ended": "clean",
+        "finishRaw": "content_filter",
+        "hadContent": true
+      },
+      "expected": "content_filter"
+    },
+    {
+      "id": "free__tool_calls",
+      "input": {
+        "family": "free",
+        "ended": "clean",
+        "finishRaw": "tool_calls",
+        "hadContent": true
+      },
+      "expected": "tool"
+    },
+    {
+      "id": "openai_responses__incomplete_other_reason",
+      "input": {
+        "family": "openai_responses",
+        "ended": "clean",
+        "finishRaw": "incomplete:server_error",
+        "hadContent": true
+      },
+      "expected": "incomplete",
+      "note": "Any other incomplete_details.reason is still an incomplete answer."
+    },
+    {
+      "id": "openai_chat__done_without_finish_reason",
+      "input": {
+        "family": "openai_chat",
+        "ended": "clean",
+        "finishRaw": null,
+        "hadContent": true
+      },
+      "expected": "unknown",
+      "note": "[DONE] seen but no finish_reason in any chunk -> unknown (not stop)."
+    },
+    {
+      "id": "openai_chat__unrecognised_value",
+      "input": {
+        "family": "openai_chat",
+        "ended": "clean",
+        "finishRaw": "eos",
+        "hadContent": true
+      },
+      "expected": "unknown"
+    },
+    {
+      "id": "openai_chat__eof_without_done",
+      "input": {
+        "family": "openai_chat",
+        "ended": "eof_without_marker",
+        "finishRaw": null,
+        "hadContent": true
+      },
+      "expected": "incomplete",
+      "note": "The 2026-10-14 Free 30 s cut: bytes stopped with no marker. Never treat as a normal end."
+    },
+    {
+      "id": "gemini__eof_without_finish_reason",
+      "input": {
+        "family": "gemini",
+        "ended": "eof_without_marker",
+        "finishRaw": null,
+        "hadContent": true
+      },
+      "expected": "incomplete"
+    },
+    {
+      "id": "anthropic__eof_before_message_stop",
+      "input": {
+        "family": "anthropic",
+        "ended": "eof_without_marker",
+        "finishRaw": "end_turn",
+        "hadContent": true
+      },
+      "expected": "incomplete",
+      "note": "message_delta carried end_turn but message_stop never arrived -> incomplete."
+    },
+    {
+      "id": "free__stream_incomplete_frame",
+      "input": {
+        "family": "free",
+        "ended": "error_frame",
+        "finishRaw": null,
+        "hadContent": true
+      },
+      "expected": "incomplete",
+      "note": "Server free_stream_incomplete terminal frame after partial text."
+    },
+    {
+      "id": "free__stream_incomplete_frame_no_content",
+      "input": {
+        "family": "free",
+        "ended": "error_frame",
+        "finishRaw": null,
+        "hadContent": false
+      },
+      "expected": "error"
+    },
+    {
+      "id": "managed__partial_request_error",
+      "input": {
+        "family": "managed",
+        "ended": "error_frame",
+        "finishRaw": null,
+        "hadContent": true
+      },
+      "expected": "incomplete",
+      "note": "request.error with partial=true after deltas."
+    },
+    {
+      "id": "managed__legacy_stop",
+      "input": {
+        "family": "managed",
+        "ended": "clean",
+        "finishRaw": "stop",
+        "hadContent": true
+      },
+      "expected": "stop",
+      "note": "Servers before P1 always sent stop."
+    },
+    {
+      "id": "any__user_cancelled",
+      "input": {
+        "family": "openai_chat",
+        "ended": "user_cancelled",
+        "finishRaw": null,
+        "hadContent": true
+      },
+      "expected": "interrupted"
+    },
+    {
+      "id": "any__transport_error_after_text",
+      "input": {
+        "family": "anthropic",
+        "ended": "transport_error",
+        "finishRaw": null,
+        "hadContent": true
+      },
+      "expected": "incomplete"
+    },
+    {
+      "id": "any__transport_error_before_text",
+      "input": {
+        "family": "anthropic",
+        "ended": "transport_error",
+        "finishRaw": null,
+        "hadContent": false
+      },
+      "expected": "error"
+    },
+    {
+      "id": "gemini_interactions__completed",
+      "input": {
+        "family": "gemini_interactions",
+        "ended": "clean",
+        "finishRaw": "completed",
+        "hadContent": true
+      },
+      "expected": "stop",
+      "note": "ai.google.dev/api/interactions-api (read 2026-10-18)"
+    },
+    {
+      "id": "gemini_interactions__incomplete",
+      "input": {
+        "family": "gemini_interactions",
+        "ended": "clean",
+        "finishRaw": "incomplete",
+        "hadContent": true
+      },
+      "expected": "length",
+      "note": "\"completed, but contains incomplete results (e.g. hitting max_tokens)\"; continuation is offered like length. ai.google.dev/api/interactions-api (read 2026-10-18)"
+    },
+    {
+      "id": "gemini_interactions__requires_action",
+      "input": {
+        "family": "gemini_interactions",
+        "ended": "clean",
+        "finishRaw": "requires_action",
+        "hadContent": false
+      },
+      "expected": "tool",
+      "note": "ai.google.dev/api/interactions-api (read 2026-10-18)"
+    },
+    {
+      "id": "gemini_interactions__failed",
+      "input": {
+        "family": "gemini_interactions",
+        "ended": "clean",
+        "finishRaw": "failed",
+        "hadContent": false
+      },
+      "expected": "error",
+      "note": "ai.google.dev/api/interactions-api (read 2026-10-18)"
+    },
+    {
+      "id": "gemini_interactions__cancelled_unmapped",
+      "input": {
+        "family": "gemini_interactions",
+        "ended": "clean",
+        "finishRaw": "cancelled",
+        "hadContent": true
+      },
+      "expected": "unknown",
+      "note": "ai.google.dev/api/interactions-api (read 2026-10-18)"
+    },
+    {
+      "id": "gemini_interactions__eof_without_completed",
+      "input": {
+        "family": "gemini_interactions",
+        "ended": "eof_without_marker",
+        "finishRaw": null,
+        "hadContent": true
+      },
+      "expected": "incomplete",
+      "note": "Stream closed before interaction.completed (D-56)."
+    },
+    {
+      "id": "gemini__prompt_block_safety",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "blockReason:SAFETY",
+        "hadContent": false
+      },
+      "expected": "content_filter",
+      "note": "ai.google.dev/api/generate-content PromptFeedback.BlockReason (read 2026-10-18)"
+    },
+    {
+      "id": "gemini__prompt_block_other",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "blockReason:OTHER",
+        "hadContent": false
+      },
+      "expected": "content_filter",
+      "note": "ai.google.dev/api/generate-content PromptFeedback.BlockReason (read 2026-10-18)"
+    },
+    {
+      "id": "gemini__prompt_block_unspecified",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "blockReason:BLOCK_REASON_UNSPECIFIED",
+        "hadContent": false
+      },
+      "expected": "unknown",
+      "note": "Documented as unused. ai.google.dev/api/generate-content PromptFeedback.BlockReason (read 2026-10-18)"
+    },
+    {
+      "id": "gemini__prompt_block_future_value",
+      "input": {
+        "family": "gemini",
+        "ended": "clean",
+        "finishRaw": "blockReason:SOME_FUTURE_REASON",
+        "hadContent": false
+      },
+      "expected": "content_filter",
+      "note": "New block reasons default to content_filter."
+    },
+    {
+      "id": "llama_cpp__eos",
+      "input": {
+        "family": "llama_cpp",
+        "ended": "clean",
+        "finishRaw": "eos",
+        "hadContent": true
+      },
+      "expected": "stop",
+      "note": "llama.cpp tools/server/README.md + server-task.h stop_type (read 2026-10-18)"
+    },
+    {
+      "id": "llama_cpp__word",
+      "input": {
+        "family": "llama_cpp",
+        "ended": "clean",
+        "finishRaw": "word",
+        "hadContent": true
+      },
+      "expected": "stop",
+      "note": "Hit a request stop word; llama.cpp itself reports finish_reason stop for it. llama.cpp tools/server/README.md + server-task.h stop_type (read 2026-10-18)"
+    },
+    {
+      "id": "llama_cpp__limit",
+      "input": {
+        "family": "llama_cpp",
+        "ended": "clean",
+        "finishRaw": "limit",
+        "hadContent": true
+      },
+      "expected": "length",
+      "note": "n_predict / context full without shift / time limit. llama.cpp tools/server/README.md + server-task.h stop_type (read 2026-10-18)"
+    },
+    {
+      "id": "llama_cpp__none_unmapped",
+      "input": {
+        "family": "llama_cpp",
+        "ended": "clean",
+        "finishRaw": "none",
+        "hadContent": true
+      },
+      "expected": "unknown",
+      "note": "llama.cpp tools/server/README.md + server-task.h stop_type (read 2026-10-18)"
+    },
+    {
+      "id": "llama_cpp__eof_without_stop_chunk",
+      "input": {
+        "family": "llama_cpp",
+        "ended": "eof_without_marker",
+        "finishRaw": null,
+        "hadContent": true
+      },
+      "expected": "incomplete"
+    }
+  ]
+}

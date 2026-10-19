@@ -1,0 +1,1302 @@
+{
+  "$comment": "Pre-send confirmation decision. Called once per user-initiated send after pre-send compaction, with the assembled plan estimate estimatedInput (P-hat, rho_hi included), the effective window result B / limitedBy (budget.v1.json windowCases), the price line T (null for managed / Free / Relay), the conversation local state, and the per-M base / long-context prices. Cost is input only, USD, rounded to 6 decimals; display rounding is the end's cost formatter.",
+  "schema": "oriveo.context-cap-confirm",
+  "version": 1,
+  "rules": [
+    "overCap = attempt in {send, edit} and limitedBy == custom and B != null and estimatedInput > B (strictly). Asked every time; confirming changes no state.",
+    "priceLine = attempt in {send, edit} and T != null and estimatedInput >= T and reminderEnabled and not conversationState.suppressed and conversationState.acknowledged != {model, T} (both equal). regenerate / retry / continue / overflowRecovery / toolLoopLeg never ask (the content was already confirmed or is not a new user message).",
+    "kind = overCapAndPriceLine when both, else overCap / priceLine / none. Both: one dialog with the over-cap title, the over-cap sentence and then the price-line sentence.",
+    "showDontAsk = priceLine. Confirming with it checked sets conversationState.suppressed = true. Any confirm while priceLine sets conversationState.acknowledged = acknowledgeOnConfirm = {model, T}. Cancel changes nothing.",
+    "cost (only when priceLine) = {long: estimatedInput * long.prompt / 1e6, base: estimatedInput * base.prompt / 1e6} rounded to 6 decimals, when base.prompt > 0 and long.prompt > 0; else null.",
+    "multiplier (only when priceLine and cost is null and pricing present) = context-cap-presentation panel rule: per side tenths = round(long / base * 10), base <= 0 or missing = null, keep only > 10; both null = null.",
+    "conversationState is local to the device (not synced), keyed by conversation id: {suppressed: bool, acknowledged: {model, T} | null}; missing = {false, null}."
+  ],
+  "cases": [
+    {
+      "id": "none_under_auto_price_line",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 50000,
+        "B": 200000,
+        "limitedBy": "priceLine",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "over_cap_custom",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 152000,
+        "B": 128000,
+        "limitedBy": "custom",
+        "priceLineTokens": null
+      },
+      "note": "Design sample: 152,000 over the 128,000 conversation cap.",
+      "expected": {
+        "kind": "overCap",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "over_cap_equal_is_not_over",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 128000,
+        "B": 128000,
+        "limitedBy": "custom",
+        "priceLineTokens": null
+      },
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "over_cap_one_above",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 128001,
+        "B": 128000,
+        "limitedBy": "custom",
+        "priceLineTokens": null
+      },
+      "expected": {
+        "kind": "overCap",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "over_cap_ignored_for_auto",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 300000,
+        "B": 256000,
+        "limitedBy": "autoDefault",
+        "priceLineTokens": null
+      },
+      "note": "Only a cap the user chose (limitedBy custom) asks; auto overflow is handled by compaction / reject.",
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "over_cap_ignored_when_window_limits",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 460000,
+        "B": 450000,
+        "limitedBy": "window",
+        "priceLineTokens": null
+      },
+      "note": "Custom above U: B = U, the reject precheck owns this.",
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "over_cap_window_unknown_custom",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 40000,
+        "B": 32000,
+        "limitedBy": "custom",
+        "priceLineTokens": null
+      },
+      "expected": {
+        "kind": "overCap",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "none_window_unknown_auto",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 500000,
+        "B": null,
+        "limitedBy": null,
+        "priceLineTokens": null
+      },
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "over_cap_edit",
+      "input": {
+        "attempt": "edit",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 152000,
+        "B": 128000,
+        "limitedBy": "custom",
+        "priceLineTokens": null
+      },
+      "expected": {
+        "kind": "overCap",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "over_cap_retry_skips",
+      "input": {
+        "attempt": "retry",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 152000,
+        "B": 128000,
+        "limitedBy": "custom",
+        "priceLineTokens": null
+      },
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "over_cap_regenerate_skips",
+      "input": {
+        "attempt": "regenerate",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 152000,
+        "B": 128000,
+        "limitedBy": "custom",
+        "priceLineTokens": null
+      },
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "over_cap_continue_skips",
+      "input": {
+        "attempt": "continue",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 152000,
+        "B": 128000,
+        "limitedBy": "custom",
+        "priceLineTokens": null
+      },
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "over_cap_overflow_recovery_skips",
+      "input": {
+        "attempt": "overflowRecovery",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 152000,
+        "B": 128000,
+        "limitedBy": "custom",
+        "priceLineTokens": null
+      },
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "over_cap_tool_loop_leg_skips",
+      "input": {
+        "attempt": "toolLoopLeg",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 152000,
+        "B": 128000,
+        "limitedBy": "custom",
+        "priceLineTokens": null
+      },
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "price_line_first_cross",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 213000,
+        "B": 1800000,
+        "limitedBy": "window",
+        "priceLineTokens": 200000
+      },
+      "note": "Design sample: about $0.85, $0.43 below the line (input only).",
+      "expected": {
+        "kind": "priceLine",
+        "showDontAsk": true,
+        "cost": {
+          "long": 0.852,
+          "base": 0.426
+        },
+        "multiplier": null,
+        "acknowledgeOnConfirm": {
+          "model": "grok-4.7",
+          "T": 200000
+        }
+      }
+    },
+    {
+      "id": "price_line_at_threshold",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 200000,
+        "B": 1800000,
+        "limitedBy": "window",
+        "priceLineTokens": 200000
+      },
+      "note": "Reaching T counts (>=).",
+      "expected": {
+        "kind": "priceLine",
+        "showDontAsk": true,
+        "cost": {
+          "long": 0.8,
+          "base": 0.4
+        },
+        "multiplier": null,
+        "acknowledgeOnConfirm": {
+          "model": "grok-4.7",
+          "T": 200000
+        }
+      }
+    },
+    {
+      "id": "price_line_one_below",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 199999,
+        "B": 1800000,
+        "limitedBy": "window",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "price_line_already_acknowledged",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": {
+            "model": "grok-4.7",
+            "T": 200000
+          }
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 213000,
+        "B": 1800000,
+        "limitedBy": "window",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "price_line_acknowledged_other_model",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": {
+            "model": "grok-4.6",
+            "T": 200000
+          }
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 213000,
+        "B": 1800000,
+        "limitedBy": "window",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "kind": "priceLine",
+        "showDontAsk": true,
+        "cost": {
+          "long": 0.852,
+          "base": 0.426
+        },
+        "multiplier": null,
+        "acknowledgeOnConfirm": {
+          "model": "grok-4.7",
+          "T": 200000
+        }
+      }
+    },
+    {
+      "id": "price_line_acknowledged_other_line",
+      "input": {
+        "attempt": "send",
+        "model": "gpt-5.4",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": {
+            "model": "gpt-5.4",
+            "T": 200000
+          }
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2.5,
+            "completion": 15
+          },
+          "long": {
+            "prompt": 5,
+            "completion": 22.5
+          }
+        },
+        "estimatedInput": 300000,
+        "B": 922000,
+        "limitedBy": "window",
+        "priceLineTokens": 272000
+      },
+      "note": "Same model, T changed: ask again.",
+      "expected": {
+        "kind": "priceLine",
+        "showDontAsk": true,
+        "cost": {
+          "long": 1.5,
+          "base": 0.75
+        },
+        "multiplier": null,
+        "acknowledgeOnConfirm": {
+          "model": "gpt-5.4",
+          "T": 272000
+        }
+      }
+    },
+    {
+      "id": "price_line_suppressed",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": true,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 213000,
+        "B": 1800000,
+        "limitedBy": "window",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "price_line_reminder_off",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": false,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 213000,
+        "B": 1800000,
+        "limitedBy": "window",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "price_line_edit",
+      "input": {
+        "attempt": "edit",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 213000,
+        "B": 1800000,
+        "limitedBy": "window",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "kind": "priceLine",
+        "showDontAsk": true,
+        "cost": {
+          "long": 0.852,
+          "base": 0.426
+        },
+        "multiplier": null,
+        "acknowledgeOnConfirm": {
+          "model": "grok-4.7",
+          "T": 200000
+        }
+      }
+    },
+    {
+      "id": "price_line_retry_skips",
+      "input": {
+        "attempt": "retry",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 213000,
+        "B": 1800000,
+        "limitedBy": "window",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "price_line_regenerate_skips",
+      "input": {
+        "attempt": "regenerate",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 213000,
+        "B": 1800000,
+        "limitedBy": "window",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "price_line_continue_skips",
+      "input": {
+        "attempt": "continue",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 213000,
+        "B": 1800000,
+        "limitedBy": "window",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "price_line_overflow_recovery_skips",
+      "input": {
+        "attempt": "overflowRecovery",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 213000,
+        "B": 1800000,
+        "limitedBy": "window",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "price_line_custom_above_line_under_cap",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 210000,
+        "B": 256000,
+        "limitedBy": "custom",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "kind": "priceLine",
+        "showDontAsk": true,
+        "cost": {
+          "long": 0.84,
+          "base": 0.42
+        },
+        "multiplier": null,
+        "acknowledgeOnConfirm": {
+          "model": "grok-4.7",
+          "T": 200000
+        }
+      }
+    },
+    {
+      "id": "over_cap_and_price_line",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 260000,
+        "B": 240000,
+        "limitedBy": "custom",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "kind": "overCapAndPriceLine",
+        "showDontAsk": true,
+        "cost": {
+          "long": 1.04,
+          "base": 0.52
+        },
+        "multiplier": null,
+        "acknowledgeOnConfirm": {
+          "model": "grok-4.7",
+          "T": 200000
+        }
+      }
+    },
+    {
+      "id": "over_cap_and_price_line_acknowledged",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": {
+            "model": "grok-4.7",
+            "T": 200000
+          }
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 260000,
+        "B": 240000,
+        "limitedBy": "custom",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "kind": "overCap",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "over_cap_and_price_line_reminder_off",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": false,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 260000,
+        "B": 240000,
+        "limitedBy": "custom",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "kind": "overCap",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "regenerate_over_cap_and_line_skips",
+      "input": {
+        "attempt": "regenerate",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 260000,
+        "B": 240000,
+        "limitedBy": "custom",
+        "priceLineTokens": 200000
+      },
+      "note": "Regenerate / retry re-send content the user already confirmed: no dialog.",
+      "expected": {
+        "kind": "none",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    },
+    {
+      "id": "price_line_no_pricing",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": null,
+        "estimatedInput": 213000,
+        "B": 1800000,
+        "limitedBy": "window",
+        "priceLineTokens": 200000
+      },
+      "note": "No amount, no multiplier: plain sentence.",
+      "expected": {
+        "kind": "priceLine",
+        "showDontAsk": true,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": {
+          "model": "grok-4.7",
+          "T": 200000
+        }
+      }
+    },
+    {
+      "id": "price_line_base_prompt_zero",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 0,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 213000,
+        "B": 1800000,
+        "limitedBy": "window",
+        "priceLineTokens": 200000
+      },
+      "note": "No amount; output side multiplier only.",
+      "expected": {
+        "kind": "priceLine",
+        "showDontAsk": true,
+        "cost": null,
+        "multiplier": {
+          "input": null,
+          "output": 20
+        },
+        "acknowledgeOnConfirm": {
+          "model": "grok-4.7",
+          "T": 200000
+        }
+      }
+    },
+    {
+      "id": "price_line_long_prompt_missing",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 2,
+            "completion": 6
+          },
+          "long": {
+            "prompt": null,
+            "completion": 12
+          }
+        },
+        "estimatedInput": 213000,
+        "B": 1800000,
+        "limitedBy": "window",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "kind": "priceLine",
+        "showDontAsk": true,
+        "cost": null,
+        "multiplier": {
+          "input": null,
+          "output": 20
+        },
+        "acknowledgeOnConfirm": {
+          "model": "grok-4.7",
+          "T": 200000
+        }
+      }
+    },
+    {
+      "id": "price_line_no_multiplier_above_one",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": {
+          "base": {
+            "prompt": 0,
+            "completion": 6
+          },
+          "long": {
+            "prompt": 4,
+            "completion": 6
+          }
+        },
+        "estimatedInput": 213000,
+        "B": 1800000,
+        "limitedBy": "window",
+        "priceLineTokens": 200000
+      },
+      "note": "Neither side > 1x and no amount: plain sentence.",
+      "expected": {
+        "kind": "priceLine",
+        "showDontAsk": true,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": {
+          "model": "grok-4.7",
+          "T": 200000
+        }
+      }
+    },
+    {
+      "id": "managed_no_price_line_over_cap",
+      "input": {
+        "attempt": "send",
+        "model": "grok-4.7",
+        "reminderEnabled": true,
+        "conversationState": {
+          "suppressed": false,
+          "acknowledged": null
+        },
+        "pricing": null,
+        "estimatedInput": 152000,
+        "B": 128000,
+        "limitedBy": "custom",
+        "priceLineTokens": null
+      },
+      "note": "Managed / Free / Relay have no T.",
+      "expected": {
+        "kind": "overCap",
+        "showDontAsk": false,
+        "cost": null,
+        "multiplier": null,
+        "acknowledgeOnConfirm": null
+      }
+    }
+  ]
+}

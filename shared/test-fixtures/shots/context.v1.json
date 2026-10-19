@@ -1,0 +1,97 @@
+{
+  "$comment": "Shared sample-screen manifest for the context family (shots tool). One source for page names, demo conversation, model capability metadata, ledger manifests, checkpoints and per-page presets across iOS, Android debug and Web dev shot entries. All three ends render the same values (iOS is the gold reference) and never write a real store, touch the network. Capability values (window, max output, long-context price line, pricing) exist ONLY in `models`, written in the Server /api/metadata model-entry shape under the Server provider key (`provider`, e.g. grok / openAI / openRouter, no per-end name mapping) (metadataModelResponse: contextLength / maxOutputTokens / pricing{promptPerMToken, completionPerMToken, longContext{thresholdTokens, promptPerMToken, completionPerMToken}} / pricingStatus); every end decodes them with its production metadata decoder and lets production code derive W, B, the price line and costs. No end may hardcode a window or price-line number or guess it from the model id; a missing contextLength means window unknown. The Server delivers no windowKind, so every end uses its production default. Ledger manifests follow shared/context-contracts/usage.v1.json, checkpoints follow checkpoint.v1.json (summary uses constants.headings; ends build the record through their production serializer), confirm inputs follow context-cap-confirm.v1.json; `$source` names the contract case each preset mirrors. Keys starting with '$' are documentation and ignored by readers.",
+  "schema": "oriveo.shots.context/v1",
+  "clock": "2026-10-12T09:41:00Z",
+  "models": [
+    {
+      "ref": "standard128k",
+      "provider": "mistral",
+      "entry": { "id": "mistral-medium-3", "displayName": "Mistral Medium 3", "contextLength": 128000, "maxOutputTokens": 8000, "pricing": { "promptPerMToken": 0.4, "completionPerMToken": 2 }, "pricingStatus": "priced" }
+    },
+    {
+      "ref": "grok",
+      "provider": "grok",
+      "entry": { "id": "grok-4.7", "displayName": "Grok 4.7", "contextLength": 2000000, "maxOutputTokens": 32000, "pricing": { "promptPerMToken": 2, "completionPerMToken": 6, "longContext": { "thresholdTokens": 200000, "promptPerMToken": 4, "completionPerMToken": 12 } }, "pricingStatus": "priced" }
+    },
+    {
+      "ref": "oneMillion",
+      "provider": "openAI",
+      "entry": { "id": "gpt-5.4", "displayName": "GPT-5.4", "contextLength": 1000000, "maxOutputTokens": 32000, "pricing": { "promptPerMToken": 2.5, "completionPerMToken": 15, "longContext": { "thresholdTokens": 272000, "promptPerMToken": 5, "completionPerMToken": 22.5 } }, "pricingStatus": "priced" }
+    },
+    {
+      "ref": "windowUnknown",
+      "provider": "openRouter",
+      "entry": { "id": "acme/atlas-chat", "displayName": "Atlas Chat", "maxOutputTokens": 8192, "pricingStatus": "unknown" }
+    }
+  ],
+  "conversation": {
+    "id": "conv-lisbon",
+    "title": "Lisbon trip plan",
+    "createdAt": "2026-10-12T08:30:00Z",
+    "messages": [
+      { "id": "u1", "createdAt": "2026-10-12T08:30:00Z", "role": "user", "content": "I'm planning five days in Lisbon in November. Where should I start?" },
+      { "id": "a1", "createdAt": "2026-10-12T08:31:00Z", "role": "assistant", "content": "Start with the old town: Alfama and Baixa are walkable and close to the river." },
+      { "id": "u2", "createdAt": "2026-10-12T08:32:00Z", "role": "user", "content": "Is it worth getting the Lisboa Card?" },
+      { "id": "a2", "createdAt": "2026-10-12T08:33:00Z", "role": "assistant", "content": "If you plan three or more museums plus trams, yes. Otherwise pay per ride." },
+      { "id": "u3", "createdAt": "2026-10-12T08:34:00Z", "role": "user", "content": "Which day trip is better, Sintra or Cascais?" },
+      { "id": "a3", "createdAt": "2026-10-12T08:35:00Z", "role": "assistant", "content": "Sintra for palaces and forest walks, Cascais for a slow beach day." },
+      { "id": "u4", "createdAt": "2026-10-12T08:36:00Z", "role": "user", "content": "Let's do Sintra on day three." },
+      { "id": "a4", "createdAt": "2026-10-12T08:37:00Z", "role": "assistant", "content": "Done. Take an early train from Rossio to beat the crowds." },
+      { "id": "u5", "createdAt": "2026-10-12T08:38:00Z", "role": "user", "content": "Suggest a dinner spot near Alfama." },
+      { "id": "a5", "createdAt": "2026-10-12T08:39:00Z", "role": "assistant", "content": "Try a small tasca with fado in the evening; book a table for 8 pm." },
+      { "id": "u6", "createdAt": "2026-10-12T08:40:00Z", "role": "user", "content": "Now draft the full itinerary for all five days." },
+      { "id": "a6", "createdAt": "2026-10-12T08:41:00Z", "role": "assistant", "content": "Day 1: Alfama and the castle. Day 2: Belém and the riverside. Day 3: Sintra. Day 4: LX Factory and Bairro Alto. Day 5: a slow morning in Príncipe Real." }
+    ]
+  },
+  "checkpoints": {
+    "summary": {
+      "kind": "summary",
+      "coversFrom": "u1",
+      "coversTo": "a4",
+      "summary": "## Goal\nPlan a five-day trip to Lisbon in November.\n## Key Facts & Decisions\nStay walkable around Alfama and Baixa; Lisboa Card only if three or more museums; Sintra on day three.\n## Work Produced\nDay-trip comparison of Sintra and Cascais.\n## Open Threads\nDinner spots and the full itinerary.\n## Style & Language\nEnglish, short answers.",
+      "createdAt": "2026-10-12T09:31:00Z"
+    },
+    "fallback": {
+      "kind": "fallback",
+      "coversFrom": "u1",
+      "coversTo": "a4",
+      "createdAt": "2026-10-12T09:31:00Z"
+    }
+  },
+  "manifests": {
+    "$source": "usage.v1.json summaryCases observed_38 / warm_76 / over_100_without_overflow_shows_bang / window_unknown; priceLine is panel_above_line_not_crossed with the ledger written at the conversation's unlimited cap; every ledger B equals the B production derives for the page that uses it (model + cap), grokAuto / oneMillionAuto from picker_w2m_line200k_follow_auto / picker_w1m_line272k_auto_below_line, grokCap128k / grokUnlimited from over_cap_custom / price_line_first_cross",
+    "observed38": { "B": 115200, "W": 128000, "estimatedInput": 45000, "observedInput": 43776, "stopReason": "stop", "segments": [{ "kind": "instructions", "tokens": 300 }, { "kind": "skill", "tokens": 200 }, { "kind": "memory", "tokens": 2000 }, { "kind": "notes", "tokens": 8000, "omitted": 2 }, { "kind": "knowledge", "tokens": 3000 }, { "kind": "purposeSystem", "tokens": 100 }] },
+    "warm76": { "B": 115200, "W": 128000, "estimatedInput": 45000, "observedInput": 87552, "stopReason": "stop", "segments": [] },
+    "over100": { "B": 115200, "W": 128000, "estimatedInput": 45000, "observedInput": 116000, "stopReason": "stop", "segments": [] },
+    "priceLine": { "B": 900000, "W": 1000000, "estimatedInput": 98000, "observedInput": 100000, "stopReason": "stop", "segments": [{ "kind": "memory", "tokens": 2000 }] },
+    "windowUnknown": { "B": null, "W": null, "estimatedInput": 45000, "observedInput": 20000, "stopReason": "stop", "segments": [{ "kind": "memory", "tokens": 500, "omitted": 1 }] },
+    "grokAuto": { "B": 200000, "W": 2000000, "estimatedInput": 48000, "observedInput": 50000, "stopReason": "stop", "segments": [{ "kind": "memory", "tokens": 2000 }] },
+    "oneMillionAuto": { "B": 256000, "W": 1000000, "estimatedInput": 58000, "observedInput": 60000, "stopReason": "stop", "segments": [{ "kind": "memory", "tokens": 2000 }] },
+    "grokCap128k": { "B": 128000, "W": 2000000, "estimatedInput": 45000, "observedInput": 43776, "stopReason": "stop", "segments": [{ "kind": "memory", "tokens": 2000 }] },
+    "grokUnlimited": { "B": 1800000, "W": 2000000, "estimatedInput": 118000, "observedInput": 120000, "stopReason": "stop", "segments": [{ "kind": "memory", "tokens": 2000 }] }
+  },
+  "$pages": "Every page opens conversation conv-lisbon on the given model unless messages is 'none' (a new empty conversation). manifest = one ledger row written at clock minus 1 minute for the last assistant message. checkpoint = one stored checkpoint of that kind; compactionCount = how many checkpoints the conversation has (3 raises the third-compaction hint); the extra older ones cover u1..a2 and u1..a3 with the same createdAt, so the named checkpoint (u1..a4) stays the latest valid one. Appended suggestion messages: user at their createdAt, assistant 30 s later. preferences: aiSummary = 'when over limit' mode (false = keep only your messages, the default), defaultCap = Settings default cap ('auto' default), priceLineReminder (default true). conversationCap: null follows the global setting, 'auto' / 'unlimited' / a number. open names what is shown on top of the chat page: panel / picker (opened from the panel) / detail (checkpoint detail from the divider) / conversationSettings / confirm / settings (Settings > Context, no chat page). lastAssistantStopReason sets stopReason on a6. directiveSuggestion / memorySuggestion append a user message plus an assistant reply after a6 and raise the production suggestion for it.",
+  "pages": [
+    { "name": "contextDividerSummary", "model": "standard128k", "checkpoint": "summary", "compactionCount": 1, "manifest": "observed38", "preferences": { "aiSummary": true } },
+    { "name": "contextDividerVerbatim", "model": "standard128k", "checkpoint": "fallback", "compactionCount": 1, "manifest": "observed38" },
+    { "name": "contextCheckpointDetail", "model": "standard128k", "checkpoint": "summary", "compactionCount": 1, "manifest": "observed38", "preferences": { "aiSummary": true }, "open": "detail" },
+    { "name": "contextCompactHint", "model": "standard128k", "checkpoint": "summary", "compactionCount": 3, "manifest": "observed38", "preferences": { "aiSummary": true } },
+    { "name": "contextRingNormal", "model": "standard128k", "manifest": "observed38" },
+    { "name": "contextRingHigh", "model": "standard128k", "manifest": "warm76" },
+    { "name": "contextRingOver", "model": "standard128k", "manifest": "over100" },
+    { "name": "contextRingHidden", "model": "standard128k", "messages": "none" },
+    { "name": "contextIncompleteFooter", "model": "standard128k", "manifest": "observed38", "lastAssistantStopReason": "length" },
+    { "name": "contextDirectiveSuggestion", "model": "standard128k", "manifest": "observed38", "directiveSuggestion": { "createdAt": "2026-10-12T09:40:00Z", "userId": "u7", "user": "From now on, always use metric units.", "sentence": "From now on, always use metric units.", "assistantId": "a7", "assistant": "Got it. Distances will be in kilometres from here on." } },
+    { "name": "contextMemorySuggestion", "model": "standard128k", "manifest": "observed38", "memorySuggestion": { "createdAt": "2026-10-12T09:40:00Z", "userId": "u7", "user": "Remember that I'm vegetarian.", "assistantId": "a7", "assistant": "Noted. I'll pick vegetarian-friendly places for the dinners.", "candidate": { "id": "c-veg", "proposedLayer": "semantic", "proposedKind": "preference", "content": "Is vegetarian.", "confidence": 0.9 } } },
+    { "name": "contextPanel", "model": "standard128k", "checkpoint": "summary", "compactionCount": 1, "manifest": "observed38", "preferences": { "aiSummary": true }, "open": "panel" },
+    { "name": "contextPanelPriceLine", "$source": "context-cap-presentation panel_above_line_not_crossed", "model": "oneMillion", "conversationCap": "unlimited", "manifest": "priceLine", "open": "panel" },
+    { "name": "contextPanelUnknown", "$source": "usage window_unknown; context-cap-presentation panel_unknown_unlimited", "model": "windowUnknown", "conversationCap": "unlimited", "manifest": "windowUnknown", "open": "panel" },
+    { "name": "contextCapPicker", "$source": "context-cap-presentation picker_w2m_line200k_follow_auto", "model": "grok", "manifest": "grokAuto", "open": "picker" },
+    { "name": "contextCapPickerLarge", "$source": "context-cap-presentation picker_w1m_line272k_auto_below_line", "model": "oneMillion", "manifest": "oneMillionAuto", "open": "picker" },
+    { "name": "contextCapPickerCustom", "$source": "context-cap-presentation custom cap selected (slider + input visible); ledger grokCap128k = B at a 128K conversation cap; used for the slider RTL sample in ar", "model": "grok", "conversationCap": 128000, "manifest": "grokCap128k", "open": "picker" },
+    { "name": "contextSettings", "open": "settings" },
+    { "name": "contextConfirmOverCap", "$source": "context-cap-confirm over_cap_custom", "model": "grok", "conversationCap": 128000, "manifest": "grokCap128k", "open": "confirm", "confirm": { "attempt": "send", "estimatedInput": 152000, "conversationState": { "suppressed": false, "acknowledged": null } } },
+    { "name": "contextConfirmPriceLine", "$source": "context-cap-confirm price_line_first_cross", "model": "grok", "conversationCap": "unlimited", "manifest": "grokUnlimited", "open": "confirm", "confirm": { "attempt": "send", "estimatedInput": 213000, "conversationState": { "suppressed": false, "acknowledged": null } } },
+    { "name": "contextConversationSettings", "model": "standard128k", "manifest": "observed38", "instructions": "Answer in British English and keep replies under 200 words.", "open": "conversationSettings" }
+  ]
+}

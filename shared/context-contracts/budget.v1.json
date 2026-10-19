@@ -1,0 +1,2061 @@
+{
+  "$comment": "Context budget contract (context pipeline §5). Clients run their production cap parser / budget / slider-tick / calibration / estimate functions on each input and compare with expected. Integers compare exactly; rho / rhoHi compare with absolute tolerance 1e-12.",
+  "schema": "oriveo.context.budget",
+  "version": 1,
+  "constants": {
+    "tokenUnit": "1K = 1000 tokens",
+    "rho0": 0.5,
+    "ewmaAlpha": 0.3,
+    "rhoClamp": [
+      0.15,
+      0.7
+    ],
+    "safetyFactor": 1.15,
+    "minSamples": 3,
+    "overflowMissFactor": 1.25,
+    "messageOverheadTokens": 4,
+    "minKnownWindow": 1024,
+    "defaultMaxOutput": 8192,
+    "budgetCapOptions": [
+      "auto",
+      "unlimited"
+    ],
+    "budgetCapDefault": "auto",
+    "customCapMin": 32000,
+    "customCapMax": 2147483647,
+    "autoCapDefault": 256000,
+    "priceLineCapMin": 64000,
+    "capTickLadder": [
+      32000,
+      64000,
+      128000,
+      256000,
+      384000,
+      512000,
+      768000,
+      1000000,
+      1500000,
+      2000000
+    ]
+  },
+  "rules": [
+    "O = first positive of [user setting, recipe, model maxOutputTokens], else defaultMaxOutput.",
+    "W is known only when W >= minKnownWindow (a fallback of 1 is unknown).",
+    "total: R = min(max(O, ceil(0.10*W)), floor(0.5*W)); oWire = min(O, R). inputOnly: R = 0; oWire = O.",
+    "U = W - R. budgetCap is \"auto\" | \"unlimited\" | custom integer c (see capCases). auto: B = min(U, autoCapDefault, T') where T' = priceLineTokens only when priceLineTokens >= priceLineCapMin (lower lines are shown in the panel / confirm dialog but never cap). unlimited: B = U. custom: B = min(max(c, customCapMin), U). priceLineTokens never affects unlimited or custom; a non-integer priceLineTokens is treated as absent. A custom value is clamped into [customCapMin, customCapMax] before min with U, so no constructed value can bypass the parse range. Clients without a known price line pass no priceLineTokens.",
+    "limitedBy names the bound that set B: custom | priceLine | autoDefault | window. Ties prefer the user-facing bound: custom over window; priceLine over autoDefault over window. null when B is null.",
+    "derived: preCompactAt = floor(0.75B), sendCompactAt = floor(0.90B), compactTargetMax = floor(0.50B), reminderAt = floor(0.30B), tail = clamp(floor(0.25B), 4000, 48000), userMessagesMax = min(16000, floor(0.10B)), summaryMax = min(4000, max(1000, floor(0.05B))), systemMax = min(floor(0.25B), 32000), recallMax = floor(0.07B).",
+    "Unknown W: R and U are null, oWire = O. auto / unlimited: B and derived are null, proactive compaction is off (reactive only, §8.6). custom c: B = max(c, customCapMin), derived from B, proactive compaction on (desktop A6 §3.2.5).",
+    "est text = ceil(utf8Bytes * rhoHi); est message = est text + messageOverheadTokens.",
+    "Calibration sample = (observedInput - mediaTokens) / textBytes; skipped when observedInput is null, textBytes <= 0 or the ratio <= 0. observedInput = input_uncached + cache_read + cache_write_5m + cache_write_1h.",
+    "Samples 1-2 are collected only; the 3rd sets rho = clamp(mean(samples 1..3)); later samples: rho = clamp(alpha*sample + (1-alpha)*rho). Evaluate exactly in that operand order (IEEE double).",
+    "rhoHi = rho * safetyFactor once n >= minSamples, else rho (rho0 unless an overflow miss raised it).",
+    "Overflow miss (predicted pHat < U but the provider reported overflow): rho = min(0.70, rho * 1.25).",
+    "pHat with a previous observed input and no compaction since: observedPrevious - estDynamicPrevious + estAnswerPrevious + sum(estNewMessages) + estDynamicNow; otherwise the full estimate.",
+    "Ring display: percent = ceil(100 * pHat / B); tone warm at >= 70, error after an overflow; window unknown -> unavailable; never observed (estimated only) -> unavailable with estimatedPercent shown in the panel only. Never show 0% for an unmeasured value.",
+    "Cap parsing (capCases): exactly \"auto\" and \"unlimited\" are accepted as strings; an integral-valued number in [customCapMin, customCapMax] is custom (64000.0 counts as 64000, since JavaScript and some decoders cannot tell them apart); everything else (smaller / larger / fractional numbers, legacy \"64k\"-style keys, numeric strings, other case, empty, null, booleans) is rejected and the caller treats the stored value as absent. customCapMax = 2^31 - 1 keeps Kotlin Int and Swift Int identical.",
+    "Slider ticks (capTickCases): sorted unique (capTickLadder ∪ {priceLineTokens when >= customCapMin}) ∩ [customCapMin, U], plus U itself; U unknown -> no upper bound and U is not added; U < customCapMin -> [U]. The slider binds to the tick index; typed values commit through the custom rule above."
+  ],
+  "windowCases": [
+    {
+      "id": "w128k_o8k",
+      "input": {
+        "W": 128000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8000
+        },
+        "budgetCap": "auto"
+      },
+      "expected": {
+        "known": true,
+        "W": 128000,
+        "O": 8000,
+        "R": 12800,
+        "U": 115200,
+        "B": 115200,
+        "limitedBy": "window",
+        "oWire": 8000,
+        "derived": {
+          "preCompactAt": 86400,
+          "sendCompactAt": 103680,
+          "compactTargetMax": 57600,
+          "reminderAt": 34560,
+          "tail": 28800,
+          "userMessagesMax": 11520,
+          "summaryMax": 4000,
+          "systemMax": 28800,
+          "recallMax": 8064
+        },
+        "proactiveCompaction": true
+      }
+    },
+    {
+      "id": "w1m_o32k_capped",
+      "input": {
+        "W": 1000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "budgetCap": "auto"
+      },
+      "expected": {
+        "known": true,
+        "W": 1000000,
+        "O": 32000,
+        "R": 100000,
+        "U": 900000,
+        "B": 256000,
+        "limitedBy": "autoDefault",
+        "oWire": 32000,
+        "derived": {
+          "preCompactAt": 192000,
+          "sendCompactAt": 230400,
+          "compactTargetMax": 128000,
+          "reminderAt": 76800,
+          "tail": 48000,
+          "userMessagesMax": 16000,
+          "summaryMax": 4000,
+          "systemMax": 32000,
+          "recallMax": 17920
+        },
+        "proactiveCompaction": true
+      }
+    },
+    {
+      "id": "w32k_o8k",
+      "input": {
+        "W": 32000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8000
+        },
+        "budgetCap": "auto"
+      },
+      "expected": {
+        "known": true,
+        "W": 32000,
+        "O": 8000,
+        "R": 8000,
+        "U": 24000,
+        "B": 24000,
+        "limitedBy": "window",
+        "oWire": 8000,
+        "derived": {
+          "preCompactAt": 18000,
+          "sendCompactAt": 21600,
+          "compactTargetMax": 12000,
+          "reminderAt": 7200,
+          "tail": 6000,
+          "userMessagesMax": 2400,
+          "summaryMax": 1200,
+          "systemMax": 6000,
+          "recallMax": 1680
+        },
+        "proactiveCompaction": true
+      }
+    },
+    {
+      "id": "w4k_o8k_output_clamped",
+      "input": {
+        "W": 4000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8000
+        },
+        "budgetCap": "auto"
+      },
+      "expected": {
+        "known": true,
+        "W": 4000,
+        "O": 8000,
+        "R": 2000,
+        "U": 2000,
+        "B": 2000,
+        "limitedBy": "window",
+        "oWire": 2000,
+        "derived": {
+          "preCompactAt": 1500,
+          "sendCompactAt": 1800,
+          "compactTargetMax": 1000,
+          "reminderAt": 600,
+          "tail": 4000,
+          "userMessagesMax": 200,
+          "summaryMax": 1000,
+          "systemMax": 500,
+          "recallMax": 140
+        },
+        "proactiveCompaction": true
+      },
+      "note": "R = floor(0.5W) = 2000, oWire = min(O, R) = 2000: small windows never ask for more output than fits."
+    },
+    {
+      "id": "managed_input_only_200k",
+      "input": {
+        "W": 200000,
+        "windowKind": "inputOnly",
+        "maxOutput": {
+          "model": 64000
+        },
+        "budgetCap": "auto"
+      },
+      "expected": {
+        "known": true,
+        "W": 200000,
+        "O": 64000,
+        "R": 0,
+        "U": 200000,
+        "B": 200000,
+        "limitedBy": "window",
+        "oWire": 64000,
+        "derived": {
+          "preCompactAt": 150000,
+          "sendCompactAt": 180000,
+          "compactTargetMax": 100000,
+          "reminderAt": 60000,
+          "tail": 48000,
+          "userMessagesMax": 16000,
+          "summaryMax": 4000,
+          "systemMax": 32000,
+          "recallMax": 14000
+        },
+        "proactiveCompaction": true
+      },
+      "note": "inputOnly windows reserve nothing; oWire = O."
+    },
+    {
+      "id": "user_setting_wins",
+      "input": {
+        "W": 200000,
+        "windowKind": "total",
+        "maxOutput": {
+          "user": 4096,
+          "recipe": 16000,
+          "model": 64000
+        },
+        "budgetCap": "auto"
+      },
+      "expected": {
+        "known": true,
+        "W": 200000,
+        "O": 4096,
+        "R": 20000,
+        "U": 180000,
+        "B": 180000,
+        "limitedBy": "window",
+        "oWire": 4096,
+        "derived": {
+          "preCompactAt": 135000,
+          "sendCompactAt": 162000,
+          "compactTargetMax": 90000,
+          "reminderAt": 54000,
+          "tail": 45000,
+          "userMessagesMax": 16000,
+          "summaryMax": 4000,
+          "systemMax": 32000,
+          "recallMax": 12600
+        },
+        "proactiveCompaction": true
+      }
+    },
+    {
+      "id": "recipe_beats_model",
+      "input": {
+        "W": 200000,
+        "windowKind": "total",
+        "maxOutput": {
+          "recipe": 16000,
+          "model": 64000
+        },
+        "budgetCap": "auto"
+      },
+      "expected": {
+        "known": true,
+        "W": 200000,
+        "O": 16000,
+        "R": 20000,
+        "U": 180000,
+        "B": 180000,
+        "limitedBy": "window",
+        "oWire": 16000,
+        "derived": {
+          "preCompactAt": 135000,
+          "sendCompactAt": 162000,
+          "compactTargetMax": 90000,
+          "reminderAt": 54000,
+          "tail": 45000,
+          "userMessagesMax": 16000,
+          "summaryMax": 4000,
+          "systemMax": 32000,
+          "recallMax": 12600
+        },
+        "proactiveCompaction": true
+      }
+    },
+    {
+      "id": "default_output_8192",
+      "input": {
+        "W": 200000,
+        "windowKind": "total",
+        "maxOutput": {},
+        "budgetCap": "auto"
+      },
+      "expected": {
+        "known": true,
+        "W": 200000,
+        "O": 8192,
+        "R": 20000,
+        "U": 180000,
+        "B": 180000,
+        "limitedBy": "window",
+        "oWire": 8192,
+        "derived": {
+          "preCompactAt": 135000,
+          "sendCompactAt": 162000,
+          "compactTargetMax": 90000,
+          "reminderAt": 54000,
+          "tail": 45000,
+          "userMessagesMax": 16000,
+          "summaryMax": 4000,
+          "systemMax": 32000,
+          "recallMax": 12600
+        },
+        "proactiveCompaction": true
+      }
+    },
+    {
+      "id": "cap_64k",
+      "input": {
+        "W": 200000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "budgetCap": 64000
+      },
+      "expected": {
+        "known": true,
+        "W": 200000,
+        "O": 8192,
+        "R": 20000,
+        "U": 180000,
+        "B": 64000,
+        "limitedBy": "custom",
+        "oWire": 8192,
+        "derived": {
+          "preCompactAt": 48000,
+          "sendCompactAt": 57600,
+          "compactTargetMax": 32000,
+          "reminderAt": 19200,
+          "tail": 16000,
+          "userMessagesMax": 6400,
+          "summaryMax": 3200,
+          "systemMax": 16000,
+          "recallMax": 4480
+        },
+        "proactiveCompaction": true
+      }
+    },
+    {
+      "id": "cap_unlimited",
+      "input": {
+        "W": 1000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "budgetCap": "unlimited"
+      },
+      "expected": {
+        "known": true,
+        "W": 1000000,
+        "O": 32000,
+        "R": 100000,
+        "U": 900000,
+        "B": 900000,
+        "limitedBy": "window",
+        "oWire": 32000,
+        "derived": {
+          "preCompactAt": 675000,
+          "sendCompactAt": 810000,
+          "compactTargetMax": 450000,
+          "reminderAt": 270000,
+          "tail": 48000,
+          "userMessagesMax": 16000,
+          "summaryMax": 4000,
+          "systemMax": 32000,
+          "recallMax": 63000
+        },
+        "proactiveCompaction": true
+      }
+    },
+    {
+      "id": "window_fallback_1_is_unknown",
+      "input": {
+        "W": 1,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "budgetCap": "auto"
+      },
+      "expected": {
+        "known": false,
+        "W": null,
+        "O": 8192,
+        "R": null,
+        "U": null,
+        "B": null,
+        "limitedBy": null,
+        "oWire": 8192,
+        "derived": null,
+        "proactiveCompaction": false
+      },
+      "note": "BUG-13: W < 1024 is unknown, never a real window."
+    },
+    {
+      "id": "window_1023_is_unknown",
+      "input": {
+        "W": 1023,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "budgetCap": "auto"
+      },
+      "expected": {
+        "known": false,
+        "W": null,
+        "O": 8192,
+        "R": null,
+        "U": null,
+        "B": null,
+        "limitedBy": null,
+        "oWire": 8192,
+        "derived": null,
+        "proactiveCompaction": false
+      }
+    },
+    {
+      "id": "window_1024_is_known",
+      "input": {
+        "W": 1024,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "budgetCap": "auto"
+      },
+      "expected": {
+        "known": true,
+        "W": 1024,
+        "O": 8192,
+        "R": 512,
+        "U": 512,
+        "B": 512,
+        "limitedBy": "window",
+        "oWire": 512,
+        "derived": {
+          "preCompactAt": 384,
+          "sendCompactAt": 460,
+          "compactTargetMax": 256,
+          "reminderAt": 153,
+          "tail": 4000,
+          "userMessagesMax": 51,
+          "summaryMax": 1000,
+          "systemMax": 128,
+          "recallMax": 35
+        },
+        "proactiveCompaction": true
+      }
+    },
+    {
+      "id": "window_missing",
+      "input": {
+        "W": null,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "budgetCap": "auto"
+      },
+      "expected": {
+        "known": false,
+        "W": null,
+        "O": 8192,
+        "R": null,
+        "U": null,
+        "B": null,
+        "limitedBy": null,
+        "oWire": 8192,
+        "derived": null,
+        "proactiveCompaction": false
+      }
+    },
+    {
+      "id": "custom_190000",
+      "input": {
+        "W": 400000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 16000
+        },
+        "budgetCap": 190000
+      },
+      "expected": {
+        "known": true,
+        "W": 400000,
+        "O": 16000,
+        "R": 40000,
+        "U": 360000,
+        "B": 190000,
+        "limitedBy": "custom",
+        "oWire": 16000,
+        "derived": {
+          "preCompactAt": 142500,
+          "sendCompactAt": 171000,
+          "compactTargetMax": 95000,
+          "reminderAt": 57000,
+          "tail": 47500,
+          "userMessagesMax": 16000,
+          "summaryMax": 4000,
+          "systemMax": 32000,
+          "recallMax": 13300
+        },
+        "proactiveCompaction": true
+      }
+    },
+    {
+      "id": "custom_at_min_32000",
+      "input": {
+        "W": 400000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 16000
+        },
+        "budgetCap": 32000
+      },
+      "expected": {
+        "known": true,
+        "W": 400000,
+        "O": 16000,
+        "R": 40000,
+        "U": 360000,
+        "B": 32000,
+        "limitedBy": "custom",
+        "oWire": 16000,
+        "derived": {
+          "preCompactAt": 24000,
+          "sendCompactAt": 28800,
+          "compactTargetMax": 16000,
+          "reminderAt": 9600,
+          "tail": 8000,
+          "userMessagesMax": 3200,
+          "summaryMax": 1600,
+          "systemMax": 8000,
+          "recallMax": 2240
+        },
+        "proactiveCompaction": true
+      }
+    },
+    {
+      "id": "custom_above_u_takes_u",
+      "input": {
+        "W": 200000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "budgetCap": 500000
+      },
+      "expected": {
+        "known": true,
+        "W": 200000,
+        "O": 8192,
+        "R": 20000,
+        "U": 180000,
+        "B": 180000,
+        "limitedBy": "window",
+        "oWire": 8192,
+        "derived": {
+          "preCompactAt": 135000,
+          "sendCompactAt": 162000,
+          "compactTargetMax": 90000,
+          "reminderAt": 54000,
+          "tail": 45000,
+          "userMessagesMax": 16000,
+          "summaryMax": 4000,
+          "systemMax": 32000,
+          "recallMax": 12600
+        },
+        "proactiveCompaction": true
+      },
+      "note": "Custom above U is capped to U; the panel shows \"limited by the model, actual X\"."
+    },
+    {
+      "id": "custom_equal_u_is_custom",
+      "input": {
+        "W": 200000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "budgetCap": 180000
+      },
+      "expected": {
+        "known": true,
+        "W": 200000,
+        "O": 8192,
+        "R": 20000,
+        "U": 180000,
+        "B": 180000,
+        "limitedBy": "custom",
+        "oWire": 8192,
+        "derived": {
+          "preCompactAt": 135000,
+          "sendCompactAt": 162000,
+          "compactTargetMax": 90000,
+          "reminderAt": 54000,
+          "tail": 45000,
+          "userMessagesMax": 16000,
+          "summaryMax": 4000,
+          "systemMax": 32000,
+          "recallMax": 12600
+        },
+        "proactiveCompaction": true
+      },
+      "note": "c == U: limitedBy stays custom (ties prefer the user cap)."
+    },
+    {
+      "id": "custom_u_below_min",
+      "input": {
+        "W": 32000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8000
+        },
+        "budgetCap": 64000
+      },
+      "expected": {
+        "known": true,
+        "W": 32000,
+        "O": 8000,
+        "R": 8000,
+        "U": 24000,
+        "B": 24000,
+        "limitedBy": "window",
+        "oWire": 8000,
+        "derived": {
+          "preCompactAt": 18000,
+          "sendCompactAt": 21600,
+          "compactTargetMax": 12000,
+          "reminderAt": 7200,
+          "tail": 6000,
+          "userMessagesMax": 2400,
+          "summaryMax": 1200,
+          "systemMax": 6000,
+          "recallMax": 1680
+        },
+        "proactiveCompaction": true
+      },
+      "note": "U (24000) < customCapMin: custom collapses to U."
+    },
+    {
+      "id": "custom_ignores_price_line",
+      "input": {
+        "W": 2000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "budgetCap": 300000,
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "known": true,
+        "W": 2000000,
+        "O": 32000,
+        "R": 200000,
+        "U": 1800000,
+        "B": 300000,
+        "limitedBy": "custom",
+        "oWire": 32000,
+        "derived": {
+          "preCompactAt": 225000,
+          "sendCompactAt": 270000,
+          "compactTargetMax": 150000,
+          "reminderAt": 90000,
+          "tail": 48000,
+          "userMessagesMax": 16000,
+          "summaryMax": 4000,
+          "systemMax": 32000,
+          "recallMax": 21000
+        },
+        "proactiveCompaction": true
+      },
+      "note": "Price lines only shape the auto cap; the confirm dialog handles crossing them."
+    },
+    {
+      "id": "unlimited_ignores_price_line",
+      "input": {
+        "W": 2000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "budgetCap": "unlimited",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "known": true,
+        "W": 2000000,
+        "O": 32000,
+        "R": 200000,
+        "U": 1800000,
+        "B": 1800000,
+        "limitedBy": "window",
+        "oWire": 32000,
+        "derived": {
+          "preCompactAt": 1350000,
+          "sendCompactAt": 1620000,
+          "compactTargetMax": 900000,
+          "reminderAt": 540000,
+          "tail": 48000,
+          "userMessagesMax": 16000,
+          "summaryMax": 4000,
+          "systemMax": 32000,
+          "recallMax": 126000
+        },
+        "proactiveCompaction": true
+      }
+    },
+    {
+      "id": "auto_price_line_200k",
+      "input": {
+        "W": 2000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "budgetCap": "auto",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "known": true,
+        "W": 2000000,
+        "O": 32000,
+        "R": 200000,
+        "U": 1800000,
+        "B": 200000,
+        "limitedBy": "priceLine",
+        "oWire": 32000,
+        "derived": {
+          "preCompactAt": 150000,
+          "sendCompactAt": 180000,
+          "compactTargetMax": 100000,
+          "reminderAt": 60000,
+          "tail": 48000,
+          "userMessagesMax": 16000,
+          "summaryMax": 4000,
+          "systemMax": 32000,
+          "recallMax": 14000
+        },
+        "proactiveCompaction": true
+      },
+      "note": "Whole-request tier jump at 200K (xAI / Gemini style): auto stops at the line."
+    },
+    {
+      "id": "auto_price_line_272k",
+      "input": {
+        "W": 1050000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 128000
+        },
+        "budgetCap": "auto",
+        "priceLineTokens": 272000
+      },
+      "expected": {
+        "known": true,
+        "W": 1050000,
+        "O": 128000,
+        "R": 128000,
+        "U": 922000,
+        "B": 256000,
+        "limitedBy": "autoDefault",
+        "oWire": 128000,
+        "derived": {
+          "preCompactAt": 192000,
+          "sendCompactAt": 230400,
+          "compactTargetMax": 128000,
+          "reminderAt": 76800,
+          "tail": 48000,
+          "userMessagesMax": 16000,
+          "summaryMax": 4000,
+          "systemMax": 32000,
+          "recallMax": 17920
+        },
+        "proactiveCompaction": true
+      },
+      "note": "Line above autoCapDefault: auto stays at 256000."
+    },
+    {
+      "id": "auto_price_line_100k",
+      "input": {
+        "W": 200000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 64000
+        },
+        "budgetCap": "auto",
+        "priceLineTokens": 100000
+      },
+      "expected": {
+        "known": true,
+        "W": 200000,
+        "O": 64000,
+        "R": 64000,
+        "U": 136000,
+        "B": 100000,
+        "limitedBy": "priceLine",
+        "oWire": 64000,
+        "derived": {
+          "preCompactAt": 75000,
+          "sendCompactAt": 90000,
+          "compactTargetMax": 50000,
+          "reminderAt": 30000,
+          "tail": 25000,
+          "userMessagesMax": 10000,
+          "summaryMax": 4000,
+          "systemMax": 25000,
+          "recallMax": 7000
+        },
+        "proactiveCompaction": true
+      },
+      "note": "Line between 64K and 128K participates."
+    },
+    {
+      "id": "auto_price_line_32k_ignored",
+      "input": {
+        "W": 128000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "budgetCap": "auto",
+        "priceLineTokens": 32000
+      },
+      "expected": {
+        "known": true,
+        "W": 128000,
+        "O": 8192,
+        "R": 12800,
+        "U": 115200,
+        "B": 115200,
+        "limitedBy": "window",
+        "oWire": 8192,
+        "derived": {
+          "preCompactAt": 86400,
+          "sendCompactAt": 103680,
+          "compactTargetMax": 57600,
+          "reminderAt": 34560,
+          "tail": 28800,
+          "userMessagesMax": 11520,
+          "summaryMax": 4000,
+          "systemMax": 28800,
+          "recallMax": 8064
+        },
+        "proactiveCompaction": true
+      },
+      "note": "Line below priceLineCapMin does not cap; it is only surfaced in the panel and confirm dialog."
+    },
+    {
+      "id": "auto_price_line_64000_participates",
+      "input": {
+        "W": 200000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "budgetCap": "auto",
+        "priceLineTokens": 64000
+      },
+      "expected": {
+        "known": true,
+        "W": 200000,
+        "O": 8192,
+        "R": 20000,
+        "U": 180000,
+        "B": 64000,
+        "limitedBy": "priceLine",
+        "oWire": 8192,
+        "derived": {
+          "preCompactAt": 48000,
+          "sendCompactAt": 57600,
+          "compactTargetMax": 32000,
+          "reminderAt": 19200,
+          "tail": 16000,
+          "userMessagesMax": 6400,
+          "summaryMax": 3200,
+          "systemMax": 16000,
+          "recallMax": 4480
+        },
+        "proactiveCompaction": true
+      }
+    },
+    {
+      "id": "auto_price_line_63999_ignored",
+      "input": {
+        "W": 200000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "budgetCap": "auto",
+        "priceLineTokens": 63999
+      },
+      "expected": {
+        "known": true,
+        "W": 200000,
+        "O": 8192,
+        "R": 20000,
+        "U": 180000,
+        "B": 180000,
+        "limitedBy": "window",
+        "oWire": 8192,
+        "derived": {
+          "preCompactAt": 135000,
+          "sendCompactAt": 162000,
+          "compactTargetMax": 90000,
+          "reminderAt": 54000,
+          "tail": 45000,
+          "userMessagesMax": 16000,
+          "summaryMax": 4000,
+          "systemMax": 32000,
+          "recallMax": 12600
+        },
+        "proactiveCompaction": true
+      }
+    },
+    {
+      "id": "auto_price_line_256000_tie",
+      "input": {
+        "W": 1000000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 32000
+        },
+        "budgetCap": "auto",
+        "priceLineTokens": 256000
+      },
+      "expected": {
+        "known": true,
+        "W": 1000000,
+        "O": 32000,
+        "R": 100000,
+        "U": 900000,
+        "B": 256000,
+        "limitedBy": "priceLine",
+        "oWire": 32000,
+        "derived": {
+          "preCompactAt": 192000,
+          "sendCompactAt": 230400,
+          "compactTargetMax": 128000,
+          "reminderAt": 76800,
+          "tail": 48000,
+          "userMessagesMax": 16000,
+          "summaryMax": 4000,
+          "systemMax": 32000,
+          "recallMax": 17920
+        },
+        "proactiveCompaction": true
+      },
+      "note": "Tie between the line and autoCapDefault: limitedBy = priceLine."
+    },
+    {
+      "id": "auto_price_line_above_u",
+      "input": {
+        "W": 128000,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8000
+        },
+        "budgetCap": "auto",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "known": true,
+        "W": 128000,
+        "O": 8000,
+        "R": 12800,
+        "U": 115200,
+        "B": 115200,
+        "limitedBy": "window",
+        "oWire": 8000,
+        "derived": {
+          "preCompactAt": 86400,
+          "sendCompactAt": 103680,
+          "compactTargetMax": 57600,
+          "reminderAt": 34560,
+          "tail": 28800,
+          "userMessagesMax": 11520,
+          "summaryMax": 4000,
+          "systemMax": 28800,
+          "recallMax": 8064
+        },
+        "proactiveCompaction": true
+      }
+    },
+    {
+      "id": "auto_price_line_input_only",
+      "input": {
+        "W": 400000,
+        "windowKind": "inputOnly",
+        "maxOutput": {
+          "model": 64000
+        },
+        "budgetCap": "auto",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "known": true,
+        "W": 400000,
+        "O": 64000,
+        "R": 0,
+        "U": 400000,
+        "B": 200000,
+        "limitedBy": "priceLine",
+        "oWire": 64000,
+        "derived": {
+          "preCompactAt": 150000,
+          "sendCompactAt": 180000,
+          "compactTargetMax": 100000,
+          "reminderAt": 60000,
+          "tail": 48000,
+          "userMessagesMax": 16000,
+          "summaryMax": 4000,
+          "systemMax": 32000,
+          "recallMax": 14000
+        },
+        "proactiveCompaction": true
+      }
+    },
+    {
+      "id": "window_missing_unlimited",
+      "input": {
+        "W": null,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "budgetCap": "unlimited"
+      },
+      "expected": {
+        "known": false,
+        "W": null,
+        "O": 8192,
+        "R": null,
+        "U": null,
+        "B": null,
+        "limitedBy": null,
+        "oWire": 8192,
+        "derived": null,
+        "proactiveCompaction": false
+      }
+    },
+    {
+      "id": "window_missing_auto_price_line",
+      "input": {
+        "W": null,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "budgetCap": "auto",
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "known": false,
+        "W": null,
+        "O": 8192,
+        "R": null,
+        "U": null,
+        "B": null,
+        "limitedBy": null,
+        "oWire": 8192,
+        "derived": null,
+        "proactiveCompaction": false
+      },
+      "note": "Unknown window: auto has no B even with a line."
+    },
+    {
+      "id": "window_missing_custom",
+      "input": {
+        "W": null,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "budgetCap": 190000
+      },
+      "expected": {
+        "known": false,
+        "W": null,
+        "O": 8192,
+        "R": null,
+        "U": null,
+        "B": 190000,
+        "limitedBy": "custom",
+        "oWire": 8192,
+        "derived": {
+          "preCompactAt": 142500,
+          "sendCompactAt": 171000,
+          "compactTargetMax": 95000,
+          "reminderAt": 57000,
+          "tail": 47500,
+          "userMessagesMax": 16000,
+          "summaryMax": 4000,
+          "systemMax": 32000,
+          "recallMax": 13300
+        },
+        "proactiveCompaction": true
+      },
+      "note": "Unknown window + custom: B = c, full pipeline runs (desktop A6 §3.2.5)."
+    },
+    {
+      "id": "window_1023_custom",
+      "input": {
+        "W": 1023,
+        "windowKind": "total",
+        "maxOutput": {
+          "model": 8192
+        },
+        "budgetCap": 64000
+      },
+      "expected": {
+        "known": false,
+        "W": null,
+        "O": 8192,
+        "R": null,
+        "U": null,
+        "B": 64000,
+        "limitedBy": "custom",
+        "oWire": 8192,
+        "derived": {
+          "preCompactAt": 48000,
+          "sendCompactAt": 57600,
+          "compactTargetMax": 32000,
+          "reminderAt": 19200,
+          "tail": 16000,
+          "userMessagesMax": 6400,
+          "summaryMax": 3200,
+          "systemMax": 16000,
+          "recallMax": 4480
+        },
+        "proactiveCompaction": true
+      }
+    }
+  ],
+  "capCases": [
+    {
+      "id": "parse_auto",
+      "input": "auto",
+      "expected": {
+        "cap": "auto"
+      }
+    },
+    {
+      "id": "parse_unlimited",
+      "input": "unlimited",
+      "expected": {
+        "cap": "unlimited"
+      }
+    },
+    {
+      "id": "parse_custom_min",
+      "input": 32000,
+      "expected": {
+        "cap": 32000
+      }
+    },
+    {
+      "id": "parse_custom_64000",
+      "input": 64000,
+      "expected": {
+        "cap": 64000
+      }
+    },
+    {
+      "id": "parse_custom_2000000",
+      "input": 2000000,
+      "expected": {
+        "cap": 2000000
+      }
+    },
+    {
+      "id": "parse_custom_integral_float",
+      "input": 64000.0,
+      "expected": {
+        "cap": 64000
+      },
+      "note": "Raw text keeps the .0 on purpose (do not regenerate with JSON.stringify): an integral-valued JSON number is an integer even when the decoder hands back a double."
+    },
+    {
+      "id": "parse_custom_int32_max",
+      "input": 2147483647,
+      "expected": {
+        "cap": 2147483647
+      }
+    },
+    {
+      "id": "parse_reject_below_min_31999",
+      "input": 31999,
+      "expected": {
+        "rejected": true
+      }
+    },
+    {
+      "id": "parse_reject_zero",
+      "input": 0,
+      "expected": {
+        "rejected": true
+      }
+    },
+    {
+      "id": "parse_reject_negative",
+      "input": -64000,
+      "expected": {
+        "rejected": true
+      }
+    },
+    {
+      "id": "parse_reject_fraction",
+      "input": 64000.5,
+      "expected": {
+        "rejected": true
+      }
+    },
+    {
+      "id": "parse_reject_above_int32",
+      "input": 2147483648,
+      "expected": {
+        "rejected": true
+      }
+    },
+    {
+      "id": "parse_reject_legacy_64k",
+      "input": "64k",
+      "expected": {
+        "rejected": true
+      }
+    },
+    {
+      "id": "parse_reject_legacy_256k",
+      "input": "256k",
+      "expected": {
+        "rejected": true
+      }
+    },
+    {
+      "id": "parse_reject_numeric_string",
+      "input": "64000",
+      "expected": {
+        "rejected": true
+      }
+    },
+    {
+      "id": "parse_reject_upper_auto",
+      "input": "Auto",
+      "expected": {
+        "rejected": true
+      }
+    },
+    {
+      "id": "parse_reject_empty",
+      "input": "",
+      "expected": {
+        "rejected": true
+      }
+    },
+    {
+      "id": "parse_reject_null",
+      "input": null,
+      "expected": {
+        "rejected": true
+      }
+    },
+    {
+      "id": "parse_reject_bool",
+      "input": true,
+      "expected": {
+        "rejected": true
+      }
+    }
+  ],
+  "capTickCases": [
+    {
+      "id": "ticks_u_900000",
+      "input": {
+        "U": 900000,
+        "priceLineTokens": null
+      },
+      "expected": {
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          256000,
+          384000,
+          512000,
+          768000,
+          900000
+        ]
+      }
+    },
+    {
+      "id": "ticks_u_1800000_line_200000",
+      "input": {
+        "U": 1800000,
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          200000,
+          256000,
+          384000,
+          512000,
+          768000,
+          1000000,
+          1500000,
+          1800000
+        ]
+      },
+      "note": "A line off the ladder becomes its own stop."
+    },
+    {
+      "id": "ticks_u_945000_line_272000",
+      "input": {
+        "U": 945000,
+        "priceLineTokens": 272000
+      },
+      "expected": {
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          256000,
+          272000,
+          384000,
+          512000,
+          768000,
+          945000
+        ]
+      }
+    },
+    {
+      "id": "ticks_u_136000_line_100000",
+      "input": {
+        "U": 136000,
+        "priceLineTokens": 100000
+      },
+      "expected": {
+        "ticks": [
+          32000,
+          64000,
+          100000,
+          128000,
+          136000
+        ]
+      }
+    },
+    {
+      "id": "ticks_u_115200_line_32000",
+      "input": {
+        "U": 115200,
+        "priceLineTokens": 32000
+      },
+      "expected": {
+        "ticks": [
+          32000,
+          64000,
+          115200
+        ]
+      },
+      "note": "A line equal to a ladder stop is not duplicated."
+    },
+    {
+      "id": "ticks_u_256000_on_ladder",
+      "input": {
+        "U": 256000,
+        "priceLineTokens": null
+      },
+      "expected": {
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          256000
+        ]
+      },
+      "note": "U on the ladder is not duplicated."
+    },
+    {
+      "id": "ticks_u_2000000",
+      "input": {
+        "U": 2000000,
+        "priceLineTokens": null
+      },
+      "expected": {
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          256000,
+          384000,
+          512000,
+          768000,
+          1000000,
+          1500000,
+          2000000
+        ]
+      }
+    },
+    {
+      "id": "ticks_u_3600000",
+      "input": {
+        "U": 3600000,
+        "priceLineTokens": null
+      },
+      "expected": {
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          256000,
+          384000,
+          512000,
+          768000,
+          1000000,
+          1500000,
+          2000000,
+          3600000
+        ]
+      },
+      "note": "Above the ladder top, U is the last stop."
+    },
+    {
+      "id": "ticks_u_32000",
+      "input": {
+        "U": 32000,
+        "priceLineTokens": null
+      },
+      "expected": {
+        "ticks": [
+          32000
+        ]
+      }
+    },
+    {
+      "id": "ticks_u_24000_below_min",
+      "input": {
+        "U": 24000,
+        "priceLineTokens": null
+      },
+      "expected": {
+        "ticks": [
+          24000
+        ]
+      },
+      "note": "U < customCapMin: one stop at U."
+    },
+    {
+      "id": "ticks_line_above_u",
+      "input": {
+        "U": 115200,
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "ticks": [
+          32000,
+          64000,
+          115200
+        ]
+      }
+    },
+    {
+      "id": "ticks_window_unknown",
+      "input": {
+        "U": null,
+        "priceLineTokens": null
+      },
+      "expected": {
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          256000,
+          384000,
+          512000,
+          768000,
+          1000000,
+          1500000,
+          2000000
+        ]
+      },
+      "note": "Unknown U: the whole ladder."
+    },
+    {
+      "id": "ticks_window_unknown_line",
+      "input": {
+        "U": null,
+        "priceLineTokens": 200000
+      },
+      "expected": {
+        "ticks": [
+          32000,
+          64000,
+          128000,
+          200000,
+          256000,
+          384000,
+          512000,
+          768000,
+          1000000,
+          1500000,
+          2000000
+        ]
+      }
+    }
+  ],
+  "rhoCases": [
+    {
+      "id": "fewer_than_three_samples_keep_rho0",
+      "events": [
+        {
+          "type": "sample",
+          "observedInput": 300,
+          "mediaTokens": 0,
+          "textBytes": 1000
+        },
+        {
+          "type": "sample",
+          "observedInput": 280,
+          "mediaTokens": 0,
+          "textBytes": 1000
+        }
+      ],
+      "expected": [
+        {
+          "n": 1,
+          "rho": 0.5,
+          "rhoHi": 0.5
+        },
+        {
+          "n": 2,
+          "rho": 0.5,
+          "rhoHi": 0.5
+        }
+      ]
+    },
+    {
+      "id": "third_sample_seeds_with_mean_then_ewma",
+      "events": [
+        {
+          "type": "sample",
+          "observedInput": 300,
+          "mediaTokens": 0,
+          "textBytes": 1000
+        },
+        {
+          "type": "sample",
+          "observedInput": 280,
+          "mediaTokens": 0,
+          "textBytes": 1000
+        },
+        {
+          "type": "sample",
+          "observedInput": 320,
+          "mediaTokens": 0,
+          "textBytes": 1000
+        },
+        {
+          "type": "sample",
+          "observedInput": 400,
+          "mediaTokens": 0,
+          "textBytes": 1000
+        }
+      ],
+      "expected": [
+        {
+          "n": 1,
+          "rho": 0.5,
+          "rhoHi": 0.5
+        },
+        {
+          "n": 2,
+          "rho": 0.5,
+          "rhoHi": 0.5
+        },
+        {
+          "n": 3,
+          "rho": 0.3,
+          "rhoHi": 0.345
+        },
+        {
+          "n": 4,
+          "rho": 0.32999999999999996,
+          "rhoHi": 0.37949999999999995
+        }
+      ]
+    },
+    {
+      "id": "media_tokens_are_subtracted",
+      "events": [
+        {
+          "type": "sample",
+          "observedInput": 1858,
+          "mediaTokens": 1558,
+          "textBytes": 1000
+        },
+        {
+          "type": "sample",
+          "observedInput": 1858,
+          "mediaTokens": 1558,
+          "textBytes": 1000
+        },
+        {
+          "type": "sample",
+          "observedInput": 1858,
+          "mediaTokens": 1558,
+          "textBytes": 1000
+        }
+      ],
+      "expected": [
+        {
+          "n": 1,
+          "rho": 0.5,
+          "rhoHi": 0.5
+        },
+        {
+          "n": 2,
+          "rho": 0.5,
+          "rhoHi": 0.5
+        },
+        {
+          "n": 3,
+          "rho": 0.3,
+          "rhoHi": 0.345
+        }
+      ]
+    },
+    {
+      "id": "clamped_low_and_high",
+      "events": [
+        {
+          "type": "sample",
+          "observedInput": 50,
+          "mediaTokens": 0,
+          "textBytes": 1000
+        },
+        {
+          "type": "sample",
+          "observedInput": 50,
+          "mediaTokens": 0,
+          "textBytes": 1000
+        },
+        {
+          "type": "sample",
+          "observedInput": 50,
+          "mediaTokens": 0,
+          "textBytes": 1000
+        },
+        {
+          "type": "sample",
+          "observedInput": 9000,
+          "mediaTokens": 0,
+          "textBytes": 1000
+        },
+        {
+          "type": "sample",
+          "observedInput": 9000,
+          "mediaTokens": 0,
+          "textBytes": 1000
+        }
+      ],
+      "expected": [
+        {
+          "n": 1,
+          "rho": 0.5,
+          "rhoHi": 0.5
+        },
+        {
+          "n": 2,
+          "rho": 0.5,
+          "rhoHi": 0.5
+        },
+        {
+          "n": 3,
+          "rho": 0.15,
+          "rhoHi": 0.1725
+        },
+        {
+          "n": 4,
+          "rho": 0.7,
+          "rhoHi": 0.8049999999999999
+        },
+        {
+          "n": 5,
+          "rho": 0.7,
+          "rhoHi": 0.8049999999999999
+        }
+      ]
+    },
+    {
+      "id": "missing_or_invalid_samples_are_skipped",
+      "events": [
+        {
+          "type": "sample",
+          "observedInput": null,
+          "mediaTokens": 0,
+          "textBytes": 1000
+        },
+        {
+          "type": "sample",
+          "observedInput": 500,
+          "mediaTokens": 0,
+          "textBytes": 0
+        },
+        {
+          "type": "sample",
+          "observedInput": 100,
+          "mediaTokens": 200,
+          "textBytes": 1000
+        }
+      ],
+      "expected": [
+        {
+          "n": 0,
+          "rho": 0.5,
+          "rhoHi": 0.5
+        },
+        {
+          "n": 0,
+          "rho": 0.5,
+          "rhoHi": 0.5
+        },
+        {
+          "n": 0,
+          "rho": 0.5,
+          "rhoHi": 0.5
+        }
+      ],
+      "note": "null observed input (Relay without usage), zero text bytes, and non-positive ratios never count as samples."
+    },
+    {
+      "id": "overflow_miss_raises_rho",
+      "events": [
+        {
+          "type": "overflowMiss"
+        },
+        {
+          "type": "sample",
+          "observedInput": 300,
+          "mediaTokens": 0,
+          "textBytes": 1000
+        },
+        {
+          "type": "sample",
+          "observedInput": 300,
+          "mediaTokens": 0,
+          "textBytes": 1000
+        },
+        {
+          "type": "sample",
+          "observedInput": 300,
+          "mediaTokens": 0,
+          "textBytes": 1000
+        },
+        {
+          "type": "overflowMiss"
+        },
+        {
+          "type": "overflowMiss"
+        },
+        {
+          "type": "overflowMiss"
+        }
+      ],
+      "expected": [
+        {
+          "n": 0,
+          "rho": 0.625,
+          "rhoHi": 0.625
+        },
+        {
+          "n": 1,
+          "rho": 0.625,
+          "rhoHi": 0.625
+        },
+        {
+          "n": 2,
+          "rho": 0.625,
+          "rhoHi": 0.625
+        },
+        {
+          "n": 3,
+          "rho": 0.3,
+          "rhoHi": 0.345
+        },
+        {
+          "n": 3,
+          "rho": 0.375,
+          "rhoHi": 0.43124999999999997
+        },
+        {
+          "n": 3,
+          "rho": 0.46875,
+          "rhoHi": 0.5390625
+        },
+        {
+          "n": 3,
+          "rho": 0.5859375,
+          "rhoHi": 0.673828125
+        }
+      ],
+      "note": "Before 3 samples a miss raises rho itself (rhoHi = rho); the third sample re-seeds rho from the sample mean."
+    }
+  ],
+  "estimateCases": [
+    {
+      "id": "ascii",
+      "input": {
+        "text": "Hello, world!",
+        "rhoHi": 0.5
+      },
+      "expected": {
+        "utf8Bytes": 13,
+        "textTokens": 7,
+        "messageTokens": 11
+      }
+    },
+    {
+      "id": "cjk",
+      "input": {
+        "text": "从现在起，全程用阿拉伯语写。",
+        "rhoHi": 0.5
+      },
+      "expected": {
+        "utf8Bytes": 42,
+        "textTokens": 21,
+        "messageTokens": 25
+      }
+    },
+    {
+      "id": "arabic",
+      "input": {
+        "text": "اكتب الفصل الثاني من فضلك",
+        "rhoHi": 0.5
+      },
+      "expected": {
+        "utf8Bytes": 46,
+        "textTokens": 23,
+        "messageTokens": 27
+      }
+    },
+    {
+      "id": "emoji_zwj",
+      "input": {
+        "text": "👩‍💻 done",
+        "rhoHi": 0.575
+      },
+      "expected": {
+        "utf8Bytes": 16,
+        "textTokens": 10,
+        "messageTokens": 14
+      }
+    },
+    {
+      "id": "empty",
+      "input": {
+        "text": "",
+        "rhoHi": 0.5
+      },
+      "expected": {
+        "utf8Bytes": 0,
+        "textTokens": 0,
+        "messageTokens": 4
+      }
+    },
+    {
+      "id": "calibrated",
+      "input": {
+        "text": "The quick brown fox jumps over the lazy dog.",
+        "rhoHi": 0.3105
+      },
+      "expected": {
+        "utf8Bytes": 44,
+        "textTokens": 14,
+        "messageTokens": 18
+      }
+    }
+  ],
+  "observedCases": [
+    {
+      "id": "observed_reuses_last_input_minus_old_dynamic",
+      "input": {
+        "observedPrevious": 51234,
+        "estDynamicPrevious": 180,
+        "estAnswerPrevious": 900,
+        "estNewMessages": [
+          40
+        ],
+        "estDynamicNow": 200,
+        "compactedSincePrevious": false,
+        "estimatedFull": 60000
+      },
+      "expected": {
+        "pHat": 52194,
+        "basis": "observed"
+      }
+    },
+    {
+      "id": "no_observed_falls_back_to_full_estimate",
+      "input": {
+        "observedPrevious": null,
+        "estDynamicPrevious": 0,
+        "estAnswerPrevious": 900,
+        "estNewMessages": [
+          40
+        ],
+        "estDynamicNow": 0,
+        "compactedSincePrevious": false,
+        "estimatedFull": 60000
+      },
+      "expected": {
+        "pHat": 60000,
+        "basis": "estimated"
+      }
+    },
+    {
+      "id": "compaction_invalidates_observed",
+      "input": {
+        "observedPrevious": 51234,
+        "estDynamicPrevious": 180,
+        "estAnswerPrevious": 900,
+        "estNewMessages": [
+          40
+        ],
+        "estDynamicNow": 200,
+        "compactedSincePrevious": true,
+        "estimatedFull": 30000
+      },
+      "expected": {
+        "pHat": 30000,
+        "basis": "estimated"
+      }
+    }
+  ],
+  "displayCases": [
+    {
+      "id": "observed_38",
+      "input": {
+        "windowKnown": true,
+        "pHat": 43776,
+        "B": 115200,
+        "basis": "observed",
+        "observedEver": true,
+        "overflowed": false
+      },
+      "expected": {
+        "display": "percent",
+        "percent": 38,
+        "tone": "neutral"
+      }
+    },
+    {
+      "id": "observed_rounds_up",
+      "input": {
+        "windowKnown": true,
+        "pHat": 1,
+        "B": 115200,
+        "basis": "observed",
+        "observedEver": true,
+        "overflowed": false
+      },
+      "expected": {
+        "display": "percent",
+        "percent": 1,
+        "tone": "neutral"
+      }
+    },
+    {
+      "id": "warm_at_70",
+      "input": {
+        "windowKnown": true,
+        "pHat": 80640,
+        "B": 115200,
+        "basis": "observed",
+        "observedEver": true,
+        "overflowed": false
+      },
+      "expected": {
+        "display": "percent",
+        "percent": 70,
+        "tone": "warm"
+      }
+    },
+    {
+      "id": "overflow_is_error",
+      "input": {
+        "windowKnown": true,
+        "pHat": 120000,
+        "B": 115200,
+        "basis": "observed",
+        "observedEver": true,
+        "overflowed": true
+      },
+      "expected": {
+        "display": "percent",
+        "percent": 105,
+        "tone": "error"
+      }
+    },
+    {
+      "id": "never_observed_shows_unavailable_with_estimate",
+      "input": {
+        "windowKnown": true,
+        "pHat": 20000,
+        "B": 115200,
+        "basis": "estimated",
+        "observedEver": false,
+        "overflowed": false
+      },
+      "expected": {
+        "display": "unavailable",
+        "percent": null,
+        "tone": null,
+        "estimatedPercent": 18
+      }
+    },
+    {
+      "id": "window_unknown",
+      "input": {
+        "windowKnown": false,
+        "pHat": 20000,
+        "B": null,
+        "basis": "estimated",
+        "observedEver": true,
+        "overflowed": false
+      },
+      "expected": {
+        "display": "unavailable",
+        "percent": null,
+        "tone": null
+      }
+    }
+  ]
+}

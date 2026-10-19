@@ -1,0 +1,5998 @@
+{
+  "$comment": "Memory item v2 contract (context pipeline §13). Clients run their production canonicalizer, legacy migration, injection filter and sync merge on each input. Server-time fields are null in expectations (the store sets them on write) and must be ignored when comparing written documents.",
+  "schema": "oriveo.memory.items",
+  "version": 2,
+  "constants": {
+    "uuidNamespace": {
+      "derivation": "UUIDv5(NAMESPACE_URL, url)",
+      "url": "https://oriveo.app/ns/memory-item",
+      "value": "7b430abd-757c-5561-bdc9-40d1e677748c"
+    },
+    "legacyKeys": {
+      "memoryText": "legacy-memoryText",
+      "antiForget": "legacy-antiforget"
+    },
+    "migrationMutationSuffix": "migration-1",
+    "contentMaxCodePoints": 2000,
+    "organizeSystemPrompt": "Split the saved memory below into separate items. Each item states exactly one fact, preference, instruction, constraint or project. Keep the user's language and wording; do not add, infer, merge away or drop information. Reply with only a JSON array, no prose: [{\"kind\": \"identity|preference|instruction|constraint|project|goal|decision|fact\", \"content\": \"...\"}].",
+    "organizeMaxItems": 20,
+    "rawViewSeparator": "---",
+    "serverTimestampSentinel": "<serverTimestamp>"
+  },
+  "fields": {
+    "id": {
+      "type": "uuid",
+      "required": true
+    },
+    "schemaVersion": {
+      "type": "int",
+      "const": 2
+    },
+    "layer": {
+      "type": "enum",
+      "values": [
+        "semantic",
+        "episodic"
+      ]
+    },
+    "kind": {
+      "type": "enum",
+      "values": [
+        "identity",
+        "preference",
+        "instruction",
+        "constraint",
+        "project",
+        "goal",
+        "decision",
+        "fact",
+        "event"
+      ]
+    },
+    "status": {
+      "type": "enum",
+      "values": [
+        "active",
+        "paused",
+        "superseded",
+        "deleted",
+        "expired",
+        "conflicted"
+      ]
+    },
+    "content": {
+      "type": "string",
+      "maxCodePoints": 2000,
+      "required": true
+    },
+    "scope": {
+      "type": "object",
+      "fields": {
+        "type": {
+          "type": "enum",
+          "values": [
+            "global",
+            "folder",
+            "conversation"
+          ]
+        },
+        "id": {
+          "type": "string|null"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "fields": {
+        "type": {
+          "type": "enum",
+          "values": [
+            "manual",
+            "conversation",
+            "import",
+            "migration"
+          ]
+        },
+        "conversationId": {
+          "type": "string|null"
+        },
+        "messageIds": {
+          "type": "string[]",
+          "maxItems": 50
+        },
+        "observedAt": {
+          "type": "rfc3339|null"
+        }
+      }
+    },
+    "sensitivity": {
+      "type": "enum",
+      "values": [
+        "normal",
+        "sensitive",
+        "restricted"
+      ]
+    },
+    "confidence": {
+      "type": "number",
+      "min": 0,
+      "max": 1
+    },
+    "priority": {
+      "type": "int"
+    },
+    "pinned": {
+      "type": "bool"
+    },
+    "revision": {
+      "type": "int",
+      "min": 1
+    },
+    "baseRevision": {
+      "type": "int",
+      "min": 0
+    },
+    "mutationId": {
+      "type": "uuid"
+    },
+    "deviceId": {
+      "type": "string"
+    },
+    "conflictGroupId": {
+      "type": "uuid|null"
+    },
+    "occurredAt": {
+      "type": "rfc3339|null"
+    },
+    "validFrom": {
+      "type": "server-time|null"
+    },
+    "lastConfirmedAt": {
+      "type": "server-time|null"
+    },
+    "createdAt": {
+      "type": "server-time|null"
+    },
+    "updatedAt": {
+      "type": "server-time|null"
+    },
+    "expiresAt": {
+      "type": "rfc3339|null"
+    },
+    "deletedAt": {
+      "type": "rfc3339|null"
+    },
+    "supersedes": {
+      "type": "uuid[]"
+    }
+  },
+  "fieldOrder": [
+    "id",
+    "schemaVersion",
+    "layer",
+    "kind",
+    "status",
+    "content",
+    "scope",
+    "source",
+    "sensitivity",
+    "confidence",
+    "priority",
+    "pinned",
+    "revision",
+    "baseRevision",
+    "mutationId",
+    "deviceId",
+    "conflictGroupId",
+    "occurredAt",
+    "validFrom",
+    "lastConfirmedAt",
+    "createdAt",
+    "updatedAt",
+    "expiresAt",
+    "deletedAt",
+    "supersedes"
+  ],
+  "defaults": {
+    "schemaVersion": 2,
+    "layer": "semantic",
+    "status": "active",
+    "scope": {
+      "type": "global",
+      "id": null
+    },
+    "source": {
+      "type": "manual",
+      "conversationId": null,
+      "messageIds": [],
+      "observedAt": null
+    },
+    "sensitivity": "normal",
+    "confidence": 1,
+    "priority": 0,
+    "pinned": false,
+    "revision": 1,
+    "baseRevision": 0,
+    "conflictGroupId": null,
+    "occurredAt": null,
+    "validFrom": null,
+    "lastConfirmedAt": null,
+    "createdAt": null,
+    "updatedAt": null,
+    "expiresAt": null,
+    "deletedAt": null,
+    "supersedes": []
+  },
+  "rules": [
+    "Canonical: fill defaults, lowercase id / mutationId / conflictGroupId / supersedes, keep content byte-for-byte.",
+    "Migration id = UUIDv5(namespace, uid + \\n + legacyKey); mutationId = UUIDv5(namespace, id + \\n + migration-1); write with create-if-absent.",
+    "memoryText non-blank → one fact item, status active, content = memoryText unchanged. antiForgetText non-blank and trim(antiForgetText) != trim(memoryText) → one instruction item, status active when Anti-Forget was enabled, paused when disabled.",
+    "status paused = kept and editable, never injected (also the per-item off switch in settings).",
+    "Injectable: layer semantic, status active, expiresAt null or > now, scope global / this conversation / this folder (scope.id compared case-insensitively: UUID ids differ in case across clients). instruction + constraint → standingInstructions, others → memory; pinned first then input order. restricted items are injected into the user's own chat provider but never cloud-synced, never sent to memoryExtraction, never in telemetry.",
+    "Merge: a pending local edit whose baseRevision is behind a remote revision with different content → conflicted (both kept); a remote echo of the pending mutationId confirms it; otherwise a higher remote revision applies (tombstones included), equal revision + same mutationId is a no-op, lower is ignored.",
+    "Order: list order = pinned first, then createdAt ascending (null first, compared as instants), then id ascending. Injection input, settings list, raw view, legacy compile and backup export all use it.",
+    "Tombstone: delete keeps id, schemaVersion, layer, kind, createdAt; status deleted, content \"\", deletedAt = deletion time, revision unchanged until pushed, baseRevision = revision, new mutationId / deviceId; every other field back to defaults (no body, no source pointers).",
+    "Merge additions: a remote at or below the pending baseRevision → keepPending; no pending and same revision with another mutationId → applyRemote (server wins); a pending delete always wins (keepPending, pushed at remote revision + 1); a pending edit meeting a newer remote tombstone is dropped (deletion is never resurrected by an offline edit); a pending edit equal in content and status to the newer remote is dropped as applyRemote.",
+    "Push (inside a remote-store transaction): remote missing → write revision 1; remote mutationId = pending mutationId → confirmed, no write; pending baseRevision 0 (a create: migration, conflict copy, new item) with a remote present → dropPending (create-if-absent; the listener merge applies the remote the same way); remote revision = pending baseRevision → write remote revision + 1; otherwise apply the merge additions (pending delete → write remote revision + 1; remote tombstone or same content → dropPending) and anything else is a conflict.",
+    "Conflict: the original item takes the remote content and becomes status conflicted with conflictGroupId = its own id (a normal local edit, pushed); the pending edit becomes a copy with id = UUIDv5(namespace, itemId + \\n + pendingMutationId), status conflicted, conflictGroupId = itemId, revision 1, baseRevision 0, mutationId = UUIDv5(namespace, copyId + \\n + conflict-1), createdAt / updatedAt null. Resolving keeps one (status active, conflictGroupId null) and tombstones the other.",
+    "Legacy compile (dual write for one release cycle): memoryText = contents of semantic, active, non-restricted, global items except the Anti-Forget migration id, in list order, joined by \\n\\n; memoryTextDigest = sha256 hex of its UTF-8. When memoryText changes, new clients write memoryText, memoryTextDigest and memoryUpdatedAt = now together and push them; a write that only fills a missing / stale digest (textChanged false) stays local: memoryUpdatedAt untouched, nothing pushed (a fresh device must never overwrite the cloud memoryText before its first pull). Anti-Forget fields are never written again.",
+    "Legacy sync (migrated is a per-account local flag): not migrated and memoryTextDigest = sha256(memoryText) → the account was migrated by another new client: create nothing, just set the flag. Not migrated otherwise → migration items created if absent. Migrated and digest = sha256(memoryText) → nothing. Otherwise an old client edited memoryText: if it equals the compile only the prefs are rewritten; blank → tombstone the memoryText migration item; else that item gets content = memoryText, status active (created when missing). Its mutationId = UUIDv5(namespace, itemId + \\n + legacy- + sha256(text, or \"\" when text is White_Space-only)) so every device makes the same mutation. writePrefs = { memoryText, memoryTextDigest, textChanged } when memoryText or digest differ from the compile, else null; textChanged = compile differs from memoryText.",
+    "Raw view: render = contents of semantic active items in list order joined by \\n---\\n. Apply: identical text → no ops. Split on lines equal to --- (a trailing \\r ignored), trim each segment (White_Space), drop empty ones; a segment over contentMaxCodePoints → error tooLong with its index (0-based, counted after empty segments are dropped). Pass 1: each segment keeps the first unmatched item whose trimmed content equals it. Pass 2: remaining segments update remaining items pairwise in order; extra segments create kind fact items (ids supplied by the caller); extra items are deleted.",
+    "Organize: request = system organizeSystemPrompt, one user message = the item content unchanged. Parse = text from the first [ to the last ], JSON array; keep objects with a string content, trimmed (White_Space), non-empty, ≤ contentMaxCodePoints, not a duplicate; kind lowercased when it is one of the eight semantic kinds else fact; at most organizeMaxItems. Anything unparseable → []. Accepting creates source manual items; the original is tombstoned unless the user keeps it.",
+    "Backup: top-level memorySchemaVersion 2 and memoryItems = every local item (tombstones and conflicts included) in list order, canonical, server-time fields as RFC3339 or null. Import merge per id: missing locally or backup revision higher → take the backup item; otherwise keep local (a tombstone is not resurrected by an older backup). Replace takes the backup list, and every live local item missing from the backup becomes a pending tombstone (tombstonedIds) so the cloud and other devices converge; importNew only adds ids missing locally (tombstones count as present). Imported items are pending and go through Push. A backup without memoryItems is migrated from its legacy preferences (create if absent).",
+    "Remote document = all fieldOrder keys of the canonical item; revision / baseRevision from Push (remote missing → revision 1, baseRevision 0 regardless of local values); unknown kind / status read from storage fall back to fact / paused (kept, never injected); updatedAt = server timestamp; createdAt = server timestamp on create, the remote value on update. restricted items are never written (skip).",
+    "Restricted retraction (P6): a pending item with sensitivity restricted is never written as itself. Push reads the remote in the same transaction: remote live (status not deleted, any revision) → retract = write the item's tombstone (Tombstone rule; mutationId and deviceId = the pending item's, deletedAt = now, sensitivity back to normal) at remote revision + 1 with baseRevision = remote revision; remote missing or already a tombstone → localOnly, no write. Either way the local item keeps its content, status and restricted sensitivity, becomes synced, and its revision = baseRevision = the written revision (retract), the remote tombstone revision, or 0 (missing). Merge: a local item that is restricted ignores every remote version (ignoreRemote; keepPending when it has a pending change), so the retraction echo and later edits from devices that still had the copy never overwrite it. Other devices apply the tombstone like any delete. Absent sensitivity in a case input means normal."
+  ],
+  "canonicalCases": [
+    {
+      "id": "defaults_and_lowercase_ids",
+      "input": {
+        "id": "3F2C1B0A-9E8D-4C7B-A6F5-0E1D2C3B4A59",
+        "kind": "preference",
+        "content": "Concise answers",
+        "mutationId": "A1B2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D",
+        "deviceId": "dev-a"
+      },
+      "expected": {
+        "id": "3f2c1b0a-9e8d-4c7b-a6f5-0e1d2c3b4a59",
+        "schemaVersion": 2,
+        "layer": "semantic",
+        "kind": "preference",
+        "status": "active",
+        "content": "Concise answers",
+        "scope": {
+          "type": "global",
+          "id": null
+        },
+        "source": {
+          "type": "manual",
+          "conversationId": null,
+          "messageIds": [],
+          "observedAt": null
+        },
+        "sensitivity": "normal",
+        "confidence": 1,
+        "priority": 0,
+        "pinned": false,
+        "revision": 1,
+        "baseRevision": 0,
+        "mutationId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+        "deviceId": "dev-a",
+        "conflictGroupId": null,
+        "occurredAt": null,
+        "validFrom": null,
+        "lastConfirmedAt": null,
+        "createdAt": null,
+        "updatedAt": null,
+        "expiresAt": null,
+        "deletedAt": null,
+        "supersedes": []
+      }
+    },
+    {
+      "id": "explicit_fields_kept",
+      "input": {
+        "id": "3f2c1b0a-9e8d-4c7b-a6f5-0e1d2c3b4a59",
+        "kind": "project",
+        "content": "Saga",
+        "pinned": true,
+        "priority": 3,
+        "scope": {
+          "type": "conversation",
+          "id": "c1"
+        },
+        "mutationId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+        "deviceId": "dev-a",
+        "revision": 4,
+        "baseRevision": 3
+      },
+      "expected": {
+        "id": "3f2c1b0a-9e8d-4c7b-a6f5-0e1d2c3b4a59",
+        "schemaVersion": 2,
+        "layer": "semantic",
+        "kind": "project",
+        "status": "active",
+        "content": "Saga",
+        "scope": {
+          "type": "conversation",
+          "id": "c1"
+        },
+        "source": {
+          "type": "manual",
+          "conversationId": null,
+          "messageIds": [],
+          "observedAt": null
+        },
+        "sensitivity": "normal",
+        "confidence": 1,
+        "priority": 3,
+        "pinned": true,
+        "revision": 4,
+        "baseRevision": 3,
+        "mutationId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+        "deviceId": "dev-a",
+        "conflictGroupId": null,
+        "occurredAt": null,
+        "validFrom": null,
+        "lastConfirmedAt": null,
+        "createdAt": null,
+        "updatedAt": null,
+        "expiresAt": null,
+        "deletedAt": null,
+        "supersedes": []
+      }
+    }
+  ],
+  "migrationCases": [
+    {
+      "id": "memory_text_only",
+      "input": {
+        "uid": "uid_7Hq2",
+        "deviceId": "dev-a",
+        "memoryText": "I write historical novels.\nPrefer Arabic.",
+        "antiForgetEnabled": false,
+        "antiForgetText": "",
+        "memoryUpdatedAt": "2026-09-01T08:00:00Z"
+      },
+      "expected": [
+        {
+          "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+          "schemaVersion": 2,
+          "layer": "semantic",
+          "kind": "fact",
+          "status": "active",
+          "content": "I write historical novels.\nPrefer Arabic.",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "migration",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAt": "2026-09-01T08:00:00Z"
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "priority": 0,
+          "pinned": false,
+          "revision": 1,
+          "baseRevision": 0,
+          "mutationId": "83bb7854-f957-5040-9a4d-b91bfe0d1f94",
+          "deviceId": "dev-a",
+          "conflictGroupId": null,
+          "occurredAt": null,
+          "validFrom": null,
+          "lastConfirmedAt": null,
+          "createdAt": null,
+          "updatedAt": null,
+          "expiresAt": null,
+          "deletedAt": null,
+          "supersedes": []
+        }
+      ],
+      "note": "content is the legacy text byte-for-byte (diff 0), no trimming."
+    },
+    {
+      "id": "same_input_other_device_same_ids",
+      "input": {
+        "uid": "uid_7Hq2",
+        "deviceId": "dev-b",
+        "memoryText": "I write historical novels.\nPrefer Arabic.",
+        "antiForgetEnabled": false,
+        "antiForgetText": "",
+        "memoryUpdatedAt": "2026-09-01T08:00:00Z"
+      },
+      "expected": [
+        {
+          "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+          "schemaVersion": 2,
+          "layer": "semantic",
+          "kind": "fact",
+          "status": "active",
+          "content": "I write historical novels.\nPrefer Arabic.",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "migration",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAt": "2026-09-01T08:00:00Z"
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "priority": 0,
+          "pinned": false,
+          "revision": 1,
+          "baseRevision": 0,
+          "mutationId": "83bb7854-f957-5040-9a4d-b91bfe0d1f94",
+          "deviceId": "dev-b",
+          "conflictGroupId": null,
+          "occurredAt": null,
+          "validFrom": null,
+          "lastConfirmedAt": null,
+          "createdAt": null,
+          "updatedAt": null,
+          "expiresAt": null,
+          "deletedAt": null,
+          "supersedes": []
+        }
+      ],
+      "note": "id and mutationId are deterministic, so two devices migrating create one item (create-if-absent)."
+    },
+    {
+      "id": "antiforget_differs_enabled",
+      "input": {
+        "uid": "uid_7Hq2",
+        "deviceId": "dev-a",
+        "memoryText": "I write historical novels.",
+        "antiForgetEnabled": true,
+        "antiForgetText": "Always answer in Arabic.",
+        "memoryUpdatedAt": null
+      },
+      "expected": [
+        {
+          "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+          "schemaVersion": 2,
+          "layer": "semantic",
+          "kind": "fact",
+          "status": "active",
+          "content": "I write historical novels.",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "migration",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAt": null
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "priority": 0,
+          "pinned": false,
+          "revision": 1,
+          "baseRevision": 0,
+          "mutationId": "83bb7854-f957-5040-9a4d-b91bfe0d1f94",
+          "deviceId": "dev-a",
+          "conflictGroupId": null,
+          "occurredAt": null,
+          "validFrom": null,
+          "lastConfirmedAt": null,
+          "createdAt": null,
+          "updatedAt": null,
+          "expiresAt": null,
+          "deletedAt": null,
+          "supersedes": []
+        },
+        {
+          "id": "25bdfec0-ba55-5f41-98e6-ebbc6a9b8b5b",
+          "schemaVersion": 2,
+          "layer": "semantic",
+          "kind": "instruction",
+          "status": "active",
+          "content": "Always answer in Arabic.",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "migration",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAt": null
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "priority": 0,
+          "pinned": false,
+          "revision": 1,
+          "baseRevision": 0,
+          "mutationId": "39c4cd59-f318-5910-8d2f-4a329b86a6b1",
+          "deviceId": "dev-a",
+          "conflictGroupId": null,
+          "occurredAt": null,
+          "validFrom": null,
+          "lastConfirmedAt": null,
+          "createdAt": null,
+          "updatedAt": null,
+          "expiresAt": null,
+          "deletedAt": null,
+          "supersedes": []
+        }
+      ]
+    },
+    {
+      "id": "antiforget_differs_disabled_is_paused",
+      "input": {
+        "uid": "uid_7Hq2",
+        "deviceId": "dev-a",
+        "memoryText": "I write historical novels.",
+        "antiForgetEnabled": false,
+        "antiForgetText": "Always answer in Arabic.",
+        "memoryUpdatedAt": null
+      },
+      "expected": [
+        {
+          "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+          "schemaVersion": 2,
+          "layer": "semantic",
+          "kind": "fact",
+          "status": "active",
+          "content": "I write historical novels.",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "migration",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAt": null
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "priority": 0,
+          "pinned": false,
+          "revision": 1,
+          "baseRevision": 0,
+          "mutationId": "83bb7854-f957-5040-9a4d-b91bfe0d1f94",
+          "deviceId": "dev-a",
+          "conflictGroupId": null,
+          "occurredAt": null,
+          "validFrom": null,
+          "lastConfirmedAt": null,
+          "createdAt": null,
+          "updatedAt": null,
+          "expiresAt": null,
+          "deletedAt": null,
+          "supersedes": []
+        },
+        {
+          "id": "25bdfec0-ba55-5f41-98e6-ebbc6a9b8b5b",
+          "schemaVersion": 2,
+          "layer": "semantic",
+          "kind": "instruction",
+          "status": "paused",
+          "content": "Always answer in Arabic.",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "migration",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAt": null
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "priority": 0,
+          "pinned": false,
+          "revision": 1,
+          "baseRevision": 0,
+          "mutationId": "39c4cd59-f318-5910-8d2f-4a329b86a6b1",
+          "deviceId": "dev-a",
+          "conflictGroupId": null,
+          "occurredAt": null,
+          "validFrom": null,
+          "lastConfirmedAt": null,
+          "createdAt": null,
+          "updatedAt": null,
+          "expiresAt": null,
+          "deletedAt": null,
+          "supersedes": []
+        }
+      ],
+      "note": "The user had switched Anti-Forget off: keep the text (no loss) but do not inject it (status paused)."
+    },
+    {
+      "id": "antiforget_equal_to_memory_text_skipped",
+      "input": {
+        "uid": "uid_7Hq2",
+        "deviceId": "dev-a",
+        "memoryText": "Prefer Arabic.",
+        "antiForgetEnabled": true,
+        "antiForgetText": "  Prefer Arabic.  ",
+        "memoryUpdatedAt": null
+      },
+      "expected": [
+        {
+          "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+          "schemaVersion": 2,
+          "layer": "semantic",
+          "kind": "fact",
+          "status": "active",
+          "content": "Prefer Arabic.",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "migration",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAt": null
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "priority": 0,
+          "pinned": false,
+          "revision": 1,
+          "baseRevision": 0,
+          "mutationId": "83bb7854-f957-5040-9a4d-b91bfe0d1f94",
+          "deviceId": "dev-a",
+          "conflictGroupId": null,
+          "occurredAt": null,
+          "validFrom": null,
+          "lastConfirmedAt": null,
+          "createdAt": null,
+          "updatedAt": null,
+          "expiresAt": null,
+          "deletedAt": null,
+          "supersedes": []
+        }
+      ]
+    },
+    {
+      "id": "empty_everything",
+      "input": {
+        "uid": "uid_7Hq2",
+        "deviceId": "dev-a",
+        "memoryText": "   ",
+        "antiForgetEnabled": true,
+        "antiForgetText": "",
+        "memoryUpdatedAt": null
+      },
+      "expected": []
+    },
+    {
+      "id": "memory_text_over_limit_kept_whole",
+      "input": {
+        "uid": "uid_7Hq2",
+        "deviceId": "dev-a",
+        "memoryText": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "antiForgetEnabled": false,
+        "antiForgetText": "",
+        "memoryUpdatedAt": null
+      },
+      "expected": [
+        {
+          "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+          "schemaVersion": 2,
+          "layer": "semantic",
+          "kind": "fact",
+          "status": "active",
+          "content": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "migration",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAt": null
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "priority": 0,
+          "pinned": false,
+          "revision": 1,
+          "baseRevision": 0,
+          "mutationId": "83bb7854-f957-5040-9a4d-b91bfe0d1f94",
+          "deviceId": "dev-a",
+          "conflictGroupId": null,
+          "occurredAt": null,
+          "validFrom": null,
+          "lastConfirmedAt": null,
+          "createdAt": null,
+          "updatedAt": null,
+          "expiresAt": null,
+          "deletedAt": null,
+          "supersedes": []
+        }
+      ],
+      "note": "Migration never truncates; the 2000 code point limit applies to edits."
+    }
+  ],
+  "injectableCases": [
+    {
+      "id": "filters_and_order_in_c1",
+      "input": {
+        "items": [
+          {
+            "id": "10000000-0000-4000-8000-000000000001",
+            "kind": "instruction",
+            "content": "Answer in Arabic",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d"
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000002",
+            "kind": "constraint",
+            "content": "No emoji",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "pinned": true
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000003",
+            "kind": "identity",
+            "content": "Novelist",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d"
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000004",
+            "kind": "preference",
+            "content": "Concise",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "pinned": true
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000005",
+            "kind": "fact",
+            "content": "10000000-0000-4000-8000-000000000005",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "status": "paused"
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000006",
+            "kind": "fact",
+            "content": "10000000-0000-4000-8000-000000000006",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "status": "conflicted"
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000007",
+            "kind": "fact",
+            "content": "10000000-0000-4000-8000-000000000007",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "status": "deleted"
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000008",
+            "kind": "fact",
+            "content": "10000000-0000-4000-8000-000000000008",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "expiresAt": "2026-10-01T00:00:00Z"
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000009",
+            "kind": "fact",
+            "content": "10000000-0000-4000-8000-000000000009",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "expiresAt": "2026-12-01T00:00:00Z"
+          },
+          {
+            "id": "10000000-0000-4000-8000-00000000000a",
+            "kind": "fact",
+            "content": "10000000-0000-4000-8000-00000000000a",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "scope": {
+              "type": "conversation",
+              "id": "c1"
+            }
+          },
+          {
+            "id": "10000000-0000-4000-8000-00000000000b",
+            "kind": "fact",
+            "content": "10000000-0000-4000-8000-00000000000b",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "scope": {
+              "type": "conversation",
+              "id": "c2"
+            }
+          },
+          {
+            "id": "10000000-0000-4000-8000-00000000000c",
+            "kind": "fact",
+            "content": "10000000-0000-4000-8000-00000000000c",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "scope": {
+              "type": "folder",
+              "id": "f1"
+            }
+          },
+          {
+            "id": "10000000-0000-4000-8000-00000000000d",
+            "kind": "event",
+            "content": "10000000-0000-4000-8000-00000000000d",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "layer": "episodic"
+          },
+          {
+            "id": "10000000-0000-4000-8000-00000000000e",
+            "kind": "fact",
+            "content": "Restricted but injectable",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "sensitivity": "restricted"
+          }
+        ],
+        "conversationId": "c1",
+        "folderId": null,
+        "now": "2026-10-15T00:00:00Z"
+      },
+      "expected": {
+        "standingInstructions": [
+          "10000000-0000-4000-8000-000000000002",
+          "10000000-0000-4000-8000-000000000001"
+        ],
+        "memory": [
+          "10000000-0000-4000-8000-000000000004",
+          "10000000-0000-4000-8000-000000000003",
+          "10000000-0000-4000-8000-000000000009",
+          "10000000-0000-4000-8000-00000000000a",
+          "10000000-0000-4000-8000-00000000000e"
+        ]
+      }
+    },
+    {
+      "id": "folder_scope_in_f1",
+      "input": {
+        "items": [
+          {
+            "id": "10000000-0000-4000-8000-000000000001",
+            "kind": "instruction",
+            "content": "Answer in Arabic",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d"
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000002",
+            "kind": "constraint",
+            "content": "No emoji",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "pinned": true
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000003",
+            "kind": "identity",
+            "content": "Novelist",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d"
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000004",
+            "kind": "preference",
+            "content": "Concise",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "pinned": true
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000005",
+            "kind": "fact",
+            "content": "10000000-0000-4000-8000-000000000005",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "status": "paused"
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000006",
+            "kind": "fact",
+            "content": "10000000-0000-4000-8000-000000000006",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "status": "conflicted"
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000007",
+            "kind": "fact",
+            "content": "10000000-0000-4000-8000-000000000007",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "status": "deleted"
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000008",
+            "kind": "fact",
+            "content": "10000000-0000-4000-8000-000000000008",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "expiresAt": "2026-10-01T00:00:00Z"
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000009",
+            "kind": "fact",
+            "content": "10000000-0000-4000-8000-000000000009",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "expiresAt": "2026-12-01T00:00:00Z"
+          },
+          {
+            "id": "10000000-0000-4000-8000-00000000000a",
+            "kind": "fact",
+            "content": "10000000-0000-4000-8000-00000000000a",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "scope": {
+              "type": "conversation",
+              "id": "c1"
+            }
+          },
+          {
+            "id": "10000000-0000-4000-8000-00000000000b",
+            "kind": "fact",
+            "content": "10000000-0000-4000-8000-00000000000b",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "scope": {
+              "type": "conversation",
+              "id": "c2"
+            }
+          },
+          {
+            "id": "10000000-0000-4000-8000-00000000000c",
+            "kind": "fact",
+            "content": "10000000-0000-4000-8000-00000000000c",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "scope": {
+              "type": "folder",
+              "id": "f1"
+            }
+          },
+          {
+            "id": "10000000-0000-4000-8000-00000000000d",
+            "kind": "event",
+            "content": "10000000-0000-4000-8000-00000000000d",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "layer": "episodic"
+          },
+          {
+            "id": "10000000-0000-4000-8000-00000000000e",
+            "kind": "fact",
+            "content": "Restricted but injectable",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "sensitivity": "restricted"
+          }
+        ],
+        "conversationId": "c3",
+        "folderId": "f1",
+        "now": "2026-10-15T00:00:00Z"
+      },
+      "expected": {
+        "standingInstructions": [
+          "10000000-0000-4000-8000-000000000002",
+          "10000000-0000-4000-8000-000000000001"
+        ],
+        "memory": [
+          "10000000-0000-4000-8000-000000000004",
+          "10000000-0000-4000-8000-000000000003",
+          "10000000-0000-4000-8000-000000000009",
+          "10000000-0000-4000-8000-00000000000c",
+          "10000000-0000-4000-8000-00000000000e"
+        ]
+      }
+    },
+    {
+      "id": "scope_id_case_insensitive",
+      "input": {
+        "items": [
+          {
+            "id": "30000000-0000-4000-8000-000000000001",
+            "kind": "fact",
+            "content": "30000000-0000-4000-8000-000000000001",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d"
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000002",
+            "kind": "fact",
+            "content": "30000000-0000-4000-8000-000000000002",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "scope": {
+              "type": "conversation",
+              "id": "9F1C2A44-0B6E-4C1D-8A2B-3C4D5E6F7A8B"
+            }
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000003",
+            "kind": "fact",
+            "content": "30000000-0000-4000-8000-000000000003",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "scope": {
+              "type": "folder",
+              "id": "AB12CD34-0000-4000-8000-00000000F01D"
+            }
+          },
+          {
+            "id": "30000000-0000-4000-8000-000000000004",
+            "kind": "fact",
+            "content": "30000000-0000-4000-8000-000000000004",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "scope": {
+              "type": "conversation",
+              "id": "other"
+            }
+          }
+        ],
+        "conversationId": "9f1c2a44-0b6e-4c1d-8a2b-3c4d5e6f7a8b",
+        "folderId": "ab12cd34-0000-4000-8000-00000000f01d",
+        "now": "2026-10-15T00:00:00Z"
+      },
+      "expected": {
+        "standingInstructions": [],
+        "memory": [
+          "30000000-0000-4000-8000-000000000001",
+          "30000000-0000-4000-8000-000000000002",
+          "30000000-0000-4000-8000-000000000003"
+        ]
+      },
+      "note": "iOS stores conversation ids as uppercase UUID strings, Web / Android lowercase."
+    }
+  ],
+  "mergeCases": [
+    {
+      "id": "newer_remote_applies",
+      "input": {
+        "local": {
+          "revision": 2,
+          "mutationId": "m2",
+          "status": "active",
+          "content": "x"
+        },
+        "remote": {
+          "revision": 3,
+          "mutationId": "m3",
+          "status": "active",
+          "content": "y"
+        },
+        "pending": null
+      },
+      "expected": {
+        "result": "applyRemote",
+        "keep": [
+          "m3"
+        ],
+        "status": "active"
+      }
+    },
+    {
+      "id": "same_revision_same_mutation_noop",
+      "input": {
+        "local": {
+          "revision": 3,
+          "mutationId": "m3",
+          "status": "active",
+          "content": "x"
+        },
+        "remote": {
+          "revision": 3,
+          "mutationId": "m3",
+          "status": "active",
+          "content": "x"
+        },
+        "pending": null
+      },
+      "expected": {
+        "result": "noop",
+        "keep": [
+          "m3"
+        ],
+        "status": "active"
+      }
+    },
+    {
+      "id": "older_remote_ignored",
+      "input": {
+        "local": {
+          "revision": 4,
+          "mutationId": "m4",
+          "status": "active",
+          "content": "x"
+        },
+        "remote": {
+          "revision": 3,
+          "mutationId": "m3",
+          "status": "active",
+          "content": "x"
+        },
+        "pending": null
+      },
+      "expected": {
+        "result": "ignoreRemote",
+        "keep": [
+          "m4"
+        ],
+        "status": "active"
+      }
+    },
+    {
+      "id": "tombstone_beats_older_edit",
+      "input": {
+        "local": {
+          "revision": 5,
+          "mutationId": "m5",
+          "status": "deleted",
+          "content": "x"
+        },
+        "remote": {
+          "revision": 4,
+          "mutationId": "m4",
+          "status": "active",
+          "content": "resurrect?"
+        },
+        "pending": null
+      },
+      "expected": {
+        "result": "ignoreRemote",
+        "keep": [
+          "m5"
+        ],
+        "status": "deleted"
+      },
+      "note": "A late edit from an offline device never resurrects a deleted item."
+    },
+    {
+      "id": "newer_tombstone_applies",
+      "input": {
+        "local": {
+          "revision": 4,
+          "mutationId": "m4",
+          "status": "active",
+          "content": "x"
+        },
+        "remote": {
+          "revision": 5,
+          "mutationId": "m5",
+          "status": "deleted",
+          "content": "x"
+        },
+        "pending": null
+      },
+      "expected": {
+        "result": "applyRemote",
+        "keep": [
+          "m5"
+        ],
+        "status": "deleted"
+      }
+    },
+    {
+      "id": "offline_edit_conflicts_with_newer_remote",
+      "input": {
+        "local": {
+          "revision": 2,
+          "mutationId": "m2",
+          "status": "active",
+          "content": "x"
+        },
+        "remote": {
+          "revision": 3,
+          "mutationId": "m3",
+          "status": "active",
+          "content": "remote"
+        },
+        "pending": {
+          "revision": null,
+          "mutationId": "mp",
+          "status": "active",
+          "content": "local",
+          "baseRevision": 2
+        }
+      },
+      "expected": {
+        "result": "conflict",
+        "keep": [
+          "m3",
+          "mp"
+        ],
+        "status": "conflicted"
+      },
+      "note": "Pending local edit based on revision 2 meets a different revision 3: keep both as conflicted, never overwrite silently."
+    },
+    {
+      "id": "own_pending_echo_confirms",
+      "input": {
+        "local": {
+          "revision": 2,
+          "mutationId": "m2",
+          "status": "active",
+          "content": "x"
+        },
+        "remote": {
+          "revision": 3,
+          "mutationId": "mp",
+          "status": "active",
+          "content": "local"
+        },
+        "pending": {
+          "revision": null,
+          "mutationId": "mp",
+          "status": "active",
+          "content": "local",
+          "baseRevision": 2
+        }
+      },
+      "expected": {
+        "result": "pendingConfirmed",
+        "keep": [
+          "mp"
+        ],
+        "status": "active"
+      }
+    },
+    {
+      "id": "first_sight_applies",
+      "input": {
+        "local": null,
+        "remote": {
+          "revision": 1,
+          "mutationId": "m1",
+          "status": "active",
+          "content": "x"
+        },
+        "pending": null
+      },
+      "expected": {
+        "result": "applyRemote",
+        "keep": [
+          "m1"
+        ],
+        "status": "active"
+      }
+    },
+    {
+      "id": "pending_edit_loses_to_newer_tombstone",
+      "input": {
+        "local": {
+          "revision": 2,
+          "mutationId": "m2",
+          "status": "active",
+          "content": "x"
+        },
+        "remote": {
+          "revision": 3,
+          "mutationId": "m3",
+          "status": "deleted",
+          "content": ""
+        },
+        "pending": {
+          "revision": null,
+          "mutationId": "mp",
+          "status": "active",
+          "content": "edited offline",
+          "baseRevision": 2
+        }
+      },
+      "expected": {
+        "result": "applyRemote",
+        "keep": [
+          "m3"
+        ],
+        "status": "deleted"
+      },
+      "note": "Deleted on another device while this one edited offline: the deletion stands."
+    },
+    {
+      "id": "pending_delete_beats_newer_edit",
+      "input": {
+        "local": {
+          "revision": 2,
+          "mutationId": "m2",
+          "status": "active",
+          "content": "x"
+        },
+        "remote": {
+          "revision": 3,
+          "mutationId": "m3",
+          "status": "active",
+          "content": "y"
+        },
+        "pending": {
+          "revision": null,
+          "mutationId": "mp",
+          "status": "deleted",
+          "content": "",
+          "baseRevision": 2
+        }
+      },
+      "expected": {
+        "result": "keepPending",
+        "keep": [
+          "mp"
+        ],
+        "status": "deleted"
+      }
+    },
+    {
+      "id": "pending_create_meets_existing_remote",
+      "input": {
+        "local": {
+          "revision": 1,
+          "mutationId": "mig",
+          "status": "active",
+          "content": "original"
+        },
+        "remote": {
+          "revision": 3,
+          "mutationId": "m3",
+          "status": "active",
+          "content": "edited on device A"
+        },
+        "pending": {
+          "revision": null,
+          "mutationId": "mig",
+          "status": "active",
+          "content": "original",
+          "baseRevision": 0
+        }
+      },
+      "expected": {
+        "result": "applyRemote",
+        "keep": [
+          "m3"
+        ],
+        "status": "active"
+      },
+      "note": "baseRevision 0 is a create-if-absent (migration on a second device): an existing remote wins, never a conflict."
+    },
+    {
+      "id": "same_revision_other_mutation_takes_server",
+      "input": {
+        "local": {
+          "revision": 3,
+          "mutationId": "m3a",
+          "status": "active",
+          "content": "x"
+        },
+        "remote": {
+          "revision": 3,
+          "mutationId": "m3b",
+          "status": "active",
+          "content": "y"
+        },
+        "pending": null
+      },
+      "expected": {
+        "result": "applyRemote",
+        "keep": [
+          "m3b"
+        ],
+        "status": "active"
+      },
+      "note": "Cannot happen with transactional writes; if it does, the server copy wins."
+    },
+    {
+      "id": "stale_remote_keeps_pending",
+      "input": {
+        "local": {
+          "revision": 3,
+          "mutationId": "m3",
+          "status": "active",
+          "content": "x"
+        },
+        "remote": {
+          "revision": 3,
+          "mutationId": "m3",
+          "status": "active",
+          "content": "x"
+        },
+        "pending": {
+          "revision": null,
+          "mutationId": "mp",
+          "status": "active",
+          "content": "local edit",
+          "baseRevision": 3
+        }
+      },
+      "expected": {
+        "result": "keepPending",
+        "keep": [
+          "mp"
+        ],
+        "status": "active"
+      }
+    },
+    {
+      "id": "pending_equal_to_newer_remote_dropped",
+      "input": {
+        "local": {
+          "revision": 2,
+          "mutationId": "m2",
+          "status": "active",
+          "content": "x"
+        },
+        "remote": {
+          "revision": 3,
+          "mutationId": "m3",
+          "status": "active",
+          "content": "same"
+        },
+        "pending": {
+          "revision": null,
+          "mutationId": "mp",
+          "status": "active",
+          "content": "same",
+          "baseRevision": 2
+        }
+      },
+      "expected": {
+        "result": "applyRemote",
+        "keep": [
+          "m3"
+        ],
+        "status": "active"
+      }
+    },
+    {
+      "id": "restricted_local_ignores_newer_remote",
+      "input": {
+        "local": {
+          "revision": 4,
+          "mutationId": "m4",
+          "status": "active",
+          "content": "x",
+          "sensitivity": "restricted"
+        },
+        "remote": {
+          "revision": 5,
+          "mutationId": "m5",
+          "status": "active",
+          "content": "y"
+        },
+        "pending": null
+      },
+      "expected": {
+        "result": "ignoreRemote",
+        "keep": [
+          "m4"
+        ],
+        "status": "active"
+      }
+    },
+    {
+      "id": "restricted_local_ignores_retraction_echo",
+      "input": {
+        "local": {
+          "revision": 4,
+          "mutationId": "mp",
+          "status": "active",
+          "content": "x",
+          "sensitivity": "restricted"
+        },
+        "remote": {
+          "revision": 4,
+          "mutationId": "mp",
+          "status": "deleted",
+          "content": ""
+        },
+        "pending": null
+      },
+      "expected": {
+        "result": "ignoreRemote",
+        "keep": [
+          "mp"
+        ],
+        "status": "active"
+      }
+    },
+    {
+      "id": "restricted_pending_keeps_pending_over_newer_remote",
+      "input": {
+        "local": {
+          "revision": 3,
+          "mutationId": "m3",
+          "status": "active",
+          "content": "x",
+          "sensitivity": "restricted"
+        },
+        "remote": {
+          "revision": 5,
+          "mutationId": "m5",
+          "status": "active",
+          "content": "y"
+        },
+        "pending": {
+          "revision": null,
+          "mutationId": "mp",
+          "status": "active",
+          "content": "x",
+          "baseRevision": 3,
+          "sensitivity": "restricted"
+        }
+      },
+      "expected": {
+        "result": "keepPending",
+        "keep": [
+          "mp"
+        ],
+        "status": "active"
+      }
+    }
+  ],
+  "orderCases": [
+    {
+      "id": "pinned_then_created_then_id",
+      "input": {
+        "items": [
+          {
+            "id": "20000000-0000-4000-8000-000000000001",
+            "kind": "fact",
+            "content": "Item 1",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "createdAt": "2026-10-02T00:00:00Z"
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "kind": "fact",
+            "content": "Item 2",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "createdAt": null
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "kind": "fact",
+            "content": "Item 3",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "pinned": true,
+            "createdAt": "2026-10-03T00:00:00Z"
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000004",
+            "kind": "fact",
+            "content": "Item 4",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "createdAt": "2026-10-01T23:00:00-02:00"
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000005",
+            "kind": "fact",
+            "content": "Item 5",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "createdAt": "2026-10-02T00:00:00Z"
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000006",
+            "kind": "fact",
+            "content": "Item 6",
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "pinned": true,
+            "createdAt": null
+          }
+        ]
+      },
+      "expected": [
+        "20000000-0000-4000-8000-000000000006",
+        "20000000-0000-4000-8000-000000000003",
+        "20000000-0000-4000-8000-000000000002",
+        "20000000-0000-4000-8000-000000000001",
+        "20000000-0000-4000-8000-000000000005",
+        "20000000-0000-4000-8000-000000000004"
+      ]
+    }
+  ],
+  "tombstoneCases": [
+    {
+      "id": "strips_body_and_pointers",
+      "input": {
+        "item": {
+          "id": "20000000-0000-4000-8000-000000000001",
+          "kind": "project",
+          "content": "Saga",
+          "mutationId": "00000000-0000-4000-8000-000000000000",
+          "deviceId": "d",
+          "pinned": true,
+          "priority": 2,
+          "scope": {
+            "type": "conversation",
+            "id": "c1"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "c1",
+            "messageIds": [
+              "u1"
+            ],
+            "observedAt": "2026-10-01T00:00:00Z"
+          },
+          "revision": 4,
+          "baseRevision": 3,
+          "createdAt": "2026-10-01T00:00:00Z",
+          "updatedAt": "2026-10-05T00:00:00Z",
+          "supersedes": [
+            "20000000-0000-4000-8000-000000000009"
+          ]
+        },
+        "mutationId": "A0000000-0000-4000-8000-0000000000AA",
+        "deviceId": "dev-b",
+        "deletedAt": "2026-10-16T09:00:00Z"
+      },
+      "expected": {
+        "id": "20000000-0000-4000-8000-000000000001",
+        "schemaVersion": 2,
+        "layer": "semantic",
+        "kind": "project",
+        "status": "deleted",
+        "content": "",
+        "scope": {
+          "type": "global",
+          "id": null
+        },
+        "source": {
+          "type": "manual",
+          "conversationId": null,
+          "messageIds": [],
+          "observedAt": null
+        },
+        "sensitivity": "normal",
+        "confidence": 1,
+        "priority": 0,
+        "pinned": false,
+        "revision": 4,
+        "baseRevision": 4,
+        "mutationId": "a0000000-0000-4000-8000-0000000000aa",
+        "deviceId": "dev-b",
+        "conflictGroupId": null,
+        "occurredAt": null,
+        "validFrom": null,
+        "lastConfirmedAt": null,
+        "createdAt": "2026-10-01T00:00:00Z",
+        "updatedAt": null,
+        "expiresAt": null,
+        "deletedAt": "2026-10-16T09:00:00Z",
+        "supersedes": []
+      }
+    }
+  ],
+  "pushCases": [
+    {
+      "id": "remote_missing_creates_revision_1",
+      "input": {
+        "remote": null,
+        "pending": {
+          "mutationId": "mp",
+          "baseRevision": 0,
+          "status": "active",
+          "content": "a"
+        }
+      },
+      "expected": {
+        "action": "write",
+        "revision": 1
+      }
+    },
+    {
+      "id": "remote_missing_tombstone_still_written",
+      "input": {
+        "remote": null,
+        "pending": {
+          "mutationId": "mp",
+          "baseRevision": 3,
+          "status": "deleted",
+          "content": ""
+        }
+      },
+      "expected": {
+        "action": "write",
+        "revision": 1
+      }
+    },
+    {
+      "id": "own_mutation_already_there",
+      "input": {
+        "remote": {
+          "revision": 1,
+          "mutationId": "mp",
+          "status": "active",
+          "content": "a"
+        },
+        "pending": {
+          "mutationId": "mp",
+          "baseRevision": 0,
+          "status": "active",
+          "content": "a"
+        }
+      },
+      "expected": {
+        "action": "confirmed"
+      }
+    },
+    {
+      "id": "remote_at_base_bumps",
+      "input": {
+        "remote": {
+          "revision": 3,
+          "mutationId": "m3",
+          "status": "active",
+          "content": "a"
+        },
+        "pending": {
+          "mutationId": "mp",
+          "baseRevision": 3,
+          "status": "active",
+          "content": "b"
+        }
+      },
+      "expected": {
+        "action": "write",
+        "revision": 4
+      }
+    },
+    {
+      "id": "pending_delete_over_newer_edit",
+      "input": {
+        "remote": {
+          "revision": 5,
+          "mutationId": "m5",
+          "status": "active",
+          "content": "y"
+        },
+        "pending": {
+          "mutationId": "mp",
+          "baseRevision": 3,
+          "status": "deleted",
+          "content": ""
+        }
+      },
+      "expected": {
+        "action": "write",
+        "revision": 6
+      }
+    },
+    {
+      "id": "newer_tombstone_drops_edit",
+      "input": {
+        "remote": {
+          "revision": 5,
+          "mutationId": "m5",
+          "status": "deleted",
+          "content": ""
+        },
+        "pending": {
+          "mutationId": "mp",
+          "baseRevision": 3,
+          "status": "active",
+          "content": "b"
+        }
+      },
+      "expected": {
+        "action": "dropPending"
+      }
+    },
+    {
+      "id": "newer_same_content_drops_edit",
+      "input": {
+        "remote": {
+          "revision": 5,
+          "mutationId": "m5",
+          "status": "active",
+          "content": "b"
+        },
+        "pending": {
+          "mutationId": "mp",
+          "baseRevision": 3,
+          "status": "active",
+          "content": "b"
+        }
+      },
+      "expected": {
+        "action": "dropPending"
+      }
+    },
+    {
+      "id": "newer_different_content_conflicts",
+      "input": {
+        "remote": {
+          "revision": 5,
+          "mutationId": "m5",
+          "status": "active",
+          "content": "y"
+        },
+        "pending": {
+          "mutationId": "mp",
+          "baseRevision": 3,
+          "status": "active",
+          "content": "b"
+        }
+      },
+      "expected": {
+        "action": "conflict"
+      }
+    },
+    {
+      "id": "create_if_absent_drops_when_remote_exists",
+      "input": {
+        "remote": {
+          "revision": 3,
+          "mutationId": "m3",
+          "status": "active",
+          "content": "edited on device A"
+        },
+        "pending": {
+          "mutationId": "mig",
+          "baseRevision": 0,
+          "status": "active",
+          "content": "original"
+        }
+      },
+      "expected": {
+        "action": "dropPending"
+      }
+    },
+    {
+      "id": "two_devices_same_migration",
+      "input": {
+        "remote": {
+          "revision": 1,
+          "mutationId": "83bb7854-f957-5040-9a4d-b91bfe0d1f94",
+          "status": "active",
+          "content": "Prefer Arabic."
+        },
+        "pending": {
+          "mutationId": "83bb7854-f957-5040-9a4d-b91bfe0d1f94",
+          "baseRevision": 0,
+          "status": "active",
+          "content": "Prefer Arabic."
+        }
+      },
+      "expected": {
+        "action": "confirmed"
+      }
+    },
+    {
+      "id": "restricted_retracts_live_remote",
+      "input": {
+        "remote": {
+          "revision": 3,
+          "mutationId": "m3",
+          "status": "active",
+          "content": "a"
+        },
+        "pending": {
+          "mutationId": "mp",
+          "baseRevision": 3,
+          "status": "active",
+          "content": "a",
+          "sensitivity": "restricted"
+        }
+      },
+      "expected": {
+        "action": "retract",
+        "revision": 4
+      }
+    },
+    {
+      "id": "restricted_retracts_newer_remote",
+      "input": {
+        "remote": {
+          "revision": 5,
+          "mutationId": "m5",
+          "status": "active",
+          "content": "y"
+        },
+        "pending": {
+          "mutationId": "mp",
+          "baseRevision": 3,
+          "status": "active",
+          "content": "a",
+          "sensitivity": "restricted"
+        }
+      },
+      "expected": {
+        "action": "retract",
+        "revision": 6
+      }
+    },
+    {
+      "id": "restricted_remote_missing_stays_local",
+      "input": {
+        "remote": null,
+        "pending": {
+          "mutationId": "mp",
+          "baseRevision": 0,
+          "status": "active",
+          "content": "a",
+          "sensitivity": "restricted"
+        }
+      },
+      "expected": {
+        "action": "localOnly",
+        "baseRevision": 0
+      }
+    },
+    {
+      "id": "restricted_remote_tombstone_stays_local",
+      "input": {
+        "remote": {
+          "revision": 4,
+          "mutationId": "m4",
+          "status": "deleted",
+          "content": ""
+        },
+        "pending": {
+          "mutationId": "mp",
+          "baseRevision": 3,
+          "status": "active",
+          "content": "a",
+          "sensitivity": "restricted"
+        }
+      },
+      "expected": {
+        "action": "localOnly",
+        "baseRevision": 4
+      }
+    }
+  ],
+  "conflictCases": [
+    {
+      "id": "offline_edit_vs_newer_remote",
+      "input": {
+        "itemId": "20000000-0000-4000-8000-000000000001",
+        "pending": {
+          "id": "20000000-0000-4000-8000-000000000001",
+          "kind": "preference",
+          "content": "Local wording",
+          "mutationId": "B0000000-0000-4000-8000-0000000000BB",
+          "deviceId": "d",
+          "pinned": true,
+          "revision": 2,
+          "baseRevision": 2,
+          "createdAt": "2026-10-01T00:00:00Z"
+        },
+        "remote": {
+          "id": "20000000-0000-4000-8000-000000000001",
+          "kind": "preference",
+          "content": "Remote wording",
+          "mutationId": "c0000000-0000-4000-8000-0000000000cc",
+          "deviceId": "d",
+          "revision": 3,
+          "baseRevision": 2,
+          "createdAt": "2026-10-01T00:00:00Z"
+        }
+      },
+      "expected": {
+        "original": {
+          "id": "20000000-0000-4000-8000-000000000001",
+          "status": "conflicted",
+          "content": "Remote wording",
+          "conflictGroupId": "20000000-0000-4000-8000-000000000001"
+        },
+        "copy": {
+          "id": "2efa52b1-9d51-553b-b8b0-5284b55083a9",
+          "schemaVersion": 2,
+          "layer": "semantic",
+          "kind": "preference",
+          "status": "conflicted",
+          "content": "Local wording",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "manual",
+            "conversationId": null,
+            "messageIds": [],
+            "observedAt": null
+          },
+          "sensitivity": "normal",
+          "confidence": 1,
+          "priority": 0,
+          "pinned": true,
+          "revision": 1,
+          "baseRevision": 0,
+          "mutationId": "839a4934-98ca-5544-9abe-fb139f11ac44",
+          "deviceId": "d",
+          "conflictGroupId": "20000000-0000-4000-8000-000000000001",
+          "occurredAt": null,
+          "validFrom": null,
+          "lastConfirmedAt": null,
+          "createdAt": null,
+          "updatedAt": null,
+          "expiresAt": null,
+          "deletedAt": null,
+          "supersedes": []
+        }
+      }
+    }
+  ],
+  "legacySyncCases": [
+    {
+      "id": "not_migrated_creates_and_writes_digest",
+      "input": {
+        "uid": "uid_7Hq2",
+        "migrated": false,
+        "deviceId": "dev-a",
+        "items": [],
+        "prefs": {
+          "memoryText": "I write novels.",
+          "memoryTextDigest": null,
+          "antiForgetEnabled": true,
+          "antiForgetText": "Always answer in Arabic.",
+          "memoryUpdatedAt": null
+        }
+      },
+      "expected": {
+        "create": [
+          {
+            "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "I write novels.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "migration",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "83bb7854-f957-5040-9a4d-b91bfe0d1f94",
+            "deviceId": "dev-a",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "25bdfec0-ba55-5f41-98e6-ebbc6a9b8b5b",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "instruction",
+            "status": "active",
+            "content": "Always answer in Arabic.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "migration",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "39c4cd59-f318-5910-8d2f-4a329b86a6b1",
+            "deviceId": "dev-a",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ],
+        "update": [],
+        "writePrefs": {
+          "memoryText": "I write novels.",
+          "memoryTextDigest": "e868d00ae29a99d00e8096258e07f5a446aa38070025f17c7491eaf6523b36e4",
+          "textChanged": false
+        }
+      }
+    },
+    {
+      "id": "not_migrated_but_prefs_written_by_new_client",
+      "input": {
+        "uid": "uid_7Hq2",
+        "migrated": false,
+        "deviceId": "dev-b",
+        "items": [],
+        "prefs": {
+          "memoryText": "I write novels.\n\nConcise answers.",
+          "memoryTextDigest": "31c83f7f76912791394836e31a51c6fb40449b67adc93ead6834bc50abe9b7a8",
+          "antiForgetEnabled": true,
+          "antiForgetText": "Always answer in Arabic.",
+          "memoryUpdatedAt": null
+        }
+      },
+      "expected": {
+        "create": [],
+        "update": [],
+        "writePrefs": null
+      }
+    },
+    {
+      "id": "migrated_digest_matches_nothing",
+      "input": {
+        "uid": "uid_7Hq2",
+        "migrated": true,
+        "deviceId": "dev-a",
+        "items": [
+          {
+            "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "I write novels.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "migration",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 2,
+            "baseRevision": 1,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "dev-a",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000007",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "preference",
+            "status": "active",
+            "content": "Concise answers.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-10T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ],
+        "prefs": {
+          "memoryText": "I write novels.",
+          "memoryTextDigest": "e868d00ae29a99d00e8096258e07f5a446aa38070025f17c7491eaf6523b36e4"
+        }
+      },
+      "expected": {
+        "create": [],
+        "update": [],
+        "writePrefs": null
+      }
+    },
+    {
+      "id": "old_client_edit_updates_legacy_item",
+      "input": {
+        "uid": "uid_7Hq2",
+        "migrated": true,
+        "deviceId": "dev-a",
+        "items": [
+          {
+            "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "I write novels.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "migration",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 2,
+            "baseRevision": 1,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "dev-a",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000007",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "preference",
+            "status": "active",
+            "content": "Concise answers.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-10T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "25bdfec0-ba55-5f41-98e6-ebbc6a9b8b5b",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "instruction",
+            "status": "active",
+            "content": "Always answer in Arabic.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "dev-a",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ],
+        "prefs": {
+          "memoryText": "I write novels and poems.",
+          "memoryTextDigest": "e868d00ae29a99d00e8096258e07f5a446aa38070025f17c7491eaf6523b36e4"
+        }
+      },
+      "expected": {
+        "create": [],
+        "update": [
+          {
+            "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+            "status": "active",
+            "content": "I write novels and poems.",
+            "mutationId": "8ec54808-0513-5c94-b807-f3a2e9b410d1"
+          }
+        ],
+        "writePrefs": {
+          "memoryText": "I write novels and poems.\n\nConcise answers.",
+          "memoryTextDigest": "54f32253517c933edd036aee250707cead3b19276c41eb5789ab65ebd1fc08cf",
+          "textChanged": true
+        }
+      }
+    },
+    {
+      "id": "old_client_edit_same_mutation_on_other_device",
+      "input": {
+        "uid": "uid_7Hq2",
+        "migrated": true,
+        "deviceId": "dev-b",
+        "items": [
+          {
+            "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "I write novels.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "migration",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 2,
+            "baseRevision": 1,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "dev-a",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000007",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "preference",
+            "status": "active",
+            "content": "Concise answers.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-10T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "25bdfec0-ba55-5f41-98e6-ebbc6a9b8b5b",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "instruction",
+            "status": "active",
+            "content": "Always answer in Arabic.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "dev-a",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ],
+        "prefs": {
+          "memoryText": "I write novels and poems.",
+          "memoryTextDigest": "e868d00ae29a99d00e8096258e07f5a446aa38070025f17c7491eaf6523b36e4"
+        }
+      },
+      "expected": {
+        "create": [],
+        "update": [
+          {
+            "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+            "status": "active",
+            "content": "I write novels and poems.",
+            "mutationId": "8ec54808-0513-5c94-b807-f3a2e9b410d1"
+          }
+        ],
+        "writePrefs": {
+          "memoryText": "I write novels and poems.\n\nConcise answers.",
+          "memoryTextDigest": "54f32253517c933edd036aee250707cead3b19276c41eb5789ab65ebd1fc08cf",
+          "textChanged": true
+        }
+      }
+    },
+    {
+      "id": "old_client_cleared_tombstones_legacy_item",
+      "input": {
+        "uid": "uid_7Hq2",
+        "migrated": true,
+        "deviceId": "dev-a",
+        "items": [
+          {
+            "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "I write novels.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "migration",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 2,
+            "baseRevision": 1,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "dev-a",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000007",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "preference",
+            "status": "active",
+            "content": "Concise answers.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-10T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ],
+        "prefs": {
+          "memoryText": "  ",
+          "memoryTextDigest": "e868d00ae29a99d00e8096258e07f5a446aa38070025f17c7491eaf6523b36e4"
+        }
+      },
+      "expected": {
+        "create": [],
+        "update": [
+          {
+            "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+            "status": "deleted",
+            "content": "",
+            "mutationId": "9c9f8356-5edb-53ae-a54a-14821c969383"
+          }
+        ],
+        "writePrefs": {
+          "memoryText": "Concise answers.",
+          "memoryTextDigest": "eb019eac50c8c4903667fe057219b9d0bbb6ab76698314870f9a46caa7d1c4ca",
+          "textChanged": true
+        }
+      }
+    },
+    {
+      "id": "fresh_device_empty_prefs_fills_digest_locally",
+      "input": {
+        "uid": "uid_7Hq2",
+        "migrated": false,
+        "deviceId": "dev-c",
+        "items": [],
+        "prefs": {
+          "memoryText": "",
+          "memoryTextDigest": null,
+          "antiForgetEnabled": false,
+          "antiForgetText": "",
+          "memoryUpdatedAt": null
+        }
+      },
+      "expected": {
+        "create": [],
+        "update": [],
+        "writePrefs": {
+          "memoryText": "",
+          "memoryTextDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "textChanged": false
+        }
+      }
+    },
+    {
+      "id": "digest_missing_but_text_equals_compile",
+      "input": {
+        "uid": "uid_7Hq2",
+        "migrated": true,
+        "deviceId": "dev-a",
+        "items": [
+          {
+            "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "I write novels.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "migration",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 2,
+            "baseRevision": 1,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "dev-a",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000007",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "preference",
+            "status": "active",
+            "content": "Concise answers.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-10T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ],
+        "prefs": {
+          "memoryText": "I write novels.\n\nConcise answers.",
+          "memoryTextDigest": null
+        }
+      },
+      "expected": {
+        "create": [],
+        "update": [],
+        "writePrefs": {
+          "memoryText": "I write novels.\n\nConcise answers.",
+          "memoryTextDigest": "31c83f7f76912791394836e31a51c6fb40449b67adc93ead6834bc50abe9b7a8",
+          "textChanged": false
+        }
+      }
+    },
+    {
+      "id": "old_client_edit_recreates_deleted_legacy_item",
+      "input": {
+        "uid": "uid_7Hq2",
+        "migrated": true,
+        "deviceId": "dev-a",
+        "items": [
+          {
+            "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "deleted",
+            "content": "",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "migration",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 2,
+            "baseRevision": 1,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "dev-a",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000007",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "preference",
+            "status": "active",
+            "content": "Concise answers.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-10T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ],
+        "prefs": {
+          "memoryText": "Back again.",
+          "memoryTextDigest": null
+        }
+      },
+      "expected": {
+        "create": [],
+        "update": [
+          {
+            "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+            "status": "active",
+            "content": "Back again.",
+            "mutationId": "db54ea37-dc3d-5b87-9f10-1da4ae135faa"
+          }
+        ],
+        "writePrefs": {
+          "memoryText": "Back again.\n\nConcise answers.",
+          "memoryTextDigest": "d130c6b3e090ffa2de306beca40e4ef6a51e26de8fe7758c1bb76e2e23ec1e26",
+          "textChanged": true
+        }
+      }
+    }
+  ],
+  "compileCases": [
+    {
+      "id": "active_global_non_restricted_without_antiforget",
+      "input": {
+        "uid": "uid_7Hq2",
+        "items": [
+          {
+            "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "I write novels.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "migration",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 2,
+            "baseRevision": 1,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "dev-a",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000007",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "preference",
+            "status": "active",
+            "content": "Concise answers.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-10T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "25bdfec0-ba55-5f41-98e6-ebbc6a9b8b5b",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "instruction",
+            "status": "active",
+            "content": "Always answer in Arabic.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "dev-a",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000008",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "paused",
+            "content": "Paused",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000009",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Secret",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "restricted",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000006",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Only in c1",
+            "scope": {
+              "type": "conversation",
+              "id": "c1"
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000005",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Pinned first",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": true,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ]
+      },
+      "expected": {
+        "memoryText": "Pinned first\n\nI write novels.\n\nConcise answers.",
+        "memoryTextDigest": "578b12bb0f3e41b69a28048e4d19f1d89b60abc7701d78e9dcb557baad1d67fa"
+      }
+    },
+    {
+      "id": "single_migrated_item_round_trips",
+      "input": {
+        "uid": "uid_7Hq2",
+        "items": [
+          {
+            "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Line one.\n\nLine two.  ",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "migration",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 2,
+            "baseRevision": 1,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "dev-a",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ]
+      },
+      "expected": {
+        "memoryText": "Line one.\n\nLine two.  ",
+        "memoryTextDigest": "407a138874ebab1236f3c467b44b748cd466507092d385f9b9287ab9fdb85733"
+      },
+      "note": "Diff 0: compile of the untouched migrated item is the original memoryText byte for byte."
+    }
+  ],
+  "rawViewCases": [
+    {
+      "id": "render",
+      "input": {
+        "items": [
+          {
+            "id": "20000000-0000-4000-8000-000000000001",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Novelist.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Prefers Arabic.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-02T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Saga project.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-03T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000004",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "paused",
+            "content": "Paused one",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ]
+      },
+      "expected": {
+        "text": "Novelist.\n---\nPrefers Arabic.\n---\nSaga project."
+      }
+    },
+    {
+      "id": "unchanged_no_ops",
+      "input": {
+        "items": [
+          {
+            "id": "20000000-0000-4000-8000-000000000001",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Novelist.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Prefers Arabic.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-02T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Saga project.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-03T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000004",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "paused",
+            "content": "Paused one",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ],
+        "text": "Novelist.\n---\nPrefers Arabic.\n---\nSaga project.",
+        "newIds": [
+          "30000000-0000-4000-8000-000000000001",
+          "30000000-0000-4000-8000-000000000002"
+        ]
+      },
+      "expected": {
+        "ops": []
+      }
+    },
+    {
+      "id": "edit_middle_and_whitespace_noise",
+      "input": {
+        "items": [
+          {
+            "id": "20000000-0000-4000-8000-000000000001",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Novelist.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Prefers Arabic.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-02T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Saga project.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-03T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000004",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "paused",
+            "content": "Paused one",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ],
+        "text": "Novelist.\n---\n  Prefers Arabic and English.\r\n---\r\nSaga project.\n\n",
+        "newIds": [
+          "30000000-0000-4000-8000-000000000001",
+          "30000000-0000-4000-8000-000000000002"
+        ]
+      },
+      "expected": {
+        "ops": [
+          {
+            "op": "update",
+            "id": "20000000-0000-4000-8000-000000000002",
+            "content": "Prefers Arabic and English."
+          }
+        ]
+      }
+    },
+    {
+      "id": "insert_and_reorder_reuses_unmatched_item",
+      "input": {
+        "items": [
+          {
+            "id": "20000000-0000-4000-8000-000000000001",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Novelist.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Prefers Arabic.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-02T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Saga project.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-03T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000004",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "paused",
+            "content": "Paused one",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ],
+        "text": "Saga project.\n---\nBrand new line\n---\nNovelist.",
+        "newIds": [
+          "30000000-0000-4000-8000-000000000001",
+          "30000000-0000-4000-8000-000000000002"
+        ]
+      },
+      "expected": {
+        "ops": [
+          {
+            "op": "update",
+            "id": "20000000-0000-4000-8000-000000000002",
+            "content": "Brand new line"
+          }
+        ]
+      }
+    },
+    {
+      "id": "removed_segment_deletes_item",
+      "input": {
+        "items": [
+          {
+            "id": "20000000-0000-4000-8000-000000000001",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Novelist.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Prefers Arabic.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-02T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Saga project.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-03T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000004",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "paused",
+            "content": "Paused one",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ],
+        "text": "Novelist.\n---\nSaga project.",
+        "newIds": [
+          "30000000-0000-4000-8000-000000000001",
+          "30000000-0000-4000-8000-000000000002"
+        ]
+      },
+      "expected": {
+        "ops": [
+          {
+            "op": "delete",
+            "id": "20000000-0000-4000-8000-000000000002"
+          }
+        ]
+      }
+    },
+    {
+      "id": "append_two_drop_empty",
+      "input": {
+        "items": [
+          {
+            "id": "20000000-0000-4000-8000-000000000001",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Novelist.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Prefers Arabic.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-02T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Saga project.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-03T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000004",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "paused",
+            "content": "Paused one",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ],
+        "text": "Novelist.\n---\nPrefers Arabic.\n---\nSaga project.\n---\n\n---\nA\n---\nB",
+        "newIds": [
+          "30000000-0000-4000-8000-000000000001",
+          "30000000-0000-4000-8000-000000000002"
+        ]
+      },
+      "expected": {
+        "ops": [
+          {
+            "op": "create",
+            "id": "30000000-0000-4000-8000-000000000001",
+            "kind": "fact",
+            "content": "A"
+          },
+          {
+            "op": "create",
+            "id": "30000000-0000-4000-8000-000000000002",
+            "kind": "fact",
+            "content": "B"
+          }
+        ]
+      }
+    },
+    {
+      "id": "too_long_segment",
+      "input": {
+        "items": [
+          {
+            "id": "20000000-0000-4000-8000-000000000001",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Novelist.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Prefers Arabic.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-02T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Saga project.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-03T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000004",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "paused",
+            "content": "Paused one",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ],
+        "text": "Novelist.\n---\nyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+        "newIds": [
+          "30000000-0000-4000-8000-000000000001",
+          "30000000-0000-4000-8000-000000000002"
+        ]
+      },
+      "expected": {
+        "error": "tooLong",
+        "index": 1
+      }
+    }
+  ],
+  "organizeCases": [
+    {
+      "id": "request_shape",
+      "input": {
+        "content": "I am a novelist. Always answer in Arabic.\nNo emoji."
+      },
+      "expected": {
+        "system": "Split the saved memory below into separate items. Each item states exactly one fact, preference, instruction, constraint or project. Keep the user's language and wording; do not add, infer, merge away or drop information. Reply with only a JSON array, no prose: [{\"kind\": \"identity|preference|instruction|constraint|project|goal|decision|fact\", \"content\": \"...\"}].",
+        "messages": [
+          {
+            "role": "user",
+            "text": "I am a novelist. Always answer in Arabic.\nNo emoji."
+          }
+        ]
+      }
+    },
+    {
+      "id": "parses_array_inside_prose",
+      "input": {
+        "response": "Here you go:\n```json\n[{\"kind\":\"identity\",\"content\":\"I am a novelist.\"},{\"kind\":\"Instruction\",\"content\":\" Always answer in Arabic. \"},{\"kind\":\"constraint\",\"content\":\"No emoji.\"}]\n```"
+      },
+      "expected": [
+        {
+          "kind": "identity",
+          "content": "I am a novelist."
+        },
+        {
+          "kind": "instruction",
+          "content": "Always answer in Arabic."
+        },
+        {
+          "kind": "constraint",
+          "content": "No emoji."
+        }
+      ]
+    },
+    {
+      "id": "unknown_kind_becomes_fact_and_bad_entries_dropped",
+      "input": {
+        "response": "[{\"kind\":\"event\",\"content\":\"Met an editor\"},{\"kind\":\"preference\",\"content\":\"  \"},{\"content\":\"No kind given\"},{\"kind\":\"fact\",\"content\":\"No kind given\"},\"just text\",{\"kind\":\"goal\",\"content\":5}]"
+      },
+      "expected": [
+        {
+          "kind": "fact",
+          "content": "Met an editor"
+        },
+        {
+          "kind": "fact",
+          "content": "No kind given"
+        }
+      ]
+    },
+    {
+      "id": "not_json_is_empty",
+      "input": {
+        "response": "I could not split this."
+      },
+      "expected": []
+    },
+    {
+      "id": "caps_at_max_items",
+      "input": {
+        "response": "[{\"kind\":\"fact\",\"content\":\"Fact 1\"},{\"kind\":\"fact\",\"content\":\"Fact 2\"},{\"kind\":\"fact\",\"content\":\"Fact 3\"},{\"kind\":\"fact\",\"content\":\"Fact 4\"},{\"kind\":\"fact\",\"content\":\"Fact 5\"},{\"kind\":\"fact\",\"content\":\"Fact 6\"},{\"kind\":\"fact\",\"content\":\"Fact 7\"},{\"kind\":\"fact\",\"content\":\"Fact 8\"},{\"kind\":\"fact\",\"content\":\"Fact 9\"},{\"kind\":\"fact\",\"content\":\"Fact 10\"},{\"kind\":\"fact\",\"content\":\"Fact 11\"},{\"kind\":\"fact\",\"content\":\"Fact 12\"},{\"kind\":\"fact\",\"content\":\"Fact 13\"},{\"kind\":\"fact\",\"content\":\"Fact 14\"},{\"kind\":\"fact\",\"content\":\"Fact 15\"},{\"kind\":\"fact\",\"content\":\"Fact 16\"},{\"kind\":\"fact\",\"content\":\"Fact 17\"},{\"kind\":\"fact\",\"content\":\"Fact 18\"},{\"kind\":\"fact\",\"content\":\"Fact 19\"},{\"kind\":\"fact\",\"content\":\"Fact 20\"},{\"kind\":\"fact\",\"content\":\"Fact 21\"},{\"kind\":\"fact\",\"content\":\"Fact 22\"},{\"kind\":\"fact\",\"content\":\"Fact 23\"},{\"kind\":\"fact\",\"content\":\"Fact 24\"},{\"kind\":\"fact\",\"content\":\"Fact 25\"}]"
+      },
+      "expected": [
+        {
+          "kind": "fact",
+          "content": "Fact 1"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 2"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 3"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 4"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 5"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 6"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 7"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 8"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 9"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 10"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 11"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 12"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 13"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 14"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 15"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 16"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 17"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 18"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 19"
+        },
+        {
+          "kind": "fact",
+          "content": "Fact 20"
+        }
+      ]
+    }
+  ],
+  "backupCases": [
+    {
+      "id": "export_section",
+      "input": {
+        "items": [
+          {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Only local",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "deleted",
+            "content": "",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 3,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": "2026-10-10T00:00:00Z",
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000005",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Pinned",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": true,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ]
+      },
+      "expected": {
+        "memorySchemaVersion": 2,
+        "memoryItems": [
+          {
+            "id": "20000000-0000-4000-8000-000000000005",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Pinned",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": true,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "deleted",
+            "content": "",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 3,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": "2026-10-10T00:00:00Z",
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Only local",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "merge_keeps_newer_and_tombstones",
+      "input": {
+        "mode": "merge",
+        "local": [
+          {
+            "id": "20000000-0000-4000-8000-000000000001",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Local newer",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 4,
+            "baseRevision": 0,
+            "mutationId": "a0000000-0000-4000-8000-000000000004",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "deleted",
+            "content": "",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 3,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": "2026-10-10T00:00:00Z",
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Only local",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ],
+        "backup": {
+          "memorySchemaVersion": 2,
+          "memoryItems": [
+            {
+              "id": "20000000-0000-4000-8000-000000000001",
+              "schemaVersion": 2,
+              "layer": "semantic",
+              "kind": "fact",
+              "status": "active",
+              "content": "Backup older",
+              "scope": {
+                "type": "global",
+                "id": null
+              },
+              "source": {
+                "type": "manual",
+                "conversationId": null,
+                "messageIds": [],
+                "observedAt": null
+              },
+              "sensitivity": "normal",
+              "confidence": 1,
+              "priority": 0,
+              "pinned": false,
+              "revision": 2,
+              "baseRevision": 0,
+              "mutationId": "00000000-0000-4000-8000-000000000000",
+              "deviceId": "d",
+              "conflictGroupId": null,
+              "occurredAt": null,
+              "validFrom": null,
+              "lastConfirmedAt": null,
+              "createdAt": null,
+              "updatedAt": null,
+              "expiresAt": null,
+              "deletedAt": null,
+              "supersedes": []
+            },
+            {
+              "id": "20000000-0000-4000-8000-000000000002",
+              "schemaVersion": 2,
+              "layer": "semantic",
+              "kind": "fact",
+              "status": "active",
+              "content": "Resurrect?",
+              "scope": {
+                "type": "global",
+                "id": null
+              },
+              "source": {
+                "type": "manual",
+                "conversationId": null,
+                "messageIds": [],
+                "observedAt": null
+              },
+              "sensitivity": "normal",
+              "confidence": 1,
+              "priority": 0,
+              "pinned": false,
+              "revision": 2,
+              "baseRevision": 0,
+              "mutationId": "00000000-0000-4000-8000-000000000000",
+              "deviceId": "d",
+              "conflictGroupId": null,
+              "occurredAt": null,
+              "validFrom": null,
+              "lastConfirmedAt": null,
+              "createdAt": null,
+              "updatedAt": null,
+              "expiresAt": null,
+              "deletedAt": null,
+              "supersedes": []
+            },
+            {
+              "id": "20000000-0000-4000-8000-000000000004",
+              "schemaVersion": 2,
+              "layer": "semantic",
+              "kind": "fact",
+              "status": "active",
+              "content": "Only in backup",
+              "scope": {
+                "type": "global",
+                "id": null
+              },
+              "source": {
+                "type": "manual",
+                "conversationId": null,
+                "messageIds": [],
+                "observedAt": null
+              },
+              "sensitivity": "normal",
+              "confidence": 1,
+              "priority": 0,
+              "pinned": false,
+              "revision": 1,
+              "baseRevision": 0,
+              "mutationId": "00000000-0000-4000-8000-000000000000",
+              "deviceId": "d",
+              "conflictGroupId": null,
+              "occurredAt": null,
+              "validFrom": null,
+              "lastConfirmedAt": null,
+              "createdAt": "2026-10-01T00:00:00Z",
+              "updatedAt": null,
+              "expiresAt": null,
+              "deletedAt": null,
+              "supersedes": []
+            },
+            {
+              "id": "20000000-0000-4000-8000-000000000003",
+              "schemaVersion": 2,
+              "layer": "semantic",
+              "kind": "fact",
+              "status": "active",
+              "content": "Backup newer",
+              "scope": {
+                "type": "global",
+                "id": null
+              },
+              "source": {
+                "type": "manual",
+                "conversationId": null,
+                "messageIds": [],
+                "observedAt": null
+              },
+              "sensitivity": "normal",
+              "confidence": 1,
+              "priority": 0,
+              "pinned": false,
+              "revision": 5,
+              "baseRevision": 0,
+              "mutationId": "00000000-0000-4000-8000-000000000000",
+              "deviceId": "d",
+              "conflictGroupId": null,
+              "occurredAt": null,
+              "validFrom": null,
+              "lastConfirmedAt": null,
+              "createdAt": null,
+              "updatedAt": null,
+              "expiresAt": null,
+              "deletedAt": null,
+              "supersedes": []
+            }
+          ]
+        }
+      },
+      "expected": {
+        "items": [
+          {
+            "id": "20000000-0000-4000-8000-000000000001",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Local newer",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 4,
+            "baseRevision": 0,
+            "mutationId": "a0000000-0000-4000-8000-000000000004",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "deleted",
+            "content": "",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 3,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": "2026-10-10T00:00:00Z",
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Backup newer",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 5,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000004",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Only in backup",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-01T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "replace_takes_backup",
+      "input": {
+        "mode": "replace",
+        "local": [
+          {
+            "id": "20000000-0000-4000-8000-000000000001",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Local newer",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 4,
+            "baseRevision": 0,
+            "mutationId": "a0000000-0000-4000-8000-000000000004",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "deleted",
+            "content": "",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 3,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": "2026-10-10T00:00:00Z",
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Only local",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ],
+        "backup": {
+          "memorySchemaVersion": 2,
+          "memoryItems": [
+            {
+              "id": "20000000-0000-4000-8000-000000000001",
+              "schemaVersion": 2,
+              "layer": "semantic",
+              "kind": "fact",
+              "status": "active",
+              "content": "Backup older",
+              "scope": {
+                "type": "global",
+                "id": null
+              },
+              "source": {
+                "type": "manual",
+                "conversationId": null,
+                "messageIds": [],
+                "observedAt": null
+              },
+              "sensitivity": "normal",
+              "confidence": 1,
+              "priority": 0,
+              "pinned": false,
+              "revision": 2,
+              "baseRevision": 0,
+              "mutationId": "00000000-0000-4000-8000-000000000000",
+              "deviceId": "d",
+              "conflictGroupId": null,
+              "occurredAt": null,
+              "validFrom": null,
+              "lastConfirmedAt": null,
+              "createdAt": null,
+              "updatedAt": null,
+              "expiresAt": null,
+              "deletedAt": null,
+              "supersedes": []
+            },
+            {
+              "id": "20000000-0000-4000-8000-000000000002",
+              "schemaVersion": 2,
+              "layer": "semantic",
+              "kind": "fact",
+              "status": "active",
+              "content": "Resurrect?",
+              "scope": {
+                "type": "global",
+                "id": null
+              },
+              "source": {
+                "type": "manual",
+                "conversationId": null,
+                "messageIds": [],
+                "observedAt": null
+              },
+              "sensitivity": "normal",
+              "confidence": 1,
+              "priority": 0,
+              "pinned": false,
+              "revision": 2,
+              "baseRevision": 0,
+              "mutationId": "00000000-0000-4000-8000-000000000000",
+              "deviceId": "d",
+              "conflictGroupId": null,
+              "occurredAt": null,
+              "validFrom": null,
+              "lastConfirmedAt": null,
+              "createdAt": null,
+              "updatedAt": null,
+              "expiresAt": null,
+              "deletedAt": null,
+              "supersedes": []
+            },
+            {
+              "id": "20000000-0000-4000-8000-000000000004",
+              "schemaVersion": 2,
+              "layer": "semantic",
+              "kind": "fact",
+              "status": "active",
+              "content": "Only in backup",
+              "scope": {
+                "type": "global",
+                "id": null
+              },
+              "source": {
+                "type": "manual",
+                "conversationId": null,
+                "messageIds": [],
+                "observedAt": null
+              },
+              "sensitivity": "normal",
+              "confidence": 1,
+              "priority": 0,
+              "pinned": false,
+              "revision": 1,
+              "baseRevision": 0,
+              "mutationId": "00000000-0000-4000-8000-000000000000",
+              "deviceId": "d",
+              "conflictGroupId": null,
+              "occurredAt": null,
+              "validFrom": null,
+              "lastConfirmedAt": null,
+              "createdAt": "2026-10-01T00:00:00Z",
+              "updatedAt": null,
+              "expiresAt": null,
+              "deletedAt": null,
+              "supersedes": []
+            },
+            {
+              "id": "20000000-0000-4000-8000-000000000003",
+              "schemaVersion": 2,
+              "layer": "semantic",
+              "kind": "fact",
+              "status": "active",
+              "content": "Backup newer",
+              "scope": {
+                "type": "global",
+                "id": null
+              },
+              "source": {
+                "type": "manual",
+                "conversationId": null,
+                "messageIds": [],
+                "observedAt": null
+              },
+              "sensitivity": "normal",
+              "confidence": 1,
+              "priority": 0,
+              "pinned": false,
+              "revision": 5,
+              "baseRevision": 0,
+              "mutationId": "00000000-0000-4000-8000-000000000000",
+              "deviceId": "d",
+              "conflictGroupId": null,
+              "occurredAt": null,
+              "validFrom": null,
+              "lastConfirmedAt": null,
+              "createdAt": null,
+              "updatedAt": null,
+              "expiresAt": null,
+              "deletedAt": null,
+              "supersedes": []
+            }
+          ]
+        }
+      },
+      "expected": {
+        "items": [
+          {
+            "id": "20000000-0000-4000-8000-000000000001",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Backup older",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 2,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Resurrect?",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 2,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Backup newer",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 5,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000004",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Only in backup",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-01T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ],
+        "tombstonedIds": []
+      }
+    },
+    {
+      "id": "replace_tombstones_local_items_missing_from_backup",
+      "input": {
+        "mode": "replace",
+        "local": [
+          {
+            "id": "20000000-0000-4000-8000-000000000001",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Local newer",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 4,
+            "baseRevision": 0,
+            "mutationId": "a0000000-0000-4000-8000-000000000004",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "deleted",
+            "content": "",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 3,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": "2026-10-10T00:00:00Z",
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Only local",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000005",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Only on this device",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000006",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "deleted",
+            "content": "",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": "2026-10-09T00:00:00Z",
+            "supersedes": []
+          }
+        ],
+        "backup": {
+          "memorySchemaVersion": 2,
+          "memoryItems": [
+            {
+              "id": "20000000-0000-4000-8000-000000000001",
+              "schemaVersion": 2,
+              "layer": "semantic",
+              "kind": "fact",
+              "status": "active",
+              "content": "Backup older",
+              "scope": {
+                "type": "global",
+                "id": null
+              },
+              "source": {
+                "type": "manual",
+                "conversationId": null,
+                "messageIds": [],
+                "observedAt": null
+              },
+              "sensitivity": "normal",
+              "confidence": 1,
+              "priority": 0,
+              "pinned": false,
+              "revision": 2,
+              "baseRevision": 0,
+              "mutationId": "00000000-0000-4000-8000-000000000000",
+              "deviceId": "d",
+              "conflictGroupId": null,
+              "occurredAt": null,
+              "validFrom": null,
+              "lastConfirmedAt": null,
+              "createdAt": null,
+              "updatedAt": null,
+              "expiresAt": null,
+              "deletedAt": null,
+              "supersedes": []
+            },
+            {
+              "id": "20000000-0000-4000-8000-000000000002",
+              "schemaVersion": 2,
+              "layer": "semantic",
+              "kind": "fact",
+              "status": "active",
+              "content": "Resurrect?",
+              "scope": {
+                "type": "global",
+                "id": null
+              },
+              "source": {
+                "type": "manual",
+                "conversationId": null,
+                "messageIds": [],
+                "observedAt": null
+              },
+              "sensitivity": "normal",
+              "confidence": 1,
+              "priority": 0,
+              "pinned": false,
+              "revision": 2,
+              "baseRevision": 0,
+              "mutationId": "00000000-0000-4000-8000-000000000000",
+              "deviceId": "d",
+              "conflictGroupId": null,
+              "occurredAt": null,
+              "validFrom": null,
+              "lastConfirmedAt": null,
+              "createdAt": null,
+              "updatedAt": null,
+              "expiresAt": null,
+              "deletedAt": null,
+              "supersedes": []
+            },
+            {
+              "id": "20000000-0000-4000-8000-000000000004",
+              "schemaVersion": 2,
+              "layer": "semantic",
+              "kind": "fact",
+              "status": "active",
+              "content": "Only in backup",
+              "scope": {
+                "type": "global",
+                "id": null
+              },
+              "source": {
+                "type": "manual",
+                "conversationId": null,
+                "messageIds": [],
+                "observedAt": null
+              },
+              "sensitivity": "normal",
+              "confidence": 1,
+              "priority": 0,
+              "pinned": false,
+              "revision": 1,
+              "baseRevision": 0,
+              "mutationId": "00000000-0000-4000-8000-000000000000",
+              "deviceId": "d",
+              "conflictGroupId": null,
+              "occurredAt": null,
+              "validFrom": null,
+              "lastConfirmedAt": null,
+              "createdAt": "2026-10-01T00:00:00Z",
+              "updatedAt": null,
+              "expiresAt": null,
+              "deletedAt": null,
+              "supersedes": []
+            },
+            {
+              "id": "20000000-0000-4000-8000-000000000003",
+              "schemaVersion": 2,
+              "layer": "semantic",
+              "kind": "fact",
+              "status": "active",
+              "content": "Backup newer",
+              "scope": {
+                "type": "global",
+                "id": null
+              },
+              "source": {
+                "type": "manual",
+                "conversationId": null,
+                "messageIds": [],
+                "observedAt": null
+              },
+              "sensitivity": "normal",
+              "confidence": 1,
+              "priority": 0,
+              "pinned": false,
+              "revision": 5,
+              "baseRevision": 0,
+              "mutationId": "00000000-0000-4000-8000-000000000000",
+              "deviceId": "d",
+              "conflictGroupId": null,
+              "occurredAt": null,
+              "validFrom": null,
+              "lastConfirmedAt": null,
+              "createdAt": null,
+              "updatedAt": null,
+              "expiresAt": null,
+              "deletedAt": null,
+              "supersedes": []
+            }
+          ]
+        }
+      },
+      "expected": {
+        "items": [
+          {
+            "id": "20000000-0000-4000-8000-000000000001",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Backup older",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 2,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Resurrect?",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 2,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Backup newer",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 5,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "20000000-0000-4000-8000-000000000004",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "Only in backup",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "manual",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "00000000-0000-4000-8000-000000000000",
+            "deviceId": "d",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": "2026-10-01T00:00:00Z",
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ],
+        "tombstonedIds": [
+          "20000000-0000-4000-8000-000000000005"
+        ]
+      },
+      "note": "Live local items absent from the backup become pending tombstones so other devices converge; existing tombstones stay as they are."
+    },
+    {
+      "id": "legacy_backup_migrates_preferences",
+      "input": {
+        "mode": "merge",
+        "uid": "uid_7Hq2",
+        "deviceId": "dev-a",
+        "local": [],
+        "backup": {
+          "preferences": {
+            "memoryText": "From an old backup.",
+            "antiForgetEnabled": false,
+            "antiForgetText": "Old reminder",
+            "memoryUpdatedAt": "2026-08-01T00:00:00Z"
+          }
+        }
+      },
+      "expected": {
+        "items": [
+          {
+            "id": "075636ba-b7ce-5cb8-9371-c0c15d207027",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "fact",
+            "status": "active",
+            "content": "From an old backup.",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "migration",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": "2026-08-01T00:00:00Z"
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "83bb7854-f957-5040-9a4d-b91bfe0d1f94",
+            "deviceId": "dev-a",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          },
+          {
+            "id": "25bdfec0-ba55-5f41-98e6-ebbc6a9b8b5b",
+            "schemaVersion": 2,
+            "layer": "semantic",
+            "kind": "instruction",
+            "status": "paused",
+            "content": "Old reminder",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "migration",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAt": "2026-08-01T00:00:00Z"
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "priority": 0,
+            "pinned": false,
+            "revision": 1,
+            "baseRevision": 0,
+            "mutationId": "39c4cd59-f318-5910-8d2f-4a329b86a6b1",
+            "deviceId": "dev-a",
+            "conflictGroupId": null,
+            "occurredAt": null,
+            "validFrom": null,
+            "lastConfirmedAt": null,
+            "createdAt": null,
+            "updatedAt": null,
+            "expiresAt": null,
+            "deletedAt": null,
+            "supersedes": []
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -21,11 +21,11 @@
             "headers": {
                 "accept": "application/json",
                 "anthropic-version": "2023-06-01",
-                "content-length": "276",
+                "content-length": "301",
                 "content-type": "application/json",
                 "x-api-key": "sk-golden-0000"
             },
-            "body": "{\"model\":\"claude-sonnet-4-5\",\"max_tokens\":8192,\"stream\":true,\"cache_control\":{\"type\":\"ephemeral\"},\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"},{\"role\":\"assistant\",\"content\":\"Hi there.\"},{\"role\":\"user\",\"content\":\"Summarize in one word.\"}],\"system\":\"You are a golden fixture.\"}"
+            "body": "{\"model\":\"claude-sonnet-4-5\",\"max_tokens\":8192,\"stream\":true,\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"},{\"role\":\"assistant\",\"content\":\"Hi there.\"},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Summarize in one word.\",\"cache_control\":{\"type\":\"ephemeral\"}}]}],\"system\":\"You are a golden fixture.\"}"
         },
         {
             "caseId": "official_gemini",

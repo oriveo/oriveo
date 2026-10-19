@@ -1,0 +1,45 @@
+{
+  "$comment": "Shared sample-screen manifest for the memory family (shots tool). One source for page names, demo memory items, suggestions, per-page presets and the clock across iOS, Android debug and Web dev shot entries. All three ends render the same values (iOS is the gold reference); every end builds in-memory items from this file through its production model builders and never writes a real store or touches the network. Item fields follow shared/context-contracts/memory-items.v2.json; omitted fields take the contract defaults. A conflict pair shares conflictGroupId = the original item's id; the other one (id ≠ conflictGroupId) is this device's copy. Keys starting with '$' are documentation and ignored by readers.",
+  "schema": "oriveo.shots.memory/v1",
+  "clock": "2026-10-12T09:41:00Z",
+  "deviceId": "shots-device",
+  "$hasRecentConversations": "false on every page: no recent conversation exists, so the 'draft from recent chats' row / button stays hidden on all three ends. Conflict copies (id ≠ conflictGroupId) carry deviceId and show as this device; mutationId is derived from id; occurredAt is full RFC3339 (contract), midnight UTC of the event day; suggestions render in the production repository order (createdAt newest first: c-1, c-3, c-2).",
+  "hasRecentConversations": false,
+  "folders": [
+    { "id": "folder-trip", "name": "Lisbon trip" }
+  ],
+  "items": [
+    { "id": "m-about-1", "kind": "identity", "content": "I'm a product designer based in Berlin.", "pinned": true, "updatedAt": "2026-10-02T08:10:00Z" },
+    { "id": "m-about-2", "kind": "fact", "content": "I have a dog named Miso.", "updatedAt": "2026-09-21T19:30:00Z" },
+    { "id": "m-pref-1", "kind": "preference", "content": "Keep answers short and skip the preamble.", "updatedAt": "2026-10-08T07:45:00Z" },
+    { "id": "m-pref-2", "kind": "preference", "content": "I prefer metric units.", "updatedAt": "2026-09-30T12:00:00Z" },
+    { "id": "m-pref-3", "kind": "preference", "content": "Use British spelling.", "status": "paused", "updatedAt": "2026-09-12T16:20:00Z" },
+    { "id": "m-pref-c1", "kind": "preference", "content": "I drink my coffee black.", "status": "conflicted", "conflictGroupId": "m-pref-c1", "updatedAt": "2026-10-11T08:00:00Z" },
+    { "id": "m-pref-c2", "kind": "preference", "content": "I take oat milk in my coffee.", "status": "conflicted", "conflictGroupId": "m-pref-c1", "updatedAt": "2026-10-10T21:15:00Z" },
+    { "id": "m-inst-1", "kind": "instruction", "content": "When reviewing my writing, point out unclear sentences first.", "updatedAt": "2026-10-05T10:00:00Z" },
+    { "id": "m-inst-2", "kind": "constraint", "content": "Never suggest recipes with peanuts.", "updatedAt": "2026-09-18T18:40:00Z" },
+    { "id": "m-work-1", "kind": "project", "content": "Redesigning the onboarding flow for a banking app.", "updatedAt": "2026-10-09T14:30:00Z" },
+    { "id": "m-work-2", "kind": "goal", "content": "Run a half marathon by next spring.", "scope": { "type": "global", "id": null }, "updatedAt": "2026-10-01T06:50:00Z" },
+    { "id": "m-work-3", "kind": "project", "content": "Planning a five-day trip to Lisbon in November.", "scope": { "type": "folder", "id": "folder-trip" }, "updatedAt": "2026-10-07T20:05:00Z" },
+    { "id": "m-ep-1", "layer": "episodic", "kind": "decision", "content": "Chose the green palette for the onboarding prototype.", "occurredAt": "2026-10-11T00:00:00Z", "updatedAt": "2026-10-11T15:00:00Z" },
+    { "id": "m-ep-2", "layer": "episodic", "kind": "event", "content": "Booked flights to Lisbon for November 14.", "occurredAt": "2026-10-07T00:00:00Z", "scope": { "type": "folder", "id": "folder-trip" }, "updatedAt": "2026-10-07T20:00:00Z" },
+    { "id": "m-ep-3", "layer": "episodic", "kind": "event", "content": "Ran 15 km without stopping for the first time.", "occurredAt": "2026-09-28T00:00:00Z", "updatedAt": "2026-09-28T09:00:00Z" },
+    { "id": "m-ep-c1", "layer": "episodic", "kind": "decision", "content": "Stay in Alfama for the Lisbon trip.", "status": "conflicted", "conflictGroupId": "m-ep-c1", "occurredAt": "2026-10-09T00:00:00Z", "scope": { "type": "folder", "id": "folder-trip" }, "updatedAt": "2026-10-09T19:00:00Z" },
+    { "id": "m-ep-c2", "layer": "episodic", "kind": "decision", "content": "Stay in Príncipe Real for the Lisbon trip.", "status": "conflicted", "conflictGroupId": "m-ep-c1", "occurredAt": "2026-10-10T00:00:00Z", "scope": { "type": "folder", "id": "folder-trip" }, "updatedAt": "2026-10-10T22:30:00Z" }
+  ],
+  "candidates": [
+    { "id": "c-1", "proposedLayer": "semantic", "proposedKind": "preference", "content": "Prefers window seats on flights.", "confidence": 0.82, "createdAt": "2026-10-11T18:20:00Z" },
+    { "id": "c-2", "proposedLayer": "semantic", "proposedKind": "instruction", "content": "Format code examples in TypeScript.", "confidence": 0.76, "createdAt": "2026-10-10T11:05:00Z" },
+    { "id": "c-3", "proposedLayer": "episodic", "proposedKind": "decision", "content": "Decided to skip the Porto day trip.", "occurredAt": "2026-10-10T00:00:00Z", "scope": { "type": "folder", "id": "folder-trip" }, "confidence": 0.71, "createdAt": "2026-10-10T22:40:00Z" }
+  ],
+  "$pages": "memoryStarter: no items, no candidates. memoryList: every item above, candidates only feed the suggestion entry count. memoryInbox: the suggestion list. memoryEditorL2 / memoryEditorL3: the list page with the editor open on preset.editItem. memoryRaw: raw text view of the semantic items with preset.rawTooLongAt; the segment at that 0-based index is replaced by rawTooLongSegment.unit repeated rawTooLongSegment.repeat times (2080 code points, over the 2000 limit) so the view shows its tooLong error.",
+  "pages": [
+    { "name": "memoryStarter", "items": "none", "candidates": "none" },
+    { "name": "memoryList", "items": "all", "candidates": "all" },
+    { "name": "memoryInbox", "items": "all", "candidates": "all" },
+    { "name": "memoryEditorL2", "items": "all", "candidates": "all", "preset": { "editItem": "m-pref-1" } },
+    { "name": "memoryEditorL3", "items": "all", "candidates": "all", "preset": { "editItem": "m-ep-1" } },
+    { "name": "memoryRaw", "items": "all", "candidates": "all", "preset": { "rawTooLongAt": 2 } }
+  ],
+  "rawTooLongSegment": { "unit": "Kitchen renovation notes. ", "repeat": 80 }
+}

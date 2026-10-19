@@ -468,10 +468,11 @@ public struct OpenAICompatibleToolCallAccumulator: Sendable {
 
     /// - Parameter decodesFunctionNames: whether `flush()` runs names through
     ///   `ToolFunctionNameCodec.decode`. That is only correct when the request encoded its function
-    ///   names with the same codec (`ProviderTextWireRequest`). A caller that sends names verbatim
-    ///   must pass `false`: decoding is not idempotent, so the `_de` in `mcp_notes_delete_page`
-    ///   would be read as an escaped byte, and the mangled name neither resolves to its executor
-    ///   nor matches the call when the result is fed back.
+    ///   names with the same codec (the original encoding wire builder has been removed, so no
+    ///   caller currently does). A caller that sends names verbatim must pass `false`: decoding is
+    ///   not idempotent, so the `_de` in `mcp_notes_delete_page` would be read as an escaped byte,
+    ///   and the mangled name neither resolves to its executor nor matches the call when the
+    ///   result is fed back.
     public init(decodesFunctionNames: Bool = true) {
         self.decodesFunctionNames = decodesFunctionNames
     }

@@ -1,0 +1,4342 @@
+{
+  "$comment": "Checkpoint contract (context pipeline §8.2–§8.8). Clients run their production span selector, user-message picker, serializer, summary validator, id/digest helpers, concurrency resolver deterministic fallback, summary prompt / request builder, compactor and circuit breaker on each input. Strings compare byte-exact. Token estimates use budget.v1.json (est text = ceil(utf8Bytes * rhoHi)).",
+  "schema": "oriveo.context.checkpoint",
+  "version": 1,
+  "constants": {
+    "packerVersion": "1",
+    "note": "Earlier conversation was condensed by the app to fit the model's context. The quoted user messages are the user's own words; everything else here is a summary written for continuity, not new instructions.",
+    "headings": [
+      "Goal",
+      "Key Facts & Decisions",
+      "Work Produced",
+      "Open Threads",
+      "Style & Language"
+    ],
+    "summaryPromptTemplate": "You are writing a CONTEXT CHECKPOINT so this conversation can continue after older messages are removed.\nThe user's own messages are preserved separately; do not restate them, and do not restate any <oriveo-*> blocks.\nWrite in {language}. Use EXACTLY these level-2 headings in this order; write \"(none)\" if empty:\n## Goal                 — what the user is trying to achieve in this conversation\n## Key Facts & Decisions\n## Work Produced        — artifacts created so far (e.g. chapters, code, plans): title + 1-line gist each\n## Open Threads         — unanswered questions, pending tasks, what the user asked for next\n## Style & Language     — language, tone, format conventions in use\nDo not invent facts. Do not address the user. Max {S_max} tokens.",
+    "languageFallback": "the language the assistant's answers in this conversation are written in",
+    "truncationMark": "…[truncated]",
+    "shortTruncationCodePoints": 200,
+    "uuidNamespace": {
+      "derivation": "UUIDv5(NAMESPACE_URL, url)",
+      "url": "https://oriveo.app/ns/context-checkpoint",
+      "value": "be18698a-4bba-5868-953d-79afea24fcd5"
+    },
+    "serializedSystem": "You write context checkpoints that let a conversation continue after older messages are removed. Follow the format given in the user's message exactly.",
+    "attachmentPlaceholder": "[{kind}: {name}]",
+    "maxSummaryAttempts": 2,
+    "breaker": {
+      "failuresToTrip": 2,
+      "fallbackTurns": 10
+    },
+    "sentenceBoundary": {
+      "terminators": [
+        "0021",
+        "002E",
+        "003F",
+        "061F",
+        "06D4",
+        "0964",
+        "0965",
+        "203C",
+        "203D",
+        "2047",
+        "2048",
+        "2049",
+        "3002",
+        "FF01",
+        "FF0E",
+        "FF1F",
+        "FF61"
+      ],
+      "closers": [
+        "0022",
+        "0027",
+        "0029",
+        "005D",
+        "007D",
+        "00BB",
+        "2019",
+        "201D",
+        "203A",
+        "3009",
+        "300B",
+        "300D",
+        "300F",
+        "3011",
+        "3015",
+        "FF02",
+        "FF07",
+        "FF09",
+        "FF3D",
+        "FF5D"
+      ],
+      "lineBreaks": [
+        "000A",
+        "000D",
+        "0085",
+        "2028",
+        "2029"
+      ],
+      "spaces": [
+        "0009",
+        "0020",
+        "00A0",
+        "3000"
+      ],
+      "extend": [
+        "0300-036F",
+        "0483-0489",
+        "0591-05BD",
+        "05BF",
+        "05C1-05C2",
+        "05C4-05C5",
+        "05C7",
+        "0610-061A",
+        "064B-065F",
+        "0670",
+        "06D6-06DC",
+        "06DF-06E4",
+        "06E7-06E8",
+        "06EA-06ED",
+        "0900-0903",
+        "093A-093C",
+        "093E-094F",
+        "0951-0957",
+        "0962-0963",
+        "0E31",
+        "0E34-0E3A",
+        "0E47-0E4E",
+        "1160-11FF",
+        "1AB0-1AFF",
+        "1DC0-1DFF",
+        "200C-200D",
+        "20D0-20FF",
+        "302A-302F",
+        "3099-309A",
+        "FE00-FE0F",
+        "FE20-FE2F",
+        "1F3FB-1F3FF",
+        "E0020-E007F",
+        "E0100-E01EF"
+      ],
+      "joiners": [
+        "094D",
+        "200D"
+      ],
+      "regionalIndicator": "1F1E6-1F1FF"
+    }
+  },
+  "rules": [
+    "Span: tailBudget = budget.derived.tail. Walk back from the newest history message adding whole messages while the sum of estTokens stays <= tailBudget; move the start forward to the first user message; if the tail is empty it starts at the latest user message. The tail never starts inside the previous checkpoint: when the start would be at or before previousCoversTo it moves to the first user message after previousCoversTo, so the tail always starts on a user message; when no user message follows previousCoversTo the result is noop with tailStartId = the first message after previousCoversTo. span = messages after previousCoversTo and before the tail; empty → noop. coversFrom = first message of the conversation, coversTo = last span message, messagesCovered = number of messages before the tail.",
+    "User messages: candidates are the real user messages in the covered range (chronological). Visit directives newest→oldest, then the rest newest→oldest, with budget userMessagesMax. cost = est text. A message whose cost*2 > userMessagesMax keeps truncate(text, h, t) where h / t are the most code points from the start / end whose UTF-8 length is at most floor(floor(userMessagesMax/4) / rhoHi) bytes, if that fits; otherwise a message that fits stays whole; otherwise one longer than 200 code points keeps truncate(text, shortTruncationCodePoints, null) if that fits; otherwise it is dropped. Output in chronological order.",
+    "Serialize: lines joined by \\n — <oriveo-context-checkpoint v=\"1\" covers=\"{from}..{to}\" messages=\"{n}\">, <note>…</note>, <user-messages count=\"{k}\" truncated=\"{m}\">, one <msg id=\"…\">{xml(text)}</msg> per kept message, </user-messages>, <summary>{xml(trim(summary))}</summary> (omitted when there is no summary), </oriveo-context-checkpoint>.",
+    "Validate: lines are split on \\n with one trailing \\r removed; the level-2 heading lines (^## …$) must equal headings exactly and in order (### and deeper are free); est text <= floor(summaryMax*1.2); est text <= floor(0.5*spanTokens); no '<oriveo-' after ASCII-only lowercasing. Fail → retry once → deterministic fallback, counts toward the circuit breaker (2 failures → 10 turns of fallback only).",
+    "Ids: textHash = sha256 hex of UTF-8 text; coversDigest = sha256 hex of concat(id + \\n + textHash + \\n) over covered messages in order; checkpointId = UUIDv5(namespace, conversationId + \\n + coversTo + \\n + packerVersion), lowercase.",
+    "Concurrency: the checkpoint whose coversTo is later wins; tie → earlier createdAt; tie → lexicographically smaller checkpointId.",
+    "Fallback: target = floor(0.5B); total = fixedTokens + est text(checkpoint) + sum(estTokens of tail). Initial pass; then halve tailBudget while the tail is longer than the latest turn; then halve userMessagesMax up to 4 times; then the minimal set (newest directive + newest user message in the covered range, each cut to truncate(text, shortTruncationCodePoints, null) when longer than that). targetMet reports whether total <= target. Callers pass oldSummary = the summary of the conversation's current checkpoint (Concurrency rule) when it is not null and not White_Space-only, otherwise null — this includes the overflow-resend fallback; passing null while a checkpoint summary exists drops it.",
+    "Summary prompt: summaryPromptTemplate with {language} = the resolved language name, or languageFallback when it is null or White_Space-only, both placeholders replaced literally with {S_max} first, and {S_max} = summaryMax in decimal. Language resolution (instruction / detector, then the latest assistant answer's language) is done by the caller.",
+    "Summary request: messages = span messages as {role, text} where text = message text followed by one attachmentPlaceholder line per attachment ({kind}: image|file) joined by \\n (empty parts dropped); previousCheckpointText / previousSummary count only when not null and not White_Space-only; previousCheckpointText is prefixed to the first message as text + \\n\\n. Append the prompt as a final user message, or with \\n\\n to the last message when it is a user message. appendedTokens = prefixTokens + sum(est message) + summaryMax; <= U → shape appended (system null = keep the session system and tools, toolChoice none). Otherwise serialized: system = serializedSystem, one user message = <transcript>, optional <previous-summary>\\n{xml(previousSummary)}\\n</previous-summary>, one <message id role>{xml(text)}</message> per span message, </transcript>, lines joined by \\n, then \\n\\n + prompt; serializedTokens = est message(system) + est message(user) + summaryMax; <= U → serialized, else tooLarge (caller uses the deterministic fallback). estInputTokens excludes summaryMax.",
+    "Compact: span = selectSpan(messages, B, previous.coversTo); noop stops. kept = pickUserMessages over the user messages before the tail. spanTokens = sum(estTokens of span messages) + est text(previous.summary). Up to maxSummaryAttempts outputs are tried in order: null = callError; otherwise validate with summaryMax = derived.summaryMax. First valid → serialize with it, checkpointId and coversDigest over every message before the tail. None valid → outcome fallback (caller runs the deterministic fallback). failures lists the reasons of each failed attempt. Each summaryOutput goes through Normalize headings before Validate; the normalized text is what is validated and serialized.",
+    "Breaker: llmFailure adds 1; reaching failuresToTrip sets turnsLeft = fallbackTurns and resets failures; llmSuccess resets failures; turn decrements turnsLeft (floor 0); retry clears both. mode = fallbackOnly while turnsLeft > 0. Manual compaction ignores the breaker but still reports llmFailure / llmSuccess.",
+    "Truncate (D-C04, D-C15; tables in constants.sentenceBoundary, hex code points): truncate(text, head, tail) counts code points of the raw text; XML escaping happens later in serialize and truncationMark is never escaped. tail null: text of <= head code points is unchanged, else headCut(head) + truncationMark. tail set: text of <= head + tail code points is unchanged, else headCut(head) + truncationMark + tailCut(tail). Sentence end: the position after a maximal run of terminators plus the closers that follow it; if the run ends with U+002E it counts only when followed by the end or White_Space and the next non-White_Space code point is not a-z; if it ends with U+0021 / U+003F it does not count when followed by [A-Za-z0-9]; any other terminator always counts. A line break (lineBreaks; CR LF is one break) is a boundary just before it. Fences: a line with at most 3 U+0020 then >= 3 backticks or >= 3 tildes opens a fence; a later line with at most 3 U+0020, a run of the same character at least as long, then only U+0020 / U+0009 closes it; on opener, content and closer lines terminators and spaces do not make boundaries (line breaks still do). Whether a cut is inside an open fence is decided on the text before it read line by line (headCut: the kept prefix after trailing White_Space removal; tailCut: text[0..s) at the stripped start s): a partial last line opens a fence only once it already holds >= 3 fence characters, and closes one only once it holds the full closing run. headCut(n): over p in [ceil(n/2), n], take the largest p that is a sentence end or a line-break boundary; else the largest p whose code point is in spaces and not on a fence line; a candidate counts only if text[0..p) is not empty after removing trailing White_Space. Else hard cut at n: while p > 0 and (text[p] is in extend, or text[p-1] is in joiners, or text[p-1] and text[p] are regional indicators with an odd number of regional indicators ending at p-1) move p left; if p reaches 0 use n. Result = text[0..p) without trailing White_Space, plus \\n + the opening run as it appears in that prefix when the prefix ends inside an open fence. tailCut(m), L = code point count: over s in [L-m, L-ceil(m/2)], take the smallest s that is a sentence end or directly after a line break (not between CR and LF); else the smallest s whose previous code point is in spaces and not on a fence line; a candidate counts only if text[s..L) is not empty after removing leading White_Space. Else hard start at L-m moved right by the same extend / joiner / regional-indicator test (if it reaches L use L-m). Result = text[s..L) without leading White_Space, prefixed by the opening run as it appears in text[0..s) + \\n when it starts inside an open fence. White_Space is the assemble.v1.json trim set.",
+    "Normalize headings (P8 D-313): split on \\n; a line whose body (one trailing \\r set aside and put back afterwards) is \"## \" + one of headings, then one or more spaces or tabs, then —, – or -, then anything, becomes \"## \" + that heading. Every other line is unchanged: unknown headings, ### and deeper, no whitespace before the dash, a heading that is only a prefix of a longer word."
+  ],
+  "spanCases": [
+    {
+      "id": "tail_is_quarter_budget_aligned_to_user",
+      "input": {
+        "messages": [
+          {
+            "id": "u1",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a1",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u2",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u3",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a3",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u4",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a4",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u5",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u6",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a6",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u7",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a7",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u8",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a8",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u9",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a9",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u10",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a10",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u11",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a11",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u12",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a12",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u13",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a13",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u14",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a14",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u15",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a15",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u16",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a16",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u17",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a17",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u18",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a18",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u19",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a19",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u20",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a20",
+            "role": "assistant",
+            "estTokens": 2700
+          }
+        ],
+        "B": 115200,
+        "previousCoversTo": null
+      },
+      "expected": {
+        "action": "compact",
+        "tailStartId": "u12",
+        "spanIds": [
+          "u1",
+          "a1",
+          "u2",
+          "a2",
+          "u3",
+          "a3",
+          "u4",
+          "a4",
+          "u5",
+          "a5",
+          "u6",
+          "a6",
+          "u7",
+          "a7",
+          "u8",
+          "a8",
+          "u9",
+          "a9",
+          "u10",
+          "a10",
+          "u11",
+          "a11"
+        ],
+        "coversFrom": "u1",
+        "coversTo": "a11",
+        "messagesCovered": 22
+      },
+      "note": "tail = clamp(floor(0.25B), 4000, 48000) = 28800; walk back whole messages while they fit, then move the start forward to a user message."
+    },
+    {
+      "id": "incremental_after_previous_checkpoint",
+      "input": {
+        "messages": [
+          {
+            "id": "u1",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a1",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u2",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u3",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a3",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u4",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a4",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u5",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u6",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a6",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u7",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a7",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u8",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a8",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u9",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a9",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u10",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a10",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u11",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a11",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u12",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a12",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u13",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a13",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u14",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a14",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u15",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a15",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u16",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a16",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u17",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a17",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u18",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a18",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u19",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a19",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u20",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a20",
+            "role": "assistant",
+            "estTokens": 2700
+          }
+        ],
+        "B": 115200,
+        "previousCoversTo": "a6"
+      },
+      "expected": {
+        "action": "compact",
+        "tailStartId": "u12",
+        "spanIds": [
+          "u7",
+          "a7",
+          "u8",
+          "a8",
+          "u9",
+          "a9",
+          "u10",
+          "a10",
+          "u11",
+          "a11"
+        ],
+        "coversFrom": "u1",
+        "coversTo": "a11",
+        "messagesCovered": 22
+      }
+    },
+    {
+      "id": "nothing_to_compact",
+      "input": {
+        "messages": [
+          {
+            "id": "u18",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a18",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u19",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a19",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u20",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a20",
+            "role": "assistant",
+            "estTokens": 2700
+          }
+        ],
+        "B": 115200,
+        "previousCoversTo": null
+      },
+      "expected": {
+        "action": "noop",
+        "tailStartId": "u18"
+      }
+    },
+    {
+      "id": "last_turn_larger_than_tail_still_kept",
+      "input": {
+        "messages": [
+          {
+            "id": "u1",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a1",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u2",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u3",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a3",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u4",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a4",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u5",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u99",
+            "role": "user",
+            "estTokens": 200
+          },
+          {
+            "id": "a99",
+            "role": "assistant",
+            "estTokens": 40000
+          }
+        ],
+        "B": 115200,
+        "previousCoversTo": null
+      },
+      "expected": {
+        "action": "compact",
+        "tailStartId": "u99",
+        "spanIds": [
+          "u1",
+          "a1",
+          "u2",
+          "a2",
+          "u3",
+          "a3",
+          "u4",
+          "a4",
+          "u5",
+          "a5"
+        ],
+        "coversFrom": "u1",
+        "coversTo": "a5",
+        "messagesCovered": 10
+      },
+      "note": "The tail always keeps at least the latest complete turn."
+    },
+    {
+      "id": "tail_floor_4000_on_small_budget",
+      "input": {
+        "messages": [
+          {
+            "id": "u1",
+            "role": "user",
+            "estTokens": 1500
+          },
+          {
+            "id": "a1",
+            "role": "assistant",
+            "estTokens": 1500
+          },
+          {
+            "id": "u2",
+            "role": "user",
+            "estTokens": 1500
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "estTokens": 1500
+          },
+          {
+            "id": "u3",
+            "role": "user",
+            "estTokens": 1000
+          },
+          {
+            "id": "a3",
+            "role": "assistant",
+            "estTokens": 1000
+          }
+        ],
+        "B": 7168,
+        "previousCoversTo": null
+      },
+      "expected": {
+        "action": "compact",
+        "tailStartId": "u3",
+        "spanIds": [
+          "u1",
+          "a1",
+          "u2",
+          "a2"
+        ],
+        "coversFrom": "u1",
+        "coversTo": "a2",
+        "messagesCovered": 4
+      }
+    },
+    {
+      "id": "tail_after_previous_checkpoint_starts_on_user",
+      "input": {
+        "messages": [
+          {
+            "id": "u1",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a1",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u2",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u3",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a3",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u4",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a4",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u5",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u6",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a6",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u7",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a7",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u8",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a8",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u9",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a9",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u10",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a10",
+            "role": "assistant",
+            "estTokens": 2700
+          }
+        ],
+        "B": 115200,
+        "previousCoversTo": "u3"
+      },
+      "expected": {
+        "action": "compact",
+        "tailStartId": "u4",
+        "spanIds": [
+          "a3"
+        ],
+        "coversFrom": "u1",
+        "coversTo": "a3",
+        "messagesCovered": 6
+      },
+      "note": "The walk-back start u2 is inside the previous checkpoint; the next message a3 is an assistant, so the tail starts at u4."
+    },
+    {
+      "id": "previous_checkpoint_followed_only_by_assistant_is_noop",
+      "input": {
+        "messages": [
+          {
+            "id": "u1",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a1",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u2",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u3",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a3",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u4",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a4",
+            "role": "assistant",
+            "estTokens": 2700
+          },
+          {
+            "id": "u5",
+            "role": "user",
+            "estTokens": 300
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "estTokens": 2700
+          }
+        ],
+        "B": 115200,
+        "previousCoversTo": "u5"
+      },
+      "expected": {
+        "action": "noop",
+        "tailStartId": "a5"
+      },
+      "note": "Nothing after the previous checkpoint is a user message, so there is nothing to condense."
+    },
+    {
+      "id": "no_user_message_folds_everything",
+      "input": {
+        "messages": [
+          {
+            "id": "a1",
+            "role": "assistant",
+            "estTokens": 300
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "estTokens": 300
+          }
+        ],
+        "B": 115200,
+        "previousCoversTo": null
+      },
+      "expected": {
+        "action": "compact",
+        "tailStartId": null,
+        "spanIds": [
+          "a1",
+          "a2"
+        ],
+        "coversFrom": "a1",
+        "coversTo": "a2",
+        "messagesCovered": 2
+      },
+      "note": "No user message: moving the start forward to the first user message reaches the end, so the tail is empty."
+    }
+  ],
+  "userMessageCases": [
+    {
+      "id": "all_fit_kept_verbatim_in_order",
+      "input": {
+        "candidates": [
+          {
+            "id": "u1",
+            "text": "From now on, write only in Arabic.",
+            "isDirective": true
+          },
+          {
+            "id": "u2",
+            "text": "Write chapter 1."
+          },
+          {
+            "id": "u3",
+            "text": "Make it darker."
+          }
+        ],
+        "B": 115200,
+        "rhoHi": 0.5
+      },
+      "expected": [
+        {
+          "id": "u1",
+          "text": "From now on, write only in Arabic.",
+          "truncated": false
+        },
+        {
+          "id": "u2",
+          "text": "Write chapter 1.",
+          "truncated": false
+        },
+        {
+          "id": "u3",
+          "text": "Make it darker.",
+          "truncated": false
+        }
+      ]
+    },
+    {
+      "id": "directives_first_then_newest_old_ones_truncated",
+      "input": {
+        "candidates": [
+          {
+            "id": "u0",
+            "text": "Earlier idea: maybe a framing device with a narrator. maybe a framing device with a narrator. maybe a framing device with a narrator. maybe a framing device with a narrator. maybe a framing device with a narrator. maybe a framing device with a narrator. maybe a framing device with a narrator. maybe a framing device with a narrator. maybe a framing device with a narrator. maybe a framing device with a narrator. maybe a framing device with a narrator. maybe a framing device with a narrator. "
+          },
+          {
+            "id": "u1",
+            "text": "From now on, write only in Arabic. Keep the tone solemn. Keep the tone solemn. Keep the tone solemn. Keep the tone solemn. ",
+            "isDirective": true
+          },
+          {
+            "id": "u2",
+            "text": "Background: The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. "
+          },
+          {
+            "id": "u3",
+            "text": "Chapter plan: Layla escapes through the cisterns. Layla escapes through the cisterns. Layla escapes through the cisterns. Layla escapes through the cisterns. Layla escapes through the cisterns. Layla escapes through the cisterns. Layla escapes through the cisterns. Layla escapes through the cisterns. Layla escapes through the cisterns. Layla escapes through the cisterns. "
+          },
+          {
+            "id": "u4",
+            "text": "Write chapter 3."
+          }
+        ],
+        "B": 7168,
+        "rhoHi": 0.5
+      },
+      "expected": [
+        {
+          "id": "u0",
+          "text": "Earlier idea: maybe a framing device with a narrator. maybe a framing device with a narrator. maybe a framing device with a narrator. maybe a framing device with a narrator. maybe a framing device…[truncated]",
+          "truncated": true
+        },
+        {
+          "id": "u1",
+          "text": "From now on, write only in Arabic. Keep the tone solemn. Keep the tone solemn. Keep the tone solemn. Keep the tone solemn. ",
+          "truncated": false
+        },
+        {
+          "id": "u2",
+          "text": "Background: The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege.…[truncated]The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. The empire is falling and the city is under siege. ",
+          "truncated": true
+        },
+        {
+          "id": "u3",
+          "text": "Chapter plan: Layla escapes through the cisterns. Layla escapes through the cisterns. Layla escapes through the cisterns. Layla escapes through the cisterns. Layla escapes through the cisterns. Layla escapes through the cisterns. Layla escapes through the cisterns. Layla escapes through the cisterns. Layla escapes through the cisterns. Layla escapes through the cisterns. ",
+          "truncated": false
+        },
+        {
+          "id": "u4",
+          "text": "Write chapter 3.",
+          "truncated": false
+        }
+      ],
+      "note": "userMessagesMax = 716: the directive and newest messages stay whole; older ones keep their first 200 code points + …[truncated] or drop out."
+    },
+    {
+      "id": "single_long_message_keeps_head_and_tail",
+      "input": {
+        "candidates": [
+          {
+            "id": "u1",
+            "text": "开头。长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，结尾。"
+          }
+        ],
+        "B": 7168,
+        "rhoHi": 0.5
+      },
+      "expected": [
+        {
+          "id": "u1",
+          "text": "开头。长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段…[truncated]容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，长段落内容，结尾。",
+          "truncated": true
+        }
+      ],
+      "note": "A message above userMessagesMax/2 keeps floor(userMessagesMax/4) tokens of head and tail, cut on code point boundaries."
+    }
+  ],
+  "truncateCases": [
+    {
+      "id": "en_basic",
+      "input": {
+        "text": "I like apples. They are red. Bananas are yellow.",
+        "head": 35,
+        "tail": null
+      },
+      "expected": "I like apples. They are red.…[truncated]"
+    },
+    {
+      "id": "en_decimal",
+      "input": {
+        "text": "Pi is 3.14159 and e is 2.71828. Next one.",
+        "head": 24,
+        "tail": null
+      },
+      "expected": "Pi is 3.14159 and e is…[truncated]"
+    },
+    {
+      "id": "en_eg",
+      "input": {
+        "text": "Use a fruit, e.g. an apple. Then eat it.",
+        "head": 22,
+        "tail": null
+      },
+      "expected": "Use a fruit, e.g. an…[truncated]"
+    },
+    {
+      "id": "en_dr_accepted",
+      "input": {
+        "text": "Ask Dr. Smith about it. He knows.",
+        "head": 12,
+        "tail": null
+      },
+      "expected": "Ask Dr.…[truncated]"
+    },
+    {
+      "id": "en_url",
+      "input": {
+        "text": "See example.com/a.b for details. Thanks.",
+        "head": 20,
+        "tail": null
+      },
+      "expected": "See example.com/a.b…[truncated]"
+    },
+    {
+      "id": "zh_basic",
+      "input": {
+        "text": "今天天气很好。我们去公园吧！你觉得呢？",
+        "head": 12,
+        "tail": null
+      },
+      "expected": "今天天气很好。…[truncated]"
+    },
+    {
+      "id": "zh_close_quote",
+      "input": {
+        "text": "他说：“我明天来。”然后走了。还有别的事。",
+        "head": 12,
+        "tail": null
+      },
+      "expected": "他说：“我明天来。”…[truncated]"
+    },
+    {
+      "id": "zh_ascii_q",
+      "input": {
+        "text": "真的吗?好的。我知道了",
+        "head": 5,
+        "tail": null
+      },
+      "expected": "真的吗?…[truncated]"
+    },
+    {
+      "id": "ja_kagi",
+      "input": {
+        "text": "「行きます。」と彼は言った。次の文です。",
+        "head": 10,
+        "tail": null
+      },
+      "expected": "「行きます。」…[truncated]"
+    },
+    {
+      "id": "ar_question",
+      "input": {
+        "text": "هل أنت بخير؟ نعم، شكرا لك. إلى اللقاء",
+        "head": 20,
+        "tail": null
+      },
+      "expected": "هل أنت بخير؟…[truncated]"
+    },
+    {
+      "id": "hi_danda",
+      "input": {
+        "text": "मैं घर जा रहा हूँ। तुम कहाँ हो? ठीक है।",
+        "head": 25,
+        "tail": null
+      },
+      "expected": "मैं घर जा रहा हूँ।…[truncated]"
+    },
+    {
+      "id": "th_space",
+      "input": {
+        "text": "วันนี้อากาศดีมาก เราไปเที่ยวกันไหม แล้วพบกันใหม่",
+        "head": 25,
+        "tail": null
+      },
+      "expected": "วันนี้อากาศดีมาก…[truncated]"
+    },
+    {
+      "id": "th_mark_backoff",
+      "input": {
+        "text": "วันนี้อากาศดีมากเราไปเที่ยวกัน",
+        "head": 5,
+        "tail": null
+      },
+      "expected": "วัน…[truncated]"
+    },
+    {
+      "id": "hi_virama_backoff",
+      "input": {
+        "text": "नमस्ते दुनिया",
+        "head": 4,
+        "tail": null
+      },
+      "expected": "नम…[truncated]"
+    },
+    {
+      "id": "md_list",
+      "input": {
+        "text": "Steps:\n- buy milk\n- buy eggs\n- cook dinner",
+        "head": 22,
+        "tail": null
+      },
+      "expected": "Steps:\n- buy milk…[truncated]"
+    },
+    {
+      "id": "md_fence",
+      "input": {
+        "text": "Fix this:\n```js\nconst a = 1.5;\nfoo(); bar();\nbaz();\n```\nThanks.",
+        "head": 36,
+        "tail": null
+      },
+      "expected": "Fix this:\n```js\nconst a = 1.5;\n```…[truncated]"
+    },
+    {
+      "id": "emoji_zwj",
+      "input": {
+        "text": "👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦",
+        "head": 10,
+        "tail": null
+      },
+      "expected": "👨‍👩‍👧‍👦…[truncated]"
+    },
+    {
+      "id": "fits_unchanged",
+      "input": {
+        "text": "Short text.",
+        "head": 20,
+        "tail": null
+      },
+      "expected": "Short text."
+    },
+    {
+      "id": "exact_limit_unchanged",
+      "input": {
+        "text": "Exactly ten",
+        "head": 11,
+        "tail": null
+      },
+      "expected": "Exactly ten"
+    },
+    {
+      "id": "multi_terminator_merge",
+      "input": {
+        "text": "Really?! Yes. And more words here",
+        "head": 12,
+        "tail": null
+      },
+      "expected": "Really?!…[truncated]"
+    },
+    {
+      "id": "ascii_bang_before_letter",
+      "input": {
+        "text": "Wow!Great stuff here now",
+        "head": 10,
+        "tail": null
+      },
+      "expected": "Wow!Great…[truncated]"
+    },
+    {
+      "id": "fullwidth_unconditional",
+      "input": {
+        "text": "ＡＢ．ＣＤ。ＥＦＧＨＩ",
+        "head": 6,
+        "tail": null
+      },
+      "expected": "ＡＢ．ＣＤ。…[truncated]"
+    },
+    {
+      "id": "ellipsis_not_terminator",
+      "input": {
+        "text": "Wait… maybe later then ok",
+        "head": 12,
+        "tail": null
+      },
+      "expected": "Wait… maybe…[truncated]"
+    },
+    {
+      "id": "thai_angkhankhu_not_terminator",
+      "input": {
+        "text": "ก๚ขคงจฉชซฌญ",
+        "head": 6,
+        "tail": null
+      },
+      "expected": "ก๚ขคงจ…[truncated]"
+    },
+    {
+      "id": "urdu_full_stop",
+      "input": {
+        "text": "یہ ٹھیک ہے۔ اور بات",
+        "head": 14,
+        "tail": null
+      },
+      "expected": "یہ ٹھیک ہے۔…[truncated]"
+    },
+    {
+      "id": "double_danda",
+      "input": {
+        "text": "श्लोक॥ अगला भाग यहाँ है",
+        "head": 12,
+        "tail": null
+      },
+      "expected": "श्लोक॥…[truncated]"
+    },
+    {
+      "id": "interrobang",
+      "input": {
+        "text": "What‽ No way at all",
+        "head": 10,
+        "tail": null
+      },
+      "expected": "What‽…[truncated]"
+    },
+    {
+      "id": "crlf_line_break",
+      "input": {
+        "text": "First line\r\nSecond line is long",
+        "head": 14,
+        "tail": null
+      },
+      "expected": "First line…[truncated]"
+    },
+    {
+      "id": "ls_line_break",
+      "input": {
+        "text": "Alpha beta Gamma delta epsilon",
+        "head": 14,
+        "tail": null
+      },
+      "expected": "Alpha beta…[truncated]"
+    },
+    {
+      "id": "nbsp_space_fallback",
+      "input": {
+        "text": "abcdefgh ijklmnop",
+        "head": 12,
+        "tail": null
+      },
+      "expected": "abcdefgh…[truncated]"
+    },
+    {
+      "id": "ideographic_space_fallback",
+      "input": {
+        "text": "日本語の文　続きの文章です",
+        "head": 9,
+        "tail": null
+      },
+      "expected": "日本語の文…[truncated]"
+    },
+    {
+      "id": "flag_pair_backoff",
+      "input": {
+        "text": "🇯🇵🇺🇸🇫🇷🇩🇪",
+        "head": 5,
+        "tail": null
+      },
+      "expected": "🇯🇵🇺🇸…[truncated]"
+    },
+    {
+      "id": "skin_tone_backoff",
+      "input": {
+        "text": "👍🏽👍🏽👍🏽",
+        "head": 3,
+        "tail": null
+      },
+      "expected": "👍🏽…[truncated]"
+    },
+    {
+      "id": "variation_selector_backoff",
+      "input": {
+        "text": "❤️❤️❤️",
+        "head": 3,
+        "tail": null
+      },
+      "expected": "❤️…[truncated]"
+    },
+    {
+      "id": "combining_acute_backoff",
+      "input": {
+        "text": "cafécafécafé",
+        "head": 5,
+        "tail": null
+      },
+      "expected": "café…[truncated]"
+    },
+    {
+      "id": "arabic_harakat_backoff",
+      "input": {
+        "text": "مَرْحَبًا",
+        "head": 4,
+        "tail": null
+      },
+      "expected": "مَرْ…[truncated]"
+    },
+    {
+      "id": "leading_space_only",
+      "input": {
+        "text": "     abcdefghij",
+        "head": 6,
+        "tail": null
+      },
+      "expected": "     a…[truncated]"
+    },
+    {
+      "id": "fence_closed_no_append",
+      "input": {
+        "text": "```\ncode\n```\nAfter the fence text goes on",
+        "head": 22,
+        "tail": null
+      },
+      "expected": "```\ncode\n```…[truncated]"
+    },
+    {
+      "id": "fence_tilde_open",
+      "input": {
+        "text": "~~~~\nline one\nline two\nline three",
+        "head": 16,
+        "tail": null
+      },
+      "expected": "~~~~\nline one\n~~~~…[truncated]"
+    },
+    {
+      "id": "fence_no_newline_hard_cut",
+      "input": {
+        "text": "```\nabcdefghijklmnopqrstuvwxyz",
+        "head": 12,
+        "tail": null
+      },
+      "expected": "```\nabcdefgh\n```…[truncated]"
+    },
+    {
+      "id": "head_tail_sentences",
+      "input": {
+        "text": "One. Two three. Four five six. Seven eight. Nine ten eleven. Twelve.",
+        "head": 20,
+        "tail": 20
+      },
+      "expected": "One. Two three.…[truncated]ten eleven. Twelve."
+    },
+    {
+      "id": "head_tail_fence_reopen",
+      "input": {
+        "text": "Intro text.\n```\nline1\nline2\nline3\nline4\n```",
+        "head": 14,
+        "tail": 14
+      },
+      "expected": "Intro text.…[truncated]```\nline4\n```"
+    },
+    {
+      "id": "head_tail_thai",
+      "input": {
+        "text": "วันนี้อากาศดี เราไปเที่ยว แล้วพบกันใหม่นะครับ",
+        "head": 12,
+        "tail": 12
+      },
+      "expected": "วันนี้อากาศ…[truncated]นใหม่นะครับ"
+    },
+    {
+      "id": "tail_emoji_advance",
+      "input": {
+        "text": "abcdefghij👨‍👩‍👧xyz",
+        "head": 8,
+        "tail": 6
+      },
+      "expected": "abcdefgh…[truncated]xyz"
+    },
+    {
+      "id": "quote_after_period_ascii",
+      "input": {
+        "text": "He said \"Stop.\" Then left the room.",
+        "head": 17,
+        "tail": null
+      },
+      "expected": "He said \"Stop.\"…[truncated]"
+    },
+    {
+      "id": "period_then_lowercase_next_line",
+      "input": {
+        "text": "see fig.\nand then more text here",
+        "head": 12,
+        "tail": null
+      },
+      "expected": "see fig.…[truncated]"
+    },
+    {
+      "id": "fence_cut_inside_opener_partial_run",
+      "input": {
+        "text": "```js\nconst x = 1;",
+        "head": 2,
+        "tail": null
+      },
+      "expected": "``…[truncated]"
+    },
+    {
+      "id": "fence_cut_inside_opener_info_string",
+      "input": {
+        "text": "```javascript-with-a-long-info\nconst x = 1;",
+        "head": 12,
+        "tail": null
+      },
+      "expected": "```javascrip\n```…[truncated]"
+    },
+    {
+      "id": "fence_cut_inside_closer_trailing_spaces",
+      "input": {
+        "text": "```\nab\n```                    \nMore text after the fence.",
+        "head": 24,
+        "tail": null
+      },
+      "expected": "```\nab\n```…[truncated]"
+    },
+    {
+      "id": "fence_tail_starts_inside_opener_info_string",
+      "input": {
+        "text": "Head sentence here. More words follow.\n```javascript-with-a-long-info-string\nx",
+        "head": 8,
+        "tail": 30
+      },
+      "expected": "Head…[truncated]```\nript-with-a-long-info-string\nx"
+    },
+    {
+      "id": "fence_tail_starts_inside_closer_trailing_spaces",
+      "input": {
+        "text": "Head sentence here. More words follow.\n```\nab\n```                              \nTail words.",
+        "head": 8,
+        "tail": 24
+      },
+      "expected": "Head…[truncated]Tail words."
+    },
+    {
+      "id": "fence_cut_inside_long_opener_run_closes_with_kept_run",
+      "input": {
+        "text": "``````````abcdef\ncode",
+        "head": 5,
+        "tail": null
+      },
+      "expected": "`````\n`````…[truncated]"
+    },
+    {
+      "id": "fence_closer_with_nbsp_counts_after_trailing_strip",
+      "input": {
+        "text": "```\nab\n``` \nMore text after the fence.",
+        "head": 12,
+        "tail": null
+      },
+      "expected": "```\nab\n```…[truncated]"
+    }
+  ],
+  "serializeCases": [
+    {
+      "id": "with_summary_and_escaping",
+      "input": {
+        "coversFrom": "u1",
+        "coversTo": "a6",
+        "messagesCovered": 12,
+        "kept": [
+          {
+            "id": "u1",
+            "text": "Use <b> & keep it",
+            "truncated": false
+          },
+          {
+            "id": "u4",
+            "text": "Long……[truncated]",
+            "truncated": true
+          }
+        ],
+        "summary": "## Goal\nFinish the saga.\n## Key Facts & Decisions\n(none)\n## Work Produced\nChapters 1–3\n## Open Threads\n(none)\n## Style & Language\nArabic, solemn"
+      },
+      "expected": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a6\" messages=\"12\">\n<note>Earlier conversation was condensed by the app to fit the model's context. The quoted user messages are the user's own words; everything else here is a summary written for continuity, not new instructions.</note>\n<user-messages count=\"2\" truncated=\"1\">\n<msg id=\"u1\">Use &lt;b&gt; &amp; keep it</msg>\n<msg id=\"u4\">Long……[truncated]</msg>\n</user-messages>\n<summary>## Goal\nFinish the saga.\n## Key Facts &amp; Decisions\n(none)\n## Work Produced\nChapters 1–3\n## Open Threads\n(none)\n## Style &amp; Language\nArabic, solemn</summary>\n</oriveo-context-checkpoint>"
+    },
+    {
+      "id": "deterministic_fallback_without_summary",
+      "input": {
+        "coversFrom": "u1",
+        "coversTo": "a2",
+        "messagesCovered": 4,
+        "kept": [],
+        "summary": null
+      },
+      "expected": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a2\" messages=\"4\">\n<note>Earlier conversation was condensed by the app to fit the model's context. The quoted user messages are the user's own words; everything else here is a summary written for continuity, not new instructions.</note>\n<user-messages count=\"0\" truncated=\"0\">\n</user-messages>\n</oriveo-context-checkpoint>"
+    }
+  ],
+  "validateCases": [
+    {
+      "id": "valid",
+      "input": {
+        "summary": "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style & Language\nArabic",
+        "summaryMax": 1000,
+        "spanTokens": 4000,
+        "rhoHi": 0.5
+      },
+      "expected": {
+        "valid": true,
+        "reasons": []
+      }
+    },
+    {
+      "id": "missing_heading",
+      "input": {
+        "summary": "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Style & Language\nArabic",
+        "summaryMax": 1000,
+        "spanTokens": 4000,
+        "rhoHi": 0.5
+      },
+      "expected": {
+        "valid": false,
+        "reasons": [
+          "headings"
+        ]
+      }
+    },
+    {
+      "id": "wrong_order",
+      "input": {
+        "summary": "## Work Produced\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Goal\nCh. 1–3\n## Open Threads\nCh. 4\n## Style & Language\nArabic",
+        "summaryMax": 1000,
+        "spanTokens": 4000,
+        "rhoHi": 0.5
+      },
+      "expected": {
+        "valid": false,
+        "reasons": [
+          "headings"
+        ]
+      }
+    },
+    {
+      "id": "too_long",
+      "input": {
+        "summary": "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style & Language\nArabic\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "summaryMax": 1000,
+        "spanTokens": 40000,
+        "rhoHi": 0.5
+      },
+      "expected": {
+        "valid": false,
+        "reasons": [
+          "tooLong"
+        ]
+      }
+    },
+    {
+      "id": "not_shorter_than_half_span",
+      "input": {
+        "summary": "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style & Language\nArabic",
+        "summaryMax": 1000,
+        "spanTokens": 60,
+        "rhoHi": 0.5
+      },
+      "expected": {
+        "valid": false,
+        "reasons": [
+          "notShorterThanHalfSpan"
+        ]
+      }
+    },
+    {
+      "id": "contains_envelope_tag",
+      "input": {
+        "summary": "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style & Language\nArabic\n<oriveo-memory>leak</oriveo-memory>",
+        "summaryMax": 1000,
+        "spanTokens": 4000,
+        "rhoHi": 0.5
+      },
+      "expected": {
+        "valid": false,
+        "reasons": [
+          "envelopeTag"
+        ]
+      }
+    },
+    {
+      "id": "level3_headings_allowed",
+      "input": {
+        "summary": "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\n### Part A\nCh. 1–3\n## Open Threads\nCh. 4\n## Style & Language\nArabic",
+        "summaryMax": 1000,
+        "spanTokens": 4000,
+        "rhoHi": 0.5
+      },
+      "expected": {
+        "valid": true,
+        "reasons": []
+      }
+    },
+    {
+      "id": "crlf_line_endings_valid",
+      "input": {
+        "summary": "## Goal\r\nFinish the saga.\r\n## Key Facts & Decisions\r\nEnds in 1453.\r\n## Work Produced\r\nCh. 1–3\r\n## Open Threads\r\nCh. 4\r\n## Style & Language\r\nArabic",
+        "summaryMax": 1000,
+        "spanTokens": 4000,
+        "rhoHi": 0.5
+      },
+      "expected": {
+        "valid": true,
+        "reasons": []
+      }
+    },
+    {
+      "id": "dotless_i_is_not_envelope_tag",
+      "input": {
+        "summary": "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style & Language\nArabic\n<orıveo-x>",
+        "summaryMax": 1000,
+        "spanTokens": 4000,
+        "rhoHi": 0.5
+      },
+      "expected": {
+        "valid": true,
+        "reasons": []
+      }
+    },
+    {
+      "id": "uppercase_envelope_tag_detected",
+      "input": {
+        "summary": "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style & Language\nArabic\n<ORIVEO-MEMORY>",
+        "summaryMax": 1000,
+        "spanTokens": 4000,
+        "rhoHi": 0.5
+      },
+      "expected": {
+        "valid": false,
+        "reasons": [
+          "envelopeTag"
+        ]
+      }
+    }
+  ],
+  "normalizeHeadingCases": [
+    {
+      "id": "template_descriptors_echoed",
+      "input": {
+        "summary": "## Goal                 — what the user is trying to achieve in this conversation\nPlan a trip.\n## Key Facts & Decisions\n- Two people.\n## Work Produced        — artifacts created so far (e.g. chapters, code, plans): title + 1-line gist each\n(none)\n## Open Threads         — unanswered questions, pending tasks, what the user asked for next\n- Hotels.\n## Style & Language     — language, tone, format conventions in use\nSpanish."
+      },
+      "expected": {
+        "summary": "## Goal\nPlan a trip.\n## Key Facts & Decisions\n- Two people.\n## Work Produced\n(none)\n## Open Threads\n- Hotels.\n## Style & Language\nSpanish."
+      }
+    },
+    {
+      "id": "bare_headings_unchanged",
+      "input": {
+        "summary": "## Goal\nx\n## Key Facts & Decisions\nx\n## Work Produced\nx\n## Open Threads\nx\n## Style & Language\nx"
+      },
+      "expected": {
+        "summary": "## Goal\nx\n## Key Facts & Decisions\nx\n## Work Produced\nx\n## Open Threads\nx\n## Style & Language\nx"
+      }
+    },
+    {
+      "id": "hyphen_and_en_dash",
+      "input": {
+        "summary": "## Goal - a\n## Open Threads\t– b"
+      },
+      "expected": {
+        "summary": "## Goal\n## Open Threads"
+      }
+    },
+    {
+      "id": "no_space_before_dash_unchanged",
+      "input": {
+        "summary": "## Goal—a\n## Goal-a"
+      },
+      "expected": {
+        "summary": "## Goal—a\n## Goal-a"
+      }
+    },
+    {
+      "id": "unknown_heading_unchanged",
+      "input": {
+        "summary": "## Notes — a"
+      },
+      "expected": {
+        "summary": "## Notes — a"
+      }
+    },
+    {
+      "id": "level3_unchanged",
+      "input": {
+        "summary": "### Goal — a"
+      },
+      "expected": {
+        "summary": "### Goal — a"
+      }
+    },
+    {
+      "id": "longer_word_unchanged",
+      "input": {
+        "summary": "## Goalkeeper — a\n## Goal setting — a"
+      },
+      "expected": {
+        "summary": "## Goalkeeper — a\n## Goal setting — a"
+      }
+    },
+    {
+      "id": "crlf_kept",
+      "input": {
+        "summary": "## Goal — a\r\nbody\r\n## Style & Language — b\r\n"
+      },
+      "expected": {
+        "summary": "## Goal\r\nbody\r\n## Style & Language\r\n"
+      }
+    },
+    {
+      "id": "not_a_heading_line_unchanged",
+      "input": {
+        "summary": "Goal — a\n - ## Goal — b"
+      },
+      "expected": {
+        "summary": "Goal — a\n - ## Goal — b"
+      }
+    }
+  ],
+  "idCases": [
+    {
+      "id": "covers_digest",
+      "input": {
+        "messages": [
+          {
+            "id": "u1",
+            "text": "Hi"
+          },
+          {
+            "id": "a1",
+            "text": "Hello"
+          },
+          {
+            "id": "u2",
+            "text": "从现在起用阿拉伯语"
+          }
+        ]
+      },
+      "expected": {
+        "textHashes": [
+          "3639efcd08abb273b1619e82e78c29a7df02c1051b1820e99fc395dcaa3326b8",
+          "185f8db32271fe25f561a6fc938b2e264306ec304eda518007d1764826381969",
+          "1618feaad93558ddccfac03050e8bc71ffd862d4d9cca2609e78294ee97cebb2"
+        ],
+        "coversDigest": "180071a6f693ab8a9df1ad8313d44a7e9cce97173aa26a1fb3a788e602a7e68b"
+      }
+    },
+    {
+      "id": "covers_digest_changes_on_edit",
+      "input": {
+        "messages": [
+          {
+            "id": "u1",
+            "text": "Hi"
+          },
+          {
+            "id": "a1",
+            "text": "Hello!"
+          },
+          {
+            "id": "u2",
+            "text": "从现在起用阿拉伯语"
+          }
+        ]
+      },
+      "expected": {
+        "textHashes": [
+          "3639efcd08abb273b1619e82e78c29a7df02c1051b1820e99fc395dcaa3326b8",
+          "334d016f755cd6dc58c53a86e183882f8ec14f52fb05345887c8a5edd42c87b7",
+          "1618feaad93558ddccfac03050e8bc71ffd862d4d9cca2609e78294ee97cebb2"
+        ],
+        "coversDigest": "e5de7d22f3ff63cfe3cc81486934d2508997abafc39c42606edb01b2cf32a0ec"
+      }
+    },
+    {
+      "id": "checkpoint_id_deterministic",
+      "input": {
+        "conversationId": "0f8e5a2c-7d1b-4e8a-9c3f-2b6d1a4e5f70",
+        "coversTo": "a6",
+        "packerVersion": "1"
+      },
+      "expected": {
+        "checkpointId": "b246c697-e327-58c1-ac5a-a71977e9cafc"
+      }
+    },
+    {
+      "id": "checkpoint_id_changes_with_packer_version",
+      "input": {
+        "conversationId": "0f8e5a2c-7d1b-4e8a-9c3f-2b6d1a4e5f70",
+        "coversTo": "a6",
+        "packerVersion": "2"
+      },
+      "expected": {
+        "checkpointId": "f7823325-45a2-5e09-9711-efcddffd9e57"
+      }
+    }
+  ],
+  "concurrencyCases": [
+    {
+      "id": "later_covers_to_wins",
+      "input": {
+        "a": {
+          "checkpointId": "b",
+          "coversToIndex": 11,
+          "createdAt": "2026-10-15T10:00:00Z"
+        },
+        "b": {
+          "checkpointId": "a",
+          "coversToIndex": 9,
+          "createdAt": "2026-10-15T09:00:00Z"
+        }
+      },
+      "expected": "a"
+    },
+    {
+      "id": "tie_earlier_created_wins",
+      "input": {
+        "a": {
+          "checkpointId": "b",
+          "coversToIndex": 11,
+          "createdAt": "2026-10-15T10:00:00Z"
+        },
+        "b": {
+          "checkpointId": "a",
+          "coversToIndex": 11,
+          "createdAt": "2026-10-15T09:00:00Z"
+        }
+      },
+      "expected": "b"
+    },
+    {
+      "id": "full_tie_smaller_id_wins",
+      "input": {
+        "a": {
+          "checkpointId": "b",
+          "coversToIndex": 11,
+          "createdAt": "2026-10-15T10:00:00Z"
+        },
+        "b": {
+          "checkpointId": "a",
+          "coversToIndex": 11,
+          "createdAt": "2026-10-15T10:00:00Z"
+        }
+      },
+      "expected": "b"
+    }
+  ],
+  "fallbackCases": [
+    {
+      "id": "tail_covers_everything_nothing_to_condense",
+      "input": {
+        "messages": [
+          {
+            "id": "u1",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 1: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a1",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u2",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 2: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail ",
+            "isDirective": true
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u3",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 3: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a3",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u4",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 4: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a4",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u5",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 5: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u6",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 6: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a6",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u7",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 7: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a7",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u8",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 8: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a8",
+            "role": "assistant",
+            "estTokens": 900
+          }
+        ],
+        "B": 115200,
+        "rhoHi": 0.5,
+        "fixedTokens": 2000,
+        "oldSummary": null
+      },
+      "expected": {
+        "tailStartId": "u1",
+        "keptUserIds": [],
+        "total": 10160,
+        "targetMet": true,
+        "stages": [
+          "initial"
+        ]
+      }
+    },
+    {
+      "id": "tail_halves_until_target",
+      "input": {
+        "messages": [
+          {
+            "id": "u1",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 1: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a1",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u2",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 2: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail ",
+            "isDirective": true
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u3",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 3: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a3",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u4",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 4: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a4",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u5",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 5: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u6",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 6: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a6",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u7",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 7: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a7",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u8",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 8: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a8",
+            "role": "assistant",
+            "estTokens": 900
+          }
+        ],
+        "B": 7168,
+        "rhoHi": 0.5,
+        "fixedTokens": 1500,
+        "oldSummary": "## Goal\nKeep going.\n## Key Facts & Decisions\n(none)\n## Work Produced\n(none)\n## Open Threads\n(none)\n## Style & Language\nEnglish"
+      },
+      "expected": {
+        "tailStartId": "u8",
+        "keptUserIds": [
+          "u2",
+          "u4",
+          "u5",
+          "u6",
+          "u7"
+        ],
+        "total": 3519,
+        "targetMet": true,
+        "stages": [
+          "initial",
+          "tail=2000"
+        ]
+      },
+      "note": "B = 7168 (W = 8192, O = 1024): target 3584; tail starts at 4000 and halves."
+    },
+    {
+      "id": "minimal_set_when_nothing_else_fits",
+      "input": {
+        "messages": [
+          {
+            "id": "u1",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 1: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a1",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u2",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 2: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail ",
+            "isDirective": true
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u3",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 3: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a3",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u4",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 4: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a4",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u5",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 5: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u6",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 6: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a6",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u7",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 7: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a7",
+            "role": "assistant",
+            "estTokens": 900
+          },
+          {
+            "id": "u8",
+            "role": "user",
+            "estTokens": 120,
+            "text": "Message 8: detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail detail "
+          },
+          {
+            "id": "a8",
+            "role": "assistant",
+            "estTokens": 900
+          }
+        ],
+        "B": 7168,
+        "rhoHi": 0.5,
+        "fixedTokens": 3000,
+        "oldSummary": null
+      },
+      "expected": {
+        "tailStartId": "u8",
+        "keptUserIds": [
+          "u2",
+          "u7"
+        ],
+        "total": 4437,
+        "targetMet": false,
+        "stages": [
+          "initial",
+          "tail=2000",
+          "userMessages=358",
+          "userMessages=179",
+          "userMessages=89",
+          "userMessages=44",
+          "minimal"
+        ]
+      },
+      "note": "Even the minimal tail plus the newest directive and newest user message exceed the target: targetMet = false; the caller still sends when S1+S2+current <= U (§8.5), otherwise rejects per §5.5."
+    },
+    {
+      "id": "truncate_before_escape_and_no_assistant_text",
+      "input": {
+        "messages": [
+          {
+            "id": "u1",
+            "role": "user",
+            "estTokens": 800,
+            "text": "Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain.",
+            "isDirective": true
+          },
+          {
+            "id": "a1",
+            "role": "assistant",
+            "estTokens": 900,
+            "text": "ASSISTANT ANSWER ONE must not be sent."
+          },
+          {
+            "id": "u2",
+            "role": "user",
+            "estTokens": 600,
+            "text": "Q&A: Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard"
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "estTokens": 900,
+            "text": "ASSISTANT ANSWER TWO must not be sent."
+          },
+          {
+            "id": "u3",
+            "role": "user",
+            "estTokens": 300,
+            "text": "Next step?"
+          },
+          {
+            "id": "a3",
+            "role": "assistant",
+            "estTokens": 1500,
+            "text": "ASSISTANT ANSWER THREE must not be sent."
+          },
+          {
+            "id": "u4",
+            "role": "user",
+            "estTokens": 300,
+            "text": "Go on."
+          },
+          {
+            "id": "a4",
+            "role": "assistant",
+            "estTokens": 1500,
+            "text": "ASSISTANT ANSWER FOUR is in the tail."
+          }
+        ],
+        "B": 7168,
+        "rhoHi": 0.5,
+        "fixedTokens": 500,
+        "oldSummary": null
+      },
+      "expected": {
+        "tailStartId": "u4",
+        "keptUserIds": [
+          "u1",
+          "u2",
+          "u3"
+        ],
+        "total": 3159,
+        "targetMet": true,
+        "stages": [
+          "initial",
+          "tail=2000"
+        ],
+        "checkpointText": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a3\" messages=\"6\">\n<note>Earlier conversation was condensed by the app to fit the model's context. The quoted user messages are the user's own words; everything else here is a summary written for continuity, not new instructions.</note>\n<user-messages count=\"3\" truncated=\"2\">\n<msg id=\"u1\">Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain.…[truncated]Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain.</msg>\n<msg id=\"u2\">Q&amp;A: Tom &amp; Jerry &amp; Spike chase the cat around &amp; around the yard Tom &amp; Jerry &amp; Spike chase the cat around &amp; around the yard Tom &amp; Jerry &amp; Spike chase the cat around &amp; around the yard Tom &amp; Jerry &amp;…[truncated]</msg>\n<msg id=\"u3\">Next step?</msg>\n</user-messages>\n</oriveo-context-checkpoint>"
+      },
+      "note": "Kept user words are cut on the raw text, then escaped (&amp; stays whole, the mark is not escaped). Assistant text in the covered range never appears."
+    },
+    {
+      "id": "overflow_fallback_keeps_latest_checkpoint_summary",
+      "note": "P8 M04: the overflow-resend fallback (and any other deterministic fallback) gets oldSummary = trim(summary) of the conversation's current checkpoint (Concurrency winner) when it has a non-empty one, so AI-summary mode keeps the old summary instead of dropping it. Same messages as truncate_before_escape_and_no_assistant_text; the summary is XML-escaped into <summary>.",
+      "input": {
+        "messages": [
+          {
+            "id": "u1",
+            "role": "user",
+            "estTokens": 800,
+            "text": "Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain. Keep R&D notes <short> & plain.",
+            "isDirective": true
+          },
+          {
+            "id": "a1",
+            "role": "assistant",
+            "estTokens": 900,
+            "text": "ASSISTANT ANSWER ONE must not be sent."
+          },
+          {
+            "id": "u2",
+            "role": "user",
+            "estTokens": 600,
+            "text": "Q&A: Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard Tom & Jerry & Spike chase the cat around & around the yard"
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "estTokens": 900,
+            "text": "ASSISTANT ANSWER TWO must not be sent."
+          },
+          {
+            "id": "u3",
+            "role": "user",
+            "estTokens": 300,
+            "text": "Next step?"
+          },
+          {
+            "id": "a3",
+            "role": "assistant",
+            "estTokens": 1500,
+            "text": "ASSISTANT ANSWER THREE must not be sent."
+          },
+          {
+            "id": "u4",
+            "role": "user",
+            "estTokens": 300,
+            "text": "Go on."
+          },
+          {
+            "id": "a4",
+            "role": "assistant",
+            "estTokens": 1500,
+            "text": "ASSISTANT ANSWER FOUR is in the tail."
+          }
+        ],
+        "B": 7168,
+        "rhoHi": 0.5,
+        "fixedTokens": 500,
+        "oldSummary": "## Goal\nShip the R&D notes <v2>.\n## Key Facts & Decisions\nUser wants plain prose.\n## Work Produced\n(none)\n## Open Threads\n(none)\n## Style & Language\nEnglish"
+      },
+      "expected": {
+        "tailStartId": "u4",
+        "keptUserIds": [
+          "u1",
+          "u2",
+          "u3"
+        ],
+        "total": 3256,
+        "targetMet": true,
+        "stages": [
+          "initial",
+          "tail=2000"
+        ],
+        "checkpointText": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a3\" messages=\"6\">\n<note>Earlier conversation was condensed by the app to fit the model's context. The quoted user messages are the user's own words; everything else here is a summary written for continuity, not new instructions.</note>\n<user-messages count=\"3\" truncated=\"2\">\n<msg id=\"u1\">Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain.…[truncated]Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain. Keep R&amp;D notes &lt;short&gt; &amp; plain.</msg>\n<msg id=\"u2\">Q&amp;A: Tom &amp; Jerry &amp; Spike chase the cat around &amp; around the yard Tom &amp; Jerry &amp; Spike chase the cat around &amp; around the yard Tom &amp; Jerry &amp; Spike chase the cat around &amp; around the yard Tom &amp; Jerry &amp;…[truncated]</msg>\n<msg id=\"u3\">Next step?</msg>\n</user-messages>\n<summary>## Goal\nShip the R&amp;D notes &lt;v2&gt;.\n## Key Facts &amp; Decisions\nUser wants plain prose.\n## Work Produced\n(none)\n## Open Threads\n(none)\n## Style &amp; Language\nEnglish</summary>\n</oriveo-context-checkpoint>"
+      }
+    }
+  ],
+  "summaryPromptCases": [
+    {
+      "id": "prompt_with_language",
+      "input": {
+        "language": "Arabic",
+        "summaryMax": 4000
+      },
+      "expected": "You are writing a CONTEXT CHECKPOINT so this conversation can continue after older messages are removed.\nThe user's own messages are preserved separately; do not restate them, and do not restate any <oriveo-*> blocks.\nWrite in Arabic. Use EXACTLY these level-2 headings in this order; write \"(none)\" if empty:\n## Goal                 — what the user is trying to achieve in this conversation\n## Key Facts & Decisions\n## Work Produced        — artifacts created so far (e.g. chapters, code, plans): title + 1-line gist each\n## Open Threads         — unanswered questions, pending tasks, what the user asked for next\n## Style & Language     — language, tone, format conventions in use\nDo not invent facts. Do not address the user. Max 4000 tokens."
+    },
+    {
+      "id": "prompt_language_fallback",
+      "input": {
+        "language": null,
+        "summaryMax": 1000
+      },
+      "expected": "You are writing a CONTEXT CHECKPOINT so this conversation can continue after older messages are removed.\nThe user's own messages are preserved separately; do not restate them, and do not restate any <oriveo-*> blocks.\nWrite in the language the assistant's answers in this conversation are written in. Use EXACTLY these level-2 headings in this order; write \"(none)\" if empty:\n## Goal                 — what the user is trying to achieve in this conversation\n## Key Facts & Decisions\n## Work Produced        — artifacts created so far (e.g. chapters, code, plans): title + 1-line gist each\n## Open Threads         — unanswered questions, pending tasks, what the user asked for next\n## Style & Language     — language, tone, format conventions in use\nDo not invent facts. Do not address the user. Max 1000 tokens."
+    },
+    {
+      "id": "prompt_blank_language_falls_back",
+      "input": {
+        "language": "  ",
+        "summaryMax": 1000
+      },
+      "expected": "You are writing a CONTEXT CHECKPOINT so this conversation can continue after older messages are removed.\nThe user's own messages are preserved separately; do not restate them, and do not restate any <oriveo-*> blocks.\nWrite in the language the assistant's answers in this conversation are written in. Use EXACTLY these level-2 headings in this order; write \"(none)\" if empty:\n## Goal                 — what the user is trying to achieve in this conversation\n## Key Facts & Decisions\n## Work Produced        — artifacts created so far (e.g. chapters, code, plans): title + 1-line gist each\n## Open Threads         — unanswered questions, pending tasks, what the user asked for next\n## Style & Language     — language, tone, format conventions in use\nDo not invent facts. Do not address the user. Max 1000 tokens."
+    }
+  ],
+  "summaryRequestCases": [
+    {
+      "id": "appended_keeps_prefix",
+      "input": {
+        "U": 100000,
+        "prefixTokens": 2000,
+        "rhoHi": 0.5,
+        "language": "Arabic",
+        "summaryMax": 4000,
+        "previousCheckpointText": null,
+        "previousSummary": null,
+        "span": [
+          {
+            "id": "u5",
+            "role": "user",
+            "text": "Write chapter 3 <draft> & keep the tone"
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "text": "Chapter 3: The siege begins.",
+            "attachments": []
+          },
+          {
+            "id": "u6",
+            "role": "user",
+            "text": "Add this map",
+            "attachments": [
+              {
+                "kind": "image",
+                "name": "map.png"
+              }
+            ]
+          },
+          {
+            "id": "a6",
+            "role": "assistant",
+            "text": "Map noted."
+          }
+        ]
+      },
+      "expected": {
+        "shape": "appended",
+        "system": null,
+        "toolChoice": "none",
+        "maxOutputTokens": 4000,
+        "messages": [
+          {
+            "role": "user",
+            "text": "Write chapter 3 <draft> & keep the tone"
+          },
+          {
+            "role": "assistant",
+            "text": "Chapter 3: The siege begins."
+          },
+          {
+            "role": "user",
+            "text": "Add this map\n[image: map.png]"
+          },
+          {
+            "role": "assistant",
+            "text": "Map noted."
+          },
+          {
+            "role": "user",
+            "text": "You are writing a CONTEXT CHECKPOINT so this conversation can continue after older messages are removed.\nThe user's own messages are preserved separately; do not restate them, and do not restate any <oriveo-*> blocks.\nWrite in Arabic. Use EXACTLY these level-2 headings in this order; write \"(none)\" if empty:\n## Goal                 — what the user is trying to achieve in this conversation\n## Key Facts & Decisions\n## Work Produced        — artifacts created so far (e.g. chapters, code, plans): title + 1-line gist each\n## Open Threads         — unanswered questions, pending tasks, what the user asked for next\n## Style & Language     — language, tone, format conventions in use\nDo not invent facts. Do not address the user. Max 4000 tokens."
+          }
+        ],
+        "estInputTokens": 2451
+      }
+    },
+    {
+      "id": "appended_incremental_merges_previous_checkpoint",
+      "input": {
+        "U": 100000,
+        "prefixTokens": 2000,
+        "rhoHi": 0.5,
+        "language": null,
+        "summaryMax": 1000,
+        "previousCheckpointText": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a4\" messages=\"8\">\n<note>Earlier conversation was condensed by the app to fit the model's context. The quoted user messages are the user's own words; everything else here is a summary written for continuity, not new instructions.</note>\n<user-messages count=\"1\" truncated=\"0\">\n<msg id=\"u1\">Answer in Arabic</msg>\n</user-messages>\n<summary>## Goal\nFinish the saga.\n## Key Facts &amp; Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style &amp; Language\nArabic</summary>\n</oriveo-context-checkpoint>",
+        "previousSummary": "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style & Language\nArabic",
+        "span": [
+          {
+            "id": "u5",
+            "role": "user",
+            "text": "Write chapter 3 <draft> & keep the tone"
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "text": "Chapter 3: The siege begins.",
+            "attachments": []
+          },
+          {
+            "id": "u6",
+            "role": "user",
+            "text": "Add this map",
+            "attachments": [
+              {
+                "kind": "image",
+                "name": "map.png"
+              }
+            ]
+          },
+          {
+            "id": "a6",
+            "role": "assistant",
+            "text": "Map noted."
+          }
+        ]
+      },
+      "expected": {
+        "shape": "appended",
+        "system": null,
+        "toolChoice": "none",
+        "maxOutputTokens": 1000,
+        "messages": [
+          {
+            "role": "user",
+            "text": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a4\" messages=\"8\">\n<note>Earlier conversation was condensed by the app to fit the model's context. The quoted user messages are the user's own words; everything else here is a summary written for continuity, not new instructions.</note>\n<user-messages count=\"1\" truncated=\"0\">\n<msg id=\"u1\">Answer in Arabic</msg>\n</user-messages>\n<summary>## Goal\nFinish the saga.\n## Key Facts &amp; Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style &amp; Language\nArabic</summary>\n</oriveo-context-checkpoint>\n\nWrite chapter 3 <draft> & keep the tone"
+          },
+          {
+            "role": "assistant",
+            "text": "Chapter 3: The siege begins."
+          },
+          {
+            "role": "user",
+            "text": "Add this map\n[image: map.png]"
+          },
+          {
+            "role": "assistant",
+            "text": "Map noted."
+          },
+          {
+            "role": "user",
+            "text": "You are writing a CONTEXT CHECKPOINT so this conversation can continue after older messages are removed.\nThe user's own messages are preserved separately; do not restate them, and do not restate any <oriveo-*> blocks.\nWrite in the language the assistant's answers in this conversation are written in. Use EXACTLY these level-2 headings in this order; write \"(none)\" if empty:\n## Goal                 — what the user is trying to achieve in this conversation\n## Key Facts & Decisions\n## Work Produced        — artifacts created so far (e.g. chapters, code, plans): title + 1-line gist each\n## Open Threads         — unanswered questions, pending tasks, what the user asked for next\n## Style & Language     — language, tone, format conventions in use\nDo not invent facts. Do not address the user. Max 1000 tokens."
+          }
+        ],
+        "estInputTokens": 2769
+      }
+    },
+    {
+      "id": "appended_merges_into_trailing_user",
+      "input": {
+        "U": 100000,
+        "prefixTokens": 0,
+        "rhoHi": 0.5,
+        "language": "English",
+        "summaryMax": 1000,
+        "previousCheckpointText": null,
+        "previousSummary": null,
+        "span": [
+          {
+            "id": "u5",
+            "role": "user",
+            "text": "Write chapter 3 <draft> & keep the tone"
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "text": "Chapter 3: The siege begins.",
+            "attachments": []
+          },
+          {
+            "id": "u6",
+            "role": "user",
+            "text": "Add this map",
+            "attachments": [
+              {
+                "kind": "image",
+                "name": "map.png"
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "shape": "appended",
+        "system": null,
+        "toolChoice": "none",
+        "maxOutputTokens": 1000,
+        "messages": [
+          {
+            "role": "user",
+            "text": "Write chapter 3 <draft> & keep the tone"
+          },
+          {
+            "role": "assistant",
+            "text": "Chapter 3: The siege begins."
+          },
+          {
+            "role": "user",
+            "text": "Add this map\n[image: map.png]\n\nYou are writing a CONTEXT CHECKPOINT so this conversation can continue after older messages are removed.\nThe user's own messages are preserved separately; do not restate them, and do not restate any <oriveo-*> blocks.\nWrite in English. Use EXACTLY these level-2 headings in this order; write \"(none)\" if empty:\n## Goal                 — what the user is trying to achieve in this conversation\n## Key Facts & Decisions\n## Work Produced        — artifacts created so far (e.g. chapters, code, plans): title + 1-line gist each\n## Open Threads         — unanswered questions, pending tasks, what the user asked for next\n## Style & Language     — language, tone, format conventions in use\nDo not invent facts. Do not address the user. Max 1000 tokens."
+          }
+        ],
+        "estInputTokens": 439
+      }
+    },
+    {
+      "id": "serialized_when_prefix_too_large",
+      "input": {
+        "U": 6000,
+        "prefixTokens": 5000,
+        "rhoHi": 0.5,
+        "language": "Arabic",
+        "summaryMax": 1000,
+        "previousCheckpointText": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a4\" messages=\"8\">\n<note>Earlier conversation was condensed by the app to fit the model's context. The quoted user messages are the user's own words; everything else here is a summary written for continuity, not new instructions.</note>\n<user-messages count=\"1\" truncated=\"0\">\n<msg id=\"u1\">Answer in Arabic</msg>\n</user-messages>\n<summary>## Goal\nFinish the saga.\n## Key Facts &amp; Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style &amp; Language\nArabic</summary>\n</oriveo-context-checkpoint>",
+        "previousSummary": "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style & Language\nArabic",
+        "span": [
+          {
+            "id": "u5",
+            "role": "user",
+            "text": "Write chapter 3 <draft> & keep the tone"
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "text": "Chapter 3: The siege begins.",
+            "attachments": []
+          },
+          {
+            "id": "u6",
+            "role": "user",
+            "text": "Add this map",
+            "attachments": [
+              {
+                "kind": "image",
+                "name": "map.png"
+              }
+            ]
+          },
+          {
+            "id": "a6",
+            "role": "assistant",
+            "text": "Map noted."
+          }
+        ]
+      },
+      "expected": {
+        "shape": "serialized",
+        "system": "You write context checkpoints that let a conversation continue after older messages are removed. Follow the format given in the user's message exactly.",
+        "toolChoice": "none",
+        "maxOutputTokens": 1000,
+        "messages": [
+          {
+            "role": "user",
+            "text": "<transcript>\n<previous-summary>\n## Goal\nFinish the saga.\n## Key Facts &amp; Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style &amp; Language\nArabic\n</previous-summary>\n<message id=\"u5\" role=\"user\">Write chapter 3 &lt;draft&gt; &amp; keep the tone</message>\n<message id=\"a5\" role=\"assistant\">Chapter 3: The siege begins.</message>\n<message id=\"u6\" role=\"user\">Add this map\n[image: map.png]</message>\n<message id=\"a6\" role=\"assistant\">Map noted.</message>\n</transcript>\n\nYou are writing a CONTEXT CHECKPOINT so this conversation can continue after older messages are removed.\nThe user's own messages are preserved separately; do not restate them, and do not restate any <oriveo-*> blocks.\nWrite in Arabic. Use EXACTLY these level-2 headings in this order; write \"(none)\" if empty:\n## Goal                 — what the user is trying to achieve in this conversation\n## Key Facts & Decisions\n## Work Produced        — artifacts created so far (e.g. chapters, code, plans): title + 1-line gist each\n## Open Threads         — unanswered questions, pending tasks, what the user asked for next\n## Style & Language     — language, tone, format conventions in use\nDo not invent facts. Do not address the user. Max 1000 tokens."
+          }
+        ],
+        "estInputTokens": 711
+      }
+    },
+    {
+      "id": "blank_previous_treated_as_absent",
+      "input": {
+        "U": 6000,
+        "prefixTokens": 5000,
+        "rhoHi": 0.5,
+        "language": "",
+        "summaryMax": 1000,
+        "previousCheckpointText": "",
+        "previousSummary": "",
+        "span": [
+          {
+            "id": "u5",
+            "role": "user",
+            "text": "Price list",
+            "attachments": [
+              {
+                "kind": "file",
+                "name": "cost $$ & $&.pdf"
+              }
+            ]
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "text": "",
+            "attachments": [
+              {
+                "kind": "image",
+                "name": "chart$1.png"
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "shape": "serialized",
+        "system": "You write context checkpoints that let a conversation continue after older messages are removed. Follow the format given in the user's message exactly.",
+        "toolChoice": "none",
+        "maxOutputTokens": 1000,
+        "messages": [
+          {
+            "role": "user",
+            "text": "<transcript>\n<message id=\"u5\" role=\"user\">Price list\n[file: cost $$ &amp; $&amp;.pdf]</message>\n<message id=\"a5\" role=\"assistant\">[image: chart$1.png]</message>\n</transcript>\n\nYou are writing a CONTEXT CHECKPOINT so this conversation can continue after older messages are removed.\nThe user's own messages are preserved separately; do not restate them, and do not restate any <oriveo-*> blocks.\nWrite in the language the assistant's answers in this conversation are written in. Use EXACTLY these level-2 headings in this order; write \"(none)\" if empty:\n## Goal                 — what the user is trying to achieve in this conversation\n## Key Facts & Decisions\n## Work Produced        — artifacts created so far (e.g. chapters, code, plans): title + 1-line gist each\n## Open Threads         — unanswered questions, pending tasks, what the user asked for next\n## Style & Language     — language, tone, format conventions in use\nDo not invent facts. Do not address the user. Max 1000 tokens."
+          }
+        ],
+        "estInputTokens": 582
+      }
+    },
+    {
+      "id": "too_large_even_serialized",
+      "input": {
+        "U": 1200,
+        "prefixTokens": 5000,
+        "rhoHi": 0.5,
+        "language": "Arabic",
+        "summaryMax": 1000,
+        "previousCheckpointText": null,
+        "previousSummary": null,
+        "span": [
+          {
+            "id": "u5",
+            "role": "user",
+            "text": "Write chapter 3 <draft> & keep the tone"
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "text": "Chapter 3: The siege begins.",
+            "attachments": []
+          },
+          {
+            "id": "u6",
+            "role": "user",
+            "text": "Add this map",
+            "attachments": [
+              {
+                "kind": "image",
+                "name": "map.png"
+              }
+            ]
+          },
+          {
+            "id": "a6",
+            "role": "assistant",
+            "text": "Map noted."
+          }
+        ]
+      },
+      "expected": {
+        "shape": "tooLarge",
+        "appendedTokens": 6451,
+        "serializedTokens": 1618
+      }
+    }
+  ],
+  "compactCases": [
+    {
+      "id": "first_attempt_valid",
+      "input": {
+        "conversationId": "0f8e5a2c-7d1b-4e8a-9c3f-2b6d1a4e5f70",
+        "B": 20000,
+        "rhoHi": 0.5,
+        "messages": [
+          {
+            "id": "u1",
+            "role": "user",
+            "text": "Question 1 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a1",
+            "role": "assistant",
+            "text": "Answer 1.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u2",
+            "role": "user",
+            "text": "From now on answer in Arabic.",
+            "estTokens": 60,
+            "isDirective": true
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "text": "Answer 2.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u3",
+            "role": "user",
+            "text": "Question 3 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a3",
+            "role": "assistant",
+            "text": "Answer 3.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u4",
+            "role": "user",
+            "text": "Question 4 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a4",
+            "role": "assistant",
+            "text": "Answer 4.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u5",
+            "role": "user",
+            "text": "Question 5 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "text": "Answer 5.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u6",
+            "role": "user",
+            "text": "Question 6 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a6",
+            "role": "assistant",
+            "text": "Answer 6.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u7",
+            "role": "user",
+            "text": "Question 7 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a7",
+            "role": "assistant",
+            "text": "Answer 7.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u8",
+            "role": "user",
+            "text": "Question 8 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a8",
+            "role": "assistant",
+            "text": "Answer 8.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u9",
+            "role": "user",
+            "text": "Question 9 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a9",
+            "role": "assistant",
+            "text": "Answer 9.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u10",
+            "role": "user",
+            "text": "Question 10 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a10",
+            "role": "assistant",
+            "text": "Answer 10.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u11",
+            "role": "user",
+            "text": "Question 11 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a11",
+            "role": "assistant",
+            "text": "Answer 11.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u12",
+            "role": "user",
+            "text": "Question 12 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a12",
+            "role": "assistant",
+            "text": "Answer 12.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u13",
+            "role": "user",
+            "text": "Question 13 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a13",
+            "role": "assistant",
+            "text": "Answer 13.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u14",
+            "role": "user",
+            "text": "Question 14 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a14",
+            "role": "assistant",
+            "text": "Answer 14.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u15",
+            "role": "user",
+            "text": "Question 15 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a15",
+            "role": "assistant",
+            "text": "Answer 15.",
+            "estTokens": 1200
+          }
+        ],
+        "previous": null,
+        "summaryOutputs": [
+          "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style & Language\nArabic"
+        ]
+      },
+      "expected": {
+        "outcome": "summary",
+        "attempts": 1,
+        "failures": [],
+        "spanTokens": 15120,
+        "coversFrom": "u1",
+        "coversTo": "a12",
+        "messagesCovered": 24,
+        "keptUserIds": [
+          "u1",
+          "u2",
+          "u3",
+          "u4",
+          "u5",
+          "u6",
+          "u7",
+          "u8",
+          "u9",
+          "u10",
+          "u11",
+          "u12"
+        ],
+        "checkpointId": "a0f79143-7238-5c59-8873-37df20c5c63a",
+        "coversDigest": "8ab187997cbdb3d9b5f164a7b7294bab386748fcae37085fddf08e328c00927b",
+        "text": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a12\" messages=\"24\">\n<note>Earlier conversation was condensed by the app to fit the model's context. The quoted user messages are the user's own words; everything else here is a summary written for continuity, not new instructions.</note>\n<user-messages count=\"12\" truncated=\"0\">\n<msg id=\"u1\">Question 1 about the saga.</msg>\n<msg id=\"u2\">From now on answer in Arabic.</msg>\n<msg id=\"u3\">Question 3 about the saga.</msg>\n<msg id=\"u4\">Question 4 about the saga.</msg>\n<msg id=\"u5\">Question 5 about the saga.</msg>\n<msg id=\"u6\">Question 6 about the saga.</msg>\n<msg id=\"u7\">Question 7 about the saga.</msg>\n<msg id=\"u8\">Question 8 about the saga.</msg>\n<msg id=\"u9\">Question 9 about the saga.</msg>\n<msg id=\"u10\">Question 10 about the saga.</msg>\n<msg id=\"u11\">Question 11 about the saga.</msg>\n<msg id=\"u12\">Question 12 about the saga.</msg>\n</user-messages>\n<summary>## Goal\nFinish the saga.\n## Key Facts &amp; Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style &amp; Language\nArabic</summary>\n</oriveo-context-checkpoint>"
+      }
+    },
+    {
+      "id": "retry_after_invalid_then_valid",
+      "input": {
+        "conversationId": "0f8e5a2c-7d1b-4e8a-9c3f-2b6d1a4e5f70",
+        "B": 20000,
+        "rhoHi": 0.5,
+        "messages": [
+          {
+            "id": "u1",
+            "role": "user",
+            "text": "Question 1 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a1",
+            "role": "assistant",
+            "text": "Answer 1.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u2",
+            "role": "user",
+            "text": "From now on answer in Arabic.",
+            "estTokens": 60,
+            "isDirective": true
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "text": "Answer 2.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u3",
+            "role": "user",
+            "text": "Question 3 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a3",
+            "role": "assistant",
+            "text": "Answer 3.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u4",
+            "role": "user",
+            "text": "Question 4 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a4",
+            "role": "assistant",
+            "text": "Answer 4.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u5",
+            "role": "user",
+            "text": "Question 5 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "text": "Answer 5.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u6",
+            "role": "user",
+            "text": "Question 6 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a6",
+            "role": "assistant",
+            "text": "Answer 6.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u7",
+            "role": "user",
+            "text": "Question 7 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a7",
+            "role": "assistant",
+            "text": "Answer 7.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u8",
+            "role": "user",
+            "text": "Question 8 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a8",
+            "role": "assistant",
+            "text": "Answer 8.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u9",
+            "role": "user",
+            "text": "Question 9 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a9",
+            "role": "assistant",
+            "text": "Answer 9.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u10",
+            "role": "user",
+            "text": "Question 10 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a10",
+            "role": "assistant",
+            "text": "Answer 10.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u11",
+            "role": "user",
+            "text": "Question 11 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a11",
+            "role": "assistant",
+            "text": "Answer 11.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u12",
+            "role": "user",
+            "text": "Question 12 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a12",
+            "role": "assistant",
+            "text": "Answer 12.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u13",
+            "role": "user",
+            "text": "Question 13 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a13",
+            "role": "assistant",
+            "text": "Answer 13.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u14",
+            "role": "user",
+            "text": "Question 14 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a14",
+            "role": "assistant",
+            "text": "Answer 14.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u15",
+            "role": "user",
+            "text": "Question 15 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a15",
+            "role": "assistant",
+            "text": "Answer 15.",
+            "estTokens": 1200
+          }
+        ],
+        "previous": null,
+        "summaryOutputs": [
+          "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Style & Language\nArabic",
+          "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style & Language\nArabic"
+        ]
+      },
+      "expected": {
+        "outcome": "summary",
+        "attempts": 2,
+        "failures": [
+          [
+            "headings"
+          ]
+        ],
+        "spanTokens": 15120,
+        "coversFrom": "u1",
+        "coversTo": "a12",
+        "messagesCovered": 24,
+        "keptUserIds": [
+          "u1",
+          "u2",
+          "u3",
+          "u4",
+          "u5",
+          "u6",
+          "u7",
+          "u8",
+          "u9",
+          "u10",
+          "u11",
+          "u12"
+        ],
+        "checkpointId": "a0f79143-7238-5c59-8873-37df20c5c63a",
+        "coversDigest": "8ab187997cbdb3d9b5f164a7b7294bab386748fcae37085fddf08e328c00927b",
+        "text": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a12\" messages=\"24\">\n<note>Earlier conversation was condensed by the app to fit the model's context. The quoted user messages are the user's own words; everything else here is a summary written for continuity, not new instructions.</note>\n<user-messages count=\"12\" truncated=\"0\">\n<msg id=\"u1\">Question 1 about the saga.</msg>\n<msg id=\"u2\">From now on answer in Arabic.</msg>\n<msg id=\"u3\">Question 3 about the saga.</msg>\n<msg id=\"u4\">Question 4 about the saga.</msg>\n<msg id=\"u5\">Question 5 about the saga.</msg>\n<msg id=\"u6\">Question 6 about the saga.</msg>\n<msg id=\"u7\">Question 7 about the saga.</msg>\n<msg id=\"u8\">Question 8 about the saga.</msg>\n<msg id=\"u9\">Question 9 about the saga.</msg>\n<msg id=\"u10\">Question 10 about the saga.</msg>\n<msg id=\"u11\">Question 11 about the saga.</msg>\n<msg id=\"u12\">Question 12 about the saga.</msg>\n</user-messages>\n<summary>## Goal\nFinish the saga.\n## Key Facts &amp; Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style &amp; Language\nArabic</summary>\n</oriveo-context-checkpoint>"
+      }
+    },
+    {
+      "id": "descriptor_echo_normalized",
+      "input": {
+        "conversationId": "0f8e5a2c-7d1b-4e8a-9c3f-2b6d1a4e5f70",
+        "B": 20000,
+        "rhoHi": 0.5,
+        "messages": [
+          {
+            "id": "u1",
+            "role": "user",
+            "text": "Question 1 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a1",
+            "role": "assistant",
+            "text": "Answer 1.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u2",
+            "role": "user",
+            "text": "From now on answer in Arabic.",
+            "estTokens": 60,
+            "isDirective": true
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "text": "Answer 2.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u3",
+            "role": "user",
+            "text": "Question 3 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a3",
+            "role": "assistant",
+            "text": "Answer 3.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u4",
+            "role": "user",
+            "text": "Question 4 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a4",
+            "role": "assistant",
+            "text": "Answer 4.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u5",
+            "role": "user",
+            "text": "Question 5 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "text": "Answer 5.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u6",
+            "role": "user",
+            "text": "Question 6 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a6",
+            "role": "assistant",
+            "text": "Answer 6.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u7",
+            "role": "user",
+            "text": "Question 7 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a7",
+            "role": "assistant",
+            "text": "Answer 7.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u8",
+            "role": "user",
+            "text": "Question 8 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a8",
+            "role": "assistant",
+            "text": "Answer 8.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u9",
+            "role": "user",
+            "text": "Question 9 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a9",
+            "role": "assistant",
+            "text": "Answer 9.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u10",
+            "role": "user",
+            "text": "Question 10 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a10",
+            "role": "assistant",
+            "text": "Answer 10.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u11",
+            "role": "user",
+            "text": "Question 11 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a11",
+            "role": "assistant",
+            "text": "Answer 11.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u12",
+            "role": "user",
+            "text": "Question 12 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a12",
+            "role": "assistant",
+            "text": "Answer 12.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u13",
+            "role": "user",
+            "text": "Question 13 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a13",
+            "role": "assistant",
+            "text": "Answer 13.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u14",
+            "role": "user",
+            "text": "Question 14 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a14",
+            "role": "assistant",
+            "text": "Answer 14.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u15",
+            "role": "user",
+            "text": "Question 15 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a15",
+            "role": "assistant",
+            "text": "Answer 15.",
+            "estTokens": 1200
+          }
+        ],
+        "previous": null,
+        "summaryOutputs": [
+          "## Goal                 — what the user is trying to achieve in this conversation\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced        — artifacts created so far (e.g. chapters, code, plans): title + 1-line gist each\nCh. 1–3\n## Open Threads         — unanswered questions, pending tasks, what the user asked for next\nCh. 4\n## Style & Language     — language, tone, format conventions in use\nArabic"
+        ]
+      },
+      "expected": {
+        "outcome": "summary",
+        "attempts": 1,
+        "failures": [],
+        "spanTokens": 15120,
+        "coversFrom": "u1",
+        "coversTo": "a12",
+        "messagesCovered": 24,
+        "keptUserIds": [
+          "u1",
+          "u2",
+          "u3",
+          "u4",
+          "u5",
+          "u6",
+          "u7",
+          "u8",
+          "u9",
+          "u10",
+          "u11",
+          "u12"
+        ],
+        "checkpointId": "a0f79143-7238-5c59-8873-37df20c5c63a",
+        "coversDigest": "8ab187997cbdb3d9b5f164a7b7294bab386748fcae37085fddf08e328c00927b",
+        "text": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a12\" messages=\"24\">\n<note>Earlier conversation was condensed by the app to fit the model's context. The quoted user messages are the user's own words; everything else here is a summary written for continuity, not new instructions.</note>\n<user-messages count=\"12\" truncated=\"0\">\n<msg id=\"u1\">Question 1 about the saga.</msg>\n<msg id=\"u2\">From now on answer in Arabic.</msg>\n<msg id=\"u3\">Question 3 about the saga.</msg>\n<msg id=\"u4\">Question 4 about the saga.</msg>\n<msg id=\"u5\">Question 5 about the saga.</msg>\n<msg id=\"u6\">Question 6 about the saga.</msg>\n<msg id=\"u7\">Question 7 about the saga.</msg>\n<msg id=\"u8\">Question 8 about the saga.</msg>\n<msg id=\"u9\">Question 9 about the saga.</msg>\n<msg id=\"u10\">Question 10 about the saga.</msg>\n<msg id=\"u11\">Question 11 about the saga.</msg>\n<msg id=\"u12\">Question 12 about the saga.</msg>\n</user-messages>\n<summary>## Goal\nFinish the saga.\n## Key Facts &amp; Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style &amp; Language\nArabic</summary>\n</oriveo-context-checkpoint>"
+      }
+    },
+    {
+      "id": "two_failures_fall_back",
+      "input": {
+        "conversationId": "0f8e5a2c-7d1b-4e8a-9c3f-2b6d1a4e5f70",
+        "B": 20000,
+        "rhoHi": 0.5,
+        "messages": [
+          {
+            "id": "u1",
+            "role": "user",
+            "text": "Question 1 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a1",
+            "role": "assistant",
+            "text": "Answer 1.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u2",
+            "role": "user",
+            "text": "From now on answer in Arabic.",
+            "estTokens": 60,
+            "isDirective": true
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "text": "Answer 2.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u3",
+            "role": "user",
+            "text": "Question 3 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a3",
+            "role": "assistant",
+            "text": "Answer 3.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u4",
+            "role": "user",
+            "text": "Question 4 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a4",
+            "role": "assistant",
+            "text": "Answer 4.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u5",
+            "role": "user",
+            "text": "Question 5 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "text": "Answer 5.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u6",
+            "role": "user",
+            "text": "Question 6 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a6",
+            "role": "assistant",
+            "text": "Answer 6.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u7",
+            "role": "user",
+            "text": "Question 7 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a7",
+            "role": "assistant",
+            "text": "Answer 7.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u8",
+            "role": "user",
+            "text": "Question 8 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a8",
+            "role": "assistant",
+            "text": "Answer 8.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u9",
+            "role": "user",
+            "text": "Question 9 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a9",
+            "role": "assistant",
+            "text": "Answer 9.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u10",
+            "role": "user",
+            "text": "Question 10 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a10",
+            "role": "assistant",
+            "text": "Answer 10.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u11",
+            "role": "user",
+            "text": "Question 11 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a11",
+            "role": "assistant",
+            "text": "Answer 11.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u12",
+            "role": "user",
+            "text": "Question 12 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a12",
+            "role": "assistant",
+            "text": "Answer 12.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u13",
+            "role": "user",
+            "text": "Question 13 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a13",
+            "role": "assistant",
+            "text": "Answer 13.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u14",
+            "role": "user",
+            "text": "Question 14 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a14",
+            "role": "assistant",
+            "text": "Answer 14.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u15",
+            "role": "user",
+            "text": "Question 15 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a15",
+            "role": "assistant",
+            "text": "Answer 15.",
+            "estTokens": 1200
+          }
+        ],
+        "previous": null,
+        "summaryOutputs": [
+          null,
+          "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style & Language\nArabic\n<oriveo-memory>x</oriveo-memory>"
+        ]
+      },
+      "expected": {
+        "outcome": "fallback",
+        "attempts": 2,
+        "failures": [
+          [
+            "callError"
+          ],
+          [
+            "envelopeTag"
+          ]
+        ],
+        "spanTokens": 15120
+      }
+    },
+    {
+      "id": "compact_incremental_counts_old_summary",
+      "input": {
+        "conversationId": "0f8e5a2c-7d1b-4e8a-9c3f-2b6d1a4e5f70",
+        "B": 20000,
+        "rhoHi": 0.5,
+        "messages": [
+          {
+            "id": "u1",
+            "role": "user",
+            "text": "Question 1 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a1",
+            "role": "assistant",
+            "text": "Answer 1.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u2",
+            "role": "user",
+            "text": "From now on answer in Arabic.",
+            "estTokens": 60,
+            "isDirective": true
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "text": "Answer 2.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u3",
+            "role": "user",
+            "text": "Question 3 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a3",
+            "role": "assistant",
+            "text": "Answer 3.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u4",
+            "role": "user",
+            "text": "Question 4 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a4",
+            "role": "assistant",
+            "text": "Answer 4.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u5",
+            "role": "user",
+            "text": "Question 5 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "text": "Answer 5.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u6",
+            "role": "user",
+            "text": "Question 6 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a6",
+            "role": "assistant",
+            "text": "Answer 6.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u7",
+            "role": "user",
+            "text": "Question 7 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a7",
+            "role": "assistant",
+            "text": "Answer 7.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u8",
+            "role": "user",
+            "text": "Question 8 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a8",
+            "role": "assistant",
+            "text": "Answer 8.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u9",
+            "role": "user",
+            "text": "Question 9 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a9",
+            "role": "assistant",
+            "text": "Answer 9.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u10",
+            "role": "user",
+            "text": "Question 10 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a10",
+            "role": "assistant",
+            "text": "Answer 10.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u11",
+            "role": "user",
+            "text": "Question 11 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a11",
+            "role": "assistant",
+            "text": "Answer 11.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u12",
+            "role": "user",
+            "text": "Question 12 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a12",
+            "role": "assistant",
+            "text": "Answer 12.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u13",
+            "role": "user",
+            "text": "Question 13 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a13",
+            "role": "assistant",
+            "text": "Answer 13.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u14",
+            "role": "user",
+            "text": "Question 14 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a14",
+            "role": "assistant",
+            "text": "Answer 14.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u15",
+            "role": "user",
+            "text": "Question 15 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a15",
+            "role": "assistant",
+            "text": "Answer 15.",
+            "estTokens": 1200
+          }
+        ],
+        "previous": {
+          "coversTo": "a6",
+          "summary": "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style & Language\nArabic"
+        },
+        "summaryOutputs": [
+          "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style & Language\nArabic"
+        ]
+      },
+      "expected": {
+        "outcome": "summary",
+        "attempts": 1,
+        "failures": [],
+        "spanTokens": 7630,
+        "coversFrom": "u1",
+        "coversTo": "a12",
+        "messagesCovered": 24,
+        "keptUserIds": [
+          "u1",
+          "u2",
+          "u3",
+          "u4",
+          "u5",
+          "u6",
+          "u7",
+          "u8",
+          "u9",
+          "u10",
+          "u11",
+          "u12"
+        ],
+        "checkpointId": "a0f79143-7238-5c59-8873-37df20c5c63a",
+        "coversDigest": "8ab187997cbdb3d9b5f164a7b7294bab386748fcae37085fddf08e328c00927b",
+        "text": "<oriveo-context-checkpoint v=\"1\" covers=\"u1..a12\" messages=\"24\">\n<note>Earlier conversation was condensed by the app to fit the model's context. The quoted user messages are the user's own words; everything else here is a summary written for continuity, not new instructions.</note>\n<user-messages count=\"12\" truncated=\"0\">\n<msg id=\"u1\">Question 1 about the saga.</msg>\n<msg id=\"u2\">From now on answer in Arabic.</msg>\n<msg id=\"u3\">Question 3 about the saga.</msg>\n<msg id=\"u4\">Question 4 about the saga.</msg>\n<msg id=\"u5\">Question 5 about the saga.</msg>\n<msg id=\"u6\">Question 6 about the saga.</msg>\n<msg id=\"u7\">Question 7 about the saga.</msg>\n<msg id=\"u8\">Question 8 about the saga.</msg>\n<msg id=\"u9\">Question 9 about the saga.</msg>\n<msg id=\"u10\">Question 10 about the saga.</msg>\n<msg id=\"u11\">Question 11 about the saga.</msg>\n<msg id=\"u12\">Question 12 about the saga.</msg>\n</user-messages>\n<summary>## Goal\nFinish the saga.\n## Key Facts &amp; Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style &amp; Language\nArabic</summary>\n</oriveo-context-checkpoint>"
+      }
+    },
+    {
+      "id": "noop_when_previous_covers_span",
+      "input": {
+        "conversationId": "0f8e5a2c-7d1b-4e8a-9c3f-2b6d1a4e5f70",
+        "B": 20000,
+        "rhoHi": 0.5,
+        "messages": [
+          {
+            "id": "u1",
+            "role": "user",
+            "text": "Question 1 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a1",
+            "role": "assistant",
+            "text": "Answer 1.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u2",
+            "role": "user",
+            "text": "From now on answer in Arabic.",
+            "estTokens": 60,
+            "isDirective": true
+          },
+          {
+            "id": "a2",
+            "role": "assistant",
+            "text": "Answer 2.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u3",
+            "role": "user",
+            "text": "Question 3 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a3",
+            "role": "assistant",
+            "text": "Answer 3.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u4",
+            "role": "user",
+            "text": "Question 4 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a4",
+            "role": "assistant",
+            "text": "Answer 4.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u5",
+            "role": "user",
+            "text": "Question 5 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a5",
+            "role": "assistant",
+            "text": "Answer 5.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u6",
+            "role": "user",
+            "text": "Question 6 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a6",
+            "role": "assistant",
+            "text": "Answer 6.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u7",
+            "role": "user",
+            "text": "Question 7 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a7",
+            "role": "assistant",
+            "text": "Answer 7.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u8",
+            "role": "user",
+            "text": "Question 8 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a8",
+            "role": "assistant",
+            "text": "Answer 8.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u9",
+            "role": "user",
+            "text": "Question 9 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a9",
+            "role": "assistant",
+            "text": "Answer 9.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u10",
+            "role": "user",
+            "text": "Question 10 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a10",
+            "role": "assistant",
+            "text": "Answer 10.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u11",
+            "role": "user",
+            "text": "Question 11 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a11",
+            "role": "assistant",
+            "text": "Answer 11.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u12",
+            "role": "user",
+            "text": "Question 12 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a12",
+            "role": "assistant",
+            "text": "Answer 12.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u13",
+            "role": "user",
+            "text": "Question 13 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a13",
+            "role": "assistant",
+            "text": "Answer 13.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u14",
+            "role": "user",
+            "text": "Question 14 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a14",
+            "role": "assistant",
+            "text": "Answer 14.",
+            "estTokens": 1200
+          },
+          {
+            "id": "u15",
+            "role": "user",
+            "text": "Question 15 about the saga.",
+            "estTokens": 60
+          },
+          {
+            "id": "a15",
+            "role": "assistant",
+            "text": "Answer 15.",
+            "estTokens": 1200
+          }
+        ],
+        "previous": {
+          "coversTo": "a12",
+          "summary": "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style & Language\nArabic"
+        },
+        "summaryOutputs": [
+          "## Goal\nFinish the saga.\n## Key Facts & Decisions\nEnds in 1453.\n## Work Produced\nCh. 1–3\n## Open Threads\nCh. 4\n## Style & Language\nArabic"
+        ]
+      },
+      "expected": {
+        "outcome": "noop"
+      }
+    }
+  ],
+  "breakerCases": [
+    {
+      "id": "two_failures_trip_ten_turns",
+      "events": [
+        "llmFailure",
+        "llmFailure",
+        "turn",
+        "turn"
+      ],
+      "expected": [
+        {
+          "mode": "llm",
+          "failures": 1,
+          "turnsLeft": 0
+        },
+        {
+          "mode": "fallbackOnly",
+          "failures": 0,
+          "turnsLeft": 10
+        },
+        {
+          "mode": "fallbackOnly",
+          "failures": 0,
+          "turnsLeft": 9
+        },
+        {
+          "mode": "fallbackOnly",
+          "failures": 0,
+          "turnsLeft": 8
+        }
+      ]
+    },
+    {
+      "id": "success_resets_failure_count",
+      "events": [
+        "llmFailure",
+        "llmSuccess",
+        "llmFailure"
+      ],
+      "expected": [
+        {
+          "mode": "llm",
+          "failures": 1,
+          "turnsLeft": 0
+        },
+        {
+          "mode": "llm",
+          "failures": 0,
+          "turnsLeft": 0
+        },
+        {
+          "mode": "llm",
+          "failures": 1,
+          "turnsLeft": 0
+        }
+      ]
+    },
+    {
+      "id": "trip_expires_after_ten_turns",
+      "events": [
+        "llmFailure",
+        "llmFailure",
+        "turn",
+        "turn",
+        "turn",
+        "turn",
+        "turn",
+        "turn",
+        "turn",
+        "turn",
+        "turn",
+        "turn"
+      ],
+      "expected": [
+        {
+          "mode": "llm",
+          "failures": 1,
+          "turnsLeft": 0
+        },
+        {
+          "mode": "fallbackOnly",
+          "failures": 0,
+          "turnsLeft": 10
+        },
+        {
+          "mode": "fallbackOnly",
+          "failures": 0,
+          "turnsLeft": 9
+        },
+        {
+          "mode": "fallbackOnly",
+          "failures": 0,
+          "turnsLeft": 8
+        },
+        {
+          "mode": "fallbackOnly",
+          "failures": 0,
+          "turnsLeft": 7
+        },
+        {
+          "mode": "fallbackOnly",
+          "failures": 0,
+          "turnsLeft": 6
+        },
+        {
+          "mode": "fallbackOnly",
+          "failures": 0,
+          "turnsLeft": 5
+        },
+        {
+          "mode": "fallbackOnly",
+          "failures": 0,
+          "turnsLeft": 4
+        },
+        {
+          "mode": "fallbackOnly",
+          "failures": 0,
+          "turnsLeft": 3
+        },
+        {
+          "mode": "fallbackOnly",
+          "failures": 0,
+          "turnsLeft": 2
+        },
+        {
+          "mode": "fallbackOnly",
+          "failures": 0,
+          "turnsLeft": 1
+        },
+        {
+          "mode": "llm",
+          "failures": 0,
+          "turnsLeft": 0
+        }
+      ]
+    },
+    {
+      "id": "manual_retry_clears_trip",
+      "events": [
+        "llmFailure",
+        "llmFailure",
+        "retry"
+      ],
+      "expected": [
+        {
+          "mode": "llm",
+          "failures": 1,
+          "turnsLeft": 0
+        },
+        {
+          "mode": "fallbackOnly",
+          "failures": 0,
+          "turnsLeft": 10
+        },
+        {
+          "mode": "llm",
+          "failures": 0,
+          "turnsLeft": 0
+        }
+      ]
+    }
+  ]
+}

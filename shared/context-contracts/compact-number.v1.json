@@ -1,0 +1,3121 @@
+{
+  "$comment": "Compact number table . Snapshot of CLDR 48.2.3 decimalFormats-numberSystem-latn short (cldr-json cldr-numbers-full, fetched 2026-10-16) for the 16 app languages; quotes in patterns resolved, U+00A0 kept. Clients ship the same table in code and check it against this file; the platform ICU / Intl compact formatter is not used (Android CLDR follows the OS version).",
+  "schema": "oriveo.context.compact-number",
+  "version": 1,
+  "source": {
+    "cldr": "48.2.3",
+    "url": "https://github.com/unicode-org/cldr-json/tree/48.2.3/cldr-json/cldr-numbers-full/main",
+    "fetched": "2026-10-16",
+    "ptBR": "pt",
+    "numberingSystem": "latn for every language, ar included"
+  },
+  "rules": [
+    "Locale: drop everything from \"@\", replace \"_\" with \"-\", split on \"-\" keeping empty subtags (a leading \"-\" gives an empty language -> en), drop the first singleton subtag (one letter, e.g. -u- / -x-) and everything after it, compare subtags case-insensitively. zh: script first (Hans -> zh-Hans, Hant -> zh-Hant), else region TW / HK / MO -> zh-Hant, else zh-Hans; pt -> pt-BR; in (legacy Android Indonesian) -> id; other languages in the table by language subtag; anything else, empty included -> en.",
+    "Value: integer; negative counts as 0, above 10^15 counts as 10^15. value < 1000 -> plain ASCII digits, no grouping.",
+    "Tier: the last tier whose min <= value (values >= 10^12 use the 10^12 tier; the integer part may then exceed the pattern width and is not grouped).",
+    "Digits: z = length of the run of 0 in the pattern; unit = min / 10^(z-1); tenths = floor(value * 10 / unit) using integer arithmetic (unit / 10 is always an integer >= 100); int = tenths / 10, frac = tenths % 10. Always round down, never up.",
+    "Number text: int in ASCII digits, then decimal + frac when frac != 0 (\".0\" is dropped). Latin digits in every language.",
+    "Plural: a tier may carry \"few\" (only ar 1000). Use it when frac == 0 and int % 100 is 3...10; otherwise \"pattern\".",
+    "Pattern made of 0 only (zh-Hans / zh-Hant / ja 1000, de 1000 ... 100000): no abbreviation; the full value in ASCII digits, grouped with the group separator every 3 digits from the right only when value >= 10000 (ICU compact minimum grouping 2: 1234, 12.345).",
+    "Otherwise: replace the run of 0 in the pattern with the number text; everything else in the pattern is literal. No bidi marks are added; callers that embed the result in mixed-direction text isolate it."
+  ],
+  "locales": {
+    "zh-Hans": {
+      "decimal": ".",
+      "group": ",",
+      "tiers": [
+        {
+          "min": 1000,
+          "pattern": "0"
+        },
+        {
+          "min": 10000,
+          "pattern": "0万"
+        },
+        {
+          "min": 100000,
+          "pattern": "00万"
+        },
+        {
+          "min": 1000000,
+          "pattern": "000万"
+        },
+        {
+          "min": 10000000,
+          "pattern": "0000万"
+        },
+        {
+          "min": 100000000,
+          "pattern": "0亿"
+        },
+        {
+          "min": 1000000000,
+          "pattern": "00亿"
+        },
+        {
+          "min": 10000000000,
+          "pattern": "000亿"
+        },
+        {
+          "min": 100000000000,
+          "pattern": "0000亿"
+        },
+        {
+          "min": 1000000000000,
+          "pattern": "0万亿"
+        }
+      ]
+    },
+    "zh-Hant": {
+      "decimal": ".",
+      "group": ",",
+      "tiers": [
+        {
+          "min": 1000,
+          "pattern": "0"
+        },
+        {
+          "min": 10000,
+          "pattern": "0萬"
+        },
+        {
+          "min": 100000,
+          "pattern": "00萬"
+        },
+        {
+          "min": 1000000,
+          "pattern": "000萬"
+        },
+        {
+          "min": 10000000,
+          "pattern": "0000萬"
+        },
+        {
+          "min": 100000000,
+          "pattern": "0億"
+        },
+        {
+          "min": 1000000000,
+          "pattern": "00億"
+        },
+        {
+          "min": 10000000000,
+          "pattern": "000億"
+        },
+        {
+          "min": 100000000000,
+          "pattern": "0000億"
+        },
+        {
+          "min": 1000000000000,
+          "pattern": "0兆"
+        }
+      ]
+    },
+    "en": {
+      "decimal": ".",
+      "group": ",",
+      "tiers": [
+        {
+          "min": 1000,
+          "pattern": "0K"
+        },
+        {
+          "min": 10000,
+          "pattern": "00K"
+        },
+        {
+          "min": 100000,
+          "pattern": "000K"
+        },
+        {
+          "min": 1000000,
+          "pattern": "0M"
+        },
+        {
+          "min": 10000000,
+          "pattern": "00M"
+        },
+        {
+          "min": 100000000,
+          "pattern": "000M"
+        },
+        {
+          "min": 1000000000,
+          "pattern": "0B"
+        },
+        {
+          "min": 10000000000,
+          "pattern": "00B"
+        },
+        {
+          "min": 100000000000,
+          "pattern": "000B"
+        },
+        {
+          "min": 1000000000000,
+          "pattern": "0T"
+        }
+      ]
+    },
+    "ja": {
+      "decimal": ".",
+      "group": ",",
+      "tiers": [
+        {
+          "min": 1000,
+          "pattern": "0"
+        },
+        {
+          "min": 10000,
+          "pattern": "0万"
+        },
+        {
+          "min": 100000,
+          "pattern": "00万"
+        },
+        {
+          "min": 1000000,
+          "pattern": "000万"
+        },
+        {
+          "min": 10000000,
+          "pattern": "0000万"
+        },
+        {
+          "min": 100000000,
+          "pattern": "0億"
+        },
+        {
+          "min": 1000000000,
+          "pattern": "00億"
+        },
+        {
+          "min": 10000000000,
+          "pattern": "000億"
+        },
+        {
+          "min": 100000000000,
+          "pattern": "0000億"
+        },
+        {
+          "min": 1000000000000,
+          "pattern": "0兆"
+        }
+      ]
+    },
+    "ko": {
+      "decimal": ".",
+      "group": ",",
+      "tiers": [
+        {
+          "min": 1000,
+          "pattern": "0천"
+        },
+        {
+          "min": 10000,
+          "pattern": "0만"
+        },
+        {
+          "min": 100000,
+          "pattern": "00만"
+        },
+        {
+          "min": 1000000,
+          "pattern": "000만"
+        },
+        {
+          "min": 10000000,
+          "pattern": "0000만"
+        },
+        {
+          "min": 100000000,
+          "pattern": "0억"
+        },
+        {
+          "min": 1000000000,
+          "pattern": "00억"
+        },
+        {
+          "min": 10000000000,
+          "pattern": "000억"
+        },
+        {
+          "min": 100000000000,
+          "pattern": "0000억"
+        },
+        {
+          "min": 1000000000000,
+          "pattern": "0조"
+        }
+      ]
+    },
+    "de": {
+      "decimal": ",",
+      "group": ".",
+      "tiers": [
+        {
+          "min": 1000,
+          "pattern": "0"
+        },
+        {
+          "min": 10000,
+          "pattern": "0"
+        },
+        {
+          "min": 100000,
+          "pattern": "0"
+        },
+        {
+          "min": 1000000,
+          "pattern": "0 Mio."
+        },
+        {
+          "min": 10000000,
+          "pattern": "00 Mio."
+        },
+        {
+          "min": 100000000,
+          "pattern": "000 Mio."
+        },
+        {
+          "min": 1000000000,
+          "pattern": "0 Mrd."
+        },
+        {
+          "min": 10000000000,
+          "pattern": "00 Mrd."
+        },
+        {
+          "min": 100000000000,
+          "pattern": "000 Mrd."
+        },
+        {
+          "min": 1000000000000,
+          "pattern": "0 Bio."
+        }
+      ]
+    },
+    "fr": {
+      "decimal": ",",
+      "group": " ",
+      "tiers": [
+        {
+          "min": 1000,
+          "pattern": "0 k"
+        },
+        {
+          "min": 10000,
+          "pattern": "00 k"
+        },
+        {
+          "min": 100000,
+          "pattern": "000 k"
+        },
+        {
+          "min": 1000000,
+          "pattern": "0 M"
+        },
+        {
+          "min": 10000000,
+          "pattern": "00 M"
+        },
+        {
+          "min": 100000000,
+          "pattern": "000 M"
+        },
+        {
+          "min": 1000000000,
+          "pattern": "0 Md"
+        },
+        {
+          "min": 10000000000,
+          "pattern": "00 Md"
+        },
+        {
+          "min": 100000000000,
+          "pattern": "000 Md"
+        },
+        {
+          "min": 1000000000000,
+          "pattern": "0 Bn"
+        }
+      ]
+    },
+    "es": {
+      "decimal": ",",
+      "group": ".",
+      "tiers": [
+        {
+          "min": 1000,
+          "pattern": "0 mil"
+        },
+        {
+          "min": 10000,
+          "pattern": "00 mil"
+        },
+        {
+          "min": 100000,
+          "pattern": "000 mil"
+        },
+        {
+          "min": 1000000,
+          "pattern": "0 M"
+        },
+        {
+          "min": 10000000,
+          "pattern": "00 M"
+        },
+        {
+          "min": 100000000,
+          "pattern": "000 M"
+        },
+        {
+          "min": 1000000000,
+          "pattern": "0000 M"
+        },
+        {
+          "min": 10000000000,
+          "pattern": "00 mil M"
+        },
+        {
+          "min": 100000000000,
+          "pattern": "000 mil M"
+        },
+        {
+          "min": 1000000000000,
+          "pattern": "0 B"
+        }
+      ]
+    },
+    "pt-BR": {
+      "decimal": ",",
+      "group": ".",
+      "tiers": [
+        {
+          "min": 1000,
+          "pattern": "0 mil"
+        },
+        {
+          "min": 10000,
+          "pattern": "00 mil"
+        },
+        {
+          "min": 100000,
+          "pattern": "000 mil"
+        },
+        {
+          "min": 1000000,
+          "pattern": "0 mi"
+        },
+        {
+          "min": 10000000,
+          "pattern": "00 mi"
+        },
+        {
+          "min": 100000000,
+          "pattern": "000 mi"
+        },
+        {
+          "min": 1000000000,
+          "pattern": "0 bi"
+        },
+        {
+          "min": 10000000000,
+          "pattern": "00 bi"
+        },
+        {
+          "min": 100000000000,
+          "pattern": "000 bi"
+        },
+        {
+          "min": 1000000000000,
+          "pattern": "0 tri"
+        }
+      ]
+    },
+    "ru": {
+      "decimal": ",",
+      "group": " ",
+      "tiers": [
+        {
+          "min": 1000,
+          "pattern": "0 тыс."
+        },
+        {
+          "min": 10000,
+          "pattern": "00 тыс."
+        },
+        {
+          "min": 100000,
+          "pattern": "000 тыс."
+        },
+        {
+          "min": 1000000,
+          "pattern": "0 млн"
+        },
+        {
+          "min": 10000000,
+          "pattern": "00 млн"
+        },
+        {
+          "min": 100000000,
+          "pattern": "000 млн"
+        },
+        {
+          "min": 1000000000,
+          "pattern": "0 млрд"
+        },
+        {
+          "min": 10000000000,
+          "pattern": "00 млрд"
+        },
+        {
+          "min": 100000000000,
+          "pattern": "000 млрд"
+        },
+        {
+          "min": 1000000000000,
+          "pattern": "0 трлн"
+        }
+      ]
+    },
+    "tr": {
+      "decimal": ",",
+      "group": ".",
+      "tiers": [
+        {
+          "min": 1000,
+          "pattern": "0 B"
+        },
+        {
+          "min": 10000,
+          "pattern": "00 B"
+        },
+        {
+          "min": 100000,
+          "pattern": "000 B"
+        },
+        {
+          "min": 1000000,
+          "pattern": "0 Mn"
+        },
+        {
+          "min": 10000000,
+          "pattern": "00 Mn"
+        },
+        {
+          "min": 100000000,
+          "pattern": "000 Mn"
+        },
+        {
+          "min": 1000000000,
+          "pattern": "0 Mr"
+        },
+        {
+          "min": 10000000000,
+          "pattern": "00 Mr"
+        },
+        {
+          "min": 100000000000,
+          "pattern": "000 Mr"
+        },
+        {
+          "min": 1000000000000,
+          "pattern": "0 Tn"
+        }
+      ]
+    },
+    "id": {
+      "decimal": ",",
+      "group": ".",
+      "tiers": [
+        {
+          "min": 1000,
+          "pattern": "0 rb"
+        },
+        {
+          "min": 10000,
+          "pattern": "00 rb"
+        },
+        {
+          "min": 100000,
+          "pattern": "000 rb"
+        },
+        {
+          "min": 1000000,
+          "pattern": "0 jt"
+        },
+        {
+          "min": 10000000,
+          "pattern": "00 jt"
+        },
+        {
+          "min": 100000000,
+          "pattern": "000 jt"
+        },
+        {
+          "min": 1000000000,
+          "pattern": "0 M"
+        },
+        {
+          "min": 10000000000,
+          "pattern": "00 M"
+        },
+        {
+          "min": 100000000000,
+          "pattern": "000 M"
+        },
+        {
+          "min": 1000000000000,
+          "pattern": "0 T"
+        }
+      ]
+    },
+    "vi": {
+      "decimal": ",",
+      "group": ".",
+      "tiers": [
+        {
+          "min": 1000,
+          "pattern": "0 N"
+        },
+        {
+          "min": 10000,
+          "pattern": "00 N"
+        },
+        {
+          "min": 100000,
+          "pattern": "000 N"
+        },
+        {
+          "min": 1000000,
+          "pattern": "0 Tr"
+        },
+        {
+          "min": 10000000,
+          "pattern": "00 Tr"
+        },
+        {
+          "min": 100000000,
+          "pattern": "000 Tr"
+        },
+        {
+          "min": 1000000000,
+          "pattern": "0 T"
+        },
+        {
+          "min": 10000000000,
+          "pattern": "00 T"
+        },
+        {
+          "min": 100000000000,
+          "pattern": "000 T"
+        },
+        {
+          "min": 1000000000000,
+          "pattern": "0 NT"
+        }
+      ]
+    },
+    "th": {
+      "decimal": ".",
+      "group": ",",
+      "tiers": [
+        {
+          "min": 1000,
+          "pattern": "0K"
+        },
+        {
+          "min": 10000,
+          "pattern": "00K"
+        },
+        {
+          "min": 100000,
+          "pattern": "000K"
+        },
+        {
+          "min": 1000000,
+          "pattern": "0M"
+        },
+        {
+          "min": 10000000,
+          "pattern": "00M"
+        },
+        {
+          "min": 100000000,
+          "pattern": "000M"
+        },
+        {
+          "min": 1000000000,
+          "pattern": "0B"
+        },
+        {
+          "min": 10000000000,
+          "pattern": "00B"
+        },
+        {
+          "min": 100000000000,
+          "pattern": "000B"
+        },
+        {
+          "min": 1000000000000,
+          "pattern": "0T"
+        }
+      ]
+    },
+    "hi": {
+      "decimal": ".",
+      "group": ",",
+      "tiers": [
+        {
+          "min": 1000,
+          "pattern": "0 हज़ार"
+        },
+        {
+          "min": 10000,
+          "pattern": "00 हज़ार"
+        },
+        {
+          "min": 100000,
+          "pattern": "0 लाख"
+        },
+        {
+          "min": 1000000,
+          "pattern": "00 लाख"
+        },
+        {
+          "min": 10000000,
+          "pattern": "0 क॰"
+        },
+        {
+          "min": 100000000,
+          "pattern": "00 क॰"
+        },
+        {
+          "min": 1000000000,
+          "pattern": "0 अ॰"
+        },
+        {
+          "min": 10000000000,
+          "pattern": "00 अ॰"
+        },
+        {
+          "min": 100000000000,
+          "pattern": "0 ख॰"
+        },
+        {
+          "min": 1000000000000,
+          "pattern": "00 ख॰"
+        }
+      ]
+    },
+    "ar": {
+      "decimal": ".",
+      "group": ",",
+      "tiers": [
+        {
+          "min": 1000,
+          "pattern": "0 ألف",
+          "few": "0 آلاف"
+        },
+        {
+          "min": 10000,
+          "pattern": "00 ألف"
+        },
+        {
+          "min": 100000,
+          "pattern": "000 ألف"
+        },
+        {
+          "min": 1000000,
+          "pattern": "0 مليون"
+        },
+        {
+          "min": 10000000,
+          "pattern": "00 مليون"
+        },
+        {
+          "min": 100000000,
+          "pattern": "000 مليون"
+        },
+        {
+          "min": 1000000000,
+          "pattern": "0 مليار"
+        },
+        {
+          "min": 10000000000,
+          "pattern": "00 مليار"
+        },
+        {
+          "min": 100000000000,
+          "pattern": "000 مليار"
+        },
+        {
+          "min": 1000000000000,
+          "pattern": "0 ترليون"
+        }
+      ]
+    }
+  },
+  "localeCases": [
+    {
+      "id": "locale_zh-Hans",
+      "input": "zh-Hans",
+      "expected": "zh-Hans"
+    },
+    {
+      "id": "locale_zh-Hant",
+      "input": "zh-Hant",
+      "expected": "zh-Hant"
+    },
+    {
+      "id": "locale_zh",
+      "input": "zh",
+      "expected": "zh-Hans"
+    },
+    {
+      "id": "locale_zh-CN",
+      "input": "zh-CN",
+      "expected": "zh-Hans"
+    },
+    {
+      "id": "locale_zh-SG",
+      "input": "zh-SG",
+      "expected": "zh-Hans"
+    },
+    {
+      "id": "locale_zh-TW",
+      "input": "zh-TW",
+      "expected": "zh-Hant"
+    },
+    {
+      "id": "locale_zh_HK",
+      "input": "zh_HK",
+      "expected": "zh-Hant"
+    },
+    {
+      "id": "locale_zh-MO",
+      "input": "zh-MO",
+      "expected": "zh-Hant"
+    },
+    {
+      "id": "locale_zh-Hant-TW",
+      "input": "zh-Hant-TW",
+      "expected": "zh-Hant"
+    },
+    {
+      "id": "locale_zh-Hans-HK",
+      "input": "zh-Hans-HK",
+      "expected": "zh-Hans"
+    },
+    {
+      "id": "locale_ZH-hant",
+      "input": "ZH-hant",
+      "expected": "zh-Hant"
+    },
+    {
+      "id": "locale_pt-BR",
+      "input": "pt-BR",
+      "expected": "pt-BR"
+    },
+    {
+      "id": "locale_pt-PT",
+      "input": "pt-PT",
+      "expected": "pt-BR"
+    },
+    {
+      "id": "locale_pt",
+      "input": "pt",
+      "expected": "pt-BR"
+    },
+    {
+      "id": "locale_en",
+      "input": "en",
+      "expected": "en"
+    },
+    {
+      "id": "locale_en-US",
+      "input": "en-US",
+      "expected": "en"
+    },
+    {
+      "id": "locale_en-GB",
+      "input": "en-GB",
+      "expected": "en"
+    },
+    {
+      "id": "locale_EN",
+      "input": "EN",
+      "expected": "en"
+    },
+    {
+      "id": "locale_ja-JP",
+      "input": "ja-JP",
+      "expected": "ja"
+    },
+    {
+      "id": "locale_ko-KR",
+      "input": "ko-KR",
+      "expected": "ko"
+    },
+    {
+      "id": "locale_de-CH",
+      "input": "de-CH",
+      "expected": "de"
+    },
+    {
+      "id": "locale_fr-CA",
+      "input": "fr-CA",
+      "expected": "fr"
+    },
+    {
+      "id": "locale_es-419",
+      "input": "es-419",
+      "expected": "es"
+    },
+    {
+      "id": "locale_ru-RU",
+      "input": "ru-RU",
+      "expected": "ru"
+    },
+    {
+      "id": "locale_tr-TR",
+      "input": "tr-TR",
+      "expected": "tr"
+    },
+    {
+      "id": "locale_id-ID",
+      "input": "id-ID",
+      "expected": "id"
+    },
+    {
+      "id": "locale_in",
+      "input": "in",
+      "expected": "id"
+    },
+    {
+      "id": "locale_in-ID",
+      "input": "in-ID",
+      "expected": "id"
+    },
+    {
+      "id": "locale_vi-VN",
+      "input": "vi-VN",
+      "expected": "vi"
+    },
+    {
+      "id": "locale_th-TH",
+      "input": "th-TH",
+      "expected": "th"
+    },
+    {
+      "id": "locale_hi-IN",
+      "input": "hi-IN",
+      "expected": "hi"
+    },
+    {
+      "id": "locale_ar",
+      "input": "ar",
+      "expected": "ar"
+    },
+    {
+      "id": "locale_ar-SA",
+      "input": "ar-SA",
+      "expected": "ar"
+    },
+    {
+      "id": "locale_ar-EG",
+      "input": "ar-EG",
+      "expected": "ar"
+    },
+    {
+      "id": "locale_nl",
+      "input": "nl",
+      "expected": "en"
+    },
+    {
+      "id": "locale_fil-PH",
+      "input": "fil-PH",
+      "expected": "en"
+    },
+    {
+      "id": "locale_empty",
+      "input": "",
+      "expected": "en"
+    },
+    {
+      "id": "locale_ar-u-nu-latn",
+      "input": "ar-u-nu-latn",
+      "expected": "ar"
+    },
+    {
+      "id": "locale_en_US@rg=gbzzzz",
+      "input": "en_US@rg=gbzzzz",
+      "expected": "en"
+    },
+    {
+      "id": "locale_zh-u-nu-hant",
+      "input": "zh-u-nu-hant",
+      "expected": "zh-Hans"
+    },
+    {
+      "id": "locale_zh-Hant-u-nu-latn",
+      "input": "zh-Hant-u-nu-latn",
+      "expected": "zh-Hant"
+    },
+    {
+      "id": "locale_-ja",
+      "input": "-ja",
+      "expected": "en"
+    },
+    {
+      "id": "locale_zh-Hans-TW",
+      "input": "zh-Hans-TW",
+      "expected": "zh-Hans"
+    },
+    {
+      "id": "locale_zh-Hant-CN",
+      "input": "zh-Hant-CN",
+      "expected": "zh-Hant"
+    }
+  ],
+  "cases": [
+    {
+      "id": "zh-Hans_0",
+      "input": {
+        "value": 0,
+        "locale": "zh-Hans"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "zh-Hans_999",
+      "input": {
+        "value": 999,
+        "locale": "zh-Hans"
+      },
+      "expected": "999"
+    },
+    {
+      "id": "zh-Hans_1000",
+      "input": {
+        "value": 1000,
+        "locale": "zh-Hans"
+      },
+      "expected": "1000"
+    },
+    {
+      "id": "zh-Hans_1234",
+      "input": {
+        "value": 1234,
+        "locale": "zh-Hans"
+      },
+      "expected": "1234"
+    },
+    {
+      "id": "zh-Hans_1999",
+      "input": {
+        "value": 1999,
+        "locale": "zh-Hans"
+      },
+      "expected": "1999"
+    },
+    {
+      "id": "zh-Hans_9999",
+      "input": {
+        "value": 9999,
+        "locale": "zh-Hans"
+      },
+      "expected": "9999"
+    },
+    {
+      "id": "zh-Hans_12800",
+      "input": {
+        "value": 12800,
+        "locale": "zh-Hans"
+      },
+      "expected": "1.2万"
+    },
+    {
+      "id": "zh-Hans_128000",
+      "input": {
+        "value": 128000,
+        "locale": "zh-Hans"
+      },
+      "expected": "12.8万"
+    },
+    {
+      "id": "zh-Hans_128999",
+      "input": {
+        "value": 128999,
+        "locale": "zh-Hans"
+      },
+      "expected": "12.8万"
+    },
+    {
+      "id": "zh-Hans_200000",
+      "input": {
+        "value": 200000,
+        "locale": "zh-Hans"
+      },
+      "expected": "20万"
+    },
+    {
+      "id": "zh-Hans_999999",
+      "input": {
+        "value": 999999,
+        "locale": "zh-Hans"
+      },
+      "expected": "99.9万"
+    },
+    {
+      "id": "zh-Hans_1000000",
+      "input": {
+        "value": 1000000,
+        "locale": "zh-Hans"
+      },
+      "expected": "100万"
+    },
+    {
+      "id": "zh-Hans_1048576",
+      "input": {
+        "value": 1048576,
+        "locale": "zh-Hans"
+      },
+      "expected": "104.8万"
+    },
+    {
+      "id": "zh-Hans_2000000",
+      "input": {
+        "value": 2000000,
+        "locale": "zh-Hans"
+      },
+      "expected": "200万"
+    },
+    {
+      "id": "zh-Hans_1000000000",
+      "input": {
+        "value": 1000000000,
+        "locale": "zh-Hans"
+      },
+      "expected": "10亿"
+    },
+    {
+      "id": "zh-Hant_0",
+      "input": {
+        "value": 0,
+        "locale": "zh-Hant"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "zh-Hant_999",
+      "input": {
+        "value": 999,
+        "locale": "zh-Hant"
+      },
+      "expected": "999"
+    },
+    {
+      "id": "zh-Hant_1000",
+      "input": {
+        "value": 1000,
+        "locale": "zh-Hant"
+      },
+      "expected": "1000"
+    },
+    {
+      "id": "zh-Hant_1234",
+      "input": {
+        "value": 1234,
+        "locale": "zh-Hant"
+      },
+      "expected": "1234"
+    },
+    {
+      "id": "zh-Hant_1999",
+      "input": {
+        "value": 1999,
+        "locale": "zh-Hant"
+      },
+      "expected": "1999"
+    },
+    {
+      "id": "zh-Hant_9999",
+      "input": {
+        "value": 9999,
+        "locale": "zh-Hant"
+      },
+      "expected": "9999"
+    },
+    {
+      "id": "zh-Hant_12800",
+      "input": {
+        "value": 12800,
+        "locale": "zh-Hant"
+      },
+      "expected": "1.2萬"
+    },
+    {
+      "id": "zh-Hant_128000",
+      "input": {
+        "value": 128000,
+        "locale": "zh-Hant"
+      },
+      "expected": "12.8萬"
+    },
+    {
+      "id": "zh-Hant_128999",
+      "input": {
+        "value": 128999,
+        "locale": "zh-Hant"
+      },
+      "expected": "12.8萬"
+    },
+    {
+      "id": "zh-Hant_200000",
+      "input": {
+        "value": 200000,
+        "locale": "zh-Hant"
+      },
+      "expected": "20萬"
+    },
+    {
+      "id": "zh-Hant_999999",
+      "input": {
+        "value": 999999,
+        "locale": "zh-Hant"
+      },
+      "expected": "99.9萬"
+    },
+    {
+      "id": "zh-Hant_1000000",
+      "input": {
+        "value": 1000000,
+        "locale": "zh-Hant"
+      },
+      "expected": "100萬"
+    },
+    {
+      "id": "zh-Hant_1048576",
+      "input": {
+        "value": 1048576,
+        "locale": "zh-Hant"
+      },
+      "expected": "104.8萬"
+    },
+    {
+      "id": "zh-Hant_2000000",
+      "input": {
+        "value": 2000000,
+        "locale": "zh-Hant"
+      },
+      "expected": "200萬"
+    },
+    {
+      "id": "zh-Hant_1000000000",
+      "input": {
+        "value": 1000000000,
+        "locale": "zh-Hant"
+      },
+      "expected": "10億"
+    },
+    {
+      "id": "en_0",
+      "input": {
+        "value": 0,
+        "locale": "en"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "en_999",
+      "input": {
+        "value": 999,
+        "locale": "en"
+      },
+      "expected": "999"
+    },
+    {
+      "id": "en_1000",
+      "input": {
+        "value": 1000,
+        "locale": "en"
+      },
+      "expected": "1K"
+    },
+    {
+      "id": "en_1234",
+      "input": {
+        "value": 1234,
+        "locale": "en"
+      },
+      "expected": "1.2K"
+    },
+    {
+      "id": "en_1999",
+      "input": {
+        "value": 1999,
+        "locale": "en"
+      },
+      "expected": "1.9K"
+    },
+    {
+      "id": "en_9999",
+      "input": {
+        "value": 9999,
+        "locale": "en"
+      },
+      "expected": "9.9K"
+    },
+    {
+      "id": "en_12800",
+      "input": {
+        "value": 12800,
+        "locale": "en"
+      },
+      "expected": "12.8K"
+    },
+    {
+      "id": "en_128000",
+      "input": {
+        "value": 128000,
+        "locale": "en"
+      },
+      "expected": "128K"
+    },
+    {
+      "id": "en_128999",
+      "input": {
+        "value": 128999,
+        "locale": "en"
+      },
+      "expected": "128.9K"
+    },
+    {
+      "id": "en_200000",
+      "input": {
+        "value": 200000,
+        "locale": "en"
+      },
+      "expected": "200K"
+    },
+    {
+      "id": "en_999999",
+      "input": {
+        "value": 999999,
+        "locale": "en"
+      },
+      "expected": "999.9K"
+    },
+    {
+      "id": "en_1000000",
+      "input": {
+        "value": 1000000,
+        "locale": "en"
+      },
+      "expected": "1M"
+    },
+    {
+      "id": "en_1048576",
+      "input": {
+        "value": 1048576,
+        "locale": "en"
+      },
+      "expected": "1M"
+    },
+    {
+      "id": "en_2000000",
+      "input": {
+        "value": 2000000,
+        "locale": "en"
+      },
+      "expected": "2M"
+    },
+    {
+      "id": "en_1000000000",
+      "input": {
+        "value": 1000000000,
+        "locale": "en"
+      },
+      "expected": "1B"
+    },
+    {
+      "id": "ja_0",
+      "input": {
+        "value": 0,
+        "locale": "ja"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "ja_999",
+      "input": {
+        "value": 999,
+        "locale": "ja"
+      },
+      "expected": "999"
+    },
+    {
+      "id": "ja_1000",
+      "input": {
+        "value": 1000,
+        "locale": "ja"
+      },
+      "expected": "1000"
+    },
+    {
+      "id": "ja_1234",
+      "input": {
+        "value": 1234,
+        "locale": "ja"
+      },
+      "expected": "1234"
+    },
+    {
+      "id": "ja_1999",
+      "input": {
+        "value": 1999,
+        "locale": "ja"
+      },
+      "expected": "1999"
+    },
+    {
+      "id": "ja_9999",
+      "input": {
+        "value": 9999,
+        "locale": "ja"
+      },
+      "expected": "9999"
+    },
+    {
+      "id": "ja_12800",
+      "input": {
+        "value": 12800,
+        "locale": "ja"
+      },
+      "expected": "1.2万"
+    },
+    {
+      "id": "ja_128000",
+      "input": {
+        "value": 128000,
+        "locale": "ja"
+      },
+      "expected": "12.8万"
+    },
+    {
+      "id": "ja_128999",
+      "input": {
+        "value": 128999,
+        "locale": "ja"
+      },
+      "expected": "12.8万"
+    },
+    {
+      "id": "ja_200000",
+      "input": {
+        "value": 200000,
+        "locale": "ja"
+      },
+      "expected": "20万"
+    },
+    {
+      "id": "ja_999999",
+      "input": {
+        "value": 999999,
+        "locale": "ja"
+      },
+      "expected": "99.9万"
+    },
+    {
+      "id": "ja_1000000",
+      "input": {
+        "value": 1000000,
+        "locale": "ja"
+      },
+      "expected": "100万"
+    },
+    {
+      "id": "ja_1048576",
+      "input": {
+        "value": 1048576,
+        "locale": "ja"
+      },
+      "expected": "104.8万"
+    },
+    {
+      "id": "ja_2000000",
+      "input": {
+        "value": 2000000,
+        "locale": "ja"
+      },
+      "expected": "200万"
+    },
+    {
+      "id": "ja_1000000000",
+      "input": {
+        "value": 1000000000,
+        "locale": "ja"
+      },
+      "expected": "10億"
+    },
+    {
+      "id": "ko_0",
+      "input": {
+        "value": 0,
+        "locale": "ko"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "ko_999",
+      "input": {
+        "value": 999,
+        "locale": "ko"
+      },
+      "expected": "999"
+    },
+    {
+      "id": "ko_1000",
+      "input": {
+        "value": 1000,
+        "locale": "ko"
+      },
+      "expected": "1천"
+    },
+    {
+      "id": "ko_1234",
+      "input": {
+        "value": 1234,
+        "locale": "ko"
+      },
+      "expected": "1.2천"
+    },
+    {
+      "id": "ko_1999",
+      "input": {
+        "value": 1999,
+        "locale": "ko"
+      },
+      "expected": "1.9천"
+    },
+    {
+      "id": "ko_9999",
+      "input": {
+        "value": 9999,
+        "locale": "ko"
+      },
+      "expected": "9.9천"
+    },
+    {
+      "id": "ko_12800",
+      "input": {
+        "value": 12800,
+        "locale": "ko"
+      },
+      "expected": "1.2만"
+    },
+    {
+      "id": "ko_128000",
+      "input": {
+        "value": 128000,
+        "locale": "ko"
+      },
+      "expected": "12.8만"
+    },
+    {
+      "id": "ko_128999",
+      "input": {
+        "value": 128999,
+        "locale": "ko"
+      },
+      "expected": "12.8만"
+    },
+    {
+      "id": "ko_200000",
+      "input": {
+        "value": 200000,
+        "locale": "ko"
+      },
+      "expected": "20만"
+    },
+    {
+      "id": "ko_999999",
+      "input": {
+        "value": 999999,
+        "locale": "ko"
+      },
+      "expected": "99.9만"
+    },
+    {
+      "id": "ko_1000000",
+      "input": {
+        "value": 1000000,
+        "locale": "ko"
+      },
+      "expected": "100만"
+    },
+    {
+      "id": "ko_1048576",
+      "input": {
+        "value": 1048576,
+        "locale": "ko"
+      },
+      "expected": "104.8만"
+    },
+    {
+      "id": "ko_2000000",
+      "input": {
+        "value": 2000000,
+        "locale": "ko"
+      },
+      "expected": "200만"
+    },
+    {
+      "id": "ko_1000000000",
+      "input": {
+        "value": 1000000000,
+        "locale": "ko"
+      },
+      "expected": "10억"
+    },
+    {
+      "id": "de_0",
+      "input": {
+        "value": 0,
+        "locale": "de"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "de_999",
+      "input": {
+        "value": 999,
+        "locale": "de"
+      },
+      "expected": "999"
+    },
+    {
+      "id": "de_1000",
+      "input": {
+        "value": 1000,
+        "locale": "de"
+      },
+      "expected": "1000"
+    },
+    {
+      "id": "de_1234",
+      "input": {
+        "value": 1234,
+        "locale": "de"
+      },
+      "expected": "1234"
+    },
+    {
+      "id": "de_1999",
+      "input": {
+        "value": 1999,
+        "locale": "de"
+      },
+      "expected": "1999"
+    },
+    {
+      "id": "de_9999",
+      "input": {
+        "value": 9999,
+        "locale": "de"
+      },
+      "expected": "9999"
+    },
+    {
+      "id": "de_12800",
+      "input": {
+        "value": 12800,
+        "locale": "de"
+      },
+      "expected": "12.800"
+    },
+    {
+      "id": "de_128000",
+      "input": {
+        "value": 128000,
+        "locale": "de"
+      },
+      "expected": "128.000"
+    },
+    {
+      "id": "de_128999",
+      "input": {
+        "value": 128999,
+        "locale": "de"
+      },
+      "expected": "128.999"
+    },
+    {
+      "id": "de_200000",
+      "input": {
+        "value": 200000,
+        "locale": "de"
+      },
+      "expected": "200.000"
+    },
+    {
+      "id": "de_999999",
+      "input": {
+        "value": 999999,
+        "locale": "de"
+      },
+      "expected": "999.999"
+    },
+    {
+      "id": "de_1000000",
+      "input": {
+        "value": 1000000,
+        "locale": "de"
+      },
+      "expected": "1 Mio."
+    },
+    {
+      "id": "de_1048576",
+      "input": {
+        "value": 1048576,
+        "locale": "de"
+      },
+      "expected": "1 Mio."
+    },
+    {
+      "id": "de_2000000",
+      "input": {
+        "value": 2000000,
+        "locale": "de"
+      },
+      "expected": "2 Mio."
+    },
+    {
+      "id": "de_1000000000",
+      "input": {
+        "value": 1000000000,
+        "locale": "de"
+      },
+      "expected": "1 Mrd."
+    },
+    {
+      "id": "fr_0",
+      "input": {
+        "value": 0,
+        "locale": "fr"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "fr_999",
+      "input": {
+        "value": 999,
+        "locale": "fr"
+      },
+      "expected": "999"
+    },
+    {
+      "id": "fr_1000",
+      "input": {
+        "value": 1000,
+        "locale": "fr"
+      },
+      "expected": "1 k"
+    },
+    {
+      "id": "fr_1234",
+      "input": {
+        "value": 1234,
+        "locale": "fr"
+      },
+      "expected": "1,2 k"
+    },
+    {
+      "id": "fr_1999",
+      "input": {
+        "value": 1999,
+        "locale": "fr"
+      },
+      "expected": "1,9 k"
+    },
+    {
+      "id": "fr_9999",
+      "input": {
+        "value": 9999,
+        "locale": "fr"
+      },
+      "expected": "9,9 k"
+    },
+    {
+      "id": "fr_12800",
+      "input": {
+        "value": 12800,
+        "locale": "fr"
+      },
+      "expected": "12,8 k"
+    },
+    {
+      "id": "fr_128000",
+      "input": {
+        "value": 128000,
+        "locale": "fr"
+      },
+      "expected": "128 k"
+    },
+    {
+      "id": "fr_128999",
+      "input": {
+        "value": 128999,
+        "locale": "fr"
+      },
+      "expected": "128,9 k"
+    },
+    {
+      "id": "fr_200000",
+      "input": {
+        "value": 200000,
+        "locale": "fr"
+      },
+      "expected": "200 k"
+    },
+    {
+      "id": "fr_999999",
+      "input": {
+        "value": 999999,
+        "locale": "fr"
+      },
+      "expected": "999,9 k"
+    },
+    {
+      "id": "fr_1000000",
+      "input": {
+        "value": 1000000,
+        "locale": "fr"
+      },
+      "expected": "1 M"
+    },
+    {
+      "id": "fr_1048576",
+      "input": {
+        "value": 1048576,
+        "locale": "fr"
+      },
+      "expected": "1 M"
+    },
+    {
+      "id": "fr_2000000",
+      "input": {
+        "value": 2000000,
+        "locale": "fr"
+      },
+      "expected": "2 M"
+    },
+    {
+      "id": "fr_1000000000",
+      "input": {
+        "value": 1000000000,
+        "locale": "fr"
+      },
+      "expected": "1 Md"
+    },
+    {
+      "id": "es_0",
+      "input": {
+        "value": 0,
+        "locale": "es"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "es_999",
+      "input": {
+        "value": 999,
+        "locale": "es"
+      },
+      "expected": "999"
+    },
+    {
+      "id": "es_1000",
+      "input": {
+        "value": 1000,
+        "locale": "es"
+      },
+      "expected": "1 mil"
+    },
+    {
+      "id": "es_1234",
+      "input": {
+        "value": 1234,
+        "locale": "es"
+      },
+      "expected": "1,2 mil"
+    },
+    {
+      "id": "es_1999",
+      "input": {
+        "value": 1999,
+        "locale": "es"
+      },
+      "expected": "1,9 mil"
+    },
+    {
+      "id": "es_9999",
+      "input": {
+        "value": 9999,
+        "locale": "es"
+      },
+      "expected": "9,9 mil"
+    },
+    {
+      "id": "es_12800",
+      "input": {
+        "value": 12800,
+        "locale": "es"
+      },
+      "expected": "12,8 mil"
+    },
+    {
+      "id": "es_128000",
+      "input": {
+        "value": 128000,
+        "locale": "es"
+      },
+      "expected": "128 mil"
+    },
+    {
+      "id": "es_128999",
+      "input": {
+        "value": 128999,
+        "locale": "es"
+      },
+      "expected": "128,9 mil"
+    },
+    {
+      "id": "es_200000",
+      "input": {
+        "value": 200000,
+        "locale": "es"
+      },
+      "expected": "200 mil"
+    },
+    {
+      "id": "es_999999",
+      "input": {
+        "value": 999999,
+        "locale": "es"
+      },
+      "expected": "999,9 mil"
+    },
+    {
+      "id": "es_1000000",
+      "input": {
+        "value": 1000000,
+        "locale": "es"
+      },
+      "expected": "1 M"
+    },
+    {
+      "id": "es_1048576",
+      "input": {
+        "value": 1048576,
+        "locale": "es"
+      },
+      "expected": "1 M"
+    },
+    {
+      "id": "es_2000000",
+      "input": {
+        "value": 2000000,
+        "locale": "es"
+      },
+      "expected": "2 M"
+    },
+    {
+      "id": "es_1000000000",
+      "input": {
+        "value": 1000000000,
+        "locale": "es"
+      },
+      "expected": "1000 M"
+    },
+    {
+      "id": "pt-BR_0",
+      "input": {
+        "value": 0,
+        "locale": "pt-BR"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "pt-BR_999",
+      "input": {
+        "value": 999,
+        "locale": "pt-BR"
+      },
+      "expected": "999"
+    },
+    {
+      "id": "pt-BR_1000",
+      "input": {
+        "value": 1000,
+        "locale": "pt-BR"
+      },
+      "expected": "1 mil"
+    },
+    {
+      "id": "pt-BR_1234",
+      "input": {
+        "value": 1234,
+        "locale": "pt-BR"
+      },
+      "expected": "1,2 mil"
+    },
+    {
+      "id": "pt-BR_1999",
+      "input": {
+        "value": 1999,
+        "locale": "pt-BR"
+      },
+      "expected": "1,9 mil"
+    },
+    {
+      "id": "pt-BR_9999",
+      "input": {
+        "value": 9999,
+        "locale": "pt-BR"
+      },
+      "expected": "9,9 mil"
+    },
+    {
+      "id": "pt-BR_12800",
+      "input": {
+        "value": 12800,
+        "locale": "pt-BR"
+      },
+      "expected": "12,8 mil"
+    },
+    {
+      "id": "pt-BR_128000",
+      "input": {
+        "value": 128000,
+        "locale": "pt-BR"
+      },
+      "expected": "128 mil"
+    },
+    {
+      "id": "pt-BR_128999",
+      "input": {
+        "value": 128999,
+        "locale": "pt-BR"
+      },
+      "expected": "128,9 mil"
+    },
+    {
+      "id": "pt-BR_200000",
+      "input": {
+        "value": 200000,
+        "locale": "pt-BR"
+      },
+      "expected": "200 mil"
+    },
+    {
+      "id": "pt-BR_999999",
+      "input": {
+        "value": 999999,
+        "locale": "pt-BR"
+      },
+      "expected": "999,9 mil"
+    },
+    {
+      "id": "pt-BR_1000000",
+      "input": {
+        "value": 1000000,
+        "locale": "pt-BR"
+      },
+      "expected": "1 mi"
+    },
+    {
+      "id": "pt-BR_1048576",
+      "input": {
+        "value": 1048576,
+        "locale": "pt-BR"
+      },
+      "expected": "1 mi"
+    },
+    {
+      "id": "pt-BR_2000000",
+      "input": {
+        "value": 2000000,
+        "locale": "pt-BR"
+      },
+      "expected": "2 mi"
+    },
+    {
+      "id": "pt-BR_1000000000",
+      "input": {
+        "value": 1000000000,
+        "locale": "pt-BR"
+      },
+      "expected": "1 bi"
+    },
+    {
+      "id": "ru_0",
+      "input": {
+        "value": 0,
+        "locale": "ru"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "ru_999",
+      "input": {
+        "value": 999,
+        "locale": "ru"
+      },
+      "expected": "999"
+    },
+    {
+      "id": "ru_1000",
+      "input": {
+        "value": 1000,
+        "locale": "ru"
+      },
+      "expected": "1 тыс."
+    },
+    {
+      "id": "ru_1234",
+      "input": {
+        "value": 1234,
+        "locale": "ru"
+      },
+      "expected": "1,2 тыс."
+    },
+    {
+      "id": "ru_1999",
+      "input": {
+        "value": 1999,
+        "locale": "ru"
+      },
+      "expected": "1,9 тыс."
+    },
+    {
+      "id": "ru_9999",
+      "input": {
+        "value": 9999,
+        "locale": "ru"
+      },
+      "expected": "9,9 тыс."
+    },
+    {
+      "id": "ru_12800",
+      "input": {
+        "value": 12800,
+        "locale": "ru"
+      },
+      "expected": "12,8 тыс."
+    },
+    {
+      "id": "ru_128000",
+      "input": {
+        "value": 128000,
+        "locale": "ru"
+      },
+      "expected": "128 тыс."
+    },
+    {
+      "id": "ru_128999",
+      "input": {
+        "value": 128999,
+        "locale": "ru"
+      },
+      "expected": "128,9 тыс."
+    },
+    {
+      "id": "ru_200000",
+      "input": {
+        "value": 200000,
+        "locale": "ru"
+      },
+      "expected": "200 тыс."
+    },
+    {
+      "id": "ru_999999",
+      "input": {
+        "value": 999999,
+        "locale": "ru"
+      },
+      "expected": "999,9 тыс."
+    },
+    {
+      "id": "ru_1000000",
+      "input": {
+        "value": 1000000,
+        "locale": "ru"
+      },
+      "expected": "1 млн"
+    },
+    {
+      "id": "ru_1048576",
+      "input": {
+        "value": 1048576,
+        "locale": "ru"
+      },
+      "expected": "1 млн"
+    },
+    {
+      "id": "ru_2000000",
+      "input": {
+        "value": 2000000,
+        "locale": "ru"
+      },
+      "expected": "2 млн"
+    },
+    {
+      "id": "ru_1000000000",
+      "input": {
+        "value": 1000000000,
+        "locale": "ru"
+      },
+      "expected": "1 млрд"
+    },
+    {
+      "id": "tr_0",
+      "input": {
+        "value": 0,
+        "locale": "tr"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "tr_999",
+      "input": {
+        "value": 999,
+        "locale": "tr"
+      },
+      "expected": "999"
+    },
+    {
+      "id": "tr_1000",
+      "input": {
+        "value": 1000,
+        "locale": "tr"
+      },
+      "expected": "1 B"
+    },
+    {
+      "id": "tr_1234",
+      "input": {
+        "value": 1234,
+        "locale": "tr"
+      },
+      "expected": "1,2 B"
+    },
+    {
+      "id": "tr_1999",
+      "input": {
+        "value": 1999,
+        "locale": "tr"
+      },
+      "expected": "1,9 B"
+    },
+    {
+      "id": "tr_9999",
+      "input": {
+        "value": 9999,
+        "locale": "tr"
+      },
+      "expected": "9,9 B"
+    },
+    {
+      "id": "tr_12800",
+      "input": {
+        "value": 12800,
+        "locale": "tr"
+      },
+      "expected": "12,8 B"
+    },
+    {
+      "id": "tr_128000",
+      "input": {
+        "value": 128000,
+        "locale": "tr"
+      },
+      "expected": "128 B"
+    },
+    {
+      "id": "tr_128999",
+      "input": {
+        "value": 128999,
+        "locale": "tr"
+      },
+      "expected": "128,9 B"
+    },
+    {
+      "id": "tr_200000",
+      "input": {
+        "value": 200000,
+        "locale": "tr"
+      },
+      "expected": "200 B"
+    },
+    {
+      "id": "tr_999999",
+      "input": {
+        "value": 999999,
+        "locale": "tr"
+      },
+      "expected": "999,9 B"
+    },
+    {
+      "id": "tr_1000000",
+      "input": {
+        "value": 1000000,
+        "locale": "tr"
+      },
+      "expected": "1 Mn"
+    },
+    {
+      "id": "tr_1048576",
+      "input": {
+        "value": 1048576,
+        "locale": "tr"
+      },
+      "expected": "1 Mn"
+    },
+    {
+      "id": "tr_2000000",
+      "input": {
+        "value": 2000000,
+        "locale": "tr"
+      },
+      "expected": "2 Mn"
+    },
+    {
+      "id": "tr_1000000000",
+      "input": {
+        "value": 1000000000,
+        "locale": "tr"
+      },
+      "expected": "1 Mr"
+    },
+    {
+      "id": "id_0",
+      "input": {
+        "value": 0,
+        "locale": "id"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "id_999",
+      "input": {
+        "value": 999,
+        "locale": "id"
+      },
+      "expected": "999"
+    },
+    {
+      "id": "id_1000",
+      "input": {
+        "value": 1000,
+        "locale": "id"
+      },
+      "expected": "1 rb"
+    },
+    {
+      "id": "id_1234",
+      "input": {
+        "value": 1234,
+        "locale": "id"
+      },
+      "expected": "1,2 rb"
+    },
+    {
+      "id": "id_1999",
+      "input": {
+        "value": 1999,
+        "locale": "id"
+      },
+      "expected": "1,9 rb"
+    },
+    {
+      "id": "id_9999",
+      "input": {
+        "value": 9999,
+        "locale": "id"
+      },
+      "expected": "9,9 rb"
+    },
+    {
+      "id": "id_12800",
+      "input": {
+        "value": 12800,
+        "locale": "id"
+      },
+      "expected": "12,8 rb"
+    },
+    {
+      "id": "id_128000",
+      "input": {
+        "value": 128000,
+        "locale": "id"
+      },
+      "expected": "128 rb"
+    },
+    {
+      "id": "id_128999",
+      "input": {
+        "value": 128999,
+        "locale": "id"
+      },
+      "expected": "128,9 rb"
+    },
+    {
+      "id": "id_200000",
+      "input": {
+        "value": 200000,
+        "locale": "id"
+      },
+      "expected": "200 rb"
+    },
+    {
+      "id": "id_999999",
+      "input": {
+        "value": 999999,
+        "locale": "id"
+      },
+      "expected": "999,9 rb"
+    },
+    {
+      "id": "id_1000000",
+      "input": {
+        "value": 1000000,
+        "locale": "id"
+      },
+      "expected": "1 jt"
+    },
+    {
+      "id": "id_1048576",
+      "input": {
+        "value": 1048576,
+        "locale": "id"
+      },
+      "expected": "1 jt"
+    },
+    {
+      "id": "id_2000000",
+      "input": {
+        "value": 2000000,
+        "locale": "id"
+      },
+      "expected": "2 jt"
+    },
+    {
+      "id": "id_1000000000",
+      "input": {
+        "value": 1000000000,
+        "locale": "id"
+      },
+      "expected": "1 M"
+    },
+    {
+      "id": "vi_0",
+      "input": {
+        "value": 0,
+        "locale": "vi"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "vi_999",
+      "input": {
+        "value": 999,
+        "locale": "vi"
+      },
+      "expected": "999"
+    },
+    {
+      "id": "vi_1000",
+      "input": {
+        "value": 1000,
+        "locale": "vi"
+      },
+      "expected": "1 N"
+    },
+    {
+      "id": "vi_1234",
+      "input": {
+        "value": 1234,
+        "locale": "vi"
+      },
+      "expected": "1,2 N"
+    },
+    {
+      "id": "vi_1999",
+      "input": {
+        "value": 1999,
+        "locale": "vi"
+      },
+      "expected": "1,9 N"
+    },
+    {
+      "id": "vi_9999",
+      "input": {
+        "value": 9999,
+        "locale": "vi"
+      },
+      "expected": "9,9 N"
+    },
+    {
+      "id": "vi_12800",
+      "input": {
+        "value": 12800,
+        "locale": "vi"
+      },
+      "expected": "12,8 N"
+    },
+    {
+      "id": "vi_128000",
+      "input": {
+        "value": 128000,
+        "locale": "vi"
+      },
+      "expected": "128 N"
+    },
+    {
+      "id": "vi_128999",
+      "input": {
+        "value": 128999,
+        "locale": "vi"
+      },
+      "expected": "128,9 N"
+    },
+    {
+      "id": "vi_200000",
+      "input": {
+        "value": 200000,
+        "locale": "vi"
+      },
+      "expected": "200 N"
+    },
+    {
+      "id": "vi_999999",
+      "input": {
+        "value": 999999,
+        "locale": "vi"
+      },
+      "expected": "999,9 N"
+    },
+    {
+      "id": "vi_1000000",
+      "input": {
+        "value": 1000000,
+        "locale": "vi"
+      },
+      "expected": "1 Tr"
+    },
+    {
+      "id": "vi_1048576",
+      "input": {
+        "value": 1048576,
+        "locale": "vi"
+      },
+      "expected": "1 Tr"
+    },
+    {
+      "id": "vi_2000000",
+      "input": {
+        "value": 2000000,
+        "locale": "vi"
+      },
+      "expected": "2 Tr"
+    },
+    {
+      "id": "vi_1000000000",
+      "input": {
+        "value": 1000000000,
+        "locale": "vi"
+      },
+      "expected": "1 T"
+    },
+    {
+      "id": "th_0",
+      "input": {
+        "value": 0,
+        "locale": "th"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "th_999",
+      "input": {
+        "value": 999,
+        "locale": "th"
+      },
+      "expected": "999"
+    },
+    {
+      "id": "th_1000",
+      "input": {
+        "value": 1000,
+        "locale": "th"
+      },
+      "expected": "1K"
+    },
+    {
+      "id": "th_1234",
+      "input": {
+        "value": 1234,
+        "locale": "th"
+      },
+      "expected": "1.2K"
+    },
+    {
+      "id": "th_1999",
+      "input": {
+        "value": 1999,
+        "locale": "th"
+      },
+      "expected": "1.9K"
+    },
+    {
+      "id": "th_9999",
+      "input": {
+        "value": 9999,
+        "locale": "th"
+      },
+      "expected": "9.9K"
+    },
+    {
+      "id": "th_12800",
+      "input": {
+        "value": 12800,
+        "locale": "th"
+      },
+      "expected": "12.8K"
+    },
+    {
+      "id": "th_128000",
+      "input": {
+        "value": 128000,
+        "locale": "th"
+      },
+      "expected": "128K"
+    },
+    {
+      "id": "th_128999",
+      "input": {
+        "value": 128999,
+        "locale": "th"
+      },
+      "expected": "128.9K"
+    },
+    {
+      "id": "th_200000",
+      "input": {
+        "value": 200000,
+        "locale": "th"
+      },
+      "expected": "200K"
+    },
+    {
+      "id": "th_999999",
+      "input": {
+        "value": 999999,
+        "locale": "th"
+      },
+      "expected": "999.9K"
+    },
+    {
+      "id": "th_1000000",
+      "input": {
+        "value": 1000000,
+        "locale": "th"
+      },
+      "expected": "1M"
+    },
+    {
+      "id": "th_1048576",
+      "input": {
+        "value": 1048576,
+        "locale": "th"
+      },
+      "expected": "1M"
+    },
+    {
+      "id": "th_2000000",
+      "input": {
+        "value": 2000000,
+        "locale": "th"
+      },
+      "expected": "2M"
+    },
+    {
+      "id": "th_1000000000",
+      "input": {
+        "value": 1000000000,
+        "locale": "th"
+      },
+      "expected": "1B"
+    },
+    {
+      "id": "hi_0",
+      "input": {
+        "value": 0,
+        "locale": "hi"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "hi_999",
+      "input": {
+        "value": 999,
+        "locale": "hi"
+      },
+      "expected": "999"
+    },
+    {
+      "id": "hi_1000",
+      "input": {
+        "value": 1000,
+        "locale": "hi"
+      },
+      "expected": "1 हज़ार"
+    },
+    {
+      "id": "hi_1234",
+      "input": {
+        "value": 1234,
+        "locale": "hi"
+      },
+      "expected": "1.2 हज़ार"
+    },
+    {
+      "id": "hi_1999",
+      "input": {
+        "value": 1999,
+        "locale": "hi"
+      },
+      "expected": "1.9 हज़ार"
+    },
+    {
+      "id": "hi_9999",
+      "input": {
+        "value": 9999,
+        "locale": "hi"
+      },
+      "expected": "9.9 हज़ार"
+    },
+    {
+      "id": "hi_12800",
+      "input": {
+        "value": 12800,
+        "locale": "hi"
+      },
+      "expected": "12.8 हज़ार"
+    },
+    {
+      "id": "hi_128000",
+      "input": {
+        "value": 128000,
+        "locale": "hi"
+      },
+      "expected": "1.2 लाख"
+    },
+    {
+      "id": "hi_128999",
+      "input": {
+        "value": 128999,
+        "locale": "hi"
+      },
+      "expected": "1.2 लाख"
+    },
+    {
+      "id": "hi_200000",
+      "input": {
+        "value": 200000,
+        "locale": "hi"
+      },
+      "expected": "2 लाख"
+    },
+    {
+      "id": "hi_999999",
+      "input": {
+        "value": 999999,
+        "locale": "hi"
+      },
+      "expected": "9.9 लाख"
+    },
+    {
+      "id": "hi_1000000",
+      "input": {
+        "value": 1000000,
+        "locale": "hi"
+      },
+      "expected": "10 लाख"
+    },
+    {
+      "id": "hi_1048576",
+      "input": {
+        "value": 1048576,
+        "locale": "hi"
+      },
+      "expected": "10.4 लाख"
+    },
+    {
+      "id": "hi_2000000",
+      "input": {
+        "value": 2000000,
+        "locale": "hi"
+      },
+      "expected": "20 लाख"
+    },
+    {
+      "id": "hi_1000000000",
+      "input": {
+        "value": 1000000000,
+        "locale": "hi"
+      },
+      "expected": "1 अ॰"
+    },
+    {
+      "id": "ar_0",
+      "input": {
+        "value": 0,
+        "locale": "ar"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "ar_999",
+      "input": {
+        "value": 999,
+        "locale": "ar"
+      },
+      "expected": "999"
+    },
+    {
+      "id": "ar_1000",
+      "input": {
+        "value": 1000,
+        "locale": "ar"
+      },
+      "expected": "1 ألف"
+    },
+    {
+      "id": "ar_1234",
+      "input": {
+        "value": 1234,
+        "locale": "ar"
+      },
+      "expected": "1.2 ألف"
+    },
+    {
+      "id": "ar_1999",
+      "input": {
+        "value": 1999,
+        "locale": "ar"
+      },
+      "expected": "1.9 ألف"
+    },
+    {
+      "id": "ar_9999",
+      "input": {
+        "value": 9999,
+        "locale": "ar"
+      },
+      "expected": "9.9 ألف"
+    },
+    {
+      "id": "ar_12800",
+      "input": {
+        "value": 12800,
+        "locale": "ar"
+      },
+      "expected": "12.8 ألف"
+    },
+    {
+      "id": "ar_128000",
+      "input": {
+        "value": 128000,
+        "locale": "ar"
+      },
+      "expected": "128 ألف"
+    },
+    {
+      "id": "ar_128999",
+      "input": {
+        "value": 128999,
+        "locale": "ar"
+      },
+      "expected": "128.9 ألف"
+    },
+    {
+      "id": "ar_200000",
+      "input": {
+        "value": 200000,
+        "locale": "ar"
+      },
+      "expected": "200 ألف"
+    },
+    {
+      "id": "ar_999999",
+      "input": {
+        "value": 999999,
+        "locale": "ar"
+      },
+      "expected": "999.9 ألف"
+    },
+    {
+      "id": "ar_1000000",
+      "input": {
+        "value": 1000000,
+        "locale": "ar"
+      },
+      "expected": "1 مليون"
+    },
+    {
+      "id": "ar_1048576",
+      "input": {
+        "value": 1048576,
+        "locale": "ar"
+      },
+      "expected": "1 مليون"
+    },
+    {
+      "id": "ar_2000000",
+      "input": {
+        "value": 2000000,
+        "locale": "ar"
+      },
+      "expected": "2 مليون"
+    },
+    {
+      "id": "ar_1000000000",
+      "input": {
+        "value": 1000000000,
+        "locale": "ar"
+      },
+      "expected": "1 مليار"
+    },
+    {
+      "id": "negative_is_zero",
+      "input": {
+        "value": -5,
+        "locale": "en"
+      },
+      "expected": "0"
+    },
+    {
+      "id": "en_129001_drops_dot_zero",
+      "input": {
+        "value": 129001,
+        "locale": "en"
+      },
+      "expected": "129K"
+    },
+    {
+      "id": "en_1e12",
+      "input": {
+        "value": 1000000000000,
+        "locale": "en"
+      },
+      "expected": "1T"
+    },
+    {
+      "id": "en_1e13_stays_top_tier",
+      "input": {
+        "value": 10000000000000,
+        "locale": "en"
+      },
+      "expected": "10T"
+    },
+    {
+      "id": "zh-Hans_1e8",
+      "input": {
+        "value": 100000000,
+        "locale": "zh-Hans"
+      },
+      "expected": "1亿"
+    },
+    {
+      "id": "zh-Hans_10000",
+      "input": {
+        "value": 10000,
+        "locale": "zh-Hans"
+      },
+      "expected": "1万"
+    },
+    {
+      "id": "de_10000_grouped",
+      "input": {
+        "value": 10000,
+        "locale": "de"
+      },
+      "expected": "10.000"
+    },
+    {
+      "id": "de_99999",
+      "input": {
+        "value": 99999,
+        "locale": "de"
+      },
+      "expected": "99.999"
+    },
+    {
+      "id": "ar_7000_few",
+      "input": {
+        "value": 7000,
+        "locale": "ar"
+      },
+      "expected": "7 آلاف"
+    },
+    {
+      "id": "zh-Hans_256000",
+      "input": {
+        "value": 256000,
+        "locale": "zh-Hans"
+      },
+      "expected": "25.6万"
+    },
+    {
+      "id": "ja_272000",
+      "input": {
+        "value": 272000,
+        "locale": "ja"
+      },
+      "expected": "27.2万"
+    },
+    {
+      "id": "ko_32000",
+      "input": {
+        "value": 32000,
+        "locale": "ko"
+      },
+      "expected": "3.2만"
+    },
+    {
+      "id": "de_1999999_floor",
+      "input": {
+        "value": 1999999,
+        "locale": "de"
+      },
+      "expected": "1,9 Mio."
+    },
+    {
+      "id": "es_1e10",
+      "input": {
+        "value": 10000000000,
+        "locale": "es"
+      },
+      "expected": "10 mil M"
+    },
+    {
+      "id": "hi_100000",
+      "input": {
+        "value": 100000,
+        "locale": "hi"
+      },
+      "expected": "1 लाख"
+    },
+    {
+      "id": "hi_10000000",
+      "input": {
+        "value": 10000000,
+        "locale": "hi"
+      },
+      "expected": "1 क॰"
+    },
+    {
+      "id": "ar_3000_few",
+      "input": {
+        "value": 3000,
+        "locale": "ar"
+      },
+      "expected": "3 آلاف"
+    },
+    {
+      "id": "ar_3500_fraction_other",
+      "input": {
+        "value": 3500,
+        "locale": "ar"
+      },
+      "expected": "3.5 ألف"
+    },
+    {
+      "id": "ar_9999_floor_fraction_other",
+      "input": {
+        "value": 9999,
+        "locale": "ar"
+      },
+      "expected": "9.9 ألف"
+    },
+    {
+      "id": "ar_2000_two",
+      "input": {
+        "value": 2000,
+        "locale": "ar"
+      },
+      "expected": "2 ألف"
+    },
+    {
+      "id": "ar_10000",
+      "input": {
+        "value": 10000,
+        "locale": "ar"
+      },
+      "expected": "10 ألف"
+    },
+    {
+      "id": "region_zh_TW",
+      "input": {
+        "value": 128000,
+        "locale": "zh-TW"
+      },
+      "expected": "12.8萬"
+    },
+    {
+      "id": "region_pt_PT",
+      "input": {
+        "value": 128000,
+        "locale": "pt-PT"
+      },
+      "expected": "128 mil"
+    },
+    {
+      "id": "region_android_in",
+      "input": {
+        "value": 128000,
+        "locale": "in"
+      },
+      "expected": "128 rb"
+    },
+    {
+      "id": "unknown_falls_back_en",
+      "input": {
+        "value": 128000,
+        "locale": "nl"
+      },
+      "expected": "128K"
+    },
+    {
+      "id": "en_5e15_clamped",
+      "input": {
+        "value": 5000000000000000,
+        "locale": "en"
+      },
+      "expected": "1000T"
+    },
+    {
+      "id": "zh-Hans-HK_script_wins",
+      "input": {
+        "value": 128000,
+        "locale": "zh-Hans-HK"
+      },
+      "expected": "12.8万"
+    }
+  ]
+}

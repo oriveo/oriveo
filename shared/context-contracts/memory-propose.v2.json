@@ -1,0 +1,2120 @@
+{
+  "$comment": "Host tool propose_memory. On chat requests that can carry tools the model proposes long-term memories itself; the host turns each call into at most one pending candidate through memory-intent.v1 makeMemoryCandidate, after its own deterministic checks (arguments, the quote must come from this turn's user message, secret / special-category rejection). Nothing becomes an active memory item without the user accepting it. Paths that cannot carry tools fall back to the memory-intent.v1 deterministic route. Clients load `tool` and `toolResult` byte-for-byte; projections must equal what each client's production tool projection outputs for [tool]. Model behaviour itself is out of scope (measured by scripts/memory-intent-offline-gate.mjs). v2: kinds add decision / event (episodicKinds); a candidate's proposedLayer is episodic for those kinds and semantic otherwise.",
+  "schema": "oriveo.context.memory-propose",
+  "version": 2,
+  "dependsOn": [
+    "memory-intent",
+    "memory-items"
+  ],
+  "tool": {
+    "type": "function",
+    "function": {
+      "name": "propose_memory",
+      "description": "Propose one long-term memory for the user to confirm. Call it only when the user's own message in this turn asks you to remember something for future conversations, or states a lasting fact or preference about themselves, or a decision or event they will want to look up later, that they clearly want kept beyond this conversation. One atomic statement per call, keeping the user's meaning and language; never record your own inference. Do not call it for: instructions such as 'from now on' or 'going forward' unless the user says they apply to all or future chats (those stay in this conversation); reminders and to-dos; questions, including 'can you remember...'; corrections or statements that something is no longer true; quoted, hypothetical or role-play text; anything containing passwords, keys, codes, payment or ID details, health, sexuality, religion, politics, ethnicity, criminal record or immigration status. Nothing is saved until the user confirms. After calling, continue your reply normally and do not mention the proposal.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "proposition": {
+            "type": "string",
+            "description": "The fact, preference or rule to keep, as one self-contained statement in the language the user wrote."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "instruction",
+              "project",
+              "goal",
+              "preference",
+              "identity",
+              "fact",
+              "decision",
+              "event"
+            ],
+            "description": "instruction: a standing rule for how to respond; project: about a project the user works on; goal: something the user is working toward; preference: what the user likes or dislikes; identity: who the user is; fact: any other lasting fact about the user; decision: something the user decided and will want to look up later; event: something that happened that the user will want to look up later."
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "global",
+              "folder",
+              "unspecified"
+            ],
+            "description": "global: the user said it applies to all chats; folder: the user said it applies to this project or folder; unspecified: the user named no scope."
+          },
+          "sourceQuote": {
+            "type": "string",
+            "description": "The exact words in the user's message that this comes from, copied verbatim."
+          }
+        },
+        "required": [
+          "proposition",
+          "kind",
+          "scope",
+          "sourceQuote"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "toolResult": "Recorded as a suggestion; the user will decide whether to save it. Continue your reply. Do not ask about it or say it was saved.",
+  "projections": {
+    "openai_chat": [
+      {
+        "type": "function",
+        "function": {
+          "name": "propose_memory",
+          "description": "Propose one long-term memory for the user to confirm. Call it only when the user's own message in this turn asks you to remember something for future conversations, or states a lasting fact or preference about themselves, or a decision or event they will want to look up later, that they clearly want kept beyond this conversation. One atomic statement per call, keeping the user's meaning and language; never record your own inference. Do not call it for: instructions such as 'from now on' or 'going forward' unless the user says they apply to all or future chats (those stay in this conversation); reminders and to-dos; questions, including 'can you remember...'; corrections or statements that something is no longer true; quoted, hypothetical or role-play text; anything containing passwords, keys, codes, payment or ID details, health, sexuality, religion, politics, ethnicity, criminal record or immigration status. Nothing is saved until the user confirms. After calling, continue your reply normally and do not mention the proposal.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "proposition": {
+                "type": "string",
+                "description": "The fact, preference or rule to keep, as one self-contained statement in the language the user wrote."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "instruction",
+                  "project",
+                  "goal",
+                  "preference",
+                  "identity",
+                  "fact",
+                  "decision",
+                  "event"
+                ],
+                "description": "instruction: a standing rule for how to respond; project: about a project the user works on; goal: something the user is working toward; preference: what the user likes or dislikes; identity: who the user is; fact: any other lasting fact about the user; decision: something the user decided and will want to look up later; event: something that happened that the user will want to look up later."
+              },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "global",
+                  "folder",
+                  "unspecified"
+                ],
+                "description": "global: the user said it applies to all chats; folder: the user said it applies to this project or folder; unspecified: the user named no scope."
+              },
+              "sourceQuote": {
+                "type": "string",
+                "description": "The exact words in the user's message that this comes from, copied verbatim."
+              }
+            },
+            "required": [
+              "proposition",
+              "kind",
+              "scope",
+              "sourceQuote"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    ],
+    "openai_responses": [
+      {
+        "type": "function",
+        "name": "propose_memory",
+        "description": "Propose one long-term memory for the user to confirm. Call it only when the user's own message in this turn asks you to remember something for future conversations, or states a lasting fact or preference about themselves, or a decision or event they will want to look up later, that they clearly want kept beyond this conversation. One atomic statement per call, keeping the user's meaning and language; never record your own inference. Do not call it for: instructions such as 'from now on' or 'going forward' unless the user says they apply to all or future chats (those stay in this conversation); reminders and to-dos; questions, including 'can you remember...'; corrections or statements that something is no longer true; quoted, hypothetical or role-play text; anything containing passwords, keys, codes, payment or ID details, health, sexuality, religion, politics, ethnicity, criminal record or immigration status. Nothing is saved until the user confirms. After calling, continue your reply normally and do not mention the proposal.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "proposition": {
+              "type": "string",
+              "description": "The fact, preference or rule to keep, as one self-contained statement in the language the user wrote."
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "instruction",
+                "project",
+                "goal",
+                "preference",
+                "identity",
+                "fact",
+                "decision",
+                "event"
+              ],
+              "description": "instruction: a standing rule for how to respond; project: about a project the user works on; goal: something the user is working toward; preference: what the user likes or dislikes; identity: who the user is; fact: any other lasting fact about the user; decision: something the user decided and will want to look up later; event: something that happened that the user will want to look up later."
+            },
+            "scope": {
+              "type": "string",
+              "enum": [
+                "global",
+                "folder",
+                "unspecified"
+              ],
+              "description": "global: the user said it applies to all chats; folder: the user said it applies to this project or folder; unspecified: the user named no scope."
+            },
+            "sourceQuote": {
+              "type": "string",
+              "description": "The exact words in the user's message that this comes from, copied verbatim."
+            }
+          },
+          "required": [
+            "proposition",
+            "kind",
+            "scope",
+            "sourceQuote"
+          ],
+          "additionalProperties": false
+        }
+      }
+    ],
+    "anthropic_messages": [
+      {
+        "name": "propose_memory",
+        "description": "Propose one long-term memory for the user to confirm. Call it only when the user's own message in this turn asks you to remember something for future conversations, or states a lasting fact or preference about themselves, or a decision or event they will want to look up later, that they clearly want kept beyond this conversation. One atomic statement per call, keeping the user's meaning and language; never record your own inference. Do not call it for: instructions such as 'from now on' or 'going forward' unless the user says they apply to all or future chats (those stay in this conversation); reminders and to-dos; questions, including 'can you remember...'; corrections or statements that something is no longer true; quoted, hypothetical or role-play text; anything containing passwords, keys, codes, payment or ID details, health, sexuality, religion, politics, ethnicity, criminal record or immigration status. Nothing is saved until the user confirms. After calling, continue your reply normally and do not mention the proposal.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "proposition": {
+              "type": "string",
+              "description": "The fact, preference or rule to keep, as one self-contained statement in the language the user wrote."
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "instruction",
+                "project",
+                "goal",
+                "preference",
+                "identity",
+                "fact",
+                "decision",
+                "event"
+              ],
+              "description": "instruction: a standing rule for how to respond; project: about a project the user works on; goal: something the user is working toward; preference: what the user likes or dislikes; identity: who the user is; fact: any other lasting fact about the user; decision: something the user decided and will want to look up later; event: something that happened that the user will want to look up later."
+            },
+            "scope": {
+              "type": "string",
+              "enum": [
+                "global",
+                "folder",
+                "unspecified"
+              ],
+              "description": "global: the user said it applies to all chats; folder: the user said it applies to this project or folder; unspecified: the user named no scope."
+            },
+            "sourceQuote": {
+              "type": "string",
+              "description": "The exact words in the user's message that this comes from, copied verbatim."
+            }
+          },
+          "required": [
+            "proposition",
+            "kind",
+            "scope",
+            "sourceQuote"
+          ],
+          "additionalProperties": false
+        }
+      }
+    ],
+    "gemini_generate": [
+      {
+        "functionDeclarations": [
+          {
+            "name": "propose_memory",
+            "description": "Propose one long-term memory for the user to confirm. Call it only when the user's own message in this turn asks you to remember something for future conversations, or states a lasting fact or preference about themselves, or a decision or event they will want to look up later, that they clearly want kept beyond this conversation. One atomic statement per call, keeping the user's meaning and language; never record your own inference. Do not call it for: instructions such as 'from now on' or 'going forward' unless the user says they apply to all or future chats (those stay in this conversation); reminders and to-dos; questions, including 'can you remember...'; corrections or statements that something is no longer true; quoted, hypothetical or role-play text; anything containing passwords, keys, codes, payment or ID details, health, sexuality, religion, politics, ethnicity, criminal record or immigration status. Nothing is saved until the user confirms. After calling, continue your reply normally and do not mention the proposal.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "proposition": {
+                  "type": "string",
+                  "description": "The fact, preference or rule to keep, as one self-contained statement in the language the user wrote."
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "instruction",
+                    "project",
+                    "goal",
+                    "preference",
+                    "identity",
+                    "fact",
+                    "decision",
+                    "event"
+                  ],
+                  "description": "instruction: a standing rule for how to respond; project: about a project the user works on; goal: something the user is working toward; preference: what the user likes or dislikes; identity: who the user is; fact: any other lasting fact about the user; decision: something the user decided and will want to look up later; event: something that happened that the user will want to look up later."
+                },
+                "scope": {
+                  "type": "string",
+                  "enum": [
+                    "global",
+                    "folder",
+                    "unspecified"
+                  ],
+                  "description": "global: the user said it applies to all chats; folder: the user said it applies to this project or folder; unspecified: the user named no scope."
+                },
+                "sourceQuote": {
+                  "type": "string",
+                  "description": "The exact words in the user's message that this comes from, copied verbatim."
+                }
+              },
+              "required": [
+                "proposition",
+                "kind",
+                "scope",
+                "sourceQuote"
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "scopes": [
+    "global",
+    "folder",
+    "unspecified"
+  ],
+  "skipReasons": [
+    "invalid_arguments",
+    "too_long",
+    "quote_not_in_message",
+    "secret",
+    "special",
+    "conversation_instruction",
+    "turn_limit",
+    "duplicate_active",
+    "exists",
+    "duplicate_pending",
+    "rejected_recently"
+  ],
+  "modes": [
+    "tool",
+    "fallback",
+    "none"
+  ],
+  "constants": {
+    "maxProposalsPerTurn": 3
+  },
+  "algorithm": [
+    "1 Mode (per fresh chat send, decided before the request is built): none when purpose != chat or the send is not a fresh user send (retry, regenerate, edit, continue, recovery); fallback when effective useMemory is off, the local auto-suggest switch is off, the request cannot carry client tools (the same predicate that gates MCP tools: Free, Managed, image generation, non-tool transports, capability evidence unsupported, remembered tool-call false; plus a request that runs the Moonshot built-in $web_search loop, which rejects any other tool name) or the connection is degraded (rule 6); tool otherwise.",
+    "2 mode=tool: append `tool` as the last entry of the request tools (after MCP / library tools), tool_choice auto. The memory-intent.v1 memory route does not run for that message (no v1 memory candidate, no memory-off hint); the conversation-instruction bar still follows memory-intent.v1 classify. mode=fallback: exactly the memory-intent.v1 route as before (memory candidate, memory-off hint, conversation-instruction bar). mode=none: neither.",
+    "3 Execution: every propose_memory call in the turn is answered with `toolResult` byte-for-byte, whatever the outcome (invalid arguments included; never a ToolCallRejection, never an error payload), so the model never retries or asks about it. The call and its result are not shown as tool steps, are not persisted into the conversation history or step records, and are not sent again on later turns.",
+    "4 propose(arguments, context, priorInTurn), in order: priorInTurn >= maxProposalsPerTurn -> turn_limit (priorInTurn counts earlier propose_memory calls of the same turn, whatever their outcome). arguments must parse as a JSON object whose proposition and sourceQuote are strings, kind is in memory-intent.v1 kinds or episodicKinds and scope is in `scopes`, else invalid_arguments. content = proposition with White_Space trimmed (memory-intent trim); quote = memoryIntentCanonical(sourceQuote); content or quote empty -> invalid_arguments. content longer than memory-intent contentMaxCodePoints code points -> too_long. memoryIntentCanonical(context.userText) must contain quote, else quote_not_in_message (userText = the text of the fresh user message of this turn). sensitive(x) = memory-intent.v1 classify(x).sensitive: secret for userText, content or sourceQuote -> secret; special for content or sourceQuote -> special. memory-intent.v1 classify(userText) has suggestion = conversationInstruction or blocked = conversation_scope -> conversation_instruction (conversation-scoped rules belong to the conversation-instruction bar, never to memory). Otherwise return memory-intent.v1 makeMemoryCandidate for the classification {intent: implicit_persist, proposition: content, kind, scope, sensitive: none, blocked: null, suggestion: memory} and context {conversationId, folderId, messageId, nowMs, activeContents, records} with autoSuggest absent; so id = UUIDv5(messageId \\n fingerprint) (the same message and proposition from both routes collide on id), confidence = memory-intent constants.confidence.implicit_persist, scope mapping per memory-intent candidateScope. The candidate's proposedLayer = episodic when kind is in episodicKinds, else semantic (memory-items memoryLayerOfKind); accepting a candidate creates the item in the layer of its final kind.",
+    "5 Suggestion bar: the first created candidate of the turn becomes the \"save to memory?\" bar under that turn's assistant reply, shown once the reply stops streaming; the other candidates stay in the inbox. The fallback route shows its bar under the assistant reply of the same turn too.",
+    "6 Degrade: when a request that carried `tool` is rejected and the rejection qualifies (tool-unsupported-4xx.json matcher true, first leg, before any stream output, no structured tool call seen) the client resends this turn once without tools (existing behaviour), runs the fallback route for this message, and marks connectionId \\n model id as degraded in memory for the rest of the process. Existing tool-call memory writes stay as they are. HTTP 422 follows each client's existing matcher (Web excludes it, iOS / Android follow tool-unsupported-4xx.json) and is not locked here. A rejection after output, on a later leg, or judged model access denied is surfaced unchanged.",
+    "7 Tail leg (plain chat path, no MCP / library loop): the first leg streams as usual with `tool` attached. If it ends asking for tool results and every call it made is propose_memory, the host executes them (rule 4) and sends at most one tail leg: the same history plus the assistant tool-call message (carrying the first leg's provider continuation: reasoning_content, thinking signatures, previous_response_id) and one `toolResult` per call, tools still attached with tool_choice none. propose_memory calls inside the tail leg are executed but never trigger another leg. Replay state is only required when the first leg carried reasoning (reasoning_content, thinking signatures, stateful previous_response_id); without reasoning the tail leg uses the ordinary message shape on every protocol. If required replay state is missing: a non-empty first-leg text ends the turn; an empty one triggers one resend of the original request without tools. The delivered text is the first-leg text followed by the tail-leg text. Usage adds both legs; stopReason comes from the last leg; a first leg that ended on tool calls is not an empty answer and not an unhandled-tool card. Calls to any other tool name keep today's unhandled-tool behaviour. Inside the MCP / library loops propose_memory is one more registry entry (rule 2 order) and does not count as retrieval for first-leg-without-tool-call checks."
+  ],
+  "proposeCases": [
+    {
+      "id": "create_zh_explicit_global",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "记住我偏好简洁回答"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"我偏好简洁回答\",\"kind\":\"preference\",\"scope\":\"unspecified\",\"sourceQuote\":\"我偏好简洁回答\"}",
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "我偏好简洁回答",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_en_unspecified_in_folder_goes_folder",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": "9a8b7c6d-5e4f-4321-8765-0fedcba98765",
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "Remember that I use TypeScript."
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"I use TypeScript.\",\"kind\":\"fact\",\"scope\":\"unspecified\",\"sourceQuote\":\"I use TypeScript\"}",
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "54465f7a-2f07-5121-91d9-2b7836bd349b",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "fact",
+          "content": "I use TypeScript.",
+          "scope": {
+            "type": "folder",
+            "id": "9a8b7c6d-5e4f-4321-8765-0fedcba98765"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "cf36895d04d9312cd5ef2c3949f7cfa3e1ce7967a13fcfa2b6e88fa952ed64b5",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_global_in_folder_stays_global",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": "9a8b7c6d-5e4f-4321-8765-0fedcba98765",
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "From now on, in all chats, answer in Chinese."
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"Answer in Chinese in all chats.\",\"kind\":\"instruction\",\"scope\":\"global\",\"sourceQuote\":\"in all chats, answer in Chinese\"}",
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "1ccdb0e4-0a7c-5e62-a5de-f9fe4f43ddce",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "instruction",
+          "content": "Answer in Chinese in all chats.",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "78b87417b1e7900274912b33a74cb076f87b790c8190c5fecd12ab52e19b227d",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_folder_without_folder_goes_conversation",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "For this project always use pnpm."
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"Use pnpm for this project.\",\"kind\":\"instruction\",\"scope\":\"folder\",\"sourceQuote\":\"For this project always use pnpm\"}",
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "a92d076f-716f-5d7b-af7c-3a3400bb2e52",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "instruction",
+          "content": "Use pnpm for this project.",
+          "scope": {
+            "type": "conversation",
+            "id": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "2220b3a406ca5b84d1bd078a5a50e24e73eec669db19a6d1c2951685ef2ac8b2",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_folder_in_folder",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": "9a8b7c6d-5e4f-4321-8765-0fedcba98765",
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "For this project always use pnpm."
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"Use pnpm for this project.\",\"kind\":\"instruction\",\"scope\":\"folder\",\"sourceQuote\":\"For this project always use pnpm\"}",
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "a92d076f-716f-5d7b-af7c-3a3400bb2e52",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "instruction",
+          "content": "Use pnpm for this project.",
+          "scope": {
+            "type": "folder",
+            "id": "9a8b7c6d-5e4f-4321-8765-0fedcba98765"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "2220b3a406ca5b84d1bd078a5a50e24e73eec669db19a6d1c2951685ef2ac8b2",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_ja",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "これからは全ての会話で敬語で答えてください。"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"全ての会話で敬語で答える。\",\"kind\":\"instruction\",\"scope\":\"global\",\"sourceQuote\":\"全ての会話で敬語で答えてください\"}",
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "9ffba46b-8c3b-5be0-8b52-40a9da76b299",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "instruction",
+          "content": "全ての会話で敬語で答える。",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "9a2bb33b4e529597cd07696f17471399320a751d89e270c9ac167c0d1b8b54d0",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_ar",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "تذكر أنني نباتي."
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"أنا نباتي.\",\"kind\":\"identity\",\"scope\":\"unspecified\",\"sourceQuote\":\"أنني نباتي\"}",
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "c1b673f8-010f-5810-a443-1757839a5b2a",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "identity",
+          "content": "أنا نباتي.",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "755c27c940a8d5f26464b82dcf62df02d0ddced847b9a9141b80f54a80aeb430",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_sw_language_outside_16",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "Kumbuka kwamba ninapenda majibu mafupi."
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"Ninapenda majibu mafupi.\",\"kind\":\"preference\",\"scope\":\"unspecified\",\"sourceQuote\":\"ninapenda majibu mafupi\"}",
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "83c5c179-a471-525b-a9c4-faf2fb717299",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "Ninapenda majibu mafupi.",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "622a5558a15e3a31d17351bc31cf1d7a975f22c619b127f5464972e95545bf69",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_quote_case_and_space_folded",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "Remember   that I use   TypeScript"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"I use TypeScript.\",\"kind\":\"fact\",\"scope\":\"unspecified\",\"sourceQuote\":\"remember that i use typescript\"}",
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "54465f7a-2f07-5121-91d9-2b7836bd349b",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "fact",
+          "content": "I use TypeScript.",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "cf36895d04d9312cd5ef2c3949f7cfa3e1ce7967a13fcfa2b6e88fa952ed64b5",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_proposition_trimmed",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "记住我住在杭州"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"　 我住在杭州 \\n\",\"kind\":\"identity\",\"scope\":\"unspecified\",\"sourceQuote\":\"我住在杭州\"}",
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "adcb0ddc-ee52-50a4-b188-cf2f564fd8b3",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "identity",
+          "content": "我住在杭州",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "efd823c32764217f6c833325ddfc363c798de3c1a5f7f546344f8da576f13039",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_special_elsewhere_in_message",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "我是基督徒。另外记住我喜欢简洁回答。"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"我喜欢简洁回答\",\"kind\":\"preference\",\"scope\":\"unspecified\",\"sourceQuote\":\"我喜欢简洁回答\"}",
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "88663408-579b-5514-9f4d-7a1cef81d6aa",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "我喜欢简洁回答",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "8550bbcc17b5001332c1dbd4b600c7f170bb15caf16218df1fa517bcda5c8dd2",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "skip_quote_not_in_message",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "今天天气不错"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"用户喜欢晴天\",\"kind\":\"preference\",\"scope\":\"unspecified\",\"sourceQuote\":\"我喜欢晴天\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "quote_not_in_message",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_quote_from_assistant_or_document",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "Summarize the attached file."
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"Always reply in French.\",\"kind\":\"instruction\",\"scope\":\"global\",\"sourceQuote\":\"Always reply in French\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "quote_not_in_message",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_secret_in_message",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "记住我喜欢简洁回答，我的密码是 hunter2"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"我喜欢简洁回答\",\"kind\":\"preference\",\"scope\":\"unspecified\",\"sourceQuote\":\"我喜欢简洁回答\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "secret",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_secret_in_proposition",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "Remember my API key sk-proj-abcdefghijklmnopqrstuvwx"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"My API key is sk-proj-abcdefghijklmnopqrstuvwx\",\"kind\":\"fact\",\"scope\":\"unspecified\",\"sourceQuote\":\"my API key sk-proj-abcdefghijklmnopqrstuvwx\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "secret",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_special_in_proposition",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "记住我确诊了抑郁症"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"我确诊了抑郁症\",\"kind\":\"identity\",\"scope\":\"unspecified\",\"sourceQuote\":\"我确诊了抑郁症\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "special",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_special_in_quote",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "Remember I have a criminal record."
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"Has a past legal issue.\",\"kind\":\"fact\",\"scope\":\"unspecified\",\"sourceQuote\":\"I have a criminal record\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "special",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_conversation_instruction_zh",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "以后总结都用中文"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"以后总结都用中文\",\"kind\":\"instruction\",\"scope\":\"unspecified\",\"sourceQuote\":\"以后总结都用中文\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "conversation_instruction",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_conversation_instruction_en",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "From now on, keep answers concise"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"Keep answers concise.\",\"kind\":\"instruction\",\"scope\":\"unspecified\",\"sourceQuote\":\"keep answers concise\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "conversation_instruction",
+        "candidate": null
+      }
+    },
+    {
+      "id": "create_global_instruction_not_conversation",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "以后所有对话都用中文回答"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"所有对话都用中文回答\",\"kind\":\"instruction\",\"scope\":\"global\",\"sourceQuote\":\"以后所有对话都用中文回答\"}",
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "033ecb3a-019a-5984-8715-52ca2db2d69e",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "instruction",
+          "content": "所有对话都用中文回答",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "4a498e3a5d107808965799c1f445031e2b784b875c1da3967ee4bfccc5e3039c",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "skip_invalid_json",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "记住我偏好简洁回答"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\": \"我偏好简洁回答\"",
+      "expected": {
+        "action": "skip",
+        "reason": "invalid_arguments",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_invalid_array",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "记住我偏好简洁回答"
+      },
+      "priorInTurn": 0,
+      "arguments": "[\"我偏好简洁回答\"]",
+      "expected": {
+        "action": "skip",
+        "reason": "invalid_arguments",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_invalid_kind",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "记住我偏好简洁回答"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"我偏好简洁回答\",\"kind\":\"opinion\",\"scope\":\"unspecified\",\"sourceQuote\":\"我偏好简洁回答\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "invalid_arguments",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_invalid_scope_conversation",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "记住我偏好简洁回答"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"我偏好简洁回答\",\"kind\":\"preference\",\"scope\":\"conversation\",\"sourceQuote\":\"我偏好简洁回答\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "invalid_arguments",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_invalid_missing_quote",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "记住我偏好简洁回答"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"我偏好简洁回答\",\"kind\":\"preference\",\"scope\":\"unspecified\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "invalid_arguments",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_invalid_empty_proposition",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "记住我偏好简洁回答"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\" 　 \",\"kind\":\"preference\",\"scope\":\"unspecified\",\"sourceQuote\":\"我偏好简洁回答\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "invalid_arguments",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_invalid_blank_quote",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "记住我偏好简洁回答"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"我偏好简洁回答\",\"kind\":\"preference\",\"scope\":\"unspecified\",\"sourceQuote\":\"  \"}",
+      "expected": {
+        "action": "skip",
+        "reason": "invalid_arguments",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_too_long",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "记住我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我我\",\"kind\":\"fact\",\"scope\":\"unspecified\",\"sourceQuote\":\"记住\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "too_long",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_turn_limit",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "记住我偏好简洁回答"
+      },
+      "priorInTurn": 3,
+      "arguments": "{\"proposition\":\"我偏好简洁回答\",\"kind\":\"preference\",\"scope\":\"unspecified\",\"sourceQuote\":\"我偏好简洁回答\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "turn_limit",
+        "candidate": null
+      }
+    },
+    {
+      "id": "create_under_turn_limit",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "记住我偏好简洁回答"
+      },
+      "priorInTurn": 2,
+      "arguments": "{\"proposition\":\"我偏好简洁回答\",\"kind\":\"preference\",\"scope\":\"unspecified\",\"sourceQuote\":\"我偏好简洁回答\"}",
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "我偏好简洁回答",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "skip_duplicate_active",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [
+          "我偏好简洁回答"
+        ],
+        "records": [],
+        "userText": "记住我偏好简洁回答"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"我偏好简洁回答\",\"kind\":\"preference\",\"scope\":\"unspecified\",\"sourceQuote\":\"我偏好简洁回答\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "duplicate_active",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_duplicate_pending",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [
+          {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "status": "pending",
+            "proposedLayer": "semantic",
+            "proposedKind": "preference",
+            "content": "我偏好简洁回答",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "conversation",
+              "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+              "messageIds": [
+                "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+              ],
+              "observedAtMs": 1792137599000
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+            "createdAtMs": 1792137599000,
+            "expiresAtMs": 1794729599000,
+            "resolvedAtMs": null
+          }
+        ],
+        "userText": "记住我偏好简洁回答"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"我偏好简洁回答\",\"kind\":\"preference\",\"scope\":\"unspecified\",\"sourceQuote\":\"我偏好简洁回答\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "duplicate_pending",
+        "candidate": null
+      }
+    },
+    {
+      "id": "skip_rejected_recently",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [
+          {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "status": "rejected",
+            "proposedLayer": "semantic",
+            "proposedKind": "preference",
+            "content": "",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "conversation",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAtMs": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+            "createdAtMs": 1792137599000,
+            "expiresAtMs": 1792137600001,
+            "resolvedAtMs": 1792137599000
+          }
+        ],
+        "userText": "记住我偏好简洁回答"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"我偏好简洁回答\",\"kind\":\"preference\",\"scope\":\"unspecified\",\"sourceQuote\":\"我偏好简洁回答\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "rejected_recently",
+        "candidate": null
+      }
+    },
+    {
+      "id": "create_rejected_expired",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [
+          {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "status": "rejected",
+            "proposedLayer": "semantic",
+            "proposedKind": "preference",
+            "content": "",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "conversation",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAtMs": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+            "createdAtMs": 1792137599000,
+            "expiresAtMs": 1792137600000,
+            "resolvedAtMs": 1792137599000
+          }
+        ],
+        "userText": "记住我偏好简洁回答"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"我偏好简洁回答\",\"kind\":\"preference\",\"scope\":\"unspecified\",\"sourceQuote\":\"我偏好简洁回答\"}",
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+          "status": "pending",
+          "proposedLayer": "semantic",
+          "proposedKind": "preference",
+          "content": "我偏好简洁回答",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "skip_exists_same_message",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [
+          {
+            "id": "544fc60c-68a2-51c2-be91-e4f1897c14e9",
+            "status": "rejected",
+            "proposedLayer": "semantic",
+            "proposedKind": "preference",
+            "content": "",
+            "scope": {
+              "type": "global",
+              "id": null
+            },
+            "source": {
+              "type": "conversation",
+              "conversationId": null,
+              "messageIds": [],
+              "observedAtMs": null
+            },
+            "sensitivity": "normal",
+            "confidence": 1,
+            "fingerprint": "b8dd63359a43963f9dcc745f8ebc6039f5ecddeaeaf80ca30aba07f817d52e15",
+            "createdAtMs": 1792137599000,
+            "expiresAtMs": 1792137600000,
+            "resolvedAtMs": 1792137599000
+          }
+        ],
+        "userText": "记住我偏好简洁回答"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"我偏好简洁回答\",\"kind\":\"preference\",\"scope\":\"unspecified\",\"sourceQuote\":\"我偏好简洁回答\"}",
+      "expected": {
+        "action": "skip",
+        "reason": "exists",
+        "candidate": null
+      }
+    },
+    {
+      "id": "create_zh_decision_episodic",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "我们决定这部小说的结局定在1453年"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"决定小说结局定在1453年\",\"kind\":\"decision\",\"scope\":\"unspecified\",\"sourceQuote\":\"决定这部小说的结局定在1453年\"}",
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "14857d93-15d4-54ac-9d7b-b5855f39f121",
+          "status": "pending",
+          "proposedLayer": "episodic",
+          "proposedKind": "decision",
+          "content": "决定小说结局定在1453年",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "b21a16d64cf93a56094d9357e54b77796372885c3b11764c3fe79dc4711db7e2",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_en_event_episodic_folder",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "For the record: we shipped v2.3 to the App Store on October 3."
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"Shipped v2.3 to the App Store on October 3\",\"kind\":\"event\",\"scope\":\"folder\",\"sourceQuote\":\"we shipped v2.3 to the App Store on October 3\"}",
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "18e8ccc5-d2ad-558c-b02f-36344a411d89",
+          "status": "pending",
+          "proposedLayer": "episodic",
+          "proposedKind": "event",
+          "content": "Shipped v2.3 to the App Store on October 3",
+          "scope": {
+            "type": "folder",
+            "id": "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "c361671fbcc3035eac98eeb2c1157fbebe577e94abc8a2872f6624d0c2ce0025",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    },
+    {
+      "id": "create_ja_decision_episodic",
+      "context": {
+        "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+        "folderId": null,
+        "messageId": "0b1c2d3e-4f50-4617-8899-aabbccddeeff",
+        "nowMs": 1792137600000,
+        "activeContents": [],
+        "records": [],
+        "userText": "覚えておいて：DBはPostgreSQLに決めた。"
+      },
+      "priorInTurn": 0,
+      "arguments": "{\"proposition\":\"DBはPostgreSQLに決めた\",\"kind\":\"decision\",\"scope\":\"global\",\"sourceQuote\":\"DBはPostgreSQLに決めた\"}",
+      "expected": {
+        "action": "create",
+        "reason": null,
+        "candidate": {
+          "id": "dafa0a30-5d3e-5c98-a35e-5c61ae0e0d0b",
+          "status": "pending",
+          "proposedLayer": "episodic",
+          "proposedKind": "decision",
+          "content": "DBはPostgreSQLに決めた",
+          "scope": {
+            "type": "global",
+            "id": null
+          },
+          "source": {
+            "type": "conversation",
+            "conversationId": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d",
+            "messageIds": [
+              "0b1c2d3e-4f50-4617-8899-aabbccddeeff"
+            ],
+            "observedAtMs": 1792137600000
+          },
+          "sensitivity": "normal",
+          "confidence": 0.8,
+          "fingerprint": "ec6c7cc31ba216ae1d9578f7b789052aec97ccaad440c44b791c2e14a58e8a40",
+          "createdAtMs": 1792137600000,
+          "expiresAtMs": 1794729600000,
+          "resolvedAtMs": null
+        }
+      }
+    }
+  ],
+  "modeCases": [
+    {
+      "id": "chat_00000",
+      "input": {
+        "purpose": "chat",
+        "freshSend": false,
+        "memoryEnabled": false,
+        "autoSuggest": false,
+        "connectionSupportsTools": false,
+        "degraded": false
+      },
+      "expected": "none"
+    },
+    {
+      "id": "chat_00001",
+      "input": {
+        "purpose": "chat",
+        "freshSend": false,
+        "memoryEnabled": false,
+        "autoSuggest": false,
+        "connectionSupportsTools": false,
+        "degraded": true
+      },
+      "expected": "none"
+    },
+    {
+      "id": "chat_00010",
+      "input": {
+        "purpose": "chat",
+        "freshSend": false,
+        "memoryEnabled": false,
+        "autoSuggest": false,
+        "connectionSupportsTools": true,
+        "degraded": false
+      },
+      "expected": "none"
+    },
+    {
+      "id": "chat_00011",
+      "input": {
+        "purpose": "chat",
+        "freshSend": false,
+        "memoryEnabled": false,
+        "autoSuggest": false,
+        "connectionSupportsTools": true,
+        "degraded": true
+      },
+      "expected": "none"
+    },
+    {
+      "id": "chat_00100",
+      "input": {
+        "purpose": "chat",
+        "freshSend": false,
+        "memoryEnabled": false,
+        "autoSuggest": true,
+        "connectionSupportsTools": false,
+        "degraded": false
+      },
+      "expected": "none"
+    },
+    {
+      "id": "chat_00101",
+      "input": {
+        "purpose": "chat",
+        "freshSend": false,
+        "memoryEnabled": false,
+        "autoSuggest": true,
+        "connectionSupportsTools": false,
+        "degraded": true
+      },
+      "expected": "none"
+    },
+    {
+      "id": "chat_00110",
+      "input": {
+        "purpose": "chat",
+        "freshSend": false,
+        "memoryEnabled": false,
+        "autoSuggest": true,
+        "connectionSupportsTools": true,
+        "degraded": false
+      },
+      "expected": "none"
+    },
+    {
+      "id": "chat_00111",
+      "input": {
+        "purpose": "chat",
+        "freshSend": false,
+        "memoryEnabled": false,
+        "autoSuggest": true,
+        "connectionSupportsTools": true,
+        "degraded": true
+      },
+      "expected": "none"
+    },
+    {
+      "id": "chat_01000",
+      "input": {
+        "purpose": "chat",
+        "freshSend": false,
+        "memoryEnabled": true,
+        "autoSuggest": false,
+        "connectionSupportsTools": false,
+        "degraded": false
+      },
+      "expected": "none"
+    },
+    {
+      "id": "chat_01001",
+      "input": {
+        "purpose": "chat",
+        "freshSend": false,
+        "memoryEnabled": true,
+        "autoSuggest": false,
+        "connectionSupportsTools": false,
+        "degraded": true
+      },
+      "expected": "none"
+    },
+    {
+      "id": "chat_01010",
+      "input": {
+        "purpose": "chat",
+        "freshSend": false,
+        "memoryEnabled": true,
+        "autoSuggest": false,
+        "connectionSupportsTools": true,
+        "degraded": false
+      },
+      "expected": "none"
+    },
+    {
+      "id": "chat_01011",
+      "input": {
+        "purpose": "chat",
+        "freshSend": false,
+        "memoryEnabled": true,
+        "autoSuggest": false,
+        "connectionSupportsTools": true,
+        "degraded": true
+      },
+      "expected": "none"
+    },
+    {
+      "id": "chat_01100",
+      "input": {
+        "purpose": "chat",
+        "freshSend": false,
+        "memoryEnabled": true,
+        "autoSuggest": true,
+        "connectionSupportsTools": false,
+        "degraded": false
+      },
+      "expected": "none"
+    },
+    {
+      "id": "chat_01101",
+      "input": {
+        "purpose": "chat",
+        "freshSend": false,
+        "memoryEnabled": true,
+        "autoSuggest": true,
+        "connectionSupportsTools": false,
+        "degraded": true
+      },
+      "expected": "none"
+    },
+    {
+      "id": "chat_01110",
+      "input": {
+        "purpose": "chat",
+        "freshSend": false,
+        "memoryEnabled": true,
+        "autoSuggest": true,
+        "connectionSupportsTools": true,
+        "degraded": false
+      },
+      "expected": "none"
+    },
+    {
+      "id": "chat_01111",
+      "input": {
+        "purpose": "chat",
+        "freshSend": false,
+        "memoryEnabled": true,
+        "autoSuggest": true,
+        "connectionSupportsTools": true,
+        "degraded": true
+      },
+      "expected": "none"
+    },
+    {
+      "id": "chat_10000",
+      "input": {
+        "purpose": "chat",
+        "freshSend": true,
+        "memoryEnabled": false,
+        "autoSuggest": false,
+        "connectionSupportsTools": false,
+        "degraded": false
+      },
+      "expected": "fallback"
+    },
+    {
+      "id": "chat_10001",
+      "input": {
+        "purpose": "chat",
+        "freshSend": true,
+        "memoryEnabled": false,
+        "autoSuggest": false,
+        "connectionSupportsTools": false,
+        "degraded": true
+      },
+      "expected": "fallback"
+    },
+    {
+      "id": "chat_10010",
+      "input": {
+        "purpose": "chat",
+        "freshSend": true,
+        "memoryEnabled": false,
+        "autoSuggest": false,
+        "connectionSupportsTools": true,
+        "degraded": false
+      },
+      "expected": "fallback"
+    },
+    {
+      "id": "chat_10011",
+      "input": {
+        "purpose": "chat",
+        "freshSend": true,
+        "memoryEnabled": false,
+        "autoSuggest": false,
+        "connectionSupportsTools": true,
+        "degraded": true
+      },
+      "expected": "fallback"
+    },
+    {
+      "id": "chat_10100",
+      "input": {
+        "purpose": "chat",
+        "freshSend": true,
+        "memoryEnabled": false,
+        "autoSuggest": true,
+        "connectionSupportsTools": false,
+        "degraded": false
+      },
+      "expected": "fallback"
+    },
+    {
+      "id": "chat_10101",
+      "input": {
+        "purpose": "chat",
+        "freshSend": true,
+        "memoryEnabled": false,
+        "autoSuggest": true,
+        "connectionSupportsTools": false,
+        "degraded": true
+      },
+      "expected": "fallback"
+    },
+    {
+      "id": "chat_10110",
+      "input": {
+        "purpose": "chat",
+        "freshSend": true,
+        "memoryEnabled": false,
+        "autoSuggest": true,
+        "connectionSupportsTools": true,
+        "degraded": false
+      },
+      "expected": "fallback"
+    },
+    {
+      "id": "chat_10111",
+      "input": {
+        "purpose": "chat",
+        "freshSend": true,
+        "memoryEnabled": false,
+        "autoSuggest": true,
+        "connectionSupportsTools": true,
+        "degraded": true
+      },
+      "expected": "fallback"
+    },
+    {
+      "id": "chat_11000",
+      "input": {
+        "purpose": "chat",
+        "freshSend": true,
+        "memoryEnabled": true,
+        "autoSuggest": false,
+        "connectionSupportsTools": false,
+        "degraded": false
+      },
+      "expected": "fallback"
+    },
+    {
+      "id": "chat_11001",
+      "input": {
+        "purpose": "chat",
+        "freshSend": true,
+        "memoryEnabled": true,
+        "autoSuggest": false,
+        "connectionSupportsTools": false,
+        "degraded": true
+      },
+      "expected": "fallback"
+    },
+    {
+      "id": "chat_11010",
+      "input": {
+        "purpose": "chat",
+        "freshSend": true,
+        "memoryEnabled": true,
+        "autoSuggest": false,
+        "connectionSupportsTools": true,
+        "degraded": false
+      },
+      "expected": "fallback"
+    },
+    {
+      "id": "chat_11011",
+      "input": {
+        "purpose": "chat",
+        "freshSend": true,
+        "memoryEnabled": true,
+        "autoSuggest": false,
+        "connectionSupportsTools": true,
+        "degraded": true
+      },
+      "expected": "fallback"
+    },
+    {
+      "id": "chat_11100",
+      "input": {
+        "purpose": "chat",
+        "freshSend": true,
+        "memoryEnabled": true,
+        "autoSuggest": true,
+        "connectionSupportsTools": false,
+        "degraded": false
+      },
+      "expected": "fallback"
+    },
+    {
+      "id": "chat_11101",
+      "input": {
+        "purpose": "chat",
+        "freshSend": true,
+        "memoryEnabled": true,
+        "autoSuggest": true,
+        "connectionSupportsTools": false,
+        "degraded": true
+      },
+      "expected": "fallback"
+    },
+    {
+      "id": "chat_11110",
+      "input": {
+        "purpose": "chat",
+        "freshSend": true,
+        "memoryEnabled": true,
+        "autoSuggest": true,
+        "connectionSupportsTools": true,
+        "degraded": false
+      },
+      "expected": "tool"
+    },
+    {
+      "id": "chat_11111",
+      "input": {
+        "purpose": "chat",
+        "freshSend": true,
+        "memoryEnabled": true,
+        "autoSuggest": true,
+        "connectionSupportsTools": true,
+        "degraded": true
+      },
+      "expected": "fallback"
+    },
+    {
+      "id": "continue_all_on",
+      "input": {
+        "purpose": "continue",
+        "freshSend": true,
+        "memoryEnabled": true,
+        "autoSuggest": true,
+        "connectionSupportsTools": true,
+        "degraded": false
+      },
+      "expected": "none"
+    },
+    {
+      "id": "toolLoopLeg_all_on",
+      "input": {
+        "purpose": "toolLoopLeg",
+        "freshSend": true,
+        "memoryEnabled": true,
+        "autoSuggest": true,
+        "connectionSupportsTools": true,
+        "degraded": false
+      },
+      "expected": "none"
+    },
+    {
+      "id": "compaction_all_on",
+      "input": {
+        "purpose": "compaction",
+        "freshSend": true,
+        "memoryEnabled": true,
+        "autoSuggest": true,
+        "connectionSupportsTools": true,
+        "degraded": false
+      },
+      "expected": "none"
+    }
+  ],
+  "degradeCases": [
+    {
+      "id": "first_leg_openai_style_unrecognized_argument",
+      "rejection": "openai_style_unrecognized_argument",
+      "legIndex": 0,
+      "streamStarted": false,
+      "receivedStructuredToolCalls": false,
+      "expected": {
+        "degrade": true
+      }
+    },
+    {
+      "id": "first_leg_generic_tools_not_supported",
+      "rejection": "generic_tools_not_supported",
+      "legIndex": 0,
+      "streamStarted": false,
+      "receivedStructuredToolCalls": false,
+      "expected": {
+        "degrade": true
+      }
+    },
+    {
+      "id": "first_leg_function_calling_unsupported",
+      "rejection": "function_calling_unsupported",
+      "legIndex": 0,
+      "streamStarted": false,
+      "receivedStructuredToolCalls": false,
+      "expected": {
+        "degrade": true
+      }
+    },
+    {
+      "id": "first_leg_tool_choice_invalid",
+      "rejection": "tool_choice_invalid",
+      "legIndex": 0,
+      "streamStarted": false,
+      "receivedStructuredToolCalls": false,
+      "expected": {
+        "degrade": true
+      }
+    },
+    {
+      "id": "first_leg_unknown_field_tools",
+      "rejection": "unknown_field_tools",
+      "legIndex": 0,
+      "streamStarted": false,
+      "receivedStructuredToolCalls": false,
+      "expected": {
+        "degrade": true
+      }
+    },
+    {
+      "id": "first_leg_rate_limited_mentions_tools",
+      "rejection": "rate_limited_mentions_tools",
+      "legIndex": 0,
+      "streamStarted": false,
+      "receivedStructuredToolCalls": false,
+      "expected": {
+        "degrade": false
+      }
+    },
+    {
+      "id": "first_leg_unauthorized",
+      "rejection": "unauthorized",
+      "legIndex": 0,
+      "streamStarted": false,
+      "receivedStructuredToolCalls": false,
+      "expected": {
+        "degrade": false
+      }
+    },
+    {
+      "id": "first_leg_forbidden",
+      "rejection": "forbidden",
+      "legIndex": 0,
+      "streamStarted": false,
+      "receivedStructuredToolCalls": false,
+      "expected": {
+        "degrade": false
+      }
+    },
+    {
+      "id": "first_leg_server_error",
+      "rejection": "server_error",
+      "legIndex": 0,
+      "streamStarted": false,
+      "receivedStructuredToolCalls": false,
+      "expected": {
+        "degrade": false
+      }
+    },
+    {
+      "id": "first_leg_bad_request_unrelated",
+      "rejection": "bad_request_unrelated",
+      "legIndex": 0,
+      "streamStarted": false,
+      "receivedStructuredToolCalls": false,
+      "expected": {
+        "degrade": false
+      }
+    },
+    {
+      "id": "first_leg_bad_request_context_length",
+      "rejection": "bad_request_context_length",
+      "legIndex": 0,
+      "streamStarted": false,
+      "receivedStructuredToolCalls": false,
+      "expected": {
+        "degrade": false
+      }
+    },
+    {
+      "id": "first_leg_invalid_json_unrelated",
+      "rejection": "invalid_json_unrelated",
+      "legIndex": 0,
+      "streamStarted": false,
+      "receivedStructuredToolCalls": false,
+      "expected": {
+        "degrade": false
+      }
+    },
+    {
+      "id": "first_leg_subject_without_verdict",
+      "rejection": "subject_without_verdict",
+      "legIndex": 0,
+      "streamStarted": false,
+      "receivedStructuredToolCalls": false,
+      "expected": {
+        "degrade": false
+      }
+    },
+    {
+      "id": "second_leg_not_degrade",
+      "rejection": "openai_style_unrecognized_argument",
+      "legIndex": 1,
+      "streamStarted": false,
+      "receivedStructuredToolCalls": false,
+      "expected": {
+        "degrade": false
+      }
+    },
+    {
+      "id": "stream_started_not_degrade",
+      "rejection": "openai_style_unrecognized_argument",
+      "legIndex": 0,
+      "streamStarted": true,
+      "receivedStructuredToolCalls": false,
+      "expected": {
+        "degrade": false
+      }
+    },
+    {
+      "id": "seen_tool_calls_not_degrade",
+      "rejection": "openai_style_unrecognized_argument",
+      "legIndex": 0,
+      "streamStarted": false,
+      "receivedStructuredToolCalls": true,
+      "expected": {
+        "degrade": false
+      }
+    }
+  ],
+  "episodicKinds": [
+    "decision",
+    "event"
+  ]
+}
