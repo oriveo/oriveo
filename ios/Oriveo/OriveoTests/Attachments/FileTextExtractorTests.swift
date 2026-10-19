@@ -233,6 +233,8 @@ final class FileTextExtractorTests: XCTestCase {
     func testExtractionDeadlineExpiresAfterThirtySecondsOfInjectedClock() {
         final class ManualClock: @unchecked Sendable {
             var nanoseconds: UInt64 = 5_000
+            // Avoids the synthesized isolated deinit and its iOS 18 back-deploy shim (swift#85663), which crashes the test host on release.
+            nonisolated deinit {}
         }
         let clock = ManualClock()
         let deadline = ExtractionDeadline(now: { clock.nanoseconds })

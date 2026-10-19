@@ -10,6 +10,11 @@ class BaseAPIService {
         decoder = JSONDecoder()
     }
 
+    // nonisolated deinit: avoids the synthesized isolated deinit of a @MainActor class, which goes through the
+    // iOS 18 back-deploy shim and hits swift#85663 (double free when a provider service is released in the test host).
+    // Subclass deinits must match this isolation.
+    nonisolated deinit {}
+
     // MARK: - HTTP Headers
 
     func applyHeaders(to request: inout URLRequest, apiKey: String) {

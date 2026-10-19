@@ -3,6 +3,9 @@ import Foundation
 final class GeminiService: BaseAPIService, ProviderServiceProtocol {
     private let baseURL = "https://generativelanguage.googleapis.com/v1beta"
 
+    // A subclass with stored properties still synthesizes its own isolated deinit; keep it nonisolated like BaseAPIService (swift#85663).
+    nonisolated deinit {}
+
     override func applyHeaders(to request: inout URLRequest, apiKey: String) {
         applyJSONHeaders(to: &request, includeAccept: false)
     }
