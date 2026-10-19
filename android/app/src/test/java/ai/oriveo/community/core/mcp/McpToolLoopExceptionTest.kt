@@ -138,7 +138,7 @@ class McpToolLoopExceptionTest {
     private suspend fun run(legs: ScriptedLegs): ToolCallLoop.Result {
         val plan = McpToolBridge.plan(CONV, store, McpCredentialStore(InMemoryPrefs()), LOCAL_PARTITION_ID, config)
         return McpChatToolRunner.makeLoop(plan, runner.executor(CONV) { steps += it }, legs, config) { }
-            .run(McpToolBridge.initialMessages(listOf(ToolLoopMessage("user", "Find the page")), null))
+            .run(listOf(ToolLoopMessage("user", "Find the page")))
     }
 
     private suspend fun awaitPause(): PendingMcpAuthPause =

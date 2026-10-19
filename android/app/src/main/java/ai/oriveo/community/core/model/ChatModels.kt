@@ -116,6 +116,18 @@ data class ChatMessage(
     /** Sources the model cited. Only ever set on an assistant message. */
     val citations: List<Citation>? = null,
     /**
+     * Why the answer ended (v38). Null for old messages; an unrecognized string reads as UNKNOWN. Serialized with
+     * backups (null writes no key); does not take part in message state decisions.
+     */
+    @kotlinx.serialization.Serializable(with = StoredStopReasonSerializer::class)
+    val stopReason: ai.oriveo.community.core.context.StopReason? = null,
+    /**
+     * Ids of the memory items actually injected into this answer's request (v42, in injection order); null when none were injected.
+     * Stored in local Room only: @Transient keeps it out of backup export.
+     */
+    @kotlinx.serialization.Transient
+    val memoryItemIds: List<String>? = null,
+    /**
      * Summaries of the remote MCP tool steps, stored with the message. Raw arguments and results
      * are not here; they live in `mcp_step_payload`.
      */
@@ -353,6 +365,8 @@ data class ChatRequestOptions(
     @kotlinx.serialization.Transient val localContinuationMessageId: String? = null,
     @kotlinx.serialization.Transient val localContinuationState: JsonObject? = null,
     @kotlinx.serialization.Transient val localContinuationExplicit: Boolean = false,
+    /** Set by the caller when it determines that this round's system / model / checkpoint fingerprint matches the previous leg; the default false = mismatch, so previous_id continuation falls back to the full plan. */
+    @kotlinx.serialization.Transient val localContinuationFingerprintMatches: Boolean = false,
     /** User-supplied advanced JSON fragment; local-only and compiled by the production builder. */
     @kotlinx.serialization.Transient val localCustomFragment: String? = null,
     @kotlinx.serialization.Transient val localCustomOwner: String = "generation",
@@ -360,6 +374,28 @@ data class ChatRequestOptions(
     @kotlinx.serialization.Transient val localCustomFragments: Map<String, String> = emptyMap(),
     /** The additional request body text that actually went out with this request; stays in process, never serialized or sent to telemetry. */
     @kotlinx.serialization.Transient val additionalRequestBody: String? = null,
+    /**
+     * Chat-path assembler inputs (send / retry / regenerate / edit-and-send). When set, ChatRepository
+     * takes system and history from the ContextPlan; [systemPrompt] stays as the fallback for a rejected plan.
+     */
+    @kotlinx.serialization.Transient val chatContext: ai.oriveo.community.core.context.ChatContextRequest? = null,
+    /**
+     * The plan's [D] text for this request (the dynamic blocks joined with "\n\n"); it already closes the last
+     * user text. Only [ai.oriveo.community.core.data.repository.PlannedChatRequest.transportInput] sets it.
+     */
+    @kotlinx.serialization.Transient val dynamicText: String? = null,
+    /**
+     * Client-side function tools for this request (e.g. propose_memory). Every chat body builder writes them in its
+     * own protocol shape plus [clientToolChoice]; empty leaves the body byte-identical. Local-only, never serialized.
+     */
+    @kotlinx.serialization.Transient val clientTools: List<ai.oriveo.community.core.tools.ToolLoopToolDefinition> = emptyList(),
+    @kotlinx.serialization.Transient val clientToolChoice: ai.oriveo.community.core.tools.ToolLoopToolChoice =
+        ai.oriveo.community.core.tools.ToolLoopToolChoice.Auto,
+    /**
+     * Chat-path output budget (`plan.budget.oWire`). Services that already send a max-output field use it as the
+     * base value instead of their metadata / 8192 fallback; null (non-chat paths) keeps the previous behavior.
+     */
+    @kotlinx.serialization.Transient val outputTokenBudget: Int? = null,
     /**
      * Called with the transport when an attempt carrying the web fragment is rejected with 400 / 422 before any output and the same-transport
      * resend without the fragment succeeds; ChatRepository writes a rejected record for that transport and attaches a reply notice.
@@ -398,4 +434,20 @@ data class ChatRequestOptions(
 
     val effectiveMaxTokens: Int
         get() = maxTokens ?: DEFAULT_MAX_TOKENS
+}
+
+/** stopReason in a backup is read and written as its wire text; an unrecognized string (written by another client or a newer version) reads as UNKNOWN instead of failing the whole import. */
+internal object StoredStopReasonSerializer : kotlinx.serialization.KSerializer<ai.oriveo.community.core.context.StopReason> {
+    override val descriptor: kotlinx.serialization.descriptors.SerialDescriptor =
+        kotlinx.serialization.descriptors.PrimitiveSerialDescriptor(
+            "ai.oriveo.community.core.model.StoredStopReason",
+            kotlinx.serialization.descriptors.PrimitiveKind.STRING,
+        )
+
+    override fun serialize(encoder: kotlinx.serialization.encoding.Encoder, value: ai.oriveo.community.core.context.StopReason) =
+        encoder.encodeString(value.wire)
+
+    override fun deserialize(decoder: kotlinx.serialization.encoding.Decoder): ai.oriveo.community.core.context.StopReason =
+        ai.oriveo.community.core.context.StopReason.fromStored(decoder.decodeString())
+            ?: ai.oriveo.community.core.context.StopReason.UNKNOWN
 }

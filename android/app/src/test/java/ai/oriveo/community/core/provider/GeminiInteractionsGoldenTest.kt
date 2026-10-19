@@ -283,6 +283,12 @@ class GeminiInteractionsGoldenTest {
             assertTrue("$name upstream error carries no code: $thrown", thrown.toString().contains(interruptedCode))
         }
         assertEquals(name, expected.str("terminal"), parser.terminal?.wire)
+        // Errors thrown on a terminal failure / cancellation / dropped stream carry the finish of the gemini_interactions family
+        EXPECTED_ERROR_FINISH[name]?.let { expectedFinish ->
+            val finish = (thrown as? ProviderServiceError.Upstream)?.streamFinish
+            assertEquals(name, expectedFinish, finish)
+            assertEquals(name, "gemini_interactions", finish?.family?.wire)
+        }
         val expectedError = expected["error"] as? JsonObject
         if (interruptedCode != null) {
             // Already asserted above
@@ -420,6 +426,23 @@ class GeminiInteractionsGoldenTest {
         val INTERRUPTED_CODES = mapOf(
             "gemini_interactions_cancelled" to "interaction_cancelled",
             "gemini_interactions_truncated" to "interaction_stream_closed",
+        )
+        val EXPECTED_ERROR_FINISH = mapOf(
+            "gemini_interactions_failed" to ai.oriveo.community.core.context.StreamFinish(
+                ai.oriveo.community.core.context.StopFamily.GEMINI_INTERACTIONS,
+                ai.oriveo.community.core.context.StreamEnding.CLEAN,
+                "failed",
+            ),
+            "gemini_interactions_cancelled" to ai.oriveo.community.core.context.StreamFinish(
+                ai.oriveo.community.core.context.StopFamily.GEMINI_INTERACTIONS,
+                ai.oriveo.community.core.context.StreamEnding.CLEAN,
+                "cancelled",
+            ),
+            "gemini_interactions_truncated" to ai.oriveo.community.core.context.StreamFinish(
+                ai.oriveo.community.core.context.StopFamily.GEMINI_INTERACTIONS,
+                ai.oriveo.community.core.context.StreamEnding.EOF_WITHOUT_MARKER,
+                null,
+            ),
         )
     }
 }

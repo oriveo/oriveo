@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -136,8 +137,8 @@ internal object RelayCatalogRowChips {
 @Composable
 internal fun RelayCatalogRowBody(row: RelayCatalogRow, modifier: Modifier = Modifier) {
     // The row-level merged node (the caller's clickable node) reads "model name, capability name state word, ...".
-    val context = LocalContext.current
-    val readout = RelayCatalogBoardModel.rowReadoutText(row.model.name, row.readout) { context.getString(it) }
+    val resources = LocalResources.current
+    val readout = RelayCatalogBoardModel.rowReadoutText(row.model.name, row.readout) { resources.getString(it) }
     val chips = RelayCatalogRowChips.of(row)
     Column(modifier = modifier.semantics { contentDescription = readout }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(

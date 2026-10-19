@@ -23,7 +23,11 @@ import ai.oriveo.community.core.mcp.McpToolPlan
 import ai.oriveo.community.core.mcp.McpToolSnapshot
 import ai.oriveo.community.core.mcp.McpToolStep
 import ai.oriveo.community.core.mcp.McpToolStepUpdate
+import ai.oriveo.community.core.context.MemoryPropose
+import ai.oriveo.community.core.memory.MemoryProposeSendHook
+import ai.oriveo.community.core.memory.ProposeMemoryEntry
 import ai.oriveo.community.core.model.AIModel
+import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.Conversation
@@ -39,11 +43,14 @@ import ai.oriveo.community.core.provider.relay.RelayNegativeCache
 import ai.oriveo.community.core.streaming.ConversationStreamingOutputs
 import ai.oriveo.community.core.tools.ToolCallLoop
 import ai.oriveo.community.core.tools.ToolLoopLegEvent
+import ai.oriveo.community.core.tools.ToolLoopLegRequest
 import ai.oriveo.community.core.tools.ToolLoopLegRunning
 import ai.oriveo.community.core.tools.ToolLoopMessage
 import ai.oriveo.community.core.tools.ToolLoopToolCall
 import ai.oriveo.community.core.tools.ToolLoopToolCallDelta
+import ai.oriveo.community.core.tools.ToolLoopToolChoice
 import ai.oriveo.community.core.tools.ToolLoopUsage
+import ai.oriveo.community.core.tools.ToolRegistryEntry
 import ai.oriveo.community.core.tools.ToolsUnsupportedError
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -122,6 +129,9 @@ class ChatRepositoryMcpTest {
         every { mcpRunner.markStepLimitReached(capture(limitReachedMessageIds)) } returns Unit
     }
 
+    /** Every request the real loop receives per leg (tool order = registry registration order). */
+    private val legRequests = mutableListOf<ToolLoopLegRequest>()
+
     /** Makes the mock runner forward `run` to the real generic loop (a scripted model leg plus a scripted MCP server). */
     private fun answerWithRealLoop(
         legs: List<List<ToolLoopLegEvent>>,
@@ -140,15 +150,16 @@ class ChatRepositoryMcpTest {
                 grants = grants,
                 tokenProvider = { null },
                 makeClient = { McpClient(endpoint = it, transport = mcp) },
-                onStep = arg<suspend (McpToolStepUpdate) -> Unit>(9),
+                onStep = arg<suspend (McpToolStepUpdate) -> Unit>(7),
             )
-            val onUnhandled = arg<suspend (List<ToolLoopToolCall>) -> Unit>(10)
-            val onProgress = arg<suspend (ToolCallLoop.ProgressEvent) -> Unit>(11)
+            val onUnhandled = arg<suspend (List<ToolLoopToolCall>) -> Unit>(8)
+            val onProgress = arg<suspend (ToolCallLoop.ProgressEvent) -> Unit>(9)
             McpChatToolRunner.makeLoop(
                 plan = activePlan ?: plan,
                 executor = executor,
-                legRunner = ToolLoopLegRunning {
+                legRunner = ToolLoopLegRunning { request ->
                     flow {
+                        legRequests += request
                         val leg = remaining.removeFirstOrNull()
                         if (leg == null && failure != null) throw failure
                         leg?.forEach { emit(it) }
@@ -156,6 +167,8 @@ class ChatRepositoryMcpTest {
                 },
                 runtimeConfig = config,
                 onUnhandledToolCalls = onUnhandled,
+                proposeEntry = arg<ToolRegistryEntry?>(10),
+                searchEntry = arg<ToolRegistryEntry?>(11),
             ).run(listOf(ToolLoopMessage("user", "Weather?")), onProgress)
         }
     }
@@ -588,7 +601,7 @@ class ChatRepositoryMcpTest {
             ToolsUnsupportedError(ProviderServiceError.Upstream(400, "tools is not supported"), receivedStructuredToolCalls = true),
         ).forEach { rejection ->
             coEvery {
-                mcpRunner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+                mcpRunner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
             } throws rejection
             val updates = mutableListOf<ChatMessage>()
             coEvery { conversationRepository.updateMessage(eq("conversation-1"), capture(updates)) } returns Unit
@@ -603,6 +616,165 @@ class ChatRepositoryMcpTest {
         verify(exactly = 0) { providerService.sendMessageStream(any(), any(), any(), any(), any(), any(), any(), any()) }
         assertTrue(negativeCache.entries().isEmpty())
         verify(exactly = 0) { memory.record(any(), any(), any(), toolCall = false, reason = any()) }
+    }
+
+    // -- propose_memory inside the MCP loop --------------------------------
+
+    private class RecordingHook : MemoryProposeSendHook {
+        val calls = mutableListOf<String>()
+        var rejected = 0
+
+        override suspend fun onProposeCall(argumentsJson: String) {
+            calls += argumentsJson
+        }
+
+        override suspend fun onToolsRejected() {
+            rejected++
+        }
+    }
+
+    private suspend fun sendWithPropose(hook: MemoryProposeSendHook?, provider: Provider = provider(), modelID: String = "relay-model") {
+        repository().sendMessage(
+            conversation = conversation().copy(providerID = provider.id, providerKind = provider.kind, modelID = modelID),
+            text = "Weather?", provider = provider, modelID = modelID,
+            existingMessages = emptyList(), outputs = outputs(),
+            requestOptions = ChatRequestOptions(
+                clientTools = if (hook == null) emptyList() else listOf(MemoryPropose.tool),
+                clientToolChoice = ToolLoopToolChoice.Auto,
+            ),
+            memoryPropose = hook,
+        )
+    }
+
+    @Test
+    fun `propose tool mode - propose_memory is the last registry entry and a propose-only leg still ends normally`() = runTest {
+        arrange()
+        mcp.enqueue(McpScriptedTransport.stub("protocol/stateless/tools-list.response.json"))
+        val args = "{\"proposition\":\"Prefers metric\",\"sourceQuote\":\"use metric\",\"kind\":\"instruction\"}"
+        answerWithRealLoop(
+            listOf(
+                listOf(toolCall("p1", MemoryPropose.TOOL_NAME, args)),
+                listOf(ToolLoopLegEvent.TextDelta("It is 22C."), ToolLoopLegEvent.Usage(ToolLoopUsage(150, 20, 170))),
+            ),
+        )
+        val delivered = slot<ChatMessage>()
+        coEvery { conversationRepository.updateMessage(eq("conversation-1"), capture(delivered)) } returns Unit
+        val hook = RecordingHook()
+
+        sendWithPropose(hook)
+
+        assertEquals(listOf(OUTBOUND, MemoryPropose.TOOL_NAME), legRequests.first().tools.map { it.function.name })
+        assertEquals(MemoryPropose.tool, legRequests.first().tools.last())
+        assertEquals(listOf(args), hook.calls)
+        assertEquals(0, hook.rejected)
+        // The fixed tool_result is fed back; nothing reaches the MCP server, no step is recorded, and no "no executor" card appears.
+        assertTrue(legRequests[1].messages.any { it.role == "tool" && it.content.toString().contains(MemoryPropose.TOOL_RESULT) })
+        assertTrue(mcp.requests("tools/call").isEmpty())
+        assertTrue(savedPayloadUpdates.isEmpty())
+        assertEquals(ChatMessageState.Delivered, delivered.captured.state)
+        assertEquals("It is 22C.", delivered.captured.text)
+        assertTrue(delivered.captured.toolSteps.isNullOrEmpty())
+        assertTrue(delivered.captured.unhandledToolCalls.isEmpty())
+        verify(exactly = 0) { providerRepository.serviceFor(any<Provider>(), any()) }
+    }
+
+    // -- search_memory inside the tool loop ---------------------------------
+
+    private fun searchTurn(provider: Provider = provider(), modelID: String = "relay-model") =
+        ai.oriveo.community.core.memory.MemorySearchTurn(
+            index = ai.oriveo.community.core.context.MemoryRecall.buildIndex(
+                listOf(
+                    ai.oriveo.community.core.context.MemoryItem(
+                        id = SEARCH_HIT_ID, layer = ai.oriveo.community.core.context.MemoryLayer.EPISODIC,
+                        kind = ai.oriveo.community.core.context.MemoryKind.EVENT, content = "Moved to Berlin in May",
+                        mutationId = "00000000-0000-4000-8000-000000000000", deviceId = "d", occurredAt = "2026-05-01T10:00:00Z",
+                    ),
+                ),
+            ),
+            conversationId = "conversation-1",
+            folderId = null,
+            now = java.time.Instant.parse("2026-10-17T00:00:00Z"),
+            connectionId = provider.id,
+            modelId = modelID,
+        )
+
+    @Test
+    fun `search tool mode - search_memory follows propose in the registry, answers the leg and marks memory used`() = runTest {
+        arrange()
+        mcp.enqueue(McpScriptedTransport.stub("protocol/stateless/tools-list.response.json"))
+        answerWithRealLoop(
+            listOf(
+                listOf(toolCall("s1", ai.oriveo.community.core.context.MemorySearch.TOOL_NAME, "{\"query\":\"Berlin weather\"}")),
+                listOf(ToolLoopLegEvent.TextDelta("It is 22C in Berlin."), ToolLoopLegEvent.Usage(ToolLoopUsage(150, 20, 170))),
+            ),
+        )
+        val delivered = slot<ChatMessage>()
+        coEvery { conversationRepository.updateMessage(eq("conversation-1"), capture(delivered)) } returns Unit
+        val turn = searchTurn()
+
+        repository().sendMessage(
+            conversation = conversation(), text = "Weather?", provider = provider(), modelID = "relay-model",
+            existingMessages = emptyList(), outputs = outputs(),
+            requestOptions = ChatRequestOptions(
+                clientTools = listOf(MemoryPropose.tool, ai.oriveo.community.core.context.MemorySearch.tool),
+                clientToolChoice = ToolLoopToolChoice.Auto,
+            ),
+            memoryPropose = RecordingHook(),
+            memorySearch = turn,
+        )
+
+        assertEquals(
+            listOf(OUTBOUND, MemoryPropose.TOOL_NAME, ai.oriveo.community.core.context.MemorySearch.TOOL_NAME),
+            legRequests.first().tools.map { it.function.name },
+        )
+        val toolResult = legRequests[1].messages.single { it.role == "tool" }.content.toString()
+        assertTrue(toolResult, toolResult.contains("Moved to Berlin in May") && toolResult.contains("<oriveo-recall>"))
+        assertTrue(mcp.requests("tools/call").isEmpty())
+        assertEquals(ChatMessageState.Delivered, delivered.captured.state)
+        assertEquals("It is 22C in Berlin.", delivered.captured.text)
+        assertTrue("not a tool step", delivered.captured.toolSteps.isNullOrEmpty())
+        assertTrue(delivered.captured.unhandledToolCalls.isEmpty())
+        assertEquals("the returned id joins memoryIds", listOf(SEARCH_HIT_ID), delivered.captured.memoryItemIds)
+    }
+
+    @Test
+    fun `propose fallback - the loops get no propose entry`() = runTest {
+        arrange()
+        mcp.enqueue(McpScriptedTransport.stub("protocol/stateless/tools-list.response.json"))
+        answerWithRealLoop(listOf(listOf(ToolLoopLegEvent.TextDelta("Plain answer."))))
+
+        sendWithPropose(hook = null)
+
+        assertEquals(listOf(OUTBOUND), legRequests.single().tools.map { it.function.name })
+    }
+
+    @Test
+    fun `propose tool mode - first leg tools rejection records the degrade and runs the fallback this turn`() = runTest {
+        arrange()
+        val providerService = stubBareResend()
+        coEvery {
+            mcpRunner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } throws ToolsUnsupportedError(ProviderServiceError.Upstream(400, "tools is not supported"))
+        val options = slot<ChatRequestOptions>()
+        every {
+            providerService.sendMessageStream(any(), any(), any(), any(), any(), any(), any(), capture(options))
+        } returns kotlinx.coroutines.flow.flowOf(
+            ai.oriveo.community.core.model.StreamEvent.Delta("Bare answer"),
+            ai.oriveo.community.core.model.StreamEvent.Done(ai.oriveo.community.core.model.ProviderChatResult(text = "Bare answer")),
+        )
+        val official = officialProviderWithManualModel()
+        val hook = RecordingHook()
+
+        sendWithPropose(hook, provider = official, modelID = MANUAL_MODEL)
+
+        assertEquals(1, hook.rejected)
+        assertTrue(hook.calls.isEmpty())
+        verify(exactly = 1) { providerService.sendMessageStream(any(), any(), any(), any(), any(), any(), any(), any()) }
+        assertTrue("resent without tools", options.captured.clientTools.isEmpty())
+        val updates = mutableListOf<ChatMessage>()
+        coVerify { conversationRepository.updateMessage(eq("conversation-1"), capture(updates)) }
+        assertEquals(ChatMessageState.Delivered, updates.last().state)
+        assertEquals("Bare answer", updates.last().text)
     }
 
     /** The plain send chain the tools-free resend goes through: a service that replies with a single piece of text. */
@@ -701,6 +873,7 @@ class ChatRepositoryMcpTest {
         const val SERVER_ID = "aaaaaaaa-0000-4000-8000-000000000001"
         const val ENDPOINT = "https://mcp.example.com/mcp"
         const val OUTBOUND = "mcp_weather_get_weather"
+        const val SEARCH_HIT_ID = "40000000-0000-4000-8000-0000000000b1"
         const val MANUAL_MODEL = "my-handfilled-model"
     }
 }

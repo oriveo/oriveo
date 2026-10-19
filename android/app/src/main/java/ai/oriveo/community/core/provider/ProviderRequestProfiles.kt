@@ -1,6 +1,9 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.context.ContinuationInstructionsMode
 import ai.oriveo.community.core.data.remote.MetadataClient
+import ai.oriveo.community.core.tools.ToolWireProtocol
+import ai.oriveo.community.core.tools.ToolWireProtocolAdapter
 import ai.oriveo.community.core.data.remote.canonicalCapabilityTransport
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.AttachmentKind
@@ -20,10 +23,13 @@ import ai.oriveo.community.core.model.RequestPreferenceResolver
 import ai.oriveo.community.core.model.StreamEvent
 import ai.oriveo.community.core.provider.transport.deepMergeJsonObject
 import ai.oriveo.community.core.provider.transport.parseJsonObjectOrNull
+import ai.oriveo.community.core.tools.ToolLoopToolChoice
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
@@ -177,10 +183,22 @@ internal fun applyCapabilityRuntimeRecipes(
                     step = 1,
                     state = requestOptions.localContinuationState,
                 ),
+                instructionsMode = ContinuationInstructionsMode.fromWire(continuation.continuationInstructionsMode),
+                fingerprintMatches = requestOptions.localContinuationFingerprintMatches,
             )
             body = when (mapped) {
                 is ProviderRecipeExecution.ContinuationWire.Body -> {
-                    val clean = if (continuation.continuationKind == "previous_id") body.onlyNewestUserInput() else body
+                    // Body for previous_id only comes from a stateful decision: trim input, and omit drops instructions.
+                    val clean = if (continuation.continuationKind == "previous_id") {
+                        val trimmed = body.onlyNewestUserInput()
+                        if (continuation.continuationInstructionsMode == ContinuationInstructionsMode.OMIT.wire) {
+                            JsonObject(trimmed - "instructions")
+                        } else {
+                            trimmed
+                        }
+                    } else {
+                        body
+                    }
                     deepMergeJsonObject(clean, mapped.delta)
                 }
                 is ProviderRecipeExecution.ContinuationWire.Messages -> body.insertBeforeNewestUser("messages", mapped.append)
@@ -267,7 +285,11 @@ internal fun applyCapabilityRuntimeCustomFragment(
     }
     // The additional request body is merged after the capability writers (contract merge.order), so every exit path ends with it.
     val additionalBody = requestOptions.additionalRequestBody
-    if (fragments.isEmpty()) return AdditionalRequestBody.apply(bodyJson, additionalBody)
+    // Client tools are written after the capability fragments and before the additional request body, so the user's additional request body can still override them.
+    val toolProtocol = clientToolProtocol(finalTransport)
+    if (fragments.isEmpty()) {
+        return AdditionalRequestBody.apply(applyClientTools(bodyJson, toolProtocol, requestOptions), additionalBody)
+    }
     var body = parseJsonObjectOrNull(bodyJson) ?: return AdditionalRequestBody.apply(bodyJson, additionalBody)
     fragments.toSortedMap().forEach { (owner, raw) ->
         val authority = safeCustomFragmentAuthority(providerKind, modelID, finalTransport, requestOptions.activeModel?.generationProfile, owner)
@@ -297,7 +319,48 @@ internal fun applyCapabilityRuntimeCustomFragment(
             custom.delta.leafPointers(),
         )
     }
-    return AdditionalRequestBody.apply(body.toString(), additionalBody)
+    return AdditionalRequestBody.apply(applyClientTools(body.toString(), toolProtocol, requestOptions), additionalBody)
+}
+
+/** finalTransport of the official outlet -> the protocol client tools are projected onto; protocols it does not recognize (such as gemini_interactions) get no injection. */
+private fun clientToolProtocol(finalTransport: String): ToolWireProtocol? =
+    ToolWireProtocol.fromWireValue(finalTransport) ?: when (finalTransport) {
+        "openai_chat_completions" -> ToolWireProtocol.OpenAIChat
+        "gemini_generate_content" -> ToolWireProtocol.GeminiGenerate
+        else -> null
+    }
+
+/**
+ * Projects [ChatRequestOptions.clientTools] by protocol (the same [ToolWireProtocolAdapter.toolsJson] as the tool leg)
+ * and appends them to the request body's `tools`, then writes the matching tool_choice. Returns the body as is when there are no client tools, the protocol is not recognized, or the body is not a JSON object.
+ */
+internal fun applyClientTools(
+    bodyJson: String,
+    protocol: ToolWireProtocol?,
+    requestOptions: ChatRequestOptions,
+): String {
+    val tools = requestOptions.clientTools
+    if (tools.isEmpty() || protocol == null) return bodyJson
+    val body = parseJsonObjectOrNull(bodyJson) ?: return bodyJson
+    val existing = body["tools"] as? JsonArray
+    val mergedTools = JsonArray(existing.orEmpty() + ToolWireProtocolAdapter.toolsJson(protocol, tools))
+    val none = requestOptions.clientToolChoice == ToolLoopToolChoice.None
+    val withTools = JsonObject(body + ("tools" to mergedTools))
+    val result = when (protocol) {
+        ToolWireProtocol.OpenAIChat, ToolWireProtocol.OpenAIResponses ->
+            JsonObject(withTools + ("tool_choice" to JsonPrimitive(requestOptions.clientToolChoice.wireValue)))
+        ToolWireProtocol.AnthropicMessages ->
+            JsonObject(withTools + ("tool_choice" to buildJsonObject { put("type", if (none) "none" else "auto") }))
+        ToolWireProtocol.GeminiGenerate -> deepMergeJsonObject(
+            withTools,
+            buildJsonObject {
+                put("toolConfig", buildJsonObject {
+                    put("functionCallingConfig", buildJsonObject { put("mode", if (none) "NONE" else "AUTO") })
+                })
+            },
+        )
+    }
+    return result.toString()
 }
 
 /** The developer editor calls this production authorization path before it writes local-only JSON.
@@ -426,7 +489,33 @@ private fun JsonObject.onlyNewestUserInput(): JsonObject {
     val newest = items.lastOrNull {
         (((it as? JsonObject)?.get("role")) as? JsonPrimitive)?.contentOrNull == "user"
     } ?: items.lastOrNull() ?: return this
-    return JsonObject(toMutableMap().apply { put(key, JsonArray(listOf(newest))) })
+    return JsonObject(toMutableMap().apply { put(key, JsonArray(listOf(newest.statefulContinueLeg()))) })
+}
+
+/**
+ * Stateful continue leg sends only the continue prompt: the server already holds the history,
+ * and the [D] block appended to the prompt (library / recall / attachment guide) must not be resent.
+ * Retry legs keep their newest user untouched (their text never starts with the continue prompt).
+ */
+private fun JsonElement.statefulContinueLeg(): JsonElement {
+    val item = this as? JsonObject ?: return this
+    val prompt = ai.oriveo.community.core.context.ContextAssembler.CONTINUE_PROMPT
+    fun JsonObject.partText(): String? = (this["text"] as? JsonPrimitive)?.contentOrNull
+    return when (val content = item["content"] ?: item["parts"]) {
+        is JsonPrimitive -> if (content.contentOrNull?.startsWith(prompt) == true) {
+            JsonObject(item + ("content" to JsonPrimitive(prompt)))
+        } else {
+            item
+        }
+        is JsonArray -> {
+            val parts = content.mapNotNull { it as? JsonObject }
+            val first = parts.firstOrNull { it.partText() != null }
+            if (first?.partText()?.startsWith(prompt) != true) return item
+            val key = if (item["content"] != null) "content" else "parts"
+            JsonObject(item + (key to JsonArray(listOf(JsonObject(first + ("text" to JsonPrimitive(prompt)))))))
+        }
+        else -> item
+    }
 }
 
 internal fun webSearchMergeParams(profileName: String?): JsonObject? =
@@ -441,11 +530,13 @@ internal fun parseOpenAIChatDone(json: kotlinx.serialization.json.Json, raw: Str
         ?: throw ProviderServiceError.Upstream(200, "Invalid chat completion response.")
     val message = ((root["choices"] as? JsonArray)?.firstOrNull() as? JsonObject)
         ?.get("message") as? JsonObject
-    val text = (message?.get("content") as? JsonPrimitive)?.contentOrNull?.trim().orEmpty()
+    val rawText = (message?.get("content") as? JsonPrimitive)?.contentOrNull.orEmpty()
+    val text = rawText.trim()
     if (text.isEmpty()) throw ProviderServiceError.EmptyResponse
     val usage = root["usage"] as? JsonObject
     return StreamEvent.Done(ProviderChatResult(
         text = text,
+        rawText = rawText,
         promptTokens = usage?.get("prompt_tokens")?.jsonPrimitive?.intOrNull ?: 0,
         completionTokens = usage?.get("completion_tokens")?.jsonPrimitive?.intOrNull ?: 0,
         reasoningText = (message?.get("reasoning_content") as? JsonPrimitive)?.contentOrNull,

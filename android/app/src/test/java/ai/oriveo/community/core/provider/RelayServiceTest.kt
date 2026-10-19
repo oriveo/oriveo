@@ -1559,4 +1559,90 @@ class RelayServiceTest {
 
         assertEquals(caseId, listOf(expectURL), seenRequests.map { it.url.toString() })
     }
+
+    // llama.cpp native /completion stream: only a final chunk with stop:true counts as clean, and finishRaw takes stop_type
+    @Test
+    fun llama_cpp_stream_stop_type_carries_finish() = runTest {
+        val done = llamaCppNativeStreamDone(
+            """
+            data: {"content":"Hel","stop":false}
+
+            data: {"content":"lo","stop":false}
+
+            data: {"content":"","stop":true,"stop_type":"limit","stopped_eos":false,"stopped_limit":true}
+            """.trimIndent(),
+        )
+
+        assertEquals("Hello", done.result.text)
+        assertEquals(
+            ai.oriveo.community.core.context.StreamFinish(
+                family = ai.oriveo.community.core.context.StopFamily.LLAMA_CPP,
+                ended = ai.oriveo.community.core.context.StreamEnding.CLEAN,
+                finishRaw = "limit",
+            ),
+            done.finish,
+        )
+    }
+
+    // A stream that drops before the final chunk with stop:true = eof_without_marker and must not be treated as a normal end
+    @Test
+    fun llama_cpp_stream_without_stop_is_incomplete() = runTest {
+        val done = llamaCppNativeStreamDone(
+            """
+            data: {"content":"Hel","stop":false}
+
+            data: {"content":"lo","stop":false}
+            """.trimIndent(),
+        )
+
+        assertEquals("Hello", done.result.text)
+        assertEquals(
+            ai.oriveo.community.core.context.StreamFinish(
+                family = ai.oriveo.community.core.context.StopFamily.LLAMA_CPP,
+                ended = ai.oriveo.community.core.context.StreamEnding.EOF_WITHOUT_MARKER,
+                finishRaw = null,
+            ),
+            done.finish,
+        )
+    }
+
+    private suspend fun llamaCppNativeStreamDone(stream: String): StreamEvent.Done {
+        val client = HttpClient(
+            MockEngine { request ->
+                if (request.url.encodedPath.endsWith("/completion")) {
+                    respond(
+                        content = ByteReadChannel(stream),
+                        status = HttpStatusCode.OK,
+                        headers = headersOf(HttpHeaders.ContentType, ContentType.Text.EventStream.toString()),
+                    )
+                } else {
+                    // Preflight (/apply-template, /tokenize) unavailable -> Unavailable, and the request goes out as usual
+                    respond("", HttpStatusCode.NotFound)
+                }
+            },
+        )
+        val service = RelayService(client = client, json = json, transportRegistry = transportRegistry)
+        val events = service.sendMessageStream(
+            apiKey = "",
+            modelID = "local-model",
+            messages = listOf(ProviderTestFixtures.userMessage("Hi", ProviderKind.Relay, "local-model")),
+            baseUrl = "http://127.0.0.1:8080",
+            supportsImageGen = false,
+            reasoningMode = ReasoningMode.Automatic,
+            webSearchEnabled = false,
+            requestOptions = ChatRequestOptions(
+                relayRequested = RelayRequestedConfig(
+                    transport = RelayTransport.LlamaCppNative,
+                    authMode = RelayAuthMode.None,
+                    securityMode = RelayConnectionSecurityMode.LocalHttp,
+                    modelID = "local-model",
+                    stream = true,
+                    engineProfile = "llamacpp",
+                ),
+                activeModel = relayModel("local-model"),
+                capabilityEvidenceIdentity = relayIdentity("local-model"),
+            ),
+        ).toList()
+        return events.last() as StreamEvent.Done
+    }
 }

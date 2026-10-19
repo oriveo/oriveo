@@ -1,5 +1,7 @@
 package ai.oriveo.community.feature.chat.components
 
+import ai.oriveo.community.core.context.ContextCompactNumber
+
 /**
  * Pure presentation-decision layer for the token usage popup -- no Compose / Android dependency.
  *
@@ -80,3 +82,10 @@ internal fun resolveTokenUsageRows(snapshot: MessageTokenUsageSnapshot): Message
         },
         total = snapshot.total,
     )
+
+/**
+ * P8 M12: compact total under the "Token usage" menu item (same notation as the transcript separator, rounds
+ * down). Null when the total is unknown: the subtitle is not shown, no placeholder (same as iOS).
+ */
+internal fun tokenUsageMenuSubtitle(snapshot: MessageTokenUsageSnapshot, locale: String): String? =
+    snapshot.total?.let { ContextCompactNumber.format(it.toLong(), locale) }

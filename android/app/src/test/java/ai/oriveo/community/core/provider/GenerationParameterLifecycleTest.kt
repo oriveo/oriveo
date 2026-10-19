@@ -351,6 +351,50 @@ class GenerationParameterLifecycleTest {
         assertNull(body["frequency_penalty"])
     }
 
+    /**
+     * The request options shared by the panel window and manual compaction (ContextCapViewModel.sendRequestOptions) are filtered by the
+     * activeParameterIds that are finally sent out; a max_output that the current profile cannot send must not enter the window when computing O.
+     */
+    @Test
+    fun dormant_max_output_not_in_window() {
+        fun windowUserMaxOutput(wire: String?): Pair<Set<String>?, Int?> {
+            val harness = Harness()
+            val model = AIModel(
+                id = MODEL.id,
+                name = MODEL.name,
+                contextLength = 128_000,
+                generationProfile = declaredProfile("max_output_tokens", "supported", wire),
+            )
+            val provider = relayProvider(RelayTransport.OpenAIChatCompletions).copy(models = listOf(model))
+            harness.settings.setModelDefaults(
+                GenerationParameterOverrides(
+                    mapOf("max_output_tokens" to GenerationParameterOverride(GenerationOverrideState.Value, JsonPrimitive(4096))),
+                ),
+                providerID = PROVIDER_ID,
+                modelID = model.id,
+                profileFingerprint = GenerationParameterProfileFingerprint.make(provider, model),
+            )
+            val conversation = ai.oriveo.community.core.model.Conversation(
+                id = CONVERSATION_ID,
+                title = "c",
+                providerID = PROVIDER_ID,
+                providerKind = ProviderKind.Relay,
+                modelID = model.id,
+                useMemory = false,
+            )
+            val options = ai.oriveo.community.feature.chat.ContextCapViewModel.sendRequestOptions(
+                harness.settings, conversation, provider,
+            )
+            val window = ai.oriveo.community.core.data.repository.ChatContextProjector.window(provider, model, options)
+            return options.generationParameters?.values?.keys to window.maxOutput.user
+        }
+
+        // The current profile declares an outbound wire: the max output set by the user enters the window as usual.
+        assertEquals(setOf("max_output_tokens") to 4096, windowUserMaxOutput("max_tokens"))
+        // An empty wire means it is never written on the final outbound request (dormant): it enters neither the request options nor the window.
+        assertEquals(null to null, windowUserMaxOutput(null))
+    }
+
     @Test
     fun `single transient values stay exempt from the dormant filter`() {
         // A transient value is produced by the UI in this very round against the current profile, so by definition it cannot

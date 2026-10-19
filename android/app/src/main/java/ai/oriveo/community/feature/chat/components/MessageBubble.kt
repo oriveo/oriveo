@@ -35,6 +35,7 @@ import androidx.compose.material.icons.automirrored.outlined.NoteAdd
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.automirrored.outlined.TextSnippet
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.AudioFile
 import androidx.compose.material.icons.outlined.BarChart
@@ -112,6 +113,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import ai.oriveo.community.R
+import ai.oriveo.community.feature.chat.LocalMemoryUsedOpener
+import ai.oriveo.community.feature.chat.MemoryUsed
 import ai.oriveo.community.core.util.ExternalActivityLaunchOutcome
 import ai.oriveo.community.core.util.launchExternalActivitySafely
 import ai.oriveo.community.core.data.attachment.AttachmentStore
@@ -131,6 +134,9 @@ import ai.oriveo.community.core.model.StreamActivity
 import ai.oriveo.community.core.model.UnhandledToolCall
 import ai.oriveo.community.core.model.resolveProviderLogoKind
 import ai.oriveo.community.feature.chat.AssistantMessageFooterMetrics
+import ai.oriveo.community.feature.chat.ReplyNotice
+import ai.oriveo.community.feature.chat.ReplyNoticeModel
+import ai.oriveo.community.feature.chat.ReplyNoticePresentation
 import ai.oriveo.community.ui.component.ImageViewerSheet
 import ai.oriveo.community.ui.component.OriveoSheetDragHandle
 import ai.oriveo.community.ui.component.ProviderBadgeIcon
@@ -267,6 +273,9 @@ fun MessageBubble(
 
     onSelectionGestureActiveChange: (Boolean) -> Unit = {},
     onCrosscheck: (() -> Unit)? = null,
+    /** Notice for an incomplete / filtered answer; null shows nothing. */
+    replyNotice: ReplyNoticeModel? = null,
+    onContinueReply: () -> Unit = {},
     modifier: Modifier = Modifier,
     attachmentStore: AttachmentStore = koinInject(),
 ) {
@@ -308,6 +317,8 @@ fun MessageBubble(
             onSelectionToolbarVisibleChange = onSelectionToolbarVisibleChange,
             onSelectionGestureActiveChange = onSelectionGestureActiveChange,
             onCrosscheck = onCrosscheck,
+            replyNotice = replyNotice,
+            onContinueReply = onContinueReply,
             modifier = modifier,
             attachmentStore = attachmentStore,
         )
@@ -674,6 +685,8 @@ private fun AssistantMessage(
     onSelectionToolbarVisibleChange: (Boolean) -> Unit,
     onSelectionGestureActiveChange: (Boolean) -> Unit,
     onCrosscheck: (() -> Unit)? = null,
+    replyNotice: ReplyNoticeModel? = null,
+    onContinueReply: () -> Unit = {},
     modifier: Modifier,
     attachmentStore: AttachmentStore,
 ) {
@@ -915,19 +928,41 @@ private fun AssistantMessage(
                 isBodyRenderSettled = isBodyRenderSettled,
             )
             val hasCapabilityExecutionStatus = message.capabilityExecutionResults.isNotEmpty()
+            // Settled answer that recorded memory items gets a trailing "Memory" mark.
+            val showMemoryUsedChip = MemoryUsed.chipVisible(message)
             val hasVisibleMetadata = metadataText.isNotBlank() ||
+                showMemoryUsedChip ||
                 hasCapabilityExecutionStatus ||
                 showDeliveredFooterActions
+            // The notice row does not depend on the metadata switch: incomplete / filtered is a state of the answer itself
+            if (replyNotice != null) {
+                ReplyNoticeRow(model = replyNotice, onContinue = onContinueReply)
+            }
             if (showMetadata && hasVisibleMetadata) {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    if (metadataText.isNotBlank()) {
-                        Text(
-                            text = metadataText,
-                            style = OriveoTheme.typography.footnote,
-                            color = colors.textTertiary,
-                        )
+                    if (metadataText.isNotBlank() || showMemoryUsedChip) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (metadataText.isNotBlank()) {
+                                Text(
+                                    text = metadataText,
+                                    style = OriveoTheme.typography.footnote,
+                                    color = colors.textTertiary,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                )
+                            }
+                            if (showMemoryUsedChip) {
+                                if (metadataText.isNotBlank()) {
+                                    Text(
+                                        text = " · ",
+                                        style = OriveoTheme.typography.footnote,
+                                        color = colors.textTertiary,
+                                    )
+                                }
+                                MemoryUsedChip(itemIds = message.memoryItemIds.orEmpty())
+                            }
+                        }
                     }
                     if (hasCapabilityExecutionStatus) {
                         CapabilityExecutionStatusText(message.capabilityExecutionResults)
@@ -951,6 +986,26 @@ private fun AssistantMessage(
             }
         }
     }
+}
+
+/** Trailing "Memory" mark of the metadata line; same size and color as the line, opens the "memory used" sheet. */
+@Composable
+private fun MemoryUsedChip(itemIds: List<String>) {
+    val open = LocalMemoryUsedOpener.current
+    val a11y = stringResource(R.string.memory_used_a11y)
+    val clickModifier = if (open != null) {
+        Modifier
+            .clickable(role = Role.Button) { open(itemIds) }
+    } else {
+        Modifier
+    }
+    Text(
+        text = stringResource(R.string.memory_used_chip),
+        style = OriveoTheme.typography.footnote,
+        color = OriveoTheme.colors.textTertiary,
+        maxLines = 1,
+        modifier = clickModifier.semantics { contentDescription = a11y },
+    )
 }
 
 @Composable
@@ -1107,6 +1162,50 @@ private fun CapabilityExecutionStatusText(results: List<CapabilityExecutionResul
 }
 
 @Composable
+private fun ReplyNoticeRow(model: ReplyNoticeModel, onContinue: () -> Unit) {
+    val colors = OriveoTheme.colors
+    // Filtering is a provider policy, not a recoverable warning, so use the secondary color
+    val tint = if (model.notice == ReplyNotice.FILTERED) colors.textSecondary else colors.warningText
+    Row(
+        modifier = Modifier.offset(x = AssistantMessageFooterMetrics.RowOpticalOffset),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(AssistantMessageFooterMetrics.StatusTextGap),
+    ) {
+        Text(
+            text = stringResource(model.notice.textRes),
+            style = OriveoTheme.typography.footnote,
+            color = tint,
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .padding(vertical = AssistantMessageFooterMetrics.StatusVerticalPadding),
+        )
+        if (model.showContinue) {
+            // iOS / Web parity: "▶ Continue Generating" in the primary color.
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(AssistantMessageFooterMetrics.CornerRadius))
+                    .clickable(role = Role.Button, onClick = onContinue)
+                    .padding(horizontal = 6.dp, vertical = AssistantMessageFooterMetrics.StatusVerticalPadding),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    tint = colors.primary,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = stringResource(ReplyNoticePresentation.continueLabelRes),
+                    style = OriveoTheme.typography.footnote.copy(fontWeight = FontWeight.Medium),
+                    color = colors.primary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun AssistantFooterActionRow(
     messageId: String,
     messageText: String,
@@ -1126,6 +1225,10 @@ private fun AssistantFooterActionRow(
     var copied by remember(messageText) { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showTokenUsage by remember { mutableStateOf(false) }
+    val usageLocale = LocalConfiguration.current.locales[0].toLanguageTag()
+    val tokenUsageSubtitle = remember(inputTokens, outputTokens, usageLocale) {
+        tokenUsageMenuSubtitle(MessageTokenUsageSnapshot(inputTokens = inputTokens, outputTokens = outputTokens), usageLocale)
+    }
     val hasSecondaryActions = true
 
     LaunchedEffect(copied, messageText) {
@@ -1199,7 +1302,18 @@ private fun AssistantFooterActionRow(
                     onDismissRequest = { showMoreMenu = false },
                 ) {
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.chat_token_usage_title)) },
+                        text = {
+                            Column {
+                                Text(stringResource(R.string.chat_token_usage_title))
+                                tokenUsageSubtitle?.let {
+                                    Text(
+                                        text = it,
+                                        style = OriveoTheme.typography.footnote,
+                                        color = colors.textTertiary,
+                                    )
+                                }
+                            }
+                        },
                         onClick = {
                             showMoreMenu = false
                             showTokenUsage = true

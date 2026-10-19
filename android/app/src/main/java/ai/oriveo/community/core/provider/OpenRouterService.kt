@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.context.StopFamily
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatRequestOptions
@@ -162,6 +163,7 @@ class OpenRouterService(
                 SseParser.parseOpenAICompatibleMulti(
                     response = response,
                     json = json,
+                    stopFamily = StopFamily.OPENAI_CHAT,
                     onChunk = { payload ->
                         val events = mutableListOf<StreamEvent>()
                         val rawRoot = runCatching {
@@ -317,7 +319,10 @@ class OpenRouterService(
         if (capabilityProjection.permitsOutbound("generation_parameter/temperature")) {
             MessageBuilder.temperatureJson(options.temperature)?.let { extras.add(it) }
         }
-        val safeMaxTokens = options.maxTokens ?: resolved?.maxOutputTokens
+        // The chat path sends plan.budget.oWire; on non-chat paths outputTokenBudget is empty and metadata still applies.
+        // When no limit was sent before (no maxOutputTokens in metadata and none set by the user), oWire is not newly sent either.
+        val safeMaxTokens = options.maxTokens
+            ?: resolved?.maxOutputTokens?.let { metadataCap -> options.outputTokenBudget ?: metadataCap }
         if (options.maxTokens == null || capabilityProjection.permitsOutbound("generation_parameter/max_tokens") || capabilityProjection.permitsOutbound("generation_parameter/max_output_tokens")) MessageBuilder.maxTokensJson(safeMaxTokens)?.let { extras.add(it) }
 
         // stream_options for usage tracking

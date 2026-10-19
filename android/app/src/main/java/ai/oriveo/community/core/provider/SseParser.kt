@@ -1,9 +1,12 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.context.StopFamily
+import ai.oriveo.community.core.context.StreamFinishTracker
 import ai.oriveo.community.core.model.GrokSubscriptionFailureReason
 import ai.oriveo.community.core.model.OpenAISubscriptionFailureReason
 import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.StreamEvent
+import ai.oriveo.community.core.model.UpstreamInBandFailure
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.request
 import io.ktor.client.statement.bodyAsChannel
@@ -153,6 +156,8 @@ object SseParser {
     fun parseOpenAICompatible(
         response: HttpResponse,
         json: Json,
+        // When non-null, Done carries a StreamFinish; null = not recorded, Done.finish is null.
+        stopFamily: StopFamily? = null,
         onChunk: (String) -> StreamEvent?,
         onDone: () -> StreamEvent,
     ): Flow<StreamEvent> = flow {
@@ -161,6 +166,7 @@ object SseParser {
             .toInputStream()
             .sseLineReader()
         val ctx = currentCoroutineContext()
+        val finishTracker = stopFamily?.let(::StreamFinishTracker)
 
         reader.use { bufferedReader ->
             while (ctx.isActive) {
@@ -170,16 +176,20 @@ object SseParser {
                 // omits it, OpenAI-compatible ones include it - so tolerate both spellings.
                 if (!line.startsWith("data:")) continue
                 val payload = line.removePrefix("data:").trim()
-                if (payload == "[DONE]") break
+                if (payload == "[DONE]") {
+                    finishTracker?.markDoneMarker()
+                    break
+                }
                 if (payload.isEmpty()) continue
 
+                finishTracker?.observePayload(payload, json)
                 throwIfStreamErrorPayload(json, payload, credentials = credentials)
                 val event = tolerantParseChunk { onChunk(payload) }
                 if (event != null) emit(event)
             }
         }
 
-        emit(onDone())
+        emit(onDone().withFinish(finishTracker))
     }.failAfterPendingEvents() // bare flowOn was Channel.BUFFERED(64); capacity unchanged
 
     /**
@@ -193,6 +203,8 @@ object SseParser {
         response: HttpResponse,
         json: Json,
         topLevelCodeMessageIsProviderError: Boolean = true,
+        // When non-null, Done carries a StreamFinish; null = not recorded, Done.finish is null.
+        stopFamily: StopFamily? = null,
         onChunk: (String) -> List<StreamEvent>,
         onDone: () -> StreamEvent,
     ): Flow<StreamEvent> = flow {
@@ -202,6 +214,7 @@ object SseParser {
             .sseLineReader()
         val ctx = currentCoroutineContext()
         var currentEvent = ""
+        val finishTracker = stopFamily?.let(::StreamFinishTracker)
 
         reader.use { bufferedReader ->
             while (ctx.isActive) {
@@ -217,10 +230,14 @@ object SseParser {
                 // every line of the native framing and surface an empty response.
                 if (!line.startsWith("data:")) continue
                 val rawPayload = line.removePrefix("data:").trim()
-                if (rawPayload == "[DONE]") break
+                if (rawPayload == "[DONE]") {
+                    finishTracker?.markDoneMarker()
+                    break
+                }
                 val payload = injectEventTypeIfNeeded(rawPayload, currentEvent, json)
                 currentEvent = ""
                 if (payload.isEmpty()) continue
+                finishTracker?.observePayload(payload, json)
 
                 throwIfStreamErrorPayload(
                     json = json,
@@ -233,7 +250,7 @@ object SseParser {
             }
         }
 
-        emit(onDone())
+        emit(onDone().withFinish(finishTracker))
     }.failAfterPendingEvents() // bare flowOn was Channel.BUFFERED(64); capacity unchanged
 
     /**
@@ -243,6 +260,8 @@ object SseParser {
     fun parseOpenAICompatiblePayloads(
         response: HttpResponse,
         json: Json,
+        // Called when `[DONE]` is read (the "clean" criterion for stream finish info); null = not interested
+        onDoneMarker: (() -> Unit)? = null,
     ): Flow<String> = flow {
         val credentials = requestCredentials(response)
         val reader = response.bodyAsChannel()
@@ -255,13 +274,19 @@ object SseParser {
                 val line = bufferedReader.readLine() ?: break
                 if (!line.startsWith("data:")) continue
                 val payload = line.removePrefix("data:").trim()
-                if (payload == "[DONE]") break
+                if (payload == "[DONE]") {
+                    onDoneMarker?.invoke()
+                    break
+                }
                 if (payload.isEmpty()) continue
                 throwIfStreamErrorPayload(json, payload, credentials = credentials)
                 emit(payload)
             }
         }
     }.failAfterPendingEvents() // bare flowOn was Channel.BUFFERED(64); capacity unchanged
+
+    private fun StreamEvent.withFinish(tracker: StreamFinishTracker?): StreamEvent =
+        if (tracker != null && this is StreamEvent.Done) copy(finish = tracker.finish()) else this
 
     private fun injectEventTypeIfNeeded(payload: String, eventType: String, json: Json): String {
         if (eventType.isBlank()) return payload
@@ -279,6 +304,8 @@ object SseParser {
     fun parseAnthropicStream(
         response: HttpResponse,
         json: Json,
+        // When non-null, Done carries a StreamFinish; null = not recorded, Done.finish is null.
+        stopFamily: StopFamily? = null,
         onEvent: (eventType: String, data: String) -> StreamEvent?,
         onDone: () -> StreamEvent,
     ): Flow<StreamEvent> = flow {
@@ -288,6 +315,7 @@ object SseParser {
             .sseLineReader()
         val ctx = currentCoroutineContext()
         var currentEvent = ""
+        val finishTracker = stopFamily?.let(::StreamFinishTracker)
 
         reader.use { bufferedReader ->
             while (ctx.isActive) {
@@ -301,6 +329,7 @@ object SseParser {
                         val data = line.removePrefix("data: ").trim()
                         if (data.isEmpty()) continue
 
+                        finishTracker?.observePayload(data, json, currentEvent)
                         throwIfAnthropicErrorEvent(json, currentEvent, data, credentials)
                         val event = tolerantParseChunk { onEvent(currentEvent, data) }
                         if (event != null) emit(event)
@@ -310,7 +339,7 @@ object SseParser {
             }
         }
 
-        emit(onDone())
+        emit(onDone().withFinish(finishTracker))
     }.failAfterPendingEvents() // bare flowOn was Channel.BUFFERED(64); capacity unchanged
 
     /**
@@ -322,6 +351,8 @@ object SseParser {
     fun parseAnthropicStreamMulti(
         response: HttpResponse,
         json: Json,
+        // When non-null, Done carries a StreamFinish; null = not recorded, Done.finish is null.
+        stopFamily: StopFamily? = null,
         onEvent: (eventType: String, data: String) -> List<StreamEvent>,
         onDone: () -> StreamEvent,
     ): Flow<StreamEvent> = flow {
@@ -331,6 +362,7 @@ object SseParser {
             .sseLineReader()
         val ctx = currentCoroutineContext()
         var currentEvent = ""
+        val finishTracker = stopFamily?.let(::StreamFinishTracker)
 
         reader.use { bufferedReader ->
             while (ctx.isActive) {
@@ -344,6 +376,7 @@ object SseParser {
                         val data = line.removePrefix("data: ").trim()
                         if (data.isEmpty()) continue
 
+                        finishTracker?.observePayload(data, json, currentEvent)
                         throwIfAnthropicErrorEvent(json, currentEvent, data, credentials)
                         val events = tolerantParseChunk { onEvent(currentEvent, data) }
                         if (events != null) for (event in events) emit(event)
@@ -353,7 +386,7 @@ object SseParser {
             }
         }
 
-        emit(onDone())
+        emit(onDone().withFinish(finishTracker))
     }.failAfterPendingEvents() // bare flowOn was Channel.BUFFERED(64); capacity unchanged
 
     /**
@@ -363,6 +396,8 @@ object SseParser {
     fun parseGeminiStream(
         response: HttpResponse,
         json: Json,
+        // When non-null, Done carries a StreamFinish; null = not recorded, Done.finish is null.
+        stopFamily: StopFamily? = null,
         onChunk: (String) -> StreamEvent?,
         onDone: () -> StreamEvent,
     ): Flow<StreamEvent> = flow {
@@ -371,6 +406,7 @@ object SseParser {
             .toInputStream()
             .sseLineReader()
         val ctx = currentCoroutineContext()
+        val finishTracker = stopFamily?.let(::StreamFinishTracker)
 
         reader.use { bufferedReader ->
             while (ctx.isActive) {
@@ -380,13 +416,14 @@ object SseParser {
                 val payload = line.removePrefix("data: ").trim()
                 if (payload.isEmpty()) continue
 
+                finishTracker?.observePayload(payload, json)
                 throwIfStreamErrorPayload(json, payload, credentials = credentials)
                 val event = tolerantParseChunk { onChunk(payload) }
                 if (event != null) emit(event)
             }
         }
 
-        emit(onDone())
+        emit(onDone().withFinish(finishTracker))
     }.failAfterPendingEvents(capacity = 0) // buffer(0) was RENDEZVOUS; capacity unchanged
 
     /**
@@ -395,6 +432,8 @@ object SseParser {
     fun parseGeminiStreamMulti(
         response: HttpResponse,
         json: Json,
+        // When non-null, Done carries a StreamFinish; null = not recorded, Done.finish is null.
+        stopFamily: StopFamily? = null,
         onChunk: (String) -> List<StreamEvent>,
         onDone: () -> StreamEvent,
     ): Flow<StreamEvent> = flow {
@@ -403,6 +442,7 @@ object SseParser {
             .toInputStream()
             .sseLineReader()
         val ctx = currentCoroutineContext()
+        val finishTracker = stopFamily?.let(::StreamFinishTracker)
 
         reader.use { bufferedReader ->
             while (ctx.isActive) {
@@ -412,13 +452,14 @@ object SseParser {
                 val payload = line.removePrefix("data: ").trim()
                 if (payload.isEmpty()) continue
 
+                finishTracker?.observePayload(payload, json)
                 throwIfStreamErrorPayload(json, payload, credentials = credentials)
                 val events = tolerantParseChunk { onChunk(payload) }
                 if (events != null) for (event in events) emit(event)
             }
         }
 
-        emit(onDone())
+        emit(onDone().withFinish(finishTracker))
     }.failAfterPendingEvents(capacity = 0) // buffer(0) was RENDEZVOUS; capacity unchanged
 
     /**
@@ -487,7 +528,8 @@ object SseParser {
             200,
             withUpstreamRaw("The Anthropic stream reported an unrecognized error.", data, credentials),
             streamErrorFrame = true,
-        )
+            inBandFailure = UpstreamInBandFailure.StreamError,
+        ).withTelemetryFacts(null, data)
     }
 
     private fun mapStreamError(
@@ -498,6 +540,10 @@ object SseParser {
     ): ProviderServiceError {
         val lower = "${type.orEmpty()} ${message.orEmpty()}".lowercase()
         fun detail(sentence: String) = withUpstreamRaw(sentence, payload, credentials)
+        return classifyStreamError(lower, ::detail).withTelemetryFacts(null, payload)
+    }
+
+    private fun classifyStreamError(lower: String, detail: (String) -> String): ProviderServiceError {
         return when {
             QUOTA_PATTERN.containsMatchIn(lower) -> ProviderServiceError.QuotaExceeded(
                 detail("The provider stream reported that quota or credit is unavailable."),
@@ -510,7 +556,12 @@ object SseParser {
                 detail("The provider stream reported that the model is unavailable."),
             )
             // The stream was already a 2xx, so there is no finer-grained HTTP status to fall back on
-            else -> ProviderServiceError.Upstream(200, detail("The provider stream reported an error."), streamErrorFrame = true)
+            else -> ProviderServiceError.Upstream(
+                200,
+                detail("The provider stream reported an error."),
+                streamErrorFrame = true,
+                inBandFailure = UpstreamInBandFailure.StreamError,
+            )
         }
     }
 
@@ -603,6 +654,58 @@ object SseParser {
      * point.
      */
     fun mapHttpError(
+        statusCode: Int,
+        body: String,
+        credentials: Collection<String>,
+        lane: ProviderSubscriptionLane,
+    ): ProviderServiceError = classifyHttpError(statusCode, body, credentials, lane)
+        .withTelemetryFacts(statusCode, body)
+
+    /** Telemetry drill-down: attaches the non-2xx status code and the JSON error type from the error body; does not change the classification. */
+    internal fun ProviderServiceError.withTelemetryFacts(statusCode: Int?, body: String?): ProviderServiceError = also {
+        if (statusCode != null && statusCode !in 200..299 && statusCode > 0) {
+            it.telemetryHttpStatus = statusCode
+            it.withHttpFacts(statusCode, body)
+        }
+        it.telemetryUpstreamErrorType = upstreamErrorTypeOf(body)
+    }
+
+    /** Raw error body cap (UTF-8 bytes): used only for overflow detection, never displayed, logged or persisted. */
+    internal const val RAW_BODY_MAX_BYTES = 32 * 1024
+
+    /** Attaches the HTTP status code and the raw error body (first 32 KB of UTF-8); kept as well after mapping to a dedicated error such as 401 / 429. */
+    internal fun ProviderServiceError.withHttpFacts(statusCode: Int, body: String?): ProviderServiceError = also {
+        it.httpStatus = statusCode
+        it.rawBody = body?.let(::rawBodyPrefix)
+    }
+
+    /** The first [RAW_BODY_MAX_BYTES] UTF-8 bytes, without cutting a multi-byte character in half. */
+    internal fun rawBodyPrefix(body: String): String {
+        val bytes = body.toByteArray(StandardCharsets.UTF_8)
+        if (bytes.size <= RAW_BODY_MAX_BYTES) return body
+        var end = RAW_BODY_MAX_BYTES
+        // Step back to the start byte of a character (not a 10xxxxxx continuation byte)
+        while (end > 0 && (bytes[end].toInt() and 0xC0) == 0x80) end--
+        return String(bytes, 0, end, StandardCharsets.UTF_8)
+    }
+
+    /**
+     * The type field of an upstream error JSON: tries `error.type` / `error.code` / `error.status` in turn (Responses'
+     * `response.error` is recognized too) and accepts string values only (Gemini's numeric code is skipped in favor of status). Not JSON, or none of these fields present -> null.
+     * Reads structured fields only and never scans the body text.
+     */
+    internal fun upstreamErrorTypeOf(body: String?): String? {
+        if (body.isNullOrBlank()) return null
+        val root = runCatching { Json.parseToJsonElement(body) }.getOrNull() as? JsonObject ?: return null
+        val error = root["error"] as? JsonObject
+            ?: ((root["response"] as? JsonObject)?.get("error") as? JsonObject)
+            ?: return null
+        return listOf("type", "code", "status").firstNotNullOfOrNull { key ->
+            (error[key] as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.takeIf { it.isNotEmpty() }
+        }
+    }
+
+    private fun classifyHttpError(
         statusCode: Int,
         body: String,
         credentials: Collection<String>,

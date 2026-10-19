@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreHoriz
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -74,9 +76,10 @@ internal fun ChatToolbar(
     onDeleteConversation: () -> Unit,
     showMemoryIndicator: Boolean,
     onOpenMemoryIndicator: () -> Unit,
-    showMemoryToggle: Boolean,
-    memoryEnabledForConversation: Boolean,
-    onToggleUseMemory: () -> Unit,
+    /** Opens the chat settings sheet; replaces the old "Use Memory" menu toggle. */
+    onOpenConversationSettings: () -> Unit,
+    /** The conversation (or the draft) has instructions: shows the badge next to the model name. */
+    showInstructionsBadge: Boolean,
     hasMessages: Boolean,
     /** Fully transparent in the empty state so the aurora shows through; once there are messages, a gradient scrim covers the scrolling content underneath. */
     transparentChrome: Boolean,
@@ -148,17 +151,26 @@ internal fun ChatToolbar(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    Text(
-                        text = modelName,
-                        // 15sp Bold title -- narrowed from 17sp so long model names don't wrap to two lines
-                        style = TextStyle(
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                        color = colors.textPrimary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            text = modelName,
+                            // 15sp Bold title -- narrowed from 17sp so long model names don't wrap to two lines
+                            style = TextStyle(
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                            ),
+                            color = colors.textPrimary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        if (showInstructionsBadge) {
+                            ConversationInstructionsBadge(onClick = onOpenConversationSettings)
+                        }
+                    }
                     if (providerName.isNotEmpty()) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -245,22 +257,16 @@ internal fun ChatToolbar(
                             enabled = false,
                         )
                     }
-                    if (showMemoryToggle) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.memory_use_toggle)) },
-                            onClick = onToggleUseMemory,
-                            trailingIcon = {
-                                val useMemoryLabel = stringResource(R.string.memory_use_toggle)
-                                Switch(
-                                    checked = memoryEnabledForConversation,
-                                    onCheckedChange = { onToggleUseMemory() },
-                                    // The switch is its own focus stop inside the menu item; without a
-                                    // contentDescription it is announced only as "switch".
-                                    modifier = Modifier.semantics { contentDescription = useMemoryLabel },
-                                )
-                            },
-                        )
-                    }
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.conversation_settings_title)) },
+                        onClick = {
+                            onDismissMenu()
+                            onOpenConversationSettings()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Outlined.Tune, contentDescription = null)
+                        },
+                    )
                     if (hasMessages) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.delete_conversation)) },
@@ -277,6 +283,25 @@ internal fun ChatToolbar(
             }
         }
     }
+}
+
+/** Instructions badge next to the model name; tapping it opens the settings sheet. */
+@Composable
+private fun ConversationInstructionsBadge(onClick: () -> Unit) {
+    val colors = OriveoTheme.colors
+    val a11y = stringResource(R.string.conversation_instructions_badge_a11y)
+    Text(
+        text = stringResource(R.string.conversation_instructions_badge),
+        style = OriveoTheme.typography.caption,
+        color = colors.primary,
+        maxLines = 1,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(colors.primary.copy(alpha = 0.12f))
+            .semantics { contentDescription = a11y }
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+    )
 }
 
 /**

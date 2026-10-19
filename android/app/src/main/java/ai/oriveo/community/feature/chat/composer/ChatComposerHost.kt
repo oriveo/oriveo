@@ -1,6 +1,20 @@
 package ai.oriveo.community.feature.chat.composer
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Compress
+import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.stringResource
+import ai.oriveo.community.R
+import ai.oriveo.community.ui.theme.OriveoTheme
+import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,12 +75,15 @@ internal fun ChatComposerHost(
     trueTransparentBlurEnabled: Boolean,
     onOverlayHeightChange: (Int) -> Unit,
     onNavigateToProviderSetup: () -> Unit,
+    onNavigateToVoiceSettings: () -> Unit = {},
     onNavigateToProviderDetail: (providerId: String) -> Unit,
     onNavigateToConnectionWebSearch: (providerId: String) -> Unit = {},
     /** "Test capability" for a rejected web template: opens this model's advanced page in this connection. */
     onNavigateToRelayModelAdvanced: (providerId: String, modelId: String) -> Unit = { _, _ -> },
     onNavigateToSkillEdit: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Ring tap; opens the context panel. */
+    onOpenContextUsage: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val restore = viewModel.composerTextRestore
@@ -88,6 +105,7 @@ internal fun ChatComposerHost(
 
     val attachedNotes by viewModel.noteCoordinator.attachedNotes.collectAsStateWithLifecycle()
     val relatedNotes by viewModel.noteCoordinator.relatedNotes.collectAsStateWithLifecycle()
+    val contextUsage by viewModel.contextUsage.collectAsStateWithLifecycle()
     // Must be subscribed here: the view model's isGenerating reads StateFlow.value, which is not
     // snapshot state. This host is skippable, so a recomposition of the screen root triggered by
     // streamingMessageId skips it, and the recomposition caused by clearing the input on send runs
@@ -126,11 +144,45 @@ internal fun ChatComposerHost(
         }
     }
 
+    // Third-compaction hint, shown above the composer only for the conversation it belongs to.
+    val compactionHintId by remember(viewModel) {
+        viewModel.compaction?.hint ?: MutableStateFlow<String?>(null)
+    }.collectAsStateWithLifecycle()
+    // AI summary in progress for this conversation (the instant fallback never shows).
+    val aiCompacting by remember(viewModel) {
+        viewModel.compaction?.aiCompacting ?: MutableStateFlow(emptySet())
+    }.collectAsStateWithLifecycle()
+    val compactingHere = conversationId != null && conversationId in aiCompacting
+    // Only a compaction inside a send makes the send button a stop button; pre-compaction and manual keep send.
+    val sendCompacting by remember(viewModel) {
+        viewModel.compaction?.sendCompacting ?: MutableStateFlow(emptySet())
+    }.collectAsStateWithLifecycle()
+    val sendCompactingHere = conversationId != null && conversationId in sendCompacting
+    // A send waiting for the pre-send confirmation also shows the stop button (stop = cancel).
+    val confirmWaitingHere by remember(viewModel) {
+        viewModel.compaction?.pendingConfirm ?: MutableStateFlow(null)
+    }.collectAsStateWithLifecycle()
+
+    val isGenerating = streamingMessageId != null || sendCompactingHere || confirmWaitingHere != null
+    val isReadOnly = viewModel.conversationState.isReadOnly || sendingBlockedByLoadState
+
     Column(
         modifier = modifier
             .fillMaxWidth()
             .onSizeChanged { onOverlayHeightChange(it.height) },
     ) {
+        if (conversationId != null && compactionHintId == conversationId) {
+            val quoteLabel = stringResource(R.string.context_compaction_quote_label)
+            ThirdCompactionHintBanner(
+                onNewChat = { viewModel.compaction?.startNewChatWithSummary(quoteLabel) },
+                onDismiss = { viewModel.compaction?.dismissHint() },
+            )
+        }
+
+        if (compactingHere && conversationId != null) {
+            CompactionInProgressRow(onCancel = { viewModel.compaction?.cancelAiCompaction(conversationId) })
+        }
+
         viewModel.expensiveModelHint?.let { hint ->
             ExpensiveModelHintBanner(
                 hint = hint,
@@ -155,6 +207,7 @@ internal fun ChatComposerHost(
                 composerText.value = it
                 viewModel.onInputTextChanged(it)
             },
+            onComposerFocused = { viewModel.compaction?.launchPrecompact() },
             pendingAttachments = viewModel.pendingAttachments,
             pendingQuoteContext = viewModel.pendingQuoteContext,
             onRemoveQuote = viewModel::removePendingQuote,
@@ -172,7 +225,7 @@ internal fun ChatComposerHost(
             onSelectReasoningMode = viewModel::selectReasoningMode,
             onSelectModel = viewModel::selectModel,
             onOpenModelSwitcher = { viewModel.showModelSwitcher = true },
-            mcpEntryVisible = viewModel.mcpCoordinator.isEntryVisible,
+            mcpEntryVisible = viewModel.mcpCoordinator.isToolsChipVisible,
             mcpToolsAvailable = mcpPanelState.availability.isAvailable,
             mcpEnabledServerCount = mcpPanelState.enabledServerCount,
             onOpenMcpTools = viewModel.mcpCoordinator::openToolPanel,
@@ -181,18 +234,22 @@ internal fun ChatComposerHost(
             onProcessImageUri = { uri -> viewModel.processImageUri(context, uri) },
             onProcessFileUri = { uri -> viewModel.processFileUri(context, uri) },
             onSendClick = viewModel::sendMessage,
-            onStopGeneration = viewModel::stopGeneration,
+            // Stop while waiting for the confirmation = cancel (rolled back, no stop recorded).
+            onStopGeneration = {
+                if (viewModel.compaction?.stopWaitingConfirmHere() != true) viewModel.stopGeneration()
+            },
             providerKind = activeProvider?.kind,
             onNavigateToProviderSetup = onNavigateToProviderSetup,
             onNavigateToProviderDetail = onNavigateToProviderDetail,
             onNavigateToConnectionWebSearch = onNavigateToConnectionWebSearch,
             onNavigateToRelayModelAdvanced = onNavigateToRelayModelAdvanced,
             onNavigateToSkillEdit = onNavigateToSkillEdit,
-            isGenerating = streamingMessageId != null,
+            // The stop button also works while a send's compaction runs (it cancels the whole send).
+            isGenerating = isGenerating,
             // Loading states (skeleton, backfilling) and stalled all block writing: allowing a send
             // while stalled means the user starts talking in a conversation that has history, and
             // the context is silently dropped. It becomes writable again once the backfill lands.
-            isReadOnly = viewModel.conversationState.isReadOnly || sendingBlockedByLoadState,
+            isReadOnly = isReadOnly,
             // When the conversation's model was removed the composer stays editable and only sending is blocked.
             isSendBlocked = !viewModel.canSendMessages,
             transparentChrome = transparentChrome,
@@ -204,6 +261,76 @@ internal fun ChatComposerHost(
             onDismissRelatedNote = viewModel.noteCoordinator::dismissRelatedNote,
             onDetachNote = viewModel.noteCoordinator::detachNoteFromContext,
             onPreviewNote = viewModel.noteCoordinator::showNotePreview,
+            // Drafts have no conversation id and show no ring.
+            contextUsage = contextUsage.takeIf { conversationId != null },
+            onOpenContextUsage = onOpenContextUsage,
         )
+    }
+}
+
+/** "Condensing context…" with a cancel button above the composer. */
+@Composable
+private fun CompactionInProgressRow(onCancel: () -> Unit) {
+    val colors = OriveoTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.primarySoft)
+            .padding(horizontal = OriveoTheme.spacing.lg, vertical = OriveoTheme.spacing.xs),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.context_compaction_in_progress),
+            style = OriveoTheme.typography.footnote,
+            color = colors.textSecondary,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onCancel) {
+            Text(stringResource(R.string.context_compaction_cancel))
+        }
+    }
+}
+
+/** Hint bar: "new chat" carries the summary along, "got it" dismisses. */
+@Composable
+internal fun ThirdCompactionHintBanner(onNewChat: () -> Unit, onDismiss: () -> Unit) {
+    val colors = OriveoTheme.colors
+    // iOS parity: rounded card inset from the edges, leading compress icon.
+    ai.oriveo.community.ui.component.OriveoCard(
+        modifier = Modifier.padding(horizontal = OriveoTheme.spacing.lg, vertical = OriveoTheme.spacing.xs),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            start = OriveoTheme.spacing.md,
+            end = OriveoTheme.spacing.sm,
+            top = OriveoTheme.spacing.sm,
+        ),
+    ) {
+        Row(verticalAlignment = androidx.compose.ui.Alignment.Top) {
+            androidx.compose.material3.Icon(
+                imageVector = Icons.Outlined.Compress,
+                contentDescription = null,
+                tint = colors.textSecondary,
+                modifier = Modifier
+                    .padding(top = 2.dp, end = OriveoTheme.spacing.sm)
+                    .size(18.dp),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.context_compaction_third_hint),
+                    style = OriveoTheme.typography.footnote,
+                    color = colors.textSecondary,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm, androidx.compose.ui.Alignment.End),
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(stringResource(R.string.context_compaction_third_hint_dismiss), color = colors.textSecondary)
+                    }
+                    TextButton(onClick = onNewChat) {
+                        Text(stringResource(R.string.context_compaction_third_hint_new_chat), color = colors.primary)
+                    }
+                }
+            }
+        }
     }
 }

@@ -1,5 +1,7 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.context.StopFamily
+import ai.oriveo.community.core.context.StreamFinishTracker
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Attachment
@@ -284,7 +286,8 @@ class OpenAIService(
                 }
 
                 val parsed = json.decodeFromString<ResponsesResponse>(body)
-                val text = parsed.resolvedText.trim()
+                val rawText = parsed.resolvedText
+                val text = rawText.trim()
                 val attachments = parsed.resolvedAttachments
                 if (text.isEmpty() && attachments.isEmpty()) {
                     throw ProviderServiceError.EmptyResponse
@@ -294,6 +297,7 @@ class OpenAIService(
                 result = StreamEvent.Done(
                     buildResult(
                         text = text,
+                        rawText = rawText,
                         attachments = attachments.ifEmpty { null },
                         breakdown = breakdown,
                         modelID = modelID,
@@ -442,6 +446,7 @@ class OpenAIService(
                 var completedResponseId: String? = null
                 var currentEvent = ""
                 val nativeToolParser = NativeToolCallParser(NativeToolProtocol.OpenAIResponses)
+                val finishTracker = StreamFinishTracker(StopFamily.OPENAI_RESPONSES)
                 response.bodyAsChannel()
                     .toInputStream()
                     .sseLineReader()
@@ -459,6 +464,7 @@ class OpenAIService(
                                         currentEvent = ""
                                         continue
                                     }
+                                    finishTracker.observePayload(payload, json, currentEvent)
 
                                     // Citation parsing: annotations can hide inside several
                                     // different Responses events, so OpenAIResponsesStrategy
@@ -520,7 +526,8 @@ class OpenAIService(
                                             }
                                         }
 
-                                        "response.completed" -> {
+                                        // response.incomplete (e.g. max_output_tokens) carries the final usage as well; the body is delivered as usual
+                                        "response.completed", "response.incomplete" -> {
                                             val completed = json.decodeFromString<ResponsesStreamCompleted>(payload)
                                             lastUsage = completed.resolvedUsage
                                             completedResponseId = completed.response?.id
@@ -536,6 +543,14 @@ class OpenAIService(
                                                 statusCode = 200,
                                                 detail = extractErrorMessage(payload) ?: "OpenAI Responses stream failed.",
                                                 streamErrorFrame = true,
+                                                streamFinish = if (currentEvent == "response.failed") {
+                                                    StreamFinishTracker.responsesFailedFinish(
+                                                        runCatching { json.parseToJsonElement(payload).jsonObject }.getOrNull(),
+                                                        currentEvent,
+                                                    )
+                                                } else {
+                                                    null
+                                                },
                                             )
                                         }
                                     }
@@ -556,9 +571,11 @@ class OpenAIService(
                     StreamEvent.Done(
                         buildResult(
                             text = accumulatedText.trim(),
+                            rawText = accumulatedText,
                             breakdown = breakdown,
                             modelID = modelID,
                         ),
+                        finish = finishTracker.finish(),
                     ),
                 )
             }
@@ -924,6 +941,7 @@ class OpenAIService(
                 result = StreamEvent.Done(
                     buildResult(
                         text = text,
+                        rawText = choice.message.content,
                         breakdown = breakdown,
                         modelID = modelID,
                     ),
@@ -1027,6 +1045,7 @@ class OpenAIService(
             SseParser.parseOpenAICompatibleMulti(
                 response = response,
                 json = json,
+                stopFamily = StopFamily.OPENAI_CHAT,
                 onChunk = { payload ->
                     val events = mutableListOf<StreamEvent>()
                     runCatching { json.parseToJsonElement(payload).jsonObject }.getOrNull()?.let { root ->
@@ -1048,6 +1067,7 @@ class OpenAIService(
                     StreamEvent.Done(
                         buildResult(
                             text = accumulatedText.trim(),
+                            rawText = accumulatedText,
                             breakdown = breakdown,
                             modelID = modelID,
                         ),
@@ -1151,6 +1171,7 @@ class OpenAIService(
 
     private fun buildResult(
         text: String,
+        rawText: String? = null,
         attachments: List<Attachment>? = null,
         breakdown: UsageBreakdown,
         modelID: String,
@@ -1165,6 +1186,7 @@ class OpenAIService(
             attachments = attachments,
             cachedInputTokens = breakdown.reportedCachedInputTokens,
             costSource = source.name,
+            rawText = rawText,
         )
     }
 

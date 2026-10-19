@@ -1,7 +1,10 @@
 package ai.oriveo.community.core.app
 
 import android.content.Context
+import ai.oriveo.community.core.context.ContextBudgetCap
 import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
+import ai.oriveo.community.core.data.mapper.ConversationMapper.toContextBudgetCapOrNull
+import ai.oriveo.community.core.data.mapper.ConversationMapper.toStorageText
 import ai.oriveo.community.core.data.dao.PreferenceDao
 import ai.oriveo.community.core.data.entity.PreferenceEntity
 import ai.oriveo.community.core.model.AIModel
@@ -150,6 +153,19 @@ class AppPreferencesRepository(
     val memoryAntiForgetText: Flow<String> = observeUserState(AppPreferenceKeys.MEMORY_ANTI_FORGET_TEXT)
         .map { it ?: "" }
 
+    /** AI summary for context compaction; local only. */
+    val contextAISummaryEnabled: Flow<Boolean> = observeUserState(AppPreferenceKeys.CONTEXT_AI_SUMMARY_ENABLED)
+        .map { it?.toBooleanStrictOrNull() ?: false }
+
+    /** Global default input budget cap: missing or unparseable means auto; local only. */
+    val contextDefaultCap: Flow<ContextBudgetCap> = observeUserState(AppPreferenceKeys.CONTEXT_DEFAULT_CAP)
+        .map { it.toContextBudgetCapOrNull() ?: ContextBudgetCap.Auto }
+
+    /** Reminder when the input crosses the price line: defaults to on; local only. */
+    val contextPriceLineReminderEnabled: Flow<Boolean> =
+        observeUserState(AppPreferenceKeys.CONTEXT_PRICE_LINE_REMINDER_ENABLED)
+            .map { it?.toBooleanStrictOrNull() ?: true }
+
     val memoryUpdatedAt: Flow<String?> = observeUserState(AppPreferenceKeys.MEMORY_UPDATED_AT)
 
     val memoryHasSeen: Flow<Boolean> = observeUserState(AppPreferenceKeys.MEMORY_HAS_SEEN)
@@ -249,8 +265,11 @@ class AppPreferencesRepository(
         acceptedRawValues(AppPreferenceKeys.PROVIDER_DISCLOSURE_ACCEPTED_LIST)
 
     private suspend fun acceptedRawValues(key: String): Set<String> {
-        val raw = observeDeviceScopedValue(key).orEmpty()
-        if (raw.isBlank()) return emptySet()
+        return parseRawValues(observeDeviceScopedValue(key))
+    }
+
+    private fun parseRawValues(raw: String?): Set<String> {
+        if (raw.isNullOrBlank()) return emptySet()
         return raw.split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
     }
 
@@ -262,6 +281,26 @@ class AppPreferencesRepository(
         preferenceDao.set(
             PreferenceEntity(AppPreferenceKeys.NOTE_CAPTURE_HINT_SEEN, "true"),
         )
+    }
+
+    /** Set of new-feature badges already seen, with ids missing from the registry pruned. */
+    val featureBadgesSeen: Flow<Set<String>> = observeDeviceScoped(AppPreferenceKeys.FEATURE_BADGES_SEEN)
+        .map { FeatureBadges.pruned(parseRawValues(it)) }
+
+    /** Whether the badge for this id should show (registered and not yet seen on this device). */
+    fun featureBadgeUnseen(id: String): Flow<Boolean> =
+        featureBadgesSeen.map { FeatureBadges.isUnseen(id, it) }
+
+    /** Call when the user reaches the target screen: marks the badge seen and prunes ids no longer in the registry. */
+    suspend fun markFeatureBadgeSeen(id: String) {
+        runInTransaction {
+            val current = acceptedRawValues(AppPreferenceKeys.FEATURE_BADGES_SEEN)
+            val updated = FeatureBadges.markSeen(current, id)
+            if (updated == current) return@runInTransaction
+            preferenceDao.set(
+                PreferenceEntity(AppPreferenceKeys.FEATURE_BADGES_SEEN, updated.joinToString(",")),
+            )
+        }
     }
 
     suspend fun getLanguage(): LanguageOption =
@@ -309,6 +348,47 @@ class AppPreferencesRepository(
 
     suspend fun getMemoryAntiForgetText(): String =
         accountScopedValue(AppPreferenceKeys.MEMORY_ANTI_FORGET_TEXT).orEmpty()
+
+    suspend fun getContextAISummaryEnabled(): Boolean =
+        accountScopedValue(AppPreferenceKeys.CONTEXT_AI_SUMMARY_ENABLED)?.toBooleanStrictOrNull() ?: false
+
+    suspend fun setContextAISummaryEnabled(enabled: Boolean) {
+        preferenceDao.set(
+            PreferenceEntity(
+                storageKeyForCurrentAccount(AppPreferenceKeys.CONTEXT_AI_SUMMARY_ENABLED),
+                enabled.toString(),
+            ),
+        )
+    }
+
+    suspend fun getContextDefaultCap(): ContextBudgetCap =
+        accountScopedValue(AppPreferenceKeys.CONTEXT_DEFAULT_CAP).toContextBudgetCapOrNull()
+            ?: ContextBudgetCap.Auto
+
+    suspend fun setContextDefaultCap(cap: ContextBudgetCap) {
+        preferenceDao.set(
+            PreferenceEntity(
+                storageKeyForCurrentAccount(AppPreferenceKeys.CONTEXT_DEFAULT_CAP),
+                cap.toStorageText(),
+            ),
+        )
+    }
+
+    suspend fun getContextPriceLineReminderEnabled(): Boolean =
+        accountScopedValue(AppPreferenceKeys.CONTEXT_PRICE_LINE_REMINDER_ENABLED)?.toBooleanStrictOrNull()
+            ?: true
+
+    suspend fun setContextPriceLineReminderEnabled(enabled: Boolean) {
+        preferenceDao.set(
+            PreferenceEntity(
+                storageKeyForCurrentAccount(AppPreferenceKeys.CONTEXT_PRICE_LINE_REMINDER_ENABLED),
+                enabled.toString(),
+            ),
+        )
+    }
+
+    suspend fun getMemoryUpdatedAt(): String? =
+        accountScopedValue(AppPreferenceKeys.MEMORY_UPDATED_AT)
 
     suspend fun getLastUsedModelRef(): LastUsedModelRef? {
         val providerId = accountScopedValue(AppPreferenceKeys.LAST_USED_PROVIDER_ID)
@@ -421,7 +501,54 @@ class AppPreferencesRepository(
             )
             setMemoryUpdatedAt(updatedAt)
         }
+    }
 
+    suspend fun getMemoryTextDigest(): String? =
+        accountScopedValue(AppPreferenceKeys.MEMORY_TEXT_DIGEST)
+
+    /** Whether the old preference text has been migrated into memory items (local marker). */
+    suspend fun getMemoryItemsMigrated(): Boolean =
+        accountScopedValue(AppPreferenceKeys.MEMORY_ITEMS_MIGRATED)?.toBooleanStrictOrNull() ?: false
+
+    /** Whether automatic memory suggestions are on (local preference, on by default). */
+    suspend fun getMemoryAutoSuggestEnabled(): Boolean =
+        accountScopedValue(AppPreferenceKeys.MEMORY_AUTO_SUGGEST_ENABLED)?.toBooleanStrictOrNull() ?: true
+
+    /** Writes the automatic memory suggestion switch to this device only. */
+    suspend fun setMemoryAutoSuggestEnabled(enabled: Boolean) {
+        preferenceDao.set(
+            PreferenceEntity(storageKeyForCurrentAccount(AppPreferenceKeys.MEMORY_AUTO_SUGGEST_ENABLED), enabled.toString()),
+        )
+    }
+
+    suspend fun setMemoryItemsMigrated() {
+        preferenceDao.set(PreferenceEntity(storageKeyForCurrentAccount(AppPreferenceKeys.MEMORY_ITEMS_MIGRATED), true.toString()))
+    }
+
+    fun observeMemoryText(): Flow<String?> =
+        observeUserState(AppPreferenceKeys.MEMORY_TEXT)
+
+    /** Stores only the digest when the compiled text equals the local memoryText; memoryUpdatedAt is left untouched. */
+    suspend fun saveMemoryTextDigest(memoryTextDigest: String) {
+        preferenceDao.set(PreferenceEntity(storageKeyForCurrentAccount(AppPreferenceKeys.MEMORY_TEXT_DIGEST), memoryTextDigest))
+    }
+
+    /**
+     * Writes the text compiled from memory items back to the legacy preference together with its digest.
+     * The text is stored as is (no trim, no truncation) and the anti-forget fields are left alone.
+     */
+    suspend fun saveMemoryCompile(
+        memoryText: String,
+        memoryTextDigest: String,
+        updatedAt: String = Instant.now().toString(),
+    ) {
+        runInTransaction {
+            preferenceDao.set(PreferenceEntity(storageKeyForCurrentAccount(AppPreferenceKeys.MEMORY_TEXT), memoryText))
+            preferenceDao.set(
+                PreferenceEntity(storageKeyForCurrentAccount(AppPreferenceKeys.MEMORY_TEXT_DIGEST), memoryTextDigest),
+            )
+            preferenceDao.set(PreferenceEntity(storageKeyForCurrentAccount(AppPreferenceKeys.MEMORY_UPDATED_AT), updatedAt))
+        }
     }
 
     private fun observeDeviceScoped(key: String): Flow<String?> {

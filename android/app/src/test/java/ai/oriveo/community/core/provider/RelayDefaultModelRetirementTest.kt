@@ -243,7 +243,7 @@ class RelayDefaultModelRetirementTest {
         val appPreferences = mockk<AppPreferencesRepository>(relaxed = true)
         coEvery { appPreferences.hasAcceptedProviderDisclosure(any()) } returns true
         val launches = mutableListOf<String>()
-        val launcher = ChatSendLauncher { _, _, modelId, _, _, _, _, _, _, _ -> launches += modelId }
+        val launcher = ChatSendLauncher { _, _, modelId, _, _, _, _, _, _, _, _ -> launches += modelId }
         var settled = false
 
         val send = ChatSendCommandCoordinator(

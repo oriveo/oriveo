@@ -53,6 +53,8 @@ data class OriveoColors(
     val warningSoft: Color,
 
     val warningText: Color,
+    /** Outline for conflict cards and similar "take a look, but not an error" states; a line only, never text. Same name and value on every platform (iOS `Palette.warningLine`). */
+    val warningLine: Color,
     val danger: Color,
     val dangerSoft: Color,
 
@@ -71,6 +73,19 @@ data class OriveoColors(
     val shadowStrong: Color,
     val tabBar: Color,
 
+    // ── Memory page (iOS `Palette.backgroundGrouped / memoryAtlasDot / memoryHue.*`) ──
+    /** Grouped page background: one step darker than background so cards float. */
+    val backgroundGrouped: Color,
+    /** Background dot grid of the memory atlas. */
+    val memoryAtlasDot: Color,
+    // The five hues are for graphics only (star dots, spectrum, group glyphs); text always uses the body color
+    val memoryHueAbout: Color,
+    val memoryHuePreferences: Color,
+    val memoryHueInstructions: Color,
+    val memoryHueWorkingOn: Color,
+    val memoryHueEpisodic: Color,
+
+    // ── Capability badge colors, aligned with iOS ModelCapabilityBadge ──
     val capReasoning: Color,
     val capReasoningBg: Color,
     val capReasoningBorder: Color,
@@ -135,6 +150,7 @@ val LightOriveoColors = OriveoColors(
     warning = Color(0xFFF59E0B),
     warningSoft = Color(0xFFFFFBEB),
     warningText = Color(0xFF92400E),
+    warningLine = Color(0x66F59E0B),          // 40%
     danger = Color(0xFFEF4444),
     dangerSoft = Color(0xFFFEF2F2),
     error = Color(0xFFEF4444),
@@ -152,6 +168,16 @@ val LightOriveoColors = OriveoColors(
     shadowStrong = Color(0x290F172A),          // 16%
     tabBar = Color(0xF0FFFFFF),               // 94%
 
+    // Memory page
+    backgroundGrouped = Color(0xFFF4F4F6),
+    memoryAtlasDot = Color(0x1A18181B),       // 10%
+    memoryHueAbout = Color(0xFF4F46E5),
+    memoryHuePreferences = Color(0xFF0D9488),
+    memoryHueInstructions = Color(0xFFEA580C),
+    memoryHueWorkingOn = Color(0xFF0891B2),
+    memoryHueEpisodic = Color(0xFF7C3AED),
+
+    // Capability: light mode, aligned with iOS ModelCapabilityBadge
     capReasoning = Color(0xFFB45309),
     capReasoningBg = Color(0xFFFEF3C7),
     capReasoningBorder = Color(0xFFFCD34D),
@@ -213,6 +239,7 @@ val DarkOriveoColors = OriveoColors(
     warning = Color(0xFFFCD34D),
     warningSoft = Color(0x24FCD34D),          // 14%
     warningText = Color(0xFFFCD34D),
+    warningLine = Color(0x52FCD34D),          // 32%
     danger = Color(0xFFF8978F),
     dangerSoft = Color(0x24F8978F),           // 14%
     error = Color(0xFFF8978F),
@@ -229,6 +256,16 @@ val DarkOriveoColors = OriveoColors(
     shadowStrong = Color(0x8F000000),         // 56%
     tabBar = Color(0xE014181F),               // 88%
 
+    // Memory page
+    backgroundGrouped = Color(0xFF0F1218),
+    memoryAtlasDot = Color(0x14FFFFFF),       // 8%
+    memoryHueAbout = Color(0xFF818CF8),
+    memoryHuePreferences = Color(0xFF2DD4BF),
+    memoryHueInstructions = Color(0xFFFB923C),
+    memoryHueWorkingOn = Color(0xFF22D3EE),
+    memoryHueEpisodic = Color(0xFFA78BFA),
+
+    // Capability: dark mode, aligned with iOS ModelCapabilityBadge
     capReasoning = Color(0xFFFBBF24),
     capReasoningBg = Color(0x26B45309),       // 15%
     capReasoningBorder = Color(0x47B45309),   // 28%

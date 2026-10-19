@@ -1,5 +1,9 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.context.StopFamily
+import ai.oriveo.community.core.context.StreamEnding
+import ai.oriveo.community.core.context.StreamFinish
+import ai.oriveo.community.core.context.StreamFinishTracker
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.attachments.AttachmentDelivery
 import ai.oriveo.community.core.attachments.AttachmentTransportProfile
@@ -177,11 +181,13 @@ class GeminiService(
         val parsed = json.decodeFromString<GenerateResponse>(response.bodyAsText())
         throwIfBlockedChunk(parsed)
         val parts = parsed.candidates?.firstOrNull()?.content?.parts.orEmpty()
-        val text = parts.filter { it.thought != true }.mapNotNull { it.text }.joinToString("").trim()
+        val rawText = parts.filter { it.thought != true }.mapNotNull { it.text }.joinToString("")
+        val text = rawText.trim()
         if (text.isEmpty()) throw ProviderServiceError.EmptyResponse
         val usage = parsed.usageMetadata
         return StreamEvent.Done(ProviderChatResult(
             text = text,
+            rawText = rawText,
             promptTokens = usage?.promptTokenCount ?: 0,
             completionTokens = (usage?.candidatesTokenCount ?: 0) + (usage?.thoughtsTokenCount ?: 0),
             reasoningText = parts.filter { it.thought == true }.mapNotNull { it.text }.joinToString("").takeIf { it.isNotEmpty() },
@@ -292,6 +298,7 @@ class GeminiService(
             SseParser.parseGeminiStreamMulti(
                 response = response,
                 json = json,
+                stopFamily = StopFamily.GEMINI,
                 onChunk = { payload ->
                     val events = mutableListOf<StreamEvent>()
                     val chunk = json.decodeFromString<GenerateResponse>(payload)
@@ -625,7 +632,15 @@ class GeminiService(
 
         /** Called when the stream ends: with neither completed nor error it was interrupted, and is handled as an error. */
         fun finish(): Terminal = terminal
-            ?: fail("interaction_stream_closed", null, streamErrorFrame = false, outcome = Terminal.Interrupted)
+            ?: fail(
+                "interaction_stream_closed", null, streamErrorFrame = false, outcome = Terminal.Interrupted,
+                // The stream closed without interaction.completed: EOF type
+                streamFinish = StreamFinish(StopFamily.GEMINI_INTERACTIONS, StreamEnding.EOF_WITHOUT_MARKER),
+            )
+
+        /** The finish carried by Done when interaction.completed (completed / incomplete) arrives; finishRaw is the interaction status. */
+        var terminalStatus: String? = null
+            private set
 
         private fun delta(delta: JsonObject): List<StreamEvent> = when (delta.str("type")) {
             "text" -> delta.str("text").orEmpty().takeIf { it.isNotEmpty() }?.let { chunk ->
@@ -661,12 +676,21 @@ class GeminiService(
 
         private fun completed(interaction: JsonObject?) {
             when (interaction?.str("status")) {
-                "completed" -> { terminal = Terminal.Completed; usage = usageOf(interaction) }
-                "incomplete" -> { terminal = Terminal.Incomplete; usage = usageOf(interaction) }
-                "failed" -> fail("interaction_failed", null, streamErrorFrame = false)
+                "completed" -> { terminal = Terminal.Completed; terminalStatus = "completed"; usage = usageOf(interaction) }
+                "incomplete" -> { terminal = Terminal.Incomplete; terminalStatus = "incomplete"; usage = usageOf(interaction) }
+                "failed" -> fail(
+                    "interaction_failed", null, streamErrorFrame = false,
+                    streamFinish = StreamFinishTracker.geminiInteractionsFinish("failed"),
+                )
                 // This route sends no client tools, so requires_action counts as a failure.
-                "requires_action" -> fail("interaction_requires_action", null, streamErrorFrame = false)
-                "cancelled" -> fail("interaction_cancelled", null, streamErrorFrame = false, outcome = Terminal.Interrupted)
+                "requires_action" -> fail(
+                    "interaction_requires_action", null, streamErrorFrame = false,
+                    streamFinish = StreamFinishTracker.geminiInteractionsFinish("requires_action"),
+                )
+                "cancelled" -> fail(
+                    "interaction_cancelled", null, streamErrorFrame = false, outcome = Terminal.Interrupted,
+                    streamFinish = StreamFinishTracker.geminiInteractionsFinish("cancelled"),
+                )
             }
         }
 
@@ -675,6 +699,7 @@ class GeminiService(
             message: String?,
             streamErrorFrame: Boolean,
             outcome: Terminal = Terminal.Error,
+            streamFinish: StreamFinish? = null,
         ): Nothing {
             val phase = if (text.isEmpty() && thinking.isEmpty()) "before_content" else "after_content"
             error = ErrorInfo(code, message, phase)
@@ -684,7 +709,8 @@ class GeminiService(
                 detail = "Gemini Interactions stream reported an error (code=${code ?: "unknown"})" +
                     (message?.let { ": $it" } ?: "."),
                 streamErrorFrame = streamErrorFrame,
-            )
+                streamFinish = streamFinish,
+            ).also { it.telemetryUpstreamErrorType = code?.takeIf { streamErrorFrame } }
         }
 
         private fun usageOf(interaction: JsonObject): Usage? = (interaction["usage"] as? JsonObject)?.let {
@@ -782,14 +808,19 @@ class GeminiService(
         val (cost, source) = CostCalculator.calcCost(
             breakdown, MetadataClient.resolveCatalogModel(modelID, ProviderKind.Gemini),
         )
-        return StreamEvent.Done(ProviderChatResult(
-            text = parser.text.trim(),
-            promptTokens = usage?.inputTokens ?: 0,
-            completionTokens = breakdown.completionTokens,
-            estimatedCost = cost,
-            cachedInputTokens = breakdown.reportedCachedInputTokens,
-            costSource = source.name,
-        ))
+        return StreamEvent.Done(
+            ProviderChatResult(
+                text = parser.text.trim(),
+                rawText = parser.text,
+                promptTokens = usage?.inputTokens ?: 0,
+                completionTokens = breakdown.completionTokens,
+                estimatedCost = cost,
+                cachedInputTokens = breakdown.reportedCachedInputTokens,
+                costSource = source.name,
+            ),
+            // Reaching here means interaction.completed was received (otherwise finish() already threw the EOF-type error)
+            finish = StreamFinish(StopFamily.GEMINI_INTERACTIONS, StreamEnding.CLEAN, parser.terminalStatus),
+        )
     }
 
     private fun JsonObject?.string(key: String): String? = this?.get(key)?.let { (it as? JsonPrimitive)?.contentOrNull }
@@ -902,6 +933,8 @@ class GeminiService(
             throw ProviderServiceError.Upstream(
                 statusCode = 200,
                 detail = "Gemini blocked the prompt (blockReason=$reason).",
+                streamFinish = StreamFinishTracker.geminiPromptBlockedFinish(reason),
+                inBandFailure = ai.oriveo.community.core.model.UpstreamInBandFailure.ContentFiltered,
             )
         }
         val finishReason = chunk.candidates?.firstOrNull()?.finishReason
@@ -909,6 +942,8 @@ class GeminiService(
             throw ProviderServiceError.Upstream(
                 statusCode = 200,
                 detail = "Gemini stopped the response (finishReason=$finishReason).",
+                streamFinish = StreamFinishTracker.geminiBlockedFinish(finishReason),
+                inBandFailure = ai.oriveo.community.core.model.UpstreamInBandFailure.ContentFiltered,
             )
         }
     }

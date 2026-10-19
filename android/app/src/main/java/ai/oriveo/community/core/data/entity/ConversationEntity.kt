@@ -46,4 +46,9 @@ data class ConversationEntity(
     val accountId: String = "local",
     /** Up to three notes pinned into this conversation's prompt, as a JSON id array. */
     val pinnedNoteIdsJson: String? = null,
+    /** Since v40: conversation-level instructions (normalized, at most 8000 code points); an empty string means none. */
+    @ColumnInfo(defaultValue = "")
+    val instructions: String = "",
+    /** Since v44: stored text of the conversation input budget cap ("auto", "unlimited" or a decimal token count); null follows the global default. */
+    val contextCap: String? = null,
 )

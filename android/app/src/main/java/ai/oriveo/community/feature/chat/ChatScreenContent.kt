@@ -103,11 +103,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -148,6 +150,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
+import ai.oriveo.community.core.context.ContextCompactionMode
+import ai.oriveo.community.core.context.PendingContextCapConfirmation
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Attachment
@@ -230,7 +234,8 @@ internal fun ChatScreenContent(
     initialConversationId: String? = null,
     searchQuery: String? = null,
     onBack: () -> Unit,
-    onNavigateToMemory: () -> Unit = {},
+    /** Non-null editItemId: "this is wrong" edits that memory item directly. */
+    onNavigateToMemory: (editItemId: String?) -> Unit = {},
     onNavigateToProviderSetup: () -> Unit = {},
 
     onNavigateToProviderDetail: (providerId: String) -> Unit = {},
@@ -261,8 +266,7 @@ internal fun ChatScreenContent(
     val isLoadingAbove by viewModel.isLoadingAbove.collectAsStateWithLifecycle()
     val isInitialLoading by viewModel.isInitialLoading.collectAsStateWithLifecycle()
     val showMemoryIndicator by viewModel.showMemoryIndicator.collectAsStateWithLifecycle()
-    val currentMemoryText by viewModel.currentMemoryText.collectAsStateWithLifecycle()
-
+    val currentMemoryItems by viewModel.currentMemoryItems.collectAsStateWithLifecycle()
     val colors = OriveoTheme.colors
     val markdownColors = MarkdownTheme.colors()
     val screenH = OriveoTheme.layout.screenH
@@ -293,6 +297,20 @@ internal fun ChatScreenContent(
     // [ChatComposerHost].
     val savedNoteLinksByMessage by viewModel.noteCoordinator.savedNoteLinksByMessage.collectAsStateWithLifecycle()
     val canReplaceCurrentNote by viewModel.noteCoordinator.canReplaceCurrentNote.collectAsStateWithLifecycle()
+    // Transcript separator; tapping it opens the read-only detail sheet.
+    val compactionSeparator by remember(viewModel) {
+        viewModel.compaction?.separator ?: MutableStateFlow<TranscriptCompactionSeparator?>(null)
+    }.collectAsStateWithLifecycle()
+    var showCompactionDetail by remember { mutableStateOf(false) }
+    // Chat settings sheet; draft instructions live in the VM until the conversation row exists.
+    var showConversationSettings by remember { mutableStateOf(false) }
+    // Context panel, opened from the composer ring and the settings usage row.
+    var showContextUsagePanel by remember { mutableStateOf(false) }
+    val pendingDraftInstructions by viewModel.pendingDraftInstructions.collectAsStateWithLifecycle()
+    val currentInstructions = if (conversation != null) conversation.instructions else pendingDraftInstructions
+    val onCompactionSeparatorClick = remember { { showCompactionDetail = true } }
+    val directiveSuggestion by viewModel.directiveSuggestion.collectAsStateWithLifecycle()
+    val memorySuggestion by viewModel.memorySuggestions.current.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val latestMessageCount by rememberUpdatedState(messages.size)
@@ -360,6 +378,20 @@ internal fun ChatScreenContent(
         }
     }
     val onCrosscheckMessage = remember(viewModel) { { message: ChatMessage -> viewModel.noteCoordinator.openCrosscheck(message.id) } }
+    val onAcceptDirectiveSuggestion = remember(viewModel) { viewModel::acceptDirectiveSuggestion }
+    val onIgnoreDirectiveSuggestion = remember(viewModel) { viewModel::ignoreDirectiveSuggestion }
+    // Bar actions act on the bar's own conversation.
+    val memorySuggestions = viewModel.memorySuggestions
+    val memoryBarConversationId = memorySuggestion?.conversationId
+    val onIgnoreMemorySuggestion = remember(memorySuggestions, memoryBarConversationId) {
+        { memoryBarConversationId?.let(memorySuggestions::ignore); Unit }
+    }
+    val onEditMemorySuggestion = remember(memorySuggestions, memoryBarConversationId) {
+        { memoryBarConversationId?.let(memorySuggestions::edit); Unit }
+    }
+    val onSaveMemorySuggestion = remember(memorySuggestions, memoryBarConversationId) {
+        { memoryBarConversationId?.let(memorySuggestions::save); Unit }
+    }
     val globalSnackbarManager: ai.oriveo.community.core.app.GlobalSnackbarManager = org.koin.compose.koinInject()
     val onAskSelection = remember(viewModel, globalSnackbarManager) {
         { message: ChatMessage, selection: QuoteSelectionContent ->
@@ -409,6 +441,9 @@ internal fun ChatScreenContent(
     var showMoreMenu by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showMemorySheet by remember { mutableStateOf(false) }
+    // The memoryItemIds of the answer the "memory used" sheet is showing; null = closed
+    var memoryUsedIds by remember { mutableStateOf<List<String>?>(null) }
+    val openMemoryUsed: (List<String>) -> Unit = remember { { ids -> memoryUsedIds = ids } }
     var hasLoadedConversation by remember { mutableStateOf(false) }
 
     ChatMissingConversationExitEffect(
@@ -460,6 +495,11 @@ internal fun ChatScreenContent(
     // Read aloud: stop when switching conversations, when a new reply starts generating, or when leaving the chat screen
     ReadAloudChatEffect(conversationId = conversationId, streamingMessageId = streamingMessageId)
 
+    // Entering / switching a conversation: reset the follow state and scroll to the bottom precisely.
+    // Entering a conversation that is streaming also takes this path (no top pin is triggered); after the scroll
+    // following=true is set, and for a streaming conversation streamingMode suppresses follow, so the view stays still at the bottom (it does not follow the stream down).
+    // Only "opening an existing conversation" (conversationId == the initialConversationId passed in by the route) scrolls to the bottom;
+    // a first send in a new conversation (conversationId created by the send, != initialConversationId) does not grab it, and the top-pin effect takes over.
     ChatInitialScrollToBottomEffect(
         conversationId = conversationId,
         initialConversationId = initialConversationId,
@@ -596,12 +636,8 @@ internal fun ChatScreenContent(
                 onDeleteConversation = { showDeleteConfirmation = true },
                 showMemoryIndicator = showMemoryIndicator,
                 onOpenMemoryIndicator = { showMemorySheet = true },
-                showMemoryToggle = conversation != null && currentMemoryText.isNotBlank(),
-                memoryEnabledForConversation = conversation?.useMemory ?: true,
-                onToggleUseMemory = {
-                    viewModel.toggleUseMemory()
-                    showMoreMenu = false
-                },
+                onOpenConversationSettings = { showConversationSettings = true },
+                showInstructionsBadge = currentInstructions.isNotEmpty(),
                 hasMessages = messages.isNotEmpty(),
                 transparentChrome = messagesEmpty,
                 hazeState = hazeState,
@@ -689,6 +725,7 @@ internal fun ChatScreenContent(
                     androidx.compose.runtime.CompositionLocalProvider(
                         ai.oriveo.community.feature.chat.mcp.LocalMcpToolStepsHost provides mcpToolStepsHost,
                         ai.oriveo.community.feature.chat.components.LocalRelayAvatarProviders provides providersById,
+                        LocalMemoryUsedOpener provides openMemoryUsed,
                     ) {
                     ChatMessagesList(
                         messages = messages,
@@ -733,6 +770,15 @@ internal fun ChatScreenContent(
                         highlightedMessageId = noteFocusHighlightId,
                         coroutineScope = coroutineScope,
                         latestMessageCount = latestMessageCount,
+                        separator = compactionSeparator,
+                        onSeparatorClick = onCompactionSeparatorClick,
+                        directiveSuggestion = directiveSuggestion,
+                        onAcceptDirectiveSuggestion = onAcceptDirectiveSuggestion,
+                        onIgnoreDirectiveSuggestion = onIgnoreDirectiveSuggestion,
+                        memorySuggestion = memorySuggestion,
+                        onIgnoreMemorySuggestion = onIgnoreMemorySuggestion,
+                        onEditMemorySuggestion = onEditMemorySuggestion,
+                        onSaveMemorySuggestion = onSaveMemorySuggestion,
                     )
                     }
                 }
@@ -761,9 +807,22 @@ internal fun ChatScreenContent(
             onNavigateToConnectionWebSearch = onNavigateToConnectionWebSearch,
             onNavigateToRelayModelAdvanced = onNavigateToRelayModelAdvanced,
             onNavigateToSkillEdit = onNavigateToSkillEdit,
+            onOpenContextUsage = { showContextUsagePanel = true },
             modifier = Modifier.align(Alignment.BottomCenter),
         )
         }
+    }
+
+    // Pre-send confirmation of the shown conversation only; other conversations keep waiting.
+    val pendingContextConfirm by remember(viewModel) {
+        viewModel.compaction?.pendingConfirm ?: MutableStateFlow<PendingContextCapConfirmation?>(null)
+    }.collectAsStateWithLifecycle()
+    pendingContextConfirm?.let { pending ->
+        ContextCapConfirmDialog(
+            pending = pending,
+            onSend = { dontAsk -> viewModel.compaction?.confirmContextCap(pending.id, dontAsk) },
+            onCancel = { viewModel.compaction?.cancelContextCap(pending.id) },
+        )
     }
 
     switchKeyMessage?.let { message ->
@@ -823,6 +882,119 @@ internal fun ChatScreenContent(
             sourceProvider = sourceProvider,
         )
     }
+
+    if (showConversationSettings) {
+        // The carry-over source is resolved once per opening; null hides the shortcut.
+        val carryOver by produceState<String?>(null, currentInstructions) {
+            value = viewModel.conversationInstructionsCarryOver(currentInstructions)
+        }
+        ConversationSettingsSheet(
+            initialInstructions = currentInstructions,
+            carryOverInstructions = carryOver,
+            showMemoryToggle = ConversationSettings.memoryToggleVisible(conversation?.id, currentMemoryItems),
+            memoryEnabled = conversation?.useMemory ?: true,
+            onToggleUseMemory = { viewModel.toggleUseMemory() },
+            // Only a saved conversation has usage; the sheet closes itself before this runs.
+            onOpenUsage = conversation?.id?.let { { showContextUsagePanel = true } },
+            usageValue = if (conversation?.id != null) {
+                val usage by viewModel.contextUsage.collectAsStateWithLifecycle()
+                ContextUsagePanel.settingsValue(usage).text()
+            } else {
+                null
+            },
+            onClose = { opened, edited ->
+                viewModel.saveConversationInstructions(opened, edited)
+                showConversationSettings = false
+            },
+        )
+    }
+
+    if (showContextUsagePanel && conversationId != null) {
+        val usage by viewModel.contextUsage.collectAsStateWithLifecycle()
+        val panelCompaction = viewModel.compaction
+        val panelRunning by remember(panelCompaction) {
+            panelCompaction?.actionRunning ?: MutableStateFlow(false)
+        }.collectAsStateWithLifecycle()
+        val panelAiCompacting by remember(panelCompaction) {
+            panelCompaction?.aiCompactingHere ?: MutableStateFlow(false)
+        }.collectAsStateWithLifecycle()
+        // The breaker lives in memory without a flow; re-read it whenever usage, running state or a retry changes.
+        var breakerRetries by remember { mutableIntStateOf(0) }
+        val breakerMode = remember(panelCompaction, usage, panelRunning, breakerRetries) {
+            panelCompaction?.breakerModeHere() ?: ContextCompactionMode.LLM
+        }
+        val panelQuoteLabel = stringResource(R.string.context_compaction_quote_label)
+        val capViewModel: ContextCapViewModel = org.koin.androidx.compose.koinViewModel(
+            key = "context-cap-$conversationId",
+            parameters = { org.koin.core.parameter.parametersOf(conversationId) },
+        )
+        val capInputs by capViewModel.inputs.collectAsStateWithLifecycle()
+        ContextUsagePanelSheet(
+            summary = usage,
+            buttons = ContextUsagePanel.buttons(
+                summary = usage,
+                breakerMode = breakerMode,
+                compacting = panelRunning || panelAiCompacting,
+                sending = streamingMessageId != null,
+            ),
+            actions = ContextUsagePanelActions(
+                onCompact = { panelCompaction?.launchManualCompact() },
+                onClear = { panelCompaction?.launchClear() },
+                onNewChatWithSummary = {
+                    panelCompaction?.startNewChatWithSummary(panelQuoteLabel)
+                    showContextUsagePanel = false
+                },
+                onRetry = {
+                    panelCompaction?.retryBreakerHere()
+                    breakerRetries++
+                },
+            ),
+            onDismiss = { showContextUsagePanel = false },
+            cap = capInputs,
+            capActions = remember(capViewModel) {
+                ContextCapPickerActions(
+                    onSelect = capViewModel::select,
+                    onSelectCustom = capViewModel::selectCustom,
+                    onReleaseSlider = capViewModel::releaseSlider,
+                    onCommit = capViewModel::commitCustom,
+                )
+            },
+        )
+    }
+
+    // Detail sheet of the separator; actions close it, results come back as toasts.
+    ContextCompactionToastEffect(viewModel.compaction)
+    val compactionDetail = compactionSeparator?.detail
+    val compactionActions = viewModel.compaction
+    if (showCompactionDetail && compactionDetail != null && compactionActions != null) {
+        val quoteLabel = stringResource(R.string.context_compaction_quote_label)
+        val compactionRunning by compactionActions.actionRunning.collectAsStateWithLifecycle()
+        // An AI summary already running for this conversation also disables "condense again".
+        val aiCompactingHere by compactionActions.aiCompactingHere.collectAsStateWithLifecycle()
+        ContextCompactionDetailSheet(
+            detail = compactionDetail,
+            actions = remember(compactionActions, quoteLabel) {
+                compactionActions.detailActions(quoteLabel) { showCompactionDetail = false }
+            },
+            recompactEnabled = !compactionRunning && !aiCompactingHere,
+            onDismiss = { showCompactionDetail = false },
+        )
+    }
+
+    // The memory item editor in its new state, held by the chat side.
+    val memorySuggestionEditor by memorySuggestions.editor.collectAsStateWithLifecycle()
+    memorySuggestionEditor?.let { editing ->
+        ai.oriveo.community.feature.settings.MemoryItemEditorSheet(
+            state = editing.state,
+            onGroupChange = memorySuggestions::updateEditorGroup,
+            onTextChange = memorySuggestions::updateEditorText,
+            onSave = memorySuggestions::saveEditor,
+            onDismiss = memorySuggestions::dismissEditor,
+        )
+    }
+
+    // The haptic for a finished generation moved to the cell layer (MarkdownMessageView.onRenderSettled in MessageBubble.AssistantMessage),
+    // tied to "the screen has actually finished rendering" rather than the backend transport finishing (isGenerating), so it neither fires before a deferred finish has flushed nor suggests rendering is done too early.
 
     // Model Switcher Bottom Sheet
     if (viewModel.showModelSwitcher) {
@@ -885,13 +1057,24 @@ internal fun ChatScreenContent(
         )
     }
 
-    if (showMemorySheet && currentMemoryText.isNotBlank()) {
+    memoryUsedIds?.let { ids ->
+        MemoryUsedSheet(
+            rows = MemoryUsed.rows(ids, currentMemoryItems),
+            onDismiss = { memoryUsedIds = null },
+            onFix = { itemId ->
+                memoryUsedIds = null
+                onNavigateToMemory(itemId)
+            },
+        )
+    }
+
+    if (showMemorySheet && MemoryUsed.hasActiveSemantic(currentMemoryItems)) {
         MemoryIndicatorSheet(
-            memoryText = currentMemoryText,
+            memoryText = MemoryUsed.indicatorPreview(currentMemoryItems),
             onDismiss = { showMemorySheet = false },
             onViewEdit = {
                 showMemorySheet = false
-                onNavigateToMemory()
+                onNavigateToMemory(null)
             },
             onDisableForConversation = conversation?.let {
                 {

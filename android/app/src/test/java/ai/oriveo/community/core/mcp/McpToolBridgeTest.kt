@@ -3,6 +3,7 @@ package ai.oriveo.community.core.mcp
 import androidx.room.Room
 import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
 import ai.oriveo.community.core.data.database.OriveoDatabase
+import ai.oriveo.community.core.data.repository.TransportInput
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.CapabilityEvidenceIdentity
 import ai.oriveo.community.core.model.ChatMessage
@@ -204,7 +205,19 @@ class McpToolBridgeTest {
         executor: McpToolExecutor = executor(),
         config: McpRuntimeConfig = McpRuntimeConfig.fallback,
     ): ToolCallLoop.Result = McpChatToolRunner.makeLoop(plan, executor, legs, config) { calls -> unhandled += calls.map { it.function.name } }
-        .run(McpToolBridge.initialMessages(listOf(ToolLoopMessage("user", "Weather in Melbourne?")), "Be brief."))
+        .run(
+            TransportInput(messages = emptyList(), options = ChatRequestOptions(systemPrompt = "Be brief."))
+                .toolLoopMessages(listOf(ToolLoopMessage("user", "Weather in Melbourne?"))),
+        )
+
+    @Test
+    fun `toolLoopMessages puts the plan system first and sends none when blank`() {
+        val history = listOf(ToolLoopMessage("user", "Hi"))
+        val withSystem = TransportInput(messages = emptyList(), options = ChatRequestOptions(systemPrompt = "Be brief."))
+            .toolLoopMessages(history)
+        assertEquals(listOf(ToolLoopMessage("system", "Be brief.")) + history, withSystem)
+        assertEquals(history, TransportInput(messages = emptyList(), options = ChatRequestOptions()).toolLoopMessages(history))
+    }
 
     /** Tool results fed back to the model after leg n (taken from the history the loop hands to the next leg). */
     private fun toolResults(legs: ScriptedLegs, legIndex: Int): List<String> =
@@ -313,8 +326,12 @@ class McpToolBridgeTest {
 
             val result = runner.run(
                 conversationId = CONV_A, provider = relay(transport), model = relayModel, modelId = "model",
-                messages = listOf(userMessage("Weather in Melbourne?")), systemPrompt = "Be brief.",
-                reasoningMode = ReasoningMode.Automatic, requestOptions = relayOptions, plan = plan,
+                // Production builds a single system message (user system prompt + tool safety section); run keeps it at position 0 as is.
+                transport = TransportInput(
+                    messages = listOf(userMessage("Weather in Melbourne?")),
+                    options = relayOptions.copy(systemPrompt = "Be brief.\n\n" + McpSafetyPrompt.TEXT),
+                ),
+                reasoningMode = ReasoningMode.Automatic, plan = plan,
                 onStep = { steps += it },
                 onUnhandledToolCalls = { calls -> unhandled += calls.map { it.function.name } },
             )
@@ -364,8 +381,8 @@ class McpToolBridgeTest {
         val bodies = Collections.synchronizedList(mutableListOf<String>())
         chatRunner(listOf(modelTextLeg(RelayTransport.OpenAIChatCompletions, "Hi.")), bodies).run(
             conversationId = CONV_A, provider = relay(RelayTransport.OpenAIChatCompletions), model = relayModel, modelId = "model",
-            messages = listOf(userMessage("Hi")), systemPrompt = null, reasoningMode = ReasoningMode.Automatic,
-            requestOptions = relayOptions, plan = plan,
+            transport = TransportInput(messages = listOf(userMessage("Hi")), options = relayOptions),
+            reasoningMode = ReasoningMode.Automatic, plan = plan,
         )
         val body = json.parseToJsonElement(bodies.single())
         val toolNames = body["tools"].jsonArrayOrNull.orEmpty().map { it["function"]["name"].stringOrNull }

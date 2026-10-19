@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.context.StopFamily
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
@@ -233,7 +234,8 @@ class MiniMaxService(client: HttpClient, json: Json) : OpenAICompatibleService(
         }.getOrNull() ?: return null
         var body = buildJsonObject {
             put("model", modelID)
-            put("max_tokens", requestOptions.maxTokens ?: resolved?.maxOutputTokens ?: 8192)
+            // Main chat path base value = plan.budget.oWire; non-chat paths keep metadata, then 8192.
+            put("max_tokens", requestOptions.maxTokens ?: requestOptions.outputTokenBudget ?: resolved?.maxOutputTokens ?: 8192)
             requestOptions.temperature?.let { put("temperature", it) }
             put("stream", stream)
             put("messages", messageArray)
@@ -302,7 +304,7 @@ class MiniMaxService(client: HttpClient, json: Json) : OpenAICompatibleService(
             val partialInputs = mutableMapOf<Int, StringBuilder>()
             var replayStateValid = true
             val toolParser = NativeToolCallParser(NativeToolProtocol.AnthropicMessages)
-            SseParser.parseAnthropicStreamMulti(response, json, onEvent = { eventType, data ->
+            SseParser.parseAnthropicStreamMulti(response, json, stopFamily = StopFamily.ANTHROPIC, onEvent = { eventType, data ->
                 val events = mutableListOf<StreamEvent>()
                 val root = runCatching { json.parseToJsonElement(data).jsonObject }.getOrNull()
                 if (root != null) {
@@ -378,7 +380,8 @@ class MiniMaxService(client: HttpClient, json: Json) : OpenAICompatibleService(
         val raw = response.bodyAsText()
         val root = json.parseToJsonElement(raw).jsonObject
         val content = root["content"] as? JsonArray ?: JsonArray(emptyList())
-        val text = content.mapNotNull { ((it as? JsonObject)?.get("text") as? JsonPrimitive)?.contentOrNull }.joinToString("").trim()
+        val rawText = content.mapNotNull { ((it as? JsonObject)?.get("text") as? JsonPrimitive)?.contentOrNull }.joinToString("")
+        val text = rawText.trim()
         val reasoning = content.mapNotNull { ((it as? JsonObject)?.get("thinking") as? JsonPrimitive)?.contentOrNull }.joinToString("").trim()
         val citations = ai.oriveo.community.core.provider.transport.AnthropicMessagesStrategy(json).parseCitations(
             raw, ai.oriveo.community.core.provider.transport.StreamShape(citationSnippetField = "content"),
@@ -390,6 +393,7 @@ class MiniMaxService(client: HttpClient, json: Json) : OpenAICompatibleService(
         val (cost, source) = CostCalculator.calcCost(breakdown, MetadataClient.resolveCatalogModel(modelID, ProviderKind.MiniMax))
         return StreamEvent.Done(ProviderChatResult(
             text = text,
+            rawText = rawText,
             promptTokens = promptTokens,
             completionTokens = completionTokens,
             estimatedCost = cost,

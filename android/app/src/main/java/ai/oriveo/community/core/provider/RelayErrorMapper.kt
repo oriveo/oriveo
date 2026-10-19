@@ -319,6 +319,7 @@ object RelayErrorMapper {
                 it.relayKeyAccess = keyAccess
                 it.relayBodyNamesThinking = namesThinking
                 it.relayBodyNamesRouteRejection = namesRouteRejection
+                with(SseParser) { it.withHttpFacts(status, body) }
             }
         }
         val detail = extractDetail(body, credentials).ifBlank { "HTTP $status" }
@@ -338,6 +339,7 @@ object RelayErrorMapper {
             it.relayKeyAccess = keyAccess
             it.relayBodyNamesThinking = namesThinking
             it.relayBodyNamesRouteRejection = namesRouteRejection
+            with(SseParser) { it.withHttpFacts(status, body) }
         }
     }
 

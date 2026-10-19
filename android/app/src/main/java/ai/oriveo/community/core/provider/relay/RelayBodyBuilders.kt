@@ -19,6 +19,7 @@ import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
 import ai.oriveo.community.core.provider.MessageBuilder
 import ai.oriveo.community.core.provider.RelayRuntimeSupport
 import ai.oriveo.community.core.provider.allowsTemperature
+import ai.oriveo.community.core.provider.applyClientTools
 import ai.oriveo.community.core.provider.escapeJsonString
 import ai.oriveo.community.core.tools.ToolLoopToolDefinition
 import ai.oriveo.community.core.tools.ToolWireProtocol
@@ -134,6 +135,7 @@ internal fun buildResponsesBody(
         resolved,
         capabilityProjection,
     ).let { RelayWebFragments.applyTo(it, RelayTransport.OpenAIResponses, requestOptions) }
+        .let { applyClientTools(it, ToolWireProtocol.OpenAIResponses, requestOptions) }
         .let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
         .let { body ->
             // Last step: a same-named key already written by the user's custom parameters is not overwritten.
@@ -198,6 +200,7 @@ internal fun buildOpenAIChatBody(
         resolved,
         capabilityProjection,
     ).let { RelayWebFragments.applyTo(it, RelayTransport.OpenAIChatCompletions, requestOptions) }
+        .let { applyClientTools(it, ToolWireProtocol.OpenAIChat, requestOptions) }
         .let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
 }
 
@@ -294,21 +297,23 @@ internal fun buildAnthropicBody(
     val maxTokens = if (buildExtras.maxOutputTokens != null) {
         MessageBuilder.maxTokensJson(buildExtras.maxOutputTokens, key = "max_tokens")!!
     } else if (permitsGeneration(capabilityProjection, "max_tokens", "max_output_tokens")) {
-        MessageBuilder.maxTokensJson(options.maxTokens, key = "max_tokens") ?: """"max_tokens":8192"""
+        MessageBuilder.maxTokensJson(options.maxTokens ?: options.outputTokenBudget, key = "max_tokens") ?: """"max_tokens":8192"""
     } else {
-        """"max_tokens":8192"""
+        // Main chat path base value = plan.budget.oWire; non-chat paths keep 8192.
+        MessageBuilder.maxTokensJson(options.outputTokenBudget, key = "max_tokens") ?: """"max_tokens":8192"""
     }
     // Resolving the router model on the Anthropic side turns on native PDF handling for this request.
     // Cache breakpoints: the relay sends no top-level cache_control, only one breakpoint on the last
     // content block of the last user message.
     val activeModel = relayRouterModel(modelID, ProviderKind.Anthropic, requestOptions.activeModel)
     return GenerationParameterResolver.apply(
-        """{"model":"$modelID",$maxTokens,"stream":$stream,"messages":[${MessageBuilder.buildAnthropicMessages(messagesForProjection(messages, capabilityProjection, buildExtras), activeModel, relayAttachmentTransport(AttachmentTransportProfile.RelayAnthropicMessages, requestOptions), cacheLastUserBlock = true)}]$extrasJson}""",
+        """{"model":"$modelID",$maxTokens,"stream":$stream,"messages":[${MessageBuilder.buildAnthropicMessages(messagesForProjection(messages, capabilityProjection, buildExtras), activeModel, relayAttachmentTransport(AttachmentTransportProfile.RelayAnthropicMessages, requestOptions), cacheLastUserBlock = true, dynamicText = options.dynamicText)}]$extrasJson}""",
         requestOptions,
         resolved,
         capabilityProjection,
         outboundTemplate = "anthropic_messages",
     ).let { RelayWebFragments.applyTo(it, RelayTransport.AnthropicMessages, requestOptions) }
+        .let { applyClientTools(it, ToolWireProtocol.AnthropicMessages, requestOptions) }
         .let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
 }
 
@@ -357,6 +362,7 @@ internal fun buildGeminiBody(
         resolved,
         capabilityProjection,
     ).let { RelayWebFragments.applyTo(it, RelayTransport.GeminiGenerateContent, requestOptions) }
+        .let { applyClientTools(it, ToolWireProtocol.GeminiGenerate, requestOptions) }
         .let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
 }
 

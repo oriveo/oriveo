@@ -1,5 +1,7 @@
 package ai.oriveo.community.core.provider.relay
 
+import ai.oriveo.community.core.context.StreamFinishTracker
+import ai.oriveo.community.core.context.StopFamily
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.attachments.AttachmentTransportProfile
 import ai.oriveo.community.core.attachments.NativeFileFallback
@@ -1257,7 +1259,8 @@ internal class RelayTransportCoordinator(
 
                     val parsed = decodeRelaySuccessResponse<ChatCompletionResponse>(response)
                     val choice = parsed.choices.firstOrNull() ?: throw ProviderServiceError.EmptyResponse
-                    val text = choice.message.content.trim()
+                    val rawText = choice.message.content
+                    val text = rawText.trim()
                     if (text.isEmpty()) throw ProviderServiceError.EmptyResponse
 
                     val breakdown = openAIChatUsageBreakdown(
@@ -1270,6 +1273,7 @@ internal class RelayTransportCoordinator(
                     result = StreamEvent.Done(
                         ProviderChatResult(
                             text = text,
+                            rawText = rawText,
                             promptTokens = parsed.usage?.prompt_tokens ?: 0,
                             completionTokens = parsed.usage?.completion_tokens ?: 0,
                             estimatedCost = cost,
@@ -1344,6 +1348,7 @@ internal class RelayTransportCoordinator(
                             SseParser.parseOpenAICompatibleMulti(
                                 response = response,
                                 json = json,
+                                stopFamily = StopFamily.OPENAI_CHAT,
                                 onChunk = { payload ->
                                     val events = mutableListOf<StreamEvent>()
                                     runCatching { json.parseToJsonElement(payload).jsonObject }
@@ -1445,7 +1450,7 @@ internal class RelayTransportCoordinator(
             }
             val content = llamaCppContent(response.bodyAsText(), relayCredentialMaterial(response))
             if (content.isBlank()) throw ProviderServiceError.EmptyResponse
-            result = StreamEvent.Done(ProviderChatResult(text = content.trim(), estimatedCost = 0.0))
+            result = StreamEvent.Done(ProviderChatResult(text = content.trim(), estimatedCost = 0.0, rawText = content))
         }
         return result ?: throw ProviderServiceError.EmptyResponse
     }
@@ -1481,19 +1486,26 @@ internal class RelayTransportCoordinator(
                     throw mapRelayHttpError(response, upstreamUrl, request.requestOptions, null)
                 }
                 var accumulated = ""
+                // Only a final chunk with stop:true counts as clean; disconnecting without it = eof_without_marker
+                val finishTracker = StreamFinishTracker(StopFamily.LLAMA_CPP)
                 response.bodyAsChannel().toInputStream().sseLineReader().use { reader ->
                     while (true) {
                         val line = reader.readLine() ?: break
                         val payload = line.removePrefix("data: ").trim()
                         if (payload.isEmpty() || payload == "[DONE]") continue
-                        val delta = llamaCppContent(payload, relayCredentialMaterial(response))
+                        val delta = llamaCppContent(payload, relayCredentialMaterial(response), finishTracker)
                         if (delta.isNotEmpty()) {
                             accumulated += delta
                             emit(StreamEvent.Delta(delta))
                         }
                     }
                 }
-                emit(StreamEvent.Done(ProviderChatResult(text = accumulated.trim(), estimatedCost = 0.0)))
+                emit(
+                    StreamEvent.Done(
+                        ProviderChatResult(text = accumulated.trim(), estimatedCost = 0.0),
+                        finish = finishTracker.finish(),
+                    ),
+                )
             }
         }
     }
@@ -1511,9 +1523,10 @@ internal class RelayTransportCoordinator(
         }
     }
 
-    private fun llamaCppContent(payload: String, credentials: Collection<String>): String {
+    private fun llamaCppContent(payload: String, credentials: Collection<String>, finishTracker: StreamFinishTracker? = null): String {
         val root = runCatching { json.parseToJsonElement(payload).jsonObject }.getOrNull()
             ?: throw ProviderServiceError.Network("Invalid llama.cpp response.")
+        finishTracker?.observe(root)
         root["content"]?.jsonPrimitive?.content?.let { return it }
         root["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content?.let {
             throw ProviderServiceError.Upstream(
@@ -1597,7 +1610,8 @@ internal class RelayTransportCoordinator(
                     }
 
                     val parsed = decodeRelaySuccessResponse<ResponsesResponse>(response)
-                    val text = parsed.resolvedText.trim()
+                    val rawText = parsed.resolvedText
+                    val text = rawText.trim()
                     val attachments = parsed.resolvedAttachments
                     if (text.isEmpty() && attachments.isEmpty()) throw ProviderServiceError.EmptyResponse
 
@@ -1611,6 +1625,7 @@ internal class RelayTransportCoordinator(
                     result = StreamEvent.Done(
                         ProviderChatResult(
                             text = text,
+                            rawText = rawText,
                             promptTokens = parsed.usage?.input_tokens ?: 0,
                             completionTokens = parsed.usage?.output_tokens ?: 0,
                             estimatedCost = cost,
@@ -1742,6 +1757,7 @@ internal class RelayTransportCoordinator(
                             // "incomplete trailing line" the SSE spec describes — the upstream was
                             // cut while writing it.
                             var lastChunkDropped = false
+                            val finishTracker = StreamFinishTracker(StopFamily.OPENAI_RESPONSES)
                             val toolCallParser = NativeToolCallParser(NativeToolProtocol.OpenAIResponses)
 
                             response.bodyAsChannel()
@@ -1758,6 +1774,7 @@ internal class RelayTransportCoordinator(
                                                     currentEvent = ""
                                                     continue
                                                 }
+                                                finishTracker.observePayload(payload, json, currentEvent)
 
                                                 // Citation parsing: annotations can hide in several
                                                 // different Responses events, so the url_citation
@@ -1813,7 +1830,8 @@ internal class RelayTransportCoordinator(
                                                                 emit(buildImageEvent(item.result))
                                                             }
                                                         }
-                                                        "response.completed" -> {
+                                                        // response.incomplete (e.g. max_output_tokens) also carries the final usage
+                                                        "response.completed", "response.incomplete" -> {
                                                             lastUsage = json.decodeFromString<ResponsesStreamCompleted>(payload).resolvedUsage
                                                         }
                                                         "response.failed", "error" -> {
@@ -1834,7 +1852,15 @@ internal class RelayTransportCoordinator(
                                                                     relayCredentialMaterial(response),
                                                                 ),
                                                                 streamErrorFrame = true,
-                                                            )
+                                                                streamFinish = if (currentEvent == "response.failed") {
+                                                                    StreamFinishTracker.responsesFailedFinish(
+                                                                        runCatching { json.parseToJsonElement(payload).jsonObject }.getOrNull(),
+                                                                        currentEvent,
+                                                                    )
+                                                                } else {
+                                                                    null
+                                                                },
+                                                            ).also { it.telemetryUpstreamErrorType = SseParser.upstreamErrorTypeOf(payload) }
                                                         }
                                                     }
                                                 }
@@ -1875,6 +1901,7 @@ internal class RelayTransportCoordinator(
                                         cachedInputTokens = breakdown.reportedCachedInputTokens,
                                         costSource = source.name,
                                     ),
+                                    finish = finishTracker.finish(),
                                 ),
                             )
                         }
@@ -1998,7 +2025,8 @@ internal class RelayTransportCoordinator(
                 }
 
                 val parsed = decodeRelaySuccessResponse<AnthropicResponse>(response)
-                val text = parsed.resolvedText.trim()
+                val rawText = parsed.resolvedText
+                val text = rawText.trim()
                 if (text.isEmpty()) throw ProviderServiceError.EmptyResponse
 
                 val breakdown = anthropicUsageBreakdown(
@@ -2016,6 +2044,7 @@ internal class RelayTransportCoordinator(
                 result = StreamEvent.Done(
                     ProviderChatResult(
                         text = text,
+                        rawText = rawText,
                         promptTokens = totalPrompt,
                         completionTokens = breakdown.completionTokens,
                         estimatedCost = cost,
@@ -2092,6 +2121,7 @@ internal class RelayTransportCoordinator(
                 SseParser.parseAnthropicStreamMulti(
                     response = response,
                     json = json,
+                    stopFamily = StopFamily.ANTHROPIC,
                     onEvent = { eventType, data ->
                         val events = mutableListOf<StreamEvent>()
                         runCatching { json.parseToJsonElement(data).jsonObject }
@@ -2185,11 +2215,14 @@ internal class RelayTransportCoordinator(
      * trigger a retry.
      */
     private fun throwIfGeminiBlocked(parsed: GenerateResponse) {
+        // promptFeedback.blockReason only appears when the prompt was blocked: any non-empty value blocks (including future new values)
         val blockReason = parsed.promptFeedback?.blockReason
-        if (blockReason != null && blockReason in GEMINI_BLOCKED_REASONS) {
+        if (!blockReason.isNullOrBlank()) {
             throw ProviderServiceError.Upstream(
                 statusCode = 200,
                 detail = "Gemini blocked the prompt: $blockReason",
+                streamFinish = StreamFinishTracker.geminiPromptBlockedFinish(blockReason),
+                inBandFailure = ai.oriveo.community.core.model.UpstreamInBandFailure.ContentFiltered,
             )
         }
         val finishReason = parsed.candidates?.firstOrNull()?.finishReason
@@ -2197,6 +2230,8 @@ internal class RelayTransportCoordinator(
             throw ProviderServiceError.Upstream(
                 statusCode = 200,
                 detail = "Gemini stopped generation: $finishReason",
+                streamFinish = StreamFinishTracker.geminiBlockedFinish(finishReason),
+                inBandFailure = ai.oriveo.community.core.model.UpstreamInBandFailure.ContentFiltered,
             )
         }
     }
@@ -2246,7 +2281,8 @@ internal class RelayTransportCoordinator(
                 val parsed = decodeRelaySuccessResponse<GenerateResponse>(response)
                 throwIfGeminiBlocked(parsed)
                 val parts = parsed.candidates?.firstOrNull()?.content?.parts.orEmpty()
-                val text = parts.mapNotNull { it.text }.joinToString("").trim()
+                val rawText = parts.mapNotNull { it.text }.joinToString("")
+                val text = rawText.trim()
                 val attachments = parts.mapNotNull { part ->
                     part.inlineData?.takeIf { it.mimeType.startsWith("image/") }?.let { inline ->
                         Attachment(
@@ -2270,6 +2306,7 @@ internal class RelayTransportCoordinator(
                 result = StreamEvent.Done(
                     ProviderChatResult(
                         text = text,
+                        rawText = rawText,
                         promptTokens = parsed.usageMetadata?.promptTokenCount ?: 0,
                         completionTokens = breakdown.completionTokens,  // candidates + thoughts
                         estimatedCost = cost,
@@ -2341,6 +2378,7 @@ internal class RelayTransportCoordinator(
                 SseParser.parseGeminiStreamMulti(
                     response = response,
                     json = json,
+                    stopFamily = StopFamily.GEMINI,
                     onChunk = { payload ->
                         val events = mutableListOf<StreamEvent>()
                         runCatching { json.parseToJsonElement(payload).jsonObject }

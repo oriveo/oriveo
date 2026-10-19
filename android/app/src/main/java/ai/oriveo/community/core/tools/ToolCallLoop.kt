@@ -170,6 +170,8 @@ class ToolCallLoop(
         /** Whether structured tool_calls were ever seen (the basis for remembering that native tools work). */
         val receivedStructuredToolCalls: Boolean,
         val executedToolSteps: Int,
+        /** The stream finish info of the last leg (the one that delivers the answer); null when the leg executor did not provide it. */
+        val finish: ai.oriveo.community.core.context.StreamFinish? = null,
     )
 
     suspend fun run(
@@ -209,6 +211,7 @@ class ToolCallLoop(
                     stepLimitReached = false,
                     receivedStructuredToolCalls = receivedStructuredToolCalls,
                     executedToolSteps = executedToolSteps,
+                    finish = leg.finish,
                 )
             }
             receivedStructuredToolCalls = true
@@ -226,6 +229,7 @@ class ToolCallLoop(
                     stepLimitReached = false,
                     receivedStructuredToolCalls = true,
                     executedToolSteps = executedToolSteps,
+                    finish = leg.finish,
                 )
             }
             onProgress(ProgressEvent.ToolCallsAccepted(accepted))
@@ -389,6 +393,7 @@ class ToolCallLoop(
             stepLimitReached = stepLimitReached,
             receivedStructuredToolCalls = receivedStructuredToolCalls,
             executedToolSteps = executedToolSteps,
+            finish = finalLeg.finish,
         )
     }
 
@@ -401,6 +406,7 @@ class ToolCallLoop(
         val toolCalls: List<ToolLoopToolCall>,
         val usage: ToolLoopUsage?,
         val providerContinuation: JsonObject?,
+        val finish: ai.oriveo.community.core.context.StreamFinish? = null,
     )
 
     /**
@@ -437,6 +443,7 @@ class ToolCallLoop(
         var reasoning = ""
         var usage: ToolLoopUsage? = null
         var providerContinuation: JsonObject? = null
+        var finish: ai.oriveo.community.core.context.StreamFinish? = null
         val accumulated = LinkedHashMap<Int, ToolLoopToolCallDelta>()
         try {
             legRunner.run(request).collect { event ->
@@ -453,6 +460,7 @@ class ToolCallLoop(
                     }
                     is ToolLoopLegEvent.ToolCallDeltas -> mergeToolCallDeltas(accumulated, event.deltas)
                     is ToolLoopLegEvent.Usage -> usage = event.usage
+                    is ToolLoopLegEvent.Finish -> finish = event.finish
                     is ToolLoopLegEvent.ProviderContinuation -> {
                         providerContinuation = buildJsonObject {
                             put("protocol", event.protocol)
@@ -471,6 +479,7 @@ class ToolCallLoop(
             toolCalls = finalizeToolCalls(accumulated, legIndex, fallbackCallIdPrefix),
             usage = usage,
             providerContinuation = providerContinuation,
+            finish = finish,
         )
     }
 

@@ -5,7 +5,6 @@ import ai.oriveo.community.core.tools.ToolCallRejection
 import ai.oriveo.community.core.tools.ToolExecutionContext
 import ai.oriveo.community.core.tools.ToolExecutionOutcome
 import ai.oriveo.community.core.tools.ToolFailureDisposition
-import ai.oriveo.community.core.tools.ToolLoopMessage
 import ai.oriveo.community.core.tools.ToolLoopToolCall
 import ai.oriveo.community.core.tools.ToolLoopToolDefinition
 import ai.oriveo.community.core.tools.ToolLoopToolFunction
@@ -252,16 +251,6 @@ object McpToolBridge {
     /** Registry entries (registration order = the order sent to the model). */
     fun entries(plan: McpToolPlan, executor: McpToolExecutor): List<ToolRegistryEntry> =
         plan.tools.map { McpToolEntry(it, executor) }
-
-    /** Messages of the first leg: the system prompt (the user's + the safety notice) comes first, followed by the conversation history. */
-    fun initialMessages(history: List<ToolLoopMessage>, systemPrompt: String?): List<ToolLoopMessage> =
-        listOf(ToolLoopMessage("system", systemPrompt(systemPrompt))) + history
-
-    /** Fixed text appended to the system prompt when MCP tools are enabled (fixture `safety-prompt.txt`). */
-    fun systemPrompt(appendingTo: String?): String {
-        val trimmed = appendingTo.orEmpty().trim()
-        return if (trimmed.isEmpty()) McpSafetyPrompt.TEXT else trimmed + "\n\n" + McpSafetyPrompt.TEXT
-    }
 
     /**
      * Loop limits when MCP tools are attached. The consecutive-failure circuit breaker is turned off: an error

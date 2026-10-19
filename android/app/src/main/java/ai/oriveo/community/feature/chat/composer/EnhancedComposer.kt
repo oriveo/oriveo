@@ -208,6 +208,8 @@ internal fun EnhancedComposer(
     onProcessFileUri: (android.net.Uri) -> Unit,
     onSendClick: () -> Unit,
     onStopGeneration: () -> Unit,
+    /** Composer gained focus (starts background pre-compaction). */
+    onComposerFocused: () -> Unit = {},
     providerKind: ProviderKind?,
     onNavigateToProviderSetup: () -> Unit,
 
@@ -232,6 +234,9 @@ internal fun EnhancedComposer(
     onDismissRelatedNote: (ai.oriveo.community.core.model.Note) -> Unit = {},
     onDetachNote: (ai.oriveo.community.core.model.Note) -> Unit = {},
     onPreviewNote: (ai.oriveo.community.core.model.Note) -> Unit = {},
+    /** Usage summary of the shown conversation; the ring shows only for percent display. */
+    contextUsage: ai.oriveo.community.feature.chat.ContextUsageSummary? = null,
+    onOpenContextUsage: () -> Unit = {},
 ) {
     val colors = OriveoTheme.colors
     val isDarkTheme = OriveoTheme.isDark
@@ -839,9 +844,14 @@ internal fun EnhancedComposer(
                         .fillMaxWidth()
                         .offset(y = 4.dp),
                 ) {
+                    // Chips scroll; the usage ring stays pinned at the trailing end.
+                    Row(
+                        modifier = Modifier.widthIn(max = maxWidth).fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                     Row(
                         modifier = Modifier
-                            .widthIn(max = maxWidth)
+                            .weight(1f)
                             .wrapContentWidth(Alignment.Start)
                             .horizontalScroll(rememberScrollState())
                             .padding(horizontal = 2.dp, vertical = 2.dp),
@@ -866,9 +876,9 @@ internal fun EnhancedComposer(
                             },
                         )
 
-                        // The entry to remote MCP tools. Shown even without any server: tapping it then
-                        // leads to "add an MCP server". It can be opened while an answer is running,
-                        // because the switches only affect the next send, not the run in progress.
+                        // The entry to remote MCP tools. The caller hides it until at least one server is added; the
+                        // discovery entry lives in Settings > MCP. It can be opened while an answer is running, because the
+                        // switches only affect the next send, not the run in progress.
                         if (mcpEntryVisible) {
                             val mcpOn = mcpToolsAvailable && mcpEnabledServerCount > 0
                             ComposerControlChip(
@@ -891,6 +901,12 @@ internal fun EnhancedComposer(
                                 },
                             )
                         }
+                    }
+                    ai.oriveo.community.feature.chat.ContextUsageRing(
+                        summary = contextUsage,
+                        onClick = onOpenContextUsage,
+                        modifier = Modifier.padding(start = 4.dp, end = 2.dp),
+                    )
                     }
                 }
             }
@@ -1109,7 +1125,10 @@ internal fun EnhancedComposer(
                                 else -> R.string.type_a_message
                             },
                             focusRequester = composerFocusRequester,
-                            onFocusChanged = { composerFocused = it },
+                            onFocusChanged = { focused ->
+                                composerFocused = focused
+                                if (focused) onComposerFocused()
+                            },
                             modifier = Modifier.weight(1f),
                         )
                     }

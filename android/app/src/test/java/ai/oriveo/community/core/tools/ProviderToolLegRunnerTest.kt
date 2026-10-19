@@ -445,7 +445,8 @@ class ProviderToolLegRunnerTest {
             requestOptions = relayRequestOptions(),
         )
 
-        assertTrue(runner.run(request()).toList().isEmpty())
+        // The empty stream yields no content events, only the leg-end finish info.
+        assertTrue(runner.run(request()).toList().all { it is ToolLoopLegEvent.Finish })
     }
 
     @Test

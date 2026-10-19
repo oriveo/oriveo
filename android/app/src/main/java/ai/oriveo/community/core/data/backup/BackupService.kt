@@ -7,6 +7,12 @@ import ai.oriveo.community.core.app.AppPreferenceKeys
 import ai.oriveo.community.core.app.AppPreferencesRepository
 import ai.oriveo.community.core.attachments.AttachmentHydrator
 import ai.oriveo.community.core.attachments.AttachmentSlimmer
+import ai.oriveo.community.core.context.ConversationInstructions
+import ai.oriveo.community.core.context.MemoryBackup
+import ai.oriveo.community.core.context.MemoryBackupSection
+import ai.oriveo.community.core.context.MemoryItems
+import ai.oriveo.community.core.context.MemoryLegacyPrefs
+import ai.oriveo.community.core.context.MemoryStatus
 import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
 import ai.oriveo.community.core.data.EntityMapper
 import ai.oriveo.community.core.data.EntityMapper.toDomain
@@ -19,13 +25,17 @@ import ai.oriveo.community.core.data.dao.PreferenceDao
 import ai.oriveo.community.core.data.dao.ProviderDao
 import ai.oriveo.community.core.data.dao.SkillDao
 import ai.oriveo.community.core.data.entity.PreferenceEntity
+import ai.oriveo.community.core.data.mapper.ConversationMapper.toStorageText
 import ai.oriveo.community.core.data.remote.MetadataClient
+import ai.oriveo.community.core.memory.MemoryItemRepository
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.BackupError
+import ai.oriveo.community.core.model.BackupContextCheckpoint
 import ai.oriveo.community.core.model.BackupConversation
 import ai.oriveo.community.core.model.BackupData
+import ai.oriveo.community.core.model.BackupMemoryItem
 import ai.oriveo.community.core.model.BackupFile
 import ai.oriveo.community.core.model.BackupFolder
 import ai.oriveo.community.core.model.BackupNote
@@ -64,6 +74,7 @@ import ai.oriveo.community.core.util.InputSizeLimitExceededException
 import ai.oriveo.community.core.util.readBytesLimited
 import ai.oriveo.community.core.util.backupMemoryBudgetBytes
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.ByteArrayInputStream
@@ -93,6 +104,10 @@ class BackupService(
 
     private val metadataRefresh: suspend () -> Unit = { MetadataClient.refresh() },
     private val runInTransaction: suspend (suspend () -> Unit) -> Unit = { transactionalBlock -> transactionalBlock() },
+    /** Context checkpoints are exported and imported with the backup; when null the backup carries none. */
+    private val contextCompactionStore: ai.oriveo.community.core.data.repository.ContextCompactionStore? = null,
+    /** Memory items are exported and imported with the backup (memory-items.v2 backup rules); when null the backup has no item section and an import restores only the legacy memory preferences. */
+    private val memoryItemRepository: MemoryItemRepository? = null,
 ) {
     private val accountId: String get() = LOCAL_PARTITION_ID
 
@@ -240,6 +255,13 @@ class BackupService(
 
         val notes = noteDao.getAll(targetAccountId).map { it.toDomain() }
         val noteFolders = noteFolderDao.getAll(targetAccountId).map { it.toDomain() }
+        // Every checkpoint (they are cascade-deleted with their conversation, so listing per conversation covers the whole table)
+        val checkpoints = contextCompactionStore?.let { store ->
+            conversations.flatMap { conv -> store.list(targetAccountId, conv.id) }
+                .map(BackupContextCheckpoint::from)
+        }.orEmpty()
+        // Every memory item (including tombstones and conflict items); the legacy memoryText and similar preferences are written separately as before
+        val memorySection = memoryItemRepository?.let { MemoryItems.backupSection(it.list(targetAccountId)) }
         return buildBackupArchivePayloadFromData(
             targetAccountId = targetAccountId,
             providers = providers,
@@ -252,6 +274,8 @@ class BackupService(
             allowEmpty = false,
             notes = notes,
             noteFolders = noteFolders,
+            checkpoints = checkpoints,
+            memorySection = memorySection,
         )
     }
 
@@ -267,6 +291,8 @@ class BackupService(
         allowEmpty: Boolean,
         notes: List<ai.oriveo.community.core.model.Note> = emptyList(),
         noteFolders: List<ai.oriveo.community.core.model.NoteFolder> = emptyList(),
+        checkpoints: List<BackupContextCheckpoint> = emptyList(),
+        memorySection: MemoryBackupSection? = null,
     ): BackupArchivePayload {
         val userSkills = if (includeLocalState) {
             skillDao.getBySource(targetAccountId, SkillSource.USER.value)
@@ -318,6 +344,8 @@ class BackupService(
                     createdAt = conversation.createdAt,
                     updatedAt = conversation.updatedAt,
                     pinnedNoteIds = conversation.pinnedNoteIds,
+                    instructions = conversation.instructions,
+                    contextCap = BackupConversation.contextCapWire(conversation.contextCap),
                 )
             }
 
@@ -340,7 +368,9 @@ class BackupService(
             backupConversations.isEmpty() &&
             userSkills.isEmpty() &&
             backupNotes.isEmpty() &&
-            backupNoteFolders.isEmpty()
+            backupNoteFolders.isEmpty() &&
+            // Live (non-tombstone) memory items count as exportable data too
+            memorySection?.memoryItems.orEmpty().none { it.status != MemoryStatus.DELETED }
         ) {
             throw BackupError.NoDataToExport
         }
@@ -360,6 +390,9 @@ class BackupService(
             lastUsedModelRef = if (includeLocalState) buildLastUsedModelRef(targetAccountId) else null,
             notes = backupNotes,
             noteFolders = backupNoteFolders,
+            checkpoints = checkpoints,
+            memorySchemaVersion = memorySection?.memorySchemaVersion,
+            memoryItems = memorySection?.memoryItems?.map(BackupMemoryItem::from).orEmpty(),
         )
 
         val dataJsonBytes = canonicalJson.encodeToString(backupData).toByteArray(Charsets.UTF_8)
@@ -594,11 +627,13 @@ class BackupService(
             ImportMode.ImportNewOnly -> {
                 val result = importNewOnly(targetAccountId, preparedFile, images, restoredKeys)
                 applyImportedPreferences(targetAccountId, result, preparedFile.data, replaceAll = false)
+                    .also { importMemoryItems(targetAccountId, preparedFile.data, mode) }
             }
 
             ImportMode.Merge -> {
                 val result = importMerge(targetAccountId, preparedFile, images, restoredKeys)
                 applyImportedPreferences(targetAccountId, result, preparedFile.data, replaceAll = false)
+                    .also { importMemoryItems(targetAccountId, preparedFile.data, mode) }
             }
 
             ImportMode.ReplaceAll -> importReplaceAll(
@@ -711,6 +746,7 @@ class BackupService(
             result = importConversation(targetAccountId, bc, images, result)
             result = result.copy(newConversations = result.newConversations + 1)
         }
+        importCheckpoints(targetAccountId, backupFile.data.checkpoints)
 
         for (backupSkill in backupFile.data.skills) {
             if (localUserSkillIDs.contains(backupSkill.id)) {
@@ -877,6 +913,14 @@ class BackupService(
                         estimatedCost = bc.estimatedCost,
                         folderID = bc.folderID,
                         skillId = bc.skillId,
+                        // Instructions follow the same side as the title: the backup overwrites only when it is newer
+                        instructions = ConversationInstructions.normalize(bc.instructions),
+                        // contextCap follows the same side: the backup overwrites only when it is newer (invalid or missing means follow the global default)
+                        contextCap = bc.parsedContextCap?.toStorageText(),
+                        // Pinned notes follow the same side: the backup overwrites only when it is newer (same encoding as a fresh import: normalized, de-duplicated, empty = null)
+                        pinnedNoteIdsJson = bc.pinnedNoteIds.map(::normalizeUuid).distinct()
+                            .takeIf { it.isNotEmpty() }
+                            ?.let { json.encodeToString(ListSerializer(String.serializer()), it) },
                         updatedAt = mergedUpdatedAt,
                     )
                 } else {
@@ -907,6 +951,7 @@ class BackupService(
                 result = result.copy(newConversations = result.newConversations + 1)
             }
         }
+        importCheckpoints(targetAccountId, backupFile.data.checkpoints)
 
         for (backupSkill in backupFile.data.skills) {
             val localSkill = localUserSkillsById[backupSkill.id]
@@ -1060,6 +1105,7 @@ class BackupService(
                         newConversations = transactionalResult.newConversations + 1,
                     )
                 }
+                importCheckpoints(targetAccountId, backupFile.data.checkpoints)
 
                 for (backupSkill in backupFile.data.skills) {
                     val restoredSkill = restoreSkillFromBackup(backupSkill)
@@ -1085,6 +1131,8 @@ class BackupService(
             rollbackRestoredImages(replaceAllImageSnapshots.values)
             throw error
         }
+        // Memory items are written outside the transaction: the repository takes its own write lock, and nesting it in a Room transaction could deadlock against writers waiting for that lock
+        importMemoryItems(targetAccountId, backupFile.data, ImportMode.ReplaceAll)
 
         val restoredAttachmentIds = collectAttachmentIds(backupFile.data.conversations)
         attachmentIds
@@ -1272,6 +1320,55 @@ class BackupService(
         )
     }
 
+    /**
+     * Only rows whose conversation exists under [targetAccountId] after the import are accepted, upserted by primary key
+     * (keeping the newest 8 per conversation); rows with an unknown kind are dropped. Backup rows carry no accountId and are all written to the current partition.
+     */
+    private suspend fun importCheckpoints(targetAccountId: String, checkpoints: List<BackupContextCheckpoint>) {
+        val store = contextCompactionStore ?: return
+        if (checkpoints.isEmpty()) return
+        val existence = mutableMapOf<String, Boolean>()
+        for (row in checkpoints) {
+            val conversationId = normalizeUuid(row.conversationId)
+            val exists = existence.getOrPut(conversationId) {
+                conversationDao.getById(targetAccountId, conversationId)?.accountId == targetAccountId
+            }
+            if (!exists) continue
+            val record = row.toRecord() ?: continue
+            store.save(
+                targetAccountId,
+                record.copy(
+                    conversationId = conversationId,
+                    coversFrom = normalizeUuid(record.coversFrom),
+                    coversTo = normalizeUuid(record.coversTo),
+                    userMessageIds = record.userMessageIds.map(::normalizeUuid),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Memory item import, which must run after the legacy memory preferences are restored: a backup with a memorySchemaVersion
+     * is imported from its item section, otherwise it is migrated from its preferences;
+     * ReplaceAll turns existing items into tombstones, Merge keeps the higher revision and ImportNewOnly only fills gaps, see MemoryItemRepository.importBackup.
+     */
+    private suspend fun importMemoryItems(targetAccountId: String, data: BackupData, mode: ImportMode) {
+        val repository = memoryItemRepository ?: return
+        val backup = MemoryBackup(
+            memoryItems = data.memorySchemaVersion?.let { data.memoryItems.map(BackupMemoryItem::toItem) },
+            preferences = data.preferences?.let {
+                MemoryLegacyPrefs(
+                    memoryText = it.memoryText,
+                    antiForgetEnabled = it.memoryAntiForgetEnabled,
+                    antiForgetText = it.memoryAntiForgetText,
+                    memoryUpdatedAt = it.memoryUpdatedAt,
+                )
+            },
+        )
+        repository.importBackup(targetAccountId, mode, backup)
+    }
+
+    /** Imports a single conversation into the local database. */
     private suspend fun importConversation(
         targetAccountId: String,
         bc: BackupConversation,
@@ -1301,6 +1398,12 @@ class BackupService(
             folderID = bc.folderID,
             skillId = bc.skillId,
             accountId = targetAccountId,
+            // Pinned notes are imported with the backup (same encoding as ConversationMapper.toEntity: normalized, de-duplicated, empty = null)
+            pinnedNoteIdsJson = bc.pinnedNoteIds.map(::normalizeUuid).distinct()
+                .takeIf { it.isNotEmpty() }
+                ?.let { json.encodeToString(ListSerializer(String.serializer()), it) },
+            instructions = ConversationInstructions.normalize(bc.instructions),
+            contextCap = bc.parsedContextCap?.toStorageText(),
         )
 
         val persistConversation: suspend () -> Unit = {

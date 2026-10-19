@@ -1,5 +1,9 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.context.ContextContinuation
+import ai.oriveo.community.core.context.ContinuationDecision
+import ai.oriveo.community.core.context.ContinuationInstructionsMode
+import ai.oriveo.community.core.context.ContinuationState
 import ai.oriveo.community.core.model.RequestPreferenceResolver
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -28,6 +32,8 @@ internal object ProviderRecipeExecution {
         protocol: String,
         responseParserKind: String? = null,
         intent: RequestPreferenceResolver.ContinuationIntent?,
+        instructionsMode: ContinuationInstructionsMode? = null,
+        fingerprintMatches: Boolean = false,
     ): ContinuationWire {
         if (intent == null || intent.kind != kind || intent.variant != variant ||
             !RequestPreferenceResolver.validateContinuation(intent).accepted
@@ -38,6 +44,17 @@ internal object ProviderRecipeExecution {
             "previous_id" -> {
                 val id = (state["previousResponseId"] as? JsonPrimitive)?.contentOrNull
                     ?: return ContinuationWire.Rejected("invalid_continuation")
+                // Mode missing or fingerprint mismatch (a caller that passes none counts as a mismatch) -> full plan: no previous_response_id is produced.
+                val decision = ContextContinuation.decide(
+                    ContinuationState(
+                        previousResponseId = id,
+                        instructionsMode = instructionsMode,
+                        systemChangedSinceLastLeg = !fingerprintMatches,
+                        modelChanged = false,
+                        checkpointChanged = false,
+                    ),
+                )
+                if (decision !is ContinuationDecision.Stateful) return ContinuationWire.Rejected("full_plan")
                 when (protocol) {
                     "openai_responses" -> ContinuationWire.Body(JsonObject(mapOf("previous_response_id" to JsonPrimitive(id))))
                     else -> ContinuationWire.Rejected("unsupported_wire_mapping")

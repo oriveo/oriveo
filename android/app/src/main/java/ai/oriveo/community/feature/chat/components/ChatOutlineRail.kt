@@ -42,6 +42,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -105,6 +106,7 @@ internal fun BoxScope.ChatOutlineRail(
     // Read here instead of taking it as a parameter: it is the same instance, and one fewer parameter
     // means one fewer comparison when the rail is skipped.
     val context = LocalContext.current
+    val resources = LocalResources.current
     val colors = OriveoTheme.colors
     val density = LocalDensity.current
     val hapticFeedback = LocalHapticFeedback.current
@@ -310,7 +312,7 @@ internal fun BoxScope.ChatOutlineRail(
                         .height(rowH)
                         .alpha(fade)
                         .semantics {
-                            contentDescription = context.getString(R.string.outline_jump_to, tick.preview)
+                            contentDescription = resources.getString(R.string.outline_jump_to, tick.preview)
                             role = Role.Button
                             selected = isCurrent
                             onClick { jumpTo(tick.id); true }

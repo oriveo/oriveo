@@ -114,6 +114,7 @@ class ChatViewModelEditingTest {
         coEvery { providerRepository.getById("provider-1") } returns provider
         every { providerRepository.currentCapabilityPartitionId() } returns "test-partition"
         coEvery { providerRepository.capabilityEvidenceIdentity(any(), any(), "test-partition") } returns null
+        every { providerRepository.toolCallMemoryVerdict(any(), any()) } returns null
         conversationRepository.stubMessageWindowLoaderDefaults(windowStore)
         every { conversationRepository.observeMetadata("conversation-1") } returns flowOf(conversation)
         coEvery { conversationRepository.getWithMessages("conversation-1") } returns conversation
@@ -146,6 +147,12 @@ class ChatViewModelEditingTest {
                 persistUserMessage = any(),
                 userMessageAlreadyInHistory = any(),
                 appendToAssistant = any(),
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         } returns Unit
     }
@@ -280,23 +287,30 @@ class ChatViewModelEditingTest {
         viewModel.regenerateMessage("assistant-1")
         advanceUntilIdle()
 
-        coVerify { conversationRepository.deleteMessagesAfter("conversation-1", "user-1") }
-
+        // Deletion moved into ChatRepository (it only happens after the context refusal check passes), so the entry point no longer deletes; history is cut at lastUser (inclusive) and handed to the send pipeline.
+        coVerify(exactly = 0) { conversationRepository.deleteMessagesAfter(any(), any()) }
+        // Regenerate does not persist a second user message (persistUserMessage=false) and is not a continuation (appendToAssistant=null).
         coVerify {
             chatRepository.sendMessage(
                 conversation = any(),
                 text = any(),
                 provider = any(),
                 modelID = any(),
-                existingMessages = any(),
+                existingMessages = match { it.lastOrNull()?.id == "user-1" },
                 attachments = any(),
                 reasoningMode = any(),
                 webSearchEnabled = any(),
                 requestOptions = any(),
                 outputs = any(),
                 persistUserMessage = false,
-                userMessageAlreadyInHistory = any(),
+                userMessageAlreadyInHistory = true,
                 appendToAssistant = null,
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         }
     }
@@ -349,6 +363,12 @@ class ChatViewModelEditingTest {
                 persistUserMessage = false,
                 userMessageAlreadyInHistory = true,
                 appendToAssistant = match { it.id == "assistant-1" },
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         }
     }
@@ -390,6 +410,12 @@ class ChatViewModelEditingTest {
                 persistUserMessage = false,
                 userMessageAlreadyInHistory = any(),
                 appendToAssistant = match { it.id == "assistant-1" },
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         }
     }
@@ -440,9 +466,30 @@ class ChatViewModelEditingTest {
         viewModel.regenerateMessage("assistant-1")
         advanceUntilIdle()
 
+        // Order is locked: the deletion range (after lastUser) may cover the assistant that is still generating, so stop the stream and wait for it to persist before handing off to the send pipeline (deletion happens after the refusal check).
         coVerifyOrder {
             chatStreamingManager.stopStreamAndJoin("conversation-1")
-            conversationRepository.deleteMessagesAfter("conversation-1", "user-1")
+            chatRepository.sendMessage(
+                conversation = any(),
+                text = any(),
+                provider = any(),
+                modelID = any(),
+                existingMessages = match { it.lastOrNull()?.id == "user-1" },
+                attachments = any(),
+                reasoningMode = any(),
+                webSearchEnabled = any(),
+                requestOptions = any(),
+                outputs = any(),
+                persistUserMessage = false,
+                userMessageAlreadyInHistory = true,
+                appendToAssistant = null,
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
+            )
         }
     }
 
@@ -498,22 +545,29 @@ class ChatViewModelEditingTest {
         viewModel.continueMessage("assistant-1")
         advanceUntilIdle()
 
-        coVerify { conversationRepository.deleteMessagesAfter("conversation-1", "user-1") }
+        // Degrades to regenerate: history is cut at lastUser (user-1) and nothing is continued (appendToAssistant=null); deletion happens after the send pipeline's refusal check.
+        coVerify(exactly = 0) { conversationRepository.deleteMessagesAfter(any(), any()) }
         coVerify {
             chatRepository.sendMessage(
                 conversation = any(),
                 text = any(),
                 provider = any(),
                 modelID = any(),
-                existingMessages = any(),
+                existingMessages = match { it.lastOrNull()?.id == "user-1" },
                 attachments = any(),
                 reasoningMode = any(),
                 webSearchEnabled = any(),
                 requestOptions = any(),
                 outputs = any(),
                 persistUserMessage = false,
-                userMessageAlreadyInHistory = any(),
+                userMessageAlreadyInHistory = true,
                 appendToAssistant = null,
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         }
     }

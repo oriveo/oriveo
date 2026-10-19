@@ -70,9 +70,10 @@ class ChatSendCommandCoordinatorAttachmentPreflightTest {
         modelId: String = "relay-model",
         existing: Conversation? = null,
         outboundHistory: (suspend (List<ChatMessage>) -> List<ChatMessage>)? = null,
+        stored: Provider? = provider,
     ): Outcome {
         val outcome = Outcome()
-        coEvery { providerRepository.getById(provider.id) } returns provider
+        coEvery { providerRepository.getById(provider.id) } returns stored
         coEvery { appPreferencesRepository.hasAcceptedProviderDisclosure(any()) } returns true
         coEvery { conversationRepository.create(any(), any(), any(), any(), any(), any(), any()) } returns Conversation(
             id = "conversation-1",
@@ -101,7 +102,7 @@ class ChatSendCommandCoordinatorAttachmentPreflightTest {
             onComposerConsumed = { outcome.composerConsumed = true },
             requestPin = {},
             onSendSettled = { outcome.settled = true },
-            launchSend = ChatSendLauncher { _, _, _, _, _, sent, _, _, _, _ ->
+            launchSend = ChatSendLauncher { _, _, _, _, _, sent, _, _, _, _, _ ->
                 outcome.launched = true
                 outcome.launchedAttachments = sent
             },
@@ -261,7 +262,7 @@ class ChatSendCommandCoordinatorAttachmentPreflightTest {
         )
         // The same trimming chain as production sending (ChatRepository.sendMessage calls it too).
         val trim: suspend (List<ChatMessage>) -> List<ChatMessage> = { raw ->
-            ai.oriveo.community.core.data.repository.OutboundHistory.prepare(
+            ai.oriveo.community.core.data.repository.OutboundHistory.projected(
                 rawMessages = raw,
                 imageSizeOf = { 0L },
                 blobSizeOf = { ref -> if (ref == "blob-v") 20L * 1024 * 1024 else 0L },

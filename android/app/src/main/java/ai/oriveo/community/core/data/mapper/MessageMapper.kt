@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.data.mapper
 
+import ai.oriveo.community.core.context.StopReason
 import ai.oriveo.community.core.data.entity.MessageEntity
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.CapabilityExecutionResult
@@ -44,6 +45,13 @@ object MessageMapper {
         createdAt = createdAt,
         reasoningText = reasoningText,
         reasoningDurationMs = reasoningDurationMs,
+        stopReason = StopReason.fromStored(stopReason),
+        memoryItemIds = memoryItemIds?.let { raw ->
+            runCatching { json.decodeFromString<List<String>>(raw) }.getOrNull()?.takeIf { it.isNotEmpty() }
+        },
+        // Wrap the citations JSON decode in runCatching: a corrupted blob (left over from an
+        // older version) must not block loading the whole conversation. It degrades to null
+        // and the UI renders the message without citations.
         citations = citationsJson?.let { raw ->
             runCatching {
                 json.decodeFromString<List<ai.oriveo.community.core.model.Citation>>(raw)
@@ -121,6 +129,8 @@ object MessageMapper {
             toolStepsJson = encodeToolStepsJson(toolSteps),
             reasoningText = reasoningText?.takeIf { it.isNotBlank() },
             reasoningDurationMs = reasoningDurationMs,
+            stopReason = stopReason?.wire,
+            memoryItemIds = memoryItemIds?.takeIf { it.isNotEmpty() }?.let { json.encodeToString(it) },
             inputTokens = inputTokens,
             outputTokens = outputTokens,
             cachedInputTokens = cachedInputTokens,

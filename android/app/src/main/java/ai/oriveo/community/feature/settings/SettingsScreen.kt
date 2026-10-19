@@ -40,6 +40,7 @@ import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.FolderShared
 import androidx.compose.material.icons.outlined.Psychology
+import androidx.compose.material.icons.outlined.Compress
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -69,6 +70,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
@@ -89,6 +91,7 @@ import ai.oriveo.community.feature.onboarding.OnboardingViewModel
 import ai.oriveo.community.R
 import ai.oriveo.community.core.model.LanguageOption
 import ai.oriveo.community.core.model.ThemeOption
+import ai.oriveo.community.feature.chat.ContextCapPresentation
 import ai.oriveo.community.ui.component.UserAvatarImage
 import ai.oriveo.community.ui.component.FlatGroup
 import ai.oriveo.community.ui.component.FlatSectionHeader
@@ -97,6 +100,7 @@ import ai.oriveo.community.ui.component.InsetHairline
 import ai.oriveo.community.ui.component.isReduceMotionEnabled
 import ai.oriveo.community.ui.component.OriveoWebDestination
 import ai.oriveo.community.ui.component.OriveoSettingsRow
+import ai.oriveo.community.ui.component.FeatureBadgeDot
 import ai.oriveo.community.ui.component.openOriveoWebPage
 import ai.oriveo.community.ui.theme.DarkOriveoColors
 import ai.oriveo.community.ui.theme.OriveoScreenBackground
@@ -109,6 +113,7 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun SettingsScreen(
     onNavigateToMemory: () -> Unit = {},
+    onNavigateToContextSettings: () -> Unit = {},
     onNavigateToMcpServers: () -> Unit = {},
     onNavigateToBackup: () -> Unit = {},
     onNavigateToSkills: () -> Unit = {},
@@ -117,6 +122,9 @@ fun SettingsScreen(
     val theme by viewModel.theme.collectAsStateWithLifecycle()
     val language by viewModel.language.collectAsStateWithLifecycle()
     val memoryText by viewModel.memoryText.collectAsStateWithLifecycle()
+    val showMemoryFeatureBadge by viewModel.memoryFeatureBadgeVisible.collectAsStateWithLifecycle()
+    val contextAISummaryEnabled by viewModel.contextAISummaryEnabled.collectAsStateWithLifecycle()
+    val contextDefaultCap by viewModel.contextDefaultCap.collectAsStateWithLifecycle()
     val colors = OriveoTheme.colors
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -190,6 +198,33 @@ fun SettingsScreen(
                                 title = stringResource(R.string.memory_title),
                                 subtitle = memoryRowDetails.subtitle,
                                 value = memoryRowDetails.value,
+                                titleBadge = if (showMemoryFeatureBadge) {
+                                    { FeatureBadgeDot() }
+                                } else {
+                                    null
+                                },
+                            )
+                        }
+                        InsetHairline()
+                        FlatTapRow(onClick = onNavigateToContextSettings) {
+                            OriveoSettingsRow(
+                                icon = Icons.Outlined.Compress,
+                                iconColor = aiColor,
+                                title = stringResource(R.string.settings_context_title),
+                                value = ContextCapPresentation.settingsRowValue(
+                                    template = stringResource(R.string.settings_context_row_value),
+                                    cap = contextDefaultCap,
+                                    mode = stringResource(
+                                        if (contextAISummaryEnabled) {
+                                            R.string.settings_context_mode_ai
+                                        } else {
+                                            R.string.settings_context_row_value_fallback
+                                        },
+                                    ),
+                                    autoLabel = stringResource(R.string.context_cap_auto),
+                                    unlimitedLabel = stringResource(R.string.context_cap_unlimited),
+                                    locale = LocalConfiguration.current.locales[0].toLanguageTag(),
+                                ),
                             )
                         }
                         InsetHairline()

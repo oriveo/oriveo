@@ -47,6 +47,9 @@ class ChatStreamingManager(
         val startedAt: Long = System.currentTimeMillis(),
 
         @Volatile var userStopRequested: Boolean = false,
+        /** Where this stream attempt came from, so chat_message_stopped can carry attempt_kind. */
+        val attemptKind: ai.oriveo.community.feature.chat.ContextConfirmAttempt =
+            ai.oriveo.community.feature.chat.ContextConfirmAttempt.SEND,
     ) {
         val text: MutableStateFlow<String> get() = outputs.streamingText
         val messageIdState: MutableStateFlow<String?> get() = outputs.streamingMessageId
@@ -112,6 +115,21 @@ class ChatStreamingManager(
     fun streamStartedAt(conversationId: String): Long =
         sessions[conversationId]?.startedAt ?: 0L
 
+    /** The attempt kind of the stream running for this conversation; null when none is running (stop telemetry uses it to tell whether a stream was really running). */
+    fun streamAttemptKind(conversationId: String): ai.oriveo.community.feature.chat.ContextConfirmAttempt? =
+        sessions[conversationId]?.attemptKind
+
+    // ── Public operations ────────────────────────────────────────────
+
+    /**
+     * Starts streaming generation.
+     *
+     * Entry guard:
+     *  - an older stream for the same conversationId is still running: cancel + join (wait for ChatRepository's finally to persist the partial text), then create the new session
+     *  - different conversationIds do not affect each other (the core of multi-conversation)
+     *
+     * The mutex keeps the compound "cancel for the same convId + replace the session" operation from being torn apart by a concurrent startStream/stopStream.
+     */
     fun startStream(request: StreamRequest) {
         scope.launch {
             mutex.withLock {
@@ -128,7 +146,11 @@ class ChatStreamingManager(
                     streamingMessageId = MutableStateFlow<String?>(null),
                     streamingReasoning = MutableStateFlow(""),
                 )
-                val session = StreamingSession(conversationId = convId, outputs = outputs)
+                val session = StreamingSession(
+                    conversationId = convId,
+                    outputs = outputs,
+                    attemptKind = request.attemptKind,
+                )
                 sessions[convId] = session
                 _streamingConversationIds.value = sessions.keys.toSet()
 
@@ -151,6 +173,10 @@ class ChatStreamingManager(
                             persistUserMessage = request.persistUserMessage,
                             userMessageAlreadyInHistory = request.userMessageAlreadyInHistory,
                             appendToAssistant = request.appendToAssistant,
+                            attemptKind = request.attemptKind,
+                            onUserMessageCreated = request.onUserMessageCreated,
+                            memoryPropose = request.memoryPropose,
+                            memorySearch = request.memorySearch,
                         )
                     } finally {
 
@@ -193,7 +219,11 @@ class ChatStreamingManager(
     fun stopAllStreams() {
         scope.launch {
             mutex.withLock {
-                sessions.values.forEach { it.job?.cancel() }
+                sessions.values.forEach {
+                    // System interrupt: set the flag before cancel so the finalizer records stopReason as a transport error
+                    it.outputs.systemInterrupted.set(true)
+                    it.job?.cancel()
+                }
             }
         }
     }
@@ -205,7 +235,10 @@ class ChatStreamingManager(
     suspend fun stopAllStreamsAndJoin() {
         mutex.withLock {
             val jobs = sessions.values.mapNotNull { session ->
+                // A stop-all is not a user stop, so stopReason is recorded
+                // as a system interrupt (transport error)
                 session.userStopRequested = true
+                session.outputs.systemInterrupted.set(true)
                 session.job?.also { it.cancel() }
             }
             jobs.forEach { it.join() }
@@ -255,4 +288,11 @@ data class StreamRequest(
     val userMessageAlreadyInHistory: Boolean = false,
     /** An existing assistant message to continue rather than starting a new one. */
     val appendToAssistant: ChatMessage? = null,
+    val attemptKind: ai.oriveo.community.feature.chat.ContextConfirmAttempt = ai.oriveo.community.feature.chat.ContextConfirmAttempt.SEND,
+    // Callback after this send's user message is persisted (drives the "set as instruction" suggestion strip); only the fresh-send entry passes it.
+    val onUserMessageCreated: ((messageId: String, text: String) -> Unit)? = null,
+    // propose_memory callbacks of a fresh send in tool mode (requestOptions carries the tool).
+    val memoryPropose: ai.oriveo.community.core.memory.MemoryProposeSendHook? = null,
+    // search_memory state of a chat send in tool mode (requestOptions carries the tool after propose_memory).
+    val memorySearch: ai.oriveo.community.core.memory.MemorySearchTurn? = null,
 )

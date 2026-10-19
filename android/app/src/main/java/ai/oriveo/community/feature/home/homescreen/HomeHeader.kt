@@ -95,8 +95,8 @@ internal val HOME_HEADER_ACTION_ICON_BOX = 18.dp
 internal fun HomeHeader(
     isSearching: Boolean,
     isEditing: Boolean,
-    /** The search field's initial text when search opens; after that [HomeSearchBar] owns it and reports changes back through [onSearchQueryChange]. */
-    initialSearchQuery: String,
+    /** Reads the search field's initial text once when search opens; after that [HomeSearchBar] owns it and reports changes back through [onSearchQueryChange]. */
+    initialSearchQuery: () -> String,
     hasConversations: Boolean,
     isDark: Boolean,
     onSearchQueryChange: (String) -> Unit,
@@ -418,7 +418,7 @@ private fun HeroGreeting(
 /** Search state: a capsule search field (cardFill + 0.8dp cardBorder) with Cancel on the right. */
 @Composable
 private fun HomeSearchBar(
-    initialSearchQuery: String,
+    initialSearchQuery: () -> String,
     onSearchQueryChange: (String) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
@@ -430,7 +430,7 @@ private fun HomeSearchBar(
     // Changes are only reported back to the view model to drive the query. Leaving search removes the
     // whole search bar from composition, discarding this state in step with the view model's
     // exitSearch() clearing the query.
-    var searchQuery by rememberSaveable { mutableStateOf(initialSearchQuery) }
+    var searchQuery by rememberSaveable { mutableStateOf(initialSearchQuery()) }
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,

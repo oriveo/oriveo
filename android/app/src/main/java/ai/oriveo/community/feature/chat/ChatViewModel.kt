@@ -94,6 +94,15 @@ class ChatViewModel(
     private val mcpConfirmationCoordinator: ai.oriveo.community.core.mcp.McpConfirmationCoordinator? = null,
     /** DI singleton; when null (unit tests, etc.) it is built from context and only reads file sizes. */
     private val attachmentStore: ai.oriveo.community.core.data.attachment.AttachmentStore? = null,
+    /** Compaction collaborators; null (unit tests) disables compaction. */
+    private val compactionDeps: ChatCompactionDeps? = null,
+    /** Local ignore streak for the "set as instruction" suggestion; null (unit tests) turns the suggestion off. */
+    private val directiveSuggestionStore: ai.oriveo.community.core.notice.DirectiveSuggestionStore? = null,
+    /** Local memory items of the current account (MemoryItemRepository.observe, follows account switches); null (unit tests etc.) means no items. */
+    memoryItemsSource: kotlinx.coroutines.flow.Flow<List<ai.oriveo.community.core.context.MemoryItem>>? = null,
+    /** Memory candidates generated from fresh sends, partitioned by [memoryAccountId]; null = off. */
+    private val memoryCandidates: ai.oriveo.community.core.memory.MemoryCandidateRepository? = null,
+    private val memoryAccountId: () -> String = { "" },
 ) : ViewModel() {
     val generationParameterDraftSessionId: String = generateUuidString()
     private val generationParameterSettingsStore = GenerationParameterSettingsStore.from(context)
@@ -109,29 +118,35 @@ class ChatViewModel(
     private var pendingHeroAutoSend: Boolean = savedStateHandle.get<Boolean>("autoSend") == true
     private val activeConversationId = MutableStateFlow(initialConversationId)
 
+    /** Conversation settings (conversation instructions and the "set as instruction" suggestion), orchestrated in ChatConversationSettingsCoordinator. */
+    private val conversationSettings = ChatConversationSettingsCoordinator(viewModelScope, conversationRepository,
+        activeConversationId, directiveSuggestionStore, globalSnackbarManager::show, memoryCandidates, memoryAccountId, applicationScope)
+    val pendingDraftInstructions: StateFlow<String> get() = conversationSettings.pendingDraftInstructions
+    val directiveSuggestion: StateFlow<DirectiveSuggestion?> get() = conversationSettings.directiveSuggestion
+    fun acceptDirectiveSuggestion() = conversationSettings.acceptSuggestion()
+    fun ignoreDirectiveSuggestion() = conversationSettings.ignoreSuggestion()
+    val memorySuggestions: MemorySuggestionController get() = conversationSettings.memorySuggestions
+
     private val messageWindowLoader: MessageWindowLoader =
         conversationRepository.createMessageWindowLoader()
 
     private val messageWindowScope: CoroutineScope = messageWindowLoaderScope(viewModelScope)
     private val capabilityResolver = ChatModelCapabilityResolver()
     private val providerResolutionErrorReporter = ChatProviderResolutionErrorReporter(context, globalSnackbarManager)
-    private val promptInjectionBuilder = ChatPromptInjectionBuilder(
-        skillProvider = skillRepository::getById,
-        untitledNoteFallback = context.getString(R.string.notes_untitled),
-    )
-    private val sendCoordinator = ChatSendCoordinator(
+    internal val sendCoordinator = ChatSendCoordinator(
         chatStreamingManager = chatStreamingManager,
         applicationScope = applicationScope,
-        promptInjectionBuilder = promptInjectionBuilder,
+        skillProvider = skillRepository::getById,
+        providersProvider = { providers.value },
+        untitledNoteFallback = context.getString(R.string.notes_untitled),
         pinnedNotesResolver = { ids -> noteRepository.getActiveNotesByIds(ids) },
         pendingPinnedNoteIds = { noteCoordinator.pendingPinnedNoteIds },
         generationParameterSettingsStore = generationParameterSettingsStore,
         capabilityPreferenceStore = capabilityPreferenceStore,
         localCustomFragmentStore = localCustomFragmentStore,
         capabilityEvidencePartition = providerRepository::currentCapabilityPartitionId,
-        capabilityEvidenceIdentity = { provider, modelId, partitionId ->
-            providerRepository.capabilityEvidenceIdentity(provider, modelId, partitionId)
-        },
+        capabilityEvidenceIdentity = { p, modelId, partitionId -> providerRepository.capabilityEvidenceIdentity(p, modelId, partitionId) },
+        toolCallMemoryVerdict = providerRepository::toolCallMemoryVerdict,
     )
     val mcpCoordinator = ChatMcpCoordinator(
         scope = viewModelScope,
@@ -154,22 +169,10 @@ class ChatViewModel(
         presentAttachmentSizeLimitDialog = ::presentAttachmentSizeLimitDialog,
         activeProvider = { conversationState.provider },
     )
-    private val sendLauncher = ChatSendLauncher { conversation, provider, modelId, text, existingMessages, attachments,
-        persistUserMessage, appendToAssistant, userMessageAlreadyInHistory, quoteContext ->
-        sendCoordinator.launchSend(
-            conversation = conversation,
-            provider = provider,
-            modelId = modelId,
-            text = text,
-            memoryText = currentMemoryText.value.trim(),
-            existingMessages = existingMessages,
-            attachments = attachments,
-            quoteContext = quoteContext,
-            persistUserMessage = persistUserMessage,
-            appendToAssistant = appendToAssistant,
-            userMessageAlreadyInHistory = userMessageAlreadyInHistory,
-        )
-    }
+    // Send launchers: retry / sendCommand share sendLauncher, a fresh user send goes through userSendLauncher; both inject the current memory items at send time.
+    private val sendLauncher = sendCoordinator.memoryInjectingSendLauncher({ memory.items.value })
+    private val userSendLauncher =
+        sendCoordinator.memoryInjectingUserSendLauncher({ memory.items.value })
     private val retryCoordinator = ChatRetryCoordinator(
         viewModelScope = viewModelScope,
         conversationRepository = conversationRepository,
@@ -224,6 +227,7 @@ class ChatViewModel(
         conversationRepository = conversationRepository,
         currentConversation = { currentConversation },
         currentConversationId = { activeConversationId.value },
+        pendingDraftInstructions = { conversationSettings.pendingDraftInstructions.value },
         onProviderSelectionError = ::showProviderSelectionError,
         onProviderResolutionError = ::showProviderResolutionError,
         onModelSelectionError = ::showModelSelectionError,
@@ -234,6 +238,7 @@ class ChatViewModel(
         onDisclosureConfirmationFailed = ::showProviderDisclosureConfirmationError,
         onConversationActivated = { convId ->
             activeConversationId.value = convId
+            conversationSettings.clearDraftInstructions()
             messageWindowLoader.bind(messageWindowScope, convId)
             noteCoordinator.flushPendingPinnedNotes(convId)
         },
@@ -264,6 +269,12 @@ class ChatViewModel(
         requestPin = { pinRequested = true },
         onSendSettled = { isSendSetupInFlight = false },
         launchSend = sendLauncher,
+        directiveSuggestions = conversationSettings.directiveSuggestions,
+        launchUserSend = userSendLauncher,
+        memoryCandidates = memoryCandidates,
+        memorySuggestions = conversationSettings.memorySuggestions,
+        memoryAccountId = memoryAccountId,
+        memoryScope = applicationScope,
     )
 
     val conversation: StateFlow<ConversationRenderState> = activeConversationId
@@ -532,15 +543,10 @@ class ChatViewModel(
         reasoningMode = mode
     }
 
-    val currentMemoryText: StateFlow<String> = appPreferencesRepository.memoryText
-        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
-
-    val showMemoryIndicator: StateFlow<Boolean> = combine(
-        currentMemoryText,
-        conversation,
-    ) { memoryText, conversationState ->
-        memoryText.isNotBlank() && (conversationState.conversation?.useMemory ?: true)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    /** Memory items and the memory indicator; the state lives in ChatMemoryState. */
+    private val memory = ChatMemoryState(viewModelScope, memoryItemsSource, conversation)
+    val currentMemoryItems: StateFlow<List<ai.oriveo.community.core.context.MemoryItem>> get() = memory.items
+    val showMemoryIndicator: StateFlow<Boolean> get() = memory.showIndicator
 
     var pendingAttachments: List<Attachment> by mutableStateOf(emptyList())
         private set
@@ -577,6 +583,10 @@ class ChatViewModel(
         savedStateHandle = savedStateHandle,
     )
     init {
+        // A refused send: show the toast and put the original text and attachments back into the composer; the wiring lives in ChatContextRejectionObserver.
+        observeChatContextRejections(
+            viewModelScope, globalSnackbarManager::show, draftCoordinator, { activeConversationId.value }, quoteCoordinator,
+            { pendingAttachments }) { pendingAttachments = it }
         mcpCoordinator.observeLoopState()
         if (initialConversationId != null) {
             viewModelScope.launch {
@@ -782,6 +792,7 @@ class ChatViewModel(
         val convId = activeConversationId.value ?: return
         mcpCoordinator.cancelPending(convId)
         chatStreamingManager.stopStream(convId)
+        compaction?.stopSend(convId)
     }
 
     fun regenerateMessage(messageId: String) {
@@ -847,6 +858,11 @@ class ChatViewModel(
         expensiveModelHint = null
     }
 
+    fun saveConversationInstructions(opened: String, edited: String) = conversationSettings.saveInstructions(opened, edited)
+
+    suspend fun conversationInstructionsCarryOver(currentInstructions: String): String? =
+        conversationSettings.instructionsCarryOver(currentInstructions)
+
     fun toggleUseMemory() {
         val conv = currentConversation ?: return
         conversationActions.toggleUseMemory(conv.useMemory)
@@ -856,12 +872,17 @@ class ChatViewModel(
         modelSelectionCoordinator.enableModel(providerId, modelId)
     }
 
-    fun consumePendingPin() {
-        pendingPinUserMessageId = null
-    }
+    // -- Pin-to-top: scroll control --
+
+    /** ChatScreen clears [pendingPinUserMessageId] once it has pinned the message, so the pin is not triggered twice. */
+    fun consumePendingPin() { pendingPinUserMessageId = null }
 
     /** Typing callback: only updates the outbound truth and queues the draft debounce, never bumps the restore token (see the coordinator). */
-    fun onInputTextChanged(text: String) = draftCoordinator.onInputTextChanged(text, activeConversationId.value)
+    fun onInputTextChanged(text: String) {
+        // The first input (empty → non-empty) starts a background pre-compaction.
+        compaction?.onComposerInput(inputText, text)
+        draftCoordinator.onInputTextChanged(text, activeConversationId.value)
+    }
 
     /** External push of text back into the composer (inline message edit and the like): reaches the composer and still goes through the draft debounce. */
     fun restoreInputText(text: String) = draftCoordinator.restoreText(text, activeConversationId.value)
@@ -932,8 +953,11 @@ class ChatViewModel(
 
         activeConversationId.value = null
         bootstrapConversation = null
+        conversationSettings.clearDraftInstructions()
         draftCoordinator.pushText("")
         pendingAttachments = emptyList()
+        // A pending quote belongs to the previous conversation's messages.
+        quoteCoordinator.clear()
         pendingPinUserMessageId = null
         pinRequested = false
         mcpCoordinator.resetDraft()
@@ -941,6 +965,20 @@ class ChatViewModel(
         activeProviderId = currentProvider
         activeModelId = currentModel
     }
+
+    /**
+     * Compaction UI (separator, third-compaction hint, new chat with summary, clear / recompact / manual
+     * compact and their toasts). Null when compaction is not wired (unit tests).
+     */
+    val compaction: ChatCompactionUiCoordinator? = ChatCompactionUiCoordinator.forChat(compactionDeps,
+        sendCoordinator, quoteCoordinator, memory.items, viewModelScope, conversation, ::startNewChat,
+        providers = { providers.value })
+
+    /**
+     * Usage summary of the shown conversation for the composer ring; recomputed on
+     * conversation switch, message changes and checkpoint changes. Null for drafts and when not wired.
+     */
+    val contextUsage: StateFlow<ContextUsageSummary?> = chatContextUsage(compactionDeps, conversation, viewModelScope)
 
     fun deleteConversation() {
         conversationActions.deleteConversation {

@@ -8,7 +8,6 @@ import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ChatMessage
-import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.ModelCapability
@@ -22,147 +21,6 @@ import ai.oriveo.community.core.model.ProviderKind
  * differently, so the dispatch lives here in one place instead of being copied per service.
  */
 object MessageBuilder {
-
-    /**
-     * Normalizes the outbound message list right before a request goes out.
-     *
-     * Two steps:
-     *  1. Filtering. Messages with no content at all (no text and no attachments) are dropped.
-     *     Everything in the user role is kept, along with every history assistant message that has
-     *     content and is not failed (delivered, an interrupted partial the user stopped on purpose,
-     *     or a generating partial that a race left un-finalized), plus the explicit continue/retry
-     *     target ([keepAssistantId]). Only failed turns are dropped: a question whose answer failed
-     *     is not usable context, and on some surfaces the empty placeholder of a failed message gets
-     *     filled in with localized error copy, so keeping it would send the error string to the
-     *     model as if it were the assistant's answer. The empty-content check runs before the
-     *     keepAssistantId check: a failed assistant being retried is dropped when its text is empty
-     *     even though it is the keepId, because the retry revives it as a prefill afterwards.
-     *  2. Collapsing adjacent same-role messages. Once step 1 has removed an empty assistant from
-     *     the middle, the two user messages it used to separate become adjacent and the roles no
-     *     longer alternate. Strict OpenAI-compatible relays require user/assistant to alternate and
-     *     reject two consecutive messages in the same role outright.
-     *     The rules follow the shared fixture `shared/context-contracts/sanitize.v1.json`:
-     *     - A run of N >= 2 consecutive user messages is merged into one that keeps the id and other
-     *       fields of the last message. The non-empty texts of the earlier ones are trimmed,
-     *       XML-escaped and joined with blank lines inside an `<oriveo-unanswered>` envelope (carrying
-     *       [UNANSWERED_NOTE]); the envelope is followed by a blank line and the newest message's
-     *       original text. If none of the earlier messages has text there is no envelope; if the
-     *       newest one is empty only the envelope remains. Attachments are concatenated in message
-     *       order. Earlier user messages often carry instructions ("from now on answer only in
-     *       Arabic"); dropping them silently loses that context. Wrapping them in an envelope that
-     *       says "unanswered, use as context, answer the latest message" keeps the instruction
-     *       without making the model answer both questions at once.
-     *     - Adjacent assistant messages (rare): merge them, joining trimmed text with a blank line
-     *       and concatenating attachments in order, keeping the first message's fields.
-     *
-     * Note: an interrupted or failed assistant that does have partial text naturally separates the
-     * two user messages around it, so in most cases the adjacent-user merge never fires at all.
-     * Only "stopped early, partial is empty" or a failed answer reaches the envelope branch.
-     */
-    fun sanitizeOutboundMessages(
-        messages: List<ChatMessage>,
-        keepAssistantId: String? = null,
-    ): List<ChatMessage> {
-        val filtered = messages.mapNotNull { msg ->
-            // An assistant message must never carry an image or video media content part. In the
-            // OpenAI-compatible protocols image_url is only valid in the user role. Images the model
-            // generated are stored on the assistant message, and sending them back verbatim is
-            // rejected by upstreams such as Qwen ("incorrect modal `image` placed in the wrong
-            // position, e.g. in assistant"). After the user switches to a text-only model, such a
-            // history image turns into an Upstream 400, so outbound normalization strips media
-            // attachments off assistant messages. If that leaves the message with neither text nor
-            // any remaining attachment, the hasContent check below drops it entirely.
-            val normalized = if (msg.role == ChatRole.Assistant && !msg.attachments.isNullOrEmpty()) {
-                val kept = msg.attachments.filter {
-                    it.kind != AttachmentKind.Image && it.kind != AttachmentKind.Video
-                }
-                msg.copy(attachments = kept.takeIf { it.isNotEmpty() })
-            } else {
-                msg
-            }
-
-            val hasContent = normalized.text.isNotBlank() || !normalized.attachments.isNullOrEmpty()
-            if (!hasContent) return@mapNotNull null
-            // Keep: every user message; the explicit continue/retry target (keepAssistantId, revived
-            // as a prefill even when it is failed); and every non-failed history message that has
-            // content (delivered, an interrupted partial the user stopped on purpose, a generating
-            // partial that a race left un-finalized). Those naturally separate the two user messages
-            // around them, so the model does not treat the previous question as unanswered and
-            // answer it again. Only failed turns are dropped: a failed question is not valid
-            // context, and the empty placeholder of a failed message gets filled in with localized
-            // error copy on some surfaces, so keeping it would feed the error string to the model as
-            // a fake answer and repeat it every turn. Retrying after a failure revives the message
-            // as a prefill through keepAssistantId, so that path is unaffected.
-            val keep = normalized.role == ChatRole.User ||
-                normalized.id == keepAssistantId ||
-                normalized.state != ChatMessageState.Failed
-            if (keep) normalized else null
-        }
-
-        val merged = mutableListOf<ChatMessage>()
-        // The earlier messages of the current run of consecutive user messages (not merged yet);
-        // merged in one go when a non-user message or the end of the list is reached.
-        val pendingUsers = mutableListOf<ChatMessage>()
-        fun flushUsers() {
-            if (pendingUsers.isEmpty()) return
-            merged.add(mergeUnansweredUsers(pendingUsers))
-            pendingUsers.clear()
-        }
-        for (msg in filtered) {
-            if (msg.role == ChatRole.User) {
-                pendingUsers.add(msg)
-                continue
-            }
-            flushUsers()
-            val last = merged.lastOrNull()
-            if (last != null && last.role == ChatRole.Assistant) {
-                // Adjacent assistant messages (rare) are merged, so no real answer content is lost.
-                val joinedText = listOf(last.text.trim(), msg.text.trim())
-                    .filter { it.isNotEmpty() }
-                    .joinToString("\n\n")
-                val joinedAttachments = last.attachments.orEmpty() + msg.attachments.orEmpty()
-                merged[merged.size - 1] = last.copy(
-                    text = joinedText,
-                    attachments = joinedAttachments.takeIf { it.isNotEmpty() },
-                )
-            } else {
-                merged.add(msg)
-            }
-        }
-        flushUsers()
-        return merged
-    }
-
-    /** Note text inside the unanswered-user envelope (`unansweredEnvelope.note` of the cross-platform sanitize.v1 contract, verbatim). */
-    const val UNANSWERED_NOTE =
-        "The user sent this earlier but no reply was delivered. Treat it as context and answer the latest message."
-
-    private const val UNANSWERED_TAG = "oriveo-unanswered"
-
-    /** Merges a run of consecutive user messages: keeps the last one's id/fields, wraps earlier non-empty texts in the envelope, concatenates attachments in order. */
-    private fun mergeUnansweredUsers(run: List<ChatMessage>): ChatMessage {
-        val latest = run.last()
-        if (run.size == 1) return latest
-        val earlier = run.dropLast(1)
-        val earlierTexts = earlier.map { it.text.trim() }.filter { it.isNotEmpty() }.map(::escapeXml)
-        val text = if (earlierTexts.isEmpty()) {
-            latest.text
-        } else {
-            val envelope = buildString {
-                append("<").append(UNANSWERED_TAG).append(">\n")
-                append("<note>").append(UNANSWERED_NOTE).append("</note>\n")
-                append(earlierTexts.joinToString("\n\n")).append("\n")
-                append("</").append(UNANSWERED_TAG).append(">")
-            }
-            if (latest.text.isEmpty()) envelope else envelope + "\n\n" + latest.text
-        }
-        val attachments = run.flatMap { it.attachments.orEmpty() }
-        return latest.copy(text = text, attachments = attachments.takeIf { it.isNotEmpty() })
-    }
-
-    // Only the earlier texts inside the envelope are escaped; the order is fixed at & -> < -> > to avoid double escaping.
-    private fun escapeXml(raw: String): String =
-        raw.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
     /**
      * Builds the message-array JSON in OpenRouter / OpenAI Chat Completions format.
@@ -275,33 +133,61 @@ object MessageBuilder {
      * image -> base64 source, document -> base64 source, text file -> inline text.
      * Passing activeModel enables the router.
      *
-     * Cache breakpoints: Anthropic allows at most 4 cache_control breakpoints per request, so
-     * content blocks get none by default (direct Anthropic requests rely on the top-level
-     * cache_control only). With [cacheLastUserBlock] = true (the relay Anthropic path) exactly one
-     * breakpoint goes on the last content block of the last user message.
+     * Cache breakpoint: only one cache_control per request. With [cacheLastUserBlock] = true (official and relay
+     * Anthropic) it goes on the last non-[D] block of the last user message; the MiniMax-compatible route does not enable it.
+     * When [dynamicText] is non-empty and the last user text == dynamicText (body empty) or ends with "\n\n" + dynamicText,
+     * it is split off as the last standalone text block of that message (after the attachment blocks); if it cannot be
+     * found the message is sent as is and the breakpoint goes on the last block.
      */
     fun buildAnthropicMessages(
         messages: List<ChatMessage>,
         activeModel: AIModel? = null,
         transport: AttachmentTransportProfile = AttachmentTransportProfile.AnthropicMessages,
         cacheLastUserBlock: Boolean = false,
+        dynamicText: String? = null,
     ): String {
         val currentTurnIndex = AttachmentDelivery.currentTurnIndex(messages)
-        val breakpointIndex = if (cacheLastUserBlock) messages.indexOfLast { it.role == ChatRole.User } else -1
-        return messages.withIndex().joinToString(",") { (index, msg) ->
-            val role = msg.role.name.lowercase()
-            val parts = buildAnthropicParts(msg, activeModel, isCurrentTurn = index == currentTurnIndex, transport = transport)
-            when {
-                index == breakpointIndex && parts.isNotEmpty() -> {
-                    val marked = parts.dropLast(1) + withAnthropicCacheControl(parts.last())
-                    """{"role":"$role","content":[${marked.joinToString(",")}]}"""
+        val lastUserIndex = messages.indexOfLast { it.role == ChatRole.User }
+        val breakpointIndex = if (cacheLastUserBlock) lastUserIndex else -1
+        val dynamic = dynamicText?.takeIf { it.isNotEmpty() }
+        // With no attachment blocks: the message holding the breakpoint, or the message left after [D] is split off, must become a text block; other messages still send a string content
+        fun contentParts(msg: ChatMessage, index: Int, forceText: Boolean): List<String> =
+            buildAnthropicParts(msg, activeModel, isCurrentTurn = index == currentTurnIndex, transport = transport)
+                .ifEmpty {
+                    if (forceText || index == breakpointIndex) {
+                        listOfNotNull(msg.text.takeIf { it.isNotBlank() }?.let { """{"type":"text","text":${escapeJsonString(it)}}""" })
+                    } else emptyList()
                 }
-                index == breakpointIndex && msg.text.isNotBlank() ->
-                    """{"role":"$role","content":[${withAnthropicCacheControl("""{"type":"text","text":${escapeJsonString(msg.text)}}""")}]}"""
-                parts.isNotEmpty() -> """{"role":"$role","content":[${parts.joinToString(",")}]}"""
-                else -> """{"role":"$role","content":${escapeJsonString(msg.text)}}"""
+        return messages.withIndex().joinToString(",") { (index, original) ->
+            val role = original.role.name.lowercase()
+            // If the last user text == [D] (body empty) or ends with "\n\n" + [D], split [D] off;
+            // when nothing but [D] would remain to carry the breakpoint, send the message as is
+            val split = if (index == lastUserIndex && dynamic != null) {
+                dynamicBody(original.text, dynamic)?.let { body ->
+                    val stripped = original.copy(text = body)
+                    contentParts(stripped, index, forceText = true).takeIf { it.isNotEmpty() }?.let { stripped to it }
+                }
+            } else null
+            val msg = split?.first ?: original
+            val parts = split?.second ?: contentParts(original, index, forceText = false)
+            val dynamicBlock = if (split != null) """{"type":"text","text":${escapeJsonString(dynamic!!)}}""" else null
+            val marked = if (index == breakpointIndex && parts.isNotEmpty()) {
+                parts.dropLast(1) + withAnthropicCacheControl(parts.last())
+            } else parts
+            val blocks = marked + listOfNotNull(dynamicBlock)
+            if (blocks.isNotEmpty()) {
+                """{"role":"$role","content":[${blocks.joinToString(",")}]}"""
+            } else {
+                """{"role":"$role","content":${escapeJsonString(msg.text)}}"""
             }
         }
+    }
+
+    /** Rule (a): when the text == [D] the body is empty; when it ends with "\n\n" + [D] returns the body without [D]; otherwise null. */
+    internal fun dynamicBody(text: String, dynamic: String): String? = when {
+        text == dynamic -> ""
+        text.endsWith("\n\n$dynamic") -> text.removeSuffix("\n\n$dynamic")
+        else -> null
     }
 
     /** Appends `cache_control: ephemeral` to one Anthropic content block (a JSON object string). */

@@ -329,7 +329,7 @@ class ChatRepositoryRegenerateContinueTest {
 
         repository.sendMessage(
             conversation = conversation,
-            text = "Continue from where you stopped. Do not repeat what you have already said.",
+            text = ai.oriveo.community.core.context.ContextAssembler.CONTINUE_PROMPT,
             provider = provider,
             modelID = "claude-3",
             existingMessages = listOf(userMessage("u1", "Question"), original),
@@ -351,7 +351,7 @@ class ChatRepositoryRegenerateContinueTest {
 
         val sent = messagesSlot.captured
         assertEquals(ChatRole.User, sent.last().role)
-        assertTrue(sent.last().text.contains("Continue from where you stopped"))
+        assertTrue(sent.last().text.contains(ai.oriveo.community.core.context.ContextAssembler.CONTINUE_PROMPT))
     }
 
     @Test
@@ -414,7 +414,7 @@ class ChatRepositoryRegenerateContinueTest {
 
         repository.sendMessage(
             conversation = conversation,
-            text = "Continue from where you stopped. Do not repeat what you have already said.",
+            text = ai.oriveo.community.core.context.ContextAssembler.CONTINUE_PROMPT,
             provider = provider,
             modelID = "claude-3",
             existingMessages = listOf(userMessage("u1", "Question"), original),
@@ -481,6 +481,7 @@ class ChatRepositoryRegenerateContinueTest {
             conversation, "continue", provider, "claude-3",
             listOf(userMessage("u-old", "question"), partial),
             outputs = newOutputs(), persistUserMessage = false, appendToAssistant = partial,
+            attemptKind = ai.oriveo.community.feature.chat.ContextConfirmAttempt.CONTINUE,
         )
 
         assertEquals(state, secondOptions?.localContinuationState)
@@ -494,6 +495,7 @@ class ChatRepositoryRegenerateContinueTest {
             conversation, "continue again", provider, "claude-3",
             listOf(userMessage("u-old", "question"), partial),
             outputs = newOutputs(), persistUserMessage = false, appendToAssistant = partial,
+            attemptKind = ai.oriveo.community.feature.chat.ContextConfirmAttempt.CONTINUE,
         )
         assertEquals(nextState, store.loadForExplicit("account", partial.id)?.state)
     }
@@ -529,6 +531,7 @@ class ChatRepositoryRegenerateContinueTest {
             repo.sendMessage(
                 conversation, "continue", provider, "claude-3", listOf(userMessage("u1", "question"), partial),
                 outputs = newOutputs(), persistUserMessage = false, appendToAssistant = partial,
+                attemptKind = ai.oriveo.community.feature.chat.ContextConfirmAttempt.CONTINUE,
             )
         }
         assertEquals(state, store.loadForExplicit("account", partial.id)?.state)
@@ -536,6 +539,7 @@ class ChatRepositoryRegenerateContinueTest {
         repo.sendMessage(
             conversation, "retry", provider, "claude-3", listOf(userMessage("u1", "question"), partial),
             outputs = newOutputs(), persistUserMessage = false, appendToAssistant = partial,
+            attemptKind = ai.oriveo.community.feature.chat.ContextConfirmAttempt.CONTINUE,
         )
         assertEquals(listOf(state, state), seen)
         assertNull(dao.get("account", partial.id))
@@ -802,6 +806,7 @@ class ChatRepositoryRegenerateContinueTest {
                     listOf(ChatMessage("u-old", ChatRole.User, "question", providerKind = case.kind, providerName = case.kind.rawValue, modelName = case.model, state = ChatMessageState.Delivered), partial),
                     reasoningMode = case.reasoning, webSearchEnabled = case.web, outputs = newOutputs(),
                     persistUserMessage = false, appendToAssistant = partial,
+                    attemptKind = ai.oriveo.community.feature.chat.ContextConfirmAttempt.CONTINUE,
                 )
                 val replayBodyText = requireNotNull(captured.asReversed().firstOrNull { (_, body) ->
                     runCatching {
@@ -812,8 +817,13 @@ class ChatRepositoryRegenerateContinueTest {
                 val replayBody = Json.parseToJsonElement(replayBodyText).jsonObject
                 when (case.expectedKind) {
                     "previous_id" -> {
-                        require(replayBody["previous_response_id"]?.jsonPrimitive?.content == "response-1") { "${case.recipe} previous_id replay=$replayBody events=$parsedEvents" }
-                        require(replayBody["input"]?.jsonArray?.size == 1) { "${case.recipe} resent represented history: $replayBody" }
+                        // Both requests come from the same plan (same system / model / no checkpoint), so the fingerprints match;
+                        // an explicit continue picks up the previous round's previous_response_id and sends only the continuation sentence (even without chatContext the assembler is used).
+                        val expectedId = parsedEvents.filterIsInstance<StreamEvent.RecipeContinuation>().last()
+                            .state?.get("previousResponseId")?.jsonPrimitive?.content
+                        require(expectedId != null && replayBody["previous_response_id"]?.jsonPrimitive?.content == expectedId) {
+                            "${case.recipe} previous_id replay=$replayBody events=$parsedEvents"
+                        }
                     }
                     "replay_blocks" -> require((replayBody["messages"] as? JsonArray).orEmpty().any {
                         it.jsonObject["role"]?.jsonPrimitive?.content == "assistant" && it.jsonObject["content"] is JsonArray

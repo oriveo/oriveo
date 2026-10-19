@@ -1,5 +1,7 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.context.StreamFinishTracker
+import ai.oriveo.community.core.context.StopFamily
 import ai.oriveo.community.core.attachments.AttachmentTransportProfile
 import ai.oriveo.community.core.attachments.NativeFileFallback
 import ai.oriveo.community.core.data.remote.MetadataClient
@@ -271,6 +273,7 @@ open class OpenAICompatibleService(
                 SseParser.parseOpenAICompatibleMulti(
                     response = response,
                     json = json,
+                    stopFamily = StopFamily.OPENAI_CHAT,
                     onChunk = { payload ->
                         val events = mutableListOf<StreamEvent>()
                         // Parsed as a JSON tree so a subclass parseUsage can reach the raw fields,
@@ -402,6 +405,7 @@ open class OpenAICompatibleService(
                         StreamEvent.Done(
                             ProviderChatResult(
                                 text = accumulatedText.trim(),
+                                rawText = accumulatedText,
                                 promptTokens = breakdown.promptTokens + breakdown.cachedInputTokens,
                                 completionTokens = breakdown.completionTokens,
                                 estimatedCost = cost,
@@ -534,6 +538,7 @@ open class OpenAICompatibleService(
         return StreamEvent.Done(ProviderChatResult(
             text.trim(), breakdown.promptTokens + breakdown.cachedInputTokens, breakdown.completionTokens,
             cost, reasoningText = null, cachedInputTokens = breakdown.reportedCachedInputTokens, costSource = source.name,
+            rawText = text,
         ))
     }
 
@@ -721,6 +726,7 @@ open class OpenAICompatibleService(
                 SseParser.parseOpenAICompatibleMulti(
                     response = response,
                     json = json,
+                    stopFamily = StopFamily.OPENAI_RESPONSES,
                     onChunk = { payload ->
                         val events = mutableListOf<StreamEvent>()
                         val root = runCatching { json.parseToJsonElement(payload).jsonObject }.getOrNull()
@@ -758,11 +764,12 @@ open class OpenAICompatibleService(
                                     events += StreamEvent.Reasoning(delta)
                                 }
                             }
-                            "response.completed" -> {
-                                lastUsageJson = (root["usage"] as? JsonObject)
-                                    ?: ((root["response"] as? JsonObject)?.get("usage") as? JsonObject)
-                                completedResponseId = ((root["response"] as? JsonObject)?.get("id") as? JsonPrimitive)?.contentOrNull
-                                    ?: (root["id"] as? JsonPrimitive)?.contentOrNull
+                            // response.incomplete (e.g. max_output_tokens) carries the final usage as well
+                            "response.completed", "response.incomplete" -> {
+                                lastUsageJson = (root?.get("usage") as? JsonObject)
+                                    ?: ((root?.get("response") as? JsonObject)?.get("usage") as? JsonObject)
+                                completedResponseId = ((root?.get("response") as? JsonObject)?.get("id") as? JsonPrimitive)?.contentOrNull
+                                    ?: (root?.get("id") as? JsonPrimitive)?.contentOrNull
                             }
                             "response.failed",
                             "error",
@@ -774,7 +781,12 @@ open class OpenAICompatibleService(
                                     ?.jsonPrimitive
                                     ?.contentOrNull
                                     ?: "Responses stream failed."
-                                throw ProviderServiceError.Upstream(statusCode = 200, detail = detail, streamErrorFrame = true)
+                                throw ProviderServiceError.Upstream(
+                                    statusCode = 200,
+                                    detail = detail,
+                                    streamErrorFrame = true,
+                                    streamFinish = if (type == "response.failed") StreamFinishTracker.responsesFailedFinish(root) else null,
+                                ).also { it.telemetryUpstreamErrorType = SseParser.upstreamErrorTypeOf(root?.toString()) }
                             }
                         }
 
@@ -790,6 +802,7 @@ open class OpenAICompatibleService(
                         StreamEvent.Done(
                             ProviderChatResult(
                                 text = accumulatedText.trim(),
+                                rawText = accumulatedText,
                                 promptTokens = breakdown.promptTokens + breakdown.cachedInputTokens,
                                 completionTokens = breakdown.completionTokens,
                                 estimatedCost = cost,

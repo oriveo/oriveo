@@ -134,6 +134,9 @@ sealed interface ToolLoopLegEvent {
 
     /** Opaque continuation state this leg must send back verbatim (protocol name + state body); handed over once when the leg ends. */
     data class ProviderContinuation(val protocol: String, val state: JsonObject) : ToolLoopLegEvent
+
+    /** The stream finish info of this leg (persisted as stopReason); handed over when the leg ends, and the last leg's copy is carried out with the loop result. */
+    data class Finish(val finish: ai.oriveo.community.core.context.StreamFinish) : ToolLoopLegEvent
 }
 
 /** One leg = one request to the model. Implementations only "send the request → decode the stream → emit events" and must not handle tool_calls themselves. */

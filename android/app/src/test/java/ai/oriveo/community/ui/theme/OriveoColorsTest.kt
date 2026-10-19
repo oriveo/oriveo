@@ -1,5 +1,6 @@
 package ai.oriveo.community.ui.theme
 
+import androidx.compose.ui.graphics.Color
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -92,5 +93,26 @@ class OriveoColorsTest {
         assertNotNull(LightOriveoColors.capFileBorder)
         assertNotNull(LightOriveoColors.capWebBorder)
         assertNotNull(LightOriveoColors.capImageGenBorder)
+    }
+
+    // Memory page tokens have the same values on all three platforms; compare with iOS Palette.memoryHue.* / backgroundGrouped / warningLine / memoryAtlasDot
+    @Test
+    fun `memory page tokens match iOS values`() {
+        val light = LightOriveoColors
+        val dark = DarkOriveoColors
+        assertEquals(Color(0xFFF4F4F6), light.backgroundGrouped)
+        assertEquals(Color(0xFF0F1218), dark.backgroundGrouped)
+        assertEquals(Color(0x66F59E0B), light.warningLine)
+        assertEquals(Color(0x52FCD34D), dark.warningLine)
+        assertEquals(Color(0x1A18181B), light.memoryAtlasDot)
+        assertEquals(Color(0x14FFFFFF), dark.memoryAtlasDot)
+        assertEquals(
+            listOf(Color(0xFF4F46E5), Color(0xFF0D9488), Color(0xFFEA580C), Color(0xFF0891B2), Color(0xFF7C3AED)),
+            with(light) { listOf(memoryHueAbout, memoryHuePreferences, memoryHueInstructions, memoryHueWorkingOn, memoryHueEpisodic) },
+        )
+        assertEquals(
+            listOf(Color(0xFF818CF8), Color(0xFF2DD4BF), Color(0xFFFB923C), Color(0xFF22D3EE), Color(0xFFA78BFA)),
+            with(dark) { listOf(memoryHueAbout, memoryHuePreferences, memoryHueInstructions, memoryHueWorkingOn, memoryHueEpisodic) },
+        )
     }
 }

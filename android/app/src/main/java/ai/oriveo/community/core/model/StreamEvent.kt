@@ -42,8 +42,11 @@ sealed class StreamEvent {
         val state: JsonObject,
     ) : StreamEvent()
 
-    /** The stream finished; carries the final totals for the message. */
-    data class Done(val result: ProviderChatResult) : StreamEvent()
+    /** The stream finished; carries the final totals for the message. [finish] is the stream-finish info the parser recorded (null for families that do not report it). */
+    data class Done(
+        val result: ProviderChatResult,
+        val finish: ai.oriveo.community.core.context.StreamFinish? = null,
+    ) : StreamEvent()
 }
 
 /** The activities the waiting line can name. The set is closed. */

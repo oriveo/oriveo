@@ -76,7 +76,9 @@ import ai.oriveo.community.feature.providers.relay.postAddedNotice
 import ai.oriveo.community.feature.providers.relay.RelaySetupScreen
 import ai.oriveo.community.feature.providers.CustomLLMConnectionMethod
 import ai.oriveo.community.feature.providers.setup.ProviderSetupScreen
+import ai.oriveo.community.feature.settings.MemoryInboxScreen
 import ai.oriveo.community.feature.settings.MemoryScreen
+import ai.oriveo.community.feature.settings.ContextSettingsScreen
 import ai.oriveo.community.feature.settings.SettingsScreen
 import ai.oriveo.community.feature.skills.SkillEditScreen
 import ai.oriveo.community.feature.skills.SkillsListScreen
@@ -135,6 +137,8 @@ private val fullScreenRoutes = setOf(
     AppRoute.RelaySetup::class,
     AppRoute.LocalComputeSetup::class,
     AppRoute.Memory::class,
+    AppRoute.MemoryInbox::class,
+    AppRoute.ContextSettings::class,
     AppRoute.McpServers::class,
     AppRoute.McpAddServer::class,
     AppRoute.McpServerDetail::class,
@@ -369,7 +373,11 @@ fun OriveoNavHost(
                 SettingsScreen(
                     onNavigateToMemory = {
                         PageTrace.begin("Memory")
-                        navController.navigate(AppRoute.Memory)
+                        navController.navigate(AppRoute.Memory())
+                    },
+                    onNavigateToContextSettings = {
+                        PageTrace.begin("ContextSettings")
+                        navController.navigate(AppRoute.ContextSettings)
                     },
                     onNavigateToMcpServers = {
                         navController.navigate(AppRoute.McpServers) { launchSingleTop = true }
@@ -392,9 +400,9 @@ fun OriveoNavHost(
                     initialConversationId = route.conversationId,
                     searchQuery = route.searchQuery,
                     onBack = { navController.popBackStack() },
-                    onNavigateToMemory = {
+                    onNavigateToMemory = { editItemId ->
                         PageTrace.begin("Memory")
-                        navController.navigate(AppRoute.Memory)
+                        navController.navigate(AppRoute.Memory(editItemId = editItemId))
                     },
                     onNavigateToMcpServers = {
                         navController.navigate(AppRoute.McpServers) { launchSingleTop = true }
@@ -660,6 +668,22 @@ fun OriveoNavHost(
                 LaunchedEffect(Unit) { PageTrace.end("Memory") }
                 MemoryScreen(
                     onNavigateBack = { navController.popBackStack() },
+                    onNavigateToInbox = {
+                        PageTrace.begin("MemoryInbox")
+                        navController.navigate(AppRoute.MemoryInbox)
+                    },
+                )
+            }
+            composable<AppRoute.MemoryInbox> {
+                LaunchedEffect(Unit) { PageTrace.end("MemoryInbox") }
+                MemoryInboxScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                )
+            }
+            composable<AppRoute.ContextSettings> {
+                LaunchedEffect(Unit) { PageTrace.end("ContextSettings") }
+                ContextSettingsScreen(
+                    onNavigateBack = { navController.popBackStack() },
                 )
             }
             composable<AppRoute.McpServers> {
@@ -824,6 +848,8 @@ private fun currentRouteLabel(destination: androidx.navigation.NavDestination?):
     destination?.hasRoute(AppRoute.ManualModelEntry::class) == true -> "manual_model_entry"
     destination?.hasRoute(AppRoute.RelaySetup::class) == true -> "relay_setup"
     destination?.hasRoute(AppRoute.Memory::class) == true -> "memory"
+    destination?.hasRoute(AppRoute.MemoryInbox::class) == true -> "memory_inbox"
+    destination?.hasRoute(AppRoute.ContextSettings::class) == true -> "context_settings"
     destination?.hasRoute(AppRoute.Backup::class) == true -> "backup"
     destination?.hasRoute(AppRoute.Skills::class) == true -> "skills"
     destination?.hasRoute(AppRoute.SkillEdit::class) == true -> "skill_edit"

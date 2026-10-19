@@ -31,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -39,6 +40,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -56,6 +58,19 @@ class ChatViewModelMemoryTest {
     private val attachmentStore = mockk<AttachmentStore>()
     private val globalSnackbarManager = mockk<GlobalSnackbarManager>(relaxed = true)
     private val windowStore = MessageWindowFakeStore()
+
+    /** Local memory items of the current account (injection reads items, not the whole memoryText). */
+    private val memoryItems = MutableStateFlow(
+        listOf(
+            ai.oriveo.community.core.context.MemoryItem(
+                id = "memory-1",
+                kind = ai.oriveo.community.core.context.MemoryKind.FACT,
+                content = "I use Kotlin",
+                mutationId = "mutation-1",
+                deviceId = "device-1",
+            ),
+        ),
+    )
 
     private val provider = Provider(
         id = "provider-1",
@@ -78,7 +93,9 @@ class ChatViewModelMemoryTest {
         coEvery { providerRepository.getById("provider-1") } returns provider
         every { providerRepository.currentCapabilityPartitionId() } returns "test-partition"
         coEvery { providerRepository.capabilityEvidenceIdentity(any(), any(), "test-partition") } returns null
-
+        every { providerRepository.toolCallMemoryVerdict(any(), any()) } returns null
+        // Multi-conversation streaming: state goes through chatStreamingManager.streamingText(convId) / streamingMessageId(convId),
+        // which ChatViewModel re-subscribes to via flatMapLatest(activeConversationId).
         every { chatStreamingManager.streamingText(any()) } returns MutableStateFlow("")
         every { chatStreamingManager.streamingMessageId(any()) } returns MutableStateFlow(null)
         ai.oriveo.community.testing.installChatStreamingManagerForwardingStub(chatStreamingManager, chatRepository)
@@ -107,6 +124,12 @@ class ChatViewModelMemoryTest {
                 persistUserMessage = any(),
                 userMessageAlreadyInHistory = any(),
                 appendToAssistant = any(),
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         } returns Unit
     }
@@ -145,6 +168,12 @@ class ChatViewModelMemoryTest {
                 persistUserMessage = any(),
                 userMessageAlreadyInHistory = any(),
                 appendToAssistant = any(),
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         } returns Unit
 
@@ -160,6 +189,7 @@ class ChatViewModelMemoryTest {
             attachmentProcessor = mockk(relaxed = true),
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
+            memoryItemsSource = memoryItems,
         )
         advanceUntilIdle()
 
@@ -168,7 +198,10 @@ class ChatViewModelMemoryTest {
         viewModel.sendMessage()
         advanceUntilIdle()
 
-        assertEquals("I use Kotlin", requestOptionsSlot.captured.systemPrompt)
+        // The system prompt is written only by the assembler plan and the view model no longer builds systemPrompt; memory is handed to chatContext as local items.
+        val chatContext = requireNotNull(requestOptionsSlot.captured.chatContext)
+        assertEquals(listOf("memory-1" to "I use Kotlin"), chatContext.memoryItems.map { it.id to it.content })
+        assertTrue(chatContext.conversation.useMemory)
         // Even with the Anti-Forget preference on and 10 turns reached, no [Reminder: ...] is injected into the request.
         assertEquals("What should I build next?", textSlot.captured)
         assertFalse(textSlot.captured.contains("[Reminder:"))
@@ -203,6 +236,7 @@ class ChatViewModelMemoryTest {
             attachmentProcessor = mockk(relaxed = true),
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
+            memoryItemsSource = memoryItems,
         )
         advanceUntilIdle()
 
@@ -215,6 +249,15 @@ class ChatViewModelMemoryTest {
                 conversation = any(), text = any(), provider = any(), modelID = any(),
                 existingMessages = any(), attachments = any(), reasoningMode = any(),
                 webSearchEnabled = any(), requestOptions = any(), outputs = any(),
+                quoteContext = any(),
+                persistUserMessage = any(),
+                userMessageAlreadyInHistory = any(),
+                appendToAssistant = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         }
     }
@@ -248,6 +291,12 @@ class ChatViewModelMemoryTest {
                 persistUserMessage = any(),
                 userMessageAlreadyInHistory = any(),
                 appendToAssistant = any(),
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         } returns Unit
 
@@ -263,6 +312,7 @@ class ChatViewModelMemoryTest {
             attachmentProcessor = mockk(relaxed = true),
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
+            memoryItemsSource = memoryItems,
         )
         advanceUntilIdle()
 
@@ -272,6 +322,7 @@ class ChatViewModelMemoryTest {
         advanceUntilIdle()
 
         assertEquals("", requestOptionsSlot.captured.systemPrompt)
+        assertEquals(emptyList<String>(), requestOptionsSlot.captured.chatContext?.memoryItems.orEmpty().map { it.content })
         assertFalse(textSlot.captured.contains("[Reminder:"))
     }
 
@@ -310,6 +361,12 @@ class ChatViewModelMemoryTest {
                 persistUserMessage = any(),
                 userMessageAlreadyInHistory = any(),
                 appendToAssistant = any(),
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         } returns Unit
 
@@ -325,6 +382,7 @@ class ChatViewModelMemoryTest {
             attachmentProcessor = mockk(relaxed = true),
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
+            memoryItemsSource = memoryItems,
         )
         advanceUntilIdle()
 
@@ -333,7 +391,63 @@ class ChatViewModelMemoryTest {
         viewModel.sendMessage()
         advanceUntilIdle()
 
-        assertEquals("Write clearly.", requestOptionsSlot.captured.systemPrompt)
+        // The skill text goes into chatContext.conversation.skillPrompt and the assembler writes it into system; with memory off for the conversation no memory items are carried.
+        val chatContext = requireNotNull(requestOptionsSlot.captured.chatContext)
+        assertEquals("Write clearly.", chatContext.conversation.skillPrompt)
+        assertTrue(chatContext.memoryItems.isEmpty())
+    }
+
+    /** The memory indicator looks at "conversation switch on and an active semantic item exists", not at the whole memoryText. */
+    @Test
+    fun indicator_follows_items() = runTest {
+        val conversationFlow = MutableStateFlow(buildConversation(useMemory = true))
+
+        every { appPreferencesRepository.lastUsedModelRef } returns flowOf(null)
+        // The old whole-text memory still has text, but the indicator only counts items
+        every { appPreferencesRepository.memoryText } returns MutableStateFlow("I use Kotlin")
+        every { conversationRepository.observeMetadata("conversation-1") } returns conversationFlow
+        coEvery { conversationRepository.getWithMessages("conversation-1") } returns conversationFlow.value
+        coEvery { conversationRepository.getWithLatestMessageWindow("conversation-1", any()) } returns conversationFlow.value
+        coEvery { conversationRepository.updateUseMemory("conversation-1", any()) } returns Unit
+
+        val viewModel = ChatViewModel(
+            savedStateHandle = SavedStateHandle(mapOf("conversationId" to "conversation-1")),
+            context = mockk<Context>(relaxed = true),
+            appPreferencesRepository = appPreferencesRepository,
+            providerRepository = providerRepository,
+            conversationRepository = conversationRepository,
+            noteRepository = mockk(relaxed = true),
+            chatStreamingManager = chatStreamingManager,
+            skillRepository = skillRepository,
+            attachmentProcessor = mockk(relaxed = true),
+            globalSnackbarManager = globalSnackbarManager,
+            applicationScope = applicationScope,
+            memoryItemsSource = memoryItems,
+        )
+        backgroundScope.launch { viewModel.showMemoryIndicator.collect {} }
+        advanceUntilIdle()
+
+        assertTrue(viewModel.showMemoryIndicator.value)
+
+        // Only tombstones / non-active / episodic-layer items left -> not shown
+        val base = memoryItems.value.single()
+        memoryItems.value = listOf(
+            base.copy(status = ai.oriveo.community.core.context.MemoryStatus.DELETED, deletedAt = "2026-10-01T00:00:00Z"),
+            base.copy(id = "memory-2", status = ai.oriveo.community.core.context.MemoryStatus.PAUSED),
+            base.copy(id = "memory-3", layer = ai.oriveo.community.core.context.MemoryLayer.EPISODIC, kind = ai.oriveo.community.core.context.MemoryKind.EVENT),
+        )
+        advanceUntilIdle()
+        assertFalse(viewModel.showMemoryIndicator.value)
+
+        // An active semantic item exists but memory is off for the conversation -> not shown
+        memoryItems.value = listOf(base)
+        conversationFlow.value = buildConversation(useMemory = false)
+        advanceUntilIdle()
+        assertFalse(viewModel.showMemoryIndicator.value)
+
+        conversationFlow.value = buildConversation(useMemory = true)
+        advanceUntilIdle()
+        assertTrue(viewModel.showMemoryIndicator.value)
     }
 
     private fun buildConversation(

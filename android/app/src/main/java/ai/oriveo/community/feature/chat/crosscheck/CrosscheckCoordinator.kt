@@ -1,5 +1,8 @@
 package ai.oriveo.community.feature.chat.crosscheck
 
+import ai.oriveo.community.core.context.RequestPurpose
+import ai.oriveo.community.core.data.repository.ChatContextProjector
+import ai.oriveo.community.core.data.repository.PlannedChatRequest
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.ChatMessage
@@ -11,7 +14,6 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.model.StreamEvent
-import ai.oriveo.community.core.provider.MessageBuilder
 import ai.oriveo.community.core.provider.ProviderCredentialResolver
 import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
 import ai.oriveo.community.core.provider.RelayEndpointResolver
@@ -126,14 +128,15 @@ class CrosscheckCoordinator(
         job = scope.launch {
             try {
                 val runtimeModelId = ProviderSelectionSnapshot.selectedModel(provider, model.id)?.id ?: model.id
-                val outbound = buildEphemeralMessages(
+                val planned = crosscheckProjection(
                     originalQuestion = originalQuestion,
                     originalAnswer = originalAnswer,
                     priorMessages = priorMessages,
                     provider = provider,
                     model = model,
+                    appLanguage = appLanguageTag(),
                 )
-                var requestOptions = ChatRequestOptions(systemPrompt = crosscheckSystemPrompt(appLanguageTag()))
+                var requestOptions = ChatRequestOptions()
                 if (provider.kind == ProviderKind.Relay) {
                     requestOptions = requestOptions.copy(
                         relayRequested = provider.relayRequested,
@@ -142,17 +145,18 @@ class CrosscheckCoordinator(
                         relayRouteAPIRoot = RelayEndpointResolver.effectiveAPIRoot(provider, model),
                     )
                 }
+                val transport = planned.transportInput(requestOptions)
                 val service = providerRepository.serviceFor(provider, model)
                 val sb = StringBuilder()
                 service.sendMessageStream(
                     apiKey = ProviderCredentialResolver.apiKey(provider, runtimeModelId),
                     modelID = runtimeModelId,
-                    messages = outbound,
+                    messages = transport.messages,
                     baseUrl = ai.oriveo.community.core.provider.transport.OfficialEndpointSource.effectiveBaseUrlText(provider),
                     supportsImageGen = false,
                     reasoningMode = ReasoningMode.Automatic,
                     webSearchEnabled = false,
-                    requestOptions = requestOptions,
+                    requestOptions = transport.options,
                 ).collect { event ->
                     when (event) {
                         is StreamEvent.Delta -> {
@@ -282,12 +286,28 @@ class CrosscheckCoordinator(
                 modelName = model.name,
                 state = ChatMessageState.Delivered,
             )
-            return MessageBuilder.sanitizeOutboundMessages(
-                listOf(crosscheckUserMessage),
-                keepAssistantId = null,
-            )
+            return listOf(crosscheckUserMessage)
         }
 
+        /**
+         * The crosscheck request comes from the assembler (purpose crosscheck): the crosscheck prompt is the only system,
+         * the single untrusted-data user message is the history; no memory, instructions or [D].
+         */
+        internal fun crosscheckProjection(
+            originalQuestion: String,
+            originalAnswer: String,
+            priorMessages: List<ChatMessage>,
+            provider: Provider,
+            model: AIModel,
+            appLanguage: String,
+        ): PlannedChatRequest = ChatContextProjector.projectPurpose(
+            purpose = RequestPurpose.CROSSCHECK,
+            messages = buildEphemeralMessages(originalQuestion, originalAnswer, priorMessages, provider, model),
+            window = ChatContextProjector.window(provider, model, ChatRequestOptions()),
+            purposeSystem = crosscheckSystemPrompt(appLanguage),
+        )
+
+        /** Candidate models: every provider needs an API key. */
         fun eligibleOptions(
             providers: List<Provider>,
             excluding: CrosscheckModelIdentity? = null,

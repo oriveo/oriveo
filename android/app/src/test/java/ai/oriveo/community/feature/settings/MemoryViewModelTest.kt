@@ -2,10 +2,21 @@ package ai.oriveo.community.feature.settings
 
 import ai.oriveo.community.R
 import ai.oriveo.community.core.app.AppPreferencesRepository
+import ai.oriveo.community.core.app.GlobalSnackbarManager
+import ai.oriveo.community.core.context.MemoryConflictResolution
+import ai.oriveo.community.core.context.MemoryItem
+import ai.oriveo.community.core.context.MemoryKind
+import ai.oriveo.community.core.context.MemoryLayer
+import ai.oriveo.community.core.context.MemoryServerTime
+import ai.oriveo.community.core.context.MemoryStatus
+import ai.oriveo.community.core.data.dao.MemoryItemDao
 import ai.oriveo.community.core.data.dao.PreferenceDao
+import ai.oriveo.community.core.data.entity.MemoryItemEntity
 import ai.oriveo.community.core.data.entity.PreferenceEntity
 import ai.oriveo.community.core.data.repository.ConversationRepository
 import ai.oriveo.community.core.data.repository.ProviderRepository
+import ai.oriveo.community.core.memory.MemoryItemRepository
+import ai.oriveo.community.core.memory.toEntity
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatMessageState
@@ -19,7 +30,10 @@ import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.StreamEvent
 import ai.oriveo.community.core.provider.ProviderService
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.just
+import io.mockk.runs
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +57,7 @@ import org.junit.Test
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
+import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MemoryViewModelTest {
@@ -50,8 +65,11 @@ class MemoryViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private lateinit var appPreferencesRepository: AppPreferencesRepository
     private lateinit var preferenceDao: FakePreferenceDao
+    private lateinit var memoryRepository: MemoryItemRepository
+    private lateinit var memoryDao: FakeMemoryItemDao
     private val conversationRepository = mockk<ConversationRepository>()
     private val providerRepository = mockk<ProviderRepository>()
+    private val globalSnackbarManager = mockk<GlobalSnackbarManager>()
     private val providerService = mockk<ProviderService>()
 
     private val conversationListFlow = MutableStateFlow(emptyList<Conversation>())
@@ -62,10 +80,13 @@ class MemoryViewModelTest {
         Dispatchers.setMain(dispatcher)
         preferenceDao = FakePreferenceDao()
         appPreferencesRepository = AppPreferencesRepository(preferenceDao)
+        memoryDao = FakeMemoryItemDao()
+        memoryRepository = MemoryItemRepository(memoryDao, preferenceDao, appPreferencesRepository)
 
         every { conversationRepository.observeHasAnyWithMessages() } returns conversationListFlow.map { conversations -> conversations.any { it.messageCount > 0 } }
         every { providerRepository.observeAll() } returns providerListFlow
 
+        every { globalSnackbarManager.show(any()) } just runs
     }
 
     @After
@@ -74,41 +95,185 @@ class MemoryViewModelTest {
     }
 
     @Test
-    fun `save normalizes blank memory and clears anti forget fields`() = runTest {
-        val viewModel = createViewModel()
+    fun edit_item_id_opens_editor() = runTest {
+        val fact = memoryRepository.create(ACCOUNT, MemoryKind.FACT, "Lives in Cairo")
+        memoryRepository.create(ACCOUNT, MemoryKind.PREFERENCE, "Short answers")
+
+        val viewModel = createViewModel(editItemId = fact.id)
         advanceUntilIdle()
 
-        viewModel.updateEditText("   ")
+        val editor = viewModel.editor
+        assertNotNull(editor)
+        assertEquals(fact.id, editor!!.itemId)
+        assertEquals("Lives in Cairo", editor.text)
+        assertEquals(MemoryItemGroup.About, editor.group)
 
-        viewModel.save()
+        // Save goes through the repository edit: the body is updated and a fact in "About me" stays a fact.
+        viewModel.updateEditorText("Lives in Giza")
+        viewModel.saveEditor()
         advanceUntilIdle()
+        val saved = memoryRepository.get(ACCOUNT, fact.id)!!
+        assertEquals("Lives in Giza", saved.content)
+        assertEquals(MemoryKind.FACT, saved.kind)
+        assertNull(viewModel.editor)
 
-        assertEquals("", appPreferencesRepository.getMemoryText())
-        assertFalse(appPreferencesRepository.getMemoryAntiForgetEnabled())
-        assertEquals("", appPreferencesRepository.getMemoryAntiForgetText())
-        assertTrue(viewModel.showSaveSuccessDialog)
-        assertEquals("", viewModel.editText)
-        assertFalse(viewModel.hasChanges)
+        // A missing or deleted id does not open the editor.
+        memoryRepository.delete(ACCOUNT, fact.id)
+        val missing = createViewModel(editItemId = fact.id)
+        advanceUntilIdle()
+        assertNull(missing.editor)
     }
 
     @Test
-    fun `save keeps stored anti-forget preference unchanged`() = runTest {
-        // The Anti-Forget UI is hidden, but the preference fields are still read and written back unchanged for later migration.
-        appPreferencesRepository.saveMemory(
-            text = "Old memory",
-            antiForgetEnabled = true,
-            antiForgetText = "Keep replies concise",
-        )
+    fun new_episodic_editor_saves_l3_with_kind_and_date() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
-        viewModel.updateEditText("I'm a backend engineer using Go.")
-        viewModel.save()
+        viewModel.openNewEpisodicEditor()
+        val editor = viewModel.editor!!
+        assertTrue(editor.isEpisodic)
+        assertEquals(MemoryKind.DECISION, editor.episodicKind)
+        assertEquals(TODAY, editor.date)
+
+        viewModel.updateEditorText("Moved to Lisbon")
+        viewModel.updateEditorEpisodicKind(MemoryKind.EVENT)
+        viewModel.updateEditorEpisodicKind(MemoryKind.FACT) // L3 accepts only decision / event
+        viewModel.updateEditorDate(LocalDate.of(2026, 9, 3))
+        viewModel.saveEditor()
         advanceUntilIdle()
 
-        assertEquals("I'm a backend engineer using Go.", appPreferencesRepository.getMemoryText())
-        assertTrue(appPreferencesRepository.getMemoryAntiForgetEnabled())
-        assertEquals("Keep replies concise", appPreferencesRepository.getMemoryAntiForgetText())
+        val saved = memoryRepository.list(ACCOUNT).single()
+        assertEquals(MemoryLayer.EPISODIC, saved.layer)
+        assertEquals(MemoryKind.EVENT, saved.kind)
+        assertEquals("2026-09-03T00:00:00Z", saved.occurredAt)
+        assertEquals(listOf(saved.id), buildMemoryItemListPresentation(viewModel.items.value, null).episodic.rows.map { it.item.id })
+
+        // Editing L3: kind and date are shown, and changing the date writes back occurredAt.
+        viewModel.openEditor(saved)
+        assertTrue(viewModel.editor!!.isEpisodic)
+        assertEquals(MemoryKind.EVENT, viewModel.editor!!.episodicKind)
+        assertEquals(LocalDate.of(2026, 9, 3), viewModel.editor!!.date)
+        viewModel.updateEditorDate(LocalDate.of(2026, 9, 4))
+        viewModel.saveEditor()
+        advanceUntilIdle()
+        val edited = memoryRepository.get(ACCOUNT, saved.id)!!
+        assertEquals("2026-09-04T00:00:00Z", edited.occurredAt)
+        assertEquals(MemoryKind.EVENT, edited.kind)
+
+        // Editing L2 is not the L3 editor.
+        val fact = memoryRepository.create(ACCOUNT, MemoryKind.FACT, "Lives in Cairo")
+        viewModel.openEditor(fact)
+        assertFalse(viewModel.editor!!.isEpisodic)
+        assertFalse(MemoryKind.DECISION in viewModel.editor!!.kindOptions)
+    }
+
+    @Test
+    fun l3_conflict_actions_call_repository_resolution() = runTest {
+        val expectations = mapOf(
+            MemoryConflictResolution.USE_NEW to (MemoryStatus.ACTIVE to MemoryStatus.SUPERSEDED),
+            MemoryConflictResolution.USE_OLD to (MemoryStatus.SUPERSEDED to MemoryStatus.ACTIVE),
+            MemoryConflictResolution.KEEP_BOTH to (MemoryStatus.ACTIVE to MemoryStatus.ACTIVE),
+        )
+        expectations.entries.forEachIndexed { index, (resolution, statuses) ->
+            val olderId = "0000000$index-old"
+            val newerId = "0000000$index-new"
+            seedConflicted(olderId, "2026-03-0${index + 1}T00:00:00Z", groupId = olderId)
+            seedConflicted(newerId, "2026-09-0${index + 1}T00:00:00Z", groupId = olderId)
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            val pair = buildMemoryItemListPresentation(viewModel.items.value, null).l3Conflicts.single { it.groupId == olderId }
+            assertEquals(newerId, pair.newer.item.id)
+            viewModel.resolveL3Conflict(pair, resolution)
+            advanceUntilIdle()
+
+            assertEquals(statuses.first, memoryRepository.get(ACCOUNT, newerId)!!.status)
+            assertEquals(statuses.second, memoryRepository.get(ACCOUNT, olderId)!!.status)
+            assertEquals(resolution == MemoryConflictResolution.USE_NEW, olderId in memoryRepository.get(ACCOUNT, newerId)!!.supersedes)
+        }
+    }
+
+    private suspend fun seedConflicted(id: String, occurredAt: String, groupId: String) {
+        memoryDao.upsert(
+            MemoryItem(
+                id = id,
+                layer = MemoryLayer.EPISODIC,
+                kind = MemoryKind.DECISION,
+                status = MemoryStatus.CONFLICTED,
+                content = "Decision $id",
+                mutationId = "m-$id",
+                deviceId = "device",
+                conflictGroupId = groupId,
+                occurredAt = occurredAt,
+                createdAt = MemoryServerTime.At(occurredAt),
+            ).toEntity(ACCOUNT, MemoryItemEntity.SYNC_PENDING),
+        )
+    }
+
+    @Test
+    fun delete_confirms_then_tombstones() = runTest {
+        val item = memoryRepository.create(ACCOUNT, MemoryKind.INSTRUCTION, "Answer in Arabic")
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.requestDelete(item)
+        advanceUntilIdle()
+        assertEquals(item.id, viewModel.pendingDelete?.id)
+        assertEquals(MemoryStatus.ACTIVE, memoryRepository.get(ACCOUNT, item.id)!!.status)
+
+        viewModel.cancelDelete()
+        advanceUntilIdle()
+        assertNull(viewModel.pendingDelete)
+        assertEquals(MemoryStatus.ACTIVE, memoryRepository.get(ACCOUNT, item.id)!!.status)
+
+        viewModel.requestDelete(item)
+        viewModel.confirmDelete()
+        advanceUntilIdle()
+        assertNull(viewModel.pendingDelete)
+        assertEquals(MemoryStatus.DELETED, memoryRepository.get(ACCOUNT, item.id)!!.status)
+        // The repository list contains tombstones; the displayed list filters them out.
+        assertTrue(viewModel.items.value.any { it.id == item.id })
+        assertTrue(buildMemoryItemListPresentation(viewModel.items.value, viewModel.deviceId).isEmpty)
+    }
+
+    @Test
+    fun pin_and_pause() = runTest {
+        val item = memoryRepository.create(ACCOUNT, MemoryKind.PREFERENCE, "Short answers")
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.togglePinned(item)
+        advanceUntilIdle()
+        assertTrue(memoryRepository.get(ACCOUNT, item.id)!!.pinned)
+
+        viewModel.togglePaused(viewModel.items.value.single())
+        advanceUntilIdle()
+        val paused = memoryRepository.get(ACCOUNT, item.id)!!
+        assertEquals(MemoryStatus.PAUSED, paused.status)
+        assertTrue(buildMemoryItemListPresentation(viewModel.items.value, viewModel.deviceId).sections.single().rows.single().paused)
+
+        viewModel.togglePaused(paused)
+        viewModel.togglePinned(paused)
+        advanceUntilIdle()
+        val resumed = memoryRepository.get(ACCOUNT, item.id)!!
+        assertEquals(MemoryStatus.ACTIVE, resumed.status)
+        assertFalse(resumed.pinned)
+    }
+
+    @Test
+    fun `new editor creates item with group kind`() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.openNewEditor(MemoryItemGroup.Instructions)
+        viewModel.updateEditorText("  Always cite sources  ")
+        viewModel.saveEditor()
+        advanceUntilIdle()
+
+        val created = memoryRepository.list(ACCOUNT).single()
+        assertEquals(MemoryKind.INSTRUCTION, created.kind)
+        assertEquals("Always cite sources", created.content)
+        assertNull(viewModel.editor)
     }
 
     @Test
@@ -182,8 +347,16 @@ class MemoryViewModelTest {
 
         viewModel.generateDraft()
         advanceUntilIdle()
+        viewModel.confirmExtraction()
+        advanceUntilIdle()
 
-        assertEquals("Generated profile draft", viewModel.editText)
+        // The draft result prefills a new editor (category About me) and writes no item.
+        val editor = viewModel.editor
+        assertNotNull(editor)
+        assertNull(editor!!.itemId)
+        assertEquals(MemoryItemGroup.About, editor.group)
+        assertEquals("Generated profile draft", editor.text)
+        assertTrue(memoryRepository.list(ACCOUNT).isEmpty())
         assertFalse(viewModel.isGeneratingDraft)
         assertNull(viewModel.activeDraftRequestId)
         assertNull(viewModel.pendingGeneratedDraft)
@@ -192,13 +365,14 @@ class MemoryViewModelTest {
     }
 
     @Test
-    fun `generateDraft falls back to second provider when first fails`() = runTest {
+    fun `generateDraft sends once and reports error when first provider fails`() = runTest {
         val failing = sampleDraftProvider(id = "provider-fail", kind = ProviderKind.OpenAI)
         val working = sampleDraftProvider(id = "provider-ok", kind = ProviderKind.Anthropic)
         providerListFlow.value = listOf(failing, working)
         conversationListFlow.value = listOf(sampleConversation(messageCount = 1))
         coEvery { conversationRepository.getRecentConversationsWithMessages(limit = 5) } returns listOf(
-            sampleConversationWithMessages(),
+            sampleConversationWithMessages(providerId = "provider-fail"),
+            sampleConversationWithMessages(providerId = "provider-ok"),
         )
 
         val failService = mockk<ProviderService>()
@@ -218,27 +392,34 @@ class MemoryViewModelTest {
 
         viewModel.generateDraft()
         advanceUntilIdle()
+        viewModel.confirmExtraction()
+        advanceUntilIdle()
 
-        assertEquals("Fallback draft works", viewModel.editText)
+        coVerify(exactly = 1) { failService.sendMessage(any(), any(), any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { okService.sendMessage(any(), any(), any(), any(), any(), any(), any(), any()) }
+        assertNull(viewModel.editor)
         assertFalse(viewModel.isGeneratingDraft)
-        assertNull(viewModel.draftError)
+        val error = viewModel.draftError
+        assertNotNull(error)
+        assertEquals(R.string.memory_error_generic_title, error!!.titleRes)
+        assertEquals("first provider down", error.messageLiteral)
     }
 
     @Test
-    fun `generateDraft aggregates error when all providers fail`() = runTest {
+    fun `generateDraft reports generic message when single provider fails without detail`() = runTest {
         val first = sampleDraftProvider(id = "first", kind = ProviderKind.OpenAI)
         val second = sampleDraftProvider(id = "second", kind = ProviderKind.Anthropic)
         providerListFlow.value = listOf(first, second)
         conversationListFlow.value = listOf(sampleConversation(messageCount = 1))
         coEvery { conversationRepository.getRecentConversationsWithMessages(limit = 5) } returns listOf(
-            sampleConversationWithMessages(),
+            sampleConversationWithMessages(providerId = "first"),
         )
 
         val failOne = mockk<ProviderService>()
         val failTwo = mockk<ProviderService>()
         every { providerRepository.serviceFor(match<Provider> { it.kind == ProviderKind.OpenAI }, any()) } returns failOne
         every { providerRepository.serviceFor(match<Provider> { it.kind == ProviderKind.Anthropic }, any()) } returns failTwo
-        coEvery { failOne.sendMessage(any(), any(), any(), any(), any(), any(), any(), any()) } throws RuntimeException("oops")
+        coEvery { failOne.sendMessage(any(), any(), any(), any(), any(), any(), any(), any()) } throws RuntimeException()
         coEvery { failTwo.sendMessage(any(), any(), any(), any(), any(), any(), any(), any()) } throws RuntimeException("final boom")
 
         val viewModel = createViewModel()
@@ -246,12 +427,16 @@ class MemoryViewModelTest {
 
         viewModel.generateDraft()
         advanceUntilIdle()
+        viewModel.confirmExtraction()
+        advanceUntilIdle()
 
         val error = viewModel.draftError
         assertNotNull(error)
         assertEquals(R.string.memory_error_generic_title, error!!.titleRes)
-        assertEquals(R.string.memory_error_aggregated_with_detail, error.messageRes)
-        assertEquals(listOf<Any>(2, "final boom"), error.args)
+        assertEquals(R.string.memory_error_generic_message, error.messageRes)
+        assertNull(error.messageLiteral)
+        assertTrue(error.args.isEmpty())
+        coVerify(exactly = 0) { failTwo.sendMessage(any(), any(), any(), any(), any(), any(), any(), any()) }
         assertFalse(viewModel.isGeneratingDraft)
     }
 
@@ -278,6 +463,8 @@ class MemoryViewModelTest {
             advanceUntilIdle()
 
             viewModel.generateDraft()
+            advanceUntilIdle()
+            viewModel.confirmExtraction()
             advanceUntilIdle()
 
             val error = viewModel.draftError
@@ -308,6 +495,8 @@ class MemoryViewModelTest {
 
         viewModel.generateDraft()
         advanceUntilIdle()
+        viewModel.confirmExtraction()
+        advanceUntilIdle()
 
         val error = viewModel.draftError
         assertNotNull(error)
@@ -337,18 +526,20 @@ class MemoryViewModelTest {
         advanceUntilIdle()
 
         viewModel.generateDraft()
-        viewModel.updateEditText("User edited while generating")
+        advanceUntilIdle()
+        viewModel.confirmExtraction()
+        viewModel.openNewEditor(text = "User edited while generating")
         gate.complete(Unit)
         advanceUntilIdle()
 
         assertFalse(viewModel.isGeneratingDraft)
-        assertEquals("User edited while generating", viewModel.editText)
+        assertEquals("User edited while generating", viewModel.editor?.text)
         assertEquals("Draft from provider", viewModel.pendingGeneratedDraft)
         assertTrue(viewModel.showDraftConflictDialog)
 
         viewModel.applyPendingGeneratedDraft()
 
-        assertEquals("Draft from provider", viewModel.editText)
+        assertEquals("Draft from provider", viewModel.editor?.text)
         assertNull(viewModel.pendingGeneratedDraft)
         assertFalse(viewModel.showDraftConflictDialog)
     }
@@ -366,10 +557,15 @@ class MemoryViewModelTest {
         assertNull(viewModel.draftError)
     }
 
-    private fun createViewModel() = MemoryViewModel(
+    private fun createViewModel(editItemId: String? = null) = MemoryViewModel(
         appPreferencesRepository = appPreferencesRepository,
         conversationRepository = conversationRepository,
         providerRepository = providerRepository,
+        globalSnackbarManager = globalSnackbarManager,
+        memoryItemRepository = memoryRepository,
+        accountIds = MutableStateFlow(ACCOUNT),
+        editItemId = editItemId,
+        today = { TODAY },
     )
 
     private fun sampleDraftProvider(
@@ -392,8 +588,8 @@ class MemoryViewModelTest {
         messageCount = messageCount,
     )
 
-    private fun sampleConversationWithMessages() = Conversation(
-        id = "conversation-2",
+    private fun sampleConversationWithMessages(providerId: String = "provider-1") = Conversation(
+        id = "conversation-$providerId",
         title = "Conversation with messages",
         providerID = "provider-1",
         providerKind = ProviderKind.OpenAI,
@@ -403,6 +599,7 @@ class MemoryViewModelTest {
                 id = "m1",
                 role = ChatRole.User,
                 text = "I work on Android and Kotlin.",
+                providerID = providerId,
                 providerKind = ProviderKind.OpenAI,
                 providerName = "OpenAI",
                 modelName = "GPT-4.1 mini",
@@ -419,6 +616,34 @@ class MemoryViewModelTest {
             ),
         ),
     )
+
+    private class FakeMemoryItemDao : MemoryItemDao {
+        private val rows = MutableStateFlow<Map<Pair<String, String>, MemoryItemEntity>>(emptyMap())
+
+        override suspend fun upsert(entity: MemoryItemEntity) {
+            rows.value = rows.value + ((entity.accountId to entity.id) to entity)
+        }
+
+        override suspend fun get(accountId: String, id: String): MemoryItemEntity? = rows.value[accountId to id]
+
+        override suspend fun list(accountId: String): List<MemoryItemEntity> =
+            rows.value.values.filter { it.accountId == accountId }
+
+        override fun observe(accountId: String): Flow<List<MemoryItemEntity>> =
+            rows.map { all -> all.values.filter { it.accountId == accountId } }
+
+        override suspend fun listBySyncState(accountId: String, syncState: String): List<MemoryItemEntity> =
+            list(accountId).filter { it.syncState == syncState }
+
+        override suspend fun deleteByAccount(accountId: String) {
+            rows.value = rows.value.filterKeys { it.first != accountId }
+        }
+    }
+
+    private companion object {
+        const val ACCOUNT = "account-1"
+        val TODAY: LocalDate = LocalDate.of(2026, 10, 17)
+    }
 
     private class FakePreferenceDao : PreferenceDao {
         private val values = linkedMapOf<String, MutableStateFlow<String?>>()

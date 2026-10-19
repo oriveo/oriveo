@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.context.StopFamily
 import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.ProviderChatResult
 import ai.oriveo.community.core.model.ProviderKind
@@ -153,6 +154,7 @@ internal class MoonshotToolLoopLegRunner(
                 SseParser.parseOpenAICompatibleMulti(
                     response = response,
                     json = json,
+                    stopFamily = StopFamily.OPENAI_CHAT,
                     onChunk = { payload ->
                         val events = mutableListOf<StreamEvent>()
                         val root = runCatching { json.parseToJsonElement(payload).jsonObject }.getOrNull()

@@ -5,32 +5,50 @@ import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
-import ai.oriveo.community.core.model.QuotePromptBuilder
-import ai.oriveo.community.core.provider.MessageBuilder
+import ai.oriveo.community.core.context.ChatContextRequest
+import ai.oriveo.community.core.context.ContextBudget
+import ai.oriveo.community.core.context.ContextConversation
+import ai.oriveo.community.core.context.ContextMaxOutput
+import ai.oriveo.community.core.context.ContextWindowInput
+import ai.oriveo.community.core.context.ContextWindowKind
 
 /**
  * Outbound history: the messages this request will actually send to the provider (before attachment bytes are backfilled).
  *
- * Sending ([ChatRepository.sendMessage]) and the pre-send check share this one trimming chain, so route decisions (e.g. whether Gemini goes through
- * Interactions) get the same answer in both places.
+ * Sending ([ChatRepository.sendMessage]) and the pre-send check share one assembler projection and one attachment budget, so route
+ * decisions (e.g. whether Gemini goes through Interactions) get the same answer in both places.
  */
 object OutboundHistory {
-    suspend fun prepare(
+    /**
+     * Outbound history for the pre-send check: the same ContextAssembler projection as sending (normalization,
+     * quotes and the unanswered envelope all live in the projection), then the same attachment budget.
+     * The check ignores system prompt, memory and window, so it uses an empty context and an unwindowed projection.
+     * When the last message is not a user message (the projection yields no plan), there is no outbound history.
+     */
+    suspend fun projected(
         rawMessages: List<ChatMessage>,
-        keepAssistantId: String? = null,
         imageSizeOf: suspend (String) -> Long,
         blobSizeOf: suspend (String) -> Long,
     ): List<ChatMessage> {
-        // Pre-send normalization: drop assistant messages with empty content (to avoid an empty {"role":"assistant","content":""} triggering a persistent RST
-        // from relay gateways), keep interrupted/failed assistant messages with partial text as context, and merge adjacent user messages into one (the
-        // earlier unanswered text goes into an <oriveo-unanswered> envelope, see MessageBuilder.sanitizeOutboundMessages). The latter neither loses
-        // instructions from the earlier user message nor makes the model answer both questions at once.
-        val sanitized = MessageBuilder.sanitizeOutboundMessages(rawMessages, keepAssistantId = keepAssistantId)
-        val quoted = QuotePromptBuilder.applyToMessages(sanitized)
-        // Trim first, then backfill: history attachments over budget are never read from disk. The current input (the last
-        // user message) is never trimmed; history images/videos are downgraded to placeholder lines, and history files keep the extracted text and drop the raw bytes.
-        return OutboundAttachmentBudget.apply(messages = quoted, imageSizeOf = imageSizeOf, blobSizeOf = blobSizeOf)
+        val projection = ChatContextProjector.project(
+            request = ChatContextRequest(conversation = ContextConversation(id = PROBE_CONVERSATION_ID, useMemory = false)),
+            rawMessages = rawMessages,
+            window = ContextWindowInput(W = null, windowKind = ContextWindowKind.TOTAL, maxOutput = ContextMaxOutput(null, null, null)),
+            rhoHi = ContextBudget.RHO0,
+        )
+        return budgetProjected(messages = projection?.messages.orEmpty(), imageSizeOf = imageSizeOf, blobSizeOf = blobSizeOf)
     }
+
+    private const val PROBE_CONVERSATION_ID = "outbound-history-probe"
+
+    /**
+     * Main chat path: normalization and quotes are already done by the ContextAssembler projection; this only applies the attachment budget.
+     */
+    suspend fun budgetProjected(
+        messages: List<ChatMessage>,
+        imageSizeOf: suspend (String) -> Long,
+        blobSizeOf: suspend (String) -> Long,
+    ): List<ChatMessage> = OutboundAttachmentBudget.apply(messages = messages, imageSizeOf = imageSizeOf, blobSizeOf = blobSizeOf)
 
     /**
      * Before the current turn is typed, whether the next send's outbound history contains a video: a placeholder user message (no attachments) is appended to the conversation history
@@ -53,7 +71,7 @@ object OutboundHistory {
             modelName = anchor.modelName,
             state = ChatMessageState.Delivered,
         )
-        return prepare(history + placeholder, imageSizeOf = imageSizeOf, blobSizeOf = blobSizeOf)
+        return projected(history + placeholder, imageSizeOf = imageSizeOf, blobSizeOf = blobSizeOf)
             .any { message -> message.attachments.orEmpty().any { it.kind == AttachmentKind.Video } }
     }
 }

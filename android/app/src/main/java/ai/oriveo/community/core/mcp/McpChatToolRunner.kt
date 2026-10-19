@@ -1,10 +1,9 @@
 package ai.oriveo.community.core.mcp
 
 import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
+import ai.oriveo.community.core.data.repository.TransportInput
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.CapabilityEvidenceIdentity
-import ai.oriveo.community.core.model.ChatMessage
-import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
@@ -101,15 +100,7 @@ class McpChatToolRunner(
          * the UI passes `ProviderRepository.capabilityEvidenceIdentity`. Official connections do not need it.
          */
         localIdentity: CapabilityEvidenceIdentity? = null,
-    ): Boolean {
-        val projection = CapabilityEvidenceProductionAdapter.toolCallProjection(
-            provider = provider,
-            model = model,
-            identity = CapabilityEvidenceProductionAdapter.uiDispatchIdentity(provider, model, localIdentity),
-            memoryVerdict = memoryVerdict,
-        )
-        return projection.permitsOutbound("tool_call") && ToolLoopTransportAvailability.supportsToolTransport(provider, model)
-    }
+    ): Boolean = supportsTools(provider, model, memoryVerdict, localIdentity)
 
     /** Availability for the entry point and the panel. Nothing is reported as unavailable before a model is chosen. */
     fun availability(
@@ -296,19 +287,22 @@ class McpChatToolRunner(
     }
 
     /** Runs the tool loop for one answer. */
-    suspend fun run(
+    internal suspend fun run(
         conversationId: String,
         provider: Provider,
         model: AIModel,
         modelId: String,
-        messages: List<ChatMessage>,
-        systemPrompt: String?,
+        // The only input of the tool-loop leg projection: outbound messages plus options that already carry the plan system (with the MCP safety section) and [D].
+        transport: TransportInput,
         reasoningMode: ReasoningMode,
-        requestOptions: ChatRequestOptions,
         plan: McpToolPlan,
         onStep: suspend (McpToolStepUpdate) -> Unit = {},
         onUnhandledToolCalls: suspend (List<ToolLoopToolCall>) -> Unit = {},
         onProgress: suspend (ToolCallLoop.ProgressEvent) -> Unit = {},
+        // In tool mode, the propose_memory entry; registered last in the registry.
+        proposeEntry: ToolRegistryEntry? = null,
+        // In tool mode, the search_memory entry; registered after propose_memory.
+        searchEntry: ToolRegistryEntry? = null,
     ): ToolCallLoop.Result {
         val legRunner = ProviderToolLegRunner(
             client = httpClient,
@@ -317,23 +311,77 @@ class McpChatToolRunner(
             modelId = modelId,
             reasoningMode = reasoningMode,
             json = json,
-            requestOptions = requestOptions,
+            requestOptions = transport.options,
         )
-        return makeLoop(plan, executor(conversationId, onStep), legRunner, runtimeConfig(), onUnhandledToolCalls)
-            .run(McpToolBridge.initialMessages(toolLoopMessagesFrom(messages, provider, model, json), systemPrompt), onProgress)
+        return makeLoop(plan, executor(conversationId, onStep), legRunner, runtimeConfig(), proposeEntry, searchEntry, onUnhandledToolCalls)
+            .run(transport.toolLoopMessages(toolLoopMessagesFrom(transport.messages, provider, model, json)), onProgress)
+    }
+
+    /**
+     * The propose_memory tail leg of the normal send path. It uses the same leg runner as [run]; messages are the
+     * first leg's outbound history (including the plan system) followed by [appended] (the assistant tool_calls plus
+     * each call's tool result). Only this one leg runs; it does not enter the loop.
+     */
+    @Suppress("LongParameterList")
+    internal fun proposeTailLeg(
+        provider: Provider,
+        model: AIModel,
+        modelId: String,
+        transport: TransportInput,
+        reasoningMode: ReasoningMode,
+        appended: List<ai.oriveo.community.core.tools.ToolLoopMessage>,
+        tools: List<ai.oriveo.community.core.tools.ToolLoopToolDefinition>,
+    ): kotlinx.coroutines.flow.Flow<ai.oriveo.community.core.tools.ToolLoopLegEvent> {
+        val legRunner = ProviderToolLegRunner(
+            client = httpClient,
+            provider = provider,
+            model = model,
+            modelId = modelId,
+            reasoningMode = reasoningMode,
+            json = json,
+            requestOptions = transport.options,
+        )
+        val history = transport.toolLoopMessages(toolLoopMessagesFrom(transport.messages, provider, model, json))
+        return legRunner.run(
+            ai.oriveo.community.core.tools.ToolLoopLegRequest(
+                messages = history + appended,
+                tools = tools,
+                toolChoice = ai.oriveo.community.core.tools.ToolLoopToolChoice.None,
+            ),
+        )
     }
 
     companion object {
+        /** The predicate behind [connectionSupportsTools] (no instance state); the propose_memory mode decision reads it too. */
+        fun supportsTools(
+            provider: Provider,
+            model: AIModel,
+            memoryVerdict: Boolean?,
+            localIdentity: CapabilityEvidenceIdentity? = null,
+        ): Boolean {
+            val projection = CapabilityEvidenceProductionAdapter.toolCallProjection(
+                provider = provider,
+                model = model,
+                identity = CapabilityEvidenceProductionAdapter.uiDispatchIdentity(provider, model, localIdentity),
+                memoryVerdict = memoryVerdict,
+            )
+            return projection.permitsOutbound("tool_call") && ToolLoopTransportAvailability.supportsToolTransport(provider, model)
+        }
+
         /** Builds the loop (production and tests share this single construction site). */
         fun makeLoop(
             plan: McpToolPlan,
             executor: McpToolExecutor,
             legRunner: ToolLoopLegRunning,
             runtimeConfig: McpRuntimeConfig,
+            // propose_memory goes last in the registry; it records no step and does not change the limit, but takes one tool step.
+            proposeEntry: ToolRegistryEntry? = null,
+            // search_memory goes after propose_memory and likewise records no step.
+            searchEntry: ToolRegistryEntry? = null,
             // Names outside the lookup table are not executed; the caller shows them with the existing notice card.
             onUnhandledToolCalls: suspend (List<ToolLoopToolCall>) -> Unit,
         ): ToolCallLoop = ToolCallLoop(
-            registry = ToolRegistry(McpToolBridge.entries(plan, executor)),
+            registry = ToolRegistry(McpToolBridge.entries(plan, executor) + listOfNotNull(proposeEntry, searchEntry)),
             legRunner = legRunner,
             // Neutral shape; each protocol's wire shape is translated by the protocol adapter in the leg runner.
             adapter = OpenAIChatToolAdapter(),

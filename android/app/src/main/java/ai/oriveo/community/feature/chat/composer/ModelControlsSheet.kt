@@ -76,6 +76,7 @@ import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -322,6 +323,7 @@ private fun ModelControlsPanel(
 ) {
     val colors = OriveoTheme.colors
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val metadata = MetadataClient.instance
 
@@ -564,7 +566,7 @@ private fun ModelControlsPanel(
         if (candidates(capability).isNotEmpty()) {
             openRoute(ModelControlsRoute.SupportedModels(capability))
         } else {
-            presentExplanation(capability, context.getString(messageRes), ModelControlCapabilityEscape.SupportedModels)
+            presentExplanation(capability, resources.getString(messageRes), ModelControlCapabilityEscape.SupportedModels)
         }
     }
 

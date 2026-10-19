@@ -47,6 +47,7 @@ import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.provider.RelayEndpointPolicy
 import ai.oriveo.community.core.model.StreamActivity
 import ai.oriveo.community.feature.chat.AssistantMessageFooterMetrics
+import ai.oriveo.community.feature.chat.ReplyNoticePresentation
 import ai.oriveo.community.feature.chat.SavedNoteLink
 import ai.oriveo.community.feature.chat.components.MessageBubble
 import ai.oriveo.community.ui.component.StatusTone
@@ -135,6 +136,19 @@ internal fun MessageItemWithActions(
         shouldShowDeliveredRegenerateAction(message.state, isSendingMessage)
     }
 
+    // While a recovery card is shown it owns the continuation, so the notice row is hidden
+    val replyNotice = if (message.role == ChatRole.Assistant) {
+        ReplyNoticePresentation.resolve(
+            stopReason = message.stopReason,
+            isLastAssistant = isLastMessage,
+            isStreaming = isLiveStream || message.state == ChatMessageState.Generating,
+            hasRecoveryCard = showRecoveryCard && shouldShowRecoveryCard(message.state, message.role, isLastMessage),
+            isSending = isSendingMessage,
+        )
+    } else {
+        null
+    }
+
     DisposableEffect(message.id) {
         onDispose {
             pendingMessageMenuJob?.cancel()
@@ -210,6 +224,8 @@ internal fun MessageItemWithActions(
                 } else {
                     null
                 },
+                replyNotice = replyNotice,
+                onContinueReply = onContinue,
             )
 
             if (savedNoteLinks.isNotEmpty()) {

@@ -12,8 +12,14 @@ object DeterministicProviderId {
         0x7C.toByte(), 0x45.toByte(), 0x8C.toByte(), 0x07.toByte(),
     )
 
+    /**
+     * Derives the deterministic Provider id (a valid upper-case v5 UUID) from (kind, regionId).
+     *
+     * @param kind the official ProviderKind (rawValue is the canonical string).
+     * @param regionId the region option id; pass an empty string for a provider without a region.
+     */
     fun forProvider(kind: ProviderKind, regionId: String): String {
-
+        // The China region was derived with an empty region before the region selector existed, so it must keep hitting the old doc id.
         val identityRegionId = if (kind == ProviderKind.SiliconFlow && regionId == "cn") "" else regionId
         return uuidV5(NAMESPACE_BYTES, "${kind.rawValue}|$identityRegionId")
     }
@@ -62,7 +68,11 @@ object DeterministicProviderId {
         return kind.resolveRegionOption(baseUrlText)?.id ?: ""
     }
 
-    private fun uuidV5(namespace: ByteArray, name: String): String {
+    /**
+     * Hand-written UUIDv5: SHA-1(NS_bytes ++ name_utf8), first 16 bytes, version=5 / variant=RFC4122,
+     * formatted as 8-4-4-4-12 hex and upper-cased as a whole (round-trips with normalizeUuid on every platform).
+     */
+    internal fun uuidV5(namespace: ByteArray, name: String): String {
         val md = MessageDigest.getInstance("SHA-1")
         md.update(namespace)
         md.update(name.toByteArray(Charsets.UTF_8))

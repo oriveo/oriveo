@@ -16,6 +16,9 @@ import ai.oriveo.community.core.model.LocalCapabilityCustomFragmentStore
 import ai.oriveo.community.core.model.Note
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ReasoningMode
+import ai.oriveo.community.core.model.Skill
+import ai.oriveo.community.core.context.ContextKnowledgeFile
+import ai.oriveo.community.core.context.ContextPinnedNote
 import ai.oriveo.community.core.model.QuoteContext
 import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
 import ai.oriveo.community.core.provider.ModelControlRuntimeIdentityResolver
@@ -29,7 +32,10 @@ import kotlinx.coroutines.launch
 internal class ChatSendCoordinator(
     private val chatStreamingManager: ChatStreamingManager,
     private val applicationScope: CoroutineScope,
-    private val promptInjectionBuilder: ChatPromptInjectionBuilder,
+    // Skill inputs handed to the context assembler; budgeting and system assembly are entirely up to the assembler.
+    private val skillProvider: suspend (String) -> Skill? = { null },
+    private val providersProvider: () -> List<Provider> = { emptyList() },
+    private val untitledNoteFallback: String = "",
     /** Resolves the pinned note ids on the conversation, plus any staged before it was stored. */
     private val pinnedNotesResolver: suspend (List<String>) -> List<Note>,
     private val pendingPinnedNoteIds: () -> List<String>,
@@ -38,19 +44,126 @@ internal class ChatSendCoordinator(
     private val localCustomFragmentStore: LocalCapabilityCustomFragmentStore? = null,
     private val capabilityEvidencePartition: () -> String = { "" },
     private val capabilityEvidenceIdentity: suspend (Provider, String, String) -> ai.oriveo.community.core.model.CapabilityEvidenceIdentity? = { _, _, _ -> null },
+    // Remote switch context_reminder_enabled (default true): when off only the reminder is turned off, and the instructions section still goes into system.
+    private val reminderEnabled: () -> Boolean = {
+        MetadataClient.isRuntimeFeatureEnabled(REMINDER_FLAG_KEY, defaultValue = true)
+    },
+    // L3 recall index, rebuilt off the main thread only when the episodic item set changes.
+    private val memoryRecallIndexCache: ai.oriveo.community.core.memory.MemoryRecallIndexCache =
+        ai.oriveo.community.core.memory.MemoryRecallIndexCache(),
+    // The connection's remembered tool_call verdict (the propose_memory / MCP tool predicate reads it).
+    private val toolCallMemoryVerdict: (Provider, ai.oriveo.community.core.model.AIModel) -> Boolean? = { _, _ -> null },
 ) {
+    /** The skill prompt and raw knowledge files of one send; null when the conversation has no skill attached. */
+    private class SkillInputs(
+        val skillPrompt: String,
+        val knowledgeFiles: List<ContextKnowledgeFile>,
+    )
+
+    private suspend fun resolveSkillInputs(conversation: Conversation): SkillInputs? {
+        val skill = conversation.skillId?.let { skillProvider(it) } ?: return null
+        return SkillInputs(
+            skillPrompt = skill.systemPrompt,
+            knowledgeFiles = skill.knowledgeFiles.map { ContextKnowledgeFile(name = it.name, text = it.content) },
+        )
+    }
+
+    /** The pinned note as the assembler sees it: a blank title falls back to the localized "Untitled". */
+    private fun contextPinnedNote(note: Note): ContextPinnedNote =
+        ContextPinnedNote(title = note.title.trim().ifBlank { untitledNoteFallback }, text = note.body)
+
+    /**
+     * Manual compaction uses the same context request as a chat send of this conversation (memory switch, skill, pinned notes);
+     * handed to ChatRepository.compactConversationNow.
+     */
+    suspend fun manualCompactionContext(
+        conversation: Conversation,
+        memoryItems: List<ai.oriveo.community.core.context.MemoryItem>,
+    ): ai.oriveo.community.core.context.ChatContextRequest {
+        return chatContextRequest(conversation, memoryItems, resolveSkillInputs(conversation), attachments = null)
+    }
+
+    /**
+     * Request options of a manual compaction, same as the panel window (ContextCapViewModel.sendRequestOptions):
+     * the chat send's max output with dormant values filtered.
+     */
+    fun manualCompactionRequestOptions(conversation: Conversation): ChatRequestOptions {
+        val provider = providersProvider().firstOrNull { it.id == conversation.providerID } ?: return ChatRequestOptions()
+        return ContextCapViewModel.sendRequestOptions(generationParameterSettingsStore, conversation, provider)
+    }
+
+    private suspend fun chatContextRequest(
+        conversation: Conversation,
+        memoryItems: List<ai.oriveo.community.core.context.MemoryItem>,
+        skillInputs: SkillInputs?,
+        attachments: List<Attachment>?,
+        /** User message this turn answers; null = no L3 recall (manual compaction). */
+        recallQuery: String? = null,
+    ): ai.oriveo.community.core.context.ChatContextRequest {
+        val now = java.time.Instant.now()
+        // Pinned notes: what the conversation already stores, plus anything staged while composing a first
+        // message that has not been written yet; deduplicate, keep the most recent 3, and resolve to active notes
+        // (deleted or missing ones are dropped automatically).
+        val pinnedNoteIds = (conversation.pinnedNoteIds + pendingPinnedNoteIds())
+            .map(::normalizeUuid)
+            .distinct()
+            .takeLast(ChatNoteCoordinator.MAX_PINNED_NOTES)
+        // The lookup has no ORDER BY, so reorder to match pinnedNoteIds after resolving. That keeps the injection order deterministic
+        // and makes the notes dropped under a tight budget match Web (Web injects in pinnedNoteIds order).
+        val resolvedPinned = if (pinnedNoteIds.isEmpty()) emptyList() else pinnedNotesResolver(pinnedNoteIds)
+        val pinnedById = resolvedPinned.associateBy { normalizeUuid(it.id) }
+        val pinnedNotes = pinnedNoteIds.mapNotNull { pinnedById[it] }
+        return ai.oriveo.community.core.context.ChatContextRequest(
+            conversation = ai.oriveo.community.core.context.ContextConversation(
+                id = conversation.id,
+                useMemory = conversation.useMemory,
+                skillPrompt = skillInputs?.skillPrompt,
+                instructions = conversation.instructions,
+                pinnedNotes = pinnedNotes.filter { it.deletedAt == null }
+                    .map(::contextPinnedNote),
+                knowledgeFiles = skillInputs?.knowledgeFiles.orEmpty(),
+                reminderEnabled = reminderEnabled(),
+            ),
+            memoryItems = ai.oriveo.community.core.context.ChatContextRequest.memoryItems(
+                useMemory = conversation.useMemory,
+                items = memoryItems,
+                conversationId = conversation.id,
+                folderId = conversation.folderID,
+                now = now,
+            ),
+            recall = recallQuery?.let { query ->
+                memoryRecallIndexCache.recall(
+                    useMemory = conversation.useMemory,
+                    items = memoryItems,
+                    query = query,
+                    conversationId = conversation.id,
+                    folderId = conversation.folderID,
+                    now = now,
+                )
+            }.orEmpty(),
+            attachmentGuide = AttachmentInjector.SYSTEM_PROMPT_GUIDANCE.takeIf {
+                attachments?.any { it.kind == ai.oriveo.community.core.model.AttachmentKind.File } == true
+            },
+        )
+    }
+
     fun launchSend(
         conversation: Conversation,
         provider: Provider,
         modelId: String,
         text: String,
-        memoryText: String,
+        memoryItems: List<ai.oriveo.community.core.context.MemoryItem>,
         existingMessages: List<ChatMessage>,
         attachments: List<Attachment>? = null,
         quoteContext: QuoteContext? = null,
         persistUserMessage: Boolean = true,
         appendToAssistant: ChatMessage? = null,
         userMessageAlreadyInHistory: Boolean = false,
+        attemptKind: ai.oriveo.community.feature.chat.ContextConfirmAttempt = ai.oriveo.community.feature.chat.ContextConfirmAttempt.SEND,
+        /** Callback after this send's user message is persisted (only the fresh-send entry passes it). */
+        onUserMessageCreated: ((messageId: String, text: String) -> Unit)? = null,
+        /** Non-null only for a fresh send in tool mode; the request then carries propose_memory. */
+        memoryPropose: ai.oriveo.community.core.memory.MemoryProposeSendHook? = null,
     ) {
         // Capture the capability partition exactly once, up front. The identity producer may read
         // the epoch later on another thread, and re-reading it there would let a request built for
@@ -82,33 +195,30 @@ internal class ChatSendCoordinator(
         // mid-send would otherwise cancel it somewhere between prompt assembly and startStream, and
         // the message would be lost.
         applicationScope.launch {
-            // Pinned notes: what the conversation already stores, plus anything staged while
-            // composing a first message that has not been written yet. Deduplicate and keep the
-            // most recent few.
-            val pinnedNoteIds = (conversation.pinnedNoteIds + pendingPinnedNoteIds())
-                .map(::normalizeUuid)
-                .distinct()
-                .takeLast(ChatPromptInjectionBuilder.MAX_PINNED_NOTES)
-            // The lookup has no ORDER BY, so reorder to match pinnedNoteIds. That keeps injection
-            // order deterministic and makes it predictable which notes get dropped under a tight
-            // prompt budget.
-            val resolvedPinned = if (pinnedNoteIds.isEmpty()) emptyList() else pinnedNotesResolver(pinnedNoteIds)
-            val pinnedById = resolvedPinned.associateBy { normalizeUuid(it.id) }
-            val pinnedNotes = pinnedNoteIds.mapNotNull { pinnedById[it] }
-            val promptInjection = promptInjectionBuilder.build(
-                conversation = conversation,
-                memoryText = memoryText,
-                pinnedNotes = pinnedNotes,
-            )
-            val finalSystemPrompt = finalSystemPrompt(
-                basePrompt = promptInjection?.systemPrompt.orEmpty(),
-                attachments = attachments,
-            )
-            val baseRequestOptions = if (finalSystemPrompt.isNotBlank()) {
-                ChatRequestOptions(systemPrompt = finalSystemPrompt)
+            val skillInputs = resolveSkillInputs(conversation)
+            // Every entry (send / retry / regenerate / edit-and-send / continue) hands the raw
+            // inputs to the context assembler in ChatRepository; system is written only by the plan's transport input.
+            // Recall queries the user message this turn answers; continue sends the fixed prompt,
+            // so it looks up the last user message of the history instead.
+            val recallQuery = if (appendToAssistant != null && text == ai.oriveo.community.core.context.ContextAssembler.CONTINUE_PROMPT) {
+                existingMessages.lastOrNull { it.role == ai.oriveo.community.core.model.ChatRole.User }?.text.orEmpty()
             } else {
-                ChatRequestOptions()
+                text
             }
+            val chatContext = chatContextRequest(conversation, memoryItems, skillInputs, attachments, recallQuery)
+            // One identity per send: the request carrier and the search_memory tool predicate read the same value.
+            val evidenceIdentity = capabilityEvidenceIdentity(provider, modelId, evidencePartitionId)
+            val memorySearch = memorySearchTurn(
+                conversation = conversation,
+                provider = provider,
+                modelId = modelId,
+                model = selectedModel,
+                memoryItems = memoryItems,
+                isContinue = appendToAssistant != null && text == ai.oriveo.community.core.context.ContextAssembler.CONTINUE_PROMPT,
+                webSearchEnabled = dispatch.outboundWebSearchEnabled,
+                localIdentity = evidenceIdentity,
+            )
+            val baseRequestOptions = ChatRequestOptions(chatContext = chatContext)
             val requestOptions = baseRequestOptions.let { options ->
                 // The outbound profile and the dormant check must read the same resolution. If the
                 // set this side calls active differs from the set `GenerationParameterResolver.apply`
@@ -167,12 +277,24 @@ internal class ChatSendCoordinator(
                     // generation/epoch/revision values and never reads or forwards a key; the real
                     // transport and endpoint are filled in by the dispatch layer, which fails
                     // closed when the scope is missing.
-                    capabilityEvidenceIdentity = capabilityEvidenceIdentity(provider, modelId, evidencePartitionId),
+                    capabilityEvidenceIdentity = evidenceIdentity,
                     modelControlRuntimeIdentity = modelControlIdentity,
                     rejectedRecipeSettings = recipeRejectedSettings,
                     rejectedCustomSettings = resendSettingOwner?.takeIf { resendSettingSource == "custom" }
                         ?.let { owner -> mapOf(owner to resendSettingPointers) }.orEmpty(),
                     dormantCapabilityOwners = dormantOwners,
+                )
+            }.let { options ->
+                // propose_memory is the last tool, tool_choice auto.
+                if (memoryPropose == null) options else options.copy(
+                    clientTools = options.clientTools + ai.oriveo.community.core.context.MemoryPropose.tool,
+                    clientToolChoice = ai.oriveo.community.core.tools.ToolLoopToolChoice.Auto,
+                )
+            }.let { options ->
+                // search_memory goes after propose_memory, tool_choice stays auto.
+                if (memorySearch == null) options else options.copy(
+                    clientTools = options.clientTools + ai.oriveo.community.core.context.MemorySearch.tool,
+                    clientToolChoice = ai.oriveo.community.core.tools.ToolLoopToolChoice.Auto,
                 )
             }
             chatStreamingManager.startStream(
@@ -190,9 +312,52 @@ internal class ChatSendCoordinator(
                     persistUserMessage = persistUserMessage,
                     userMessageAlreadyInHistory = userMessageAlreadyInHistory,
                     appendToAssistant = appendToAssistant,
+                    attemptKind = attemptKind,
+                    onUserMessageCreated = onUserMessageCreated,
+                    memoryPropose = memoryPropose,
+                    memorySearch = memorySearch,
                 ),
             )
         }
+    }
+
+    /**
+     * a [ai.oriveo.community.core.memory.MemorySearchTurn] when this send carries search_memory
+     * (purpose chat, memory on, client tools can ride the send, not degraded, at least one recallable L3 item); null otherwise.
+     */
+    @Suppress("LongParameterList")
+    private suspend fun memorySearchTurn(
+        conversation: Conversation,
+        provider: Provider,
+        modelId: String,
+        model: ai.oriveo.community.core.model.AIModel?,
+        memoryItems: List<ai.oriveo.community.core.context.MemoryItem>,
+        isContinue: Boolean,
+        webSearchEnabled: Boolean,
+        localIdentity: ai.oriveo.community.core.model.CapabilityEvidenceIdentity?,
+    ): ai.oriveo.community.core.memory.MemorySearchTurn? {
+        val hasL3 = conversation.useMemory && memoryItems.any { it.layer == ai.oriveo.community.core.context.MemoryLayer.EPISODIC }
+        return ai.oriveo.community.core.memory.MemorySearchTurn.forSend(
+            purpose = if (isContinue) {
+                ai.oriveo.community.core.context.MemoryProposePurpose.CONTINUE
+            } else {
+                ai.oriveo.community.core.context.MemoryProposePurpose.CHAT
+            },
+            useMemory = conversation.useMemory,
+            provider = provider,
+            model = model,
+            modelId = modelId,
+            memoryVerdict = model?.let { toolCallMemoryVerdict(provider, it) },
+            localIdentity = localIdentity,
+            webSearchEnabled = webSearchEnabled,
+            index = if (hasL3) memoryRecallIndexCache.index(memoryItems) else null,
+            conversationId = conversation.id,
+            folderId = conversation.folderID,
+            now = java.time.Instant.now(),
+            structuredOutput = ai.oriveo.community.core.memory.ProposeMemoryRuntime.structuredOutputActive(
+                generationParameterSettingsStore, provider, model, modelId, conversation.id,
+            ),
+        )
     }
 
     /** The result of [resolveCapabilityDispatch]: every conclusion a send reaches about capability options. The outbound request and the pre-send check read the same one. */
@@ -474,17 +639,8 @@ internal class ChatSendCoordinator(
         )
     }
 
-    private fun finalSystemPrompt(
-        basePrompt: String,
-        attachments: List<Attachment>?,
-    ): String {
-        val hasFileAttachments = attachments?.any { it.kind == ai.oriveo.community.core.model.AttachmentKind.File } ?: false
-        if (!hasFileAttachments) return basePrompt
-        return if (basePrompt.isBlank()) {
-            AttachmentInjector.SYSTEM_PROMPT_GUIDANCE
-        } else {
-            basePrompt + "\n\n" + AttachmentInjector.SYSTEM_PROMPT_GUIDANCE
-        }
+    companion object {
+        const val REMINDER_FLAG_KEY: String = "context_reminder_enabled"
     }
 }
 
@@ -496,3 +652,4 @@ internal fun omitLocalFieldsOnceOwner(marker: String): String? =
         marker.startsWith(OMIT_LOCAL_FIELDS_ONCE_PREFIX) &&
             it in setOf(ai.oriveo.community.core.provider.AdditionalRequestBody.OWNER, "web", "reasoning")
     }
+

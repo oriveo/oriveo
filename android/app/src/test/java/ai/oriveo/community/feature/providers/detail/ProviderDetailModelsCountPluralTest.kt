@@ -38,7 +38,7 @@ class ProviderDetailModelsCountPluralTest {
         assertEquals("5 моделей", count(Locale.forLanguageTag("ru"), 5))
         assertEquals("1 \u30e2\u30c7\u30eb", count(Locale.JAPANESE, 1))
         assertEquals("1 \u4e2a\u6a21\u578b", count(Locale.SIMPLIFIED_CHINESE, 1))
-        assertEquals("٢ نموذج", count(Locale.forLanguageTag("ar"), 2))
+        assertEquals("٢ نموذجان", count(Locale.forLanguageTag("ar"), 2))
         assertEquals("7 mô hình", count(Locale.forLanguageTag("vi"), 7))
     }
 

@@ -10,11 +10,16 @@ import ai.oriveo.community.core.data.repository.ConversationRepository
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.data.repository.SkillRepository
 import ai.oriveo.community.core.model.AIModel
+import ai.oriveo.community.core.model.ChatMessage
+import ai.oriveo.community.core.model.ChatMessageState
+import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.model.QuoteContentKind
+import ai.oriveo.community.core.model.QuoteSelectionContent
 import ai.oriveo.community.core.streaming.ChatStreamingManager
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -36,6 +41,8 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -334,6 +341,31 @@ class ChatComposerRecompositionScopeTest {
         assertEquals("", viewModel.inputText)
         assertEquals("", viewModel.composerTextRestore.text)
         assertNotEquals(tokenAfterHydrate, viewModel.composerTextRestore.token)
+    }
+
+    @Test
+    fun `starting a new chat drops the pending quote of the previous conversation`() = runTest {
+        stubExistingConversation(buildConversation("conversation-1"))
+        val viewModel = createViewModel("conversation-1")
+        advanceUntilIdle()
+        val source = ChatMessage(
+            id = "assistant-1",
+            role = ChatRole.Assistant,
+            text = "An earlier answer",
+            providerID = "provider-1",
+            providerKind = ProviderKind.OpenAI,
+            providerName = "OpenAI",
+            modelID = "gpt-4o-mini",
+            modelName = "GPT-4o mini",
+            state = ChatMessageState.Delivered,
+        )
+        assertTrue(viewModel.askAboutSelection(source, QuoteSelectionContent(QuoteContentKind.Prose, "", "earlier", "")))
+        assertNotNull(viewModel.pendingQuoteContext)
+
+        viewModel.startNewChat()
+        advanceUntilIdle()
+
+        assertNull(viewModel.pendingQuoteContext)
     }
 
     @Test

@@ -53,6 +53,12 @@ class ChatMcpCoordinator(
     /** Master switch (`mcpRuntimeConfig.enabled`): when false the entry point is hidden entirely and existing configuration is kept. Also hidden when not wired up. */
     val isEntryVisible: Boolean get() = runner?.isFeatureEnabled == true
 
+    /**
+     * The capability bar "Tools" pill: shown when the master switch is on and at least one server has been added (even if all are off), the same rule as the library pill.
+     * Hidden when none has been added (the discovery entry is Settings > MCP); also not drawn while the panel state has not been read yet ([McpToolPanelState.Empty]).
+     */
+    val isToolsChipVisible: Boolean get() = isEntryVisible && panelState.hasServers
+
     private var refreshJob: Job? = null
 
     /** A server's own icon, taken from the panel data; null when it has none or is no longer in the list (the UI falls back to the initial tile). */

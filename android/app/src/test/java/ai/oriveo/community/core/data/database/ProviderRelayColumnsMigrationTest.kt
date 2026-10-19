@@ -51,7 +51,7 @@ class ProviderRelayColumnsMigrationTest {
         }
 
         val db = Room.databaseBuilder(context, OriveoDatabase::class.java, dbName)
-            .addMigrations(OriveoDatabase.MIGRATION_3_4)
+            .addMigrations(OriveoDatabase.MIGRATION_3_4, OriveoDatabase.MIGRATION_4_5)
             .allowMainThreadQueries()
             .build()
         try {

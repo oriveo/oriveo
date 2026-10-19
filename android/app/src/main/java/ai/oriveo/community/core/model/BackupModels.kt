@@ -1,6 +1,27 @@
 package ai.oriveo.community.core.model
 
+import ai.oriveo.community.core.context.MemoryItem
+import ai.oriveo.community.core.context.MemoryItemScope
+import ai.oriveo.community.core.context.MemoryItemSource
+import ai.oriveo.community.core.context.MemoryItems
+import ai.oriveo.community.core.context.MemoryKind
+import ai.oriveo.community.core.context.MemoryLayer
+import ai.oriveo.community.core.context.MemoryScopeType
+import ai.oriveo.community.core.context.MemorySensitivity
+import ai.oriveo.community.core.context.MemoryServerTime
+import ai.oriveo.community.core.context.MemorySourceType
+import ai.oriveo.community.core.context.MemoryStatus
+import ai.oriveo.community.core.data.repository.ContextCheckpointKind
+import ai.oriveo.community.core.data.repository.ContextCheckpointRecord
+import ai.oriveo.community.core.context.ContextBudgetCap
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.longOrNull
 
 enum class ImportMode(
     val titleResId: Int,
@@ -106,8 +127,197 @@ data class BackupData(
     val lastUsedModelRef: LastUsedModelRef? = null,
     val notes: List<BackupNote> = emptyList(),
     val noteFolders: List<BackupNoteFolder> = emptyList(),
+    /** Context checkpoints; absent in older backups. */
+    val checkpoints: List<BackupContextCheckpoint> = emptyList(),
+    /** Memory item contract version (memory-items.v2 backup rule); null in backups written before memory items. */
+    val memorySchemaVersion: Int? = null,
+    /** Every memory item of the account, tombstones and conflicts included; read only when [memorySchemaVersion] is set. */
+    val memoryItems: List<BackupMemoryItem> = emptyList(),
 )
 
+/** Memory item scope in a backup (memory-items.v2 wire form). */
+@Serializable
+data class BackupMemoryItemScope(val type: String = MemoryScopeType.GLOBAL.wire, val id: String? = null)
+
+/** Memory item source in a backup (memory-items.v2 wire form). */
+@Serializable
+data class BackupMemoryItemSource(
+    val type: String = MemorySourceType.MANUAL.wire,
+    val conversationId: String? = null,
+    val messageIds: List<String> = emptyList(),
+    val observedAt: String? = null,
+)
+
+/**
+ * One memory item in a backup: memory-items.v2 wire form, keys in fieldOrder; server-time fields are RFC3339 or null.
+ * Unknown enum values fall back like stored rows (unknown status → paused, so an unreadable item is never injected).
+ */
+@Serializable
+data class BackupMemoryItem(
+    val id: String,
+    val schemaVersion: Int = MemoryItems.SCHEMA_VERSION,
+    val layer: String = MemoryLayer.SEMANTIC.wire,
+    val kind: String,
+    val status: String = MemoryStatus.ACTIVE.wire,
+    val content: String,
+    val scope: BackupMemoryItemScope = BackupMemoryItemScope(),
+    val source: BackupMemoryItemSource = BackupMemoryItemSource(),
+    val sensitivity: String = MemorySensitivity.NORMAL.wire,
+    val confidence: Double = 1.0,
+    val priority: Int = 0,
+    val pinned: Boolean = false,
+    val revision: Int = 1,
+    val baseRevision: Int = 0,
+    val mutationId: String,
+    val deviceId: String,
+    val conflictGroupId: String? = null,
+    val occurredAt: String? = null,
+    val validFrom: String? = null,
+    val lastConfirmedAt: String? = null,
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
+    val expiresAt: String? = null,
+    val deletedAt: String? = null,
+    val supersedes: List<String> = emptyList(),
+) {
+    fun toItem(): MemoryItem = MemoryItem(
+        id = id,
+        schemaVersion = schemaVersion,
+        layer = MemoryLayer.fromWire(layer) ?: MemoryLayer.SEMANTIC,
+        kind = MemoryKind.fromWire(kind) ?: MemoryKind.FACT,
+        status = MemoryStatus.fromWire(status) ?: MemoryStatus.PAUSED,
+        content = content,
+        scope = MemoryItemScope(MemoryScopeType.fromWire(scope.type) ?: MemoryScopeType.GLOBAL, scope.id),
+        source = MemoryItemSource(
+            type = MemorySourceType.fromWire(source.type) ?: MemorySourceType.MANUAL,
+            conversationId = source.conversationId,
+            messageIds = source.messageIds,
+            observedAt = source.observedAt,
+        ),
+        sensitivity = MemorySensitivity.fromWire(sensitivity) ?: MemorySensitivity.NORMAL,
+        confidence = confidence,
+        priority = priority,
+        pinned = pinned,
+        revision = revision,
+        baseRevision = baseRevision,
+        mutationId = mutationId,
+        deviceId = deviceId,
+        conflictGroupId = conflictGroupId,
+        occurredAt = occurredAt,
+        validFrom = validFrom?.let(MemoryServerTime::At),
+        lastConfirmedAt = lastConfirmedAt?.let(MemoryServerTime::At),
+        createdAt = createdAt?.let(MemoryServerTime::At),
+        updatedAt = updatedAt?.let(MemoryServerTime::At),
+        expiresAt = expiresAt,
+        deletedAt = deletedAt,
+        supersedes = supersedes,
+    )
+
+    companion object {
+        /** [item] comes from MemoryItems.backupSection, so pending server times are already null. */
+        fun from(item: MemoryItem) = BackupMemoryItem(
+            id = item.id,
+            schemaVersion = item.schemaVersion,
+            layer = item.layer.wire,
+            kind = item.kind.wire,
+            status = item.status.wire,
+            content = item.content,
+            scope = BackupMemoryItemScope(item.scope.type.wire, item.scope.id),
+            source = BackupMemoryItemSource(
+                type = item.source.type.wire,
+                conversationId = item.source.conversationId,
+                messageIds = item.source.messageIds,
+                observedAt = item.source.observedAt,
+            ),
+            sensitivity = item.sensitivity.wire,
+            confidence = item.confidence,
+            priority = item.priority,
+            pinned = item.pinned,
+            revision = item.revision,
+            baseRevision = item.baseRevision,
+            mutationId = item.mutationId,
+            deviceId = item.deviceId,
+            conflictGroupId = item.conflictGroupId,
+            occurredAt = item.occurredAt,
+            validFrom = item.validFrom.rfc3339(),
+            lastConfirmedAt = item.lastConfirmedAt.rfc3339(),
+            createdAt = item.createdAt.rfc3339(),
+            updatedAt = item.updatedAt.rfc3339(),
+            expiresAt = item.expiresAt,
+            deletedAt = item.deletedAt,
+            supersedes = item.supersedes,
+        )
+
+        private fun MemoryServerTime?.rfc3339(): String? = (this as? MemoryServerTime.At)?.rfc3339
+    }
+}
+
+/**
+ * One checkpoint row in a backup. Carries conversationId but no accountId —
+ * import writes into the current account. [createdAt] is epoch milliseconds.
+ */
+@Serializable
+data class BackupContextCheckpoint(
+    val conversationId: String,
+    val checkpointId: String,
+    val kind: String,
+    val coversFrom: String,
+    val coversTo: String,
+    val coversDigest: String,
+    val messagesCovered: Int,
+    val userMessageIds: List<String>,
+    val text: String,
+    val summary: String? = null,
+    val language: String? = null,
+    val model: String,
+    val packerVersion: String,
+    val createdAt: Long,
+    val cost: Double? = null,
+) {
+    /** Null when [kind] is unknown to this build. */
+    fun toRecord(): ContextCheckpointRecord? {
+        val parsedKind = ContextCheckpointKind.fromWire(kind) ?: return null
+        return ContextCheckpointRecord(
+            conversationId = conversationId,
+            checkpointId = checkpointId,
+            kind = parsedKind,
+            coversFrom = coversFrom,
+            coversTo = coversTo,
+            coversDigest = coversDigest,
+            messagesCovered = messagesCovered,
+            userMessageIds = userMessageIds,
+            text = text,
+            summary = summary,
+            language = language,
+            model = model,
+            packerVersion = packerVersion,
+            createdAt = createdAt,
+            cost = cost,
+        )
+    }
+
+    companion object {
+        fun from(record: ContextCheckpointRecord) = BackupContextCheckpoint(
+            conversationId = record.conversationId,
+            checkpointId = record.checkpointId,
+            kind = record.kind.wire,
+            coversFrom = record.coversFrom,
+            coversTo = record.coversTo,
+            coversDigest = record.coversDigest,
+            messagesCovered = record.messagesCovered,
+            userMessageIds = record.userMessageIds,
+            text = record.text,
+            summary = record.summary,
+            language = record.language,
+            model = record.model,
+            packerVersion = record.packerVersion,
+            createdAt = record.createdAt,
+            cost = record.cost,
+        )
+    }
+}
+
+/** A sanitized provider in a backup. */
 @Serializable
 data class BackupProvider(
     val id: String,
@@ -130,6 +340,8 @@ data class BackupFolder(
     val updatedAt: Long,
 )
 
+/** A conversation in a backup. */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class BackupConversation(
     val id: String,
@@ -147,7 +359,40 @@ data class BackupConversation(
     val createdAt: Long = 0L,
     val updatedAt: Long = 0L,
     val pinnedNoteIds: List<String> = emptyList(),
-)
+    /** Conversation-level instructions (conversation-instructions.v1); a key missing in older backups = empty string. */
+    val instructions: String = "",
+    /**
+     * Raw wire value of the conversation input budget cap: taken as a plain JSON element, and reading goes through [parsedContextCap],
+     * which parses leniently: an invalid value (such as "190000", an out-of-range number, a boolean) = follow the global setting instead of failing the whole import; a key missing in older backups = follow the global setting.
+     * When following the global setting the key is omitted on export (no null is written), consistent with iOS and Web.
+     */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val contextCap: JsonElement? = null,
+) {
+    /** The parsed cap; null = follow the global setting. */
+    val parsedContextCap: ContextBudgetCap?
+        get() = contextCapFromWire(contextCap)
+
+    companion object {
+        /** Cap -> backup wire: auto / unlimited are written as strings, a custom cap as a number; null when following the global setting. */
+        fun contextCapWire(cap: ContextBudgetCap?): JsonElement? = when (cap) {
+            null -> null
+            is ContextBudgetCap.Custom -> JsonPrimitive(cap.tokens)
+            else -> JsonPrimitive(cap.wire as String)
+        }
+
+        /** Backup wire -> cap: restores the native value first and then goes through [ContextBudgetCap.parse]; rejection = null. */
+        fun contextCapFromWire(element: JsonElement?): ContextBudgetCap? {
+            val primitive = element as? JsonPrimitive ?: return null
+            val raw: Any? = when {
+                primitive.isString -> primitive.content
+                primitive.booleanOrNull != null -> return null
+                else -> primitive.longOrNull ?: primitive.doubleOrNull
+            }
+            return ContextBudgetCap.parse(raw)
+        }
+    }
+}
 
 @Serializable
 data class BackupNote(

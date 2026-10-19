@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.context.StopFamily
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
@@ -173,6 +174,7 @@ class QwenService(
                 SseParser.parseOpenAICompatibleMulti(
                     response = response,
                     json = json,
+                    stopFamily = StopFamily.OPENAI_CHAT,
                     onChunk = { payload ->
                         val events = mutableListOf<StreamEvent>()
                         val root = runCatching { json.parseToJsonElement(payload).jsonObject }.getOrNull()

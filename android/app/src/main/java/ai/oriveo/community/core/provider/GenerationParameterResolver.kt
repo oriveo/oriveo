@@ -166,10 +166,12 @@ internal object GenerationParameterResolver {
                         root = remove(root, wire.split('.'))
                         omittedKeys += key
                     }
-                    GenerationOverrideState.Value -> accepted[key]?.let {
+                    GenerationOverrideState.Value -> accepted[key]?.let { raw ->
+                        // Chat path: the panel's "max output" is already in the O chain, and the value sent = min(O, R) = oWire; it no longer overrides with the raw value.
+                        val value = budgetedMaxOutput(key, raw, options.outputTokenBudget)
                         val strict = profile.parameters.firstOrNull { parameter -> parameter.id == key }?.strict == true
-                        root = applySpecializedOutputContract(root, profile.template, key, wire, it, strict)
-                        written[key] = it
+                        root = applySpecializedOutputContract(root, profile.template, key, wire, value, strict)
+                        written[key] = value
                     }
                     GenerationOverrideState.Inherit -> Unit
                 }
@@ -181,6 +183,12 @@ internal object GenerationParameterResolver {
         }
         if (root === parsed && dropped.isEmpty()) return Result(body, emptyList())
         return Result(root.toString(), dropped.sortedBy { it.parameterId })
+    }
+
+    private fun budgetedMaxOutput(key: String, value: JsonElement, outputTokenBudget: Int?): JsonElement {
+        if (key != "max_output_tokens" || outputTokenBudget == null) return value
+        val requested = (value as? JsonPrimitive)?.doubleOrNull ?: return value
+        return if (requested > outputTokenBudget) JsonPrimitive(outputTokenBudget) else value
     }
 
     private fun authorizedProfile(

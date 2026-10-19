@@ -7,6 +7,11 @@ import ai.oriveo.community.core.app.GlobalToastStyle
 import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.data.repository.ConversationRepository
 import ai.oriveo.community.core.data.repository.ProviderRepository
+import ai.oriveo.community.core.memory.MemoryCandidateRepository
+import ai.oriveo.community.core.context.MemoryProposeMode
+import ai.oriveo.community.core.context.MemoryProposePurpose
+import ai.oriveo.community.core.memory.MemoryProposeSendHook
+import ai.oriveo.community.core.memory.ProposeMemoryRuntime
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ChatMessage
@@ -37,6 +42,8 @@ internal class ChatSendCommandCoordinator(
     private val conversationRepository: ConversationRepository,
     private val currentConversation: () -> Conversation?,
     private val currentConversationId: () -> String?,
+    /** Instructions written by the conversation settings while still a draft; stored with the object when the first send creates the conversation. */
+    private val pendingDraftInstructions: () -> String = { "" },
     private val onProviderSelectionError: () -> Unit,
     private val onProviderResolutionError: (Throwable) -> Unit,
     private val onModelSelectionError: () -> Unit,
@@ -79,6 +86,27 @@ internal class ChatSendCommandCoordinator(
      * Preflight uses it to detect video; the default returns it unchanged, and in production the ViewModel injects the real trimming.
      */
     private val outboundHistory: suspend (List<ChatMessage>) -> List<ChatMessage> = { it },
+    /** Whether this send from the input box is a plain send or a resend after editing (set after the edit entry refills the input box, reset once sent). */
+    private val attemptKind: () -> ai.oriveo.community.feature.chat.ContextConfirmAttempt = {
+        ai.oriveo.community.feature.chat.ContextConfirmAttempt.SEND
+    },
+    /** Judges freshly sent user messages for the "set as instruction" suggestion; null = off. */
+    private val directiveSuggestions: DirectiveSuggestionController? = null,
+    /** New-message send that reports the persisted user message back; null falls back to [launchSend]. */
+    private val launchUserSend: ChatUserSendLauncher? = null,
+    /** Turns a fresh user send into a pending memory candidate; null = off. */
+    private val memoryCandidates: MemoryCandidateRepository? = null,
+    /** Partition the candidate is written to. */
+    private val memoryAccountId: () -> String = { "" },
+    /** App-level scope for candidate generation, so leaving the chat page does not cancel it. */
+    private val memoryScope: CoroutineScope = viewModelScope,
+    /** "Save to memory?" bar fed by the generated candidate; null = off. */
+    private val memorySuggestions: MemorySuggestionController? = null,
+    /**
+     * propose_memory mode of a fresh send. Fallback keeps the v1 routing; tool skips it (the model
+     * proposes through the tool instead). Null = the real decision ([resolveMemoryProposeMode]).
+     */
+    private val memoryProposeMode: (suspend (Conversation, Provider, modelId: String) -> MemoryProposeMode)? = null,
 ) {
     fun sendMessage(
         text: String,
@@ -134,6 +162,139 @@ internal class ChatSendCommandCoordinator(
                 // launchSend has already handed the request to the streaming scope by now, so the
                 // setup phase is over either way.
                 onSendSettled()
+            }
+        }
+    }
+
+    /** Background, best-effort: a failure is only logged and never affects the send. */
+    /**
+     * For a fresh send: memory on for the chat, auto-suggest on for the account, client tools can ride
+     * this send (MCP tool predicate, not Moonshot's built-in web search loop) and the pair is not degraded.
+     */
+    @Suppress("LongParameterList")
+    private suspend fun resolveMemoryProposeMode(
+        accountId: String,
+        conv: Conversation,
+        provider: Provider,
+        modelId: String,
+    ): MemoryProposeMode {
+        val repository = memoryCandidates ?: return MemoryProposeMode.FALLBACK
+        val model = ProviderSelectionSnapshot.selectedModel(provider, modelId)
+        // Unknown web state counts as on: Moonshot's built-in loop then owns the tool list, and Gemini
+        // generateContent cannot carry function tools beside its search tool.
+        // Relay: web is what actually goes out (chat switch and no user override off), same as ChatRepository.
+        val webSearch = model != null &&
+            resolveAttachmentSendOptions(provider, modelId)
+                ?.webSearchEnabled
+                ?.let { on ->
+                    if (provider.kind == ProviderKind.Relay) {
+                        ai.oriveo.community.core.provider.relay.RelayWebChat.switchOn(provider, model, on)
+                    } else {
+                        on
+                    }
+                } ?: true
+        val supportsTools = model != null && run {
+            ProposeMemoryRuntime.connectionSupportsTools(
+                provider = provider,
+                model = model,
+                memoryVerdict = providerRepository.toolCallMemoryVerdict(provider, model),
+                localIdentity = providerRepository.capabilityEvidenceIdentity(provider, modelId),
+                moonshotBuiltinSearch = provider.kind == ProviderKind.Moonshot && webSearch,
+            )
+        }
+        return ProposeMemoryRuntime.mode(
+            purpose = MemoryProposePurpose.CHAT,
+            freshSend = true,
+            memoryEnabled = conv.useMemory,
+            autoSuggest = repository.autoSuggestEnabled(accountId),
+            connectionSupportsTools = supportsTools,
+            connectionId = provider.id,
+            modelId = modelId,
+            geminiWebSearch = ProposeMemoryRuntime.geminiWebSearch(provider, model, webSearch),
+            // json_schema on this send conflicts with tools; propose falls back like Gemini web search.
+            structuredOutput = ProposeMemoryRuntime.structuredOutputActive(
+                generationParameterSettingsStore, provider, model, modelId, conv.id,
+            ),
+        )
+    }
+
+    /** propose_memory callbacks of one fresh send in tool mode, bound to its user message. */
+    private inner class ProposeTurn(
+        private val accountId: String,
+        private val conv: Conversation,
+        private val connectionId: String,
+        private val modelId: String,
+    ) : MemoryProposeSendHook {
+        @Volatile private var messageId: String? = null
+        @Volatile private var userText: String = ""
+        private val calls = java.util.concurrent.atomic.AtomicInteger(0)
+
+        fun bind(messageId: String, text: String) {
+            userText = text
+            this.messageId = messageId
+        }
+
+        override suspend fun onProposeCall(argumentsJson: String) {
+            val id = messageId ?: return
+            val prior = calls.getAndIncrement()
+            val repository = memoryCandidates ?: return
+            val candidate = try {
+                repository.propose(
+                    accountId = accountId,
+                    argumentsJson = argumentsJson,
+                    priorInTurn = prior,
+                    userText = userText,
+                    messageId = id,
+                    conversationId = conv.id,
+                    folderId = conv.folderID,
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w("ChatSendCommand", "propose_memory candidate failed: ${e.message}")
+                null
+            } ?: return
+            memorySuggestions?.onProposedCandidate(conv.id, id, candidate)
+        }
+
+        override suspend fun onToolsRejected() {
+            ProposeMemoryRuntime.markDegraded(connectionId, modelId)
+            val id = messageId ?: return
+            generateMemoryCandidate(accountId, conv, id, userText, MemoryProposeMode.FALLBACK)
+        }
+    }
+
+    private fun generateMemoryCandidate(
+        accountId: String,
+        conv: Conversation,
+        messageId: String,
+        text: String,
+        mode: MemoryProposeMode,
+    ) {
+        val bars = memorySuggestions
+        if (mode == MemoryProposeMode.TOOL) {
+            // Tool mode implies memory on; only clear the previous bar, the v1 routing does not run.
+            bars?.onUserMessageCreated(conv.id, messageId, text, useMemory = true)
+            return
+        }
+        bars?.onUserMessageCreated(conv.id, messageId, text, useMemory = conv.useMemory)
+        val repository = memoryCandidates ?: return
+        memoryScope.launch {
+            try {
+                val candidate = repository.generate(
+                    accountId = accountId,
+                    text = text,
+                    messageId = messageId,
+                    conversationId = conv.id,
+                    folderId = conv.folderID,
+                    useMemory = conv.useMemory,
+                    nowMs = System.currentTimeMillis(),
+                )
+                bars?.onCandidateGenerated(conv.id, messageId, candidate)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w("ChatSendCommand", "memory candidate generation failed: ${e.message}")
             }
         }
     }
@@ -238,6 +399,7 @@ internal class ChatSendCommandCoordinator(
             providerID = providerId,
             providerKind = provider.kind,
             modelID = storedModelId,
+            instructions = pendingDraftInstructions(),
         )
 
         if (isNewConversation) {
@@ -301,6 +463,42 @@ internal class ChatSendCommandCoordinator(
         requestPin()
 
         val fullHistory = fetchFullConversationHistory(conv.id)
+        val kind = attemptKind()
+        val userSend = launchUserSend
+        val suggestions = directiveSuggestions
+        // Only a fresh user send is judged; edit-and-resend / retry / regenerate never are.
+        val hasUserMessageHook = suggestions != null || memoryCandidates != null || memorySuggestions != null
+        if (kind == ai.oriveo.community.feature.chat.ContextConfirmAttempt.SEND && userSend != null && hasUserMessageHook) {
+            // Resolve the memory partition at send time; a later account switch must not redirect the candidate.
+            val memoryAccount = memoryAccountId()
+            val proposeMode = memoryProposeMode?.invoke(requestConversation, provider, runtimeModelId)
+                ?: resolveMemoryProposeMode(
+                    memoryAccount, requestConversation, provider, runtimeModelId,
+                )
+            val proposeTurn = if (proposeMode == MemoryProposeMode.TOOL) {
+                ProposeTurn(memoryAccount, conv, provider.id, runtimeModelId)
+            } else {
+                null
+            }
+            userSend.launch(
+                conversation = requestConversation,
+                provider = provider,
+                modelId = runtimeModelId,
+                text = text,
+                existingMessages = fullHistory,
+                attachments = attachments,
+                quoteContext = quoteContext,
+                attemptKind = kind,
+                onUserMessageCreated = { messageId, messageText ->
+                    proposeTurn?.bind(messageId, messageText)
+                    suggestions?.onUserMessageCreated(conv.id, messageId, messageText)
+                    generateMemoryCandidate(memoryAccount, conv, messageId, messageText, proposeMode)
+                },
+                memoryPropose = proposeTurn,
+            )
+            onQuoteConsumed(quoteContext)
+            return
+        }
         launchSend.launch(
             conversation = requestConversation,
             provider = provider,
@@ -312,6 +510,7 @@ internal class ChatSendCommandCoordinator(
             persistUserMessage = true,
             appendToAssistant = null,
             userMessageAlreadyInHistory = false,
+            attemptKind = kind,
         )
         // The quote is only consumed once the request has actually been handed off. Any earlier
         // setup failure leaves it pending so the user does not lose the selection.
@@ -320,6 +519,23 @@ internal class ChatSendCommandCoordinator(
 
     private suspend fun fetchFullConversationHistory(conversationId: String): List<ChatMessage> =
         conversationRepository.getWithMessages(conversationId)?.messages.orEmpty()
+}
+
+/** Fresh user send: like [ChatSendLauncher] for a new message, plus the persisted user message callback. */
+internal fun interface ChatUserSendLauncher {
+    fun launch(
+        conversation: Conversation,
+        provider: Provider,
+        modelId: String,
+        text: String,
+        existingMessages: List<ChatMessage>,
+        attachments: List<Attachment>?,
+        quoteContext: QuoteContext?,
+        attemptKind: ai.oriveo.community.feature.chat.ContextConfirmAttempt,
+        onUserMessageCreated: (messageId: String, text: String) -> Unit,
+        /** Non-null when this fresh send runs in tool mode (the request carries propose_memory). */
+        memoryPropose: MemoryProposeSendHook?,
+    )
 }
 
 /** The notice shown when the pre-send check blocks a send. It uses the same discrimination and copy as the failure card: a count overrun says the maximum number of files, a text overrun names the files that do not fit, and when both apply each gets its own line. */
@@ -341,4 +557,13 @@ internal fun attachmentsUndeliverableToast(error: ProviderServiceError): GlobalS
         else -> return null
     }
     return GlobalSnackbarMessage(message = message, style = GlobalToastStyle.Error)
+}
+
+/** The notice for a plan rejection, in the same style as the pre-send attachment interception. */
+internal fun contextRejectToast(reject: ai.oriveo.community.core.context.ContextReject): GlobalSnackbarMessage {
+    val resId = when (reject) {
+        ai.oriveo.community.core.context.ContextReject.INSTRUCTIONS_TOO_LONG -> R.string.context_reject_instructions_too_long
+        ai.oriveo.community.core.context.ContextReject.MESSAGE_TOO_LONG -> R.string.context_reject_message_too_long
+    }
+    return GlobalSnackbarMessage(message = UiText.Resource(resId), style = GlobalToastStyle.Error)
 }

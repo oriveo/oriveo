@@ -171,7 +171,7 @@ class ChatNoteCoordinator(
         activeNotes,
     ) { pinnedIds, pendingIds, notes ->
         val ids = (pinnedIds + pendingIds)
-            .map(::normalizeUuid).distinct().takeLast(ChatPromptInjectionBuilder.MAX_PINNED_NOTES)
+            .map(::normalizeUuid).distinct().takeLast(MAX_PINNED_NOTES)
         ids.mapNotNull { id -> notes.firstOrNull { normalizeUuid(it.id) == id } }
     }.stateIn(scope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -327,7 +327,7 @@ class ChatNoteCoordinator(
             scope.launch { conversationRepository.pinNoteToConversation(convId, nid) }
         } else {
             pendingPinnedNoteIds = (pendingPinnedNoteIds + nid)
-                .distinct().takeLast(ChatPromptInjectionBuilder.MAX_PINNED_NOTES)
+                .distinct().takeLast(MAX_PINNED_NOTES)
         }
     }
 
@@ -427,5 +427,10 @@ class ChatNoteCoordinator(
     fun closeCrosscheck() {
         crosscheckOrigin = null
         crosscheckCoordinator.reset()
+    }
+
+    companion object {
+        /** At most 3 notes can be pinned per conversation (same as Web / iOS). */
+        const val MAX_PINNED_NOTES = 3
     }
 }

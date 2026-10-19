@@ -26,6 +26,11 @@ data class ProviderChatResult(
     val cacheCreation1hTokens: Int? = null,
     /** Name of a [ai.oriveo.community.core.provider.CostSource]; null falls back to an estimate. */
     val costSource: String? = null,
+    /**
+     * The untrimmed original body (null = the Service did not provide it, treat it as [text]).
+     * Used only for explicit "continue" stitching: leading whitespace / newlines of the continuation are appended to the original as is; display and persistence of a new answer still use [text].
+     */
+    val rawText: String? = null,
 )
 
 /** Everything that can go wrong between this app and a provider the user configured. */
@@ -53,6 +58,30 @@ sealed class ProviderServiceError : Exception() {
      * and protocol fallback and per-model probing treat it as a route-level rejection. The outbound layer decides and attaches it when the response arrives. Not part of equals.
      */
     var relayHtmlSuccessPage: Boolean = false
+
+    /**
+     * For telemetry drill-down only: the non-2xx HTTP status this error was mapped from, attached where the response is available (SseParser / RelayErrorMapper).
+     * Not part of equals; null = not an HTTP error.
+     */
+    var telemetryHttpStatus: Int? = null
+
+    /**
+     * For telemetry drill-down only: the raw string of `error.type` / `error.code` / `error.status` in a JSON error body or an in-stream error frame
+     * (only JSON fields are read, the body text is never scanned); the telemetry side normalizes it against an allowlist. Not part of equals.
+     */
+    var telemetryUpstreamErrorType: String? = null
+
+    /**
+     * Non-2xx HTTP status this error was mapped from, kept after mapping to a dedicated error (401 / 429 ...).
+     * Overflow recovery classifies on it. Not part of equals; null = not an HTTP error.
+     */
+    var httpStatus: Int? = null
+
+    /**
+     * Raw HTTP error body (first 32 KB of UTF-8) for overflow classification only:
+     * never shown, logged or persisted. Not part of equals.
+     */
+    var rawBody: String? = null
 
     data class InvalidAPIKey(val detail: String) : ProviderServiceError()
     data class QuotaExceeded(val detail: String) : ProviderServiceError()
@@ -155,6 +184,13 @@ sealed class ProviderServiceError : Exception() {
         val rejectedParameter: String? = null,
         /** Set when thrown from an unclassified in-stream error frame; blocking or empty-result fallbacks do not count. This flag alone decides "retry without the additional request body"; message text is never compared. */
         val streamErrorFrame: Boolean = false,
+        /** Stream-finish info carried when a terminal frame (such as Responses `response.failed`) raises the error; null for other errors. */
+        val streamFinish: ai.oriveo.community.core.context.StreamFinish? = null,
+        /**
+         * Nature of a failure under a 2xx (in-stream error frame / safety block / empty result); it only decides the
+         * telemetry error_code, display and retry do not look at it. Under a 2xx a null value counts as an in-stream error.
+         */
+        val inBandFailure: UpstreamInBandFailure? = null,
     ) : ProviderServiceError()
     /**
      * A Grok subscription sign-in failed.
@@ -312,6 +348,16 @@ enum class OpenAISubscriptionFailureReason(val userMessage: String) {
     QuotaExhausted(
         "You've used up this period's Codex quota. It will resume after the next reset.",
     ),
+}
+
+/** Nature of a failure inside a 2xx response: it only decides the telemetry error_code and does not affect display or retry. */
+enum class UpstreamInBandFailure {
+    /** In-stream error frame / response.failed / a result that cannot be parsed under a 2xx. */
+    StreamError,
+    /** Upstream safety block (Gemini blockReason / a finishReason cut by policy). */
+    ContentFiltered,
+    /** A 2xx with no deliverable content at all. */
+    EmptyResponse,
 }
 
 /** Stable keys for the relay guidance texts, so a stored hint survives a translation change. */

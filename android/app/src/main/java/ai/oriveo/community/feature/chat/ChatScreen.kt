@@ -9,7 +9,8 @@ fun ChatScreen(
     searchQuery: String? = null,
     onNavigateToConnectionWebSearch: (providerId: String) -> Unit = {},
     onBack: () -> Unit,
-    onNavigateToMemory: () -> Unit = {},
+    /** Non-null editItemId: "this is wrong" edits that memory item directly. */
+    onNavigateToMemory: (editItemId: String?) -> Unit = {},
     onNavigateToProviderSetup: () -> Unit = {},
     onNavigateToProviderDetail: (providerId: String) -> Unit = {},
     /** "Test capability" for a rejected web template: opens this model's advanced page in this connection. */

@@ -1,6 +1,7 @@
 package ai.oriveo.community.core.model
 
 import androidx.compose.runtime.Immutable
+import ai.oriveo.community.core.context.ContextBudgetCap
 import kotlinx.serialization.Serializable
 
 /** A conversation, as the rest of the app sees it. */
@@ -34,6 +35,11 @@ data class Conversation(
     val updatedAt: Long = System.currentTimeMillis(),
     /** Up to three notes pinned into this conversation's prompt. */
     val pinnedNoteIds: List<String> = emptyList(),
+    /** Conversation-level instructions (normalized, at most 8000 code points); an empty string means none. A conflict copy inherits the whole value. */
+    val instructions: String = "",
+    /** Conversation input budget cap; null = follow the global default. A conflict copy inherits the whole value. Backups use a dedicated encoding and this class's serialization does not carry it. */
+    @kotlinx.serialization.Transient
+    val contextCap: ContextBudgetCap? = null,
 ) {
     val estimatedCostText: String
         get() = CostFormatter.format(estimatedCost)
@@ -54,7 +60,9 @@ data class Conversation(
             providerKind == other.providerKind &&
             modelID == other.modelID &&
             useMemory == other.useMemory &&
-            pinnedNoteIds == other.pinnedNoteIds
+            pinnedNoteIds == other.pinnedNoteIds &&
+            instructions == other.instructions &&
+            contextCap == other.contextCap
     }
 }
 

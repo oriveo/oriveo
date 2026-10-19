@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.data.mapper
 
+import ai.oriveo.community.core.context.ContextBudgetCap
 import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
 import ai.oriveo.community.core.data.entity.ConversationEntity
 import ai.oriveo.community.core.model.ChatMessage
@@ -39,6 +40,8 @@ object ConversationMapper {
             pinnedNoteIds = pinnedNoteIdsJson?.let {
                 runCatching { json.decodeFromString<List<String>>(it) }.getOrDefault(emptyList())
             }?.map(::normalizeUuid) ?: emptyList(),
+            instructions = instructions,
+            contextCap = contextCap.toContextBudgetCapOrNull(),
         ))
 
     fun Conversation.toEntity(accountId: String = LOCAL_PARTITION_ID): ConversationEntity = ConversationEntity(
@@ -61,5 +64,24 @@ object ConversationMapper {
         pinnedNoteIdsJson = pinnedNoteIds.map(::normalizeUuid).distinct()
             .takeIf { it.isNotEmpty() }
             ?.let { json.encodeToString(it) },
+        instructions = instructions,
+        contextCap = contextCap?.toStorageText(),
     )
+
+    /** Text stored in the local column: auto and unlimited as is, a custom cap as a decimal token count. */
+    fun ContextBudgetCap.toStorageText(): String = when (this) {
+        ContextBudgetCap.Auto -> "auto"
+        ContextBudgetCap.Unlimited -> "unlimited"
+        is ContextBudgetCap.Custom -> tokens.toString()
+    }
+
+    /** Stored text to cap; only "auto", "unlimited" and decimal integers without leading zeros (then range-checked by parse) are accepted, anything else gives null and follows the global default. */
+    fun String?.toContextBudgetCapOrNull(): ContextBudgetCap? = when {
+        this == null -> null
+        this == "auto" || this == "unlimited" -> ContextBudgetCap.parse(this)
+        STORAGE_DIGITS.matches(this) -> toIntOrNull()?.let(ContextBudgetCap::parse)
+        else -> null
+    }
+
+    private val STORAGE_DIGITS = Regex("^[1-9][0-9]*$")
 }

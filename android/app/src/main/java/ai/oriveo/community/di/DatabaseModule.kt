@@ -2,6 +2,7 @@ package ai.oriveo.community.di
 
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.withTransaction
 import androidx.sqlite.db.SupportSQLiteDatabase
 import ai.oriveo.community.core.data.database.ConversationSearchSchema
 import ai.oriveo.community.core.data.database.DatabaseHealthProbe
@@ -35,6 +36,8 @@ val databaseModule = module {
                 // v3 to v4: providers.endpointSource / setupValuesJson / relayKeysJson (address source,
                 // setup field values and the relay key list, stored on this device only).
                 OriveoDatabase.MIGRATION_3_4,
+                // v4 to v5: context ledger, checkpoints, conversation instructions / contextCap, memory items and candidates, messages.stopReason / memoryItemIds.
+                OriveoDatabase.MIGRATION_4_5,
             )
             .addCallback(
                 object : RoomDatabase.Callback() {
@@ -86,5 +89,26 @@ val databaseModule = module {
     single { get<OriveoDatabase>().noteDao() }
     single { get<OriveoDatabase>().noteFolderDao() }
     single { get<OriveoDatabase>().mcpServerDao() }
+    single { get<OriveoDatabase>().contextLedgerDao() }
+    single { get<OriveoDatabase>().contextCheckpointDao() }
+    single { ai.oriveo.community.core.data.repository.ContextCompactionStore(get()) }
+    single { get<OriveoDatabase>().memoryItemDao() }
+    single { get<OriveoDatabase>().memoryCandidateDao() }
+    single {
+        val db = get<OriveoDatabase>()
+        ai.oriveo.community.core.memory.MemoryItemRepository(
+            dao = get(),
+            preferenceDao = get(),
+            preferences = get(),
+            runInTransaction = { block -> db.withTransaction { block() } },
+        )
+    }
+    single {
+        ai.oriveo.community.core.memory.MemoryCandidateRepository(
+            dao = get(),
+            items = get(),
+            preferences = get(),
+        )
+    }
     single { get<MessageContinuationDatabase>().dao() }
 }

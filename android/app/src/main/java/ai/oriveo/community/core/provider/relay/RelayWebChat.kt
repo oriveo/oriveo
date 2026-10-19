@@ -142,6 +142,18 @@ data class RelayWebChat(
             }.toMap()
         }
 
+        /**
+         * The relay web switch for this send (same rule as relayWebSwitchOn in ChatRepository): web is on in the chat
+         * and the user has not turned it off in the advanced page. False for a non-relay or a local-engine connection.
+         */
+        fun switchOn(
+            provider: Provider,
+            model: AIModel,
+            webOn: Boolean,
+            fragments: RelayWebFragmentStore = RelayWebFragmentStore.shared,
+            records: RelayWebProbeRecordStore = RelayWebProbeRecordStore.shared,
+        ): Boolean = webOn && of(provider, model, fragments, records)?.userDisabled == false
+
         /** Returns null for a non-relay or a local-engine connection (the local-engine row is in the web-fragment presentationCases). */
         fun of(
             provider: Provider,

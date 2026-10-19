@@ -4,10 +4,14 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import ai.oriveo.community.core.data.dao.ContextCheckpointDao
+import ai.oriveo.community.core.data.dao.ContextLedgerDao
 import ai.oriveo.community.core.data.dao.ConversationDao
 import ai.oriveo.community.core.data.dao.ConversationSearchDao
 import ai.oriveo.community.core.data.dao.FolderDao
 import ai.oriveo.community.core.data.dao.McpServerDao
+import ai.oriveo.community.core.data.dao.MemoryCandidateDao
+import ai.oriveo.community.core.data.dao.MemoryItemDao
 import ai.oriveo.community.core.data.dao.MessageDao
 import ai.oriveo.community.core.data.dao.MetadataCacheDao
 import ai.oriveo.community.core.data.dao.NoteDao
@@ -15,11 +19,16 @@ import ai.oriveo.community.core.data.dao.NoteFolderDao
 import ai.oriveo.community.core.data.dao.PreferenceDao
 import ai.oriveo.community.core.data.dao.ProviderDao
 import ai.oriveo.community.core.data.dao.SkillDao
+import ai.oriveo.community.core.data.entity.ContextCheckpointEntity
+import ai.oriveo.community.core.data.entity.ContextManifestEntity
+import ai.oriveo.community.core.data.entity.ContextRhoCalibrationEntity
 import ai.oriveo.community.core.data.entity.ConversationEntity
 import ai.oriveo.community.core.data.entity.ConversationFtsEntity
 import ai.oriveo.community.core.data.entity.ConversationMessageCountEntity
 import ai.oriveo.community.core.data.entity.ConversationSearchDirtyEntity
 import ai.oriveo.community.core.data.entity.FolderEntity
+import ai.oriveo.community.core.data.entity.MemoryCandidateEntity
+import ai.oriveo.community.core.data.entity.MemoryItemEntity
 import ai.oriveo.community.core.data.entity.McpConnectionStateEntity
 import ai.oriveo.community.core.data.entity.McpConversationSwitchEntity
 import ai.oriveo.community.core.data.entity.McpServerEntity
@@ -65,6 +74,18 @@ const val LOCAL_PARTITION_ID = "local"
  *   `mcp_tool_permission`, `mcp_conversation_switch`, `mcp_step_payload`) and one nullable column
  *   on `messages` (`toolStepsJson`, the summaries of the tool steps an answer went through). No
  *   credential is stored in any of them; tokens go to `McpCredentialStore`.
+ *
+ * v5: context and memory. `messages` gains nullable TEXT `stopReason` (why the answer ended; older messages
+ *   stay null) and nullable TEXT `memoryItemIds` (ids of the memory items injected into the answer, a JSON
+ *   array stored locally only); `conversations` gains `instructions TEXT NOT NULL DEFAULT ''` (conversation-level
+ *   instructions, empty for existing rows) and nullable TEXT `contextCap` (stored text of the conversation input
+ *   budget cap; null follows the global default). Five new tables: `context_rho_calibration` (rho calibration),
+ *   `context_manifest` (request manifests, newest 50 kept per conversation), `context_checkpoint` (context
+ *   checkpoints, cascade-deleted with the conversation, newest 8 kept per conversation), `memory_items` (memory
+ *   item v2, primary key (accountId, id), with a local syncState) and `memory_candidates` (memory candidates,
+ *   primary key (accountId, id), status plus the whole candidate as JSON). See [MIGRATION_4_5].
+ *
+ * `exportSchema = true` plus the checked-in Room schema JSON serve as an anchor for future diffs.
  */
 @Database(
     entities = [
@@ -87,8 +108,13 @@ const val LOCAL_PARTITION_ID = "local"
         McpToolPermissionEntity::class,
         McpConversationSwitchEntity::class,
         McpStepPayloadEntity::class,
+        ContextRhoCalibrationEntity::class,
+        ContextManifestEntity::class,
+        ContextCheckpointEntity::class,
+        MemoryItemEntity::class,
+        MemoryCandidateEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class OriveoDatabase : RoomDatabase() {
@@ -103,6 +129,10 @@ abstract class OriveoDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun noteFolderDao(): NoteFolderDao
     abstract fun mcpServerDao(): McpServerDao
+    abstract fun contextLedgerDao(): ContextLedgerDao
+    abstract fun contextCheckpointDao(): ContextCheckpointDao
+    abstract fun memoryItemDao(): MemoryItemDao
+    abstract fun memoryCandidateDao(): MemoryCandidateDao
 
     companion object {
         const val DATABASE_NAME = "oriveo.db"
@@ -248,6 +278,68 @@ abstract class OriveoDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE `providers` ADD COLUMN `endpointSource` TEXT")
                 db.execSQL("ALTER TABLE `providers` ADD COLUMN `setupValuesJson` TEXT")
                 db.execSQL("ALTER TABLE `providers` ADD COLUMN `relayKeysJson` TEXT")
+            }
+        }
+
+        /**
+         * v4 to v5: context and memory. Adds the nullable `stopReason` and `memoryItemIds` columns on
+         * `messages`, the `instructions` and nullable `contextCap` columns on `conversations`, and the
+         * tables `context_rho_calibration`, `context_manifest`, `context_checkpoint`, `memory_items` and
+         * `memory_candidates`. Existing rows are not backfilled: new columns read as null (or the empty
+         * string for `instructions`). The DDL must match the generated schema exactly, since Room
+         * validates every table when the database opens.
+         */
+        val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `messages` ADD COLUMN `stopReason` TEXT")
+                db.execSQL("ALTER TABLE `messages` ADD COLUMN `memoryItemIds` TEXT")
+                db.execSQL("ALTER TABLE `conversations` ADD COLUMN `instructions` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `conversations` ADD COLUMN `contextCap` TEXT")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `context_rho_calibration` (`transportInstanceId` TEXT NOT NULL, " +
+                        "`modelId` TEXT NOT NULL, `n` INTEGER NOT NULL, `rho` REAL NOT NULL, `seeds` TEXT NOT NULL, " +
+                        "PRIMARY KEY(`transportInstanceId`, `modelId`))",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `context_manifest` (`conversationId` TEXT NOT NULL COLLATE NOCASE, " +
+                        "`requestId` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `json` TEXT NOT NULL, " +
+                        "PRIMARY KEY(`conversationId`, `requestId`))",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_context_manifest_conversationId_createdAt` " +
+                        "ON `context_manifest` (`conversationId`, `createdAt`)",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `context_checkpoint` (`accountId` TEXT NOT NULL, " +
+                        "`conversationId` TEXT NOT NULL COLLATE NOCASE, `checkpointId` TEXT NOT NULL, " +
+                        "`kind` TEXT NOT NULL, `coversFrom` TEXT NOT NULL, `coversTo` TEXT NOT NULL, " +
+                        "`coversDigest` TEXT NOT NULL, `messagesCovered` INTEGER NOT NULL, " +
+                        "`userMessageIds` TEXT NOT NULL, `text` TEXT NOT NULL, `summary` TEXT, `language` TEXT, " +
+                        "`model` TEXT NOT NULL, `packerVersion` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, " +
+                        "`cost` REAL, PRIMARY KEY(`accountId`, `conversationId`, `checkpointId`), " +
+                        "FOREIGN KEY(`conversationId`, `accountId`) REFERENCES `conversations`(`id`, `accountId`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE )",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_context_checkpoint_accountId_conversationId_createdAt` " +
+                        "ON `context_checkpoint` (`accountId`, `conversationId`, `createdAt`)",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `memory_items` (`accountId` TEXT NOT NULL, `id` TEXT NOT NULL, " +
+                        "`schemaVersion` INTEGER NOT NULL, `layer` TEXT NOT NULL, `kind` TEXT NOT NULL, " +
+                        "`status` TEXT NOT NULL, `content` TEXT NOT NULL, `scopeType` TEXT NOT NULL, `scopeId` TEXT, " +
+                        "`sourceType` TEXT NOT NULL, `sourceConversationId` TEXT, `sourceMessageIds` TEXT NOT NULL, " +
+                        "`sourceObservedAt` TEXT, `sensitivity` TEXT NOT NULL, `confidence` REAL NOT NULL, " +
+                        "`priority` INTEGER NOT NULL, `pinned` INTEGER NOT NULL, `revision` INTEGER NOT NULL, " +
+                        "`baseRevision` INTEGER NOT NULL, `mutationId` TEXT NOT NULL, `deviceId` TEXT NOT NULL, " +
+                        "`conflictGroupId` TEXT, `occurredAt` TEXT, `validFrom` TEXT, `lastConfirmedAt` TEXT, " +
+                        "`createdAt` TEXT, `updatedAt` TEXT, `expiresAt` TEXT, `deletedAt` TEXT, " +
+                        "`supersedes` TEXT NOT NULL, `syncState` TEXT NOT NULL, PRIMARY KEY(`accountId`, `id`))",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `memory_candidates` (`accountId` TEXT NOT NULL, `id` TEXT NOT NULL, " +
+                        "`status` TEXT NOT NULL, `payload` TEXT NOT NULL, PRIMARY KEY(`accountId`, `id`))",
+                )
             }
         }
     }

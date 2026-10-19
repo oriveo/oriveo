@@ -9,88 +9,63 @@ import org.junit.Test
 class MemoryScreenPresentationTest {
 
     @Test
-    fun `starter mode with recent conversations prefers draft action`() {
+    fun `starter mode with recent conversations adds first and drafts second`() {
         val presentation = buildMemoryScreenPresentation(
-            memoryText = "",
-            isEditorFocused = false,
+            hasItems = false,
             hasRecentConversations = true,
         )
 
         assertEquals(MemoryScreenMode.Starter, presentation.mode)
         assertEquals(MemoryHeroStyle.DraftStarter, presentation.heroStyle)
-        assertEquals(MemoryScreenAction.GenerateDraft, presentation.primaryAction)
-        assertEquals(MemoryScreenAction.FocusEditor, presentation.secondaryAction)
-        assertFalse(presentation.showsExampleSuggestions)
+        assertEquals(MemoryScreenAction.AddItem, presentation.primaryAction)
+        assertEquals(MemoryScreenAction.GenerateDraft, presentation.secondaryAction)
         assertFalse(presentation.showsSupportSections)
     }
 
     @Test
-    fun `starter mode without recent conversations goes straight to manual writing`() {
+    fun `starter mode without recent conversations only offers add`() {
         val presentation = buildMemoryScreenPresentation(
-            memoryText = "",
-            isEditorFocused = false,
+            hasItems = false,
             hasRecentConversations = false,
         )
 
         assertEquals(MemoryScreenMode.Starter, presentation.mode)
         assertEquals(MemoryHeroStyle.ManualStarter, presentation.heroStyle)
-        assertEquals(MemoryScreenAction.FocusEditor, presentation.primaryAction)
+        assertEquals(MemoryScreenAction.AddItem, presentation.primaryAction)
         assertNull(presentation.secondaryAction)
-        assertFalse(presentation.showsExampleSuggestions)
     }
 
     @Test
-    fun `editor mode keeps support sections and uses active memory hero`() {
-        val withContent = buildMemoryScreenPresentation(
-            memoryText = "Remember that I prefer concise answers.",
-            isEditorFocused = false,
-            hasRecentConversations = true,
-        )
-        val whileEditingEmpty = buildMemoryScreenPresentation(
-            memoryText = "",
-            isEditorFocused = true,
-            hasRecentConversations = true,
-        )
-
-        assertEquals(MemoryScreenMode.Editor, withContent.mode)
-        assertEquals(MemoryHeroStyle.ActiveMemory, withContent.heroStyle)
-        assertTrue(withContent.showsSupportSections)
-        assertFalse(withContent.showsExampleSuggestions)
-
-        assertEquals(MemoryScreenMode.Editor, whileEditingEmpty.mode)
-        assertEquals(MemoryHeroStyle.ActiveMemory, whileEditingEmpty.heroStyle)
-        assertTrue(whileEditingEmpty.showsSupportSections)
-        assertFalse(whileEditingEmpty.showsExampleSuggestions)
-    }
-
-    @Test
-    fun `editor mode exposes generate draft action when recent conversations exist`() {
-        val withContent = buildMemoryScreenPresentation(
-            memoryText = "Remember that I prefer concise answers.",
-            isEditorFocused = false,
-            hasRecentConversations = true,
-        )
-        val whileEditingEmpty = buildMemoryScreenPresentation(
-            memoryText = "",
-            isEditorFocused = true,
-            hasRecentConversations = true,
-        )
-
-        assertEquals(MemoryScreenAction.GenerateDraft, withContent.primaryAction)
-        assertNull(withContent.secondaryAction)
-        assertEquals(MemoryScreenAction.GenerateDraft, whileEditingEmpty.primaryAction)
-        assertNull(whileEditingEmpty.secondaryAction)
-    }
-
-    @Test
-    fun `editor mode hides primary action when no recent conversations`() {
+    fun `items mode keeps support sections and uses active memory hero`() {
         val presentation = buildMemoryScreenPresentation(
-            memoryText = "Remember that I prefer concise answers.",
-            isEditorFocused = false,
+            hasItems = true,
+            hasRecentConversations = true,
+        )
+
+        assertEquals(MemoryScreenMode.Items, presentation.mode)
+        assertEquals(MemoryHeroStyle.ActiveMemory, presentation.heroStyle)
+        assertTrue(presentation.showsSupportSections)
+    }
+
+    @Test
+    fun `items mode exposes generate draft action when recent conversations exist`() {
+        val presentation = buildMemoryScreenPresentation(
+            hasItems = true,
+            hasRecentConversations = true,
+        )
+
+        assertEquals(MemoryScreenAction.GenerateDraft, presentation.primaryAction)
+        assertNull(presentation.secondaryAction)
+    }
+
+    @Test
+    fun `items mode hides primary action when no recent conversations`() {
+        val presentation = buildMemoryScreenPresentation(
+            hasItems = true,
             hasRecentConversations = false,
         )
 
-        assertEquals(MemoryScreenMode.Editor, presentation.mode)
+        assertEquals(MemoryScreenMode.Items, presentation.mode)
         assertNull(presentation.primaryAction)
         assertNull(presentation.secondaryAction)
     }

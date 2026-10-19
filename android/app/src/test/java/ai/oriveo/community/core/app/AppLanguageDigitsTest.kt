@@ -26,8 +26,8 @@ class AppLanguageDigitsTest {
         val base = ApplicationProvider.getApplicationContext<Context>()
         val config = Configuration(base.resources.configuration).apply { setLocale(Locale.forLanguageTag(tag!!)) }
         val text = base.createConfigurationContext(config).resources.getQuantityString(R.plurals.provider_detail_n_models, 5, 5)
-        assertTrue("ar resources still match: $text", "نموذج" in text)
-        assertTrue("Latin 5: $text", "5" in text && "٥" !in text)
+        assertTrue("ar resources still match (5 takes the few form): $text", "نماذج" in text)
+        assertTrue("Latin digit 5: $text", "5" in text && "٥" !in text)
     }
 
     @Test

@@ -79,9 +79,9 @@ class ConversationSearchMigrationTest {
             }
 
             val db = Room.databaseBuilder(context, OriveoDatabase::class.java, dbName)
-                // The database has moved on to v3 since: a v1 install really takes 1 -> 2 -> 3, and Room
+                // The database has moved on to v5 since: a v1 install really takes 1 -> 2 -> 3 -> 4 -> 5, and Room
                 // refuses to open when a step on that path is not registered.
-                .addMigrations(OriveoDatabase.MIGRATION_1_2, OriveoDatabase.MIGRATION_2_3, OriveoDatabase.MIGRATION_3_4)
+                .addMigrations(OriveoDatabase.MIGRATION_1_2, OriveoDatabase.MIGRATION_2_3, OriveoDatabase.MIGRATION_3_4, OriveoDatabase.MIGRATION_4_5)
                 .allowMainThreadQueries()
                 .build()
             // The production DatabaseModule does this in onOpen too. Calling the same function here

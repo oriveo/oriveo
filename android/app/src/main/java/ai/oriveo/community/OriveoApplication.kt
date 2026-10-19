@@ -100,6 +100,12 @@ class OriveoApplication : Application() {
             MetadataClient.initialize(this@OriveoApplication)
             providerRepository.refreshProviderMetadata()
         }
+        // Memory items: reconcile legacy memoryText on startup and whenever the local account's memoryText changes.
+        appScope.launch {
+            if (!databaseHealthProbe.awaitHealthy()) return@launch
+            koinApp.koin.get<ai.oriveo.community.core.memory.MemoryItemRepository>()
+                .runLegacyReconcile(kotlinx.coroutines.flow.flowOf(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID))
+        }
         appScope.launch {
             if (!databaseHealthProbe.awaitHealthy()) return@launch
             koinApp.koin.get<ai.oriveo.community.core.data.repair.MessageAttachmentRepairTask>().runIfNeeded()

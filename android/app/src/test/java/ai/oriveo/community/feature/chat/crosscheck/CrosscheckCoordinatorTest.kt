@@ -419,10 +419,16 @@ class CrosscheckCoordinatorTest {
         )
         advanceUntilIdle()
 
-        assertTrue(
-            service.capturedRequestOptions?.systemPrompt
-                ?.contains("If both are unclear, use the app language: zh-Hans.") == true,
-        )
+        val plan = CrosscheckCoordinator.crosscheckProjection(
+            originalQuestion = "Q",
+            originalAnswer = "A",
+            priorMessages = emptyList(),
+            provider = provider,
+            model = provider.models.single(),
+            appLanguage = "zh-Hans",
+        ).plan
+        assertEquals(plan.system, service.capturedRequestOptions?.systemPrompt)
+        assertTrue(plan.system?.contains("If both are unclear, use the app language: zh-Hans.") == true)
     }
 
     @Test

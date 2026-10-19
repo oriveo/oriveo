@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.context.StopFamily
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatRequestOptions
@@ -145,6 +146,7 @@ class AnthropicService(
             SseParser.parseAnthropicStreamMulti(
                 response = response,
                 json = json,
+                stopFamily = StopFamily.ANTHROPIC,
                 onEvent = { eventType, data ->
                     val events = mutableListOf<StreamEvent>()
                     val eventRoot = runCatching { json.parseToJsonElement(data).jsonObject }.getOrNull()
@@ -409,11 +411,16 @@ class AnthropicService(
         capabilityProjection: CapabilityEvidenceProductionAdapter.Projection,
     ): String {
         val options = MessageBuilder.normalizeRequestOptions(requestOptions)
-        // Resolve the model for AttachmentRouter (native PDF). Caching uses only the top-level
-        // cache_control; content blocks get no breakpoint of their own.
+        // Resolve the model for AttachmentRouter (native PDF). No top-level cache_control is sent; a single
+        // breakpoint goes on the last non-[D] block of the last user message.
         val activeModel = MetadataClient.resolveAIModelForRouter(modelID, ProviderKind.Anthropic)
         // Build the message list, attachments included, through MessageBuilder.
-        val msgs = MessageBuilder.buildAnthropicMessages(messagesForCapabilityProjection(messages, capabilityProjection), activeModel)
+        val msgs = MessageBuilder.buildAnthropicMessages(
+            messagesForCapabilityProjection(messages, capabilityProjection),
+            activeModel,
+            cacheLastUserBlock = true,
+            dynamicText = options.dynamicText,
+        )
 
         val extras = mutableListOf<String>()
 
@@ -427,10 +434,11 @@ class AnthropicService(
             capabilityProjection.permitsOutbound("generation_parameter/max_output_tokens")) {
             MessageBuilder.maxTokensJson(options.maxTokens, key = "max_tokens")
         } else null)
-            ?: resolved?.maxOutputTokens?.let { """"max_tokens":$it""" }
+            // Main chat path base value = plan.budget.oWire; non-chat paths (null) keep the old fallback of metadata, then 8192.
+            ?: (options.outputTokenBudget ?: resolved?.maxOutputTokens)?.let { """"max_tokens":$it""" }
             ?: """"max_tokens":8192"""
         var baseJson =
-            """{"model":"$modelID",$maxTokens,"stream":$stream,"cache_control":{"type":"ephemeral"},"messages":[$msgs]$extrasStr}"""
+            """{"model":"$modelID",$maxTokens,"stream":$stream,"messages":[$msgs]$extrasStr}"""
         val runtime = applyCapabilityRuntimeRecipes(
             bodyJson = baseJson,
             providerKind = ProviderKind.Anthropic,

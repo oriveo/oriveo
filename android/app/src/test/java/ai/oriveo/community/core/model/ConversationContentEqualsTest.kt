@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.model
 
+import ai.oriveo.community.core.context.ContextBudgetCap
 import ai.oriveo.community.core.model.ProviderKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -36,6 +37,23 @@ class ConversationContentEqualsTest {
         val c = sample(providerID = "p1", modelID = "m2")
         assertFalse(a.contentEquals(b))
         assertFalse(a.contentEquals(c))
+    }
+
+    @Test
+    fun `contentEquals false when instructions differ`() {
+        val a = sample()
+        val b = sample().copy(instructions = "Reply in French.")
+        assertFalse(a.contentEquals(b))
+        assertTrue(b.contentEquals(sample().copy(instructions = "Reply in French.")))
+    }
+
+    @Test
+    fun `contentEquals false when contextCap differs`() {
+        val a = sample()
+        val b = sample().copy(contextCap = ContextBudgetCap.Custom(190_000))
+        assertFalse(a.contentEquals(b))
+        assertFalse(b.contentEquals(sample().copy(contextCap = ContextBudgetCap.Unlimited)))
+        assertTrue(b.contentEquals(sample().copy(contextCap = ContextBudgetCap.Custom(190_000))))
     }
 
     private fun sample(

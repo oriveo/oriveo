@@ -88,7 +88,10 @@ class MemoryPhase2Test {
         coEvery { providerRepository.getById("provider-1") } returns provider
         every { providerRepository.currentCapabilityPartitionId() } returns "test-partition"
         coEvery { providerRepository.capabilityEvidenceIdentity(any(), any(), "test-partition") } returns null
-
+        every { providerRepository.toolCallMemoryVerdict(any(), any()) } returns null
+        // Multi-conversation streaming: state goes through chatStreamingManager.streamingText(convId) / streamingMessageId(convId),
+        // which ChatViewModel re-subscribes to via flatMapLatest(activeConversationId). A relaxed mock returns an
+        // empty StateFlow by default, which is enough for these Memory tests that do not verify streamed output.
         every { chatStreamingManager.streamingText(any()) } returns MutableStateFlow("")
         every { chatStreamingManager.streamingMessageId(any()) } returns MutableStateFlow(null)
         ai.oriveo.community.testing.installChatStreamingManagerForwardingStub(chatStreamingManager, chatRepository)
@@ -113,6 +116,15 @@ class MemoryPhase2Test {
                 webSearchEnabled = any(),
                 requestOptions = any(),
                 outputs = any(),
+                quoteContext = any(),
+                persistUserMessage = any(),
+                userMessageAlreadyInHistory = any(),
+                appendToAssistant = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         } returns Unit
     }
@@ -136,6 +148,12 @@ class MemoryPhase2Test {
                 webSearchEnabled = any(),
                 requestOptions = capture(requestOptionsSlot), outputs = any(),
                 persistUserMessage = any(), userMessageAlreadyInHistory = any(), appendToAssistant = any(),
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         } returns Unit
 
@@ -147,7 +165,7 @@ class MemoryPhase2Test {
         viewModel.sendMessage()
         advanceUntilIdle()
 
-        assertEquals("I prefer Kotlin and Go", requestOptionsSlot.captured.systemPrompt)
+        assertEquals(listOf("I prefer Kotlin and Go"), injectedMemory(requestOptionsSlot.captured))
     }
 
     @Test
@@ -164,6 +182,12 @@ class MemoryPhase2Test {
                 webSearchEnabled = any(),
                 requestOptions = capture(requestOptionsSlot), outputs = any(),
                 persistUserMessage = any(), userMessageAlreadyInHistory = any(), appendToAssistant = any(),
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         } returns Unit
 
@@ -175,7 +199,7 @@ class MemoryPhase2Test {
         viewModel.sendMessage()
         advanceUntilIdle()
 
-        assertEquals("Always use Chinese", requestOptionsSlot.captured.systemPrompt)
+        assertEquals(listOf("Always use Chinese"), injectedMemory(requestOptionsSlot.captured))
     }
 
     @Test
@@ -192,6 +216,12 @@ class MemoryPhase2Test {
                 webSearchEnabled = any(),
                 requestOptions = capture(requestOptionsSlot), outputs = any(),
                 persistUserMessage = any(), userMessageAlreadyInHistory = any(), appendToAssistant = any(),
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         } returns Unit
 
@@ -203,7 +233,7 @@ class MemoryPhase2Test {
         viewModel.sendMessage()
         advanceUntilIdle()
 
-        assertEquals("", requestOptionsSlot.captured.systemPrompt)
+        assertEquals(emptyList<String>(), injectedMemory(requestOptionsSlot.captured))
     }
 
     @Test
@@ -220,6 +250,12 @@ class MemoryPhase2Test {
                 webSearchEnabled = any(),
                 requestOptions = capture(requestOptionsSlot), outputs = any(),
                 persistUserMessage = any(), userMessageAlreadyInHistory = any(), appendToAssistant = any(),
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         } returns Unit
 
@@ -231,7 +267,7 @@ class MemoryPhase2Test {
         viewModel.sendMessage()
         advanceUntilIdle()
 
-        assertEquals("", requestOptionsSlot.captured.systemPrompt)
+        assertEquals(emptyList<String>(), injectedMemory(requestOptionsSlot.captured))
     }
 
     @Test
@@ -248,6 +284,12 @@ class MemoryPhase2Test {
                 webSearchEnabled = any(),
                 requestOptions = capture(requestOptionsSlot), outputs = any(),
                 persistUserMessage = any(), userMessageAlreadyInHistory = any(), appendToAssistant = any(),
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         } returns Unit
 
@@ -260,7 +302,7 @@ class MemoryPhase2Test {
         advanceUntilIdle()
 
         // "   ".trim() → "" → isNotBlank() = false → no injection
-        assertEquals("", requestOptionsSlot.captured.systemPrompt)
+        assertEquals(emptyList<String>(), injectedMemory(requestOptionsSlot.captured))
     }
 
     // Anti-Forget no longer injects anything: with the preference on and 10 turns reached, no [Reminder: ...] is added.
@@ -283,6 +325,15 @@ class MemoryPhase2Test {
                 existingMessages = any(), attachments = any(), reasoningMode = any(),
                 webSearchEnabled = any(),
                 requestOptions = capture(requestOptionsSlot), outputs = any(),
+                quoteContext = any(),
+                persistUserMessage = any(),
+                userMessageAlreadyInHistory = any(),
+                appendToAssistant = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         } returns Unit
 
@@ -297,7 +348,7 @@ class MemoryPhase2Test {
         assertEquals("Message 10", textSlot.captured)
         assertFalse(textSlot.captured.contains("[Reminder:"))
         assertFalse(requestOptionsSlot.captured.systemPrompt.orEmpty().contains("[Reminder:"))
-        assertEquals("I use Kotlin", requestOptionsSlot.captured.systemPrompt)
+        assertEquals(listOf("I use Kotlin"), injectedMemory(requestOptionsSlot.captured))
     }
 
     @Test
@@ -328,6 +379,12 @@ class MemoryPhase2Test {
                 webSearchEnabled = any(),
                 requestOptions = capture(requestOptionsSlot), outputs = any(),
                 persistUserMessage = any(), userMessageAlreadyInHistory = any(), appendToAssistant = any(),
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         } returns Unit
 
@@ -337,7 +394,8 @@ class MemoryPhase2Test {
         viewModel.regenerateMessage("assistant-0")
         advanceUntilIdle()
 
-        assertEquals("Updated memory: use Go instead", requestOptionsSlot.captured.systemPrompt)
+        // Uses the latest memory, not the stale one.
+        assertEquals(listOf("Updated memory: use Go instead"), injectedMemory(requestOptionsSlot.captured))
     }
 
     @Test
@@ -367,6 +425,12 @@ class MemoryPhase2Test {
                 webSearchEnabled = any(),
                 requestOptions = capture(requestOptionsSlot), outputs = any(),
                 persistUserMessage = any(), userMessageAlreadyInHistory = any(), appendToAssistant = any(),
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         } returns Unit
 
@@ -376,7 +440,7 @@ class MemoryPhase2Test {
         viewModel.continueMessage("assistant-0")
         advanceUntilIdle()
 
-        assertEquals("I prefer detailed explanations", requestOptionsSlot.captured.systemPrompt)
+        assertEquals(listOf("I prefer detailed explanations"), injectedMemory(requestOptionsSlot.captured))
     }
 
     @Test
@@ -406,6 +470,12 @@ class MemoryPhase2Test {
                 webSearchEnabled = any(),
                 requestOptions = capture(requestOptionsSlot), outputs = any(),
                 persistUserMessage = any(), userMessageAlreadyInHistory = any(), appendToAssistant = any(),
+                quoteContext = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
             )
         } returns Unit
 
@@ -415,7 +485,7 @@ class MemoryPhase2Test {
         viewModel.continueMessage("assistant-0")
         advanceUntilIdle()
 
-        assertEquals("", requestOptionsSlot.captured.systemPrompt)
+        assertEquals(emptyList<String>(), injectedMemory(requestOptionsSlot.captured))
     }
 
     // ── MEM-2-22: OpenAI-compatible providers → buildOpenAIMessages prepends system ──
@@ -490,6 +560,15 @@ class MemoryPhase2Test {
 
     // ── Helper ──
 
+    /**
+     * The system prompt is written only by the assembler plan; the view model no longer builds systemPrompt.
+     * Asserts the raw memory entries in the chatContext that the production send path hands to ChatRepository.
+     */
+    private fun injectedMemory(options: ChatRequestOptions): List<String> =
+        options.chatContext?.memoryItems.orEmpty().map { it.content }
+
+    private val memoryItems = MutableStateFlow(emptyList<ai.oriveo.community.core.context.MemoryItem>())
+
     private fun stubMemoryFields(
         memoryText: String = "",
         antiForgetEnabled: Boolean = false,
@@ -497,6 +576,18 @@ class MemoryPhase2Test {
     ) {
         every { appPreferencesRepository.lastUsedModelRef } returns flowOf(null)
         every { appPreferencesRepository.memoryText } returns MutableStateFlow(memoryText)
+        // Injection now reads local memory items: the whole text becomes one fact item (blank text creates no item).
+        memoryItems.value = memoryText.trim().takeIf { it.isNotEmpty() }?.let { text ->
+            listOf(
+                ai.oriveo.community.core.context.MemoryItem(
+                    id = "memory-1",
+                    kind = ai.oriveo.community.core.context.MemoryKind.FACT,
+                    content = text,
+                    mutationId = "mutation-1",
+                    deviceId = "device-1",
+                ),
+            )
+        }.orEmpty()
         every { appPreferencesRepository.memoryAntiForgetEnabled } returns MutableStateFlow(antiForgetEnabled)
         every { appPreferencesRepository.memoryAntiForgetText } returns MutableStateFlow(antiForgetText)
     }
@@ -513,6 +604,7 @@ class MemoryPhase2Test {
         attachmentProcessor = mockk(relaxed = true),
         globalSnackbarManager = globalSnackbarManager,
         applicationScope = applicationScope,
+        memoryItemsSource = memoryItems,
     )
 
     private fun stubConversation(conversation: Conversation) {

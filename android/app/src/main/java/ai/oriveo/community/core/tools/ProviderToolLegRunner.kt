@@ -355,9 +355,23 @@ class ProviderToolLegRunner(
                 json,
                 configuration.openAIReasoningParserKind,
             )
+            // The stream finish of this leg: same "clean" criterion as ordinary chat, handed over when the leg is read to the end
+            val finishTracker = ai.oriveo.community.core.context.StreamFinishTracker(
+                when (configuration.protocol) {
+                    ToolWireProtocol.OpenAIChat -> ai.oriveo.community.core.context.StopFamily.OPENAI_CHAT
+                    ToolWireProtocol.OpenAIResponses -> ai.oriveo.community.core.context.StopFamily.OPENAI_RESPONSES
+                    ToolWireProtocol.AnthropicMessages -> ai.oriveo.community.core.context.StopFamily.ANTHROPIC
+                    ToolWireProtocol.GeminiGenerate -> ai.oriveo.community.core.context.StopFamily.GEMINI
+                },
+            )
             when (configuration.protocol) {
                 ToolWireProtocol.OpenAIChat -> {
-                    SseParser.parseOpenAICompatiblePayloads(response, json).collect { payload ->
+                    SseParser.parseOpenAICompatiblePayloads(
+                        response,
+                        json,
+                        onDoneMarker = finishTracker::markDoneMarker,
+                    ).collect { payload ->
+                        finishTracker.observePayload(payload, json)
                         decoder.parse(null, payload).forEach { emit(it) }
                     }
                 }
@@ -370,7 +384,10 @@ class ProviderToolLegRunner(
                                 line.startsWith("event:") -> currentEvent = line.substringAfter("event:").trim()
                                 line.startsWith("data:") -> {
                                     val payload = line.substringAfter("data:").trim()
-                                    if (payload.isNotBlank()) decoder.parse(currentEvent, payload).forEach { emit(it) }
+                                    if (payload.isNotBlank()) {
+                                        finishTracker.observePayload(payload, json, currentEvent)
+                                        decoder.parse(currentEvent, payload).forEach { emit(it) }
+                                    }
                                     currentEvent = null
                                 }
                             }
@@ -383,7 +400,10 @@ class ProviderToolLegRunner(
                             val line = reader.readLine() ?: break
                             if (!line.startsWith("data:")) continue
                             val payload = line.substringAfter("data:").trim()
-                            if (payload.isNotBlank()) decoder.parse(null, payload).forEach { emit(it) }
+                            if (payload.isNotBlank()) {
+                                finishTracker.observePayload(payload, json)
+                                decoder.parse(null, payload).forEach { emit(it) }
+                            }
                         }
                     }
                 }
@@ -397,6 +417,7 @@ class ProviderToolLegRunner(
                                 line.startsWith("data:") -> {
                                     val payload = line.substringAfter("data:").trim()
                                     if (payload.isNotBlank() && payload != "[DONE]") {
+                                        finishTracker.observePayload(payload, json, currentEvent)
                                         decoder.parse(currentEvent, payload).forEach { emit(it) }
                                     }
                                     currentEvent = null
@@ -406,6 +427,7 @@ class ProviderToolLegRunner(
                     }
                 }
             }
+            emit(ToolLoopLegEvent.Finish(finishTracker.finish()))
         }
     }
 

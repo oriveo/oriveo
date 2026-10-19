@@ -112,21 +112,18 @@ class MemoryPhase5Test {
         // Verify the key set exists in the default (English fallback) resources
         val memoryKeys = listOf(
             "memory_title", "memory_not_set", "memory_empty_title", "memory_empty_description",
-            "memory_generate_draft", "memory_generating", "memory_generate_failed",
-            "memory_write_manually", "memory_saved", "memory_edit_description",
-            "memory_chars",
+            "memory_generate_draft",
+            "memory_edit_description",
             "memory_privacy_warning",
             "memory_indicator", "memory_indicator_title", "memory_indicator_view_edit",
             "memory_indicator_disable", "memory_use_toggle",
-            "memory_unsaved_title", "memory_unsaved_message", "memory_keep_editing",
             "memory_draft_ready_title", "memory_draft_ready_message", "memory_draft_apply",
-            "memory_hero_chip_auto", "memory_hero_chip_memory", "memory_hero_chip_ready",
+            "memory_hero_chip_ready",
             "memory_error_no_model_title", "memory_error_no_model_message",
             "memory_error_no_provider_title", "memory_error_no_provider_message",
             "memory_error_not_enough_title", "memory_error_not_enough_message",
             "memory_error_hydrate_title", "memory_error_hydrate_message",
             "memory_error_generic_title", "memory_error_generic_message",
-            "memory_error_aggregated", "memory_error_aggregated_with_detail",
         )
         // Every key must be a non-empty string constant
         for (key in memoryKeys) {
@@ -539,11 +536,13 @@ class MemoryPhase5Test {
     // MEM-P-07: first-message injection latency
     // ══════════════════════════════════════════════════════════
     // A timing test here would only measure simulateBuildSystemPrompt (and the anti-forget simulation that has since been removed),
-    // the test-double logic defined in this same file, rather than the production code path.
-    // The invariant these cases care about -- an empty Memory short-circuits without extra
-    // work -- is already guarded by the production entry point ChatPromptInjectionBuilder.build,
-    // asserted in ChatPinnedInjectionTest via `no skill no memory no pinned returns null`
-    // (assertNull).
+    // i.e. a copy of the logic rewritten inside the test, not the production code path.
+    // The simulated production symbols applyAntiForget / buildMemoryRequestOptions no longer exist in app/src/main.
+    // Backing a function that does not exist with a performance claim stays green no matter how slow production is,
+    // and asserting wall-clock time makes it flaky under parallel execution.
+    // The invariant these cases care about -- an empty Memory is not injected -- is now owned by ContextAssembler
+    // (ChatContextRequest.memoryItems produces no memory block when useMemory is off or the content is empty)
+    // and is covered by the core ContextPipeline* and assembler contract tests.
 
     // ══════════════════════════════════════════════════════════
     // FakePreferenceDao

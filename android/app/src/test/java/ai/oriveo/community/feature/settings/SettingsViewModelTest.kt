@@ -1,6 +1,7 @@
 package ai.oriveo.community.feature.settings
 
 import ai.oriveo.community.core.app.AppPreferencesRepository
+import ai.oriveo.community.core.context.ContextBudgetCap
 import ai.oriveo.community.core.model.LanguageOption
 import ai.oriveo.community.core.model.ThemeOption
 import io.mockk.coEvery
@@ -39,7 +40,10 @@ class SettingsViewModelTest {
         every { appPreferencesRepository.theme } returns themeFlow
         every { appPreferencesRepository.language } returns languageFlow
         every { appPreferencesRepository.memoryText } returns memoryTextFlow
+        every { appPreferencesRepository.featureBadgeUnseen(any()) } returns MutableStateFlow(false)
         every { appPreferencesRepository.memoryHasSeen } returns memoryHasSeenFlow
+        every { appPreferencesRepository.contextAISummaryEnabled } returns MutableStateFlow(false)
+        every { appPreferencesRepository.contextDefaultCap } returns MutableStateFlow(ContextBudgetCap.Auto)
         coEvery { appPreferencesRepository.setTheme(any()) } just runs
         coEvery { appPreferencesRepository.setLanguage(any()) } just runs
     }

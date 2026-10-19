@@ -73,6 +73,7 @@ val repositoryModule = module {
             runInTransaction = { block -> db.withTransaction { block() } },
             continuationDao = get(),
             searchIndexer = get(),
+            contextCompactionStore = get(),
         )
     }
 
@@ -112,11 +113,38 @@ val repositoryModule = module {
             continuationAccountId = { ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID },
             toolCallMemoryStore = get(),
             mcpChatToolRunner = get(),
+            contextLedgerDao = get(),
+            contextCompaction = get(),
+            contextDefaultCap = { get<AppPreferencesRepository>().getContextDefaultCap() },
+            contextCapConfirm = get(),
         )
     }
 
-    // ── Remote MCP servers ──────────────────────────────────
+    // Pre-send confirmation gate: pending confirmations are listed on the chat page; tapping stop while waiting
+    // cancels the streaming job and rolls back.
+    single {
+        ai.oriveo.community.core.context.ContextCapConfirmCoordinator(
+            store = get(),
+            reminderEnabled = { get<AppPreferencesRepository>().getContextPriceLineReminderEnabled() },
+        )
+    }
 
+    // Compaction coordinator: shared by pre-send, overflow and manual compaction (the circuit breaker is kept in memory per conversation).
+    single {
+        val preferences = get<AppPreferencesRepository>()
+        ai.oriveo.community.core.data.repository.ContextCompactionCoordinator(
+            store = get(),
+            accountId = { ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID },
+            aiSummaryEnabled = { preferences.getContextAISummaryEnabled() },
+            upload = { _, _, _ -> },
+            onSaved = get<ai.oriveo.community.feature.chat.ThirdCompactionHint>()::onSaved,
+        )
+    }
+
+    // The hint after the third compaction is shown once per process, so the whole app shares one instance.
+    single { ai.oriveo.community.feature.chat.ThirdCompactionHint() }
+
+    // Remote MCP servers.
     single {
         ai.oriveo.community.core.mcp.McpServerStore(
             dao = get(),
@@ -238,6 +266,8 @@ val repositoryModule = module {
             attachmentStore = get(),
             preferenceDao = get(),
             runInTransaction = { block -> db.withTransaction { block() } },
+            contextCompactionStore = get(),
+            memoryItemRepository = get(),
         )
     }
 

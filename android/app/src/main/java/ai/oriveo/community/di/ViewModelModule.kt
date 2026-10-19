@@ -14,7 +14,9 @@ import ai.oriveo.community.feature.providers.manual.ManualModelEntryViewModel
 import ai.oriveo.community.feature.providers.relay.RelaySetupViewModel
 import ai.oriveo.community.feature.providers.local.LocalComputeSetupViewModel
 import ai.oriveo.community.feature.providers.setup.ProviderSetupViewModel
+import ai.oriveo.community.feature.settings.MemoryInboxViewModel
 import ai.oriveo.community.feature.settings.MemoryViewModel
+import ai.oriveo.community.feature.settings.ContextSettingsViewModel
 import ai.oriveo.community.feature.settings.SettingsViewModel
 import ai.oriveo.community.core.model.GenerationParameterSettingsStore
 import ai.oriveo.community.core.model.GenerationParameterPresetStore
@@ -61,6 +63,42 @@ val viewModelModule = module {
             mcpChatToolRunner = get(),
             mcpConfirmationCoordinator = get(),
             attachmentStore = get(),
+            compactionDeps = ai.oriveo.community.feature.chat.ChatCompactionDeps(
+                chatRepository = get(),
+                store = get(),
+                thirdHint = get(),
+                conversationRepository = get(),
+                accountId = { ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID },
+                contextCompaction = get(),
+                ledger = get(),
+                contextCapConfirm = get(),
+                contextWindowB = run {
+                    val providers = get<ai.oriveo.community.core.data.repository.ProviderRepository>()
+                    val preferences = get<ai.oriveo.community.core.app.AppPreferencesRepository>()
+                    val generationParameters = GenerationParameterSettingsStore.from(androidContext())
+                    val windowB: suspend (ai.oriveo.community.core.model.Conversation) -> ai.oriveo.community.feature.chat.ContextCurrentB? =
+                        { conversation ->
+                            // Connection or model unresolved -> null (keep the ledger's B); only an unknown window gives a null B.
+                            providers.getById(conversation.providerID)?.takeIf { provider ->
+                                ai.oriveo.community.feature.chat.ContextCapViewModel.resolvesModel(generationParameters, conversation, provider)
+                            }?.let { provider ->
+                                ai.oriveo.community.feature.chat.ContextCurrentB(
+                                    ai.oriveo.community.feature.chat.ContextCapViewModel.currentB(
+                                        generationParameters, conversation, provider, preferences.getContextDefaultCap(),
+                                    ),
+                                )
+                            }
+                        }
+                    windowB
+                },
+                contextDefaultCap = get<ai.oriveo.community.core.app.AppPreferencesRepository>().contextDefaultCap,
+            ),
+            directiveSuggestionStore = get(),
+            memoryItemsSource = get<ai.oriveo.community.core.memory.MemoryItemRepository>().observeCurrent(
+                kotlinx.coroutines.flow.flowOf(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID),
+            ),
+            memoryCandidates = get(),
+            memoryAccountId = { ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID },
         )
     }
     viewModel {
@@ -146,7 +184,38 @@ val viewModelModule = module {
         )
     }
     viewModelOf(::SettingsViewModel)
-    viewModelOf(::MemoryViewModel)
+    viewModel {
+        MemoryViewModel(
+            appPreferencesRepository = get(),
+            conversationRepository = get(),
+            providerRepository = get(),
+            globalSnackbarManager = get(),
+            memoryItemRepository = get(),
+            // The item id passed in by "this is wrong" (AppRoute.Memory.editItemId).
+            editItemId = get<androidx.lifecycle.SavedStateHandle>().get<String>("editItemId"),
+            folders = get<ai.oriveo.community.core.data.repository.FolderRepository>().observeAll(),
+        )
+    }
+    viewModel {
+        MemoryInboxViewModel(
+            candidates = get(),
+            accountId = { ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID },
+            actionScope = get(named("applicationScope")),
+            showToast = get<ai.oriveo.community.core.app.GlobalSnackbarManager>()::show,
+        )
+    }
+    viewModelOf(::ContextSettingsViewModel)
+    viewModel { (conversationId: String) ->
+        val generationParameters = GenerationParameterSettingsStore.from(androidContext())
+        ai.oriveo.community.feature.chat.ContextCapViewModel.forConversation(
+            conversationId = conversationId,
+            conversations = get<ai.oriveo.community.core.data.repository.ConversationRepository>(),
+            preferences = get<ai.oriveo.community.core.app.AppPreferencesRepository>(),
+            providers = get<ai.oriveo.community.core.data.repository.ProviderRepository>(),
+            generationParameters = generationParameters,
+        )
+    }
+    // exportScratchDir = cacheDir: the export archive is streamed into a temp file here, then copied to the SAF target the user picked.
     viewModel { BackupViewModel(get(), get(), androidContext().cacheDir, Dispatchers.IO) }
     viewModelOf(::ManualModelEntryViewModel)
     // The family lookup parameter uses the default in-process shared instance; viewModelOf would try to resolve a function-typed parameter from the container.

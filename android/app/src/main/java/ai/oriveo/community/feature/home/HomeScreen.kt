@@ -350,9 +350,10 @@ fun HomeScreen(
                 HomeHeader(
                     isSearching = isSearching,
                     isEditing = viewModel.isEditing,
-                    // The search field's text is its own local state (see HomeSearchBar); this only
-                    // seeds it when search opens.
-                    initialSearchQuery = viewModel.searchQuery.value,
+                    // The search field's text is its own local state (see HomeSearchBar); this only passes a lambda that reads
+                    // the initial value once when search opens. The input text is not subscribed in any composition scope, so each
+                    // keystroke neither invalidates the home root scope nor recomposes the header (see HomeViewModel.isSearchActive).
+                    initialSearchQuery = { viewModel.searchQuery.value },
                     hasConversations = visibleTopLevelConversations.isNotEmpty() || folders.isNotEmpty(),
                     isDark = isDark,
                     onSearchQueryChange = { viewModel.setSearchQuery(it) },

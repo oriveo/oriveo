@@ -30,6 +30,7 @@ class MessageContinuationStore(
         val updatedAt: Long,
         val processSessionToken: String,
         val stateJson: String,
+        val kind: String = "tool_loop",
     )
 
     suspend fun save(accountId: String, conversationId: String, messageId: String, kind: String, state: JsonObject, interrupted: Boolean = false) {
@@ -58,7 +59,7 @@ class MessageContinuationStore(
             dao.delete(accountId, messageId)
         }
         return decoded?.let {
-            Loaded(accountId, messageId, it, record.updatedAt, record.processSessionToken, record.stateJson)
+            Loaded(accountId, messageId, it, record.updatedAt, record.processSessionToken!!, record.stateJson, record.kind)
         }
     }
 

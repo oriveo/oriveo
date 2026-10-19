@@ -276,7 +276,15 @@ interface MessageDao {
      * forever, showing a spinner nothing will ever stop. Sweeping them at launch turns each one
      * into a message with a retry affordance instead.
      */
-    @Query("UPDATE messages SET state = 'Interrupted' WHERE state = 'Generating'")
+    // Also records stopReason: "incomplete" when there is answer text, "error" when there is none
+    @Query(
+        """
+        UPDATE messages
+        SET state = 'Interrupted',
+            stopReason = CASE WHEN TRIM(COALESCE(text, '')) != '' THEN 'incomplete' ELSE 'error' END
+        WHERE state = 'Generating'
+        """,
+    )
     suspend fun sanitizeStaleGenerating(): Int
 
     /**

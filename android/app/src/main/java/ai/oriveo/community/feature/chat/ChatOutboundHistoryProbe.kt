@@ -18,8 +18,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 
 /**
- * Outbound history used for pre-send decisions (pre-check, model panel file card): the same [OutboundHistory] trimming chain as ChatRepository sending,
- * so route decisions (whether Gemini goes through Interactions) match what is actually sent.
+ * Outbound history used for pre-send decisions (pre-check, model panel file card): the same assembler projection + [OutboundHistory] attachment budget as ChatRepository sending,
+ * so route decisions (whether Gemini goes through Interactions) give the same answer as what is actually sent.
  */
 internal class ChatOutboundHistoryProbe(
     storeProvider: () -> AttachmentStore,
@@ -30,7 +30,7 @@ internal class ChatOutboundHistoryProbe(
 
     /** Pre-check: given "conversation history + the user message about to be sent", produce this request's outbound history. */
     suspend fun trim(raw: List<ChatMessage>): List<ChatMessage> = withContext(Dispatchers.IO) {
-        OutboundHistory.prepare(
+        OutboundHistory.projected(
             rawMessages = raw,
             imageSizeOf = { id -> attachmentStore.imageSizeBytes(id) },
             blobSizeOf = { ref -> attachmentStore.blobSizeBytes(ref) },

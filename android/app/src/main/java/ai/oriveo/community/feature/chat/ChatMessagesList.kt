@@ -11,6 +11,30 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
+import ai.oriveo.community.R
+import ai.oriveo.community.core.data.repository.ContextCheckpointKind
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -102,6 +126,18 @@ internal fun BoxScope.ChatMessagesList(
     highlightedMessageId: String?,
     coroutineScope: CoroutineScope,
     latestMessageCount: Int,
+    /** Separator of the latestValid row, drawn inside its anchor item (no extra list item). */
+    separator: TranscriptCompactionSeparator? = null,
+    onSeparatorClick: () -> Unit = {},
+    /** Pending "set as instruction" suggestion, drawn under its user message. */
+    directiveSuggestion: DirectiveSuggestion? = null,
+    onAcceptDirectiveSuggestion: () -> Unit = {},
+    onIgnoreDirectiveSuggestion: () -> Unit = {},
+    /** Pending "save to memory?" bar, drawn under its user message. */
+    memorySuggestion: MemorySuggestion? = null,
+    onIgnoreMemorySuggestion: () -> Unit = {},
+    onEditMemorySuggestion: () -> Unit = {},
+    onSaveMemorySuggestion: () -> Unit = {},
 ) {
     val density = LocalDensity.current
     // The pointerInput block starts once, on the first pointer event, and recomposition does not
@@ -228,47 +264,73 @@ internal fun BoxScope.ChatMessagesList(
                         },
                     ),
             ) {
-                MessageItemWithActions(
-                    message = message,
-                    streamingText = cellStreamingText,
-                    streamingReasoning = cellStreamingReasoning,
-                    streamingReasoningActive = liveReasoningActive,
-                    streamingActivity = liveStreamingActivity,
-                    isLiveStream = isStreaming,
-                    isSendingMessage = isGenerating,
-                    isRateLimitError = isRateLimitError(message),
-                    topPadding = topPadding,
-                    showMetadata = showMetadata,
-                    isLastMessage = index == messages.lastIndex,
-                    providerNameOverride = messageMetadata.providerName,
-                    modelNameOverride = messageMetadata.modelName,
-                    isUserDragging = isDragging,
-                    onCopy = { onCopy(message) },
-                    onEdit = { onEdit(message) },
-                    onRegenerate = { onRegenerate(message.id) },
-                    onContinue = { onContinue(message.id) },
-                    onRetry = { onRetry(message.id) },
-                    onRetryWithoutLocalCustomFields = { onRetryWithoutLocalCustomFields(message.id) },
-                    onSwitchModel = onSwitchModel,
-                    offersSwitchKey = message.state == ChatMessageState.Failed &&
-                        RelaySwitchKey.options(providersById[message.providerID], message).isNotEmpty(),
-                    onSwitchKey = { onSwitchKey(message) },
-                    onShare = { onShare(message) },
-                    onSaveAsNote = { onSaveAsNote(message) },
-                    onSaveCodeAsNote = { code -> onSaveCodeAsNote(message, code) },
-                    onSaveSelection = { text -> onSaveSelectionAsNote(message, text) },
-                    onAskSelection = { selection -> onAskSelection(message, selection) },
-                    onReplaceSelection = if (message.state == ChatMessageState.Delivered && replacementNoteId != null) {
-                        onReplaceSelectionInCurrentNote?.let { callback ->
-                            { text -> callback(message, text, replacementNoteId) }
-                        }
-                    } else {
-                        null
-                    },
-                    onCrosscheck = { onCrosscheck(message) },
-                    savedNoteLinks = messageSavedNoteLinks,
-                    onOpenSavedNote = onOpenSavedNote,
-                )
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    if (separator != null && separator.drawAboveMessageId == message.id) {
+                        CompactionSeparatorRow(separator.separator, onSeparatorClick)
+                    }
+                    MessageItemWithActions(
+                        message = message,
+                        streamingText = cellStreamingText,
+                        streamingReasoning = cellStreamingReasoning,
+                        streamingReasoningActive = liveReasoningActive,
+                        streamingActivity = liveStreamingActivity,
+                        isLiveStream = isStreaming,
+                        isSendingMessage = isGenerating,
+                        isRateLimitError = isRateLimitError(message),
+                        topPadding = topPadding,
+                        showMetadata = showMetadata,
+                        isLastMessage = index == messages.lastIndex,
+                        providerNameOverride = messageMetadata.providerName,
+                        modelNameOverride = messageMetadata.modelName,
+                        isUserDragging = isDragging,
+                        onCopy = { onCopy(message) },
+                        onEdit = { onEdit(message) },
+                        onRegenerate = { onRegenerate(message.id) },
+                        onContinue = { onContinue(message.id) },
+                        onRetry = { onRetry(message.id) },
+                        onRetryWithoutLocalCustomFields = { onRetryWithoutLocalCustomFields(message.id) },
+                        onSwitchModel = onSwitchModel,
+                        offersSwitchKey = message.state == ChatMessageState.Failed &&
+                            RelaySwitchKey.options(providersById[message.providerID], message).isNotEmpty(),
+                        onSwitchKey = { onSwitchKey(message) },
+                        onShare = { onShare(message) },
+                        onSaveAsNote = { onSaveAsNote(message) },
+                        onSaveCodeAsNote = { code -> onSaveCodeAsNote(message, code) },
+                        onSaveSelection = { text -> onSaveSelectionAsNote(message, text) },
+                        onAskSelection = { selection -> onAskSelection(message, selection) },
+                        onReplaceSelection = if (message.state == ChatMessageState.Delivered && replacementNoteId != null) {
+                            onReplaceSelectionInCurrentNote?.let { callback ->
+                                { text -> callback(message, text, replacementNoteId) }
+                            }
+                        } else {
+                            null
+                        },
+                        onCrosscheck = { onCrosscheck(message) },
+                        savedNoteLinks = messageSavedNoteLinks,
+                        onOpenSavedNote = onOpenSavedNote,
+                    )
+                    // coversTo is the last message: nothing follows it, so the row goes below it.
+                    if (separator != null && separator.drawAboveMessageId == null &&
+                        separator.separator.anchorMessageId == message.id
+                    ) {
+                        CompactionSeparatorRow(separator.separator, onSeparatorClick)
+                    }
+                    if (directiveSuggestion != null && directiveSuggestion.messageId == message.id) {
+                        DirectiveSuggestionRow(onAcceptDirectiveSuggestion, onIgnoreDirectiveSuggestion)
+                    }
+                    // Under the turn's assistant reply, only once it has stopped streaming.
+                    if (memorySuggestion != null && memorySuggestion.messageId == message.id &&
+                        message.role == ChatRole.Assistant && !isStreaming &&
+                        message.state != ChatMessageState.Generating
+                    ) {
+                        MemorySuggestionRow(
+                            suggestion = memorySuggestion,
+                            onIgnore = onIgnoreMemorySuggestion,
+                            onEdit = onEditMemorySuggestion,
+                            onSave = onSaveMemorySuggestion,
+                        )
+                    }
+                }
             }
         }
     }
@@ -341,5 +403,209 @@ private fun BoxScope.ChatScrollToBottomOverlay(
                 }
             },
         )
+    }
+}
+
+/** Suggestion bar under the user bubble: one secondary line plus accept / ignore actions. */
+@Composable
+private fun DirectiveSuggestionRow(
+    onAccept: () -> Unit,
+    onIgnore: () -> Unit,
+) {
+    SuggestionCard {
+        // iOS parity: prompt on its own line, actions on the row below (same as the memory bar).
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = MemorySuggestionRowLayout.horizontalAlignment,
+        ) {
+            Text(
+                text = stringResource(R.string.directive_suggestion_prompt),
+                style = TextStyle(fontSize = 12.sp),
+                color = OriveoTheme.colors.textSecondary,
+            )
+            Row(
+                modifier = Modifier.padding(top = OriveoTheme.spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm, MemorySuggestionRowLayout.horizontalAlignment),
+            ) {
+                SuggestionPillButton(stringResource(R.string.directive_suggestion_ignore), primary = false, onClick = onIgnore)
+                SuggestionPillButton(stringResource(R.string.directive_suggestion_accept), primary = true, onClick = onAccept)
+            }
+        }
+    }
+}
+
+/** iOS parity: suggestion bars sit on a rounded card surface, padded in from the screen edges. */
+@Composable
+private fun SuggestionCard(content: @Composable () -> Unit) {
+    ai.oriveo.community.ui.component.OriveoCard(
+        modifier = Modifier.padding(horizontal = OriveoTheme.spacing.lg),
+        radius = MemorySuggestionRowLayout.cardRadius,
+        contentPadding = PaddingValues(horizontal = OriveoTheme.spacing.md, vertical = OriveoTheme.spacing.sm),
+        content = content,
+    )
+}
+
+/** Capsule action, same look as the memory inbox actions: gray capsule for secondary, solid primary fill for the main one. */
+@Composable
+private fun SuggestionPillButton(label: String, primary: Boolean, onClick: () -> Unit) {
+    val colors = OriveoTheme.colors
+    Box(
+        modifier = Modifier
+            .height(MemorySuggestionRowLayout.actionHeight)
+            .clip(MemorySuggestionRowLayout.actionShape)
+            .background(if (primary) colors.primaryTextSafe else MemorySuggestionRowLayout.secondaryActionFill(OriveoTheme.isDark))
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+            .padding(horizontal = if (primary) 16.dp else 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = TextStyle(fontSize = 14.5.sp, lineHeight = 19.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+            color = if (primary) colors.onPrimary else colors.textSecondary,
+            maxLines = 1,
+        )
+    }
+}
+
+/**
+ * "Save to memory?" bar under the assistant reply: prompt plus candidate text (at most two lines)
+ * and [ignore][edit][save]; with memory off for the chat only the hint line, no candidate and no actions.
+ */
+/** The bar hangs under the assistant reply, so its lines align with the reply's leading edge. */
+internal object MemorySuggestionRowLayout {
+    val horizontalAlignment: Alignment.Horizontal = Alignment.Start
+    val textAlign: androidx.compose.ui.text.style.TextAlign = androidx.compose.ui.text.style.TextAlign.Start
+
+    /** iOS parity: rounded card surface behind the bar. */
+    val cardRadius: Dp = ai.oriveo.community.ui.theme.OriveoRadius.md
+
+    /** iOS parity: capsule actions, same metrics as the memory inbox actions. */
+    val actionHeight: Dp = 36.dp
+    val actionShape: androidx.compose.ui.graphics.Shape = androidx.compose.foundation.shape.CircleShape
+
+    /** Directive bar stacks prompt over actions (iOS parity) instead of squeezing both into one row. */
+    val directiveStacksActionsBelowPrompt: Boolean = true
+
+    /** Card fill behind both bars (what [SuggestionCard] paints via OriveoCard's default). */
+    fun cardFill(colors: ai.oriveo.community.ui.theme.OriveoColors): androidx.compose.ui.graphics.Color = colors.surface
+
+    /**
+     * Secondary capsule fill, mirroring iOS secondarySystemFill (rgb 120,120,128 at 16% light / 32% dark)
+     * so the gray pill stays visible on the card in both themes.
+     */
+    fun secondaryActionFill(isDark: Boolean): androidx.compose.ui.graphics.Color =
+        if (isDark) androidx.compose.ui.graphics.Color(0x52787880) else androidx.compose.ui.graphics.Color(0x29787880)
+}
+
+@Composable
+private fun MemorySuggestionRow(
+    suggestion: MemorySuggestion,
+    onIgnore: () -> Unit,
+    onEdit: () -> Unit,
+    onSave: () -> Unit,
+) {
+    val candidate = suggestion.candidate
+    if (candidate == null) {
+        Text(
+            text = stringResource(R.string.memory_suggestion_memory_off),
+            style = TextStyle(fontSize = 12.sp),
+            color = OriveoTheme.colors.textSecondary,
+            textAlign = MemorySuggestionRowLayout.textAlign,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = OriveoTheme.spacing.lg),
+        )
+        return
+    }
+    SuggestionCard {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = MemorySuggestionRowLayout.horizontalAlignment,
+        ) {
+            Text(
+                text = stringResource(R.string.memory_suggestion_prompt),
+                style = TextStyle(fontSize = 12.sp),
+                color = OriveoTheme.colors.textSecondary,
+            )
+            Text(
+                text = candidate.content,
+                style = TextStyle(fontSize = 12.sp),
+                color = OriveoTheme.colors.textPrimary,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            Row(
+                modifier = Modifier.padding(top = OriveoTheme.spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm, MemorySuggestionRowLayout.horizontalAlignment),
+            ) {
+                SuggestionPillButton(stringResource(R.string.memory_suggestion_ignore), primary = false, onClick = onIgnore)
+                SuggestionPillButton(stringResource(R.string.memory_suggestion_edit), primary = false, onClick = onEdit)
+                SuggestionPillButton(stringResource(R.string.memory_suggestion_save), primary = true, onClick = onSave)
+            }
+        }
+    }
+}
+
+/**
+ * Transcript separator: 1dp hairlines on both sides, two centered 12sp secondary lines with tabular
+ * figures, a trailing chevron on line 2. The whole row is one button whose description reads both lines.
+ */
+@Composable
+private fun CompactionSeparatorRow(
+    separator: ContextCompactionSeparator,
+    onClick: () -> Unit,
+) {
+    val line1: String
+    val line2: String
+    // Same "not available" wording as the detail sheet; never 0 or a dash.
+    val unknownCount = stringResource(R.string.context_compaction_detail_cost_unavailable)
+    val locale = LocalConfiguration.current.locales[0].toLanguageTag()
+    when (separator.kind) {
+        ContextCheckpointKind.SUMMARY -> {
+            line1 = pluralStringResource(
+                R.plurals.context_compaction_summary_line1,
+                separator.count,
+                separator.count,
+                ContextCompactionPresentation.separatorTokenText(separator.before, locale) ?: unknownCount,
+                ContextCompactionPresentation.separatorTokenText(separator.after, locale) ?: unknownCount,
+            )
+            line2 = stringResource(R.string.context_compaction_summary_line2, separator.model)
+        }
+        ContextCheckpointKind.FALLBACK -> {
+            val kept = separator.kept ?: 0
+            line1 = pluralStringResource(R.plurals.context_compaction_fallback_line1, separator.count, separator.count)
+            line2 = pluralStringResource(R.plurals.context_compaction_fallback_line2, kept, kept)
+        }
+    }
+    val color = OriveoTheme.colors.textSecondary
+    val style = TextStyle(fontSize = 12.sp, fontFeatureSettings = "tnum", textAlign = TextAlign.Center)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .clearAndSetSemantics {
+                contentDescription = "$line1\n$line2"
+                role = Role.Button
+            }
+            .padding(horizontal = OriveoTheme.spacing.lg, vertical = OriveoTheme.spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
+    ) {
+        HorizontalDivider(modifier = Modifier.weight(1f), thickness = 1.dp, color = OriveoTheme.colors.border)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = line1, style = style, color = color)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = line2, style = style, color = color)
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+        }
+        HorizontalDivider(modifier = Modifier.weight(1f), thickness = 1.dp, color = OriveoTheme.colors.border)
     }
 }

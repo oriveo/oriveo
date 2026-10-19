@@ -28,6 +28,16 @@ object OriveoTypography {
         lineHeight = 36.sp,
     )
 
+    /**
+     * Brand digits (memory page counts, date blocks, etc.): Plus Jakarta Bold with tabular numerals (tnum) so the width does not jitter as values change.
+     * Aligned with iOS `Typography.brandDigits(_:)`; the caller supplies the font size via `copy(fontSize = …)`.
+     */
+    val brandDigits = TextStyle(
+        fontFamily = HeroFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontFeatureSettings = "tnum",
+    )
+
     val title1 = TextStyle(
         fontFamily = HeroFontFamily,
         fontWeight = FontWeight.Bold,

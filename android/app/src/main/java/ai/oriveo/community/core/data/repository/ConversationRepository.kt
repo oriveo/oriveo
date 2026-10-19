@@ -1,8 +1,11 @@
 package ai.oriveo.community.core.data.repository
 
+import ai.oriveo.community.core.context.ContextBudgetCap
 import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
 import ai.oriveo.community.core.data.EntityMapper.toDomain
 import ai.oriveo.community.core.data.EntityMapper.toEntity
+import ai.oriveo.community.core.data.mapper.ConversationMapper.toContextBudgetCapOrNull
+import ai.oriveo.community.core.data.mapper.ConversationMapper.toStorageText
 import ai.oriveo.community.core.data.dao.ConversationDao
 import ai.oriveo.community.core.data.dao.MessageDao
 import ai.oriveo.community.core.data.dao.MessageContinuationDao
@@ -46,6 +49,8 @@ class ConversationRepository(
     private val onAssistantDelivered: suspend (String) -> Unit = {},
     private val continuationDao: MessageContinuationDao? = null,
     private val searchIndexer: ai.oriveo.community.core.data.search.ConversationSearchIndexer? = null,
+    // Edit-resend and regenerate drop the checkpoints that cover the deleted messages
+    private val contextCompactionStore: ContextCompactionStore? = null,
 ) {
     private val searchService = ConversationSearchService(conversationDao, searchIndexer)
     private val usageAnalytics = ConversationUsageAnalytics(messageDao)
@@ -69,6 +74,22 @@ class ConversationRepository(
         ).map { normalizeConversationIds(it.entity.toDomain(messageCount = it.messageCount)) }
 
     private val accountId: String get() = LOCAL_PARTITION_ID
+
+    /**
+     * Invalidates the checkpoints that cover [deletedIDs] on the pre-delete history [allMsgs].
+     * Skipped when the history could not be read (corrupt row); the read-time digest check covers that case.
+     */
+    private suspend fun invalidateCheckpointsForDeletion(
+        scopedAccountId: String,
+        conversationId: String,
+        allMsgs: List<ai.oriveo.community.core.data.entity.MessageEntity>?,
+        deletedIDs: List<String>,
+    ) {
+        val store = contextCompactionStore ?: return
+        if (allMsgs == null || deletedIDs.isEmpty()) return
+        val historyIds = allMsgs.sortedBy { it.sortOrder }.map { normalizeUuid(it.id) }
+        store.invalidate(scopedAccountId, conversationId, historyIds, deletedIDs)
+    }
 
     /**
      * Reads a conversation's messages, or null if the read itself failed.
@@ -129,6 +150,12 @@ class ConversationRepository(
         cacheWriteTokens = cacheWriteTokens,
     )
 
+    /**
+     * Recomputes conversation metadata and the business sort time.
+     *
+     * `updatedAt` defaults to the createdAt of the last delivered message (conv.createdAt when there is none).
+     * Callers may override it explicitly (draft edits and similar), but should not pass the local now.
+     */
     private suspend fun refreshConversationMetadata(
         conversationId: String,
         updatedAt: Long? = null,
@@ -297,6 +324,8 @@ class ConversationRepository(
         folderID: String? = null,
         skillId: String? = null,
         useMemory: Boolean = true,
+        /** Instructions written in conversation settings while still a draft: stored together with the new row. */
+        instructions: String = "",
     ): Conversation {
         val scopedAccountId = accountId
 
@@ -311,6 +340,7 @@ class ConversationRepository(
             folderID = folderID?.let(::normalizeUuid),
             skillId = skillId,
             useMemory = useMemory,
+            instructions = ai.oriveo.community.core.context.ConversationInstructions.normalize(instructions),
             createdAt = now,
             updatedAt = now,
         )
@@ -485,12 +515,59 @@ class ConversationRepository(
             continuationDao?.deleteMessages(scopedAccountId, ids)
         }
         messageDao.deleteAfterOrder(scopedAccountId, normalizedConversationId, msg.sortOrder)
+        invalidateCheckpointsForDeletion(scopedAccountId, normalizedConversationId, allMsgs, deletedIDs)
         refreshConversationMetadata(normalizedConversationId, scopedAccountId = scopedAccountId)
         refreshCost(normalizedConversationId, scopedAccountId)
 
     }
 
     suspend fun deleteMessagesStartingAt(conversationId: String, startingMessageId: String) {
+        deleteMessagesStartingAtAndSync(conversationId, startingMessageId)
+    }
+
+    /**
+     * Deletes only these messages locally: rolls back the user message and assistant placeholder when a
+     * pre-send confirmation is cancelled.
+     * Deleted by id rather than truncated from one message: a newer send that took its place in the same
+     * conversation is already stored and must survive.
+     * Checkpoint invalidation works as usual.
+     * [draftWhenEmpty]: return the conversation to draft when no messages remain (same as iOS isDraft = messages.isEmpty).
+     * Returns the deleted rows (read before deleting); empty when the conversation's messages cannot be read.
+     */
+    suspend fun deleteMessagesLocally(
+        conversationId: String,
+        messageIds: Collection<String>,
+        draftWhenEmpty: Boolean = false,
+    ): List<ChatMessage> {
+        val scopedAccountId = accountId
+        val normalizedConversationId = normalizeUuid(conversationId)
+        val targets = messageIds.map(::normalizeUuid).toSet()
+        if (targets.isEmpty()) return emptyList()
+        val allMsgs = readMessagesOrNull(normalizedConversationId, "deleteMessagesLocally", scopedAccountId)
+        val deletedRows = allMsgs?.filter { normalizeUuid(it.id) in targets }.orEmpty()
+            .map { normalizeMessageIds(it.toDomain()) }
+        val rowIds = allMsgs?.map { it.id }?.filter { normalizeUuid(it) in targets } ?: targets.toList()
+        val deletedIDs = rowIds.map(::normalizeUuid)
+        deletedIDs.chunked(CONTINUATION_DELETE_CHUNK_SIZE).forEach { ids ->
+            continuationDao?.deleteMessages(scopedAccountId, ids)
+        }
+        rowIds.forEach { messageDao.deleteById(scopedAccountId, it) }
+        // Checkpoint invalidation is local only.
+        if (allMsgs != null && deletedIDs.isNotEmpty()) {
+            val historyIds = allMsgs.sortedBy { it.sortOrder }.map { normalizeUuid(it.id) }
+            contextCompactionStore?.invalidate(scopedAccountId, normalizedConversationId, historyIds, deletedIDs)
+        }
+        val draft = draftWhenEmpty && messageDao.countByConversation(scopedAccountId, normalizedConversationId) == 0
+        refreshConversationMetadata(
+            normalizedConversationId,
+            isDraft = if (draft) true else null,
+            scopedAccountId = scopedAccountId,
+        )
+        refreshCost(normalizedConversationId, scopedAccountId)
+        return deletedRows
+    }
+
+    private suspend fun deleteMessagesStartingAtAndSync(conversationId: String, startingMessageId: String) {
         val scopedAccountId = accountId
         val normalizedConversationId = normalizeUuid(conversationId)
 
@@ -513,6 +590,7 @@ class ConversationRepository(
             continuationDao?.deleteMessages(scopedAccountId, ids)
         }
         messageDao.deleteAfterOrder(scopedAccountId, normalizedConversationId, msg.sortOrder - 1)
+        invalidateCheckpointsForDeletion(scopedAccountId, normalizedConversationId, allMsgs, deletedIDs)
         refreshConversationMetadata(normalizedConversationId, scopedAccountId = scopedAccountId)
         refreshCost(normalizedConversationId, scopedAccountId)
     }
@@ -609,6 +687,39 @@ class ConversationRepository(
         conversationDao.updateUseMemory(scopedAccountId, normalizedId, useMemory)
     }
 
+    /**
+     * Sets the conversation-level instructions: normalized, then only `instructions` changes and
+     * `updatedAt` stays (same as rename). An unchanged value is not written. Returns the normalized
+     * value, or null when the conversation does not exist.
+     */
+    suspend fun updateInstructions(conversationId: String, text: String): String? {
+        val scopedAccountId = accountId
+        val normalizedId = normalizeUuid(conversationId)
+        val existing = conversationDao.getById(scopedAccountId, normalizedId) ?: return null
+        val normalized = ai.oriveo.community.core.context.ConversationInstructions.normalize(text)
+        if (normalized == existing.instructions) return normalized
+        conversationDao.updateInstructions(scopedAccountId, normalizedId, normalized)
+        return normalized
+    }
+
+    /**
+     * Sets the conversation input budget cap (null = follow the global setting): only the contextCap
+     * column changes, `updatedAt` stays.
+     * @return false when the conversation does not exist or the value is unchanged (nothing written).
+     */
+    suspend fun updateContextCap(conversationId: String, cap: ContextBudgetCap?): Boolean {
+        val scopedAccountId = accountId
+        val normalizedId = normalizeUuid(conversationId)
+        val existing = conversationDao.getById(scopedAccountId, normalizedId) ?: return false
+        if (existing.contextCap.toContextBudgetCapOrNull() == cap) return false
+        conversationDao.updateContextCap(scopedAccountId, normalizedId, cap?.toStorageText())
+        return true
+    }
+
+    /**
+     * Pins a note to the conversation (at most [MAX_PINNED_NOTES], deduplicated, keeping the latest).
+     * @return the normalized pinnedNoteIds, or null when the conversation does not exist.
+     */
     suspend fun pinNoteToConversation(conversationId: String, noteId: String): List<String>? {
         val scopedAccountId = accountId
         val normalizedConvId = normalizeUuid(conversationId)
@@ -749,6 +860,10 @@ private data class ConversationMetadataFingerprint(
     val skillId: String?,
     val useMemory: Boolean,
     val pinnedNoteIdsHash: Int,
+    /** Read by the top-bar instructions chip and the conversation settings sheet. */
+    val instructions: String,
+    /** Conversation input budget cap (null = follow the global setting); read by the conversation settings sheet. */
+    val contextCap: ContextBudgetCap?,
 )
 
 private fun Conversation.metadataFingerprint(): ConversationMetadataFingerprint =
@@ -768,6 +883,8 @@ private fun Conversation.metadataFingerprint(): ConversationMetadataFingerprint 
         skillId = skillId,
         useMemory = useMemory,
         pinnedNoteIdsHash = pinnedNoteIds.hashCode(),
+        instructions = instructions,
+        contextCap = contextCap,
     )
 
 private fun Conversation.streamFingerprint(): ConversationStreamFingerprint =

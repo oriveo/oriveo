@@ -247,6 +247,7 @@ interface ConversationDao {
     @Transaction
     suspend fun deleteById(accountId: String, id: String) {
         deleteStepPayloadsOfConversation(accountId, id)
+        deleteManifestsOfConversations(accountId, listOf(id))
         deleteRowById(accountId, id)
     }
 
@@ -263,6 +264,7 @@ interface ConversationDao {
     suspend fun deleteByIds(accountId: String, ids: Collection<String>) {
         // As in [deleteById]: step payloads first, then the conversation rows.
         deleteStepPayloadsOfConversations(accountId, ids)
+        deleteManifestsOfConversations(accountId, ids)
         deleteRowsByIds(accountId, ids)
     }
 
@@ -275,8 +277,36 @@ interface ConversationDao {
     )
     suspend fun deleteStepPayloadsOfConversations(accountId: String, conversationIds: Collection<String>)
 
+    /**
+     * Deletes every conversation in the partition (clear-all and overwriting backup import both go through here).
+     * The context request manifests (`context_manifest`, local only) are cleared in the same transaction; the rho calibration table is kept.
+     */
+    @Transaction
+    suspend fun deleteByAccount(accountId: String) {
+        deleteManifestsOfAccount(accountId)
+        deleteRowsByAccount(accountId)
+    }
+
     @Query("DELETE FROM conversations WHERE accountId = :accountId")
-    suspend fun deleteByAccount(accountId: String)
+    suspend fun deleteRowsByAccount(accountId: String)
+
+    /**
+     * The manifest table only has conversationId (a conversation UUID is unique across partitions), so it cannot carry a composite foreign key and is deleted explicitly in the DAO.
+     * Manifests are kept when the same conversation id still exists in another partition, because they still belong to that conversation.
+     */
+    @Query(
+        "DELETE FROM context_manifest WHERE conversationId IN (" +
+            "SELECT id FROM conversations WHERE accountId = :accountId AND id COLLATE NOCASE IN (:conversationIds)) " +
+            "AND conversationId NOT IN (SELECT id FROM conversations WHERE accountId != :accountId)",
+    )
+    suspend fun deleteManifestsOfConversations(accountId: String, conversationIds: Collection<String>)
+
+    @Query(
+        "DELETE FROM context_manifest WHERE conversationId IN (" +
+            "SELECT id FROM conversations WHERE accountId = :accountId) " +
+            "AND conversationId NOT IN (SELECT id FROM conversations WHERE accountId != :accountId)",
+    )
+    suspend fun deleteManifestsOfAccount(accountId: String)
 
     @Query("UPDATE conversations SET folderID = :folderID WHERE accountId = :accountId AND id = :id")
     suspend fun updateFolderID(accountId: String, id: String, folderID: String?)
@@ -292,6 +322,12 @@ interface ConversationDao {
 
     @Query("UPDATE conversations SET useMemory = :useMemory WHERE accountId = :accountId AND id = :id")
     suspend fun updateUseMemory(accountId: String, id: String, useMemory: Boolean)
+
+    @Query("UPDATE conversations SET instructions = :instructions WHERE accountId = :accountId AND id = :id")
+    suspend fun updateInstructions(accountId: String, id: String, instructions: String)
+
+    @Query("UPDATE conversations SET contextCap = :contextCap WHERE accountId = :accountId AND id = :id")
+    suspend fun updateContextCap(accountId: String, id: String, contextCap: String?)
 
     @Query("UPDATE conversations SET folderID = NULL WHERE accountId = :accountId AND folderID = :folderID")
     suspend fun clearFolderID(accountId: String, folderID: String)

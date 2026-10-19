@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.data.remote
 
+import ai.oriveo.community.core.context.ContinuationInstructionsMode
 import android.content.Context
 import ai.oriveo.community.BuildConfig
 import ai.oriveo.community.core.data.dao.MetadataCacheDao
@@ -355,6 +356,20 @@ class MetadataClient internal constructor(
         val capabilityEvidenceViewMalformed: Boolean? = null,
         /** The model entry's v2 `capabilityControls` is carried through unchanged and belongs to the same publication as the evidence candidates. */
         val capabilityControls: JsonObject? = null,
+        /**
+         * Long-context surcharge tier (pricing.longContext); null when the shape is bad or
+         * thresholdTokens is not a positive integer. Only the window factory looks the threshold
+         * up on demand; it is never written into AIModel, Room, or backups.
+         */
+        val longContext: LongContextPricing? = null,
+    )
+
+    /** Once the input exceeds [thresholdTokens], the whole request is priced at this tier (USD per 1M tokens). */
+    data class LongContextPricing(
+        val thresholdTokens: Int,
+        val promptPerMToken: Double,
+        val completionPerMToken: Double,
+        val cacheReadPerMToken: Double? = null,
     )
 
     data class CapabilityRecipeSelection(
@@ -368,6 +383,8 @@ class MetadataClient internal constructor(
         val requestOps: List<CapabilityRecipeOperation>,
         val continuationKind: String? = null,
         val continuationVariant: String? = null,
+        /** How `instructions` is handled when continuing with previous_id: resend | omit; null when missing or unknown (= send the full plan). */
+        val continuationInstructionsMode: String? = null,
         val responseParserKind: String? = null,
         val responseEvidenceSignals: List<CapabilityResponseEvidenceSignal> = emptyList(),
         val runtimeRevision: String = "",
@@ -584,6 +601,10 @@ class MetadataClient internal constructor(
 
         val cacheWrite5mPerMToken: Double? = null,
         val cacheWrite1hPerMToken: Double? = null,
+        // The long-context tier is received as a raw JsonElement and parsed leniently by
+        // [decodeLongContext]: a bad shape drops only this one field instead of failing the
+        // whole model (or the whole metadata payload).
+        val longContext: JsonElement? = null,
     )
 
     @Serializable
@@ -1758,6 +1779,9 @@ class MetadataClient internal constructor(
                 },
                 continuationKind = recipe["continuationKind"]?.jsonPrimitive?.contentOrNull,
                 continuationVariant = recipe["continuationVariant"]?.jsonPrimitive?.contentOrNull,
+                continuationInstructionsMode = ContinuationInstructionsMode.fromWire(
+                    recipe["continuationInstructionsMode"]?.jsonPrimitive?.contentOrNull,
+                )?.wire,
                 responseParserKind = recipe["responseParserKind"]?.jsonPrimitive?.contentOrNull,
                 responseEvidenceSignals = evidenceSignals.orEmpty(),
                 runtimeRevision = runtimeRevision,
@@ -1986,6 +2010,36 @@ class MetadataClient internal constructor(
             capabilityEvidenceOwnedKeys = model.capabilityEvidenceOwnedKeys?.toSet(),
             capabilityEvidenceViewMalformed = model.capabilityEvidenceViewMalformed,
             capabilityControls = model.capabilityControls,
+            longContext = decodeLongContext(pricing?.longContext),
+        )
+    }
+
+    /**
+     * pricing.longContext has four fields: thresholdTokens (positive integer), promptPerMToken and
+     * completionPerMToken are required, cacheReadPerMToken may be omitted; any field with the wrong
+     * shape makes the whole tier count as missing.
+     */
+    private fun decodeLongContext(raw: JsonElement?): LongContextPricing? {
+        val fields = raw as? JsonObject ?: return null
+        fun number(key: String): JsonPrimitive? =
+            (fields[key] as? JsonPrimitive)?.takeIf { it !is JsonNull && !it.isString }
+        fun price(key: String): Double? = number(key)?.content?.toDoubleOrNull()?.takeIf { it.isFinite() && it >= 0 }
+        // Must be an integral value (200000.0 is fine) with 1 <= t <= Int.MAX_VALUE; parse as a number first, then convert exactly.
+        val threshold = number("thresholdTokens")?.content?.toDoubleOrNull()
+            ?.takeIf { it.isFinite() && it == Math.floor(it) && it >= 1.0 && it <= Int.MAX_VALUE.toDouble() }
+            ?.toInt() ?: return null
+        val prompt = price("promptPerMToken") ?: return null
+        val completion = price("completionPerMToken") ?: return null
+        val cacheRead = if (fields["cacheReadPerMToken"].let { it == null || it is JsonNull }) {
+            null
+        } else {
+            price("cacheReadPerMToken") ?: return null
+        }
+        return LongContextPricing(
+            thresholdTokens = threshold,
+            promptPerMToken = prompt,
+            completionPerMToken = completion,
+            cacheReadPerMToken = cacheRead,
         )
     }
 

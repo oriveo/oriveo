@@ -36,7 +36,11 @@ sealed interface AppRoute {
     @Serializable data class FolderDetail(val folderID: String) : AppRoute
     @Serializable data object Notes : AppRoute
     @Serializable data class NoteDetail(val noteID: String) : AppRoute
-    @Serializable data object Memory : AppRoute
+    /** Settings memory page; when editItemId is non-null the edit screen for that item opens directly (the "this is wrong" action in chat). */
+    @Serializable data class Memory(val editItemId: String? = null) : AppRoute
+    /** Inbox of suggested memory candidates, entered from the row on the memory page. */
+    @Serializable data object MemoryInbox : AppRoute
+    @Serializable data object ContextSettings : AppRoute
     /** Remote MCP: the server list, adding a server, and a server's details. */
     @Serializable data object McpServers : AppRoute
     @Serializable data object McpAddServer : AppRoute

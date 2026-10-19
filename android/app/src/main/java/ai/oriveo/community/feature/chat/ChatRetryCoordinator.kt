@@ -29,6 +29,8 @@ internal fun interface ChatSendLauncher {
         appendToAssistant: ChatMessage?,
         userMessageAlreadyInHistory: Boolean,
         quoteContext: QuoteContext?,
+        /** Where this attempt came from. */
+        attemptKind: ai.oriveo.community.feature.chat.ContextConfirmAttempt,
     )
 }
 
@@ -146,31 +148,40 @@ internal class ChatRetryCoordinator(
                 onFailure = onProviderResolutionError,
             ) ?: return@launch
 
-            // The delete covers the assistant message that may still be generating, so the stream
-            // has to be stopped and joined first. Otherwise the old stream keeps burning tokens
-            // with nobody listening, and its finalize can write the old answer back after the
-            // delete. startStream does cancel a same-conversation stream on entry, but that
-            // happens after the delete and does not close this window.
+            // The delete range covers the assistant message that may still be generating (everything after
+            // lastUser), so the stream has to be stopped and joined first until finalize has persisted;
+            // otherwise the old stream burns tokens with nobody listening, and finalize can write the
+            // old answer back after the delete. The entry guard of the later launchSend -> startStream
+            // also cancels a same-conversation stream, but that happens after the delete and does not close this window.
+            // The delete moved into the send chain: it only happens after the context rejection check passes,
+            // so a rejected send keeps the old answer.
             chatStreamingManager.stopStreamAndJoin(conv.id)
-            conversationRepository.deleteMessagesAfter(conv.id, lastUser.id)
 
             val modelId = activeModelId() ?: return@launch
             val runtimeModelId = ProviderSelectionSnapshot.runtimeModelId(provider, modelId) ?: modelId
 
             requestPin()
 
-            val fullHistoryAfterDelete = fetchFullConversationHistory(conv.id)
+            val fullHistory = fetchFullConversationHistory(conv.id)
+            val lastUserIndex = fullHistory.indexOfFirst { it.id == lastUser.id }
+            // History is cut at lastUser (inclusive): the send chain deletes the messages after it once the rejection check has passed.
+            val historyThroughLastUser = if (lastUserIndex >= 0) {
+                fullHistory.take(lastUserIndex + 1)
+            } else {
+                conv.messages.take(conv.messages.indexOf(lastUser) + 1)
+            }
             launchSend.launch(
                 conversation = conv,
                 provider = provider,
                 modelId = runtimeModelId,
                 text = lastUser.text,
-                existingMessages = fullHistoryAfterDelete.dropLast(1),
+                existingMessages = historyThroughLastUser,
                 attachments = lastUser.attachments,
                 quoteContext = lastUser.quoteContext,
                 persistUserMessage = false,
                 appendToAssistant = null,
-                userMessageAlreadyInHistory = false,
+                userMessageAlreadyInHistory = true,
+                attemptKind = ai.oriveo.community.feature.chat.ContextConfirmAttempt.REGENERATE,
             )
         }
     }
@@ -221,6 +232,7 @@ internal class ChatRetryCoordinator(
                 persistUserMessage = false,
                 appendToAssistant = retryTarget,
                 userMessageAlreadyInHistory = true,
+                attemptKind = ai.oriveo.community.feature.chat.ContextConfirmAttempt.RETRY,
             )
         }
     }
@@ -271,13 +283,14 @@ internal class ChatRetryCoordinator(
                 conversation = conv,
                 provider = provider,
                 modelId = runtimeModelId,
-                text = "Continue from where you stopped. Do not repeat what you have already said.",
+                text = ai.oriveo.community.core.context.ContextAssembler.CONTINUE_PROMPT,
                 existingMessages = historyThroughAssistant,
                 attachments = null,
                 quoteContext = null,
                 persistUserMessage = false,
                 appendToAssistant = assistantMsg,
                 userMessageAlreadyInHistory = false,
+                attemptKind = ai.oriveo.community.feature.chat.ContextConfirmAttempt.CONTINUE,
             )
         }
     }
@@ -332,6 +345,7 @@ internal class ChatRetryCoordinator(
                 persistUserMessage = false,
                 appendToAssistant = retryTarget,
                 userMessageAlreadyInHistory = true,
+                attemptKind = ai.oriveo.community.feature.chat.ContextConfirmAttempt.RETRY,
             )
         }
     }

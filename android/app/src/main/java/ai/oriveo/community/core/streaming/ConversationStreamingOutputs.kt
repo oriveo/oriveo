@@ -1,6 +1,7 @@
 package ai.oriveo.community.core.streaming
 
 import ai.oriveo.community.core.model.StreamActivity
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -35,6 +36,13 @@ data class ConversationStreamingOutputs(
      * fails or is stopped.
      */
     val streamingActivity: MutableStateFlow<StreamActivity?> = MutableStateFlow(null),
+    /**
+     * A system interrupt (stop-all, passive stop) requested before cancel.
+     * Cancellation finalizers read it: system interrupts record transport_error semantics
+     * (incomplete with text, otherwise error) instead of interrupted, which is reserved for
+     * user stop and same-conversation replacement by a newer send.
+     */
+    val systemInterrupted: AtomicBoolean = AtomicBoolean(false),
 ) {
     companion object {
         /** Sentinel for [reasoningEndedAtMs]: no visible token has arrived yet. */
