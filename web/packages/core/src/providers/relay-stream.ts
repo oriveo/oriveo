@@ -16,9 +16,10 @@
 
 import { sanitizeUpstreamErrorText } from './upstream-error-text';
 import type { StreamEvent } from './types';
-import { createSSEStream } from './sse-parser';
+import { createSSEStream, type ParseChunkFn } from './sse-parser';
+import { StreamFinishTracker } from '../context/stream-finish';
 import { isRelayGenerationSuccessResponse } from './relay-generation-response';
-import { toProviderError, transportNetworkDetail } from './errors';
+import { providerErrorRawBodyOf, toProviderError, transportNetworkDetail, withProviderErrorRawBody } from './errors';
 import { classifyRelayKeyAccess, type RelayKeyAccessOutcome } from './relay-key-access';
 import { relayErrorBodyNamesReasoning } from './relay-reasoning-rejection';
 import { RELAY_GUIDANCE_WEB_PAGE_RETURNED_KEY, type RelayErrorContext } from './relay-error-classifier';
@@ -173,6 +174,29 @@ type RelayParseChunk = (
   data: string,
 ) => StreamEvent | StreamEvent[] | null;
 
+/**
+ * Each Relay protocol parser only emits events and does not track termination signals: feed a StreamFinishTracker
+ * on the same frames so that done carries a StreamFinish. Otherwise every normal Relay ending lands as stopReason unknown.
+ * One tracker per stream: a retried new stream recognizes the protocol family from scratch.
+ */
+function withRelayStreamFinish(parseChunk: RelayParseChunk): ParseChunkFn {
+  const tracker = new StreamFinishTracker();
+  const parse: ParseChunkFn = (eventType, data) => {
+    let chunk: unknown;
+    try {
+      chunk = JSON.parse(data);
+    } catch {
+      chunk = null;
+    }
+    if (chunk && typeof chunk === 'object' && !Array.isArray(chunk)) {
+      tracker.observe(eventType, chunk as Record<string, unknown>);
+    }
+    return parseChunk(eventType, data);
+  };
+  parse.streamFinish = (sawDoneToken) => tracker.atEnd(sawDoneToken);
+  return parse;
+}
+
 export function createRelaySSEStream(
   request: (signal?: AbortSignal) => Promise<Response>,
   parseChunk: RelayParseChunk,
@@ -217,7 +241,7 @@ export function createRelaySSEStream(
       }
       response = sniffed.response;
 
-      const inner = createSSEStream(response, parseChunk, {
+      const inner = createSSEStream(response, withRelayStreamFinish(parseChunk), {
         signal,
         errorSource: responseErrorSource(response) ?? 'provider',
         sensitiveCredentialValues,
@@ -277,7 +301,7 @@ export function createRelayJSONStream(
           RELAY_ERROR_CONTEXT,
           sensitiveCredentialValues,
         );
-        ctrl.enqueue({
+        ctrl.enqueue(withProviderErrorRawBody<StreamEvent>({
           type: 'error',
           error: providerError.message,
           errorDetail: providerError.detail,
@@ -291,7 +315,8 @@ export function createRelayJSONStream(
           ...(providerError.upstreamErrorType ? { upstreamErrorType: providerError.upstreamErrorType } : {}),
           ...(providerError.networkDetail ? { networkDetail: providerError.networkDetail } : {}),
           ...(providerError.relayGuidanceKey ? { relayGuidanceKey: providerError.relayGuidanceKey } : {}),
-        });
+          httpStatus: response.status,
+        }, providerErrorRawBodyOf(providerError)));
         ctrl.close();
         return;
       }
@@ -452,7 +477,7 @@ export function createRelayResponsesStreamWithRetry(
             RELAY_ERROR_CONTEXT,
             sensitiveCredentialValues,
           );
-          ctrl.enqueue({
+          ctrl.enqueue(withProviderErrorRawBody<StreamEvent>({
             type: 'error',
             error: providerError.message,
             errorDetail: providerError.detail,
@@ -466,7 +491,8 @@ export function createRelayResponsesStreamWithRetry(
             ...(providerError.upstreamErrorType ? { upstreamErrorType: providerError.upstreamErrorType } : {}),
             ...(providerError.networkDetail ? { networkDetail: providerError.networkDetail } : {}),
             ...(providerError.relayGuidanceKey ? { relayGuidanceKey: providerError.relayGuidanceKey } : {}),
-          });
+            httpStatus: response.status,
+          }, providerErrorRawBodyOf(providerError)));
           return { retried: false };
         }
 
@@ -482,7 +508,7 @@ export function createRelayResponsesStreamWithRetry(
         }
         response = sniffed.response;
 
-        const inner = createSSEStream(response, parseChunk, {
+        const inner = createSSEStream(response, withRelayStreamFinish(parseChunk), {
           signal,
           errorSource: responseErrorSource(response) ?? 'provider',
           sensitiveCredentialValues,
@@ -522,16 +548,19 @@ function redactRelayStreamEvent(
   if (event.type !== 'error') return event;
   // An in-stream error frame is the upstream's raw text: scrub credentials first, then truncate to 2 KB (same pure function as the official route).
   if (event.streamErrorFrame) {
-    return { ...event, error: sanitizeUpstreamErrorText(redactRelayCredentials(event.error, sensitiveCredentialValues)) };
+    return withProviderErrorRawBody(
+      { ...event, error: sanitizeUpstreamErrorText(redactRelayCredentials(event.error, sensitiveCredentialValues)) },
+      providerErrorRawBodyOf(event),
+    );
   }
   if (sensitiveCredentialValues.length === 0) return event;
-  return {
+  return withProviderErrorRawBody({
     ...event,
     error: redactRelayCredentials(event.error, sensitiveCredentialValues),
     ...(event.errorDetail
       ? { errorDetail: redactRelayCredentials(event.errorDetail, sensitiveCredentialValues) }
       : {}),
-  };
+  }, providerErrorRawBodyOf(event));
 }
 
 function responseErrorSource(response: Response): 'provider' | 'network' | 'oriveo' | 'desktop' | 'unknown' | undefined {

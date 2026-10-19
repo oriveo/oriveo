@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import { NotebookPen } from 'lucide-react';
 import { AppShell, type AppShellLinkProps } from '@oriveo/ui';
 import { HomeTabIcon, ProvidersTabIcon, SettingsTabIcon } from './TabBarIcons';
-import { useAppStore } from '../providers/StoreProvider';
+import { getVanillaStore, useAppStore } from '../providers/StoreProvider';
 import { useMediaQuery } from '../lib/hooks/useMediaQuery';
 import { ConversationList } from './sidebar/ConversationList';
 import { ServiceReachabilityBanner } from './ServiceReachabilityBanner';
@@ -99,7 +99,7 @@ function navigateDesktopFallback(href: string): void {
   window.location.assign(resolveDesktopNavigationURL(href, origin));
 }
 
-function scheduleDesktopNavigationFallback(href: string): void {
+export function scheduleDesktopNavigationFallback(href: string): void {
   if (!isDesktopAppRuntime() || desktopLocationMatches(href)) return;
   if (pendingDesktopNavigationFallback) clearTimeout(pendingDesktopNavigationFallback);
   pendingDesktopNavigationFallback = setTimeout(() => {
@@ -232,6 +232,8 @@ export function AppShellWrapper({ children }: AppShellWrapperProps) {
 
   const handleNewChat = useCallback(() => {
     setActiveConversationId(null);
+    // Already on a blank chat: the id does not change, so drop the settings draft explicitly.
+    getVanillaStore().getState().setDraftConversationInstructions('');
     const target = isMobile ? '/chat?compose=1' : '/chat';
     if (isMobile) {
       setSidebarOpen(false);

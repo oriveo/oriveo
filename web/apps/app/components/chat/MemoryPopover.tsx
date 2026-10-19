@@ -3,30 +3,30 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { graphemeCount, takeGraphemes } from '../../lib/utils/grapheme-utils';
+import type { MemoryItem } from '@oriveo/core/context/memory-items';
 import { CloseButton } from '@oriveo/ui';
 import { EditIcon, EyeOffIcon } from '../icons';
+import { memoryItemHeadline } from './MemoryUsedPopover';
 import styles from './TopBar.module.css';
 
-function getMemoryPreview(memoryText?: string): string {
-  const normalizedText = memoryText?.trim() ?? '';
-  if (!normalizedText) return '';
-
-  const preview = takeGraphemes(normalizedText, 300);
-  return `${preview}${graphemeCount(normalizedText) > 300 ? '...' : ''}`;
+/** The indicator and the preview only look at active semantic items (the slice is already in list order). */
+function activeSemanticItems(memoryItems?: readonly MemoryItem[]): MemoryItem[] {
+  return (memoryItems ?? []).filter((m) => m.layer === 'semantic' && m.status === 'active');
 }
 
 interface MemoryPopoverProps {
-  memoryText?: string;
+  /** The store's memoryItems slice */
+  memoryItems?: readonly MemoryItem[];
   useMemory?: boolean;
   onToggleMemory?: () => void;
 }
 
 /**
- * Memory indicator and popover: a discreet dot entry point that opens a memory preview with view, edit
- * and disable actions. Renders nothing when memory is empty or disabled.
+ * Memory indicator and popover: a discreet dot entry point that opens a list of entries (first line of
+ * each) with view, edit and disable actions. Renders nothing when the conversation switch is off or
+ * there are no active semantic entries.
  */
-export function MemoryPopover({ memoryText, useMemory, onToggleMemory }: MemoryPopoverProps) {
+export function MemoryPopover({ memoryItems, useMemory, onToggleMemory }: MemoryPopoverProps) {
   const tMemory = useTranslations('pages.memory');
   const router = useRouter();
   const [showMemoryPopover, setShowMemoryPopover] = useState(false);
@@ -44,10 +44,9 @@ export function MemoryPopover({ memoryText, useMemory, onToggleMemory }: MemoryP
     return () => document.removeEventListener('mousedown', handler);
   }, [showMemoryPopover]);
 
-  const showMemoryIndicator = !!memoryText?.trim() && useMemory !== false;
+  const previewItems = activeSemanticItems(memoryItems);
+  const showMemoryIndicator = previewItems.length > 0 && useMemory !== false;
   if (!showMemoryIndicator) return null;
-
-  const memoryPreview = getMemoryPreview(memoryText);
 
   return (
     <div style={{ position: 'relative' }} ref={popoverRef}>
@@ -82,7 +81,11 @@ export function MemoryPopover({ memoryText, useMemory, onToggleMemory }: MemoryP
               <span className={styles.memoryPopoverPreviewLabel}>{tMemory('title')}</span>
               <span className={styles.memoryPopoverPreviewIcon} aria-hidden="true">🧠</span>
             </div>
-            <p className={styles.memoryPopoverPreview}>{memoryPreview}</p>
+            <ul className={styles.memoryPopoverPreview}>
+              {previewItems.map((item) => (
+                <li key={item.id}>{memoryItemHeadline(item.content)}</li>
+              ))}
+            </ul>
           </div>
 
           <div className={styles.memoryPopoverActions}>

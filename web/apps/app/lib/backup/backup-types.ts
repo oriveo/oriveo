@@ -8,6 +8,8 @@ import type {
   Note,
   NoteFolder,
 } from '@oriveo/shared';
+import type { MemoryItem } from '@oriveo/core/context/memory-items';
+import type { ContextCheckpointRow } from '../infra/storage/context-checkpoint-store';
 
 /* ── Import modes ─────────────────────────────────────────── */
 
@@ -44,7 +46,15 @@ export interface BackupData {
     'theme' | 'language' | 'memoryText' | 'memoryAntiForgetEnabled' | 'memoryAntiForgetText' | 'memoryUpdatedAt'
   >>;
   lastUsedModelRef?: LastUsedModelRef | null;
+  /** Full context checkpoint table; older backups lack this key. createdAt is in milliseconds, nullable fields are null. */
+  checkpoints?: BackupContextCheckpoint[];
+  /** Memory item schema version (currently 2); older backups lack this key. */
+  memorySchemaVersion?: number;
+  /** Full memory item v2 table (including tombstones and conflicted items, in list order); older backups lack this key and are migrated from the memory fields in preferences on import. */
+  memoryItems?: MemoryItem[];
 }
+
+export type BackupContextCheckpoint = ContextCheckpointRow;
 
 export type BackupFolder = Folder;
 export type BackupNoteFolder = NoteFolder;

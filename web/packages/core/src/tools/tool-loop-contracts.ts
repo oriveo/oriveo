@@ -6,6 +6,7 @@ import type {
   ProxyToolDefinition,
 } from '../providers/request-builders/runtime';
 import type { StreamHandle, StreamUsage } from '../providers/types';
+import type { StreamFinish } from '../context/stream-finish';
 
 // Neutral contracts of the generic tool loop (same mechanics as the iOS Core/Tools/ToolLoopContracts.swift,
 // without copying its API names).
@@ -14,8 +15,8 @@ import type { StreamHandle, StreamUsage } from '../providers/types';
 // entries (execution and failure disposition) and in how the caller consumes progress events. The loop
 // itself knows no concrete tool. Pure logic, testable under Node.
 
-/** Tool scope. */
-export type ToolScope = 'library' | 'web' | 'mcp';
+/** Tool scope; memory = the host tool propose_memory (Web core only). */
+export type ToolScope = 'library' | 'web' | 'mcp' | 'memory';
 
 /**
  * A registry entry refuses a call (argument validation failed and similar "the model got it wrong" cases).
@@ -221,6 +222,8 @@ export interface ToolLoopResult {
   /** Whether structured tool_calls ever appeared. */
   receivedStructuredToolCalls: boolean;
   executedToolSteps: number;
+  /** Stream-end info on the done of the last leg; absent when the protocol family was not recognized. */
+  finish?: StreamFinish;
 }
 
 /** A model leg failed (an error event in the stream). `code` is the error code given by the upstream / classifier. */
@@ -230,6 +233,8 @@ export class ToolLoopError extends Error {
   readonly streamStarted: boolean;
   /** Structured rejection context used by the no-tools fallback; provided by StreamHandle, may be empty. */
   readonly toolCallRejectionContext?: unknown;
+  /** The family's clean conclusion when the termination frame is itself an error (used to settle stopReason). */
+  readonly finish?: StreamFinish;
 
   constructor(
     message: string,
@@ -238,6 +243,7 @@ export class ToolLoopError extends Error {
       source?: ProviderErrorSource;
       streamStarted?: boolean;
       toolCallRejectionContext?: unknown;
+      finish?: StreamFinish;
     } = {},
   ) {
     super(message);
@@ -246,5 +252,6 @@ export class ToolLoopError extends Error {
     this.source = options.source;
     this.streamStarted = options.streamStarted ?? false;
     this.toolCallRejectionContext = options.toolCallRejectionContext;
+    if (options.finish) this.finish = options.finish;
   }
 }

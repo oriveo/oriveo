@@ -1,3 +1,5 @@
+import { GEMINI_INTERACTION_STATUS_KEY } from '../../context/stream-finish';
+
 /**
  * Convert the explicitly selected Gemini Interactions wire into the chat SSE contract.
  *
@@ -7,7 +9,11 @@
  * before it = an upstream error; content already received = the message failed and keeps that content).
  * status=cancelled (interaction_cancelled), or a stream that ends with neither completed nor error
  * (interaction_stream_closed), is handled as an error: the same error-frame mechanism, no `[DONE]`,
- * and no separate interruption signal. Continuation output (previous_interaction_id replay) is gone.
+ * and no separate interruption signal. interaction_stream_closed gets StreamFinish(gemini_interactions,
+ * eof_without_marker) attached by proxy-chunk-parser, with stopReason recorded as incomplete (aligned across platforms).
+ * The five terminal states (completed / incomplete / requires_action / failed / cancelled) carry interaction_status
+ * on the frame, which StreamFinishTracker recognizes as StreamFinish(gemini_interactions, clean, finishRaw = status).
+ * Continuation output (previous_interaction_id replay) is gone.
  */
 export function adaptGeminiInteractionsResponse(upstream: Response): Response {
   const encoder = new TextEncoder();
@@ -61,12 +67,14 @@ function terminalFromInteraction(value: unknown, emit: (value: unknown) => void)
   const status = interaction.status;
   if (status === 'failed' || status === 'requires_action' || status === 'cancelled') {
     // This line sends no client tools, so requires_action can only be a failure; cancelled is handled as an error.
+    // The terminal status rides on the same error frame, so the client parser can attach StreamFinish(gemini_interactions) to the error event.
     const code = status === 'failed' ? 'interaction_failed' : status === 'cancelled' ? 'interaction_cancelled' : 'interaction_requires_action';
-    emit({ error: { message: status === 'cancelled' ? 'Gemini Interactions cancelled' : 'Gemini Interactions error', code } });
+    emit({ error: { message: status === 'cancelled' ? 'Gemini Interactions cancelled' : 'Gemini Interactions error', code }, [GEMINI_INTERACTION_STATUS_KEY]: status });
     return 'error';
   }
   if (status !== 'completed' && status !== 'incomplete') return 'interrupted';
   const usage = usageFrom(interaction); if (usage) emit({ type: 'usage', usage });
+  emit({ [GEMINI_INTERACTION_STATUS_KEY]: status });
   return status;
 }
 

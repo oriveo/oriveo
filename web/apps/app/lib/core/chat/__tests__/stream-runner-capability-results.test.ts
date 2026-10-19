@@ -100,9 +100,8 @@ describe('runStreamPipeline wire result states', () => {
       messageId: 'assistant-1',
       provider: proxyProvider(),
       model: model(),
-      chatHistory: [{ role: 'user', content: 'hello' }],
+      transport: { messages: [{ role: 'user', content: 'hello' }], options: undefined },
       initialText: '',
-      relayStreamOptions: undefined,
       setAbortFn: vi.fn(),
     }).catch((caught: unknown) => caught as Error & { capabilityResults?: unknown[] });
 

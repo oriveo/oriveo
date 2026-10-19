@@ -135,6 +135,11 @@
   pointer-events: none;
 }
 
+/* The sidebar sits at the line start (the right side in RTL), so collapsing must move it out toward the line start; otherwise in RTL a leftward shift moves it out only halfway and about 80px of the sidebar shows on the left at phone width */
+.shell[data-sidebar-open='false'] .sidebar:dir(rtl) {
+  transform: translateX(100%);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sidebar {
     transition: none;
@@ -511,6 +516,10 @@
 
   .shell[data-overlay-sidebar-open='false'] .sidebar {
     transform: translateX(-100%);
+  }
+
+  .shell[data-overlay-sidebar-open='false'] .sidebar:dir(rtl) {
+    transform: translateX(100%);
   }
 }
 

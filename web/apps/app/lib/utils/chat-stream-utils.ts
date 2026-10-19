@@ -6,7 +6,8 @@ import type { ChatMessage, Attachment, Citation, AIModel } from '@oriveo/shared'
 import { buildEffectiveUserContent } from '@oriveo/shared';
 import type { StreamEvent, OpenRouterUsage, ContentPart } from '../core/providers/service';
 import type { ContinuationIntent } from '@oriveo/core/providers/request-preference/continuation';
-import type { ProviderError } from '../core/providers/errors';
+import type { StreamFinish } from '@oriveo/core/context/stream-finish';
+import { providerErrorRawBodyOf, withProviderErrorRawBody, type ProviderError } from '../core/providers/errors';
 import {
   finalizeToolCalls,
   mergeToolCallDeltas,
@@ -155,129 +156,6 @@ export async function buildChatHistory(
 }
 
 /**
- * Note text used when earlier unanswered user messages are merged into the envelope. Must match
- * unansweredEnvelope.note in shared/context-contracts/sanitize.v1.json byte for byte; every client
- * shares it.
- */
-export const UNANSWERED_ENVELOPE_NOTE =
-  'The user sent this earlier but no reply was delivered. Treat it as context and answer the latest message.';
-
-/** XML-escape earlier text inside the envelope: replace & < > in this order (otherwise &lt; would be escaped twice). */
-function escapeEnvelopeText(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-/**
- * Merge a run of consecutive user messages (N >= 2) into one: keep the id and every non-content field
- * of the last one; earlier non-empty texts are trimmed, escaped and joined by blank lines inside an
- * <oriveo-unanswered> envelope, followed by the latest original text; attachments are concatenated in
- * message order.
- */
-function mergeUserRun(run: ChatMessage[]): ChatMessage {
-  const latest = run[run.length - 1];
-  if (run.length === 1) return latest;
-  const earlier = run.slice(0, -1);
-  const earlierTexts = earlier
-    .map((m) => m.text?.trim() ?? '')
-    .filter((t) => t.length > 0)
-    .map(escapeEnvelopeText);
-  const latestText = latest.text ?? '';
-  let text = latestText;
-  if (earlierTexts.length > 0) {
-    const envelope = `<oriveo-unanswered>\n<note>${UNANSWERED_ENVELOPE_NOTE}</note>\n${earlierTexts.join('\n\n')}\n</oriveo-unanswered>`;
-    text = latestText.length > 0 ? `${envelope}\n\n${latestText}` : envelope;
-  }
-  const attachments = run.flatMap((m) => m.attachments ?? []);
-  return { ...latest, text, attachments: attachments.length > 0 ? attachments : undefined };
-}
-
-/**
- * Normalize outbound messages before sending. The merge rules follow the contract fixture
- * shared/context-contracts/sanitize.v1.json.
- *
- * Two steps:
- * 1. Filter: drop messages with empty content (no text and no attachments); keep every user message,
- *    plus non-failed assistant history that has content (delivered, an interrupted partial the user
- *    stopped, or a partial still generating when a race prevented finalize) and the explicit
- *    continue/retry target (keepAssistantId). Only failed turns are dropped: a failed exchange is not
- *    context, and its empty placeholder gets filled with a localized error string on some clients, so
- *    keeping it would send that error text to the model as a fake answer.
- * 2. Collapse adjacent same-role messages: once step 1 removes an empty assistant in the middle, the
- *    two user messages it separated become adjacent and roles no longer alternate. Strict
- *    OpenAI-compatible relays require user/assistant to alternate and reject consecutive same-role
- *    messages outright.
- *    - Adjacent user: a run of consecutive user messages is merged into one (keeping the last one's
- *      id and fields). Earlier text is not dropped -- an instruction such as "always write in Arabic
- *      from now on" may live in the unanswered message -- but goes into an <oriveo-unanswered>
- *      envelope marked "context only, answer the latest message". This restores strict alternation
- *      without making the model answer both questions at once.
- *    - Adjacent assistant (rare): merge text (joined by a blank line) and attachments (in order) so
- *      nothing is lost.
- *
- * Note: an interrupted assistant that still has partial text naturally separates the two surrounding
- * user messages, so the adjacent-user path is usually never reached; it only triggers when the stop
- * happened early enough that the partial is empty, or when a failed turn was dropped.
- */
-export function sanitizeOutboundMessages(
-  messages: ChatMessage[],
-  keepAssistantId?: string,
-): ChatMessage[] {
-  const filtered = messages
-    .map((m) => {
-      // Assistant messages must not carry image/video media content parts. In the OpenAI-compatible
-      // protocol image_url may only appear on the user role. AI-generated images stored on an assistant
-      // message get rejected by upstreams such as Qwen ("incorrect modal `image` placed in the wrong
-      // position, e.g. in assistant"). After switching to a text model such history images cause an
-      // upstream 400, so outbound normalization strips media attachments from assistant messages. If
-      // stripping leaves neither text nor attachments, the hasContent filter below removes the message.
-      if (m.role !== 'assistant' || !m.attachments?.length) return m;
-      const kept = m.attachments.filter((a) => a.kind !== 'image' && a.kind !== 'video');
-      return { ...m, attachments: kept.length > 0 ? kept : undefined };
-    })
-    .filter((m) => {
-      const hasContent = (m.text?.trim().length ?? 0) > 0 || (m.attachments?.length ?? 0) > 0;
-      if (!hasContent) return false;
-      // Keep every user message, the explicit continue/retry target (keepAssistantId), and all
-      // non-failed history with content. Only failed turns are dropped: a failed exchange is not
-      // context, and its empty placeholder gets filled with an error string on some clients, which
-      // would be resent as a fake answer every turn. Retrying a failure revives its prefill through
-      // keepAssistantId.
-      return m.role === 'user' || m.id === keepAssistantId || m.state !== 'failed';
-    });
-
-  const merged: ChatMessage[] = [];
-  let userRun: ChatMessage[] = [];
-  const flushUserRun = () => {
-    if (userRun.length > 0) merged.push(mergeUserRun(userRun));
-    userRun = [];
-  };
-  for (const m of filtered) {
-    if (m.role === 'user') {
-      userRun.push(m);
-      continue;
-    }
-    flushUserRun();
-    const last = merged[merged.length - 1];
-    if (last && last.role === m.role) {
-      // Adjacent assistant messages (rare) are still merged so no valid answer content is lost.
-      const joinedText = [last.text?.trim(), m.text?.trim()]
-        .filter((t): t is string => !!t && t.length > 0)
-        .join('\n\n');
-      const joinedAttachments = [...(last.attachments ?? []), ...(m.attachments ?? [])];
-      merged[merged.length - 1] = {
-        ...last,
-        text: joinedText,
-        attachments: joinedAttachments.length > 0 ? joinedAttachments : undefined,
-      };
-    } else {
-      merged.push(m);
-    }
-  }
-  flushUserRun();
-  return merged;
-}
-
-/**
  * Streaming read loop: consume the SSE stream and accumulate the result.
  *
  * Per the provider capability spec, a strategy emits `citations` events carrying a snapshot between
@@ -296,7 +174,7 @@ export async function readStream(
   onContinuation?: (continuation: ContinuationIntent) => void,
   /** Observes only normalized events emitted by the selected production parser. */
   onEvent?: (event: StreamEvent) => void,
-): Promise<{ fullText: string; reasoningText: string; usage: OpenRouterUsage | undefined; imageAttachments: Attachment[]; servedModelID?: string; citations?: Citation[]; toolCalls: CompletedToolCall[] }> {
+): Promise<{ fullText: string; reasoningText: string; usage: OpenRouterUsage | undefined; imageAttachments: Attachment[]; servedModelID?: string; citations?: Citation[]; toolCalls: CompletedToolCall[]; finish?: StreamFinish }> {
   const reader = stream.getReader();
   let fullText = initialText;
   let reasoningText = '';
@@ -305,6 +183,8 @@ export async function readStream(
   let citations: Citation[] | undefined;
   const imageAttachments: Attachment[] = [];
   const toolCalls: ToolCallAccumulator = new Map();
+  // Stream-end info on done: the wrap-up path uses it to record stopReason.
+  let finish: StreamFinish | undefined;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -371,7 +251,8 @@ export async function readStream(
       case 'confirm_required':
         break;
       case 'error':
-        throw {
+        // rawBody is non-enumerable; only the overflow check reads it by name.
+        throw withProviderErrorRawBody({
           kind: event.errorKind || 'upstream',
           title: '',
           message: event.error,
@@ -389,11 +270,11 @@ export async function readStream(
           ...(event.streamErrorFrame ? { streamErrorFrame: true } : {}),
           ...(event.errorFields ? { errorFields: event.errorFields } : {}),
           ...(event.relayGuidance ? { relayGuidance: true } : {}),
-          ...(event.upstreamErrorType ? { upstreamErrorType: event.upstreamErrorType } : {}),
-          ...(event.networkDetail ? { networkDetail: event.networkDetail } : {}),
-          ...(event.relayGuidanceKey ? { relayGuidanceKey: event.relayGuidanceKey } : {}),
-        } as ProviderError;
+          ...(event.finish ? { finish: event.finish } : {}),
+          ...(event.httpStatus !== undefined ? { httpStatus: event.httpStatus } : {}),
+        } as ProviderError, providerErrorRawBodyOf(event));
       case 'done':
+        finish = event.finish;
         break;
     }
   }
@@ -406,6 +287,7 @@ export async function readStream(
     servedModelID,
     citations,
     toolCalls: finalizeToolCalls(toolCalls, 'chat_tool_call'),
+    ...(finish ? { finish } : {}),
   };
 }
 

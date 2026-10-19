@@ -7,8 +7,16 @@
 import type { ProviderKind, ReasoningMode } from '@oriveo/shared/pure-types';
 import type { ProxyMessage, ProxyToolDefinition } from './runtime';
 import type { ContinuationIntent } from '../request-preference/continuation';
+import type { ContinuationDecision } from '../../context/continuation';
 import type { OwnerId } from '../request-preference/types';
 import type { DroppedGenerationParameter } from './generation-parameters';
+
+/** Whether system / model / checkpoint changed since the leg that produced the continuation. */
+export interface ContinuationFingerprint {
+  systemChanged: boolean;
+  modelChanged: boolean;
+  checkpointChanged: boolean;
+}
 
 /** Typed user intent; it is not a wire fragment, and recipes remain the sole compiler. */
 export type CapabilityPreferenceInput = {
@@ -113,6 +121,12 @@ export interface RequestParams {
   stream?: boolean;
   /** Opaque local-only state, supplied by the client continuation store after validation. */
   continuation?: ContinuationIntent;
+  /** Fingerprint comparison against the leg that produced `continuation`, computed by the app
+   * layer. Absent = treated as changed, so the request falls back to the full plan. */
+  continuationFingerprint?: ContinuationFingerprint;
+  /** The app layer's fullPlan / stateful decision for `continuation` . When present the
+   * builder follows it instead of deciding again from the recipe; an incompatible recipe throws. */
+  continuationDecision?: ContinuationDecision;
   tools?: ProxyToolDefinition[];
   toolChoice?: 'auto' | 'none' | 'required';
   options?: {
@@ -154,6 +168,10 @@ export interface RequestParams {
     capabilityRecipeOmissions?: CapabilityRecipeOmission[];
     generationParameters?: GenerationParameterOverrides;
     generationProfile?: GenerationParameterProfile;
+    /** The output limit of the main chat path (plan.budget.oWire); see StreamOptions.maxOutputTokens. */
+    maxOutputTokens?: number;
+    /** The raw [D] text of this request (see StreamOptions.dynamicText); Anthropic uses it to split [D] off as its own last block. */
+    dynamicText?: string;
     /** A raw fragment stays request-local and is losslessly compiled before it can touch the wire.
      * Ownership is deliberately absent: it is derived from the active runtime recipe/profile,
      * never trusted from a caller-controlled payload. */
@@ -191,6 +209,8 @@ export interface ProviderRequest {
     kind: string;
     protocol: string;
     responseParserKind: string;
+    /** Recipe continuationInstructionsMode; tool legs chain on previous_response_id only when set. */
+    instructionsMode?: 'resend' | 'omit';
   };
   /** Formula/Fiber is activated by the capabilityRuntime recipe only; tools enter the first leg after the official GET returns them. */
   moonshotFormula?: {

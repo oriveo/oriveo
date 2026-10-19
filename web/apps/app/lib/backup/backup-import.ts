@@ -5,6 +5,7 @@
 
 import type { Provider, Conversation, ChatMessage, Folder, Skill, SkillUsage, Note, NoteFolder } from '@oriveo/shared';
 import { isValidProviderKind, parseQuoteContext } from '@oriveo/shared';
+import { parseBudgetCap } from '@oriveo/core/context/budget';
 import type { AppPreference } from '@oriveo/shared';
 import type {
   BackupFile,
@@ -28,6 +29,7 @@ import {
   setSessionValue,
 } from '../infra/storage/idb';
 import { saveImage, deleteImage } from '../infra/storage/image-store';
+import { type ContextCheckpointRow, putContextCheckpoint } from '../infra/storage/context-checkpoint-store';
 import { sha256hex, decrypt, base64ToUint8 } from './backup-crypto';
 import { canonicalJSON } from './backup-format';
 import { resetProviderStatus } from './backup-export';
@@ -37,12 +39,17 @@ import { tryGetVanillaStore } from '../../providers/StoreProvider';
 import { loadCachedUserSkills, saveUserSkills } from '../core/skills/cache';
 import { buildOfficialEnabledModels } from '../core/providers/official-model-sync';
 import { ensureProviderCatalogs, getMetadataSnapshot } from '../core/metadata/metadata-client';
+import { normalizeConversationInstructions } from '@oriveo/core/context/conversation-instructions';
 import { normalizeNoteFolderIDs, normalizeNoteIDs, normalizeUUID } from '../utils/id-utils';
 import type { CatalogMetadataInput } from '../core/providers/catalog-resolver';
 import { getActiveUIDSync } from '../infra/storage/partition';
 import { setLocaleCookie, SUPPORTED_LOCALES, type SupportedLocale } from '../i18n/locale-utils';
 import { getSyncAdapter } from '../core/sync-port';
 import { takeGraphemes } from '../utils/grapheme-utils';
+import { MemoryItems, type MemoryBackupMergeInput, type MemoryItem } from '@oriveo/core/context/memory-items';
+import type { MemoryItemRow } from '../infra/storage/memory-item-store';
+import { createIdbMemoryItemRowStore } from '../core/memory/memory-item-row-store';
+import { getOrCreateStableWebDeviceId } from '../core/bootstrap';
 
 /** Same limits as the Memory page and the iOS / Android clients: 2000 characters of memory text, 200 of anti-forget summary. */
 const BACKUP_MEMORY_TEXT_LIMIT = 2000;
@@ -198,12 +205,19 @@ export async function generateImportPreview(
 
 /* ── Execute import ──────────────────────────────────────── */
 
+export interface ExecuteImportOptions {
+  /** Local clock (memory tombstone deletedAt); injected by tests. */
+  now?: () => Date;
+}
+
 export async function executeImport(
   preview: ImportPreview,
   mode: ImportMode,
   password?: string,
   expectedUID?: string,
+  options: ExecuteImportOptions = {},
 ): Promise<ImportResult> {
+  const now = options.now ?? (() => new Date());
   assertExpectedImportUID(expectedUID);
   const result: ImportResult = {
     conversationsImported: 0,
@@ -257,12 +271,23 @@ export async function executeImport(
     assertExpectedImportUID(expectedUID);
   }
 
+  // Memory items: replace swaps the whole table inside the main transaction; merge combines by revision (never resurrecting a tombstone); import-new only adds ids missing locally. null = local items unchanged.
+  let importedMemoryItems: MemoryItem[] | null;
   if (mode === 'replaceAll') {
-    await executeReplaceAll(backupFile, imageEntries, keyMap, result, expectedUID);
-  } else if (mode === 'merge') {
-    await executeMerge(backupFile, imageEntries, keyMap, result);
+    importedMemoryItems = await executeReplaceAll(backupFile, imageEntries, keyMap, result, expectedUID, now);
   } else {
-    await executeImportNew(backupFile, imageEntries, keyMap, result);
+    if (mode === 'merge') {
+      await executeMerge(backupFile, imageEntries, keyMap, result);
+    } else {
+      await executeImportNew(backupFile, imageEntries, keyMap, result);
+    }
+    assertExpectedImportUID(expectedUID);
+    importedMemoryItems = await mergeMemoryItems(backupFile, mode, expectedUID);
+  }
+
+  // A backup with a memory item section is authoritative data: mark it as migrated so a later reconcile does not migrate the memoryText in the backup into a duplicate item
+  if (Array.isArray(backupFile.data.memoryItems)) {
+    setPreference(MEMORY_ITEMS_MIGRATED_PREF_KEY, true, memoryImportUID(expectedUID));
   }
 
   // Restore preferences and the last used model
@@ -273,16 +298,7 @@ export async function executeImport(
     const memoryPatch = memoryPreferencesFromBackup(backupFile.data.preferences);
     const hasMemory = Object.keys(memoryPatch).length > 0;
     if (theme || language || hasMemory) {
-      const currentPreferences = store?.getState().preferences ?? getPreference<AppPreference>(
-        'preferences',
-        {
-          theme: 'dark',
-          themeSetByUser: false,
-          language: 'system',
-          sendShortcut: 'enter',
-        },
-        expectedUID,
-      );
+      const currentPreferences = currentImportPreferences(store, expectedUID);
       // Only known fields are taken: other keys in the backup never reach preferences. theme in the
       // backup is user data, so treat it as an explicit choice once restored.
       const restoredPatch: Partial<AppPreference> = {
@@ -307,6 +323,9 @@ export async function executeImport(
       result.restoredPreferences = true;
     }
   }
+  // Items changed: right after restoring preferences, dual-write memoryText + digest once to overwrite the stale memoryText from the backup,
+  // so legacy sync does not treat it as an edit from an older client and flow it back.
+  if (importedMemoryItems) writeCompiledMemory(importedMemoryItems, store, expectedUID);
   if (backupFile.data.lastUsedModelRef) {
     await setSessionValue('lastUsedModelRef', backupFile.data.lastUsedModelRef, expectedUID);
     assertExpectedImportUID(expectedUID);
@@ -455,6 +474,32 @@ function normalizeImportedNote(note: Note, activeFolderIds: Set<string>): Note {
   return normalized;
 }
 
+/**
+ * Normalizes a backup conversation: an older backup with a missing or non-string instructions key reads as ''.
+ * contextCap is decoded leniently: a missing or invalid value ("190000", 31999, true, ...) drops the field,
+ * which means "follow the global setting", so one bad value never fails the whole import.
+ */
+function normalizeImportedConversation(conv: Conversation): Conversation {
+  const raw = typeof conv.instructions === 'string' ? conv.instructions : '';
+  // memoryItemIds stay on this device: a backup exported elsewhere may carry them, so drop them rather than point at local items.
+  const messages = Array.isArray(conv.messages)
+    ? conv.messages.map((msg) => {
+      if (msg.memoryItemIds === undefined) return msg;
+      const stripped = { ...msg };
+      delete stripped.memoryItemIds;
+      return stripped;
+    })
+    : conv.messages;
+  const normalized: Conversation = { ...conv, messages, instructions: normalizeConversationInstructions(raw) };
+  const cap = parseBudgetCap((conv as { contextCap?: unknown }).contextCap);
+  if (cap === null) {
+    delete normalized.contextCap;
+  } else {
+    normalized.contextCap = cap;
+  }
+  return normalized;
+}
+
 /* ── Mode A: import new only ──────────────────────────────── */
 
 async function executeImportNew(
@@ -494,7 +539,7 @@ async function executeImportNew(
   }
 
   // Import conversations
-  for (const conv of backupFile.data.conversations) {
+  for (const conv of backupFile.data.conversations.map(normalizeImportedConversation)) {
     if (existing.convIds.has(normalizeUUID(conv.id))) {
       result.conversationsSkipped++;
       continue;
@@ -503,6 +548,7 @@ async function executeImportNew(
     await restoreConversationImages(conv, imageEntries, result);
     result.conversationsImported++;
   }
+  await importCheckpoints(backupFile);
 
   // Providers: skip anything with an unknown kind or an id already present locally.
   for (const prov of backupFile.data.providers) {
@@ -610,7 +656,7 @@ async function executeMerge(
   // Merge conversations; image restore (image-store is a separate DB) is compensated after the main transaction.
   const conversationsToPut: Conversation[] = [];
   const convsForImageRestore: Conversation[] = [];
-  for (const backupConv of backupFile.data.conversations) {
+  for (const backupConv of backupFile.data.conversations.map(normalizeImportedConversation)) {
     const local = existingConvMap.get(normalizeUUID(backupConv.id));
     if (!local) {
       // New conversation, add it directly
@@ -631,9 +677,19 @@ async function executeMerge(
       updatedAt: newerUpdatedAt,
       // Metadata comes from whichever side has the later updatedAt
       title: local.updatedAt >= backupConv.updatedAt ? local.title : backupConv.title,
+      // instructions follow the same side as title
+      instructions:
+        local.updatedAt >= backupConv.updatedAt ? (local.instructions ?? '') : backupConv.instructions,
       previewText:
         local.updatedAt >= backupConv.updatedAt ? local.previewText : backupConv.previewText,
     };
+    // contextCap follows the same side as title; if that side has none (follow global), delete the field so the other side's value does not linger
+    const mergedCap = local.updatedAt >= backupConv.updatedAt ? local.contextCap : backupConv.contextCap;
+    if (mergedCap === undefined) {
+      delete merged.contextCap;
+    } else {
+      merged.contextCap = mergedCap;
+    }
 
     conversationsToPut.push(merged);
     convsForImageRestore.push(backupConv);
@@ -698,6 +754,7 @@ async function executeMerge(
   for (const conv of convsForImageRestore) {
     await restoreConversationImages(conv, imageEntries, result);
   }
+  await importCheckpoints(backupFile);
 
   await mergeSkills(backupFile.data.skills ?? [], result);
 }
@@ -709,8 +766,9 @@ async function executeReplaceAll(
   imageEntries: Map<string, Uint8Array>,
   keyMap: Map<string, { apiKey: string; apiKeyPreview: string }> | null,
   result: ImportResult,
-  expectedUID?: string,
-) {
+  expectedUID: string | undefined,
+  now: () => Date,
+): Promise<MemoryItem[]> {
   // Read the old conversations up front so orphan images can be cleaned up once the transaction commits (image-store is a separate DB and stays outside it)
   const existingConvs = await getAllConversations(expectedUID);
   assertExpectedImportUID(expectedUID);
@@ -721,7 +779,7 @@ async function executeReplaceAll(
   const activeNoteFolders = noteFolders.filter((folder) => !folder.deletedAt);
   const activeNoteFolderIds = buildActiveNoteFolderIDSet(activeNoteFolders);
   const notes = (backupFile.data.notes ?? []).map((note) => normalizeImportedNote(note, activeNoteFolderIds));
-  const conversations = backupFile.data.conversations;
+  const conversations = backupFile.data.conversations.map(normalizeImportedConversation);
   const importableProviders = backupFile.data.providers.filter((prov) => isValidProviderKind(prov.kind));
   result.providersSkipped += backupFile.data.providers.length - importableProviders.length;
   const providers = await Promise.all(importableProviders.map(async (prov) => {
@@ -730,18 +788,35 @@ async function executeReplaceAll(
   }));
   assertExpectedImportUID(expectedUID);
 
-  // ── Single main transaction: clear the five stores and write the full snapshot, rolling back as a whole on failure ──
+  // ── Single main transaction: clear the five stores and the memory item table, then write the full snapshot, rolling back as a whole on failure ──
   // Skip tombstones: only active note folders are written, and notes referencing one were already unlinked
-  await replaceAllInOneTx(
-    { conversations, providers, folders, notes, noteFolders: activeNoteFolders },
-    expectedUID,
-  );
+  // Shares one lock with the memory repository so the table replacement and an in-flight write never overwrite each other.
+  const memoryUID = memoryImportUID(expectedUID);
+  const memoryRows = createIdbMemoryItemRowStore(memoryUID);
+  const memoryItems = await memoryRows.exclusive(async () => {
+    const replaced = replaceMemoryItemRows(await memoryRows.all(), backupFile, memoryUID, now);
+    await replaceAllInOneTx(
+      {
+        conversations,
+        providers,
+        folders,
+        notes,
+        noteFolders: activeNoteFolders,
+        memoryItems: replaced.rows,
+      },
+      expectedUID,
+    );
+    return replaced.items;
+  });
   assertExpectedImportUID(expectedUID);
 
   result.noteFoldersImported += activeNoteFolders.length;
   result.notesImported += notes.length;
   result.conversationsImported += conversations.length;
   result.providersImported += providers.length;
+
+  await importCheckpoints(backupFile, expectedUID);
+  assertExpectedImportUID(expectedUID);
 
   // ── Image compensation (image-store is a separate DB, so atomicity is asymmetric): delete the old orphans first, then restore the new images ──
   for (const conv of existingConvs) {
@@ -762,6 +837,178 @@ async function executeReplaceAll(
 
   await replaceAllSkills(backupFile.data.skills ?? [], result, expectedUID);
   assertExpectedImportUID(expectedUID);
+  return memoryItems;
+}
+
+/* ── Memory items: backup section merge / legacy backup migration / dual-write compile ── */
+
+// Same value as MEMORY_ITEMS_MIGRATED_KEY in memory-item-repository; the repository module is not imported directly (it would pull the sync chain into the backup import dependency graph)
+const MEMORY_ITEMS_MIGRATED_PREF_KEY = 'memoryItems.migrated';
+
+function memoryImportUID(expectedUID?: string): string {
+  return expectedUID ?? getActiveUIDSync();
+}
+
+function pendingMemoryRow(item: MemoryItem): MemoryItemRow {
+  return { id: item.id, item, syncState: 'pending' };
+}
+
+/**
+  * Replace all: the memory item table is replaced with the one in the backup (legacy backups migrate from preferences), every row is marked pending;
+  * items alive locally but absent from the backup become pending tombstones (otherwise other devices would sync them back), and local tombstones are kept as is.
+ */
+function replaceMemoryItemRows(
+  localRows: MemoryItemRow[],
+  backupFile: BackupFile,
+  uid: string,
+  now: () => Date,
+): { rows: MemoryItemRow[]; items: MemoryItem[] } {
+  const deviceId = getOrCreateStableWebDeviceId();
+  const { items: backupItems, tombstonedIds = [] } = MemoryItems.backupMerge({
+    mode: 'replace',
+    local: localRows.map((row) => row.item),
+    backup: memoryBackupInput(backupFile),
+    uid,
+    deviceId,
+  });
+  const backupIds = new Set(backupItems.map((item) => item.id));
+  const toTombstone = new Set(tombstonedIds);
+  const deletedAt = now().toISOString();
+  const rows = backupItems.map(pendingMemoryRow);
+  for (const row of localRows) {
+    const local = MemoryItems.canonical(row.item);
+    if (backupIds.has(local.id)) continue;
+    if (toTombstone.has(local.id)) {
+      rows.push(pendingMemoryRow(MemoryItems.tombstone({
+        item: local,
+        mutationId: globalThis.crypto.randomUUID().toLowerCase(),
+        deviceId,
+        deletedAt,
+      })));
+    } else if (local.status === 'deleted') {
+      rows.push(row);
+    }
+  }
+  return { rows, items: MemoryItems.listOrder(rows.map((row) => MemoryItems.canonical(row.item))) };
+}
+
+/** Input for backupMerge: a non-array memoryItems is treated as a legacy backup, whose memory fields are sanitized the same way as the preference restore before migrating. */
+function memoryBackupInput(backupFile: BackupFile): MemoryBackupMergeInput['backup'] {
+  const data = backupFile.data;
+  if (Array.isArray(data.memoryItems)) {
+    return { memorySchemaVersion: data.memorySchemaVersion, memoryItems: data.memoryItems };
+  }
+  if (!data.preferences) return {};
+  const memory = memoryPreferencesFromBackup(data.preferences);
+  return {
+    preferences: {
+      memoryText: memory.memoryText ?? null,
+      antiForgetEnabled: memory.memoryAntiForgetEnabled === true,
+      antiForgetText: memory.memoryAntiForgetText ?? null,
+      memoryUpdatedAt: memory.memoryUpdatedAt ?? null,
+    },
+  };
+}
+
+/**
+  * Merge import: per id the higher revision wins (a local tombstone is not resurrected by an older version), and legacy backups are create-if-absent.
+  * Import new only: only ids missing locally are added (a tombstone counts as present), and items that already exist locally are never touched.
+  * Only changed rows are written as pending; returns null when nothing changed, otherwise the full merged table.
+ */
+async function mergeMemoryItems(
+  backupFile: BackupFile,
+  mode: 'merge' | 'importNew',
+  expectedUID?: string,
+): Promise<MemoryItem[] | null> {
+  const uid = memoryImportUID(expectedUID);
+  const rows = createIdbMemoryItemRowStore(uid);
+  const merged = await rows.exclusive(async () => {
+    const localRows = await rows.all();
+    const { items: mergedItems } = MemoryItems.backupMerge({
+      mode: 'merge',
+      local: localRows.map((row) => row.item),
+      backup: memoryBackupInput(backupFile),
+      uid,
+      deviceId: getOrCreateStableWebDeviceId(),
+    });
+    const localById = new Map(localRows.map((row) => [row.id, MemoryItems.canonical(row.item)]));
+    const items = mode === 'importNew'
+      ? mergedItems.map((item) => localById.get(item.id) ?? item)
+      : mergedItems;
+    const before = new Map(localRows.map((row) => [row.id, JSON.stringify(MemoryItems.canonical(row.item))]));
+    const changed = items.filter((item) => before.get(item.id) !== JSON.stringify(item));
+    if (changed.length === 0) return null;
+    await rows.put(changed.map(pendingMemoryRow));
+    return items;
+  });
+  return merged;
+}
+
+type ImportPreferenceStore = ReturnType<typeof tryGetVanillaStore>;
+
+function currentImportPreferences(store: ImportPreferenceStore, expectedUID?: string): AppPreference {
+  return store?.getState().preferences ?? getPreference<AppPreference>(
+    'preferences',
+    {
+      theme: 'dark',
+      themeSetByUser: false,
+      language: 'system',
+      sendShortcut: 'enter',
+    },
+    expectedUID,
+  );
+}
+
+/**
+  * Dual-write on the same terms as the memory repository: write only when the compiled result or digest differs from preferences;
+  * refresh memoryUpdatedAt and push through the preference sync path only when the text changed, and only persist locally when just the digest is filled in.
+ */
+function writeCompiledMemory(items: MemoryItem[], store: ImportPreferenceStore, expectedUID?: string): void {
+  const compiled = MemoryItems.compileLegacy({ uid: memoryImportUID(expectedUID), items });
+  const current = currentImportPreferences(store, expectedUID);
+  const textChanged = compiled.memoryText !== (current.memoryText ?? '');
+  if (!textChanged && compiled.memoryTextDigest === current.memoryTextDigest) return;
+  // Text unchanged, only the digest is filled in: keep the memoryUpdatedAt restored from the backup.
+  const patch: Partial<AppPreference> = {
+    memoryText: compiled.memoryText,
+    memoryTextDigest: compiled.memoryTextDigest,
+    ...(textChanged ? { memoryUpdatedAt: new Date().toISOString() } : {}),
+  };
+  setPreference('preferences', { ...current, ...patch }, expectedUID);
+  store?.getState().setPreferences(patch);
+  if (textChanged) getSyncAdapter()?.didUpdatePreferences(patch);
+}
+
+/* ── Checkpoint import: only rows whose conversation exists after the import, upserted by primary key ── */
+
+async function importCheckpoints(backupFile: BackupFile, expectedUID?: string): Promise<void> {
+  const rows = backupFile.data.checkpoints ?? [];
+  if (rows.length === 0) return;
+  const conversations = await getAllConversations(expectedUID);
+  const localIds = new Map(conversations.map((c) => [normalizeUUID(c.id), c.id]));
+  for (const row of rows) {
+    // Rows with an unknown kind or a missing required key are dropped (aligned with iOS / Android).
+    if (!isImportableCheckpointRow(row)) continue;
+    const conversationId = localIds.get(normalizeUUID(row.conversationId));
+    if (!conversationId) continue;
+    await putContextCheckpoint({ ...row, conversationId }, expectedUID);
+  }
+}
+
+function isImportableCheckpointRow(row: unknown): row is ContextCheckpointRow {
+  if (typeof row !== 'object' || row === null) return false;
+  const r = row as Record<string, unknown>;
+  if (r['kind'] !== 'summary' && r['kind'] !== 'fallback') return false;
+  const requiredStrings = ['conversationId', 'checkpointId', 'coversFrom', 'coversTo', 'coversDigest', 'text', 'model', 'packerVersion'];
+  if (!requiredStrings.every((key) => typeof r[key] === 'string')) return false;
+  if (typeof r['messagesCovered'] !== 'number' || !Number.isInteger(r['messagesCovered'])) return false;
+  if (typeof r['createdAt'] !== 'number' || !Number.isFinite(r['createdAt'])) return false;
+  if (!Array.isArray(r['userMessageIds']) || !r['userMessageIds'].every((id) => typeof id === 'string')) return false;
+  for (const key of ['summary', 'language'] as const) {
+    if (r[key] != null && typeof r[key] !== 'string') return false;
+  }
+  if (r['cost'] != null && typeof r['cost'] !== 'number') return false;
+  return true;
 }
 
 /* ── Message merge algorithm ─────────────────────────── */

@@ -9,6 +9,7 @@
  */
 import type { AIModel, ChatMessage, Conversation, Provider, ProviderErrorSource } from "@oriveo/shared";
 import type { StreamOptions } from "@oriveo/core/providers/types";
+import { unbilledSkillRetrievalUsage } from "./prompt-injection";
 import { resolveProviderAPIKey } from "@oriveo/core/providers/provider-credential";
 import { upsertMessages } from "./message-merge";
 import {
@@ -37,6 +38,27 @@ import {
   persistOpenAISubscriptionCredential,
 } from "../provider-ops";
 import type { ChatOpCtx } from "./operations";
+import type { ProxyMessage } from "@oriveo/core/providers/request-builders/runtime";
+import type { AssembleDynamic } from "@oriveo/core/context/assemble";
+import { recallForTurn } from "../memory/memory-recall-runtime";
+import { CONTEXT_BUDGET_CONSTANTS } from "@oriveo/core/context/budget";
+import type { ToolRegistryEntry } from "@oriveo/core/tools/tool-loop-contracts";
+import { createSearchMemoryEntry, createSearchMemoryTurn, planRecallIds, planRecallMax, type SearchMemoryTurn } from "./search-memory-runtime";
+import { buildOutboundChatHistory } from "./outbound-history";
+import {
+  assembleChatPlan,
+  chatPlanWindowOf,
+  compactChatContextAssembly,
+  latestValidChatCheckpoint,
+  prepareChatContextAssembly,
+  type ChatContextAssembly,
+  type ChatPlanWindow,
+} from "./context-pipeline/chat-context";
+import {
+  projectPlanMessages,
+  transportInput,
+  type PlannedChatRequest,
+} from "./context-pipeline/transport-input";
 
 export async function prepareAgentSubscriptionOutbound(
   store: ChatOpCtx["store"],
@@ -181,4 +203,123 @@ export function patchAssistantMessage(
     estimatedCost: recalculateConversationCost(messages),
     updatedAt: computeConversationActivityAt(messages, conversation.createdAt),
   });
+}
+
+/**
+ * Outbound messages of the tool loop (MCP, library Agent): purpose toolLoopLeg makes the assembler produce the single system message (toolSafety at the end),
+ * reused as is by every leg; the first-leg downgrade re-answer assembles one more request with purpose chat, with the evidence going into [D].
+ */
+export interface ToolLoopContext {
+  readonly promptContext: ChatContextAssembly["promptContext"];
+  /** The complete messages of the tool loop's first leg. */
+  readonly history: ProxyMessage[];
+  /** Assembles one request from the same context as chat (library first-leg downgrade re-answer); afterwards every leg's planned is replaced with this one. */
+  chatRequest(dynamic: AssembleDynamic): Promise<ProxyMessage[]>;
+  /** The projection every leg currently belongs to: each leg's runLeg calls transportInput with it (toolLeg form). */
+  readonly planned: PlannedChatRequest;
+  /** Ids of the memory items injected by the plan every leg currently belongs to, plus the ids search_memory handed to the model this turn; replaced by those of the re-answer after a first-leg downgrade. */
+  readonly memoryIds: string[];
+  /**
+   * The search_memory registry entry (memory-search.v1 legRules 4): the only one this turn, excludeIds taken from the [D] recall of the current plan,
+   * and results trimmed by the current plan's recallMax / rhoHi. Used only in tool mode.
+   */
+  searchMemoryEntry(): ToolRegistryEntry;
+  /** The window input used by the first-leg plan (the pre-send confirmation gate decides by it). */
+  readonly window: ChatPlanWindow;
+}
+
+export async function prepareToolLoopContext(ctx: ChatOpCtx, input: {
+  conversation: Conversation | undefined;
+  conversationId: string;
+  provider: Provider;
+  model: AIModel;
+  /** Outbound history (including this turn's user message, attachments already filtered by the current model's capabilities). */
+  messages: ChatMessage[];
+  keepAssistantId?: string;
+  latestUserText: string;
+  streamOptions?: StreamOptions;
+  toolSafety: string;
+}): Promise<ToolLoopContext> {
+  const assembly = await prepareChatContextAssembly({
+    store: ctx.store,
+    conversation: input.conversation,
+    conversationId: input.conversationId,
+    provider: input.provider,
+    model: input.model,
+    messages: input.messages,
+    ...(input.keepAssistantId ? { keepAssistantId: input.keepAssistantId } : {}),
+    latestUserText: input.latestUserText,
+    purpose: "toolLoopLeg",
+  });
+  // system and [D] are written into the messages only by transportInput.
+  const wire = async (planned: PlannedChatRequest, toolLoop: boolean): Promise<ProxyMessage[]> => {
+    const history = await buildOutboundChatHistory(ctx, {
+      messages: planned.messages,
+      provider: input.provider,
+      model: input.model,
+      streamOptions: input.streamOptions,
+      toolLoop,
+    });
+    const transport = transportInput(planned, { options: input.streamOptions, history });
+    return transport.messages as ProxyMessage[];
+  };
+  // L3 recall: every leg of the same turn and the first-leg downgrade re-answer reuse this one copy.
+  const recall = recallForTurn({
+    items: ctx.store.getState().memoryItems,
+    useMemory: assembly.input.conversation.useMemory,
+    query: input.latestUserText,
+    conversationId: input.conversationId,
+    folderId: input.conversation?.folderID ?? null,
+  });
+  const recallDynamic: AssembleDynamic = recall.length > 0 ? { recall } : {};
+  const planOptions = { provider: input.provider, model: input.model };
+  // When still over 0.90, take the deterministic fallback (same as the main send; only this request changes, nothing is persisted);
+  // the tool loop does not use library rows as a prefix, and the fallback still carries the non-empty summary of the current checkpoint winner.
+  const stored = await latestValidChatCheckpoint(input.conversationId, assembly);
+  const oldSummary = stored?.summary?.trim() || null;
+  const planWithFallback = (base: ChatContextAssembly, dynamic: AssembleDynamic) => {
+    const options = { ...planOptions, dynamic };
+    const plan = assembleChatPlan(base, options);
+    const compacted = compactChatContextAssembly(base, plan, oldSummary);
+    return compacted ? assembleChatPlan(compacted, options) : plan;
+  };
+  const toolPlan = planWithFallback(
+    { ...assembly, input: { ...assembly.input, toolSafety: input.toolSafety } },
+    recallDynamic,
+  );
+  let currentPlan = toolPlan;
+  let planned = projectPlanMessages(toolPlan, input.messages);
+  const window = chatPlanWindowOf(assembly, planOptions);
+  let searchTurn: SearchMemoryTurn | undefined;
+  // The first-leg downgrade re-answer carries no tool results: ids returned by an earlier search do not count as used.
+  let searchIdsDropped = 0;
+  return {
+    window,
+    // A real send takes the retrieval usage: a retrieval that hit the cache or was already billed by a successful send is not counted again.
+    promptContext: unbilledSkillRetrievalUsage(assembly.promptContext),
+    history: await wire(planned, true),
+    chatRequest: async (dynamic) => {
+      currentPlan = planWithFallback({ ...assembly, input: { ...assembly.input, purpose: "chat" } }, { ...recallDynamic, ...dynamic });
+      searchIdsDropped = searchTurn?.returnedIds.length ?? 0;
+      planned = projectPlanMessages(currentPlan, input.messages);
+      return wire(planned, false);
+    },
+    get planned() {
+      return planned;
+    },
+    get memoryIds() {
+      return [...new Set([...currentPlan.memoryIds, ...(searchTurn?.returnedIds.slice(searchIdsDropped) ?? [])])];
+    },
+    searchMemoryEntry() {
+      searchTurn ??= createSearchMemoryTurn({
+        store: ctx.store,
+        conversationId: input.conversationId,
+        folderId: input.conversation?.folderID ?? null,
+        recallIds: () => planRecallIds(currentPlan, recall),
+        recallMax: () => planRecallMax(currentPlan),
+        rhoHi: () => assembly.input.rhoHi ?? CONTEXT_BUDGET_CONSTANTS.rho0,
+      });
+      return createSearchMemoryEntry(searchTurn);
+    },
+  };
 }

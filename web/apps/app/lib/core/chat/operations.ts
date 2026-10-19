@@ -10,7 +10,8 @@
  */
 import type { StoreApi } from 'zustand';
 import type { ChatAttemptKind } from '../telemetry/chat-failure';
-import type { AIModel } from '@oriveo/shared';
+import type { AIModel, Attachment, QuoteContext } from '@oriveo/shared';
+import type { LibraryDocumentRef } from '../library/types';
 import type { SkippedAttachment } from '../attachments/attachment-injector';
 import type { AppStore } from '../store/app-store';
 
@@ -24,12 +25,25 @@ export interface ChatOpCtx {
   describeAttachmentOverLimit?: (skipped: SkippedAttachment[], model: AIModel) => string;
 }
 
+/** Original input handed back on cancel rollback; restored into the composer when it is empty. */
+export interface SendRollback {
+  text: string;
+  attachments?: Attachment[];
+  quoteContext?: QuoteContext;
+  libraryContextDocuments?: LibraryDocumentRef[];
+}
+
+export interface SendOutcome {
+  rolledBack: SendRollback;
+}
+
 export interface SendHandle {
   convId: string;
   /** The assistant message id bound to this stream, used by the lifecycle flush and by the entry guard that persists partials. */
   msgId: string;
   abort: () => void;
-  done: Promise<void>;
+  /** Resolves when the stream ends; carries the rollback result when cancelled at the pre-send confirmation (the message pair was already deleted locally), otherwise undefined. */
+  done: Promise<SendOutcome | void>;
   /** Entry point that started this attempt; passed when the stream is registered so the stop event records the right attempt_kind. */
   attemptKind?: ChatAttemptKind;
 }

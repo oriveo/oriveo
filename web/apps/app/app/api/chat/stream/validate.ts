@@ -2,6 +2,13 @@ import { isValidProviderKind, type ProviderKind } from '@oriveo/shared';
 import type { ProxyMessage } from './runtime';
 import type { RequestParams } from './request-builders/types';
 import { validateContinuation, type ContinuationIntent } from '@oriveo/core/providers/request-preference/continuation';
+import { PROPOSE_MEMORY_TOOL, PROPOSE_MEMORY_TOOL_NAME } from '@oriveo/core/context/memory-propose';
+import { SEARCH_MEMORY_TOOL, SEARCH_MEMORY_TOOL_NAME } from '@oriveo/core/context/memory-search';
+
+/** Host tool propose_memory: only the one byte-identical to the shared definition is let through. */
+const PROPOSE_MEMORY_TOOL_JSON = JSON.stringify(PROPOSE_MEMORY_TOOL);
+/** Host tool search_memory (memory-search.v1): same as propose_memory, only the byte-identical one is let through. */
+const SEARCH_MEMORY_TOOL_JSON = JSON.stringify(SEARCH_MEMORY_TOOL);
 
 /**
  * Runtime validation and size limits for this route's request parameters.
@@ -104,7 +111,8 @@ export function isMcpToolName(name: string): boolean {
 
 /** Tool calls in the history and outgoing tools share the same name rules. */
 function isAllowedToolCallName(name: string): boolean {
-  return LIBRARY_TOOL_NAMES.has(name) || isMcpToolName(name);
+  return LIBRARY_TOOL_NAMES.has(name) || isMcpToolName(name) || name === PROPOSE_MEMORY_TOOL_NAME
+    || name === SEARCH_MEMORY_TOOL_NAME;
 }
 
 function validateMessageContentSize(content: unknown): boolean {
@@ -303,6 +311,15 @@ export function validateChatStreamRequest(body: unknown): ValidationResult {
         if (definitionBytes > HARD_MAX_MCP_TOOL_DEFINITION_BYTES) {
           return { ok: false, status: 400, error: 'tools invalid' };
         }
+      } else if (fn.name === PROPOSE_MEMORY_TOOL_NAME) {
+        // Duplicate names are already rejected by seenToolNames, so there is at most one.
+        if (JSON.stringify(tool) !== PROPOSE_MEMORY_TOOL_JSON) {
+          return { ok: false, status: 400, error: 'tools invalid' };
+        }
+      } else if (fn.name === SEARCH_MEMORY_TOOL_NAME) {
+        if (JSON.stringify(tool) !== SEARCH_MEMORY_TOOL_JSON) {
+          return { ok: false, status: 400, error: 'tools invalid' };
+        }
       } else {
         return { ok: false, status: 400, error: 'tools invalid' };
       }
@@ -384,6 +401,29 @@ export function validateChatStreamRequest(body: unknown): ValidationResult {
       return { ok: false, status: 400, error: 'continuation invalid' };
     }
   }
+  const continuationFingerprint = body.continuationFingerprint;
+  if (continuationFingerprint !== undefined) {
+    if (continuation === undefined
+      || !isRecord(continuationFingerprint)
+      || Object.keys(continuationFingerprint).some((key) => key !== 'systemChanged' && key !== 'modelChanged' && key !== 'checkpointChanged')
+      || typeof continuationFingerprint.systemChanged !== 'boolean'
+      || typeof continuationFingerprint.modelChanged !== 'boolean'
+      || typeof continuationFingerprint.checkpointChanged !== 'boolean') {
+      return { ok: false, status: 400, error: 'continuationFingerprint invalid' };
+    }
+  }
+  const continuationDecision = body.continuationDecision;
+  if (continuationDecision !== undefined) {
+    const validDecision = isRecord(continuationDecision) && (
+      (continuationDecision.kind === 'fullPlan' && Object.keys(continuationDecision).length === 1)
+      || (continuationDecision.kind === 'stateful'
+        && Object.keys(continuationDecision).every((key) => key === 'kind' || key === 'previousResponseId' || key === 'sendInstructions')
+        && typeof continuationDecision.previousResponseId === 'string' && continuationDecision.previousResponseId.length > 0
+        && typeof continuationDecision.sendInstructions === 'boolean'));
+    if (continuation === undefined || !validDecision) {
+      return { ok: false, status: 400, error: 'continuationDecision invalid' };
+    }
+  }
 
   return {
     ok: true,
@@ -398,6 +438,12 @@ export function validateChatStreamRequest(body: unknown): ValidationResult {
       toolChoice: toolChoice as ValidatedRequest['toolChoice'],
       options: options as ValidatedRequest['options'],
       continuation: continuation as ValidatedRequest['continuation'],
+      ...(continuationFingerprint !== undefined
+        ? { continuationFingerprint: continuationFingerprint as unknown as ValidatedRequest['continuationFingerprint'] }
+        : {}),
+      ...(continuationDecision !== undefined
+        ? { continuationDecision: continuationDecision as unknown as ValidatedRequest['continuationDecision'] }
+        : {}),
       ...(authMode ? { authMode: authMode as 'apiKey' | 'subscription' } : {}),
     },
   };

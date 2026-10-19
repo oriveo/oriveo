@@ -150,7 +150,8 @@ describe('sse-framing: openai_chat assembly (production proxy chunk parser)', ()
         const text = events.map((event) => (event.type === 'delta' ? event.content : '')).join('');
         expect(text).toBe(testCase.openai_chat!.text);
         expect(events.filter((event) => event.type === 'error')).toEqual([]);
-        expect(events.at(-1)).toEqual({ type: 'done' });
+        // done carries a StreamFinish (whether it is clean depends on the case bytes); this only pins that the stream ends with done.
+        expect(events.at(-1)).toMatchObject({ type: 'done', finish: { family: 'openai_chat' } });
       });
     }
   }
@@ -169,7 +170,7 @@ describe('beyond the fixture: upstreams that do not follow the specification', (
       createSSEStream(responseOf([new TextEncoder().encode(body)]), createProxyChunkParser('openAI')),
     );
     expect(events.map((event) => (event.type === 'delta' ? event.content : '')).join('')).toBe('AB');
-    expect(events.at(-1)).toEqual({ type: 'done' });
+    expect(events.at(-1)).toEqual({ type: 'done', finish: { family: 'openai_chat', ended: 'clean' } });
   });
 
   it('delivers each data line with its own event name when event / data pairs come without a blank line between events', async () => {

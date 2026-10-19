@@ -98,6 +98,10 @@
   --o-success-subtle: rgba(16, 185, 129, 0.10);
   --o-warning: #F59E0B;
   --o-warning-subtle: rgba(245, 158, 11, 0.10);
+  /* Outline for cards such as conflict cards that ask for a glance but are not errors; a line only, no text; same value on all platforms (iOS Palette.warningLine) */
+  --o-warning-line: rgba(245, 158, 11, 0.40);
+  /* Background dot grid of the memory atlas (iOS Palette.memoryAtlasDot) */
+  --o-memory-atlas-dot: rgba(24, 24, 27, 0.10);
   --o-error: #EF4444;
   --o-error-subtle: rgba(239, 68, 68, 0.10);
   --o-info: #3B82F6;
@@ -657,6 +661,8 @@
   --o-success-subtle: rgba(110, 231, 161, 0.14);
   --o-warning: #FCD34D;
   --o-warning-subtle: rgba(252, 211, 77, 0.14);
+  --o-warning-line: rgba(252, 211, 77, 0.32);
+  --o-memory-atlas-dot: rgba(255, 255, 255, 0.08);
   --o-error: #F8978F;
   --o-error-subtle: rgba(248, 151, 143, 0.14);
   --o-info: #8DB6FF;

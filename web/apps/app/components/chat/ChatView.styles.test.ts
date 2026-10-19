@@ -87,3 +87,13 @@ describe('single model-controls panel layout contract', () => {
     expect(css).toContain('max-height: calc(100dvh - var(--o-model-options-popover-reserved));');
   });
 });
+
+describe('suggestion bar width contract', () => {
+  it('keeps directive and memory suggestion bars full-row like iOS', () => {
+    for (const file of ['DirectiveSuggestionBar.module.css', 'MemorySuggestionBar.module.css']) {
+      const bar = extractClassBlock(readFileSync(join(process.cwd(), 'components/chat', file), 'utf8'), 'bar');
+      expect(bar, file).not.toMatch(/margin:[^;]*\bauto\b/);
+      expect(bar, file).not.toContain('margin-left: auto');
+    }
+  });
+});

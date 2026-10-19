@@ -1702,10 +1702,12 @@ describe("/api/chat/stream", () => {
                   data: "JVBERi0xLjQ=",
                 },
               },
-              { type: "text", text: "Summarize it" },
+              // The single block-level breakpoint sits on the last block of the last user message; there is no top-level cache_control.
+              { type: "text", text: "Summarize it", cache_control: { type: "ephemeral" } },
             ],
           },
         ]);
+        expect(body.cache_control).toBeUndefined();
         return sseResponse("data: [DONE]\n\n");
       }
 
@@ -2135,7 +2137,9 @@ describe("/api/chat/stream", () => {
     expect(response.status).toBe(200);
     expect(messagesBody?.tools).toBeUndefined();
     // The existing structure stays intact
-    expect(messagesBody?.messages).toEqual([{ role: "user", content: "hello" }]);
+    expect(messagesBody?.messages).toEqual([
+      { role: "user", content: [{ type: "text", text: "hello", cache_control: { type: "ephemeral" } }] },
+    ]);
   });
 
   it("tools: [] means the same as no tools: the body sent upstream has neither tools nor tool_choice", async () => {

@@ -9,6 +9,8 @@
  * this module never touches window/fetch/crypto directly. signal is passed through so that
  * cancellation keeps working.
  */
+import { StopReasonResolver } from '../context/stop-reason';
+import type { StreamFinish } from '../context/stream-finish';
 import { attachmentTransportProfile } from './attachment-transport';
 import { mapRelayStreamError } from '@oriveo/shared/relay/error-mapping';
 import { redactRelayCredentials } from '@oriveo/shared/relay/endpoint-policy';
@@ -46,7 +48,7 @@ import {
   buildRelayProxyConfig,
   buildResponsesContent,
   convertToAnthropicParts,
-  markRelayAnthropicCacheBreakpoint,
+  markAnthropicCacheBreakpoint,
   convertToGeminiParts,
   convertToOpenAIChatParts,
   extractImagePrompt,
@@ -70,8 +72,8 @@ import { nativeToolCallEvents, type ToolCallProtocol } from './tool-call-protoco
 import { generationWriteFacts } from './generation-rejection-facts';
 import { additionalBodyHasContent, applyAdditionalBodyInPlace, assertAdditionalBodyAccepted } from './request-builders/additional-body';
 import { readTopLevelErrorFrame } from './upstream-error-text';
-import { classifyInStreamProviderErrorKind, normalizeUpstreamErrorType, upstreamErrorTypeValue } from './errors';
-import { guardAnthropicThinking, resolveRelayAnthropicThinking } from './request-builders/anthropic-thinking';
+import { classifyInStreamProviderErrorKind, normalizeUpstreamErrorType, providerErrorRawBody, upstreamErrorTypeValue, withProviderErrorRawBody } from './errors';
+import { chatMaxOutputTokens, guardAnthropicThinking, resolveRelayAnthropicThinking } from './request-builders/anthropic-thinking';
 import { compileSafeCustomFragment, rejectSafeCustomFragment, SafeCustomFragmentRejectedError } from './request-builders/safe-custom-fragment';
 import { safeCustomOwners } from './request-builders/generation-parameters';
 import {
@@ -302,14 +304,15 @@ function isPlainRelayObject(value: unknown): value is Record<string, unknown> {
 function relayTopLevelErrorFrame(chunk: unknown): StreamEvent | null {
   const frame = readTopLevelErrorFrame(chunk);
   if (!frame) return null;
-  return {
+  // The raw frame is used only for local overflow detection (an overflow after body text is recorded as context_window_exceeded); it is non-enumerable and never leaves the device.
+  return withProviderErrorRawBody<StreamEvent>({
     type: 'error',
     error: frame.message,
     errorKind: classifyInStreamProviderErrorKind(frame.message, frame.typeOrCode),
     source: 'provider',
     streamErrorFrame: true,
     ...(normalizeUpstreamErrorType(frame.typeOrCode) ? { upstreamErrorType: normalizeUpstreamErrorType(frame.typeOrCode) } : {}),
-  };
+  }, providerErrorRawBody(JSON.stringify(chunk)));
 }
 
 function requestCredentialValues(
@@ -503,6 +506,20 @@ export function buildLlamaCppNativePrompt(messages: RelayMessages): string {
   }).join('\n');
 }
 
+interface LlamaCppCompletionChunk {
+  content?: string;
+  completion?: string;
+  stop?: boolean;
+  stop_type?: unknown;
+  stopped_eos?: unknown;
+  stopped_word?: unknown;
+  stopped_limit?: unknown;
+}
+
+function llamaCppFinish(chunk: LlamaCppCompletionChunk): StreamFinish {
+  return { family: 'llama_cpp', ended: 'clean', finishRaw: StopReasonResolver.llamaCppFinishRaw(chunk) };
+}
+
 /** Native llama.cpp server `/completion`. The model and chat template are managed by the engine, so it must not be disguised as OpenAI Chat. */
 function sendLlamaCppNativeStream(
   apiKey: string,
@@ -531,11 +548,12 @@ function sendLlamaCppNativeStream(
     return { url, headers, body, modelID, endpointFingerprint, ...relayLearningScopeFields(transport, options) };
   };
   const parseCompletion = (_eventType: string | null, data: string): StreamEvent | null => {
-    const chunk = JSON.parse(data) as { content?: string; completion?: string; stop?: boolean };
+    const chunk = JSON.parse(data) as LlamaCppCompletionChunk;
     const errorFrame = relayTopLevelErrorFrame(chunk);
     if (errorFrame) return errorFrame;
     if (chunk.content ?? chunk.completion) return { type: 'delta', content: chunk.content ?? chunk.completion ?? '' };
-    return chunk.stop ? { type: 'done' } : null;
+    // stop:true is the llama.cpp terminal frame; finishRaw takes stop_type (older servers derive it from the stopped_* booleans).
+    return chunk.stop ? { type: 'done', finish: llamaCppFinish(chunk) } : null;
   };
   const stream = relayStream
     ? createRelaySSEStream(
@@ -547,8 +565,11 @@ function sendLlamaCppNativeStream(
     : createRelayJSONStream(
         (signal) => fetchRelayRequest(buildRequest(), signal, deps.transport, deps.onUnsupportedParamDropped),
         (payload) => {
-          const response = payload as { content?: string; completion?: string };
-          return [{ type: 'delta', content: response.content ?? response.completion ?? '' }, { type: 'done' }];
+          const response = (payload ?? {}) as LlamaCppCompletionChunk;
+          return [
+            { type: 'delta', content: response.content ?? response.completion ?? '' },
+            { type: 'done', finish: llamaCppFinish(response) },
+          ];
         },
         controller.signal,
         sensitiveCredentialValues,
@@ -573,7 +594,7 @@ function sendRelayImagesGeneration(
 ): StreamHandle {
   const controller = new AbortController();
   const transport: RelayTransport = 'openai_chat_completions';
-  const prompt = extractImagePrompt(messages);
+  const prompt = options?.relayImagePrompt?.trim() || extractImagePrompt(messages);
 
   if (!prompt) {
     // Fail before opening a connection: an image request with no prompt has nothing to send.
@@ -1052,18 +1073,19 @@ export function buildRelayAnthropicMessagesBody(
         : convertToAnthropicParts(message.content),
     }));
 
-  // Anthropic allows at most 4 cache breakpoints: Relay places exactly one, on the last block of the last user message.
-  markRelayAnthropicCacheBreakpoint(apiMessages);
+  // Anthropic allows at most 4 cache breakpoints: [D] is split into a standalone last block, and the single breakpoint goes on the last non-[D] block of the last user message.
+  markAnthropicCacheBreakpoint(apiMessages, options?.dynamicText);
 
+  const chatOutputLimit = chatMaxOutputTokens(options?.maxOutputTokens);
   const body: Record<string, unknown> = {
     model: modelID,
-    // Relay-specific exception / heuristic-allow fallback only: the official Anthropic path resolves this from metadata instead.
-    max_tokens: options?.relayMaxOutputTokens ?? 8192,
+    // The main chat path uses the wire limit; other paths keep 8192 as a Relay-specific exception / heuristic-allow fallback (the official Anthropic path resolves this from metadata).
+    max_tokens: options?.relayMaxOutputTokens ?? chatOutputLimit ?? 8192,
     stream: shouldRelayStream(options),
     messages: apiMessages,
   };
   if (systemTexts.length > 0) body.system = systemTexts.join('\n\n');
-  const thinking = resolveRelayAnthropicThinking(options?.reasoning);
+  const thinking = resolveRelayAnthropicThinking(options?.reasoning, chatOutputLimit);
   if (thinking) {
     body.thinking = { type: 'enabled', budget_tokens: thinking.budgetTokens };
     body.max_tokens = thinking.maxTokens;

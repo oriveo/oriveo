@@ -533,6 +533,21 @@ export interface QuoteContext {
   contextTruncated: boolean;
 }
 
+/**
+ * Why a message ended (the same set as STOP_REASONS in @oriveo/core/context/stop-reason).
+ * shared cannot depend on core, so the same string union lives here; an unrecognized string read back is classified as unknown by StopReason.fromStored.
+ */
+export type StopReason =
+  | 'stop'
+  | 'length'
+  | 'content_filter'
+  | 'tool'
+  | 'context_window_exceeded'
+  | 'interrupted'
+  | 'incomplete'
+  | 'error'
+  | 'unknown';
+
 export interface ChatMessage {
   id: string;
   role: ChatRole;
@@ -560,6 +575,11 @@ export interface ChatMessage {
   }>;
   /** Device-local explanation for a one-shot resend that intentionally omitted tools. */
   toolFallbackNotice?: 'library_not_searched' | 'web_recovered';
+  /**
+   * Ids of the memory items actually injected into the system prompt by the request that produced this answer (the final plan.memoryIds).
+   * Stored on this device only: not backed up, stripped from backup exports, dropped on import; the field is not written when nothing was injected.
+   */
+  memoryItemIds?: string[];
   /** Local-only CTA gate; never synced. Means exact custom + pre-token upstream 400 only. */
   capabilityCustomRetryEligible?: boolean;
   /** Local-only explicit resend descriptor. Saved preferences are retained dormant. */
@@ -573,6 +593,8 @@ export interface ChatMessage {
   };
   providerID?: string;
   providerKind: ProviderKind;
+  /** Why the stream ended; old messages are undefined (read as null) and are not backfilled. */
+  stopReason?: StopReason;
   providerName: string;
   modelID?: string;
   modelName: string;
@@ -594,7 +616,7 @@ export interface ChatMessage {
   errorKind?: string;
   /**
    * Which side the error came from. `provider` means an official provider or relay
-   * returned a response: the UI shows only the redacted upstream text, Sentry must drop
+   * returned a response: the UI shows only the redacted upstream text, error reporting must drop
    * it, and the kind alone decides the recovery action.
    */
   errorSource?: ProviderErrorSource;
@@ -696,6 +718,10 @@ export interface Conversation {
   useMemory?: boolean;
   /** Note ids pinned into this conversation's prompt context. Local on Free; synced with the conversation on Pro. */
   pinnedNoteIds?: string[];
+  /** Conversation-level instructions (normalized, see normalizeConversationInstructions); absent reads as '', read with `?? ''`. */
+  instructions?: string;
+  /** Per-conversation context cap (wire value, see conversation-context-cap.v1.json); absent = follow the global setting. */
+  contextCap?: 'auto' | 'unlimited' | number;
   /** Associated skill id, recorded when the conversation starts from a skill; immutable afterwards. */
   skillId?: string;
   /** Remote message count, shown as a fallback before messages are lazily loaded. */
@@ -855,7 +881,13 @@ export interface AppPreference {
   memoryAntiForgetEnabled?: boolean;    // Defaults to false
   memoryAntiForgetText?: string;        // Up to 200 grapheme clusters
   memoryUpdatedAt?: string;             // ISO 8601
+  memoryTextDigest?: string;            // sha256Hex(memoryText), written alongside memoryText; a mismatch means it was edited elsewhere
   hasSeenNoteCaptureHint?: boolean;     // One-off UI hint; local to this client
+  contextAISummaryEnabled?: boolean;    // AI summary for context compaction; absent counts as false
+  /** Global default context cap (wire value); missing or undecodable = 'auto'. Device preference. */
+  contextDefaultCap?: 'auto' | 'unlimited' | number;
+  /** Remind when crossing the price line; absent counts as true. Device preference. */
+  contextPriceLineReminderEnabled?: boolean;
 }
 
 /* ── Session ──────────────────────────────────────────── */

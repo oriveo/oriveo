@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { StreamEvent, StreamHandle } from "@oriveo/core/providers/types";
-import type { ProxyToolCall } from "@oriveo/core/providers/request-builders/runtime";
+import type { ProxyToolCall, ProxyToolDefinition } from "@oriveo/core/providers/request-builders/runtime";
+import type { ToolRegistryEntry } from "@oriveo/core/tools/tool-loop-contracts";
+import { PROPOSE_MEMORY_TOOL, PROPOSE_MEMORY_TOOL_NAME, PROPOSE_MEMORY_TOOL_RESULT } from "@oriveo/core/context/memory-propose";
+import { MEMORY_SEARCH_EMPTY_RESULT, SEARCH_MEMORY_TOOL, SEARCH_MEMORY_TOOL_NAME } from "@oriveo/core/context/memory-search";
 import { LibraryAPIError } from "../library/api";
 import {
   DEFAULT_LIBRARY_RUNTIME_CONFIG,
@@ -1441,9 +1444,13 @@ describe("runLibraryAgentLoop", () => {
   it("discards the first leg's text when it makes no tool call and a fallback is available, answering again from server evidence", async () => {
     const legs: LibraryAgentLegRequest[] = [];
     const texts: string[] = [];
+    // The re-answer request is composed by the caller as chat: system is not rewritten, and the evidence is in the [D] library item at the end of the current user message.
+    const chatRequest = [
+      { role: "system" as const, content: "You are helpful." },
+      { role: "user" as const, content: "What is the plan?\n\n<library_context>evidence</library_context>" },
+    ];
     const onFirstLegWithoutToolCalls = vi.fn(async () => ({
-      systemInstruction: "Untrusted evidence.",
-      userContext: "<library_context>evidence</library_context>",
+      messages: chatRequest,
       citations: [
         {
           index: 1,
@@ -1485,16 +1492,11 @@ describe("runLibraryAgentLoop", () => {
     // The invented first-leg text must not stay in the stream.
     expect(texts).toContain("");
     expect(texts.at(-1)).toBe("Grounded answer.");
-    // The evidence is appended to the last user message, and the answering leg is given no tools.
+    // The re-answer is one chat request: the caller's messages are sent as-is, without tools.
+    expect(legs).toHaveLength(2);
     expect(legs[1]?.toolChoice).toBe("none");
-    expect(legs[1]?.messages.at(-1)).toMatchObject({
-      role: "user",
-      content: expect.stringContaining("<library_context>evidence</library_context>"),
-    });
-    expect(legs[1]?.messages[0]).toMatchObject({
-      role: "system",
-      content: "Untrusted evidence.",
-    });
+    expect(legs[1]?.tools).toEqual([]);
+    expect(legs[1]?.messages).toEqual(chatRequest);
     expect(result.citations).toHaveLength(1);
     expect(result.steps).toHaveLength(1);
   });
@@ -1570,5 +1572,133 @@ describe("runLibraryAgentLoop", () => {
     }));
 
     expect(requestConfirmation).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("runLibraryAgentLoop with propose_memory attached", () => {
+  function proposeEntry(): ToolRegistryEntry & { execute: ReturnType<typeof vi.fn> } {
+    return {
+      name: PROPOSE_MEMORY_TOOL_NAME,
+      scope: "memory",
+      definition: PROPOSE_MEMORY_TOOL as unknown as ProxyToolDefinition,
+      execute: vi.fn(async () => ({ content: PROPOSE_MEMORY_TOOL_RESULT })),
+      failureDisposition: () => ({ kind: "neutral", code: "propose_memory_failed", message: PROPOSE_MEMORY_TOOL_RESULT }),
+    };
+  }
+  const proposeCall = () => call("p1", PROPOSE_MEMORY_TOOL_NAME, {
+    proposition: "The user prefers concise answers.", kind: "preference", scope: "global", sourceQuote: "I prefer concise answers",
+  });
+
+  it("a first leg that calls only propose still triggers the zero-retrieval fallback", async () => {
+    const legs: LibraryAgentLegRequest[] = [];
+    const chatRequest = [{ role: "user" as const, content: "What is the plan?\n\n<library_context>evidence</library_context>" }];
+    const onFirstLegWithoutToolCalls = vi.fn(async () => ({ messages: chatRequest, citations: [], steps: [] }));
+    const entry = proposeEntry();
+    const result = await runLibraryAgentLoop(options({
+      proposeEntry: entry,
+      onFirstLegWithoutToolCalls,
+      runLeg: (request) => {
+        legs.push(request);
+        return legs.length === 1
+          ? streamLeg([{ type: "delta", content: "Made-up answer." }, callsEvent(proposeCall())])
+          : streamLeg([{ type: "delta", content: "Grounded answer." }]);
+      },
+    }));
+
+    // The last registry entry is propose_memory; candidates are created as usual, then the fallback re-answer runs as for "first leg with zero tool calls".
+    expect(legs[0]?.tools.map((tool) => tool.function.name)).toEqual(["library_search", "library_list", "library_read", PROPOSE_MEMORY_TOOL_NAME]);
+    expect(entry.execute).toHaveBeenCalledOnce();
+    expect(onFirstLegWithoutToolCalls).toHaveBeenCalledWith("Made-up answer.");
+    expect(result.text).toBe("Grounded answer.");
+    expect(legs).toHaveLength(2);
+    expect(legs[1]?.tools).toEqual([]);
+    expect(legs[1]?.messages).toEqual(chatRequest);
+  });
+
+  it("when a propose-only first leg finds the fallback unavailable, things stay as they are: fixed result fed back, loop ends as usual", async () => {
+    const legs: LibraryAgentLegRequest[] = [];
+    const result = await runLibraryAgentLoop(options({
+      proposeEntry: proposeEntry(),
+      onFirstLegWithoutToolCalls: vi.fn(async () => null),
+      runLeg: (request) => {
+        legs.push(request);
+        return legs.length === 1 ? streamLeg([callsEvent(proposeCall())]) : streamLeg([{ type: "delta", content: "Done." }]);
+      },
+    }));
+    expect(result.text).toBe("Done.");
+    expect(legs[1]?.messages.at(-1)).toMatchObject({ role: "tool", tool_call_id: "p1", content: PROPOSE_MEMORY_TOOL_RESULT });
+  });
+
+  it("attaching propose does not change the consecutive-failure cap or the unknown-tool copy", async () => {
+    const executeTool = vi.fn(async () => {
+      throw new LibraryAPIError("source flaky", 502, "library_source_error");
+    });
+    await expect(runLibraryAgentLoop(options({
+      proposeEntry: proposeEntry(),
+      config: { ...DEFAULT_LIBRARY_RUNTIME_CONFIG, maxSteps: 10 },
+      runLeg: vi.fn(() => streamLeg([callsEvent(
+        call("list-1", "library_list", { source: "notion" }),
+        call("list-2", "library_list", { source: "notion" }),
+        call("list-3", "library_list", { source: "notion" }),
+      )])),
+      executeTool,
+    }))).rejects.toMatchObject({ code: "library_source_error" });
+    expect(executeTool).toHaveBeenCalledTimes(3);
+
+    const legs: LibraryAgentLegRequest[] = [];
+    await runLibraryAgentLoop(options({
+      proposeEntry: proposeEntry(),
+      runLeg: (request) => {
+        legs.push(request);
+        return legs.length === 1
+          ? streamLeg([callsEvent(call("bad", "delete_everything", {}))])
+          : streamLeg([{ type: "delta", content: "Done." }]);
+      },
+    }));
+    const unknown = legs[1]?.messages.find((message) => message.role === "tool" && message.tool_call_id === "bad");
+    expect(JSON.parse(String(unknown?.content))).toMatchObject({ ok: false, error: { code: "unknown_tool", message: "Unsupported Library tool: delete_everything" } });
+  });
+});
+
+describe("runLibraryAgentLoop with search_memory attached (memory-search.v1 legRules 4)", () => {
+  function hostEntry(name: string, definition: unknown, content: string): ToolRegistryEntry & { execute: ReturnType<typeof vi.fn> } {
+    return {
+      name,
+      scope: "memory",
+      definition: definition as ProxyToolDefinition,
+      execute: vi.fn(async () => ({ content })),
+      failureDisposition: () => ({ kind: "neutral", code: `${name}_failed`, message: content }),
+    };
+  }
+
+  it("registered after propose; a first leg calling only host tools (propose + search) still triggers the zero-retrieval fallback", async () => {
+    const legs: LibraryAgentLegRequest[] = [];
+    const chatRequest = [{ role: "user" as const, content: "What is the plan?\n\n<library_context>evidence</library_context>" }];
+    const onFirstLegWithoutToolCalls = vi.fn(async () => ({ messages: chatRequest, citations: [], steps: [] }));
+    const propose = hostEntry(PROPOSE_MEMORY_TOOL_NAME, PROPOSE_MEMORY_TOOL, PROPOSE_MEMORY_TOOL_RESULT);
+    const search = hostEntry(SEARCH_MEMORY_TOOL_NAME, SEARCH_MEMORY_TOOL, MEMORY_SEARCH_EMPTY_RESULT);
+    const result = await runLibraryAgentLoop(options({
+      proposeEntry: propose,
+      searchEntry: search,
+      onFirstLegWithoutToolCalls,
+      runLeg: (request) => {
+        legs.push(request);
+        return legs.length === 1
+          ? streamLeg([{ type: "delta", content: "Made-up answer." }, callsEvent(
+            call("p1", PROPOSE_MEMORY_TOOL_NAME, { proposition: "x", kind: "preference", scope: "global", sourceQuote: "x" }),
+            call("s1", SEARCH_MEMORY_TOOL_NAME, { query: "plan" }),
+          )])
+          : streamLeg([{ type: "delta", content: "Grounded answer." }]);
+      },
+    }));
+
+    expect(legs[0]?.tools.map((tool) => tool.function.name)).toEqual([
+      "library_search", "library_list", "library_read", PROPOSE_MEMORY_TOOL_NAME, SEARCH_MEMORY_TOOL_NAME,
+    ]);
+    expect(propose.execute).toHaveBeenCalledOnce();
+    expect(search.execute).toHaveBeenCalledOnce();
+    expect(onFirstLegWithoutToolCalls).toHaveBeenCalledWith("Made-up answer.");
+    expect(result.text).toBe("Grounded answer.");
+    expect(result.steps).toEqual([]);
   });
 });

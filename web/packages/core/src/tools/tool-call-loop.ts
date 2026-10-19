@@ -10,6 +10,7 @@ import {
   type ToolCallAccumulator,
 } from '../providers/tool-call-accumulator';
 import type { StreamEvent, StreamUsage } from '../providers/types';
+import type { StreamFinish } from '../context/stream-finish';
 import {
   DEFAULT_MAX_CONSECUTIVE_TOOL_FAILURES,
   DEFAULT_MAX_SELF_CORRECTIONS,
@@ -82,6 +83,7 @@ interface ConsumedLeg {
   toolCalls: ProxyToolCall[];
   usage?: StreamUsage;
   continuation?: ContinuationIntent;
+  finish?: StreamFinish;
 }
 
 /**
@@ -185,6 +187,7 @@ export class ToolCallLoop {
           stepLimitReached: false,
           receivedStructuredToolCalls,
           executedToolSteps,
+          ...(leg.finish ? { finish: leg.finish } : {}),
         };
       }
       receivedStructuredToolCalls = true;
@@ -210,6 +213,7 @@ export class ToolCallLoop {
             stepLimitReached: false,
             receivedStructuredToolCalls: true,
             executedToolSteps,
+            ...(leg.finish ? { finish: leg.finish } : {}),
           };
         }
       }
@@ -428,6 +432,7 @@ export class ToolCallLoop {
       stepLimitReached,
       receivedStructuredToolCalls,
       executedToolSteps,
+      ...(finalLeg.finish ? { finish: finalLeg.finish } : {}),
     };
   }
 
@@ -443,6 +448,7 @@ export class ToolCallLoop {
     let text = '';
     let usage: StreamUsage | undefined;
     let continuation: ContinuationIntent | undefined;
+    let finish: StreamFinish | undefined;
     const accumulated: ToolCallAccumulator = new Map();
     let streamStarted = false;
     try {
@@ -472,11 +478,15 @@ export class ToolCallLoop {
           case 'continuation':
             continuation = event.continuation;
             break;
+          case 'done':
+            finish = event.finish;
+            break;
           case 'error':
             throw new ToolLoopError(event.error, event.errorKind ?? 'upstream_error', {
               source: event.source,
               streamStarted,
               toolCallRejectionContext: handle.getToolCallRejectionContext?.(),
+              ...(event.finish ? { finish: event.finish } : {}),
             });
           default:
             break;
@@ -498,6 +508,7 @@ export class ToolCallLoop {
       })),
       usage,
       ...(continuation ? { continuation } : {}),
+      ...(finish ? { finish } : {}),
     };
   }
 }
@@ -533,7 +544,8 @@ function usageTotalTokens(usage: StreamUsage | undefined): number {
   return componentTotal;
 }
 
-function mergeToolLoopUsage(
+/** Add up usage item by item across several requests (each leg of the tool loop, and the first leg plus the re-answer of a library downgrade). */
+export function mergeToolLoopUsage(
   current: StreamUsage | undefined,
   next: StreamUsage | undefined,
 ): StreamUsage | undefined {

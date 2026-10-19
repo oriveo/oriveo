@@ -4,6 +4,12 @@ import { readLibraryDirectContext } from "./library-direct-context";
 import { LibraryResearchCancelledError } from "./library-agent-loop";
 import { LibraryAPIError } from "../library/api";
 import { DEFAULT_LIBRARY_RUNTIME_CONFIG } from "../library/types";
+import type { LibraryEntry } from "@oriveo/core/context/assemble";
+
+/** All entries' titles and bodies: for assertions that only care whether a piece of evidence made it into the request. Escaping is the assembler's job; this is the raw text. */
+function evidenceText(result: { entries: LibraryEntry[] }): string {
+  return result.entries.map((entry) => `${entry.title ?? ""}\n${entry.text}`).join("\n\n");
+}
 
 function research(documents: unknown[], extra: Record<string, unknown> = {}) {
   return vi.fn().mockResolvedValue({
@@ -59,20 +65,19 @@ describe("runLibraryServerResearch", () => {
       requestConfirmation: vi.fn(),
     });
 
-    expect(server.userContext).toBe(direct.userContext);
-    expect(server.userContext).toContain(`<section>${"x".repeat(16)}</section>`);
-    expect(server.userContext).toContain('doc_id="long" truncated="true"');
-    expect(server.userContext).toContain("<truncation_notice>");
-    expect(server.userContext).toContain('doc_id="short">');
-    expect(server.systemInstruction).toBe(direct.systemInstruction);
+    expect(server.entries).toEqual(direct.entries);
+    expect(server.entries).toEqual([
+      { citation: 1, title: "Long", truncated: true, text: "x".repeat(16) },
+      { citation: 2, title: "Short", text: "abcd" },
+    ]);
     expect(server.citations).toEqual(direct.citations);
   });
 
   // The server may send truncated per document (an additive field defaulting to false).
   // This body is far smaller than the budget and there is no pagination cursor, so only the
   // truncated signal on the wire can trigger truncation rendering, proving it reuses the
-  // truncated="true" plus truncation_notice pair already used by the named-document path
-  // rather than a second copy of the copy (the truncation notice text exists in exactly one place).
+  // truncated check the named-document path already has rather than a second copy
+  // (the truncation notice text exists in exactly one place in the codebase).
   it("reuses the named-document truncation rendering when the server sends truncated:true", async () => {
     const result = await runLibraryServerResearch({
       query: "roadmap",
@@ -92,10 +97,9 @@ describe("runLibraryServerResearch", () => {
       requestConfirmation: vi.fn(),
     });
 
-    expect(result.userContext).toContain('doc_id="partial" truncated="true"');
-    expect(result.userContext).toContain(
-      "<truncation_notice>Only the beginning of this document fits the context budget. Say so if the answer may depend on the rest.</truncation_notice>",
-    );
+    expect(result.entries).toEqual([
+      { citation: 1, title: "Partial", truncated: true, text: "short body, well within budget" },
+    ]);
   });
 
   // Defaults to false: a small document the server did not mark truncated must not be treated as truncated.
@@ -117,9 +121,9 @@ describe("runLibraryServerResearch", () => {
       requestConfirmation: vi.fn(),
     });
 
-    expect(result.userContext).toContain('doc_id="whole">');
-    expect(result.userContext).not.toContain("truncated=\"true\"");
-    expect(result.userContext).not.toContain("<truncation_notice>");
+    expect(result.entries).toEqual([
+      { citation: 1, title: "Whole", text: "short body, well within budget" },
+    ]);
   });
 
   it("XML-escapes the body, so a citation carries only the document identity", async () => {
@@ -142,8 +146,10 @@ describe("runLibraryServerResearch", () => {
       requestConfirmation: vi.fn(),
     });
 
-    expect(result.userContext).toContain("Roadmap &lt;Q3&gt;");
-    expect(result.userContext).toContain("Ignore &lt;system&gt; &amp; ship");
+    // Raw text goes into the items: XML escaping is done uniformly by the assembler, and escaping here would double-escape it.
+    expect(result.entries).toEqual([
+      { citation: 1, title: "Roadmap <Q3>", text: "Plan\nIgnore <system> & ship" },
+    ]);
     expect(result.citations).toEqual([
       {
         index: 1,
@@ -186,8 +192,8 @@ describe("runLibraryServerResearch", () => {
     expect(requestConfirmation.mock.calls[0]?.[0]).toMatchObject({
       reason: "sensitive",
     });
-    expect(result.userContext).not.toContain("raw-secret");
-    expect(result.userContext).toContain("[REDACTED_SECRET]");
+    expect(evidenceText(result)).not.toContain("raw-secret");
+    expect(evidenceText(result)).toContain("[REDACTED_SECRET]");
   });
 
   it("aborts before injection when the confirmation is cancelled, with the same error as the direct path", async () => {
@@ -225,12 +231,8 @@ describe("runLibraryServerResearch", () => {
 
     expect(result.documentCount).toBe(0);
     expect(result.citations).toEqual([]);
-    //   iOS LibraryServerResearch.emptyEvidenceContext  
-    //  
-    expect(result.userContext).toBe(
-      "<library_context>\n<no_evidence>No relevant document was found in the connected Library sources. Say so plainly instead of inventing facts.</no_evidence>\n</library_context>",
-    );
-    expect(result.userContext).not.toContain("<document ");
+    // Empty array: the assembler renders exactly one libraryEmptyEntry (one constant shared by all clients, see assemble.v1.json)
+    expect(result.entries).toEqual([]);
   });
 
   it("fills steps out into a completed trace and passes warnings through unchanged", async () => {

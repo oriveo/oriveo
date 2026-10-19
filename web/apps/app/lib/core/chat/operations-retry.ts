@@ -15,6 +15,7 @@ import type { ChatOpCtx, SendHandle } from './operations';
 import { getProviderInstanceDisplayName } from '../providers/provider-display';
 import { deriveConversationMetadata, computeConversationActivityAt } from '../conversation-metadata';
 import { recalculateConversationCost } from './usage-tracking';
+import { ContextCompactionStore } from './context-compaction/context-compaction-store';
 import { libraryDocumentRefsFromCitations } from './library-direct-context';
 import type { LibraryFailurePresentation } from './library-failure';
 import { omitOnceOverrides } from './generation-parameter-rejection';
@@ -93,6 +94,11 @@ export function retryMessageWithSender(
 
   if (removedDeliveredIDs.length > 0) {
     getSyncAdapter()?.didRegenerate(removedDeliveredIDs, conversation.id, remainingLastDelivered);
+  }
+  // Only count messages that were actually deleted: a failed assistant reused in place keeps its id and is not a deletion.
+  const deletedMsgs = shouldReuseFailedAssistant ? removedMsgs.slice(1) : removedMsgs;
+  if (deletedMsgs.length > 0) {
+    void ContextCompactionStore.invalidateAndSync(conversation.id, messages.map((m) => m.id), deletedMsgs.map((m) => m.id));
   }
   cleanupCloudAttachments(retryingFailedAssistant
     ? (preservePartialAssistant ? removedMsgs.slice(1) : removedMsgs)

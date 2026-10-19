@@ -30,7 +30,7 @@ import type {
   LibraryToolName,
   LibraryToolResult,
 } from "../library/types";
-import { ToolCallLoop, type ToolCallLoopOptions } from "@oriveo/core/tools/tool-call-loop";
+import { ToolCallLoop, mergeToolLoopUsage, type ToolCallLoopOptions } from "@oriveo/core/tools/tool-call-loop";
 import {
   ToolCallRejection,
   ToolLoopError,
@@ -63,12 +63,12 @@ export interface LibraryAgentLoopResult {
 }
 
 /**
- * Fallback payload for a first leg that produced zero tool calls: the server retrieves the
- * evidence, injected exactly like the named-document path.
+ * Fallback payload for a first leg that produced zero tool calls: the complete messages of the
+ * re-answer chat request (the assembler has already put the evidence into the [D] library item;
+ * system is not rewritten), plus the server-retrieved citations and trace.
  */
 export interface LibraryNoToolCallFallback {
-  systemInstruction: string;
-  userContext: string;
+  messages: ProxyMessage[];
   citations: LibraryCitation[];
   steps: LibraryResearchStep[];
 }
@@ -120,6 +120,24 @@ export interface LibraryAgentLoopOptions {
    * third-party server must not take down the whole reply.
    */
   additionalEntries?: readonly ToolRegistryEntry[];
+  /**
+   * Tool mode's propose_memory entry, registered last in the registry. It is not merged into additionalEntries: the consecutive-failure cap and
+   * the unknown-tool copy only look at MCP entries; when the first leg called only it, it goes through onFirstLegWithoutToolCalls as a "first leg with zero tool calls".
+   */
+  proposeEntry?: ToolRegistryEntry;
+  /**
+   * memory-search.v1 legRules 4: tool mode's search_memory entry, registered after propose_memory; like propose,
+   * when the first leg called only host tools (propose / search) it still goes through the zero-tool-call fallback.
+   */
+  searchEntry?: ToolRegistryEntry;
+}
+
+/** First leg called only propose_memory and the fallback produced evidence: interrupt the loop and switch to the fallback re-answer (an internal sentinel of the loop, never leaked). */
+class FirstLegProposeOnlyFallback extends Error {
+  constructor() {
+    super("First leg only proposed memory");
+    this.name = "FirstLegProposeOnlyFallback";
+  }
 }
 
 export class LibraryResearchCancelledError extends Error {
@@ -270,6 +288,13 @@ export async function runLibraryAgentLoop(
   };
   const emitSteps = () => options.onSteps?.(state.steps.map((step) => ({ ...step })));
   const additionalEntries = options.additionalEntries ?? [];
+  const proposeEntry = options.proposeEntry
+    ? wrapProposeEntry(options.proposeEntry, () => firstLegProposeOnly)
+    : undefined;
+  const searchEntry = options.searchEntry
+    ? wrapProposeEntry(options.searchEntry, () => firstLegProposeOnly)
+    : undefined;
+  const hostEntryNames = new Set([proposeEntry, searchEntry].flatMap((entry) => (entry ? [entry.name] : [])));
   const registry = new ToolRegistry([
     ...buildLibraryTools(options.config, activeSources).map((definition) =>
       createLibraryEntry(
@@ -282,12 +307,18 @@ export async function runLibraryAgentLoop(
       ),
     ),
     ...additionalEntries,
+    ...(proposeEntry ? [proposeEntry] : []),
+    ...(searchEntry ? [searchEntry] : []),
   ]);
 
   // Cumulative snapshot of this leg's text: progress events carry deltas, while the callback wants the running total.
   let legText = "";
   // The no-tools resend needs to know which leg failed: only the first leg (0) may be resent.
   let activeLegIndex = 0;
+  // When the loop is interrupted by the first-leg fallback sentinel no result is available, so usage is taken from the cumulative value in progress events.
+  let latestUsage: StreamUsage | undefined;
+  // Every first-leg call that hit the registry is propose_memory: after the last one runs, take the fallback as for "first leg with zero tool calls".
+  let firstLegProposeOnly: FirstLegProposeOnlyState | null = null;
   const onProgress = (event: ToolLoopProgressEvent): void => {
     switch (event.type) {
       case "legStarted":
@@ -299,10 +330,18 @@ export async function runLibraryAgentLoop(
         options.onText?.(legText);
         break;
       case "usage":
+        latestUsage = event.usage;
         options.onUsage?.(event.usage);
         break;
       case "toolCallsAccepted":
-        // Once a leg with tool calls has passed, the text is cleared and the next leg renders from the start.
+        if (
+          hostEntryNames.size > 0 && toolsEnabled && firstLegHook && activeLegIndex === 0
+          && event.calls.length > 0
+          && event.calls.every((call) => hostEntryNames.has(call.function.name))
+        ) {
+          firstLegProposeOnly = { text: legText, remaining: event.calls.length, run: runFirstLegHook };
+        }
+        // Once a leg with tool calls has passed, the text is cleared and the next leg renders from the start (same semantics as the old loop).
         options.onText?.("");
         break;
       default:
@@ -314,6 +353,23 @@ export async function runLibraryAgentLoop(
   const firstLegHook = options.onFirstLegWithoutToolCalls;
   let toolFallbackApplied = false;
   let toolFallbackRejection: ToolCallRejectionContext | undefined;
+  /** Returns true = the fallback produced evidence (recorded in fallbackRef). */
+  const runFirstLegHook = async (text: string): Promise<boolean> => {
+    if (!firstLegHook) return false;
+    // Wipe the first leg's text from the stream before fetching evidence: that text
+    // was made up by the model without searching, and leaving it on screen while waiting would present a hallucination as the answer.
+    options.onText?.("");
+    const resolved = await firstLegHook(text);
+    throwIfAborted(options.signal);
+    if (resolved) {
+      // The re-answer is a new chat request outside the loop (no tools); here we only record the payload and let the loop wind up as at the first leg.
+      fallbackRef.value = resolved;
+      return true;
+    }
+    // Fallback unavailable: put the first leg's text back and leave things as they are.
+    options.onText?.(text);
+    return false;
+  };
 
   const limits: ToolCallLoopOptions["limits"] = {
     maxSteps: options.config.maxSteps,
@@ -345,23 +401,7 @@ export async function runLibraryAgentLoop(
     ...(toolsEnabled && firstLegHook
       ? {
           onFirstLegWithoutToolCalls: async (text: string) => {
-            // Remove the first leg's text from the stream before fetching evidence: the model made
-            // it up without searching, and leaving it on screen while waiting would present a
-            // hallucination as the answer.
-            options.onText?.("");
-            const resolved = await firstLegHook(text);
-            throwIfAborted(options.signal);
-            if (resolved) {
-              fallbackRef.value = resolved;
-              // The instruction is merged into the leading system prompt and the evidence is
-              // appended to the last user message, the same positions the named-documents path uses.
-              const injected = [...options.messages];
-              mergeLibrarySystemInstruction(injected, resolved.systemInstruction);
-              appendLibraryContextToLatestUser(injected, resolved.userContext);
-              return injected;
-            }
-            // The fallback is unavailable: put the first leg's text back and leave things as they are.
-            options.onText?.(text);
+            await runFirstLegHook(text);
             return null;
           },
         }
@@ -372,6 +412,16 @@ export async function runLibraryAgentLoop(
   try {
     result = await new ToolCallLoop(loopOptions).run(options.messages, onProgress);
   } catch (error) {
+    if (error instanceof FirstLegProposeOnlyFallback && fallbackRef.value) {
+      const fallback = fallbackRef.value;
+      const answer = await answerWithoutTools(options, limits, onProgress, fallback.messages);
+      return {
+        text: answer.text,
+        citations: fallback.citations,
+        steps: fallback.steps,
+        usage: mergeToolLoopUsage(latestUsage, answer.usage),
+      };
+    }
     const toolError = error instanceof ToolLoopError ? error : null;
     const skipFallback = toolError !== null && toolError.source === "provider" && !toolError.streamStarted
       && options.onPreOutputRejection?.(toolError.toolCallRejectionContext) === true;
@@ -392,11 +442,12 @@ export async function runLibraryAgentLoop(
 
   if (fallbackRef.value) {
     const fallback = fallbackRef.value;
+    const answer = await answerWithoutTools(options, limits, onProgress, fallback.messages);
     return {
-      text: result.text,
+      text: answer.text,
       citations: fallback.citations,
       steps: fallback.steps,
-      usage: result.usage,
+      usage: mergeToolLoopUsage(result.usage, answer.usage),
     };
   }
   return {
@@ -409,6 +460,39 @@ export async function runLibraryAgentLoop(
   };
 }
 
+interface FirstLegProposeOnlyState {
+  /** First-leg text (handed to the fallback hook). */
+  text: string;
+  /** Number of propose calls the first leg has not executed yet. */
+  remaining: number;
+  run: (text: string) => Promise<boolean>;
+}
+
+/**
+ * First leg called only propose_memory: candidates are created as usual, and after the last call runs the first-leg fallback runs; if it produces evidence a sentinel is thrown to interrupt the loop,
+ * otherwise things stay as they are, a fixed tool_result is fed back, and the loop proceeds to the next leg as usual.
+ */
+function wrapProposeEntry(
+  entry: ToolRegistryEntry,
+  firstLegState: () => FirstLegProposeOnlyState | null,
+): ToolRegistryEntry {
+  return {
+    ...entry,
+    execute: async (call, context) => {
+      const outcome = await entry.execute(call, context);
+      const state = context.legIndex === 0 ? firstLegState() : null;
+      if (state) {
+        state.remaining -= 1;
+        if (state.remaining === 0 && await state.run(state.text)) throw new FirstLegProposeOnlyFallback();
+      }
+      return outcome;
+    },
+    failureDisposition: (error) => (error instanceof FirstLegProposeOnlyFallback
+      ? { kind: "fatal" }
+      : entry.failureDisposition(error)),
+  };
+}
+
 /**
  * The one-off resend without tools: an empty registry plus `toolsMode: disabled` (tools=[] and
  * tool_choice=none on every leg). If the model still proposes a call, `library_invalid_tool_call`
@@ -418,6 +502,16 @@ async function resendWithoutTools(
   options: LibraryAgentLoopOptions,
   limits: ToolCallLoopOptions["limits"],
   onProgress: (event: ToolLoopProgressEvent) => void,
+): Promise<ToolLoopResult> {
+  return answerWithoutTools(options, limits, onProgress, options.messages);
+}
+
+/** A request without tools (tools=[], tool_choice=none): shared by the D5 resend and the first-leg downgrade re-answer. */
+async function answerWithoutTools(
+  options: LibraryAgentLoopOptions,
+  limits: ToolCallLoopOptions["limits"],
+  onProgress: (event: ToolLoopProgressEvent) => void,
+  messages: readonly ProxyMessage[],
 ): Promise<ToolLoopResult> {
   try {
     return await new ToolCallLoop({
@@ -436,7 +530,7 @@ async function resendWithoutTools(
           "provider",
         );
       },
-    }).run(options.messages, onProgress);
+    }).run(messages, onProgress);
   } catch (error) {
     throw toLibraryAgentError(error);
   }
@@ -940,40 +1034,6 @@ function buildStepLabel(tool: LibraryToolName, args: LibraryToolArgs): string {
   return (
     (args as LibraryListArgs).containerId || (args as LibraryListArgs).source
   );
-}
-
-function mergeLibrarySystemInstruction(
-  messages: ProxyMessage[],
-  instruction: string,
-): void {
-  const head = messages[0];
-  if (head?.role === "system" && typeof head.content === "string") {
-    messages[0] = { ...head, content: `${head.content}\n\n${instruction}` };
-    return;
-  }
-  messages.unshift({ role: "system", content: instruction });
-}
-
-/**
- * Appends the evidence to the last user message, the same position the named-document path uses:
- * the evidence sits next to the question so the model does not mistake it for leftover context.
- */
-function appendLibraryContextToLatestUser(
-  messages: ProxyMessage[],
-  text: string,
-): void {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message.role !== "user") continue;
-    const content = message.content;
-    messages[index] = {
-      ...message,
-      content: typeof content === "string"
-        ? `${content}\n\n${text}`
-        : [...content, { type: "text", text: `\n\n${text}` }],
-    };
-    return;
-  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

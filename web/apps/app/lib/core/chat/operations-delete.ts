@@ -13,6 +13,7 @@ import { deriveConversationMetadata, computeConversationActivityAt } from '../co
 import { cleanupCloudAttachments } from './cleanup-attachments';
 import { recalculateConversationCost } from './usage-tracking';
 import { deleteLocalMessageContinuation } from './continuation-lifecycle';
+import { ContextCompactionStore } from './context-compaction/context-compaction-store';
 
 export function deleteMessage(
   store: StoreApi<AppStore>,
@@ -53,6 +54,8 @@ export function deleteMessage(
   if (msg.state === 'delivered') {
     getSyncAdapter()?.didDeleteMessages([msgId], convId, remainingLastDelivered);
   }
+
+  void ContextCompactionStore.invalidateAndSync(convId, conv.messages.map((m) => m.id), [msgId]);
 
   // Clean up this message's attachments
   if (msg.attachments?.length) {

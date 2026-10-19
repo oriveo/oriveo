@@ -350,6 +350,8 @@
 
 .memoryPopoverPreview {
   margin: 0;
+  padding: 0;
+  list-style: none;
   max-height: 130px;
   overflow: auto;
   color: var(--o-text-secondary);
@@ -498,4 +500,27 @@
     transition: none;
     transform: none;
   }
+}
+
+.instructionsBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-full);
+  background: var(--o-tag-bg);
+  color: var(--o-text-secondary);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background var(--o-transition-fast),
+    color var(--o-transition-fast);
+}
+
+.instructionsBadge:hover {
+  background: var(--o-primary-subtle);
+  color: var(--o-primary);
 }

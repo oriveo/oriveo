@@ -193,6 +193,13 @@ export interface ModelPricing {
   cacheWrite5mPerMToken?: number | null;
   /** Anthropic 1h TTL cache write price per 1M tokens (the x2.0 tier). */
   cacheWrite1hPerMToken?: number | null;
+  /** Long-context surcharge line: once input exceeds thresholdTokens the prices of this group apply; dropped on decode when the shape is bad. */
+  longContext?: {
+    thresholdTokens: number;
+    promptPerMToken: number;
+    completionPerMToken: number;
+    cacheReadPerMToken?: number;
+  };
 }
 
 export type ModelPricingStatus = "priced" | "free" | "unknown";
@@ -478,12 +485,6 @@ export interface ClientRuntimeConfig {
     keyValidationTimeoutSecs: number;
     upstreamFirstByteTimeoutSecs: number;
   };
-  promptBudget: {
-    totalChars: number;
-    pinnedNotesMaxCount: number;
-    pinnedNotesBudgetChars: number;
-    noteRecallLimit: number;
-  };
   attachment: {
     maxFiles: number;
     maxNativeBytesByProvider: Record<string, number>;
@@ -596,6 +597,12 @@ export interface ResolvedModelMetadata {
     cacheCreationInputPerMToken?: number | null;
     cacheWrite5mPerMToken?: number | null;
     cacheWrite1hPerMToken?: number | null;
+    longContext?: {
+      thresholdTokens: number;
+      promptPerMToken: number;
+      completionPerMToken: number;
+      cacheReadPerMToken?: number;
+    };
   } | null;
   profiles: {
     reasoning?: string;
@@ -1813,6 +1820,17 @@ export function getImageGenProfile(profileName: NullableString): {
 }
 
 /**
+ * Outbound routes declared by the imageGen profile (images_api / chat_api / dashscope_multimodal / minimax_image_generation).
+ * Read from the same /api/metadata payload as the request builder; returns null when not delivered.
+ */
+export function getImageGenRoute(profileName: NullableString): string | null {
+  const name = normalizeProfileRef(profileName);
+  if (!name) return null;
+  const def = cached?.profiles?.imageGen?.[name] as { route?: unknown } | undefined;
+  return typeof def?.route === "string" ? def.route : null;
+}
+
+/**
  * Expands a model reference plus the shared generation schema from the same metadata into a profile
  * the request builders can consume. Returns undefined unless the full schema is available, because
  * the client must never guess fields or inject defaults.
@@ -2453,6 +2471,7 @@ function projectMetadataSnapshot(source: MetadataResponse): {
             cacheCreationInputPerMToken?: number | null;
             cacheWrite5mPerMToken?: number | null;
             cacheWrite1hPerMToken?: number | null;
+            longContext?: ModelPricing["longContext"];
           };
           pricingStatus?: ModelPricingStatus;
           capabilities?: string[];
@@ -2929,12 +2948,6 @@ const DEFAULT_CLIENT_RUNTIME_CONFIG: ClientRuntimeConfig = {
     keyValidationTimeoutSecs: 18,
     upstreamFirstByteTimeoutSecs: 120,
   },
-  promptBudget: {
-    totalChars: 12000,
-    pinnedNotesMaxCount: 3,
-    pinnedNotesBudgetChars: 6000,
-    noteRecallLimit: 2,
-  },
   attachment: {
     maxFiles: 3,
     maxNativeBytesByProvider: {
@@ -2960,7 +2973,6 @@ function normalizeClientRuntimeConfig(
     ? freeAccessGrant.limits
     : {};
   const networkPolicy = isRecord(raw.networkPolicy) ? raw.networkPolicy : {};
-  const promptBudget = isRecord(raw.promptBudget) ? raw.promptBudget : {};
   const attachment = isRecord(raw.attachment) ? raw.attachment : {};
   const budgetAlert = isRecord(raw.budgetAlert) ? raw.budgetAlert : null;
 
@@ -3028,24 +3040,6 @@ function normalizeClientRuntimeConfig(
       upstreamFirstByteTimeoutSecs: normalizeFiniteNumber(
         networkPolicy.upstreamFirstByteTimeoutSecs,
         defaults.networkPolicy.upstreamFirstByteTimeoutSecs,
-      ),
-    },
-    promptBudget: {
-      totalChars: normalizeFiniteNumber(
-        promptBudget.totalChars,
-        defaults.promptBudget.totalChars,
-      ),
-      pinnedNotesMaxCount: normalizeFiniteNumber(
-        promptBudget.pinnedNotesMaxCount,
-        defaults.promptBudget.pinnedNotesMaxCount,
-      ),
-      pinnedNotesBudgetChars: normalizeFiniteNumber(
-        promptBudget.pinnedNotesBudgetChars,
-        defaults.promptBudget.pinnedNotesBudgetChars,
-      ),
-      noteRecallLimit: normalizeFiniteNumber(
-        promptBudget.noteRecallLimit,
-        defaults.promptBudget.noteRecallLimit,
       ),
     },
     attachment: {
@@ -3898,6 +3892,7 @@ function normalizePricing(model: ModelMetadata): {
   cacheCreationInputPerMToken?: number | null;
   cacheWrite5mPerMToken?: number | null;
   cacheWrite1hPerMToken?: number | null;
+  longContext?: NonNullable<ModelPricing["longContext"]>;
 } | null {
   if (!model.pricing) return null;
   const promptPerMToken = model.pricing.promptPerMToken;
@@ -3918,6 +3913,31 @@ function normalizePricing(model: ModelMetadata): {
     cacheCreationInputPerMToken: model.pricing.cacheCreationInputPerMToken,
     cacheWrite5mPerMToken: model.pricing.cacheWrite5mPerMToken,
     cacheWrite1hPerMToken: model.pricing.cacheWrite1hPerMToken,
+    ...longContextField(model.pricing.longContext),
+  };
+}
+
+/** Upper bound of the surcharge line (int32 max, identical on all clients). */
+const LONG_CONTEXT_THRESHOLD_MAX = 2147483647;
+
+/**
+ * Allowlist copy of pricing.longContext: thresholdTokens must be an integer with 1 <= t <= 2147483647, both unit prices finite non-negative numbers,
+ * cacheReadPerMToken may be omitted (if present it must be a finite non-negative number); if any condition fails the whole block is dropped (the rest of the pricing is unaffected).
+ */
+function longContextField(raw: unknown): { longContext?: NonNullable<ModelPricing["longContext"]> } {
+  if (!isRecord(raw)) return {};
+  const price = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0;
+  const { thresholdTokens, promptPerMToken, completionPerMToken, cacheReadPerMToken } = raw;
+  if (typeof thresholdTokens !== "number" || !Number.isSafeInteger(thresholdTokens) || thresholdTokens <= 0 || thresholdTokens > LONG_CONTEXT_THRESHOLD_MAX) return {};
+  if (!price(promptPerMToken) || !price(completionPerMToken)) return {};
+  if (cacheReadPerMToken != null && !price(cacheReadPerMToken)) return {};
+  return {
+    longContext: {
+      thresholdTokens,
+      promptPerMToken: promptPerMToken as number,
+      completionPerMToken: completionPerMToken as number,
+      ...(cacheReadPerMToken != null ? { cacheReadPerMToken: cacheReadPerMToken as number } : {}),
+    },
   };
 }
 

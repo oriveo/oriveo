@@ -80,11 +80,7 @@ vi.mock('../../../infra/storage/partition', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../infra/storage/partition')>()),
   getActiveUIDSync: () => 'uid-subscription',
 }));
-// Surroundings of the send orchestration (same seams as managed.contract.test.ts): prompt injection, settlement reporting, sync, analytics, library.
-vi.mock('../prompt-injection', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../prompt-injection')>()),
-  buildPromptInjectionContext: vi.fn(async () => ({ systemContent: '', memoryInjected: false, retrievalCost: 0 })),
-}));
+// Surroundings of the send orchestration: prompt injection, settlement reporting, sync, analytics, library.
 vi.mock('../send-completion', () => ({ reportSendCompletion: vi.fn(), reportUsageAndBudget: vi.fn() }));
 vi.mock('../../sync', () => ({ getSyncAdapter: vi.fn(() => null) }));
 vi.mock('../../telemetry', async (importOriginal) => ({
@@ -400,7 +396,9 @@ describe('CAP-SUB · web search', () => {
     await sendTurn({ provider, model, reasoningMode: 'automatic', web: 'off' });
     expect(upstreamCalls).toHaveLength(1);
     expect(upstreamCalls[0].url).toBe(GROK_UPSTREAM);
-    expect(upstreamCalls[0].body.tools).toEqual(expected[GROK].outboundToolsWithWebPreferenceOff);
+    // The fixture describes only server-side tools; host function tools (memory and so on, type:function) are outside this cell's comparison.
+    const serverTools = (upstreamCalls[0].body.tools as Array<{ type: string }>).filter((tool) => tool.type !== 'function');
+    expect(serverTools).toEqual(expected[GROK].outboundToolsWithWebPreferenceOff);
   });
 });
 

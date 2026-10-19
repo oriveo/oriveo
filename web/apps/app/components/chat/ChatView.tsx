@@ -17,7 +17,7 @@ import { getVanillaStore } from '../../providers/StoreProvider';
 import { pinNoteToConversation, unpinNoteFromConversation, updateConversationUseMemory } from '../../lib/core/conversation-ops';
 import { canAcceptDroppedAttachment } from '../../lib/core/chat/attachment-policy';
 import { TopBar } from './TopBar';
-import { AttachmentIcon, WarningIcon, CloseIcon, ChevronLeftIcon } from '../icons';
+import { AttachmentIcon, WarningIcon, CloseIcon, ChevronLeftIcon, SlidersIcon } from '../icons';
 import { MessageList } from './MessageList';
 import { InputComposer, type AttachedNoteRef } from './InputComposer';
 import { AttachmentSizeLimitDialog } from './AttachmentSizeLimitDialog';
@@ -26,6 +26,22 @@ import { SkillIntro } from './SkillIntro';
 import { LazyModelSwitcher } from './LazyChatOverlays';
 import { showToast } from '../Toast';
 import { SkillActionPromptDialog } from '../skills/SkillActionPromptDialog';
+import { CompactionDetailDialog } from './CompactionDetailDialog';
+import { CompactionHintBanner, usePendingComposerQuote } from './CompactionHintBanner';
+import {
+  buildSummaryQuote,
+  setPendingComposerQuote,
+} from '../../lib/core/chat/context-compaction/context-compaction-actions';
+import { ContextCompactionStore } from '../../lib/core/chat/context-compaction/context-compaction-store';
+import { precompactIfNeeded } from '../../lib/core/chat/context-pipeline/manual-compaction';
+import { chatUserMaxOutputFor } from '../../lib/core/chat/context-pipeline/chat-context';
+import { useContextUsage } from '../../lib/core/chat/context-visibility/use-context-usage';
+import { ContextUsageRing } from './ContextUsageRing';
+import { ContextUsagePanel } from './ContextUsagePanel';
+import { settingsUsageValueOf } from '../../lib/core/chat/context-visibility/usage-panel-model';
+import { separatorHistoryOf } from '../../lib/core/chat/context-compaction/use-compaction-separator';
+import { scheduleDesktopNavigationFallback } from '../AppShellWrapper';
+import type { ContextCheckpointRow } from '../../lib/infra/storage/context-checkpoint-store';
 import { normalizeUUID, sameNormalizedID } from '../../lib/utils/id-utils';
 import { stripMarkdownForClipboard } from '../../lib/utils/markdown-preview';
 import {
@@ -45,6 +61,7 @@ import { useSkillL10n } from '../../lib/hooks/useSkillL10n';
 
 import { trackEvent, telemetryProviderKind, telemetryModelID } from '../../lib/core/telemetry';
 import { reportSendBlocked } from '../../lib/core/chat/send-failure';
+import { cleanupCloudAttachments } from '../../lib/core/chat/cleanup-attachments';
 import styles from './ChatView.module.css';
 import { ConversationBootstrapState } from './ConversationBootstrapState';
 import { ConversationStalledState } from './ConversationStalledState';
@@ -53,9 +70,13 @@ import { useExpensiveModelHint } from './hooks/useExpensiveModelHint';
 import { useChatModelSelection } from './hooks/useChatModelSelection';
 import { useRelatedNoteRecall } from './hooks/useRelatedNoteRecall';
 import { ExportMenuButton } from './ExportMenuButton';
+import { ConversationSettingsDialog } from './ConversationSettingsDialog';
+import { instructionsBadgeVisible } from '../../lib/core/chat/conversation-instructions/conversation-settings';
 import { ChatAmbientAurora } from './ChatAmbientAurora';
 import { ThemeToggleButton } from './ThemeToggleButton';
 import { LibraryConfirmationDialog } from './LibraryConfirmationDialog';
+import { ContextCapConfirmDialog } from './ContextCapConfirmDialog';
+import { composerAcceptsRestore } from './composer-restore';
 import { McpChatPresence } from '../mcp/McpGlobalPrompts';
 import { McpToolsControl } from '../mcp/McpToolsControl';
 import { mcpDraftScope } from '../../lib/core/mcp/mcp-store';
@@ -121,6 +142,10 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   const libraryFeatureEnabled = isLibraryFeatureEnabled();
   const { localizedName: localizedSkillName } = useSkillL10n();
   const [showSkillProviderPrompt, setShowSkillProviderPrompt] = useState(false);
+  // Row whose compaction detail dialog is open.
+  const [compactionDetailRow, setCompactionDetailRow] = useState<ContextCheckpointRow | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const draftConversationInstructions = useAppStore((s) => s.draftConversationInstructions);
   const focusMessageId = searchParams.get('focusMessageId');
   const fromNote = searchParams.get('fromNote');
 
@@ -133,6 +158,8 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   const setLibraryQuota = useAppStore((s) => s.setLibraryQuota);
   const libraryQuota = useAppStore((s) => s.libraryQuota);
   const activeConversationId = useAppStore((s) => s.activeConversationId);
+  const setActiveConversationId = useAppStore((s) => s.setActiveConversationId);
+  const isMobileViewport = useMediaQuery('(max-width: 767px)');
   // Multi-conversation state: `isStreaming` must be read for `effectiveId`, not for any
   // stream (otherwise switching to B mid-stream and back to A shows B's partial text).
   // streamingText is deliberately *not* subscribed here: it changes every frame and
@@ -146,7 +173,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
 
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
-  const memoryText = useAppStore((s) => s.preferences.memoryText);
+  const memoryItems = useAppStore((s) => s.memoryItems);
 
   const [inputText, setInputText] = useState('');
   const [dismissedRelatedNoteIds, setDismissedRelatedNoteIds] = useState<string[]>([]);
@@ -155,6 +182,13 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   const [quoteFocusSignal, setQuoteFocusSignal] = useState(0);
   const pendingQuoteAttachedAtRef = useRef<number | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  // What the composer holds right now (text and attachments): after a blocked send or a cancelled confirmation
+  // this decides whether it can be refilled (only an empty composer is refilled).
+  // Cleared synchronously when a send empties the composer, without waiting for the next commit.
+  const composerContentsRef = useRef<{ text: string; attachments: readonly Attachment[] }>({ text: '', attachments: [] });
+  useEffect(() => {
+    composerContentsRef.current = { text: inputText, attachments };
+  }, [inputText, attachments]);
   const [libraryContextDocuments, setLibraryContextDocuments] = useState<LibraryDocumentRef[]>([]);
   const [showLibraryContextPicker, setShowLibraryContextPicker] = useState(false);
   const [showAttachmentSizeLimit, setShowAttachmentSizeLimit] = useState(false);
@@ -175,6 +209,12 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
     s.conversations.find((c) => sameNormalizedID(c.id, effectiveId)),
   );
   const conversationUseMemory = conversation?.useMemory;
+  const conversationIdForPrecompaction = conversation?.id;
+  // Background precompaction on composer focus / first input.
+  // precompactIfNeeded gates AI mode, Free, in-flight and the 0.75·B threshold, and fails silently.
+  const handleComposerEngaged = useCallback(() => {
+    if (conversationIdForPrecompaction) void precompactIfNeeded(conversationIdForPrecompaction);
+  }, [conversationIdForPrecompaction]);
 
   const {
     loadState,
@@ -195,6 +235,13 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
 
   const { expensiveModelHint, evaluateExpensiveHint, clearExpensiveHint } = useExpensiveModelHint();
+
+  // A new chat opened with the previous summary takes the pending quote once on mount.
+  usePendingComposerQuote(effectiveId, (quote) => {
+    setPendingQuoteContext(quote);
+    pendingQuoteAttachedAtRef.current = Date.now();
+    setQuoteFocusSignal((current) => current + 1);
+  });
 
   // ── Resolve active provider and model + model selection handlers ──
   const {
@@ -254,6 +301,60 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   // reference every render, which flows through useStreamChat's deps and turns retry/send
   // into new functions, defeating the message list's memoization.
   const messages = conversation?.messages ?? EMPTY_MESSAGES;
+  // Context usage ring: drafts without a conversation id read nothing and show nothing.
+  const contextUsage = useContextUsage(conversation?.id, messages, provider, currentModel?.id);
+  // Context panel: opened by the ring and by the conversation settings usage row.
+  const [contextUsageOpen, setContextUsageOpen] = useState(false);
+  const onOpenContextUsage = useCallback(() => setContextUsageOpen((open) => !open), []);
+  const closeContextUsage = useCallback(() => setContextUsageOpen(false), []);
+  // Close the settings dialog first, then open the panel.
+  const handleOpenUsageFromSettings = useCallback(() => {
+    setSettingsOpen(false);
+    setContextUsageOpen(true);
+  }, []);
+  useEffect(() => {
+    setContextUsageOpen(false);
+  }, [conversation?.id]);
+  const settingsUsageValue = (() => {
+    const value = settingsUsageValueOf(contextUsage?.summary ?? null);
+    if (value.key === 'percent') return `${value.percent}%`;
+    if (value.key === 'aboutPercent') return t('contextUsage.aboutPercent', { percent: value.percent });
+    return t('contextUsage.unavailable');
+  })();
+
+  // Build the summary quote from row R, park it for the new chat, then switch like the sidebar "new chat"
+  // (same provider / model, nothing is sent automatically).
+  const handleNewChatWithSummary = useCallback((row: ContextCheckpointRow | null) => {
+    if (row) {
+      const quote = buildSummaryQuote(
+        row,
+        t('contextCompaction.quoteLabel'),
+        messages.map((message) => ({ id: message.id, text: message.text ?? '' })),
+      );
+      if (quote) setPendingComposerQuote(null, quote);
+    }
+    if (provider && currentModel) {
+      setLastUsedModelRef({ providerID: provider.id, modelID: currentModel.id });
+    }
+    setActiveConversationId(null);
+    const target = isMobileViewport ? '/chat?compose=1' : '/chat';
+    if (isMobileViewport) setSidebarOpen(false);
+    router.push(target);
+    scheduleDesktopNavigationFallback(target);
+  }, [currentModel, isMobileViewport, messages, provider, router, setActiveConversationId, setLastUsedModelRef, setSidebarOpen, t]);
+
+  const handleHintNewChat = useCallback(() => {
+    if (!effectiveId) return;
+    void (async () => {
+      let row: ContextCheckpointRow | null = null;
+      try {
+        row = await ContextCompactionStore.latestValid(effectiveId, separatorHistoryOf(messages));
+      } catch {
+        row = null;
+      }
+      handleNewChatWithSummary(row);
+    })();
+  }, [effectiveId, handleNewChatWithSummary, messages]);
   // Empty conversation: full-strength aurora and a transparent top bar so the glow runs through (same condition as MessageList areaEmpty).
   const isEmptyChat = messages.length === 0 && !isStreaming;
   const showHomeComposer =
@@ -790,7 +891,8 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
     // Empty input is not a block; chat_send_blocked is recorded only when there is content but no usable connection / model.
     if (!text) return;
     if (!provider) {
-      reportSendBlocked('provider_missing');
+      // After a provider is deleted the conversation still remembers its providerKind; the blocked-send event carries it (same as iOS / Android)
+      reportSendBlocked('provider_missing', conversation?.providerKind);
       return;
     }
     if (!currentModel) {
@@ -831,7 +933,10 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         return;
       }
     }
-    if (!overrideText) setInputText('');
+    if (!overrideText) {
+      setInputText('');
+      composerContentsRef.current = { text: '', attachments: [] };
+    }
     clearExpensiveHint();
     if (!overrideText) setAttachments([]);
     if (!overrideText) setPendingPinnedNoteIds([]);
@@ -860,10 +965,12 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
             currentLibraryContextDocuments,
           );
       if (outcome === SEND_BLOCKED) {
-        // The pre-send check blocked it (an attachment does not fit the current model's text budget):
-        // nothing was sent, so put back the composer content cleared above and the user can send again
-        // right after removing a file or switching models.
-        if (!overrideText) {
+        // The pre-send check blocked it (an attachment does not fit the current model's text budget)
+        // or the user cancelled at the pre-send confirmation: nothing was sent, so put back the
+        // composer content cleared above and the user can send again right after removing a file
+        // or switching models. Only an empty composer is refilled: anything typed or attached
+        // while waiting for the confirmation is not overwritten.
+        if (!overrideText && composerAcceptsRestore(composerContentsRef.current)) {
           setInputText(text);
           setAttachments(currentAttachments);
           setPendingPinnedNoteIds(currentPendingPinnedNoteIds);
@@ -872,6 +979,9 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
             setPendingQuoteContext(currentQuoteContext);
             pendingQuoteAttachedAtRef.current = currentQuoteAttachedAt ?? Date.now();
           }
+        } else if (!overrideText) {
+          // Not refilled: the attachments uploaded for this send no longer have an owner, so clean them up too.
+          cleanupCloudAttachments([{ attachments: currentAttachments }]);
         }
         return;
       }
@@ -911,6 +1021,18 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
     setLastUsedModelRef,
     tLibrary,
   ]);
+
+  // Edit-and-resend cancelled at the pre-send confirmation: the conversation is back to its pre-edit state, so the message's edit box
+  // is reopened with the edited text and the main composer is not refilled.
+  const [editReopen, setEditReopen] = useState<{ messageId: string; text: string; nonce: number } | null>(null);
+  const handleEditAndResend = useCallback(async (messageId: string, newText: string) => {
+    const outcome = await editAndResend(messageId, newText);
+    if (outcome === SEND_BLOCKED) setEditReopen({ messageId, text: newText, nonce: Date.now() });
+  }, [editAndResend]);
+  // One-shot signal: the bubble opens its edit box in the same commit, then this clears it so a later remount does not reopen it.
+  useEffect(() => {
+    if (editReopen) setEditReopen(null);
+  }, [editReopen]);
 
   const handleAskSelection = useCallback((quoteContext: QuoteContext) => {
     setPendingQuoteContext(quoteContext);
@@ -1094,15 +1216,26 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
       updateConversationUseMemory(getVanillaStore(), conversation.id, conversationUseMemory === false);
     };
   }, [conversation, conversationUseMemory]);
+  const handleOpenSettings = useCallback(() => setSettingsOpen(true), []);
+  const settingsLabel = t('conversationSettings.title');
   const extraActions = useMemo(() => {
     const canExport = conversation && conversation.messages.length > 0;
     return (
       <div className={styles.topBarActions}>
+        <button
+          type="button"
+          className={styles.exportBtn}
+          onClick={handleOpenSettings}
+          aria-label={settingsLabel}
+          title={settingsLabel}
+        >
+          <SlidersIcon />
+        </button>
         {canExport ? <ExportMenuButton conversation={conversation} /> : null}
         <ThemeToggleButton />
       </div>
     );
-  }, [conversation]);
+  }, [conversation, handleOpenSettings, settingsLabel]);
 
   // ── No providers ──
   if (providers.length === 0 && !conversation) {
@@ -1178,10 +1311,12 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         conversationCost={conversation?.estimatedCost}
         onToggleSidebar={handleToggleSidebar}
         onModelClick={handleToggleModelSwitcher}
-        memoryText={memoryText}
+        memoryItems={memoryItems}
         useMemory={conversationUseMemory}
         onToggleMemory={handleToggleMemory}
         extraActions={extraActions}
+        hasInstructions={instructionsBadgeVisible(conversation, draftConversationInstructions)}
+        onOpenSettings={handleOpenSettings}
       />
       {fromNote ? (
         <div className={styles.returnToNoteBar}>
@@ -1232,11 +1367,34 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
           )}
         onRetry={retry}
         onRetryWithoutCustom={handleRetryWithoutCustom}
-        onEditAndResend={editAndResend}
+        onEditAndResend={handleEditAndResend}
+        editReopen={editReopen}
         onContinueAnswering={continueAnswering}
         onSwitchModel={handleSwitchModel}
         onAskSelection={handleAskSelection}
+        onOpenCompactionDetail={setCompactionDetailRow}
       />
+
+      {compactionDetailRow && (
+        <CompactionDetailDialog
+          open
+          conversationId={compactionDetailRow.conversationId}
+          row={compactionDetailRow}
+          onClose={() => setCompactionDetailRow(null)}
+          onNewChatWithSummary={handleNewChatWithSummary}
+        />
+      )}
+
+      {settingsOpen && (
+        <ConversationSettingsDialog
+          open
+          conversation={conversation}
+          hasMemory={memoryItems.some((item) => item.layer === 'semantic' && item.status === 'active')}
+          onClose={() => setSettingsOpen(false)}
+          onOpenUsage={conversation?.id ? handleOpenUsageFromSettings : undefined}
+          usageValue={settingsUsageValue}
+        />
+      )}
 
       {/* Drag overlay */}
       {dragActive && (
@@ -1248,28 +1406,32 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         </div>
       )}
 
-      {expensiveModelHint && (
-        <div className={styles.expensiveModelHint}>
-          <WarningIcon className={styles.expensiveModelHintIcon} />
-          <span className={styles.expensiveModelHintText}>
-            {t('expensiveModelHint', {
-              newModel: expensiveModelHint.newModel,
-              multiplier: expensiveModelHint.multiplier,
-              oldModel: expensiveModelHint.oldModel,
-            })}
-          </span>
-          <button
-            type="button"
-            className={styles.expensiveModelHintClose}
-            onClick={clearExpensiveHint}
-            aria-label={tCommon('close')}
-          >
-            <CloseIcon strokeWidth={2.5} />
-          </button>
-        </div>
-      )}
-
       <InputComposer
+        composerNotices={
+          <>
+            {expensiveModelHint && (
+              <div className={styles.expensiveModelHint}>
+                <WarningIcon className={styles.expensiveModelHintIcon} />
+                <span className={styles.expensiveModelHintText}>
+                  {t('expensiveModelHint', {
+                    newModel: expensiveModelHint.newModel,
+                    multiplier: expensiveModelHint.multiplier,
+                    oldModel: expensiveModelHint.oldModel,
+                  })}
+                </span>
+                <button
+                  type="button"
+                  className={styles.expensiveModelHintClose}
+                  onClick={clearExpensiveHint}
+                  aria-label={tCommon('close')}
+                >
+                  <CloseIcon strokeWidth={2.5} />
+                </button>
+              </div>
+            )}
+            <CompactionHintBanner conversationId={effectiveId} onNewChat={handleHintNewChat} />
+          </>
+        }
         value={inputText}
         onChange={setInputText}
         onSend={handleSend}
@@ -1310,6 +1472,30 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         providerAttachmentSupport={providerAttachmentSupport}
         providerKind={telemetryProviderKind(provider?.kind)}
         presentation={showHomeComposer ? 'home' : 'docked'}
+        toolsTrailing={(
+          <ContextUsagePanel
+            open={contextUsageOpen}
+            onClose={closeContextUsage}
+            conversationId={conversation?.id ?? null}
+            state={contextUsage}
+            sending={isStreaming}
+            onNewChatWithSummary={handleHintNewChat}
+            conversation={conversation}
+            provider={provider}
+            currentModel={currentModel}
+            userMaxOutput={contextUsageOpen && provider && currentModel
+              ? chatUserMaxOutputFor({
+                provider,
+                model: currentModel,
+                ...(conversation?.id ? { conversationId: conversation.id } : {}),
+                reasoningMode,
+                webSearchEnabled: effectiveWebSearchEnabled,
+              })
+              : null}
+          >
+            <ContextUsageRing summary={contextUsage?.summary ?? null} onOpen={onOpenContextUsage} />
+          </ContextUsagePanel>
+        )}
         relatedNotes={relatedNotes}
         onAttachRelatedNote={handleAttachRelatedNote}
         onDismissRelatedNote={handleDismissRelatedNote}
@@ -1329,6 +1515,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         quoteContext={pendingQuoteContext}
         onRemoveQuote={handleRemoveQuote}
         quoteFocusSignal={quoteFocusSignal}
+        onComposerEngaged={handleComposerEngaged}
         toolsExtra={(
           <McpToolsControl
             // A new conversation has no id yet: the switches are kept under the draft scope and move to the real id once the first message is sent.
@@ -1342,6 +1529,8 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
       />
 
       {libraryFeatureEnabled ? <LibraryConfirmationDialog /> : null}
+      {/* Pre-send confirmation: any send path may suspend on it, so it does not follow the library switch; only the current conversation's is shown. */}
+      <ContextCapConfirmDialog conversationId={effectiveId} />
       <McpChatPresence conversationId={effectiveId ?? undefined} />
 
     </div>

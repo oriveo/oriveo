@@ -1,7 +1,7 @@
 'use client';
 
-import { Palette, Globe, Keyboard, Brain, Lightbulb, CloudUpload, Bug, BookOpen, ChevronRight, Wrench } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { Palette, Globe, Keyboard, Brain, Lightbulb, CloudUpload, Bug, BookOpen, ChevronRight, Wrench, Layers } from 'lucide-react';
+import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { brand } from '@oriveo/config';
 import { OriveoLogo } from '@oriveo/ui';
@@ -16,8 +16,11 @@ import { getVanillaStore } from '../../providers/StoreProvider';
 import * as preferenceOps from '../../lib/core/preference-ops';
 import type { ThemeOption, LanguageOption, SendShortcut } from '@oriveo/shared';
 import { MenuSelect } from '../../components/MenuSelect';
+import { FeatureBadgeDot } from '../../components/FeatureBadgeDot';
+import { FEATURE_BADGE_IDS } from '../../lib/core/feature-badges';
 import { trackEvent } from '../../lib/core/telemetry';
 import { APP_VERSION } from '../../lib/version';
+import { contextRowValueText } from '../../lib/core/chat/context-visibility/cap-presentation';
 import styles from './Settings.module.css';
 
 const THEME_OPTIONS: { value: ThemeOption; labelKey: string }[] = [
@@ -54,6 +57,8 @@ const SHORTCUT_OPTIONS: { value: SendShortcut; labelKey: string }[] = [
 export function Settings() {
   const t = useTranslations('pages.settings');
   const tMemory = useTranslations('pages.memory');
+  const tContext = useTranslations('pages.settings.context');
+  const tContextCap = useTranslations('pages.chat.contextCap');
   const tMcp = useTranslations('mcp.settings');
   // MCP entry: the master switch comes from the model catalog and the row is hidden while it is off.
   // The subtitle shows how many servers there are and how many need attention.
@@ -69,9 +74,13 @@ export function Settings() {
       ? tMcp('entryCountAttention', { count: mcpServerCount, attention: mcpAttentionCount })
       : tMcp('entryCount', { count: mcpServerCount });
   const router = useRouter();
+  const locale = useLocale();
 
   const preferences = useAppStore((s) => s.preferences);
   const setPreferences = useAppStore((s) => s.setPreferences);
+
+  // Context row value = "default cap · tidy mode": the cap defaults to auto, and tidy mode defaults to off (keep the original wording only)
+  const contextModeValue = contextRowValueText(preferences, locale, tContext, tContextCap);
 
   const trimmedMemoryText = preferences.memoryText?.trim() ?? '';
   const hasMemory = trimmedMemoryText.length > 0;
@@ -111,7 +120,10 @@ export function Settings() {
             <Brain size={16} />
           </span>
           <div className={styles.navRowInfo}>
-            <div className={styles.navRowTitle}>{tMemory('settingsEntry')}</div>
+            <div className={styles.navRowTitle}>
+              {tMemory('settingsEntry')}
+              <FeatureBadgeDot id={FEATURE_BADGE_IDS.settingsMemory} />
+            </div>
             {!hasMemory && <div className={styles.navRowSubtitle}>{memoryPreview}</div>}
           </div>
           {hasMemory && (
@@ -122,6 +134,25 @@ export function Settings() {
           <ChevronRight size={14} className={styles.navRowChevron} />
         </div>
 
+        <div className={styles.divider} />
+
+        <button
+          type="button"
+          className={`${styles.navRow} ${styles.navRowButton}`}
+          onClick={() => router.push('/settings/context')}
+          data-testid="settings-context-row"
+        >
+          <span className={`${styles.semanticIcon} ${styles.purple}`}>
+            <Layers size={16} />
+          </span>
+          <div className={styles.navRowInfo}>
+            <div className={styles.navRowTitle}>{tContext('title')}</div>
+          </div>
+          <div className={styles.navRowTrailing}>
+            <div className={styles.navRowValue}>{contextModeValue}</div>
+          </div>
+          <ChevronRight size={14} className={styles.navRowChevron} />
+        </button>
 
         {mcpRuntimeConfig.enabled ? (
           <>

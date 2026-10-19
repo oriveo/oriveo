@@ -16,16 +16,28 @@ const THINKING_MAX_TOKENS_HEADROOM = 4096;
 const THINKING_TOP_P_MIN = 0.95;
 const THINKING_ACTIVE_TYPES = new Set(['enabled', 'adaptive']);
 
+/** The output limit (oWire) passed from the main chat path; undefined when it is not a positive finite number, so callers keep their existing value. */
+export function chatMaxOutputTokens(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : undefined;
+}
+
 /**
  * The Relay Anthropic thinking decision (on or off, the budget, and how large a max_tokens the builder writes) has this one source:
  * both build paths (orchestration and transport strategy) and the UI preview share it. It looks at the connection protocol only, never the model name.
+ * With a chat output limit (oWire): a budget >= it takes budget + 4096, otherwise the limit itself; without one, the builder default is the fallback.
  */
-export function resolveRelayAnthropicThinking(reasoning: ReasoningMode | undefined): AnthropicThinkingDecision | null {
+export function resolveRelayAnthropicThinking(
+  reasoning: ReasoningMode | undefined,
+  outputLimit?: number,
+): AnthropicThinkingDecision | null {
   if (!reasoning || reasoning === 'automatic') return null;
   const budgetTokens = relayAnthropicBudgetTokens(reasoning);
+  const withHeadroom = budgetTokens + THINKING_MAX_TOKENS_HEADROOM;
   return {
     budgetTokens,
-    maxTokens: Math.max(RELAY_ANTHROPIC_DEFAULT_MAX_TOKENS, budgetTokens + THINKING_MAX_TOKENS_HEADROOM),
+    maxTokens: outputLimit === undefined
+      ? Math.max(RELAY_ANTHROPIC_DEFAULT_MAX_TOKENS, withHeadroom)
+      : budgetTokens >= outputLimit ? withHeadroom : outputLimit,
   };
 }
 

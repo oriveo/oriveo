@@ -3,16 +3,18 @@
 import { memo, useCallback } from 'react';
 import type { ChatMessage, Conversation, Provider } from '@oriveo/shared';
 import { MessageBubble, type SavedNoteRef } from './MessageBubble';
+import type { MessageEditReopen } from '../../lib/hooks/useMessageEdit';
 
 /** Middle layer that stabilizes the callback references for each message so the memo on MessageBubble actually holds */
 export const MessageListItem = memo(function MessageListItem({
   messageId, message, provider, streamingText, prevRole,
-  interactionLocked, onRetry, onRetryWithoutCustom, onEditAndResend, onContinueAnswering, onSwitchModel, conversationId, conversation, sourcePrompt,
+  interactionLocked, onRetry, onRetryWithoutCustom, onEditAndResend, editReopen, onContinueAnswering, onSwitchModel, conversationId, conversation, sourcePrompt,
   savedNoteRefs, isLastMessage,
 }: {
   messageId: string; message: ChatMessage; provider: Provider | undefined; streamingText?: string; prevRole?: string;
   interactionLocked?: boolean;
   onRetry?: (id: string) => void; onRetryWithoutCustom?: (id: string) => void; onEditAndResend?: (id: string, text: string) => void;
+  editReopen?: MessageEditReopen;
   onContinueAnswering?: (id: string) => void; onSwitchModel?: () => void;
   conversationId?: string | null;
   conversation?: Conversation;
@@ -36,6 +38,7 @@ export const MessageListItem = memo(function MessageListItem({
         onRetry={onRetry ? handleRetry : undefined}
         onRetryWithoutCustom={onRetryWithoutCustom ? handleRetryWithoutCustom : undefined}
         onEditAndResend={onEditAndResend ? handleEdit : undefined}
+        editReopen={editReopen}
         onContinue={onContinueAnswering ? handleContinue : undefined}
         onSwitchModel={onSwitchModel}
         conversationId={conversationId ?? undefined}

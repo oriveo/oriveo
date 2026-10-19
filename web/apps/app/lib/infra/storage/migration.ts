@@ -7,7 +7,7 @@ const MIGRATED_KEY = 'oriveo.storage.partitioned';
 // Has to match idb.ts:DB_VERSION: the one-time migration from the unpartitioned database must
 // create the current schema version directly, or openPartitionDB later triggers a v2 to v3
 // upgrade against stores that already exist, wasting an upgrade cycle.
-const PARTITION_DB_VERSION = 10;
+export const PARTITION_DB_VERSION = 14;
 
 /**
  * Migrates data from the old IDB layout into the partitioned one, once, on first launch.
@@ -189,6 +189,23 @@ async function openPartitionDB(uid: string): Promise<IDBPDatabase> {
       }
       if (!db.objectStoreNames.contains('pendingProviderDeletions')) {
         db.createObjectStore('pendingProviderDeletions', { keyPath: 'providerId' });
+      }
+      if (!db.objectStoreNames.contains('contextRhoCalibration')) {
+        db.createObjectStore('contextRhoCalibration');
+      }
+      if (!db.objectStoreNames.contains('contextManifests')) {
+        const ms = db.createObjectStore('contextManifests', { keyPath: ['conversationId', 'requestId'] });
+        ms.createIndex('by-conversation', 'conversationId');
+      }
+      if (!db.objectStoreNames.contains('contextCheckpoints')) {
+        const cs = db.createObjectStore('contextCheckpoints', { keyPath: ['conversationId', 'checkpointId'] });
+        cs.createIndex('by-conversation', 'conversationId');
+      }
+      if (!db.objectStoreNames.contains('memoryItems')) {
+        db.createObjectStore('memoryItems', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('memoryCandidates')) {
+        db.createObjectStore('memoryCandidates', { keyPath: 'id' });
       }
     },
   });

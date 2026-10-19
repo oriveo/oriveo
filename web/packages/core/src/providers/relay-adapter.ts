@@ -259,33 +259,92 @@ export function extractText(parts: ContentPart[]): string {
     .join('\n');
 }
 
-const RELAY_ANTHROPIC_CACHE_CONTROL = { type: 'ephemeral' } as const;
+const ANTHROPIC_CACHE_CONTROL = { type: 'ephemeral' } as const;
 
 /**
- * The single block-level cache breakpoint for Relay Anthropic: placed on the last content block of the
- * last user message. Anthropic allows at most 4 cache_control breakpoints per request; marking every
- * image / document block would exceed that with many attachments and get the request rejected. One
- * breakpoint on the last block already lets the whole prefix (system + full history + attachments) hit
- * the cache. String content is wrapped into a text block first; an empty-text last block is left
- * unmarked (Anthropic rejects breakpoints on empty text blocks). Array elements are replaced in place,
- * so the caller's message objects are never mutated.
+ * The standalone trailing [D] block and the single block-level cache breakpoint for Anthropic
+ * (the same rule for the official path and Relay).
+ *
+ * - When dynamicText is non-empty, only the "current user message" is considered (the last user message
+ *   without a tool_result block, i.e. the one the user sent this turn): if its text equals dynamicText or
+ *   ends with "\n\n"+dynamicText (string content, or the last text block of array content), [D] is split
+ *   off into that message's last standalone text block (after any images / documents); otherwise it is
+ *   sent unchanged. An earlier user message that happens to end the same way is not split.
+ *   Every leg splits the same message, so the prefix stays identical across tool-loop legs.
+ * - The whole request carries exactly one cache_control, placed on the last non-[D] block of the last
+ *   user message (on the tool_result turn when tool results are present; it may be an image / document /
+ *   tool_result block). There is no top-level cache_control any more.
+ *   Anthropic allows at most 4 breakpoints per request, and one breakpoint on the last block already
+ *   lets the whole prefix hit the cache.
+ * - A breakpoint block with empty text is left unmarked (Anthropic rejects breakpoints on empty text blocks).
+ * Array elements are replaced in place, so the caller's message objects are never mutated.
  */
-export function markRelayAnthropicCacheBreakpoint(messages: Array<Record<string, unknown>>): void {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message.role !== 'user') continue;
-    const content = typeof message.content === 'string'
-      ? (message.content ? [{ type: 'text', text: message.content }] : [])
-      : message.content;
-    if (!Array.isArray(content) || content.length === 0) return;
-    const last = content[content.length - 1] as Record<string, unknown>;
-    if (last.type === 'text' && !last.text) return;
-    messages[index] = {
-      ...message,
-      content: [...content.slice(0, -1), { ...last, cache_control: RELAY_ANTHROPIC_CACHE_CONTROL }],
-    };
-    return;
+export function markAnthropicCacheBreakpoint(
+  messages: Array<Record<string, unknown>>,
+  dynamicText?: string,
+): void {
+  const lastUserIndex = findLastIndex(messages, (message) => message.role === 'user');
+  if (lastUserIndex < 0) return;
+  let dynamicBlock: Record<string, unknown> | undefined;
+  if (dynamicText) {
+    const currentIndex = findLastIndex(
+      messages,
+      (message) => message.role === 'user' && !hasToolResultBlock(message.content),
+    );
+    const current = currentIndex >= 0 ? messages[currentIndex] : undefined;
+    const split = current ? splitDynamicSuffix(current.content, dynamicText) : null;
+    if (current && split) {
+      dynamicBlock = split.at(-1);
+      messages[currentIndex] = { ...current, content: split };
+    }
   }
+  const message = messages[lastUserIndex];
+  const content = typeof message.content === 'string'
+    ? (message.content ? [{ type: 'text', text: message.content }] : [])
+    : message.content;
+  if (!Array.isArray(content)) return;
+  const targetIndex = findLastIndex(content as unknown[], (block) => block !== dynamicBlock);
+  if (targetIndex < 0) return;
+  const target = content[targetIndex] as Record<string, unknown>;
+  if (target.type === 'text' && !target.text) return;
+  const marked = [...content];
+  marked[targetIndex] = { ...target, cache_control: ANTHROPIC_CACHE_CONTROL };
+  messages[lastUserIndex] = { ...message, content: marked };
+}
+
+function hasToolResultBlock(content: unknown): boolean {
+  return Array.isArray(content)
+    && content.some((block) => (block as Record<string, unknown> | null)?.type === 'tool_result');
+}
+
+/** Returns an empty body when the text equals dynamicText; the body before [D] when it ends with "\n\n"+dynamicText; otherwise null. */
+function dynamicHead(text: string, dynamicText: string): string | null {
+  if (text === dynamicText) return '';
+  const suffix = `\n\n${dynamicText}`;
+  return text.endsWith(suffix) ? text.slice(0, -suffix.length) : null;
+}
+
+/** When the text equals [D] or ends with "\n\n"+[D], returns the block array with [D] split into a standalone last block (the final element is the [D] block); otherwise null. */
+function splitDynamicSuffix(content: unknown, dynamicText: string): Array<Record<string, unknown>> | null {
+  const dynamicBlock = { type: 'text', text: dynamicText };
+  if (typeof content === 'string') {
+    const head = dynamicHead(content, dynamicText);
+    if (head === null) return null;
+    return [...(head ? [{ type: 'text', text: head }] : []), dynamicBlock];
+  }
+  if (!Array.isArray(content) || content.length === 0) return null;
+  const last = content[content.length - 1] as Record<string, unknown>;
+  if (last.type !== 'text' || typeof last.text !== 'string') return null;
+  const head = dynamicHead(last.text, dynamicText);
+  if (head === null) return null;
+  return [...content.slice(0, -1), ...(head ? [{ ...last, text: head }] : []), dynamicBlock];
+}
+
+function findLastIndex<T>(items: T[], predicate: (item: T) => boolean): number {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    if (predicate(items[index])) return index;
+  }
+  return -1;
 }
 
 export function convertToAnthropicParts(parts: ContentPart[]) {

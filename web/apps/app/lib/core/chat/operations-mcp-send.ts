@@ -21,15 +21,17 @@ import type {
   QuoteContext,
   ReasoningMode,
 } from '@oriveo/shared';
-import type { ProxyMessage, ProxyToolCall } from '@oriveo/core/providers/request-builders/runtime';
+import type { ProxyToolCall } from '@oriveo/core/providers/request-builders/runtime';
 import type { GenerationParameterOverrides } from '@oriveo/core/providers/request-builders/types';
 import type { StreamUsage } from '@oriveo/core/providers/types';
+import { stopReasonFromError, stopReasonFromFinish } from './stop-reason-outcome';
 import { ToolCallLoop, type ToolCallLoopOptions } from '@oriveo/core/tools/tool-call-loop';
-import { ToolLoopError, type ToolLoopProgressEvent, type ToolLoopResult } from '@oriveo/core/tools/tool-loop-contracts';
+import { ToolLoopError, type ToolLoopProgressEvent, type ToolLoopResult, type ToolRegistryEntry } from '@oriveo/core/tools/tool-loop-contracts';
 import { ToolRegistry } from '@oriveo/core/tools/tool-registry';
-import { MCP_LOOP_PROMPTS, MCP_LOOP_STOPPED_ERROR_CODE, mcpLoopLimits, mcpSystemPrompt, type McpToolPlan } from '@oriveo/core/mcp/index';
-import { mapErrorKindKey, sanitizeOutboundMessages } from '../../utils/chat-stream-utils';
-import { buildOutboundChatHistory } from './outbound-history';
+import { MCP_LOOP_PROMPTS, MCP_LOOP_STOPPED_ERROR_CODE, MCP_SAFETY_PROMPT, mcpLoopLimits, type McpToolPlan } from '@oriveo/core/mcp/index';
+import { oriveoAbortReason } from '@oriveo/core/util/abort-reason';
+import { mapErrorKindKey } from '../../utils/chat-stream-utils';
+import { transportInput } from './context-pipeline/transport-input';
 import { filterCurrentTurnAttachments, withoutUnreceivableImages } from './attachment-policy';
 import { getActiveUIDSync } from '../../infra/storage/partition';
 import { adoptMcpDraftServers, createMcpSendSession } from '../mcp/mcp-chat';
@@ -45,8 +47,15 @@ import {
   completeRound,
   patchAssistantMessage,
   prepareAgentSubscriptionOutbound,
+  prepareToolLoopContext,
   readProviderErrorSource,
 } from './agent-send-shared';
+import { withMemoryItemIds } from './memory-item-ids';
+import { generateMemoryCandidate, offerDirectiveSuggestion } from './conversation-instructions/directive-suggestion';
+import type { MemorySuggestionTicket } from './conversation-instructions/memory-suggestion';
+import { markProposeMemoryDegraded, memoryToolsConnectionSupported, resolveProposeMemoryMode } from './propose-memory-runtime';
+import { resolveSearchMemoryMode } from './search-memory-runtime';
+import { createProposeMemoryEntry, currentMemoryCandidateRepository } from './propose-memory-entry';
 import { effectiveCapabilityTransport } from './capability-evidence';
 import { recordToolCallFallback, toolCallRememberedUnsupported } from './relay-rejection-loop';
 import { applyRelayToolRejection } from '../providers/relay-key-access-writeback';
@@ -61,9 +70,9 @@ import { migrateDraftScopedModelControls } from './draft-scope-migration';
 import { generationParameterFallbackModelId, generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from './generation-parameter-settings';
 import { createAssistantMessage, createUserMessage } from './message-factory';
 import type { ChatOpCtx, SendHandle } from './operations';
-import { buildPromptInjectionContext } from './prompt-injection';
 import { reportSendCompletion } from './send-completion';
-import { prepareSendStart, reportSendStartedTelemetry } from './send-start';
+import { prepareSendStart, reportSendStartedTelemetry, rollbackSendStart } from './send-start';
+import { CapConfirmCancelledError, capConfirmAttemptOf, gateCapConfirm, onceCallback } from './context-visibility/cap-confirm-gate';
 import { reportChatFailed } from './send-failure';
 import type { ChatAttemptKind } from '../telemetry/chat-failure';
 import { requestBaseURLText } from '../providers/endpoint-source';
@@ -102,10 +111,18 @@ export interface SendMcpToolMessageParams {
   /** Entry point that started this attempt (telemetry attempt_kind); defaults to send. */
   attemptKind?: ChatAttemptKind;
   transientGenerationParameters?: GenerationParameterOverrides;
+  /** Called once after the pre-send confirmation passes (including when none is needed) and before the first leg, same as sendMessage. */
+  onSendConfirmed?: () => void;
+  /**
+   * A fresh user send: after persisting, decide the propose_memory mode here and open this round's suggestion strip (same as the library path); the ticket
+   * must hang on the assistant message created inside this function, which the caller cannot reach. In tool mode propose_memory is registered as the last registry entry.
+   */
+  freshUserSend?: { webSearchEnabled?: boolean };
 }
 
 export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessageParams): SendHandle {
   const { store, te } = ctx;
+  const sendConfirmed = onceCallback(params.onSendConfirmed);
   const userMessage = params.userMessageOverride ?? createUserMessage({
     text: params.text,
     provider: params.provider,
@@ -171,6 +188,29 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
   // find them by conversation id.
   if (!params.conversation) adoptMcpDraftServers(params.generationParameterDraftSessionId, finalConvId);
   const effectiveConversation = params.conversation ?? initialConversationSnapshot;
+  let proposeEntry: ToolRegistryEntry | undefined;
+  let proposeTicket: MemorySuggestionTicket | undefined;
+  if (params.freshUserSend) {
+    const proposeMemoryMode = resolveProposeMemoryMode({
+      store, conversationId: finalConvId, provider: params.provider, model: params.model, freshSend: true,
+      webSearchEnabled: params.freshUserSend.webSearchEnabled,
+    });
+    const memoryTicket = offerDirectiveSuggestion(store, finalConvId, userMessage, assistantMessage.id, proposeMemoryMode);
+    if (proposeMemoryMode === 'tool') {
+      proposeTicket = memoryTicket;
+      proposeEntry = createProposeMemoryEntry({
+        ticket: memoryTicket,
+        store,
+        repo: currentMemoryCandidateRepository(store),
+        userText: userMessage.text ?? '',
+        ids: {
+          conversationId: finalConvId,
+          messageId: userMessage.id,
+          folderId: store.getState().conversations.find((c) => c.id === finalConvId)?.folderID ?? null,
+        },
+      });
+    }
+  }
 
   const runtimeConfig = currentMcpRuntimeConfig();
   const session = createMcpSendSession({
@@ -196,11 +236,9 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
   let additionalBodyRetryTap: ReturnType<typeof createAdditionalBodyRetryTap> | undefined;
   const done = (async () => {
     try {
-      const sanitizedOutbound = sanitizeOutboundMessages(
-        params.historyMessages
-          ?? (params.userMessageAlreadyInHistory ? params.prevMessages : [...params.prevMessages, userMessage]),
-        params.appendToAssistant ? assistantMessage.id : undefined,
-      );
+      // Normalization (failed / interrupted markers, kept target) is done by the assembler; here we only build the outbound history.
+      const outboundDraft = params.historyMessages
+        ?? (params.userMessageAlreadyInHistory ? params.prevMessages : [...params.prevMessages, userMessage]);
       const attachmentScopeOptions = buildProviderStreamOptions(
         params.provider,
         buildStreamOptionsFromIntent(params.model, params.reasoningMode, false),
@@ -208,22 +246,36 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
       );
       // Same vision criterion as the entry point (a relay with unknown vision support still sends images).
       const outbound = filterCurrentTurnAttachments(
-        withoutUnreceivableImages(sanitizedOutbound, params.provider, params.model, attachmentScopeOptions),
+        withoutUnreceivableImages(outboundDraft, params.provider, params.model, attachmentScopeOptions),
         userMessage.id, params.provider, params.model);
-      const history = (await buildOutboundChatHistory(ctx, {
-        messages: outbound, provider: params.provider, model: params.model,
-        streamOptions: attachmentScopeOptions, toolLoop: true,
-      })) as ProxyMessage[];
-      const promptContext = await buildPromptInjectionContext(
-        store,
-        effectiveConversation,
-        params.text,
-        params.model,
-        params.provider.kind,
-      );
+      // The assembler (purpose toolLoopLeg) produces the single system message with the MCP safety prompt at the end; every leg reuses it as is.
+      const toolLoopContext = await prepareToolLoopContext(ctx, {
+        conversation: effectiveConversation,
+        conversationId: finalConvId,
+        provider: params.provider,
+        model: params.model,
+        messages: outbound,
+        ...(params.appendToAssistant ? { keepAssistantId: assistantMessage.id } : {}),
+        latestUserText: params.text,
+        streamOptions: attachmentScopeOptions,
+        toolSafety: MCP_SAFETY_PROMPT,
+      });
+      const history = toolLoopContext.history;
+      const promptContext = toolLoopContext.promptContext;
       retrievalCost = promptContext.retrievalCost;
-      // The user's system prompt comes first; the safety prompt is appended after it.
-      history.unshift({ role: 'system', content: mcpSystemPrompt(promptContext.systemContent) });
+      // Confirmation gate: after compaction and before the first leg, judge the estimated input of this plan; a cancel throws CapConfirmCancelledError.
+      // Only a gate that actually asked the user makes a stop count as a cancel rollback; without a prompt, a stop is still received by the first leg as an abort and finishes as an interruption.
+      let asked = false;
+      await gateCapConfirm({
+        store, conversationId: finalConvId, provider: params.provider, model: params.model,
+        attempt: capConfirmAttemptOf(attemptKind),
+        window: toolLoopContext.window,
+        estimatedInput: toolLoopContext.planned.plan.budget.estimatedInput,
+        signal: controller.signal,
+        onAsk: () => { asked = true; },
+      });
+      if (asked && controller.signal.aborted) throw new CapConfirmCancelledError();
+      sendConfirmed();
 
       const unresolvedGenerationParameters = resolveGenerationParameterOverrides({
         providerId: params.provider.id,
@@ -253,11 +305,12 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         webSearchEnabled: false,
         streamOptions: preliminaryOptions,
       });
+      const generationParameters = filterGenerationParameterOverrides(params.provider, params.model, unresolvedGenerationParameters, preliminaryOptions);
       const rawOptions = buildStreamOptionsFromIntent(
         params.model,
         requestIntent.reasoning,
         requestIntent.supportsWebSearch,
-        filterGenerationParameterOverrides(params.provider, params.model, unresolvedGenerationParameters, preliminaryOptions),
+        generationParameters,
         requestIntent.capabilityPreferences,
       );
       // The additional body is the last step of every chat request body, so every tool-call round of an MCP send carries it too.
@@ -284,6 +337,21 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
       // The upstream has explicitly rejected `tools` on this connection before, so tools are known to be
       // unsupported: send directly without them.
       const toolsEnabled = !toolCallRememberedUnsupported(params.provider, params.model, toolCallIdentity);
+      // When tools are known to be unsupported, propose_memory cannot be sent: run the fallback for this round.
+      if (!toolsEnabled && proposeTicket) generateMemoryCandidate(store, proposeTicket, userMessage);
+      // The effective generation parameters carry json_schema: do not register propose this round and use the fallback for the candidate (same decision as a plain send).
+      if (toolsEnabled && proposeTicket && !memoryToolsConnectionSupported(
+        params.provider, params.model, params.freshUserSend?.webSearchEnabled, generationParameters,
+      )) {
+        generateMemoryCandidate(store, proposeTicket, userMessage);
+        proposeEntry = undefined;
+        proposeTicket = undefined;
+      }
+      // In tool mode search_memory is registered after propose_memory (retries and regenerations register it the same way).
+      const searchEntry = resolveSearchMemoryMode({
+        store, conversationId: finalConvId, provider: params.provider, model: params.model,
+        webSearchEnabled: params.freshUserSend?.webSearchEnabled, generationParameters,
+      }) === 'tool' ? toolLoopContext.searchMemoryEntry() : undefined;
 
       let legText = '';
       const onProgress = (event: ToolLoopProgressEvent): void => {
@@ -313,17 +381,25 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         }
       };
       const loopOptions = (mode: 'enabled' | 'disabled'): ToolCallLoopOptions => ({
-        registry: mode === 'enabled' ? new ToolRegistry(session.entries) : ToolRegistry.empty,
-        runLeg: ({ messages, tools, toolChoice }) => retryTap.wrap(sendLibraryAgentLeg(
-          params.provider.kind,
-          agentOutbound.apiKey,
-          params.model.id,
-          messages,
-          tools,
-          requestBaseURLText(params.provider),
-          agentOutbound.streamOptions,
-          toolChoice,
-        )),
+        registry: mode === 'enabled'
+          ? new ToolRegistry([...session.entries, ...(proposeEntry ? [proposeEntry] : []), ...(searchEntry ? [searchEntry] : [])])
+          : ToolRegistry.empty,
+        runLeg: ({ messages, tools, toolChoice }) => {
+          const transport = transportInput(toolLoopContext.planned, {
+            options: agentOutbound.streamOptions,
+            toolLeg: { messages, tools },
+          });
+          return retryTap.wrap(sendLibraryAgentLeg(
+            params.provider.kind,
+            agentOutbound.apiKey,
+            params.model.id,
+            transport.messages,
+            transport.tools,
+            requestBaseURLText(params.provider),
+            transport.options,
+            toolChoice,
+          ));
+        },
         signal: controller.signal,
         limits: mcpLoopLimits(runtimeConfig),
         prompts: MCP_LOOP_PROMPTS,
@@ -363,6 +439,11 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         // `eligible` has confirmed this is a deterministic tool rejection context.
         toolFallbackRejection = (error as ToolLoopError).toolCallRejectionContext as ToolCallRejectionContext;
         store.getState().setStreamingText(finalConvId, initialText);
+        // This send carried propose_memory: record the degradation and run the fallback for this round.
+        if (proposeTicket) {
+          markProposeMemoryDegraded(params.provider.id, params.model.id);
+          generateMemoryCandidate(store, proposeTicket, userMessage);
+        }
         result = await new ToolCallLoop(loopOptions('disabled')).run(history, trackLeg);
         toolFallbackApplied = true;
       }
@@ -380,10 +461,12 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
 
       const costInfo = deriveCostFields(result.usage, params.model, params.provider.kind, params.provider.authMode);
       const reasoningText = (store.getState().streamingReasoningTexts[finalConvId] ?? '').trim();
-      const delivered: ChatMessage = {
+      const deliveredText = appendText(initialText, result.text);
+      const delivered: ChatMessage = withMemoryItemIds({
         ...assistantMessage,
-        text: appendText(initialText, result.text),
+        text: deliveredText,
         state: 'delivered',
+        stopReason: stopReasonFromFinish(result.finish, deliveredText.trim() !== ''),
         ...(reasoningText ? { reasoningText } : {}),
         estimatedCost:
           (params.appendToAssistant ? assistantMessage.estimatedCost ?? 0 : 0) + costInfo.cost + promptContext.retrievalCost,
@@ -394,7 +477,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         ...(unhandled.length > 0
           ? { unhandledToolCalls: unhandled.map((call) => ({ id: call.id, name: call.function.name, arguments: call.function.arguments })) }
           : {}),
-      };
+      }, toolLoopContext.memoryIds, Boolean(params.appendToAssistant));
       completeRound(store, finalConvId, effectiveConversation, params.prevMessages, userMessage, delivered);
       reportSent();
       reportSendCompletion({
@@ -415,6 +498,21 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         attemptKind,
       });
     } catch (error) {
+      if (error instanceof CapConfirmCancelledError) {
+        // Cancel means rollback: delete this message pair locally (the user message has not been synced), report neither sent nor failed, and do not call onFailed.
+        rollbackSendStart(store, finalConvId, params.persistUserMessage !== false && !params.userMessageAlreadyInHistory
+          ? [userMessage.id, assistantMessage.id]
+          : [assistantMessage.id]);
+        return {
+          rolledBack: {
+            text: params.text,
+            ...(params.attachments?.length ? { attachments: params.attachments } : {}),
+            ...(params.quoteContext ? { quoteContext: params.quoteContext } : {}),
+          },
+        };
+      }
+      // Failed before the gate: do what normally happens after confirmation anyway (only a cancel at the confirmation skips it).
+      sendConfirmed();
       // Exactly one sent event per attempt: a stop or a failure also reports it first, through the same helper as the plain send.
       reportSent();
       const partialCost = latestUsage
@@ -439,6 +537,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
             ...assistantMessage,
             text: partialText,
             state: 'interrupted',
+            stopReason: 'interrupted',
             ...toolStepsPatch(),
             ...partialCostPatch,
           });
@@ -457,6 +556,8 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         ...assistantMessage,
         text: partialText,
         state: 'failed',
+        // Persist stopReason: hadContent only looks at the answer text, not reasoning.
+        stopReason: stopReasonFromError(error, params.provider.kind, partialText.trim() !== ''),
         errorTitle: additionalBodyRetry?.eligible ? te('additionalBodyRejected.upstreamTitle') : failureTitle,
         ...(additionalBodyRetry?.eligible ? { additionalBodyRetryEligible: true } : {}),
         ...(additionalBodyRetry?.eligible && additionalBodyRetry.technicalDetail

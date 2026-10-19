@@ -1,0 +1,175 @@
+/* Context settings page: layout follows MemoryPage, options follow ProviderSubscription mode picker. */
+
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: var(--o-space-lg) var(--o-space-lg) calc(96px + env(safe-area-inset-bottom, 0px));
+}
+
+.backLink {
+  margin-bottom: var(--o-space-md);
+  margin-inline-start: -9px;
+}
+
+.title {
+  margin: 0 0 var(--o-space-xl);
+  font-family: var(--o-font-display);
+  font-size: var(--o-text-2xl);
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  color: var(--o-text);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-md);
+}
+
+.group + .group {
+  margin-top: var(--o-space-xl);
+}
+
+.groupTitle {
+  margin: 0;
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-sm);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-md);
+  width: 100%;
+  min-height: 74px;
+  padding: var(--o-space-md);
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-lg);
+  background: var(--o-surface);
+  text-align: start;
+  cursor: pointer;
+  transition:
+    border-color var(--o-transition-fast),
+    background var(--o-transition-fast);
+}
+
+.optionSelected {
+  border-color: color-mix(in srgb, var(--o-primary) 42%, transparent);
+  background: color-mix(in srgb, var(--o-primary) 8%, var(--o-surface));
+}
+
+.optionCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.optionTitle {
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+.optionHint {
+  font-size: var(--o-text-xs);
+  color: var(--o-text-secondary);
+  line-height: 1.45;
+}
+
+.optionRadio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  color: var(--o-text-tertiary);
+}
+
+.optionSelected .optionRadio {
+  color: var(--o-primary);
+}
+
+.footer {
+  margin: 0;
+  font-size: var(--o-text-xs);
+  line-height: 1.5;
+  color: var(--o-text-secondary);
+}
+
+/* Custom default cap: number field revealed under the cap options. */
+.customCap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-xs);
+}
+
+.customCapField {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-sm);
+  padding: var(--o-space-sm) var(--o-space-md);
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-lg);
+  background: var(--o-surface);
+}
+
+.customCapField:focus-within {
+  border-color: color-mix(in srgb, var(--o-primary) 42%, transparent);
+}
+
+.customCapLabel,
+.customCapUnit {
+  flex: 0 0 auto;
+  font-size: var(--o-text-sm);
+  color: var(--o-text-secondary);
+}
+
+.customCapInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--o-text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--o-text);
+}
+
+.customCapEcho,
+.customCapAdjusted {
+  margin: 0;
+  font-size: var(--o-text-xs);
+  line-height: 1.45;
+  color: var(--o-text-secondary);
+}
+
+.customCapAdjusted {
+  color: var(--o-warning-text);
+}
+
+/* Price-line reminder switch: follows MemoryInboxPage inboxToggle. */
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-md);
+  cursor: pointer;
+}
+
+.toggleTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  color: var(--o-text);
+}

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Settings } from './Settings';
 import { useMcpStore } from '../../lib/core/mcp/mcp-store';
 import styles from './Settings.module.css';
+import { FEATURE_BADGES_SEEN_KEY, FEATURE_BADGE_IDS, markSeen } from '../../lib/core/feature-badges';
 
 const mocks = vi.hoisted(() => ({
   routerPush: vi.fn(),
@@ -170,6 +171,22 @@ describe('Settings', () => {
     render(<Settings />);
 
     expect(screen.getByRole('heading', { name: 'aiSection' }).childElementCount).toBe(0);
+  });
+
+  it('shows the new-feature dot after the memory row title until the memory page is seen', () => {
+    window.localStorage.removeItem(FEATURE_BADGES_SEEN_KEY);
+
+    const { unmount } = render(<Settings />);
+    const title = screen.getByText('settingsEntry');
+    expect(title.querySelector(`[data-feature-badge="${FEATURE_BADGE_IDS.settingsMemory}"]`)).toBeTruthy();
+    unmount();
+
+    markSeen(FEATURE_BADGE_IDS.settingsMemory);
+    render(<Settings />);
+    expect(
+      screen.getByText('settingsEntry').querySelector('[data-feature-badge]'),
+    ).toBeNull();
+    window.localStorage.removeItem(FEATURE_BADGES_SEEN_KEY);
   });
 
   // --- No global developer gate -------------------------------

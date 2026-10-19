@@ -1,0 +1,205 @@
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border: none;
+  background: transparent;
+  color: var(--o-primary-text-on-surface);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--o-radius-sm, 6px);
+}
+
+.back:focus-visible {
+  outline: 2px solid var(--o-primary);
+}
+
+.title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.head,
+.footer {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--o-text-secondary);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-md, 10px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.option:focus-visible {
+  outline: 2px solid var(--o-primary);
+}
+
+.optionSelected {
+  border-color: color-mix(in srgb, var(--o-primary) 42%, transparent);
+  background: color-mix(in srgb, var(--o-primary) 8%, transparent);
+}
+
+.optionCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.optionTitle {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.optionHint {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--o-text-secondary);
+}
+
+.optionHint[data-over='true'] {
+  color: var(--o-warning-text);
+}
+
+.optionRadio {
+  display: flex;
+  flex: 0 0 18px;
+  color: var(--o-text-tertiary, var(--o-text-secondary));
+}
+
+.optionSelected .optionRadio {
+  color: var(--o-primary);
+}
+
+.custom {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.slider {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--o-primary);
+}
+
+.custom[data-over='true'] .slider {
+  accent-color: var(--o-warning);
+}
+
+/* Tick labels: zero-width anchors centre their label without direction-specific transforms. */
+.ticks {
+  position: relative;
+  height: 16px;
+  font-size: 11px;
+  color: var(--o-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.tickAnchor {
+  position: absolute;
+  top: 0;
+  width: 0;
+  display: flex;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.tickStart {
+  position: absolute;
+  top: 0;
+  inset-inline-start: 0;
+  white-space: nowrap;
+}
+
+.tickEnd {
+  position: absolute;
+  top: 0;
+  inset-inline-end: 0;
+  white-space: nowrap;
+}
+
+.tickPriceLine {
+  color: var(--o-warning-text);
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-md, 10px);
+}
+
+.field:focus-within {
+  border-color: color-mix(in srgb, var(--o-primary) 42%, transparent);
+}
+
+.fieldLabel,
+.fieldUnit {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: var(--o-text-secondary);
+}
+
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.echo,
+.adjusted,
+.hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--o-text-secondary);
+}
+
+.adjusted,
+.hint[data-over='true'] {
+  color: var(--o-warning-text);
+}

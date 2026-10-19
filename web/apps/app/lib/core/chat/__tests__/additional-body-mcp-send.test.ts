@@ -15,7 +15,8 @@ vi.mock('../../providers/proxy-client', async () => ({
   ...await vi.importActual<typeof import('../../providers/proxy-client')>('../../providers/proxy-client'),
   sendLibraryAgentLeg: (...args: unknown[]) => mocks.sendLibraryAgentLeg(...args),
 }));
-vi.mock('../../mcp/mcp-chat', () => ({
+vi.mock('../../mcp/mcp-chat', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../mcp/mcp-chat')>(),
   adoptMcpDraftServers: vi.fn(),
   createMcpSendSession: () => ({ entries: [], steps: () => [] }),
 }));

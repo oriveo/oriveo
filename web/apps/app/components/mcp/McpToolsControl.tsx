@@ -118,7 +118,9 @@ export function McpToolsControl({
     if (pending) setReviewServerId(pending.server.id);
   };
 
-  if (!runtimeConfig.enabled) return null;
+  // Not drawn when the master switch is off or no server has been added at all (including while the local MCP store has not loaded yet); same rule as the library pill.
+  // The discovery entry is in Settings > MCP.
+  if (!runtimeConfig.enabled || !hydrated || servers.length === 0) return null;
 
   const count = unsupported ? 0 : panel.enabledCount;
   const reauthServer = servers.find((server) => server.id === reauthServerId) ?? null;

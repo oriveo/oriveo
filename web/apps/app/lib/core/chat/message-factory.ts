@@ -5,6 +5,7 @@
 
 import type { ChatMessage, Conversation, AIModel, Provider, Attachment, QuoteContext } from '@oriveo/shared';
 import { isValidQuoteContext } from '@oriveo/shared';
+import { normalizeConversationInstructions } from '@oriveo/core/context/conversation-instructions';
 import { createCanonicalUUID, normalizePinnedNoteIDs } from '../../utils/id-utils';
 import { makeAutoConversationTitle, makePreviewText } from '../conversation-metadata';
 import { getProviderInstanceDisplayName } from '../providers/provider-display';
@@ -69,8 +70,11 @@ export function createNewConversation(params: {
   skillId?: string;
   useMemory?: boolean;
   pinnedNoteIds?: string[];
+  /** Conversation settings draft instructions; written onto the object only when non-empty after normalization */
+  instructions?: string;
 }): Conversation {
   const { provider, model, userMessage, messages, skillId, useMemory, pinnedNoteIds } = params;
+  const instructions = normalizeConversationInstructions(params.instructions ?? '');
   const normalizedPinnedNoteIds = normalizePinnedNoteIDs(pinnedNoteIds);
   // Activity sort time = createdAt of the first user message. updatedAt is the createdAt of the
   // last delivered message; a new conversation only holds the user message just sent.
@@ -93,5 +97,6 @@ export function createNewConversation(params: {
     ...(skillId ? { skillId } : {}),
     ...(useMemory !== undefined ? { useMemory } : {}),
     ...(normalizedPinnedNoteIds.length > 0 ? { pinnedNoteIds: normalizedPinnedNoteIds } : {}),
+    ...(instructions ? { instructions } : {}),
   };
 }

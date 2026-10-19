@@ -13,6 +13,10 @@ import type { ManualSetupDraft } from '../../app/providers/relay/new/manual-setu
 import type { RelayKeyNotice } from '../../app/providers/[providerId]/relay-keys-board';
 
 export const RELAY_SHOTS_PATH_PREFIX = '/dev/relay-shots/';
+/** Memory page family samples (`/dev/memory-shots/<page>`): the same isolation fence and sample-mode switch. */
+export const MEMORY_SHOTS_PATH_PREFIX = '/dev/memory-shots/';
+/** Context page family samples (`/dev/context-shots/<page>`): the same isolation fence and sample-mode switch. */
+export const CONTEXT_SHOTS_PATH_PREFIX = '/dev/context-shots/';
 
 /** Per-page internal state presets applied on page entry (arm / settle); omitted = normal initial values. */
 export interface RelayShotSeed {
@@ -48,10 +52,17 @@ export function isRelayShotsPath(pathname: string): boolean {
   return pathname.startsWith(RELAY_SHOTS_PATH_PREFIX);
 }
 
-/** True when the current page is a sample route (dev builds); always false in production. */
+/** Any sample route (relay / memory pages / context pages): StoreProvider uses this to install the fence and skip hydration. */
+export function isShotsPath(pathname: string): boolean {
+  return isRelayShotsPath(pathname)
+    || pathname.startsWith(MEMORY_SHOTS_PATH_PREFIX)
+    || pathname.startsWith(CONTEXT_SHOTS_PATH_PREFIX);
+}
+
+/** True when the current page is a sample route (dev builds, including the memory pages); always false in production. */
 export function isRelayShotMode(): boolean {
   if (process.env.NODE_ENV === 'production') return false;
-  return typeof window !== 'undefined' && isRelayShotsPath(window.location.pathname);
+  return typeof window !== 'undefined' && isShotsPath(window.location.pathname);
 }
 
 export function setRelayShotSeed(seed: RelayShotSeed | null): void {

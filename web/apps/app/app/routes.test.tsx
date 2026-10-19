@@ -41,6 +41,7 @@ import RelayNewPage from './providers/relay/new/page';
 vi.mock('next/font/google', () => ({
   Inter: () => ({ variable: 'font-inter' }),
   JetBrains_Mono: () => ({ variable: 'font-mono' }),
+  Plus_Jakarta_Sans: () => ({ variable: 'font-brand' }),
 }));
 
 vi.mock('next-intl/server', () => ({

@@ -5,6 +5,7 @@ import type { Provider, ProviderKind, RelayKind } from '@oriveo/shared';
 import { ProviderIcon } from '../ProviderIcon';
 import { relayIconSource } from '../relay-avatar';
 import { ChevronDownIcon } from '../icons';
+import { stripFreeSuffix } from '../../lib/utils/strip-free-suffix';
 import styles from './TopBar.module.css';
 
 interface ModelTriggerProps {
@@ -24,7 +25,7 @@ export function ModelTrigger({ modelName, providerKind, relayKind, relayProvider
   const t = useTranslations('pages.modelSwitcher');
   // Free model names usually carry a "(free)" suffix; the UI already shows a Free chip, so the
   // suffix is dropped to avoid repeating it.
-  const cleanModelName = modelName?.replace(/\s*\(free\)\s*$/i, '').trim() || modelName;
+  const cleanModelName = modelName === undefined ? undefined : stripFreeSuffix(modelName);
   const isFreeProvider = false;
 
   return (

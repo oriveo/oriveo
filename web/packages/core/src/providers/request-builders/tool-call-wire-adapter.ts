@@ -1,5 +1,9 @@
 import { validateContinuation, type ContinuationIntent } from '../request-preference/continuation';
+import { PROPOSE_MEMORY_TOOL_NAME } from '../../context/memory-propose';
+import { SEARCH_MEMORY_TOOL_NAME } from '../../context/memory-search';
+import { ContextContinuation } from '../../context/continuation';
 import type { ProviderRequest, RequestParams } from './types';
+import { markAnthropicCacheBreakpoint } from '../relay-adapter';
 import type { ProxyMessage, ProxyToolCall, ProxyToolDefinition } from './runtime';
 import { buildOpenAIChatMessages, withImagePlaceholders } from './runtime';
 import {
@@ -11,7 +15,8 @@ import {
 export type WireProtocol = 'openai_chat' | 'openai_responses' | 'anthropic_messages' | 'gemini_generate';
 
 type ToolCallWireParams = Pick<RequestParams, 'messages' | 'tools' | 'toolChoice'>
-  & Partial<Pick<RequestParams, 'providerKind'>>;
+  & Partial<Pick<RequestParams, 'providerKind'>>
+  & { options?: Pick<NonNullable<RequestParams['options']>, 'dynamicText'> };
 
 /** Maps the canonical local-tool contract to the selected provider protocol. Server tools already
  * installed by an official recipe remain in the body and are never reclassified as client tools. */
@@ -28,6 +33,7 @@ export function applyToolCallWireAdapter(
     ...request,
     body: adaptBody(protocolForRequest(request), request.body, {
       ...params,
+      instructionsMode: request.continuationCapture?.instructionsMode,
       messages: withImagePlaceholders(params.messages, placeholder),
     }),
   };
@@ -50,7 +56,7 @@ export function functionToolsForProtocol(protocol: WireProtocol, tools: ProxyToo
 function adaptBody(
   protocol: WireProtocol,
   original: Record<string, unknown>,
-  params: ToolCallWireParams,
+  params: ToolCallWireParams & { instructionsMode?: 'resend' | 'omit' },
 ): Record<string, unknown> {
   const body = { ...original };
   if (protocol === 'openai_chat') {
@@ -61,17 +67,31 @@ function adaptBody(
     return body;
   }
   if (protocol === 'openai_responses') {
-    const mapped = responsesInput(params.messages);
+    // Within one tool loop system / model / checkpoint do not change, so the fingerprint counts as unchanged; the mode is still taken from the recipe only.
+    const decision = ContextContinuation.decideContinuation({
+      previousResponseId: latestPreviousResponseId(params.messages),
+      instructionsMode: params.instructionsMode,
+      systemChangedSinceLastLeg: false,
+      modelChanged: false,
+      checkpointChanged: false,
+    });
+    const mapped = responsesInput(params.messages, decision.kind === 'stateful');
     body.input = mapped.input;
-    if (mapped.instructions) body.instructions = mapped.instructions;
+    if (mapped.instructions && (decision.kind === 'fullPlan' || decision.sendInstructions)) body.instructions = mapped.instructions;
     else delete body.instructions;
-    if (mapped.previousResponseId) body.previous_response_id = mapped.previousResponseId;
+    if (decision.kind === 'stateful') body.previous_response_id = decision.previousResponseId;
+    else delete body.previous_response_id;
     appendTools(body, params.tools && functionToolsForProtocol(protocol, params.tools));
     if (params.tools?.length) body.tool_choice = params.toolChoice ?? 'auto';
     return body;
   }
   if (protocol === 'anthropic_messages') {
     const mapped = anthropicMessages(params.messages);
+    // The tool loop assembles Anthropic turns itself: official Anthropic re-places the single breakpoint the same way as the builder (last non-[D] block of the tool_result turn);
+    // other lines using the Messages endpoint, such as MiniMax, are left as they are.
+    if (params.providerKind === 'anthropic') {
+      markAnthropicCacheBreakpoint(mapped.messages as Array<Record<string, unknown>>, params.options?.dynamicText);
+    }
     body.messages = mapped.messages;
     if (mapped.system) body.system = mapped.system;
     appendTools(body, params.tools && functionToolsForProtocol(protocol, params.tools));
@@ -142,6 +162,40 @@ function appendTools(body: Record<string, unknown>, tools: unknown[] | undefined
   })];
 }
 
+const HOST_MEMORY_TOOL_NAMES: readonly string[] = [PROPOSE_MEMORY_TOOL_NAME, SEARCH_MEMORY_TOOL_NAME];
+
+function isHostMemoryTool(tool: ProxyToolDefinition): boolean {
+  return isCanonicalTool(tool) && HOST_MEMORY_TOOL_NAMES.includes(tool.function.name);
+}
+
+/**
+ * Host memory tools (propose_memory, then search_memory) go after the server tools the builder or a
+ * recipe merged in; library / MCP tools keep their place. Gemini function declarations are one grouped entry:
+ * a group made only of memory tools moves to the end as a whole, a group mixed with library / MCP tools stays.
+ */
+export function moveHostMemoryToolsLast(
+  protocol: WireProtocol,
+  body: Record<string, unknown>,
+  tools: ProxyToolDefinition[] | undefined,
+): void {
+  const memoryTools = tools?.filter(isHostMemoryTool) ?? [];
+  if (!memoryTools.length || !Array.isArray(body.tools)) return;
+  if (protocol === 'gemini_generate') {
+    const isMemoryGroup = (entry: unknown): boolean => isRecord(entry)
+      && Array.isArray(entry.functionDeclarations)
+      && entry.functionDeclarations.length > 0
+      && entry.functionDeclarations.every((declaration) => isRecord(declaration)
+        && typeof declaration.name === 'string' && HOST_MEMORY_TOOL_NAMES.includes(declaration.name));
+    const groups = body.tools.filter(isMemoryGroup);
+    if (groups.length) body.tools = [...body.tools.filter((entry) => !isMemoryGroup(entry)), ...groups];
+    return;
+  }
+  const wire = functionToolsForProtocol(protocol, memoryTools);
+  const identities = new Set(wire.map((entry) => JSON.stringify(entry)));
+  body.tools = body.tools.filter((entry) => !identities.has(JSON.stringify(entry)));
+  appendTools(body, wire);
+}
+
 function toResponsesTool(tool: ProxyToolDefinition): Record<string, unknown> {
   if (!isCanonicalTool(tool)) return tool as unknown as Record<string, unknown>;
   return {
@@ -187,22 +241,25 @@ function isCanonicalTool(tool: ProxyToolDefinition): boolean {
   return value.type === 'function' && fn != null && typeof fn === 'object' && !Array.isArray(fn);
 }
 
-function responsesInput(messages: ProxyMessage[]): {
+function latestPreviousResponseIndex(messages: ProxyMessage[]): number {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (previousResponseID(messages[index]?.providerContinuation) != null) return index;
+  }
+  return -1;
+}
+
+function latestPreviousResponseId(messages: ProxyMessage[]): string | undefined {
+  const index = latestPreviousResponseIndex(messages);
+  return index >= 0 ? previousResponseID(messages[index]?.providerContinuation) : undefined;
+}
+
+/** stateful = chained on previous_response_id: only the tail after that response is sent. */
+function responsesInput(messages: ProxyMessage[], stateful: boolean): {
   input: unknown[];
   instructions?: string;
-  previousResponseId?: string;
 } {
   const system = messages.filter((message) => message.role === 'system').map(textContent).filter(Boolean);
-  let previousIndex = -1;
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (previousResponseID(messages[index]?.providerContinuation) != null) {
-      previousIndex = index;
-      break;
-    }
-  }
-  const previousResponseId = previousIndex >= 0
-    ? previousResponseID(messages[previousIndex]?.providerContinuation)
-    : undefined;
+  const previousIndex = stateful ? latestPreviousResponseIndex(messages) : -1;
   const source = previousIndex >= 0 ? messages.slice(previousIndex + 1) : messages;
   const input: unknown[] = [];
   for (const message of source) {
@@ -211,13 +268,10 @@ function responsesInput(messages: ProxyMessage[]): {
       input.push({ type: 'function_call_output', call_id: message.tool_call_id, output: textContent(message) });
       continue;
     }
-    const content = textContent(message);
-    if (content) {
-      input.push({
-        role: message.role,
-        content: [{ type: message.role === 'assistant' ? 'output_text' : 'input_text', text: content }],
-      });
-    }
+    const content = message.role === 'assistant'
+      ? (textContent(message) ? [{ type: 'output_text', text: textContent(message) }] : [])
+      : userBlocks(message, (text) => ({ type: 'input_text', text }), (url) => ({ type: 'input_image', image_url: url }));
+    if (content.length) input.push({ role: message.role, content });
     for (const call of message.tool_calls ?? []) {
       input.push({
         type: 'function_call',
@@ -230,7 +284,6 @@ function responsesInput(messages: ProxyMessage[]): {
   return {
     input,
     ...(system.length ? { instructions: system.join('\n\n') } : {}),
-    ...(previousResponseId ? { previousResponseId } : {}),
   };
 }
 
@@ -258,7 +311,10 @@ function anthropicMessages(messages: ProxyMessage[]): { system?: string; message
     openToolTurn = undefined;
     const replay = replayBlocks(message.providerContinuation, 'anthropic_messages');
     const content = replay ?? [
-      ...(textContent(message) ? [{ type: 'text', text: textContent(message) }] : []),
+      ...userBlocks(message, (text) => ({ type: 'text', text }), (url) => {
+        const data = base64DataURL(url);
+        return data ? { type: 'image', source: { type: 'base64', media_type: data.mimeType, data: data.data } } : undefined;
+      }),
       ...(message.tool_calls ?? []).map(toAnthropicToolUse),
     ];
     output.push({ role: message.role, content });
@@ -305,7 +361,10 @@ function geminiContents(messages: ProxyMessage[]): {
     contents.push({
       role: message.role === 'assistant' ? 'model' : 'user',
       parts: [
-        ...(textContent(message) ? [{ text: textContent(message) }] : []),
+        ...userBlocks(message, (text) => ({ text }), (url) => {
+          const data = base64DataURL(url);
+          return data ? { inlineData: { mimeType: data.mimeType, data: data.data } } : undefined;
+        }),
         ...(message.tool_calls ?? []).map((call) => ({ functionCall: {
           name: call.function.name,
           args: jsonObject(call.function.arguments),
@@ -349,7 +408,45 @@ function previousResponseID(continuation: ContinuationIntent | undefined): strin
 
 function textContent(message: ProxyMessage): string {
   if (typeof message.content === 'string') return message.content;
-  return message.content.filter((part) => part.type === 'text').map((part) => part.text).join('\n');
+  // A later part that already starts with a line break (transport's "\n\n" + [D]) is not joined with another one.
+  return message.content.filter((part) => part.type === 'text').map((part) => part.text)
+    .reduce((joined, text, index) => (index === 0 || text.startsWith('\n') ? joined + text : `${joined}\n${text}`), '');
+}
+
+/** Transport appends [D] as its own text part prefixed with "\n\n"; as a separate block that separator is redundant. */
+function withoutPartSeparator(text: string, isFirstText: boolean): string {
+  return isFirstText ? text : text.replace(/^\n\n/, '');
+}
+
+/** Convert a user message block by block (body + images), consistent with the main-chat builders; other roles and plain text yield a single text block.
+ * Image blocks were already handled per line by withImagePlaceholders, so only the shape is converted here. */
+function userBlocks(
+  message: ProxyMessage,
+  text: (value: string) => Record<string, unknown>,
+  image: (url: string) => Record<string, unknown> | undefined,
+): Array<Record<string, unknown>> {
+  if (message.role !== 'user' || typeof message.content === 'string') {
+    const value = textContent(message);
+    return value ? [text(value)] : [];
+  }
+  const blocks: Array<Record<string, unknown>> = [];
+  let seenText = false;
+  for (const part of message.content) {
+    if (part.type === 'text') {
+      const value = withoutPartSeparator(part.text, !seenText);
+      if (part.text) seenText = true;
+      if (value) blocks.push(text(value));
+    } else if (part.type === 'image_url') {
+      const block = image(part.image_url.url);
+      if (block) blocks.push(block);
+    }
+  }
+  return blocks;
+}
+
+function base64DataURL(url: string): { mimeType: string; data: string } | undefined {
+  const matched = url.match(/^data:([^;]+);base64,(.+)$/);
+  return matched ? { mimeType: matched[1], data: matched[2] } : undefined;
 }
 
 function jsonObject(raw: string): Record<string, unknown> {

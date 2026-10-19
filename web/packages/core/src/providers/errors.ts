@@ -94,6 +94,13 @@ export interface ProviderError {
   networkDetail?: ChatNetworkDetail;
   /** Stable guidance key when relayGuidance matched (one table shared across platforms, keyed by RelayGuidanceCode.stableKey). */
   relayGuidanceKey?: string;
+  /** HTTP status of the error; kept even after mapping to a dedicated 401/429 error (used by overflow detection). */
+  httpStatus?: number;
+  /**
+   * Raw HTTP error body (first 32 KB of UTF-8), used only for local overflow detection: never shown,
+   * logged or persisted. Non-enumerable (see withProviderErrorRawBody): spreading and serialization drop it.
+   */
+  rawBody?: string;
 }
 
 export class ProviderErrorObject extends Error implements ProviderError {
@@ -111,6 +118,8 @@ export class ProviderErrorObject extends Error implements ProviderError {
   readonly traceId?: string;
   readonly upstreamErrorType?: string;
   readonly networkDetail?: ChatNetworkDetail;
+  readonly httpStatus?: number;
+  declare readonly rawBody?: string;
 
   constructor(error: ProviderError) {
     super(error.message);
@@ -129,6 +138,8 @@ export class ProviderErrorObject extends Error implements ProviderError {
     this.traceId = error.traceId;
     if (error.upstreamErrorType) this.upstreamErrorType = error.upstreamErrorType;
     if (error.networkDetail) this.networkDetail = error.networkDetail;
+    if (error.httpStatus !== undefined) this.httpStatus = error.httpStatus;
+    withProviderErrorRawBody(this, providerErrorRawBodyOf(error));
   }
 }
 
@@ -154,10 +165,27 @@ export function toProviderError(
   sensitiveCredentialValues: readonly string[] = [],
   classifyContext?: ProviderErrorClassifyContext,
 ): ProviderError {
-  const classified = withUpstreamErrorType(
-    classifyProviderError(status, body, upstreamURL, relayErrorContext, classifyContext),
-    body,
+  const classified = {
+    ...withUpstreamErrorType(
+      classifyProviderError(status, body, upstreamURL, relayErrorContext, classifyContext),
+      body,
+    ),
+    httpStatus: status,
+  };
+  return withProviderErrorRawBody(
+    toProviderErrorPublic(status, body, classified, upstreamURL, sensitiveCredentialValues, classifyContext),
+    providerErrorRawBody(body),
   );
+}
+
+function toProviderErrorPublic(
+  status: number,
+  body: string,
+  classified: ProviderError,
+  upstreamURL: string | undefined,
+  sensitiveCredentialValues: readonly string[],
+  classifyContext: ProviderErrorClassifyContext | undefined,
+): ProviderError {
   // The four subscription failure kinds are explained here, because the upstream only replies
   // "Unauthorized" or "Forbidden"; using that as the body would turn "your plan does not support
   // this" into a line of English the user cannot act on.
@@ -207,7 +235,45 @@ export function toProviderError(
   };
 }
 
-/** Extra context for classifying BYOK/subscription HTTP errors. */
+/**
+ * Attach the raw error body as a non-enumerable field: only overflow detection reads it by name;
+ * spreading, JSON serialization and failure-card details never see it (rawBody must not leak).
+ */
+export function withProviderErrorRawBody<T extends object>(target: T, rawBody: string | undefined): T {
+  if (rawBody === undefined) return target;
+  Object.defineProperty(target, 'rawBody', {
+    value: rawBody,
+    enumerable: false,
+    writable: false,
+    configurable: true,
+  });
+  return target;
+}
+
+/** Read the non-enumerable raw error body (for overflow detection only). */
+export function providerErrorRawBodyOf(value: unknown): string | undefined {
+  if (value == null || typeof value !== 'object') return undefined;
+  const raw = (value as { rawBody?: unknown }).rawBody;
+  return typeof raw === 'string' ? raw : undefined;
+}
+
+/** Upper bound on the retained raw HTTP error body (UTF-8 bytes). */
+export const PROVIDER_ERROR_RAW_BODY_LIMIT = 32 * 1024;
+
+const rawBodyEncoder = new TextEncoder();
+const rawBodyDecoder = new TextDecoder();
+
+/** First 32 KB of the raw error body as UTF-8; the cut point backs up to a whole character boundary. */
+export function providerErrorRawBody(body: string): string {
+  const bytes = rawBodyEncoder.encode(body);
+  if (bytes.length <= PROVIDER_ERROR_RAW_BODY_LIMIT) return body;
+  let end = PROVIDER_ERROR_RAW_BODY_LIMIT;
+  // 0b10xxxxxx is a continuation byte of a multi-byte character: step back to the character start.
+  while (end > 0 && (bytes[end] & 0xc0) === 0x80) end -= 1;
+  return rawBodyDecoder.decode(bytes.subarray(0, end));
+}
+
+/** Classification context: the same status code means something different on the subscription path than in BYOK key mode. */
 export interface ProviderErrorClassifyContext {
   grokSubscriptionAuth?: boolean;
   openAISubscriptionAuth?: boolean;

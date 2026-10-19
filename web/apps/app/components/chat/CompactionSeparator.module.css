@@ -1,0 +1,50 @@
+/* P3·U4 transcript separator: hairlines on both sides, two centered 12px secondary lines */
+.separator {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 8px 0;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--o-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.separator:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.rule {
+  flex: 1;
+  min-width: 16px;
+  height: 1px;
+  background: var(--o-border);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: 80%;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chevron {
+  flex-shrink: 0;
+}

@@ -5,6 +5,7 @@ import type { Provider, ProviderKind, RelayKind } from '@oriveo/shared';
 import { useTranslations } from 'next-intl';
 import { MenuIcon } from '../icons';
 import { ModelTrigger } from './ModelTrigger';
+import type { MemoryItem } from '@oriveo/core/context/memory-items';
 import { MemoryPopover } from './MemoryPopover';
 import styles from './TopBar.module.css';
 
@@ -29,7 +30,7 @@ interface TopBarProps {
   /** Extra action buttons rendered on the trailing side */
   extraActions?: ReactNode;
   /** Memory props */
-  memoryText?: string;
+  memoryItems?: readonly MemoryItem[];
   useMemory?: boolean;
   onToggleMemory?: () => void;
   /** Skill indicator */
@@ -39,10 +40,14 @@ interface TopBarProps {
   isStreaming?: boolean;
   /** Conversation cost */
   conversationCost?: number;
+  /** Shows the instructions badge next to the model name; clicking it opens chat settings. */
+  hasInstructions?: boolean;
+  onOpenSettings?: () => void;
 }
 
-export const TopBar = memo(function TopBar({ transparentChrome, modelName, providerKind, relayKind, relayProvider, sidebarOpen, onToggleSidebar, onModelClick, modelSwitcher, extraActions, memoryText, useMemory, onToggleMemory, skillIcon, skillName, isStreaming, conversationCost }: TopBarProps) {
+export const TopBar = memo(function TopBar({ transparentChrome, modelName, providerKind, relayKind, relayProvider, sidebarOpen, onToggleSidebar, onModelClick, modelSwitcher, extraActions, memoryItems, useMemory, onToggleMemory, skillIcon, skillName, isStreaming, conversationCost, hasInstructions, onOpenSettings }: TopBarProps) {
   const tSidebar = useTranslations('sidebar');
+  const tSettings = useTranslations('pages.chat.conversationSettings');
 
   return (
     <div className={styles.bar} data-topbar data-transparent={transparentChrome ? 'true' : undefined}>
@@ -75,7 +80,19 @@ export const TopBar = memo(function TopBar({ transparentChrome, modelName, provi
           onModelClick={onModelClick}
         />
 
-        <MemoryPopover memoryText={memoryText} useMemory={useMemory} onToggleMemory={onToggleMemory} />
+        {hasInstructions && (
+          <button
+            type="button"
+            className={styles.instructionsBadge}
+            onClick={onOpenSettings}
+            aria-label={tSettings('badgeA11y')}
+            title={tSettings('badgeA11y')}
+          >
+            {tSettings('badge')}
+          </button>
+        )}
+
+        <MemoryPopover memoryItems={memoryItems} useMemory={useMemory} onToggleMemory={onToggleMemory} />
       </div>
 
       {!!conversationCost && conversationCost > 0 && !isStreaming && (

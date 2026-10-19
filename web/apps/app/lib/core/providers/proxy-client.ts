@@ -6,7 +6,7 @@
 import type { ProviderKind } from '@oriveo/shared';
 import type { StreamEvent, ContentPart, StreamHandle, StreamOptions } from './types';
 import { createSSEStream } from '../../infra/sse-parser';
-import { networkError, toProviderError, transportNetworkDetail } from './errors';
+import { networkError, providerErrorRawBodyOf, toProviderError, transportNetworkDetail, withProviderErrorRawBody } from './errors';
 import type { RelayErrorContext } from './relay-error-classifier';
 import {
   SUBSCRIPTION_CONFIG_REVISION_HEADER,
@@ -138,7 +138,7 @@ export async function syncModelsProxy(
  * sending it has no effect other than putting one more local identifier on the wire.
  */
 function withoutCapabilityIdentity(options?: StreamOptions): StreamOptions | undefined {
-  if (!options?.capabilityIdentity && !options?.capabilityRecoveryIdentity && !options?.capabilityRecipeResendOwners && !options?.continuation && !options?.grokSubscriptionAuth && !options?.openAISubscriptionAuth && !options?.relayConnectionKeySecrets) return options;
+  if (!options?.capabilityIdentity && !options?.capabilityRecoveryIdentity && !options?.capabilityRecipeResendOwners && !options?.continuation && !options?.continuationFingerprint && !options?.continuationDecision && !options?.grokSubscriptionAuth && !options?.openAISubscriptionAuth && !options?.relayConnectionKeySecrets && !options?.clientTools) return options;
   // `grokSubscriptionAuth` and `openAISubscriptionAuth` travel as a top-level `authMode` on the
   // request body rather than inside options: options is passed through to the builder verbatim,
   // and mixing in a local flag that only picks an endpoint would create two sources of truth.
@@ -146,7 +146,7 @@ function withoutCapabilityIdentity(options?: StreamOptions): StreamOptions | und
   // Codex is the exception: `openAISubscriptionAccountID` and `upstreamReasoningLevels` really
   // are request parameters (one becomes a header, the other decides the effort value) and the
   // route needs them to build a valid request, so they stay in options and go with it.
-  const { capabilityIdentity: _localOnly, capabilityRecoveryIdentity: _recoveryLocalOnly, capabilityRecipeResendOwners: _resendLocalOnly, continuation: _continuation, grokSubscriptionAuth: _subscriptionLocalOnly, openAISubscriptionAuth: _codexLocalOnly, relayConnectionKeySecrets: _keySecretsLocalOnly, ...rest } = options;
+  const { capabilityIdentity: _localOnly, capabilityRecoveryIdentity: _recoveryLocalOnly, capabilityRecipeResendOwners: _resendLocalOnly, continuation: _continuation, continuationFingerprint: _continuationFingerprint, continuationDecision: _continuationDecision, grokSubscriptionAuth: _subscriptionLocalOnly, openAISubscriptionAuth: _codexLocalOnly, relayConnectionKeySecrets: _keySecretsLocalOnly, clientTools: _clientToolsTopLevel, ...rest } = options;
   return rest;
 }
 
@@ -170,14 +170,29 @@ export function sendStreamProxy(
   const generationWrite = generationWriteFacts(options);
   let capabilityRecoveryDescriptor: CapabilityRecoveryDescriptor | null = null;
   let subscriptionVersionRejectionSkipReport = false;
+  // Client tools attached to an ordinary send: they go at the top level of the request body.
+  const clientTools = options?.clientTools && options.clientTools.tools.length > 0
+    ? options.clientTools
+    : undefined;
+  let toolCallRejectionContext: unknown;
   const endpoint = '/api/chat/stream';
   const body = JSON.stringify({
       providerKind, apiKey, modelID, messages, baseURL,
+      ...(clientTools ? { tools: clientTools.tools, toolChoice: clientTools.toolChoice } : {}),
+      // Subscription mode: the route resolves the endpoint and the required headers from server-side
+      // metadata, and the browser only declares authMode (which path to take is decided by
+      // `providerKind`, so there is no need to send a second source of truth).
       ...(options?.grokSubscriptionAuth || options?.openAISubscriptionAuth
         ? { authMode: 'subscription' }
         : {}),
       options: withoutCapabilityIdentity(options),
       ...(options?.continuation ? { continuation: options.continuation } : {}),
+      ...(options?.continuation && options.continuationFingerprint
+        ? { continuationFingerprint: options.continuationFingerprint }
+        : {}),
+      ...(options?.continuation && options.continuationDecision
+        ? { continuationDecision: options.continuationDecision }
+        : {}),
     });
 
   const stream = new ReadableStream<StreamEvent>({
@@ -204,6 +219,13 @@ export function sendStreamProxy(
         return;
       }
 
+      // Rejection of a tool-carrying request: record the rejection context the same way as the Library leg, so the send path can decide "tools are definitively unsupported".
+      if (clientTools && !res.ok) {
+        const payload = await readErrorPayload(res.clone(), '');
+        if (payload.structuredError !== undefined) {
+          toolCallRejectionContext = { status: res.status, structuredError: payload.structuredError };
+        }
+      }
       // The route creates this only from its production builder and selected parser binding.
       // A missing or invalid header intentionally leaves the result state unconfirmed rather
       // than reconstructing it from model ids.
@@ -315,11 +337,13 @@ export function sendStreamProxy(
           const { done, value } = await reader.read();
           if (done) break;
           // An in-stream error frame is the upstream's raw text: scrub this request's key / subscription token (in subscription mode it is also sent via apiKey) and truncate to 2 KB.
+          // Spreading drops the non-enumerable rawBody, so the rewritten event carries the original event's error body again (used only by the overflow decision).
+          const rawBody = providerErrorRawBodyOf(value);
           const outgoing = value.type === 'error' && value.streamErrorFrame
-            ? { ...value, error: sanitizeUpstreamErrorText(value.error, [apiKey]) }
+            ? withProviderErrorRawBody<StreamEvent>({ ...value, error: sanitizeUpstreamErrorText(value.error, [apiKey]) }, rawBody)
             : value;
           ctrl.enqueue(outgoing.type === 'error' && subscriptionVersionRejectionSkipReport
-            ? { ...outgoing, skipReport: true }
+            ? withProviderErrorRawBody<StreamEvent>({ ...outgoing, skipReport: true }, rawBody)
             : outgoing);
         }
       } catch {
@@ -339,6 +363,7 @@ export function sendStreamProxy(
     getAdditionalBodyApplied: () => additionalBodyApplied,
     getGenerationWrite: () => generationWrite,
     getCapabilityRecoveryDescriptor: () => capabilityRecoveryDescriptor,
+    getToolCallRejectionContext: () => toolCallRejectionContext,
   };
 }
 
@@ -366,12 +391,18 @@ function continuationCaptureFromHeaders(headers: Headers): ContinuationCaptureCo
   const protocol = headers.get('X-Oriveo-Continuation-Protocol');
   const responseParserKind = headers.get('X-Oriveo-Continuation-Parser');
   const safe = (value: string | null): value is string => value != null && /^[a-z][a-z0-9_]{0,79}$/.test(value);
-  return safe(kind) && safe(protocol) && safe(responseParserKind) ? { kind, protocol, responseParserKind } : undefined;
+  // Continuation instructions mode (recipe continuationInstructionsMode): only two values are recognized, anything else counts as missing (= the full plan).
+  const mode = headers.get('X-Oriveo-Continuation-Instructions-Mode');
+  const instructionsMode = mode === 'resend' || mode === 'omit' ? mode : undefined;
+  return safe(kind) && safe(protocol) && safe(responseParserKind)
+    ? { kind, protocol, responseParserKind, ...(instructionsMode ? { instructionsMode } : {}) }
+    : undefined;
 }
 
 /**
- * One stateless Library agent leg. Kept separate from ordinary chat so tool messages and
- * schemas cannot leak into regular sends or a user-owned provider.
+ * One stateless tool-loop leg (Library / MCP / the propose_memory tail leg). Kept separate from
+ * ordinary chat so tool messages and schemas cannot leak into regular sends; an ordinary send
+ * carries propose_memory only through mode=tool (clientTools in sendStreamProxy).
  */
 export function sendLibraryAgentLeg(
   providerKind: ProviderKind,

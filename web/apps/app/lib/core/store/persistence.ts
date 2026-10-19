@@ -33,6 +33,8 @@ import {
   subscribeNoteFolders,
 } from './persistence-subscribers';
 import { getActiveUIDSync } from '../../infra/storage/partition';
+import { getAllMemoryItemRows } from '../../infra/storage/memory-item-store';
+import { memoryItemsForSlice } from '../memory/memory-items-slice';
 import { beginCapabilityEvidenceIdentitiesForLoadedProviders } from '../providers/capability-evidence-identity';
 
 function recoverPersistedProviderStatus(provider: Provider): Provider {
@@ -115,7 +117,11 @@ export async function hydrateStore(store: StoreApi<AppStore>, expectedUID?: stri
           text = backup.partial;
         }
         if (m.state === 'generating') {
-          return { ...m, text, state: 'interrupted' as const };
+          // Cold-start wrap-up: an answer with body text is recorded as incomplete, otherwise as error.
+          return {
+            ...m, text, state: 'interrupted' as const,
+            stopReason: text?.trim() ? 'incomplete' as const : 'error' as const,
+          };
         }
         if (text !== m.text) {
           return { ...m, text };
@@ -203,6 +209,8 @@ export async function hydrateStore(store: StoreApi<AppStore>, expectedUID?: stri
       setPreference('hasCompletedOnboarding', true, expectedUID);
     }
 
+    await hydrateMemoryItems(store, expectedUID);
+
     // Backfill colors onto folders created before colors existed.
     assignFolderColors(store);
   } catch (error) {
@@ -211,6 +219,18 @@ export async function hydrateStore(store: StoreApi<AppStore>, expectedUID?: stri
     // Without an expected uid this is best-effort hydration: report it, but let the app start
     // with whatever did load rather than render nothing at all.
     Sentry.captureException(error, { tags: { module: 'store.hydrate' } });
+  }
+}
+
+/** Memory item slice: read on its own; a failed read only clears the slice and is reported, leaving the rest of hydration unaffected. */
+async function hydrateMemoryItems(store: StoreApi<AppStore>, expectedUID?: string): Promise<void> {
+  try {
+    const rows = await getAllMemoryItemRows(expectedUID);
+    assertExpectedHydrationUID(expectedUID);
+    store.setState({ memoryItems: memoryItemsForSlice(rows.map((row) => row.item)) });
+  } catch (error) {
+    store.setState({ memoryItems: [] });
+    Sentry.captureException(error, { tags: { module: 'store.hydrate.memoryItems' } });
   }
 }
 

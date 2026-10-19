@@ -13,6 +13,7 @@ import { resolveControl, resolveCustomControlDefinitions, validateEnvelope, type
 import { compileOwnedPatches } from '../request-preference/owned-patch-compiler';
 import type { CapabilityKey, ExecutionKind, OwnerId, ProviderKind as RuntimeProviderKind } from '../request-preference/types';
 import type { CapabilityRecipeOmission, ProviderRequest, RequestParams } from './types';
+import type { ContinuationInstructionsMode } from '../../context/continuation';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -51,9 +52,17 @@ export interface RuntimeRecipe {
   errorRecoveryRef?: string;
   continuationKind?: string;
   continuationVariant?: string;
+  /** Server-authored stateful continuation shape; absent / unknown = always full plan. */
+  continuationInstructionsMode?: ContinuationInstructionsMode;
   maxToolLoops?: number;
   formula?: FormulaRecipe;
   route?: EndpointRouteRecipe;
+}
+
+/** Unknown values decode as absent (full plan), never as a guessed mode. */
+export function recipeContinuationInstructionsMode(recipe: Pick<RuntimeRecipe, 'continuationInstructionsMode'> | null | undefined): ContinuationInstructionsMode | undefined {
+  const mode: unknown = recipe?.continuationInstructionsMode;
+  return mode === 'resend' || mode === 'omit' ? mode : undefined;
 }
 
 /** Server-authored route for Moonshot Formula/Fiber; the client never fills in a URI or a tool schema. */
@@ -404,7 +413,12 @@ function parseRecipe(value: unknown): RuntimeRecipe | null {
     || typeof value.capability !== 'string'
     || typeof value.executionKind !== 'string'
     || !Array.isArray(value.requestOps)) return null;
-  return isRecipeExecutionShapeValid(value) ? value as unknown as RuntimeRecipe : null;
+  if (!isRecipeExecutionShapeValid(value)) return null;
+  const recipe = value as unknown as RuntimeRecipe;
+  const mode = recipeContinuationInstructionsMode(recipe);
+  if (recipe.continuationInstructionsMode === mode) return recipe;
+  const { continuationInstructionsMode: _ignored, ...rest } = recipe;
+  return mode ? { ...rest, continuationInstructionsMode: mode } : rest;
 }
 
 /** The same typed boundary the shared fixture negativeCases use; errors never fall back to guessing from a model id. */

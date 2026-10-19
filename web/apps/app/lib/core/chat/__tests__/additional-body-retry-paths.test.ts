@@ -24,7 +24,8 @@ vi.mock('../../library/routing', async () => ({
   ...await vi.importActual<typeof import('../../library/routing')>('../../library/routing'),
   resolveLibraryResearchRouteNow: () => 'agent',
 }));
-vi.mock('../../mcp/mcp-chat', () => ({
+vi.mock('../../mcp/mcp-chat', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../mcp/mcp-chat')>(),
   adoptMcpDraftServers: vi.fn(),
   createMcpSendSession: () => ({ entries: [], steps: () => mocks.mcpSteps }),
   prepareMcpSend: () => ({ tools: mocks.mcpTools }),

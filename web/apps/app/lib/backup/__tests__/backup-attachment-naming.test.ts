@@ -48,6 +48,17 @@ vi.mock('../../infra/storage/idb', () => ({
   setSessionValue: vi.fn(),
 }));
 
+vi.mock('../../infra/storage/context-checkpoint-store', () => ({
+  getAllContextCheckpoints: vi.fn(async () => []),
+  putContextCheckpoint: vi.fn(),
+}));
+
+vi.mock('../../infra/storage/memory-item-store', () => ({
+  getAllMemoryItemRows: vi.fn(async () => []),
+  getMemoryItemRow: vi.fn(async () => undefined),
+  putMemoryItemRows: vi.fn(),
+}));
+
 vi.mock('../../infra/storage/image-store', () => ({
   loadImageData: (...args: unknown[]) => mocks.loadImageData(...args),
   loadThumbnailData: (...args: unknown[]) => mocks.loadThumbnailData(...args),

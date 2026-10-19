@@ -165,6 +165,7 @@ describe('geminiGenerateStrategy content blocking and in-stream errors', () => {
     if (events[0].type === 'error') {
       expect(events[0].error).toContain('PROHIBITED_CONTENT');
       expect(events[0].errorKind).toBe('upstream');
+      expect(events[0].finish).toEqual({ family: 'gemini', ended: 'clean', finishRaw: 'blockReason:PROHIBITED_CONTENT' });
     }
   });
 

@@ -24,6 +24,8 @@ vi.mock('next-intl', () => ({
       'contextMenu.regenerate': 'Regenerate',
       'sidebar.more': 'More',
       'common.close': 'Close',
+      'pages.memory.used.chip': 'Memory',
+      'pages.memory.used.a11y': 'This answer used your memory',
     };
     return (messages[`${namespace}.${key}`] ?? key).replace('{owner}', values?.owner ?? '{owner}');
   },
@@ -69,6 +71,27 @@ describe('MessageMeta', () => {
     fireEvent.click(screen.getByRole('button', { name: 'More' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Cross-check with another model' }));
     expect(onCrosscheck).toHaveBeenCalledTimes(1);
+  });
+
+  it('memory_chip_shown_with_ids', () => {
+    renderMeta({ memoryItemIds: ['mem-1', 'mem-2'] });
+
+    const chip = screen.getByRole('button', { name: 'This answer used your memory' });
+    expect(chip.textContent).toBe('Memory');
+    // At the end of the meta row next to provider / model, same pill style
+    const info = screen.getByText('GPT-4o').parentElement!;
+    expect(info.lastElementChild?.contains(chip)).toBe(true);
+    const pillClass = screen.getByText('GPT-4o').className;
+    expect(pillClass).not.toBe('');
+    expect(info.lastElementChild!.className.split(' ')).toContain(pillClass);
+  });
+
+  it('memory_chip_hidden_without_ids', () => {
+    renderMeta({ memoryItemIds: [] });
+    expect(screen.queryByRole('button', { name: 'This answer used your memory' })).toBeNull();
+
+    renderMeta({ memoryItemIds: undefined });
+    expect(screen.queryByRole('button', { name: 'This answer used your memory' })).toBeNull();
   });
 
   it('shows the actual tiny cost in conversation details without a less-than sign', () => {

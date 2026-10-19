@@ -5,6 +5,8 @@
 import type { StoreApi } from 'zustand';
 import type { Conversation } from '@oriveo/shared';
 import type { AppStore } from './store/app-store';
+import { normalizeConversationInstructions } from '@oriveo/core/context/conversation-instructions';
+import { parseBudgetCap, type BudgetCapOption } from '@oriveo/core/context/budget';
 import { deleteAttachments, flushPendingConversationDeletions, getSyncAdapter } from './sync-port';
 import { createCanonicalUUID, normalizePinnedNoteIDs, normalizeUUID, sameNormalizedID } from '../utils/id-utils';
 import { flushAndInterruptStream, hasStream } from './chat/active-streams';
@@ -101,6 +103,41 @@ export function updateConversationTitle(store: StoreApi<AppStore>, convId: strin
 export function updateConversationUseMemory(store: StoreApi<AppStore>, convId: string, useMemory: boolean) {
   store.getState().setConversationUseMemory(convId, useMemory);
   getSyncAdapter()?.didUpdateConversationUseMemory(convId, useMemory);
+}
+
+/** Conversation instructions: normalize, update the store (the subscriber persists to IDB) and notify the sync adapter; an empty string clears them. */
+export function updateConversationInstructions(store: StoreApi<AppStore>, convId: string, instructions: string) {
+  const normalized = normalizeConversationInstructions(instructions);
+  const conv = store.getState().conversations.find((c) => sameNormalizedID(c.id, convId));
+  // Conversation missing or value unchanged: skip the write and the adapter notification (a merge write would create a partial document and needlessly bump metadataUpdatedAt)
+  if (!conv || (conv.instructions ?? '') === normalized) return;
+  store.getState().updateConversation(convId, { instructions: normalized });
+  getSyncAdapter()?.didUpdateConversationInstructions(convId, normalized);
+}
+
+/**
+ * Per-conversation context cap: undefined follows the global setting (the field is removed from the object); any other value goes through parseBudgetCap first and returns false if it cannot be parsed.
+ * Only contextCap changes, updatedAt is untouched; returns false without notifying the adapter when the conversation is missing or the value is unchanged.
+ */
+export function updateConversationContextCap(
+  store: StoreApi<AppStore>,
+  convId: string,
+  cap: BudgetCapOption | undefined,
+): boolean {
+  const next = cap === undefined ? null : parseBudgetCap(cap);
+  // Only undefined means follow-global; an unparseable value is rejected outright, with no change and no notification
+  if (cap !== undefined && next === null) return false;
+  const conv = store.getState().conversations.find((c) => sameNormalizedID(c.id, convId));
+  if (!conv || (conv.contextCap ?? null) === next) return false;
+  store.setState((s) => ({
+    conversations: s.conversations.map((c) => {
+      if (!sameNormalizedID(c.id, convId)) return c;
+      const { contextCap: _previous, ...rest } = c;
+      return next === null ? rest : { ...rest, contextCap: next };
+    }),
+  }));
+  getSyncAdapter()?.didUpdateConversationContextCap(convId, next ?? undefined);
+  return true;
 }
 
 export function updateConversationModel(

@@ -4,6 +4,7 @@ import type { AppStore } from '../store/app-store';
 import { deriveConversationMetadata, computeConversationActivityAt } from '../conversation-metadata';
 import { trackEvent, telemetryProviderKind, telemetryModelID } from '../telemetry';
 import type { ChatAttemptKind } from '../telemetry/chat-failure';
+import { stopCompaction } from './context-pipeline/compaction-coordinator';
 
 export interface StopStreamOptions {
   /** Stream start timestamp, used for the telemetry elapsed_ms; recorded as 0 when omitted. */
@@ -40,6 +41,8 @@ export function stopStream(
 ) {
   const { streamStartedAt = null, initialReasoning, msgId, isRecovery, attemptKind } = options;
   abortFn?.();
+  // Context preparation before sending must also stop when in progress (including the summary call), and its result is not persisted.
+  stopCompaction(conversation.id);
   const targetMsg = msgId ? messages.find((m) => m.id === msgId) : messages[messages.length - 1];
   if (targetMsg?.role === 'assistant' && targetMsg.state === 'generating') {
     const currentText = streamingText || '';
@@ -62,6 +65,7 @@ export function stopStream(
             ...message,
             text: currentText,
             state: 'interrupted' as const,
+            stopReason: 'interrupted' as const,
             ...(mergedReasoningText ? { reasoningText: mergedReasoningText } : {}),
           }
         : message,

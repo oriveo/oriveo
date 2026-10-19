@@ -4,7 +4,7 @@
  */
 
 import JSZip from 'jszip';
-import type { AppPreference, LastUsedModelRef, Provider, Skill } from '@oriveo/shared';
+import type { AppPreference, Conversation, LastUsedModelRef, Provider, Skill } from '@oriveo/shared';
 import { credentialFreeRelayRequested, isValidProviderKind, stripRelayURLSecrets } from '@oriveo/shared';
 import type { BackupFile, BackupData, ExportOptions } from './backup-types';
 import {
@@ -16,6 +16,9 @@ import {
   getSessionValue,
 } from '../infra/storage/idb';
 import { loadImageData, loadThumbnailData } from '../infra/storage/image-store';
+import { getAllContextCheckpoints } from '../infra/storage/context-checkpoint-store';
+import { getAllMemoryItemRows } from '../infra/storage/memory-item-store';
+import { MemoryItems } from '@oriveo/core/context/memory-items';
 import { sha256hex, encrypt, uint8ToBase64 } from './backup-crypto';
 import { canonicalJSON } from './backup-format';
 import { getPreference } from '../infra/storage/preferences';
@@ -91,8 +94,22 @@ export async function exportBackupToAutomaticStorage(
   }
 }
 
+/** Message fields kept only on this device are left out of the backup: memoryItemIds (local memory item ids). */
+function withoutLocalMessageFields(conv: Conversation): Conversation {
+  if (!conv.messages.some((msg) => msg.memoryItemIds !== undefined)) return conv;
+  return {
+    ...conv,
+    messages: conv.messages.map((msg) => {
+      if (msg.memoryItemIds === undefined) return msg;
+      const stripped = { ...msg };
+      delete stripped.memoryItemIds;
+      return stripped;
+    }),
+  };
+}
+
 async function buildBackupZip(options: ExportOptions): Promise<JSZip> {
-  const [conversations, folders, providers, notes, noteFolders, lastUsedModelRef, skills] = await Promise.all([
+  const [conversations, folders, providers, notes, noteFolders, lastUsedModelRef, skills, checkpoints, memoryRows] = await Promise.all([
     getAllConversations(),
     getAllFolders(),
     getAllProviders(),
@@ -100,6 +117,8 @@ async function buildBackupZip(options: ExportOptions): Promise<JSZip> {
     getAllNoteFolders(),
     getSessionValue<LastUsedModelRef | null>('lastUsedModelRef'),
     loadCachedUserSkills(),
+    getAllContextCheckpoints(),
+    getAllMemoryItemRows(),
   ]);
   // The backup format has no way to express "unset", so an unset preference exports the product default currently in effect (dark).
   const preferences = getPreference<AppPreference>('preferences', {
@@ -152,7 +171,7 @@ async function buildBackupZip(options: ExportOptions): Promise<JSZip> {
   // Build the data object.
   const data: BackupData = {
     providers: sanitizedProviders,
-    conversations,
+    conversations: conversations.map(withoutLocalMessageFields),
     ...(sanitizedSkills.length > 0 ? { skills: sanitizedSkills } : {}),
     folders,
     notes,
@@ -166,6 +185,9 @@ async function buildBackupZip(options: ExportOptions): Promise<JSZip> {
       ...(preferences.memoryUpdatedAt ? { memoryUpdatedAt: preferences.memoryUpdatedAt } : {}),
     },
     lastUsedModelRef,
+    checkpoints,
+    // Full memory item table (including tombstones); the legacy memory fields are still written into preferences for older clients.
+    ...MemoryItems.backupSection(memoryRows.map((row) => row.item)),
   };
 
   // Deterministic serialization with sorted keys.

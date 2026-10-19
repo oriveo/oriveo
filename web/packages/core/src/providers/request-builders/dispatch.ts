@@ -25,7 +25,7 @@ import { buildQwenRequest } from "./qwen";
 import { buildSiliconFlowRequest } from "./siliconflow";
 import { buildZhipuRequest } from "./zhipu";
 import { buildRelayReasoningParams } from "./utils";
-import { applyCapabilityRecipes, attachCapabilityExecution, isMiniMaxAnthropicMessagesRoute, legacyGenerationGateAllowsInjection, resolveAutomaticReasoningRecipe, resolveCapabilityExecutionPlan, type CapabilityExecutionPlan, type RuntimeRecipe } from './capability-execution';
+import { applyCapabilityRecipes, attachCapabilityExecution, recipeContinuationInstructionsMode, isMiniMaxAnthropicMessagesRoute, legacyGenerationGateAllowsInjection, resolveAutomaticReasoningRecipe, resolveCapabilityExecutionPlan, type CapabilityExecutionPlan, type RuntimeRecipe } from './capability-execution';
 import { compileSafeCustomFragment, rejectSafeCustomFragment, type SafeCustomFragmentResult } from './safe-custom-fragment';
 import { mapContinuationForRecipe } from './continuation-replay';
 import { applyAdditionalBodyToRequest } from './additional-body';
@@ -33,7 +33,8 @@ import { mergeDroppedGenerationParameters, safeCustomDeclaredOwners, safeCustomO
 import { guardAnthropicThinking } from './anthropic-thinking';
 import type { GenerationParameterOverrides, GenerationParameterProfile, ProviderRequest, RequestParams } from "./types";
 import type { MetadataBaseURLRejectionReporter } from "../transport/endpoint-resolver";
-import { applyToolCallWireAdapter } from './tool-call-wire-adapter';
+import { applyToolCallWireAdapter, moveHostMemoryToolsLast, protocolForRequest } from './tool-call-wire-adapter';
+import { chatMaxOutputTokens } from './anthropic-thinking';
 import { buildOfficialAlternateProtocolRequest, officialAlternateProtocol } from './official-protocol';
 
 /**
@@ -225,6 +226,8 @@ export async function buildProviderRequest(
       plan.intents ?? {},
       effectiveParams.options?.capabilityRecipeOmissions,
     );
+    // Attach the host memory tools after the recipe has compiled its server tools into /tools/-.
+    moveHostMemoryToolsLast(protocolForRequest(withBuilderTools), compiled.body, params.tools);
     // A recipe may write the thinking field only after the builder (official Anthropic), so the linked protection is evaluated once more after thinking and generation
     // parameters are both written (shared contract outboundRules.anthropicThinking.evaluatedAfter); this happens before custom fragments and the additional body,
     // so a same-named field written explicitly in the additional body still wins. The builder's own call is kept; the two are idempotent.
@@ -260,8 +263,12 @@ export async function buildProviderRequest(
     } = compileCustomFragments(compiled.body, fragments, declaredOwners);
     const continuationRecipe = plan.recipes.find((recipe) => recipe.continuationKind === params.continuation?.kind
       && (recipe.continuationVariant ?? undefined) === (params.continuation?.variant ?? undefined));
+    // The app layer decided stateful: upstream must really be able to continue, otherwise the outbound history would be only the continuation sentence and must not be sent silently.
+    if (params.continuationDecision?.kind === 'stateful' && !continuationRecipe) {
+      throw new Error('Stateful continuation decision has no matching continuation recipe');
+    }
     const continuation = continuationRecipe
-      ? mapContinuationForRecipe(continuationRecipe, params.continuation)
+      ? mapContinuationForRecipe(continuationRecipe, params.continuation, params.continuationFingerprint, params.continuationDecision)
       : null;
     const continuationDelta: Record<string, unknown> = continuation?.accepted && continuation.target === 'body'
       ? continuation.delta
@@ -270,11 +277,12 @@ export async function buildProviderRequest(
         : continuation?.accepted && continuation.target === 'contents_append'
           ? { contents: insertReplayBeforeFinalUser(Array.isArray(compiled.body.contents) ? compiled.body.contents : [], continuation.contents) }
           : {};
+    const omittedRoots = continuation?.accepted && continuation.target === 'body' ? continuation.omitRoots ?? [] : [];
     if (plan.recipes.length === 0 && Object.keys(customDelta).length === 0 && !plan.noExecute) return withBuilderTools;
     const withFacts: ProviderRequest = {
       ...withBuilderTools,
       ...(droppedGenerationParameters ? { droppedGenerationParameters } : {}),
-      body: mergeBodyDeltas(compiled.body, customDelta, continuationDelta),
+      body: withoutRoots(mergeBodyDeltas(compiled.body, customDelta, continuationDelta), omittedRoots),
       ...continuationCapture(plan.recipes),
       capabilityExecution: {
         recipeRefs: plan.recipes.map((recipe) => recipe.id),
@@ -323,6 +331,12 @@ export async function buildProviderRequest(
     );
   }
 
+  // The main-chat output limit (oWire) only replaces the base value of builders that already send an output limit; OpenRouter sends one only when the model carries maxOutputTokens.
+  const chatOutputLimit = chatMaxOutputTokens(withGenerationProfile.options?.maxOutputTokens);
+  const modelOutputLimit = runtimeModel?.model.maxOutputTokens;
+  const openRouterOutputLimit = chatMaxOutputTokens(modelOutputLimit) !== undefined
+    ? chatOutputLimit ?? modelOutputLimit
+    : modelOutputLimit;
   switch (withGenerationProfile.providerKind) {
     case "openRouter":
       // The tools in the or_web profile use the chat completions schema, matching the OpenRouter builder endpoint, so they can be injected.
@@ -331,7 +345,7 @@ export async function buildProviderRequest(
         reasoningParams,
         webSearchProfile,
         imageGenProfile,
-        runtimeModel?.model.maxOutputTokens,
+        openRouterOutputLimit,
       ));
     case "deepseek":
       return applyRecipes(buildDeepSeekRequest(
@@ -378,7 +392,7 @@ export async function buildProviderRequest(
           return applyRecipes(buildMiniMaxAnthropicMessagesRequest(
             withGenerationProfile,
             alternateRoute,
-            runtimeModel?.model.maxOutputTokens,
+            chatOutputLimit ?? runtimeModel?.model.maxOutputTokens,
           ));
         }
       }
@@ -411,7 +425,7 @@ export async function buildProviderRequest(
         withGenerationProfile,
         reasoningParams,
         webSearchProfile,
-        runtimeModel?.model.maxOutputTokens,
+        chatOutputLimit ?? runtimeModel?.model.maxOutputTokens,
       ));
     case "gemini":
       // The tools in the gem_web / gem_web_retrieval profiles use the generateContent schema,
@@ -598,6 +612,11 @@ function writeBodyPath(body: Record<string, unknown>, segments: readonly string[
   current[segments.at(-1)!] = value;
 }
 
+function withoutRoots(body: Record<string, unknown>, roots: readonly string[]): Record<string, unknown> {
+  for (const root of roots) delete body[root];
+  return body;
+}
+
 function mergeBodyDeltas(base: Readonly<Record<string, unknown>>, ...deltas: Array<Readonly<Record<string, unknown>>>): Record<string, unknown> {
   const output: Record<string, unknown> = { ...base };
   for (const delta of deltas) {
@@ -639,6 +658,7 @@ function continuationCapture(recipes: readonly import('./capability-execution').
       ? selected.route.protocol
       : selected.transport.protocol,
     responseParserKind: selected.responseParserKind,
+    ...(recipeContinuationInstructionsMode(selected) ? { instructionsMode: recipeContinuationInstructionsMode(selected) } : {}),
   } };
 }
 

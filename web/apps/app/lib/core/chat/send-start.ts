@@ -17,6 +17,10 @@ import { relaySendTelemetryProperties } from '../telemetry/relay-properties';
 import type { ChatAttemptKind } from '../telemetry/chat-failure';
 import { recalculateConversationCost } from './usage-tracking';
 import { upsertMessages } from './message-merge';
+import { sameNormalizedID } from '../../utils/id-utils';
+import { clearDirectiveSuggestion, getPendingDirectiveSuggestion } from './conversation-instructions/directive-suggestion';
+import { clearMemorySuggestion, getPendingMemorySuggestion } from './conversation-instructions/memory-suggestion';
+import { deleteLocalMessageContinuation } from './continuation-lifecycle';
 
 export interface SendStartParams {
   store: StoreApi<AppStore>;
@@ -129,6 +133,7 @@ export function prepareSendStart(p: SendStartParams): SendStartResult {
       skillId,
       useMemory: pendingSkill?.useMemory,
       pinnedNoteIds,
+      instructions: store.getState().draftConversationInstructions,
     });
     convId = newConv.id;
     store.getState().addConversation(newConv);
@@ -171,4 +176,40 @@ export function prepareSendStart(p: SendStartParams): SendStartResult {
 
   const sendStartedAt = Date.now();
   return { finalConvId, isFirstMessage, initialConversationSnapshot, sendStartedAt };
+}
+
+/**
+ * Cancelling at the pre-send confirmation: locally delete the messages this send put into the conversation (user + assistant placeholder)
+ * and their local continuation sidecars (same rules for the main send, Library and MCP paths).
+ * No remote delete or tombstone is sent, since a half turn never goes to the cloud; if the conversation has no messages left after the rollback (the first message), it returns to a draft: not synced and absent from the list.
+ * The "set as instruction" and "save as memory?" suggestion bars raised by this send point at the deleted messages and are withdrawn together (not counted as ignored); suggestion bars of other messages are untouched.
+ * A memory candidate still being generated in the background needs no separate withdrawal: before it lands it requires the message to still be the conversation's latest user message, so it is void once that message is deleted.
+ */
+export function rollbackSendStart(
+  store: StoreApi<AppStore>,
+  conversationId: string,
+  messageIds: readonly string[],
+): void {
+  const conversation = store.getState().conversations.find((c) => c.id === conversationId);
+  if (!conversation) return;
+  const removed = new Set(messageIds);
+  const suggestion = getPendingDirectiveSuggestion();
+  if (suggestion && sameNormalizedID(suggestion.conversationId, conversationId) && removed.has(suggestion.messageId)) {
+    clearDirectiveSuggestion();
+  }
+  const memorySuggestion = getPendingMemorySuggestion();
+  if (memorySuggestion && sameNormalizedID(memorySuggestion.conversationId, conversationId) && removed.has(memorySuggestion.messageId)) {
+    clearMemorySuggestion();
+  }
+  for (const messageId of messageIds) {
+    void Promise.resolve(deleteLocalMessageContinuation(conversationId, messageId)).catch(() => undefined);
+  }
+  const messages = conversation.messages.filter((message) => !removed.has(message.id));
+  store.getState().updateConversation(conversationId, {
+    ...(messages.length === 0 ? { isDraft: true } : {}),
+    messages,
+    ...deriveConversationMetadata(conversation, messages),
+    estimatedCost: recalculateConversationCost(messages),
+    updatedAt: computeConversationActivityAt(messages, conversation.createdAt),
+  });
 }

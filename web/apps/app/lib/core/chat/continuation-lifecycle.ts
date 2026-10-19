@@ -1,4 +1,4 @@
-/** Continuation lifecycle boundary.
+/** P3c continuation lifecycle boundary.
  *
  * This module is intentionally local-only: no Zustand persistence, sync adapter, backup or
  * telemetry import is permitted. A new process never reads it to resume a tool loop; it merely
@@ -6,6 +6,7 @@
  */
 import { LocalContinuationStore } from './local-continuation-store';
 import { validateContinuation, type ContinuationIntent } from '@oriveo/core/providers/request-preference/continuation';
+import type { ChatContinuationFingerprint } from './context-pipeline/chat-context';
 
 // A persisted opaque block is usable only by the page process that captured it. A full reload
 // creates a new token, so explicit Continue cleanly restarts instead of replaying a stale tool loop.
@@ -45,10 +46,39 @@ export function continuationSendStarted(conversationId: string, messageId: strin
   if (!available()) return Promise.resolve();
   return enqueue(conversationId, messageId, () => store.save({ conversationId, messageId, state: { phase: 'sending' } }));
 }
-/** Only the proxy's validated internal event can create replayable state. */
-export function continuationCaptured(conversationId: string, messageId: string, continuation: ContinuationIntent): void {
+/** Only the proxy's validated internal event can create replayable state. The fingerprint of the
+ * leg that produced it is kept beside it (local-only) so an explicit continue can tell whether
+ * system / model / checkpoint changed since. */
+export function continuationCaptured(
+  conversationId: string,
+  messageId: string,
+  continuation: ContinuationIntent,
+  fingerprint?: ChatContinuationFingerprint,
+): void {
   if (!available() || !validateContinuation(continuation).accepted) return;
-  ignore(enqueue(conversationId, messageId, () => store.save({ conversationId, messageId, state: { continuation } })));
+  ignore(enqueue(conversationId, messageId, () => store.save({
+    conversationId, messageId, state: { continuation, ...(fingerprint ? { fingerprint } : {}) },
+  })));
+}
+/** Fingerprint stored with the continuation for an explicit continue; absent = treat as changed. */
+export async function continuationFingerprintForExplicitContinue(
+  conversationId: string,
+  messageId: string,
+): Promise<ChatContinuationFingerprint | undefined> {
+  if (!available() || isDeleted(conversationId, messageId)) return undefined;
+  try {
+    await (queues.get(queueKey(conversationId, messageId)) ?? Promise.resolve());
+    const record = await store.load(conversationId, messageId);
+    if (record?.interrupted) return undefined;
+    const fingerprint = record?.state.fingerprint;
+    if (!fingerprint || typeof fingerprint !== 'object') return undefined;
+    const { system, model, checkpoint } = fingerprint as Record<string, unknown>;
+    return typeof system === 'string' && typeof model === 'string' && typeof checkpoint === 'string'
+      ? { system, model, checkpoint }
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 /** Explicit user continue/retry is the sole reader; normal send/startup never calls this. */
 export async function continuationForExplicitContinue(conversationId: string, messageId: string): Promise<ContinuationIntent | undefined> {
@@ -56,8 +86,8 @@ export async function continuationForExplicitContinue(conversationId: string, me
   try {
     await (queues.get(queueKey(conversationId, messageId)) ?? Promise.resolve());
     const record = await store.load(conversationId, messageId);
-    // After a background or lock-screen interruption only completed turns and their text are kept as
-    // local fact; a later explicit resend must be a clean restart and must not replay the interrupted opaque state.
+    // After a background/lock-screen interruption only completed rounds and text are kept as local
+    // facts; an explicit resend by the user must also restart cleanly and never replay interrupted opaque state.
     if (record?.interrupted) return undefined;
     const continuation = record?.state.continuation;
     if (!continuation || typeof continuation !== 'object' || !validateContinuation(continuation as ContinuationIntent).accepted) return undefined;

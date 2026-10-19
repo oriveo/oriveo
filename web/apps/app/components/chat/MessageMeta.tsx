@@ -5,6 +5,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocale, useTranslations } from 'next-intl';
 import { formatCost } from '../../lib/utils/format-utils';
+import { formatCompactCount } from '../../lib/core/chat/context-compaction/context-compaction-presentation';
 import { CheckIcon, CopyIcon, RetryIcon } from '../icons';
 import { FilePlus2, ListChecks, MoreHorizontal } from 'lucide-react';
 import { BarChart3 } from 'lucide-react';
@@ -13,6 +14,7 @@ import {
   messageTokenTotal,
   type MessageTokenUsageSnapshot,
 } from './MessageTokenUsageDialog';
+import { MemoryUsedPopover } from './MemoryUsedPopover';
 import styles from './MessageBubble.module.css';
 import type { ChatMessage } from '@oriveo/shared';
 
@@ -28,12 +30,14 @@ interface MessageMetaProps {
   onCrosscheck?: () => void;
   tokenUsage: MessageTokenUsageSnapshot;
   capabilityResults?: ChatMessage['capabilityResults'];
+  /** Ids of the memory items used for this answer; only available once persisted, not passed while streaming. */
+  memoryItemIds?: ChatMessage['memoryItemIds'];
 }
 
 /**
  * Meta row under an assistant message: provider, model, cost pill, copy and retry.
  */
-export function MessageMeta({ providerName, modelName, estimatedCost, copied, onCopy, onRetry, onSaveNote, onCrosscheck, tokenUsage, capabilityResults }: MessageMetaProps) {
+export function MessageMeta({ providerName, modelName, estimatedCost, copied, onCopy, onRetry, onSaveNote, onCrosscheck, tokenUsage, capabilityResults, memoryItemIds }: MessageMetaProps) {
   const locale = useLocale();
   const t = useTranslations('pages.chat');
   const tCtx = useTranslations('contextMenu');
@@ -55,7 +59,7 @@ export function MessageMeta({ providerName, modelName, estimatedCost, copied, on
   const tokenTotalLabel = isMoreOpen
     ? tokenTotal == null
       ? t('tokenUsage.unavailable')
-      : new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(tokenTotal)
+      : formatCompactCount(tokenTotal, locale)
     : '';
 
   useEffect(() => {
@@ -174,6 +178,9 @@ export function MessageMeta({ providerName, modelName, estimatedCost, copied, on
             {t(`capabilityResult.${result.state}` as any, { owner: t(`capabilityResult.${result.owner}` as any) })}
           </span>
         ))}
+        {memoryItemIds && memoryItemIds.length > 0 && (
+          <MemoryUsedPopover memoryItemIds={memoryItemIds} className={styles.metaPill} />
+        )}
       </div>
       <div className={styles.metaActions}>
         <button

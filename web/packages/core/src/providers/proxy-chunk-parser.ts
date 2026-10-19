@@ -12,6 +12,7 @@
  */
 
 import type { Citation, ProviderKind } from '@oriveo/shared/pure-types';
+import { StreamFinishTracker } from '../context/stream-finish';
 import { classifyInStreamProviderErrorKind, normalizeUpstreamErrorType } from './errors';
 import type {
   StreamEvent,
@@ -39,10 +40,15 @@ import {
   parseUsageQwen,
 } from './transport/usage-parsers';
 
+/** Code of the early-disconnect error frame from response-adapters/gemini-interactions.ts. */
+const GEMINI_INTERACTION_STREAM_CLOSED = 'interaction_stream_closed';
+
 export interface ContinuationCaptureConfig {
   kind: string;
   protocol: string;
   responseParserKind: string;
+  /** Recipe continuationInstructionsMode; carried into previous_id state for the explicit continue. */
+  instructionsMode?: 'resend' | 'omit';
 }
 
 /**
@@ -115,10 +121,13 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
   const miniMaxAnthropicWeb = continuationCapture?.protocol === 'anthropic_messages'
     && continuationCapture.responseParserKind === 'minimax_anthropic_web_v1';
   const nativeToolCallState: Record<string, unknown> = {};
+  const finishTracker = new StreamFinishTracker();
 
-  return (_eventType, data) => {
+  const parse: ParseChunkFn = (_eventType, data) => {
     const chunk = JSON.parse(data);
     const events: StreamEvent[] = [];
+    // If this frame is a terminal frame of its protocol family, terminalFinish is the clean conclusion; a terminal frame that throws attaches it to the error.
+    const terminalFinish = isRecord(chunk) ? finishTracker.observe(_eventType, chunk) : null;
 
     // Unified proxy event format
     if (chunk.type === 'delta' && typeof chunk.content === 'string') {
@@ -224,7 +233,12 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
       const typeOrCode = typeof chunk.error === 'object'
         ? (chunk.error?.type ?? chunk.error?.code)
         : undefined;
-      events.push(inStreamProviderError(msg, upstreamErrorSource, typeOrCode));
+      const streamError = inStreamProviderError(msg, upstreamErrorSource, typeOrCode);
+      // Error frame the Gemini Interactions adapter writes when the stream drops before interaction.completed: recorded as an EOF without a terminal marker (incomplete).
+      // Terminal Interactions error frames (failed / requires_action / cancelled) carry interaction_status, and the tracker has already given a clean conclusion.
+      events.push(typeOrCode === GEMINI_INTERACTION_STREAM_CLOSED
+        ? { ...streamError, finish: { family: 'gemini_interactions', ended: 'eof_without_marker' } }
+        : terminalFinish ? { ...streamError, finish: terminalFinish } : streamError);
     } else if (!_eventType && chunk.code && typeof chunk.message === 'string' && !chunk.choices) {
       events.push(inStreamProviderError(chunk.message, upstreamErrorSource, chunk.code));
     }
@@ -384,7 +398,9 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
     // OpenAI-style in-stream error branch above, since Gemini uses the same shape.
     const geminiBlocked = detectGeminiBlockEvent(chunk);
     if (geminiBlocked) {
-      events.push({ ...geminiBlocked, source: upstreamErrorSource });
+      // promptFeedback.blockReason has no candidate, so the tracker cannot recognize a terminal frame: use the finish that detectGeminiBlockEvent carries.
+      const blockedFinish = geminiBlocked.finish ?? terminalFinish;
+      events.push({ ...geminiBlocked, source: upstreamErrorSource, ...(blockedFinish ? { finish: blockedFinish } : {}) });
       return events;
     }
     const parts = chunk.candidates?.[0]?.content?.parts;
@@ -543,7 +559,8 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
       });
     }
     const responsesUsage = chunk.usage ?? chunk.response?.usage;
-    if (_eventType === 'response.completed' && responsesUsage) {
+    // response.incomplete (e.g. truncated by max_output_tokens) also carries full usage; emit it the same way as completed.
+    if ((_eventType === 'response.completed' || _eventType === 'response.incomplete') && responsesUsage) {
       // Responses and Chat Completions have the same usage semantics but different paths: the
       // details live under `input_tokens_details` / `output_tokens_details`. Normalize first, then
       // hand off to the parser for the providerKind. Renaming only the top-level fields is not
@@ -572,7 +589,8 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
     }
     if (_eventType === 'response.failed') {
       const error = resolveResponseStreamError(chunk);
-      events.push(inStreamProviderError(error, upstreamErrorSource, resolveResponseStreamErrorType(chunk)));
+      const failed = inStreamProviderError(error, upstreamErrorSource, resolveResponseStreamErrorType(chunk));
+      events.push(terminalFinish ? { ...failed, finish: terminalFinish } : failed);
     }
     // Responses `event: error`: a top-level {type:'error', code, message} with no error object, so none of the branches above match.
     if (_eventType === 'error' && !(chunk.error && typeof chunk.error === 'object')) {
@@ -586,6 +604,8 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
 
     return events.length > 0 ? events : null;
   };
+  parse.streamFinish = (sawDoneToken) => finishTracker.atEnd(sawDoneToken);
+  return parse;
 }
 
 type RecipeCapture = (eventType: string | null, chunk: Record<string, any>) => StreamEvent[];
@@ -601,12 +621,17 @@ function createRecipeContinuationCapture(config: ContinuationCaptureConfig | und
     let emittedID: string | undefined;
     return (eventType, chunk) => {
       const response = isRecord(chunk.response) ? chunk.response : chunk;
-      const completed = eventType === 'response.completed' || eventType === 'response.done'
-        || (eventType == null && response.status === 'completed');
+      // incomplete (truncated by max_output_tokens, etc.) can be continued just like completed, so the response id is saved either way.
+      const finished = eventType === 'response.completed' || eventType === 'response.done'
+        || eventType === 'response.incomplete'
+        || (eventType == null && (response.status === 'completed' || response.status === 'incomplete'));
       const id = typeof response.id === 'string' ? response.id : undefined;
-      if (!completed || !id || id === emittedID) return [];
+      if (!finished || !id || id === emittedID) return [];
       emittedID = id;
-      return continuationEvents({ kind: 'previous_id', step: 1, state: { previousResponseId: id } });
+      return continuationEvents({
+        kind: 'previous_id', step: 1,
+        state: { previousResponseId: id, ...(config.instructionsMode ? { instructionsMode: config.instructionsMode } : {}) },
+      });
     };
   }
   if (config.kind === 'replay_blocks'

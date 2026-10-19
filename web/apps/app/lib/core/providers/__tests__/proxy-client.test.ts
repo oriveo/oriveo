@@ -259,7 +259,7 @@ describe('proxy-client', () => {
           },
         },
       },
-      { type: 'done' },
+      { type: 'done', finish: { family: 'openai_responses', ended: 'clean', finishRaw: 'completed' } },
     ]);
   });
 
@@ -279,6 +279,46 @@ describe('proxy-client', () => {
     const { stream } = sendStreamProxy('openAI', 'sk_test', 'gpt-5', [{ role: 'user', content: 'hello' }]);
     await expect(collectEvents(stream)).resolves.toContainEqual({
       type: 'continuation', continuation: { kind: 'previous_id', step: 1, state: { previousResponseId: 'resp_exact' } },
+    });
+  });
+
+  describe('client tools on an ordinary send (propose_memory)', () => {
+    const tool = {
+      type: 'function' as const,
+      function: { name: 'propose_memory', description: 'Propose one memory.', parameters: { type: 'object' } },
+    };
+    const okStream = () => new Response('data: [DONE]\n\n', { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+
+    it('puts tools / toolChoice in the request body when given and leaves it unchanged otherwise', async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => okStream());
+      await collectEvents(sendStreamProxy('openAI', 'sk_test', 'gpt-5', [{ role: 'user', content: 'hello' }], undefined, {
+        maxOutputTokens: 100, clientTools: { tools: [tool], toolChoice: 'auto' },
+      }).stream);
+      await collectEvents(sendStreamProxy('openAI', 'sk_test', 'gpt-5', [{ role: 'user', content: 'hello' }], undefined, {
+        maxOutputTokens: 100,
+      }).stream);
+      const withTools = JSON.parse(String(fetchSpy.mock.calls[0]![1]!.body)) as Record<string, unknown>;
+      const without = JSON.parse(String(fetchSpy.mock.calls[1]![1]!.body)) as Record<string, unknown>;
+      expect(withTools.tools).toEqual([tool]);
+      expect(withTools.toolChoice).toBe('auto');
+      // Local-only fields are not passed through to the builder inside options.
+      expect(withTools.options).toEqual({ maxOutputTokens: 100 });
+      expect(without).not.toHaveProperty('tools');
+      expect(without).not.toHaveProperty('toolChoice');
+      expect(without.options).toEqual({ maxOutputTokens: 100 });
+    });
+
+    it('records the rejection context when a tool-carrying request is rejected with a 4xx', async () => {
+      const structuredError = { error: { message: 'tools is not supported for this model', type: 'invalid_request_error' } };
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify(structuredError), {
+        status: 400, headers: { 'Content-Type': 'application/json' },
+      }));
+      const handle = sendStreamProxy('openAI', 'sk_test', 'gpt-5', [{ role: 'user', content: 'hello' }], undefined, {
+        clientTools: { tools: [tool], toolChoice: 'auto' },
+      });
+      const events = await collectEvents(handle.stream);
+      expect(events.some((event) => event.type === 'error')).toBe(true);
+      expect(handle.getToolCallRejectionContext?.()).toEqual({ status: 400, structuredError });
     });
   });
 
@@ -419,8 +459,8 @@ describe('proxy-client', () => {
     );
 
     await expect(collectEvents(stream)).resolves.toEqual([
-      { type: 'error', error: 'rate limited', errorKind: 'upstream', source: 'provider', streamErrorFrame: true },
-      { type: 'done' },
+      { type: 'error', error: 'rate limited', errorKind: 'upstream', source: 'provider', streamErrorFrame: true, finish: { family: 'openai_responses', ended: 'clean', finishRaw: 'failed' } },
+      { type: 'done', finish: { family: 'openai_responses', ended: 'clean', finishRaw: 'failed' } },
     ]);
   });
 
@@ -452,8 +492,9 @@ describe('proxy-client', () => {
         error: 'Gemini stopped the response (finishReason=SAFETY).',
         errorKind: 'upstream',
         source: 'provider',
+        finish: { family: 'gemini', ended: 'clean', finishRaw: 'SAFETY' },
       },
-      { type: 'done' },
+      { type: 'done', finish: { family: 'gemini', ended: 'clean', finishRaw: 'SAFETY' } },
     ]);
   });
 
@@ -482,6 +523,7 @@ describe('proxy-client', () => {
         error: 'Gemini blocked the prompt (blockReason=PROHIBITED_CONTENT).',
         errorKind: 'upstream',
         source: 'provider',
+        finish: { family: 'gemini', ended: 'clean', finishRaw: 'blockReason:PROHIBITED_CONTENT' },
       },
       { type: 'done' },
     ]);
@@ -540,7 +582,7 @@ describe('proxy-client', () => {
           },
         },
       },
-      { type: 'done' },
+      { type: 'done', finish: { family: 'gemini', ended: 'clean', finishRaw: 'STOP' } },
     ]);
   });
 
@@ -630,7 +672,7 @@ describe('proxy-client', () => {
     await expect(collectEvents(stream)).resolves.toEqual([
       { type: 'reasoning', content: 'let me think' },
       { type: 'delta', content: 'the answer' },
-      { type: 'done' },
+      { type: 'done', finish: { family: 'anthropic', ended: 'eof_without_marker' } },
     ]);
   });
 
@@ -681,7 +723,7 @@ describe('proxy-client', () => {
           },
         },
       },
-      { type: 'done' },
+      { type: 'done', finish: { family: 'anthropic', ended: 'eof_without_marker' } },
     ]);
   });
 
@@ -739,7 +781,7 @@ describe('proxy-client', () => {
     await expect(collectEvents(stream)).resolves.toEqual([
       { type: 'reasoning', content: 'step one' },
       { type: 'delta', content: 'done' },
-      { type: 'done' },
+      { type: 'done', finish: { family: 'openai_chat', ended: 'clean' } },
     ]);
   });
 
@@ -787,7 +829,7 @@ describe('proxy-client', () => {
           },
         },
       },
-      { type: 'done' },
+      { type: 'done', finish: { family: 'openai_chat', ended: 'clean' } },
     ]);
   });
 
@@ -834,7 +876,7 @@ describe('proxy-client', () => {
           },
         },
       },
-      { type: 'done' },
+      { type: 'done', finish: { family: 'openai_chat', ended: 'clean' } },
     ]);
   });
   // The server route shares one process across users and never learns a negative cache by contract, so the local partition identity has no reason to go out.

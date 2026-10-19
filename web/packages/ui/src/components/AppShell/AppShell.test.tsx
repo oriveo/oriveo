@@ -419,3 +419,12 @@ describe('AppShell responsive CSS', () => {
     expect(css.slice(tabShellRuleIndex, tabShellRuleIndex + 140)).toContain('display: none');
   });
 });
+
+describe('AppShell RTL sidebar collapse direction', () => {
+  // The sidebar sits at the line start (right in RTL); if collapsing still used translateX(-100%) it would move out only halfway, leaving about 80px visible on the left at phone width.
+  it('desktop collapse and narrow-screen overlay collapse both move out to the right in RTL', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'AppShell.module.css'), 'utf8').replace(/\s+/g, ' ');
+    expect(css).toContain(".shell[data-sidebar-open='false'] .sidebar:dir(rtl) { transform: translateX(100%); }");
+    expect(css).toContain(".shell[data-overlay-sidebar-open='false'] .sidebar:dir(rtl) { transform: translateX(100%); }");
+  });
+});

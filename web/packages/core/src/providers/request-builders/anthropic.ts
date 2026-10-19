@@ -4,7 +4,8 @@ import { buildAnthropicRequestPayload, deepMerge } from "./runtime";
 import { STREAM_HEADERS, type ProviderRequest, type RequestParams } from "./types";
 import { guardAnthropicThinking } from './anthropic-thinking';
 import { credentialHeader, mergeDroppedGenerationParameters, writeGenerationParameters } from './generation-parameters';
-import { toAnthropicTool } from './tool-call-wire-adapter';
+import { moveHostMemoryToolsLast, toAnthropicTool } from './tool-call-wire-adapter';
+import { markAnthropicCacheBreakpoint } from '../relay-adapter';
 
 export function buildAnthropicRequest(
   params: RequestParams,
@@ -13,6 +14,9 @@ export function buildAnthropicRequest(
   maxOutputTokens?: number,
 ): ProviderRequest {
   const payload = buildAnthropicRequestPayload(params.messages);
+  // Single block-level breakpoint: [D] is split off as its own last block, the breakpoint goes on the last non-[D] block before it, and there is no top-level cache_control.
+  const messages = payload.messages as Array<Record<string, unknown>>;
+  markAnthropicCacheBreakpoint(messages, params.options?.dynamicText);
   // fallback only: authoritative max output comes from metadata S1; 8192 is
   // kept only for stale/missing snapshots so non-thinking calls still run.
   const defaultMaxTokens =
@@ -23,8 +27,7 @@ export function buildAnthropicRequest(
     model: params.modelID,
     max_tokens: defaultMaxTokens,
     stream: params.stream !== false,
-    cache_control: { type: "ephemeral" },
-    messages: payload.messages,
+    messages,
   };
 
   if (payload.systemText) {
@@ -36,6 +39,7 @@ export function buildAnthropicRequest(
   if (params.options?.supportsWebSearch) {
     deepMerge(body, webSearchProfile?.mergeParams);
   }
+  moveHostMemoryToolsLast('anthropic_messages', body, params.tools);
   const builderDefaultMaxTokens = body.max_tokens;
   const { written, dropped: writeDropped } = writeGenerationParameters(
     body,

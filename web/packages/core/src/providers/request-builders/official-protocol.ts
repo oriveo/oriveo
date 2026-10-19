@@ -92,6 +92,28 @@ export function officialAlternateProtocol(
   return familyOf(protocol) === native ? null : protocol;
 }
 
+/**
+ * The wire protocol an official provider actually uses for this request (the overflow check picks the protocol family from it):
+ * an alternate protocol wins, otherwise the native protocol; the openai native family is chosen between Chat / Responses
+ * by the per-provider builder from the model transport, which cannot be recognized here -> null;
+ * relay is also null (callers apply their own rules).
+ */
+export function officialWireProtocol(
+  providerKind: ProviderKind | string,
+  apiProtocol: string | null | undefined,
+): OfficialProtocol | null {
+  const alternate = officialAlternateProtocol(providerKind, apiProtocol);
+  if (alternate) return alternate;
+  switch (nativeFamily(providerKind)) {
+    case 'anthropic':
+      return 'anthropic_messages';
+    case 'gemini':
+      return 'gemini_generate_content';
+    default:
+      return null;
+  }
+}
+
 /** The auth scheme is decided only by providerKind (the same credential headers as each native builder). */
 function providerAuthHeaders(providerKind: ProviderKind | string, apiKey: string): Record<string, string> {
   switch (providerKind) {

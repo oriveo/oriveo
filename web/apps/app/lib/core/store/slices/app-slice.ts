@@ -14,6 +14,7 @@ type AppMiscActions = Pick<
   | 'setSearchQuery'
   | 'setSearchMatchIndex'
   | 'setImageGenMode'
+  | 'setDraftConversationInstructions'
 >;
 
 /**
@@ -24,7 +25,14 @@ type AppMiscActions = Pick<
  */
 export function createAppSlice(set: AppStoreSet): AppMiscActions {
   return {
-    setActiveConversationId: (id) => set({ activeConversationId: id ? normalizeUUID(id) : null }),
+    setActiveConversationId: (id) =>
+      set((s) => {
+        const next = id ? normalizeUUID(id) : null;
+        // Switching conversations discards the draft conversation-settings instructions (the draft only belongs to a new conversation that has no row yet)
+        return next === s.activeConversationId
+          ? { activeConversationId: next }
+          : { activeConversationId: next, draftConversationInstructions: '' };
+      }),
     setSelectedTab: (tab) => set({ selectedTab: tab }),
     setSidebarOpen: (open) => set({ sidebarOpen: open }),
     setHasCompletedOnboarding: (value) => set({ hasCompletedOnboarding: value }),
@@ -35,5 +43,6 @@ export function createAppSlice(set: AppStoreSet): AppMiscActions {
     setSearchQuery: (query) => set({ searchQuery: query, searchMatchIndex: 0 }),
     setSearchMatchIndex: (index) => set({ searchMatchIndex: index }),
     setImageGenMode: (mode) => set({ imageGenMode: mode }),
+    setDraftConversationInstructions: (text) => set({ draftConversationInstructions: text }),
   };
 }

@@ -12,7 +12,9 @@ import { hasUsableExtractedText } from '../attachments/file-text-extractor';
 import { type OutboundHistoryMessage, attachTextFallback } from '../attachments/native-file-fallback';
 import type { SkippedAttachment } from '../attachments/attachment-injector';
 import { outboundHistoryHasVideo, relayNativeFileCacheKey, resolveAttachmentLineForMessages } from '../attachments/attachment-transport-resolver';
-import { buildChatHistory, sanitizeOutboundMessages } from '../../utils/chat-stream-utils';
+import { buildChatHistory } from '../../utils/chat-stream-utils';
+import { ContextSanitizer } from '@oriveo/core/context/sanitize';
+import type { ContextMessage } from '@oriveo/core/context/message';
 import { filterCurrentTurnAttachments, withoutUnreceivableImages } from './attachment-policy';
 
 /**
@@ -27,11 +29,39 @@ export function buildOutboundMessages(input: {
   model: AIModel;
   streamOptions?: StreamOptions;
 }): ChatMessage[] {
+  return filterOutboundAttachments({
+    ...input,
+    messages: sanitizeLikeAssembler(input.messages, input.keepAssistantId),
+  });
+}
+
+/**
+ * Same normalization as ContextAssembler (packages/core ContextSanitizer): the history used for pre-checks and video detection matches what is actually sent.
+ * The normalized result is mapped back to app messages by message id (a merged message keeps the id and non-content fields of the one that survives).
+ */
+function sanitizeLikeAssembler(messages: ChatMessage[], keepAssistantId?: string): ChatMessage[] {
+  const byId = new Map(messages.map((message) => [message.id, message]));
+  const contextMessages = messages.flatMap((message): ContextMessage[] =>
+    message.role === 'user' || message.role === 'assistant'
+      ? [{ id: message.id, role: message.role, text: message.text ?? '', state: message.state, attachments: message.attachments ?? [] }]
+      : []);
+  return ContextSanitizer.sanitize(contextMessages, keepAssistantId).map((sanitized) => ({
+    ...(byId.get(sanitized.id) as ChatMessage),
+    text: sanitized.text,
+    attachments: sanitized.attachments.length > 0 ? sanitized.attachments : undefined,
+  }));
+}
+
+/** Filters attachments by the current model's capabilities only (no normalization); the main chat path is normalized by ContextAssembler. */
+export function filterOutboundAttachments(input: {
+  messages: ChatMessage[];
+  currentTurnId: string;
+  provider: Provider;
+  model: AIModel;
+  streamOptions?: StreamOptions;
+}): ChatMessage[] {
   return filterCurrentTurnAttachments(
-    withoutUnreceivableImages(
-      sanitizeOutboundMessages(input.messages, input.keepAssistantId),
-      input.provider, input.model, input.streamOptions,
-    ),
+    withoutUnreceivableImages(input.messages, input.provider, input.model, input.streamOptions),
     input.currentTurnId, input.provider, input.model,
   );
 }

@@ -21,16 +21,16 @@ import type {
 } from '../transport-strategy';
 import { citationFromRaw, mergeCitation } from '../citation-utils';
 import { deepMerge } from '../merge-utils';
-import { resolveRelayAnthropicThinking } from '../../request-builders/anthropic-thinking';
+import { chatMaxOutputTokens, resolveRelayAnthropicThinking } from '../../request-builders/anthropic-thinking';
 import { parseUsageAnthropic } from '../usage-parsers';
 import { nativeToolCallEvents } from '../../tool-call-protocol';
-import { markRelayAnthropicCacheBreakpoint } from '../../relay-adapter';
+import { markAnthropicCacheBreakpoint } from '../../relay-adapter';
 
 /**
  * Image and document blocks carry no cache_control of their own: Anthropic allows at most 4 breakpoints
- * per request, so marking every block would exceed the limit with many attachments. The single
- * block-level breakpoint is placed by markRelayAnthropicCacheBreakpoint on the last block of the last
- * user message.
+ * per request, so marking every block would exceed the limit with many attachments. The independent last
+ * [D] block and the single block-level breakpoint are handled by markAnthropicCacheBreakpoint (the last
+ * non-[D] block of the last user message).
  */
 
 function convertToAnthropicParts(parts: ContentPart[]): Array<Record<string, unknown>> {
@@ -98,14 +98,15 @@ export const anthropicMessagesStrategy: TransportStrategy = {
       });
     }
 
+    const chatOutputLimit = chatMaxOutputTokens(input.options?.maxOutputTokens);
     const body: Record<string, unknown> = {
       model: input.modelID,
-      // Relay-only heuristic fallback; official Anthropic goes through request-builders plus provider metadata.
-      max_tokens: 8192,
+      // The main chat path = oWire; other paths keep 8192 as the Relay-only heuristic fallback (official Anthropic goes through request-builders plus provider metadata).
+      max_tokens: chatOutputLimit ?? 8192,
       stream: true,
       messages: apiMessages,
     };
-    markRelayAnthropicCacheBreakpoint(apiMessages);
+    markAnthropicCacheBreakpoint(apiMessages, input.options?.dynamicText);
     if (systemTexts.length > 0) body.system = systemTexts.join('\n\n');
 
     // As in openai-chat, the local budget mapping is a Relay-only exception: official Anthropic uses the
@@ -118,7 +119,7 @@ export const anthropicMessagesStrategy: TransportStrategy = {
     ) {
       // The thinking decision shares one source with the relay orchestration layer so the two budget
       // tables cannot drift apart.
-      const thinking = resolveRelayAnthropicThinking(input.options.reasoning);
+      const thinking = resolveRelayAnthropicThinking(input.options.reasoning, chatOutputLimit);
       if (thinking) {
         body.thinking = { type: 'enabled', budget_tokens: thinking.budgetTokens };
         body.max_tokens = thinking.maxTokens;

@@ -1,0 +1,89 @@
+.panel {
+  position: relative;
+  width: min(100%, 520px);
+  padding: 28px;
+}
+
+.close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+}
+
+.header {
+  padding-right: 44px;
+}
+
+.title {
+  margin: 0;
+  color: var(--o-text);
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.summaryBlock {
+  margin-top: 20px;
+}
+
+.sectionLabel {
+  margin: 0 0 8px;
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.summary {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--o-token-usage-card-bg);
+  color: var(--o-text);
+  font-size: 14px;
+}
+
+.note {
+  margin: 20px 0 0;
+  color: var(--o-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.kept {
+  margin: 16px 0 0;
+  color: var(--o-text);
+  font-size: 14px;
+}
+
+.meta {
+  display: grid;
+  gap: 6px;
+  margin: 16px 0 0;
+}
+
+.metaRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.metaRow dt {
+  color: var(--o-text-secondary);
+}
+
+.metaRow dd {
+  margin: 0;
+  color: var(--o-text);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}

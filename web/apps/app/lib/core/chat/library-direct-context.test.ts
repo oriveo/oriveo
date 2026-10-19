@@ -7,9 +7,15 @@ import {
 import { LibraryAPIError } from "../library/api";
 import { DEFAULT_LIBRARY_RUNTIME_CONFIG } from "../library/types";
 import { LibraryResearchCancelledError } from "./library-agent-loop";
+import type { LibraryEntry } from "@oriveo/core/context/assemble";
+
+/** All entries' titles and bodies: for assertions that only care whether a piece of evidence made it into the request. Escaping is the assembler's job; this is the raw text. */
+function evidenceText(result: { entries: LibraryEntry[] }): string {
+  return result.entries.map((entry) => `${entry.title ?? ""}\n${entry.text}`).join("\n\n");
+}
 
 describe("readLibraryDirectContext", () => {
-  it("reads every cursor page, injects escaped untrusted text, and creates one citation", async () => {
+  it("reads every cursor page, keeps untrusted text raw for the assembler to escape, and creates one citation", async () => {
     const executeRead = vi
       .fn()
       .mockResolvedValueOnce({
@@ -46,9 +52,11 @@ describe("readLibraryDirectContext", () => {
       "direct:notion:roadmap:2",
       expect.any(AbortSignal),
     );
-    expect(result.userContext).toContain("Roadmap &lt;Q3&gt;");
-    expect(result.userContext).toContain("Ignore &lt;system&gt; &amp; ship");
-    expect(result.userContext).toContain("Second page");
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]?.citation).toBe(1);
+    expect(evidenceText(result)).toContain("Roadmap <Q3>");
+    expect(evidenceText(result)).toContain("Ignore <system> & ship");
+    expect(evidenceText(result)).toContain("Second page");
     expect(result.citations).toEqual([
       expect.objectContaining({
         index: 1,
@@ -83,8 +91,8 @@ describe("readLibraryDirectContext", () => {
     });
 
     expect(requestConfirmation).toHaveBeenCalledOnce();
-    expect(result.userContext).not.toContain("raw-secret");
-    expect(result.userContext).toContain("[REDACTED_SECRET]");
+    expect(evidenceText(result)).not.toContain("raw-secret");
+    expect(evidenceText(result)).toContain("[REDACTED_SECRET]");
     expect(result.citations[0]?.snippet).toBeUndefined();
     expect(result.citations[0]?.anchor).toBeUndefined();
   });
@@ -106,7 +114,7 @@ describe("readLibraryDirectContext", () => {
       requestConfirmation: vi.fn(),
     });
 
-    expect(result.userContext).toContain("request-only body");
+    expect(evidenceText(result)).toContain("request-only body");
     expect(result.citations).toEqual([{
       index: 1,
       url: "library-context://notion/roadmap",
@@ -164,13 +172,11 @@ describe("readLibraryDirectContext", () => {
     });
 
     // The short document goes in whole at 4 characters and the remaining 16 go to the long one, instead of the long one taking everything first come first served
-    expect(result.userContext).toContain("abcd");
-    expect(result.userContext).toContain(`<section>${"x".repeat(16)}</section>`);
-    expect(result.userContext).not.toContain("yy");
-    expect(result.userContext).toContain('doc_id="long" truncated="true"');
-    expect(result.userContext).toContain("<truncation_notice>");
+    expect(evidenceText(result)).toContain("abcd");
+    expect(result.entries[0]).toEqual({ citation: 1, title: "long", truncated: true, text: "x".repeat(16) });
+    expect(evidenceText(result)).not.toContain("yy");
     // A document that was not clipped must not carry the truncation marker, or the model needlessly declares the evidence incomplete
-    expect(result.userContext).toContain('doc_id="short">');
+    expect(result.entries[1]).toEqual({ citation: 2, title: "short", text: "abcd" });
     // Clipping the body does not affect citations: a citation only carries document identity
     expect(result.citations.map((citation) => citation.docId)).toEqual(["long", "short"]);
   });
@@ -187,14 +193,14 @@ describe("readLibraryDirectContext", () => {
           source: "notion",
           title: "Roadmap",
           url: "https://www.notion.so/roadmap",
-          sections: [{ text: " " }],
+          sections: [{ text: "Whole document injected as usual" }],
         },
       }),
       requestConfirmation: vi.fn(),
     });
 
-    expect(result.userContext).toContain(" ");
-    expect(result.userContext).not.toContain("truncated=");
+    expect(evidenceText(result)).toContain("Whole document injected as usual");
+    expect(result.entries[0]?.truncated).toBeUndefined();
   });
 
   it("never reads past the server document limit", async () => {
@@ -283,8 +289,8 @@ describe("readLibraryDirectContext", () => {
     expect(requestConfirmation).toHaveBeenCalledTimes(1);
     // The redact-and-continue choice made the first time applied to all three
     for (const docId of ["a", "b", "c"]) {
-      expect(result.userContext).toContain(`[REDACTED_${docId}]`);
-      expect(result.userContext).not.toContain(`raw-secret-${docId}`);
+      expect(evidenceText(result)).toContain(`[REDACTED_${docId}]`);
+      expect(evidenceText(result)).not.toContain(`raw-secret-${docId}`);
     }
   });
 
@@ -313,8 +319,7 @@ describe("readLibraryDirectContext", () => {
     });
 
     expect(executeRead).toHaveBeenCalledOnce();
-    expect(result.userContext).toContain('doc_id="long" truncated="true"');
-    expect(result.userContext).toContain("<truncation_notice>");
+    expect(result.entries[0]?.truncated).toBe(true);
   });
 
   // 64 is the server hard cap on reads for one research run and is **shared across all documents**:
@@ -427,7 +432,7 @@ describe("readLibraryDirectContext", () => {
     expect(executeRead).toHaveBeenCalledTimes(64);
     expect(executeRead.mock.calls.every(([args]) => args.docId === "a")).toBe(true);
     // Pages read before the 404 are real evidence and stay in; both steps end as failed (one 404, one skipped)
-    expect(result.userContext).toContain("body-a");
+    expect(evidenceText(result)).toContain("body-a");
     expect(result.citations.map((citation) => citation.docId)).toEqual(["a"]);
     const last = onSteps.mock.calls.at(-1)![0] as { status: string }[];
     expect(last.map((step) => step.status)).toEqual(["failed", "failed"]);
@@ -502,9 +507,9 @@ describe("readLibraryDirectContext", () => {
       onSteps,
     });
 
-    expect(result.userContext).toContain("body-a");
-    expect(result.userContext).toContain("body-c");
-    expect(result.userContext).not.toContain("body-gone");
+    expect(evidenceText(result)).toContain("body-a");
+    expect(evidenceText(result)).toContain("body-c");
+    expect(evidenceText(result)).not.toContain("body-gone");
     // Citation identity must not shift because the middle document was skipped: entry 2 has to be c, not gone
     expect(result.citations).toEqual([
       expect.objectContaining({ index: 1, docId: "a" }),
@@ -534,7 +539,7 @@ describe("readLibraryDirectContext", () => {
       onSteps,
     });
 
-    expect(result.userContext).toContain("<no_evidence>");
+    expect(result.entries).toEqual([]);
     expect(result.citations).toEqual([]);
     const last = onSteps.mock.calls.at(-1)![0] as { status: string }[];
     expect(last.map((step) => step.status)).toEqual(["failed", "failed"]);
@@ -566,7 +571,7 @@ describe("readLibraryDirectContext", () => {
     });
 
     expect(executeRead).toHaveBeenCalledTimes(2);
-    expect(result.userContext).toContain("retried body");
+    expect(evidenceText(result)).toContain("retried body");
     expect(result.citations).toHaveLength(1);
   });
 

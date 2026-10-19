@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   isMobile: false,
   isOverlayViewport: false,
   push: vi.fn(),
+  setDraftConversationInstructions: vi.fn(),
   lastLinkDefaultPrevented: undefined as boolean | undefined,
 }));
 
@@ -158,6 +159,7 @@ vi.mock('../providers/StoreProvider', () => ({
     getState: () => ({
       setActiveConversationId: vi.fn(),
       setLastUsedModelRef: vi.fn(),
+      setDraftConversationInstructions: mocks.setDraftConversationInstructions,
     }),
   }),
 }));
@@ -186,6 +188,7 @@ describe('AppShellWrapper', () => {
     mocks.isMobile = false;
     mocks.isOverlayViewport = false;
     mocks.push.mockClear();
+    mocks.setDraftConversationInstructions.mockClear();
     mocks.lastLinkDefaultPrevented = undefined;
   });
 
@@ -403,6 +406,7 @@ describe('AppShellWrapper', () => {
     fireEvent.click(screen.getByTestId('new-chat'));
 
     expect(mocks.push).toHaveBeenCalledWith('/chat');
+    expect(mocks.setDraftConversationInstructions).toHaveBeenCalledWith('');
   });
 });
 

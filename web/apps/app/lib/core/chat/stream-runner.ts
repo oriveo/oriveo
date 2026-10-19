@@ -7,7 +7,7 @@
  *   3. Run the post-abort guard, bailing out when the message was already marked interrupted or failed
  *
  * Not handled here:
- *   - Building chatHistory (each transaction does its own)
+ *   - Building the transport (each transaction produces it through transportInput)
  *   - Writing the finished message back (the first turn overwrites, a continuation prepends)
  *   - The catch block, which depends on each caller's closure: sendStartedAt, prevMessages, interruptedMsg
  */
@@ -18,8 +18,9 @@ import type { StoreApi } from 'zustand';
 import type { Attachment, Citation, AIModel, Provider } from '@oriveo/shared';
 import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
 import type { AppStore } from '../store/app-store';
-import type { ContentPart, StreamEvent, StreamOptions, StreamUsage } from '../providers/types';
+import type { StreamEvent, StreamOptions, StreamUsage } from '../providers/types';
 import { sendStream } from '../providers/service';
+import type { TransportInput } from './context-pipeline/transport-input';
 import { additionalBodyRetryEligible } from './additional-body-retry';
 import { isUpstreamContentEvent } from './additional-body-retry-tap';
 import { decideGenerationParameterRejection } from './generation-parameter-rejection';
@@ -29,6 +30,7 @@ import { batchAppendStreamingReasoning } from './stream-batcher';
 import { applyCitationsToMessage } from './cost-fields';
 import type { ContinuationIntent } from '@oriveo/core/providers/request-preference/continuation';
 import type { CompletedToolCall } from '@oriveo/core/providers/tool-call-accumulator';
+import type { StreamFinish } from '@oriveo/core/context/stream-finish';
 import { collectCapabilityResults, requestedCapabilityResults, type CapabilityResultContext, type CapabilityResultRecord } from './capability-result-runtime';
 import {
   grokSubscriptionErrorKindToProviderErrorKind,
@@ -137,11 +139,10 @@ export interface StreamPipelineParams {
   messageId: string;
   provider: Provider;
   model: AIModel;
-  /** Fully built chat history, with the system prompt and any continuation marker already injected. */
-  chatHistory: { role: 'user' | 'assistant' | 'system'; content: string | ContentPart[] }[];
+  /** Output of transportInput: messages already include the leading system message and any document context; options are the outbound options for this send. */
+  transport: TransportInput;
   /** Initial text for readStream: '' on the first turn, the existing text when continuing. */
   initialText: string;
-  relayStreamOptions: StreamOptions | undefined;
   /** Called back with the abort function so the transaction can return it as SendHandle.abort. */
   setAbortFn: (fn: (() => void) | null) => void;
   /** Direct Library context persists only its document-identity citations. */
@@ -176,6 +177,10 @@ export interface StreamPipelineResult {
   unhandledToolCalls: CompletedToolCall[];
   /** Relay: the options of the last request actually sent (they differ from the input after a first-send transport change or a protocol-level fallback). */
   relaySentStreamOptions?: StreamOptions;
+  /** Stream-end info carried on done; omitted when the protocol family is not recognized. */
+  finish?: StreamFinish;
+  /** Continuation state captured by this leg (replayed by the propose_memory tail leg); omitted when there is none. */
+  continuation?: ContinuationIntent;
 }
 
 export async function runStreamPipeline(
@@ -188,9 +193,8 @@ export async function runStreamPipeline(
     messageId,
     provider,
     model,
-    chatHistory,
+    transport,
     initialText,
-    relayStreamOptions,
     setAbortFn,
     suppressStreamCitations = false,
     relayMessagesBlockedByFiles = false,
@@ -228,8 +232,8 @@ export async function runStreamPipeline(
     refreshMetadataOnCodexClientVersionRejected(codexSubscription.error);
   }
   const baseStreamOptions = continuation
-    ? { ...relayStreamOptions, continuation }
-    : relayStreamOptions;
+    ? { ...transport.options, continuation }
+    : transport.options;
   // Subscription models can live outside the public catalog. Resolve their
   // models.dev declaration from the independently cached sidecar before the
   // decisive outbound gate; a cold cache must not silently erase supported
@@ -289,26 +293,32 @@ export async function runStreamPipeline(
         store,
         provider,
         model,
-        history: chatHistory,
+        history: transport.messages,
         streamOptions,
         messagesBlockedByFiles: relayMessagesBlockedByFiles,
-        send: (outbound, options) => sendWithNativeFileFallback(outbound, (history) => sendStream(
-          provider.kind,
-          subscription?.ok
-            ? subscription.value.accessToken
-            : codexSubscription?.ok
-              ? codexSubscription.value.accessToken
-              : resolveProviderAPIKey(provider, model.id),
-          // For inline relay image generation the main model may be swapped for a chat driver:
-          // gpt-image-* is not a chat model, and putting it in body.model gets ignored upstream while
-          // polluting the context. The original model has moved to relayImageToolModelID. When the
-          // request is resent on another protocol it is derived again for the new protocol.
-          options?.relayDriverModelID ?? model.id,
-          history,
-          requestBaseURLText(provider),
-          // Multi-key relay: the redaction list for failure cards / diagnostics includes every key of the connection; used on this device only.
-          relayKeyIDs(provider).length > 1 ? { ...options, relayConnectionKeySecrets: relayKeySecrets(provider) } : options,
-        )),
+        // The loop and the file fallback only rewrite the same transport at the wire layer (switching protocol / turning file blocks into text); the outbound request still reads transport.*.
+        send: (outbound, options) => sendWithNativeFileFallback(outbound, (messages) => {
+          const transport: TransportInput = { messages, options };
+          return sendStream(
+            provider.kind,
+            subscription?.ok
+              ? subscription.value.accessToken
+              : codexSubscription?.ok
+                ? codexSubscription.value.accessToken
+                : resolveProviderAPIKey(provider, model.id),
+            // For inline relay image generation the main model may be swapped for a chat driver:
+            // gpt-image-* is not a chat model, and putting it in body.model gets ignored upstream while
+            // polluting the context. The original model has moved to relayImageToolModelID. When the
+            // request is resent on another protocol it is derived again for the new protocol.
+            transport.options?.relayDriverModelID ?? model.id,
+            transport.messages,
+            requestBaseURLText(provider),
+            // Multi-key relay: the redaction list for failure cards / diagnostics includes every key of the connection; used on this device only.
+            relayKeyIDs(provider).length > 1
+              ? { ...transport.options, relayConnectionKeySecrets: relayKeySecrets(provider) }
+              : transport.options,
+          );
+        }),
       });
   const { stream, abort } = streamHandle;
   setAbortFn(abort);
@@ -316,6 +326,8 @@ export async function runStreamPipeline(
   const flushScheduler = createPartialFlushScheduler(store, conversationId, messageId);
   // Whether this attempt has received any body / reasoning delta (empty keep-alive chunks do not count): the only source of failure_phase in failure telemetry.
   let outputStarted = false;
+  // Whether this attempt has received any image delta: used only to decide "output already produced" for context-overflow recovery.
+  let imageOutputStarted = false;
   const onChunk = (chunk: string) => {
     if (chunk) outputStarted = true;
     // The model is talking again, so whatever activity was observed (a web search, say) is over.
@@ -357,6 +369,12 @@ export async function runStreamPipeline(
 
   let streamResult;
   let latestCitations: Citation[] | undefined;
+  // Record one extra copy only: the callback is still handed to the caller as before.
+  let capturedContinuation: ContinuationIntent | undefined;
+  const captureContinuation = (next: ContinuationIntent) => {
+    capturedContinuation = next;
+    onContinuation?.(next);
+  };
   const normalizedEvents: StreamEvent[] = [];
   let requestedWritten = false;
   // `sendStream` exposes this context only after the proxy has completed its
@@ -389,8 +407,10 @@ export async function runStreamPipeline(
       },
       onReasoningChunk,
       undefined,
-      onContinuation,
+      captureContinuation,
       (event) => {
+        // An image delta also counts as output already produced (the criterion for not resending after an overflow); outputStarted for failure telemetry is unchanged.
+        if (event.type === 'image') imageOutputStarted = true;
         if (event.type === 'activity') {
           // Transient display signal: it is not capability evidence, which still comes only from
           // citations and tool results.
@@ -419,18 +439,35 @@ export async function runStreamPipeline(
         ...(relayImageRejectedOf(streamHandle) ? { relayImageUnsupported: true }
           : relayFileRejectedOf(streamHandle) ? { relayFileUnsupported: true } : {}),
       });
+      // Rejection context of a tool-carrying request (the downgrade criterion): it contains the upstream error body, so it is non-enumerable and never enters failure cards or telemetry.
+      const toolCallRejectionContext = toolCallRejectionContextOf(streamHandle);
+      if (toolCallRejectionContext !== undefined) {
+        Object.defineProperty(error, 'toolCallRejectionContext', {
+          value: toolCallRejectionContext, enumerable: false, configurable: true,
+        });
+      }
+      // Delivery facts of this attempt needed by the overflow decision: non-enumerable, never enters failure cards or telemetry.
+      const sent = relaySentStreamOptionsOf(streamHandle);
+      Object.defineProperty(error, 'contextAttempt', {
+        value: {
+          imageOutputStarted,
+          ...(sent?.relayTransport ? { relayTransport: sent.relayTransport } : {}),
+          ...(sent?.relayDriverModelID ? { relayDriverModelID: sent.relayDriverModelID } : {}),
+        },
+        enumerable: false,
+        configurable: true,
+      });
     }
     throw error;
   } finally {
     flushScheduler.dispose();
   }
 
-  const { fullText, reasoningText, usage, imageAttachments, servedModelID, toolCalls } = streamResult;
+  const { fullText, reasoningText, usage, imageAttachments, servedModelID, toolCalls, finish } = streamResult;
   const citations = streamResult.citations ?? latestCitations;
   const capabilityContext = capabilityResultContextOf(streamHandle);
   const capabilityResults = collectCapabilityResults(capabilityContext, normalizedEvents);
-  const relaySentStreamOptions = (streamHandle as { getRelaySentStreamOptions?: () => StreamOptions | undefined })
-    .getRelaySentStreamOptions?.();
+  const relaySentStreamOptions = relaySentStreamOptionsOf(streamHandle);
 
   // Reasoning was running and no text arrived before done -> close it out at the done timestamp.
   if (reasoningStartedAt !== null && reasoningEndedAt === null) {
@@ -467,6 +504,8 @@ export async function runStreamPipeline(
       capabilityResults,
       unhandledToolCalls: toolCalls,
       ...(relaySentStreamOptions ? { relaySentStreamOptions } : {}),
+      ...(finish ? { finish } : {}),
+      ...(capturedContinuation ? { continuation: capturedContinuation } : {}),
     };
   }
 
@@ -482,7 +521,17 @@ export async function runStreamPipeline(
     capabilityResults,
     unhandledToolCalls: toolCalls,
     ...(relaySentStreamOptions ? { relaySentStreamOptions } : {}),
+    ...(finish ? { finish } : {}),
+    ...(capturedContinuation ? { continuation: capturedContinuation } : {}),
   };
+}
+
+function toolCallRejectionContextOf(handle: unknown): unknown {
+  return (handle as { getToolCallRejectionContext?: () => unknown }).getToolCallRejectionContext?.();
+}
+
+function relaySentStreamOptionsOf(handle: unknown): StreamOptions | undefined {
+  return (handle as { getRelaySentStreamOptions?: () => StreamOptions | undefined }).getRelaySentStreamOptions?.();
 }
 
 function capabilityResultContextOf(handle: unknown): CapabilityResultContext | null | undefined {

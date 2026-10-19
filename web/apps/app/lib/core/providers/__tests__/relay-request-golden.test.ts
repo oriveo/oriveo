@@ -128,6 +128,23 @@ function withRelayAnthropicCacheBreakpoint<T extends GoldenRecord>(record: T): T
   return { ...record, body: JSON.stringify(body) };
 }
 
+// Official Anthropic drops the top-level cache_control and uses a single block-level breakpoint on the last block of the last user message instead.
+const OFFICIAL_ANTHROPIC_BLOCK_BREAKPOINT_CASES = new Set(['official_anthropic']);
+
+/** Lift an old baseline to the block-breakpoint form before comparing: drop the top-level breakpoint and wrap the last user message's string content in a text block carrying the breakpoint; an already lifted record is returned unchanged. */
+function withOfficialAnthropicBlockBreakpoint<T extends GoldenRecord>(record: T): T {
+  if (!('body' in record)) return record;
+  const body = JSON.parse(record.body) as Record<string, unknown>;
+  if (!('cache_control' in body)) return record;
+  delete body.cache_control;
+  const messages = body.messages as Array<{ role: string; content: unknown }>;
+  const lastUser = [...messages].reverse().find((message) => message.role === 'user');
+  if (lastUser && typeof lastUser.content === 'string') {
+    lastUser.content = [{ type: 'text', text: lastUser.content, cache_control: { type: 'ephemeral' } }];
+  }
+  return { ...record, body: JSON.stringify(body) };
+}
+
 // openai_responses direct generates a session_id; fix the source so golden does not delete fields.
 const FIXED_UUID = '00000000-0000-4000-8000-000000000000';
 
@@ -259,10 +276,13 @@ function check(record: GoldenRecord) {
     ).toEqual({ type: 'ephemeral' });
   }
   if (RECORD) {
-    // Re-record guard: when a baseline exists, nothing may change except the URLs of those three cases, the one Codex identity case and the two cache-breakpoint cases.
+    // Re-record guard: when a baseline exists, nothing may change except the URLs of those three cases, the one Codex identity case, the two relay cache-breakpoint cases and the official Anthropic block breakpoint.
     const stored = golden?.cases.find((entry) => entry.caseId === record.caseId);
     const lifted = stored && codexChange ? withCodexIdentityChange(stored, codexChange) : stored;
-    const previous = lifted && cacheBreakpointChange ? withRelayAnthropicCacheBreakpoint(lifted) : lifted;
+    const relayLifted = lifted && cacheBreakpointChange ? withRelayAnthropicCacheBreakpoint(lifted) : lifted;
+    const previous = relayLifted && OFFICIAL_ANTHROPIC_BLOCK_BREAKPOINT_CASES.has(record.caseId)
+      ? withOfficialAnthropicBlockBreakpoint(relayLifted)
+      : relayLifted;
     if (previous) {
       if (allowed && 'url' in previous && 'url' in record) {
         expect([allowed.before, allowed.after], `${record.caseId} previous URL`).toContain(previous.url);

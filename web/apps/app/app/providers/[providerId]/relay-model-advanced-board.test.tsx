@@ -235,6 +235,9 @@ function openAdvanced(provider: Provider) {
 }
 
 beforeEach(() => {
+  // The negative-cache TTL is 7 days: pin the clock to NOW so the fixed fixture time never ages out.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(NOW);
   mocks.routerPush.mockReset();
   mocks.applyKeyOp.mockReset();
   mocks.applyKeyOp.mockResolvedValue(true);
@@ -243,6 +246,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   localStorage.clear();
   resetCapabilityEvidenceIdentitiesForTesting();

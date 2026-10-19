@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import { Inter, JetBrains_Mono, Plus_Jakarta_Sans } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import { brand } from '@oriveo/config';
@@ -27,6 +27,16 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-jetbrains-mono',
+});
+
+// Brand font: welcome-page title and memory-page numbers (same family as the iOS / Android Plus Jakarta Bold).
+// Not preloaded: only pages that reference --font-brand download it, so the global display token is unchanged.
+const brandFont = Plus_Jakarta_Sans({
+  weight: '700',
+  subsets: ['latin'],
+  display: 'swap',
+  preload: false,
+  variable: '--font-brand',
 });
 
 // await cookies() / headers() in i18n/request.ts already makes Next.js treat the route as
@@ -79,7 +89,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
   const dir = isRTL(locale) ? 'rtl' : 'ltr';
 
   return (
-    <html lang={locale} dir={dir} suppressHydrationWarning className={`${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang={locale} dir={dir} suppressHydrationWarning className={`${inter.variable} ${jetbrainsMono.variable} ${brandFont.variable}`}>
       <head>
         <ThemeInitScript />
         <meta name="theme-color" content="#8B5CF6" />
@@ -88,13 +98,16 @@ export default async function RootLayout({ children }: RootLayoutProps) {
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body suppressHydrationWarning>
+        {/* Visually hide with clipping rather than left:-9999px: in RTL the negative offset stretches the document by about 10k px of horizontal scroll, and on phone widths the whole page scrolls away to blank */}
         <a href="#main-content" className="sr-skip" style={{
           position: 'absolute',
-          left: '-9999px',
           top: 'auto',
           width: '1px',
           height: '1px',
+          margin: '-1px',
           overflow: 'hidden',
+          clipPath: 'inset(50%)',
+          whiteSpace: 'nowrap',
           zIndex: 9999,
         }}>Skip to content</a>
         <NextIntlClientProvider messages={messages}>

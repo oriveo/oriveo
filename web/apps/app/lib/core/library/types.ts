@@ -134,8 +134,8 @@ export interface LibraryReadResult {
   /**
    * The server already sent only the beginning of this document. Same fact as a non-empty
    * nextCursor arriving from a different source: paging stopped halfway versus the server
-   * truncating a single retrieval. buildLibraryContextEnvelope reads this signal and sets
-   * truncated="true" plus a truncation_notice, rendering exactly like the named-document path.
+   * truncating a single retrieval. buildLibraryContextEntries reads this signal and marks the
+   * entry as truncated, using the same decision as the named-document path.
    */
   truncated?: boolean;
 }

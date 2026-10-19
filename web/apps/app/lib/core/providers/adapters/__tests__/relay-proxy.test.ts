@@ -704,7 +704,7 @@ describe('Relay adapter - browser routing by address (public endpoints proxied, 
           errorKind: 'upstream',
           source: 'provider',
         },
-        { type: 'done' },
+        { type: 'done', finish: { family: 'gemini', ended: 'eof_without_marker' } },
       ]);
     });
   });
@@ -1103,7 +1103,7 @@ describe('Relay adapter - Responses image event compatibility', () => {
           },
         },
       },
-      { type: 'done' },
+      { type: 'done', finish: { family: 'openai_responses', ended: 'clean', finishRaw: 'completed' } },
     ]);
   });
 
@@ -1244,7 +1244,7 @@ describe('Relay adapter - Responses image event compatibility', () => {
 
     await expect(collectEvents(handle)).resolves.toEqual([
       { type: 'image', url: 'data:image/png;base64,d29ybGQ=' },
-      { type: 'done' },
+      { type: 'done', finish: { family: 'openai_responses', ended: 'eof_without_marker' } },
     ]);
   });
 });

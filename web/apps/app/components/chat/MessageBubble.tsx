@@ -21,7 +21,7 @@ import { relayIconSource } from "../relay-avatar";
 import { loadFilePreviewUtils } from "../../lib/utils/file-preview-utils-lazy";
 import { stripMarkdownForClipboard } from "../../lib/utils/markdown-preview";
 import { copyToClipboard } from "../../lib/utils/clipboard";
-import { useMessageEdit } from "../../lib/hooks/useMessageEdit";
+import { type MessageEditReopen, useMessageEdit } from "../../lib/hooks/useMessageEdit";
 import { useStreamQuiet } from "../../lib/hooks/useStreamQuiet";
 import { resolveStreamActivityPresentation } from "../../lib/core/chat/stream-activity-presentation";
 import { UserAvatar } from "../common/UserAvatar";
@@ -32,6 +32,8 @@ import { McpToolStepsBlock } from "../mcp/McpToolStepsBlock";
 import { mcpToolStepDisplayTitle } from "../../lib/core/mcp/mcp-tool-steps";
 import { ReasoningBlock } from "./ReasoningBlock";
 import { MessageMeta } from "./MessageMeta";
+import { ReplyNotice } from "./ReplyNotice";
+import { replyNoticeOf } from "../../lib/core/chat/context-visibility/reply-notice";
 import { CrosscheckSheet } from "./CrosscheckSheet";
 import {
   UserImageAttachments,
@@ -110,6 +112,8 @@ interface MessageBubbleProps {
   onRetry?: () => void;
   onRetryWithoutCustom?: () => void;
   onEditAndResend?: (newText: string) => void;
+  /** Reopen the edit box with this text (edit-and-resend cancelled at the pre-send confirm). */
+  editReopen?: MessageEditReopen;
   onContinue?: () => void;
   onSwitchModel?: () => void;
   conversationId?: string;
@@ -134,6 +138,7 @@ export const MessageBubble = memo(function MessageBubble({
   onRetry,
   onRetryWithoutCustom,
   onEditAndResend,
+  editReopen,
   onContinue,
   onSwitchModel,
   conversationId,
@@ -226,7 +231,7 @@ export const MessageBubble = memo(function MessageBubble({
     handleCancelEdit,
     handleSubmitEdit,
     handleEditKeyDown,
-  } = useMessageEdit(message.text, onEditAndResend);
+  } = useMessageEdit(message.text, onEditAndResend, editReopen);
   const {
     menu,
     handleContextMenu: onContextMenu,
@@ -357,6 +362,18 @@ export const MessageBubble = memo(function MessageBubble({
   const hasFailureCopy = Boolean(message.errorTitle || message.errorKind);
 
   const deliveredRetryAction = interactionLocked ? undefined : onRetry;
+  // Incomplete / filtered answer notice (stop-reason.v1 ui); hidden while a recovery card is shown.
+  const replyNotice = replyNoticeOf({
+    role: message.role,
+    stopReason: message.stopReason,
+    isLastMessage,
+    isStreaming,
+    hasRecoveryCard:
+      isLastMessage &&
+      ((isFailed && hasFailureCopy) ||
+        (isInterrupted && message.role === "assistant")),
+    isGenerating: interactionLocked,
+  });
   const canSaveNote = Boolean(
     conversationId && message.text.trim() && message.state !== "generating",
   );
@@ -765,6 +782,9 @@ export const MessageBubble = memo(function MessageBubble({
             {relayWebNotice === 'web_not_used' && message.role === "assistant" && !isStreaming && !isFailed && (
               <p className={styles.relayWebReplyNotice}>{tCommon("relayWebReplyNotUsed")}</p>
             )}
+            {replyNotice && (
+              <ReplyNotice notice={replyNotice} onContinue={onContinue} />
+            )}
             {showMeta && (
               <MessageMeta
                 providerName={resolvedProviderName}
@@ -784,6 +804,7 @@ export const MessageBubble = memo(function MessageBubble({
                   cacheCreationInputTokens: message.cacheCreationInputTokens,
                 }}
                 capabilityResults={message.capabilityResults}
+                memoryItemIds={isStreaming ? undefined : message.memoryItemIds}
               />
             )}
             <SavedNoteRefs

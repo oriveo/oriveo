@@ -168,14 +168,10 @@ describe('tools popover', () => {
 });
 
 describe('empty state', () => {
-  it('shows an explanation and a primary button into the add flow when there are no servers', () => {
+  it('with no servers at all, the pill is not rendered and the add entry lives in Settings > MCP', () => {
     seedMcpStore({});
-    renderControl();
-    fireEvent.click(pill());
-    expect(panel().querySelector('[data-mcp-state="empty"]')).not.toBeNull();
-    expect(within(panel()).getByText('No tools yet')).not.toBeNull();
-    fireEvent.click(within(panel()).getByRole('button', { name: 'Add MCP server' }));
-    expect(mocks.push).toHaveBeenCalledWith('/settings/mcp?add=1');
+    const { container } = renderControl();
+    expect(container.innerHTML).toBe('');
   });
 });
 

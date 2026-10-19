@@ -12,6 +12,7 @@
  *   - streamShape.citationTitleField overrides the title field (default "web.title")
  */
 
+import { StopReasonResolver } from '../../../context/stop-reason';
 import type { ContentPart, StreamEvent } from '../../types';
 import type {
   BuildRequestInput,
@@ -110,6 +111,8 @@ export function detectGeminiBlockEvent(
       error: `Gemini blocked the prompt (blockReason=${blockReason}).`,
       errorKind: 'upstream',
       source: 'provider',
+      // The prompt was blocked and there is no candidate: record clean + "blockReason:<value>" per the stop-reason contract.
+      finish: { family: 'gemini', ended: 'clean', finishRaw: StopReasonResolver.geminiBlockFinishRaw(blockReason) },
     };
   }
   const candidates = chunk.candidates as Array<Record<string, unknown>> | undefined;

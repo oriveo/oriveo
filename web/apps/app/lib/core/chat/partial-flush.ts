@@ -1,6 +1,8 @@
 import type { StoreApi } from 'zustand';
 import type { AppStore } from '../store/app-store';
 import { computeConversationActivityAt } from '../conversation-metadata';
+import { flushPendingStreaming } from './stream-batcher';
+import { StopReasonResolver } from '@oriveo/core/context/stop-reason';
 import { PARTIAL_FLUSH_THRESHOLD_CHARS, PARTIAL_FLUSH_THRESHOLD_MS } from './chat-tuning';
 
 /**
@@ -72,6 +74,11 @@ export function createPartialFlushScheduler(
 export interface FlushPartialOptions {
   /** The entry guard passes 'interrupted'; the lifecycle flush omits it, keeping generating and leaving state unchanged. */
   state?: 'interrupted';
+  /**
+   * Interrupt source (only meaningful when state='interrupted'). 'user': the user stopped, or a new send took over the same conversation -> stopReason interrupted;
+   * 'system': partition switch or a single-conversation failure -> recorded as a transport interruption (incomplete when there is text, otherwise error). Defaults to 'user'.
+   */
+  interruptCause?: 'user' | 'system';
   /** Previous round's reasoning snapshot for continuations, concatenated with this round's partial. */
   prevReasoning?: string;
 }
@@ -82,7 +89,7 @@ export function flushPartialToMessage(
   msgId: string,
   options: FlushPartialOptions = {},
 ): void {
-  const { state, prevReasoning } = options;
+  const { state, prevReasoning, interruptCause = 'user' } = options;
   const stateSnap = store.getState();
   const partial = stateSnap.streamingTexts[convId] ?? '';
   // streamingReasoningTexts may be undefined in a mock store, so guard for it.
@@ -129,6 +136,14 @@ export function flushPartialToMessage(
           ...m,
           text: newText,
           state: newState,
+          // Interrupted while generating: a user stop or an overriding send in the same conversation lands as interrupted; a system interrupt is judged as transport_error.
+          ...(newState === 'interrupted' && targetMsg.state === 'generating'
+            ? {
+                stopReason: interruptCause === 'system'
+                  ? StopReasonResolver.resolve('openai_chat', 'transport_error', undefined, newText.trim() !== '')
+                  : 'interrupted' as const,
+              }
+            : {}),
           ...(newReasoningText ? { reasoningText: newReasoningText } : {}),
         }
       : m,

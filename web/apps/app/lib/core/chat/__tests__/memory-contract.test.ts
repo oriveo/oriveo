@@ -1,103 +1,87 @@
 /**
- * Memory contract tests
+ * Memory contract tests (injection reads the local memory items)
  *
- * Verifies the contract constants and behavioral boundaries of the memory feature so this implementation
- * stays consistent with the other clients.
+ * Verifies the contract constants and behavioral boundaries of the memory feature,
+ * so this implementation stays consistent with iOS / Android. The assertions run against the production buildChatContextSources.
  */
-import { describe, it, expect } from 'vitest';
-import type { AppPreference } from '@oriveo/shared';
-import type { ContentPart } from '../../providers/types';
+import { describe, it, expect, vi } from 'vitest';
+import type { Conversation } from '@oriveo/shared';
+import { MemoryItems, type MemoryItem } from '@oriveo/core/context/memory-items';
 
-// Reuses the pure functions extracted in memory-injection.test.ts
-type ChatHistoryMsg = { role: 'user' | 'assistant' | 'system'; content: string | ContentPart[] };
+vi.mock('../../skills/knowledge-api', () => ({
+  retrieveKnowledgeSnippets: vi.fn(),
+  fetchKnowledgeRuntimeConfigCached: vi.fn(),
+}));
 
-function applyMemoryInjection(
-  chatHistory: ChatHistoryMsg[],
-  prefs: Pick<AppPreference, 'memoryText' | 'memoryAntiForgetEnabled' | 'memoryAntiForgetText'>,
-  conversationUseMemory: boolean | undefined,
-): { injected: boolean } {
-  const memoryText = prefs.memoryText?.trim();
-  const useMemory = conversationUseMemory !== false;
+import { createAppStore } from '../../store/app-store';
+import { buildChatContextSources } from '../prompt-injection';
 
-  let injected = false;
-
-  if (memoryText && useMemory) {
-    chatHistory.unshift({ role: 'system', content: memoryText });
-    injected = true;
-
-  }
-
-  return { injected };
+function memoryItem(id: string, content: string): MemoryItem {
+  return MemoryItems.canonical({
+    id, kind: 'fact', content, mutationId: `${id}-m`, deviceId: 'device-test', createdAt: '2026-10-01T00:00:00.000Z',
+  });
 }
 
-function makeUserMessages(count: number): ChatHistoryMsg[] {
-  const msgs: ChatHistoryMsg[] = [];
-  for (let i = 0; i < count; i++) {
-    msgs.push({ role: 'user', content: `Q${i + 1}` });
-    msgs.push({ role: 'assistant', content: `A${i + 1}` });
-  }
-  return msgs;
+function conversation(useMemory?: boolean): Conversation {
+  return {
+    id: 'conv-contract', title: 'T', hasCustomTitle: false, providerID: 'p-1', modelID: 'm-1', providerKind: 'openAI',
+    previewText: '', estimatedCost: 0, isDraft: false, messages: [], draftText: '',
+    createdAt: '2026-10-15T00:00:00.000Z', updatedAt: '2026-10-15T00:00:00.000Z',
+    ...(useMemory === undefined ? {} : { useMemory }),
+  };
 }
 
-// ── Contract constants ────────────────────────────────────────
+async function injected(items: MemoryItem[], useMemory?: boolean, memoryText?: string): Promise<boolean> {
+  const conv = conversation(useMemory);
+  const store = createAppStore({ conversations: [conv] });
+  store.setState({
+    preferences: { ...store.getState().preferences, ...(memoryText === undefined ? {} : { memoryText }) },
+    memoryItems: items,
+  });
+  const sources = await buildChatContextSources(store, conv, 'Hi');
+  expect(sources.memoryItems.length > 0).toBe(sources.promptContext.memoryInjected);
+  return sources.promptContext.memoryInjected;
+}
 
 // ── Anti-forget reminder is no longer injected ─────────────────────
 
 describe('anti-forget reminder is no longer appended', () => {
-  it('preference on + >= 10 turns + summary present: the last outbound user message has no [Reminder:', () => {
-    const chatHistory = makeUserMessages(10);
-    chatHistory.push({ role: 'user', content: 'Latest question' });
-
-    applyMemoryInjection(chatHistory, {
-      memoryText: 'I am an engineer',
-      memoryAntiForgetEnabled: true,
-      memoryAntiForgetText: 'Prefer Go code',
-    }, undefined);
-
-    const lastUser = [...chatHistory].reverse().find((m) => m.role === 'user');
-    expect(lastUser?.content).toBe('Latest question');
-    expect(JSON.stringify(chatHistory)).not.toContain('[Reminder:');
+  it('only items are injected even when the preference is on, with no anti-forget text', async () => {
+    const conv = conversation();
+    const store = createAppStore({ conversations: [conv] });
+    store.setState({
+      preferences: {
+        ...store.getState().preferences,
+        memoryText: 'I am an engineer',
+        memoryAntiForgetEnabled: true,
+        memoryAntiForgetText: 'Prefer Go code',
+      },
+      memoryItems: [memoryItem('item-fact', 'I am an engineer')],
+    });
+    const sources = await buildChatContextSources(store, conv, 'Latest question');
+    expect(sources.memoryItems.map((m) => m.content)).toEqual(['I am an engineer']);
+    expect(JSON.stringify(sources)).not.toContain('[Reminder:');
+    expect(JSON.stringify(sources)).not.toContain('Prefer Go code');
   });
 });
 
-describe('Contract: useMemory defaults', () => {
-  it('treats an undefined useMemory as enabled', () => {
-    const chatHistory: ChatHistoryMsg[] = [{ role: 'user', content: 'Hi' }];
-    const result = applyMemoryInjection(chatHistory, {
-      memoryText: 'Context',
-    }, undefined);
-
-    expect(result.injected).toBe(true);
+describe('Phase 0 contract: useMemory defaults', () => {
+  it('defaults to enabled when useMemory is undefined (treated as true)', async () => {
+    expect(await injected([memoryItem('item-fact', 'Context')], undefined)).toBe(true);
   });
 
-  it('blocks injection when useMemory = false', () => {
-    const chatHistory: ChatHistoryMsg[] = [{ role: 'user', content: 'Hi' }];
-    const result = applyMemoryInjection(chatHistory, {
-      memoryText: 'Context',
-    }, false);
-
-    expect(result.injected).toBe(false);
-    expect(chatHistory).toHaveLength(1);
+  it('useMemory = false blocks injection', async () => {
+    expect(await injected([memoryItem('item-fact', 'Context')], false)).toBe(false);
   });
 });
 
-describe('Contract: empty/whitespace memory', () => {
-  it('does not inject an empty memoryText', () => {
-    const chatHistory: ChatHistoryMsg[] = [{ role: 'user', content: 'Hi' }];
-    const result = applyMemoryInjection(chatHistory, { memoryText: '' }, undefined);
-    expect(result.injected).toBe(false);
+describe('Phase 0 contract: no items, no memory', () => {
+  it('does not inject when there are no items', async () => {
+    expect(await injected([])).toBe(false);
   });
 
-  it('does not inject a whitespace-only memoryText', () => {
-    const chatHistory: ChatHistoryMsg[] = [{ role: 'user', content: 'Hi' }];
-    const result = applyMemoryInjection(chatHistory, { memoryText: '   \t\n  ' }, undefined);
-    expect(result.injected).toBe(false);
-  });
-
-  it('does not inject an undefined memoryText', () => {
-    const chatHistory: ChatHistoryMsg[] = [{ role: 'user', content: 'Hi' }];
-    const result = applyMemoryInjection(chatHistory, {}, undefined);
-    expect(result.injected).toBe(false);
+  it('does not inject when only memoryText exists and there are no items', async () => {
+    expect(await injected([], undefined, 'Context')).toBe(false);
   });
 });
 

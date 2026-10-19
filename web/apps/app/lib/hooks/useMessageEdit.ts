@@ -1,4 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+
+/** Reopen this message's edit box with the given text (edit-and-resend cancelled at the pre-send confirm, P9·U8). */
+export interface MessageEditReopen {
+  text: string;
+  nonce: number;
+}
 
 /**
  * Hook holding message edit state, wrapping the editing state and callbacks used by MessageBubble.
@@ -6,9 +12,16 @@ import { useState, useCallback } from 'react';
 export function useMessageEdit(
   originalText: string,
   onEditAndResend?: (newText: string) => void,
+  reopen?: MessageEditReopen,
 ) {
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState('');
+
+  useEffect(() => {
+    if (!reopen) return;
+    setEditText(reopen.text);
+    setEditing(true);
+  }, [reopen]);
 
   const handleStartEdit = useCallback(() => {
     setEditText(originalText);

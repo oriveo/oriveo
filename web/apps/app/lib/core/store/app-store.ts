@@ -15,6 +15,7 @@ import type {
   SkillUsage,
   SkillCategory,
 } from '@oriveo/shared';
+import type { MemoryItem } from '@oriveo/core/context/memory-items';
 import { createStreamingSlice } from './slices/streaming-slice';
 import { createProviderSlice } from './slices/provider-slice';
 import { createConversationSlice } from './slices/conversation-slice';
@@ -27,6 +28,7 @@ import { createMemorySlice } from './slices/memory-slice';
 import { createSyncSlice } from './slices/sync-slice';
 import { createAppSlice } from './slices/app-slice';
 import { createLibrarySlice } from './slices/library-slice';
+import type { CapConfirmRequest } from '../chat/context-visibility/cap-confirm-gate';
 import type {
   LibraryConfirmationRequest,
   LibraryConnection,
@@ -93,6 +95,8 @@ export interface AppState {
 
   /* Image generation */
   imageGenMode: boolean;
+  /** Draft instructions (already normalized) for a conversation that has no row yet; written onto the object when the first message creates the conversation, cleared on conversation switch or creation. */
+  draftConversationInstructions: string;
 
   /* Pin & order */
   pinnedConversationIds: string[];
@@ -113,6 +117,10 @@ export interface AppState {
   trashedNotes: Note[];
   /** Note folders, active only; soft-delete tombstones stay remote and never enter the store. */
   noteFolders: NoteFolder[];
+
+  /* Memory items */
+  /** Local memory items (no tombstones, in list order); the repository refreshes the whole list after hydration, local writes and remote merges, and prompt injection only reads this. */
+  memoryItems: MemoryItem[];
   /** Ids of the note folders currently expanded in the sidebar tree. */
   expandedNoteFolderIds: string[];
   /** Ids of locally soft-deleted notes, so the cloud listener cannot write the old documents back into notes. */
@@ -156,6 +164,8 @@ export interface AppState {
   libraryResearchEnabled: boolean;
   libraryResearchSteps: Record<string, LibraryResearchStep[]>;
   libraryConfirmation: LibraryConfirmationRequest | null;
+  /* Pre-send tier / surcharge-line confirmation: conversation id -> the pending request for that conversation (at most one per conversation, not persisted) */
+  contextCapConfirmations: Record<string, CapConfirmRequest>;
 }
 
 /* ── Actions ─────────────────────────────────────────── */
@@ -209,6 +219,7 @@ export interface AppActions {
 
   /* Image generation */
   setImageGenMode: (mode: boolean) => void;
+  setDraftConversationInstructions: (text: string) => void;
 
   /* Pin & order */
   togglePinConversation: (id: string, limit?: number) => boolean;
@@ -255,6 +266,7 @@ export interface AppActions {
 
   /* Memory */
   setConversationUseMemory: (conversationId: string, useMemory: boolean) => void;
+  setMemoryItems: (items: MemoryItem[]) => void;
 
   /* Skills */
   setCatalogSkills: (skills: Skill[], categories: SkillCategory[], version: number) => void;
@@ -272,6 +284,10 @@ export interface AppActions {
   setLibraryResearchSteps: (conversationId: string, steps: LibraryResearchStep[]) => void;
   setLibraryConfirmation: (confirmation: LibraryConfirmationRequest | null) => void;
   resetLibraryState: () => void;
+
+  /* Context cap confirm */
+  /** Set or clear the pending confirmation of a conversation; null clears it. */
+  setContextCapConfirmation: (conversationId: string, confirmation: CapConfirmRequest | null) => void;
 }
 
 /* ── Store type ──────────────────────────────────────── */
@@ -299,6 +315,7 @@ export const defaultState: AppState = {
   searchQuery: '',
   searchMatchIndex: 0,
   imageGenMode: false,
+  draftConversationInstructions: '',
   pinnedConversationIds: [],
   pinnedConversationIdsUpdatedAt: undefined,
   conversationOrder: [],
@@ -307,6 +324,7 @@ export const defaultState: AppState = {
   notes: [],
   trashedNotes: [],
   noteFolders: [],
+  memoryItems: [],
   expandedNoteFolderIds: [],
   locallyDeletedNoteIds: [],
   syncBanner: null,
@@ -328,6 +346,7 @@ export const defaultState: AppState = {
   libraryResearchEnabled: false,
   libraryResearchSteps: {},
   libraryConfirmation: null,
+  contextCapConfirmations: {},
 };
 
 /* ── Create store ────────────────────────────────────── */
@@ -348,5 +367,11 @@ export function createAppStore(initial: Partial<AppState> = {}) {
     ...createSyncSlice(set),
     ...createAppSlice(set),
     ...createLibrarySlice(set),
+    setContextCapConfirmation: (conversationId, confirmation) => set((state) => {
+      const next = { ...state.contextCapConfirmations };
+      if (confirmation) next[conversationId] = confirmation;
+      else delete next[conversationId];
+      return { contextCapConfirmations: next };
+    }),
   }));
 }

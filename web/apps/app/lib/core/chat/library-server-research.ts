@@ -22,9 +22,7 @@ import {
   resolveLibraryCitationURL,
 } from "./library-agent-loop";
 import {
-  buildLibraryContextEnvelope,
-  EMPTY_LIBRARY_CONTEXT,
-  LIBRARY_CONTEXT_SYSTEM_INSTRUCTION,
+  buildLibraryContextEntries,
   type LibraryDirectContextResult,
 } from "./library-direct-context";
 
@@ -63,11 +61,11 @@ export interface RunLibraryServerResearchOptions {
 }
 
 /**
- * Server-side retrieval: one call returns the evidence, which then goes through exactly the same
- * injection pipeline as the selected-documents path (envelope, max-min budget allocation,
- * grapheme truncation, citations that store identity only).
+ * Server-side unified retrieval: one call returns the evidence, which then goes through the
+ * **same** injection pipeline as the selected-documents path
+ * ([D] items / max-min budget allocation / grapheme truncation / citations that store identity only).
  *
- * The envelope is deliberately not assembled a second time here: the evidence structures of the
+ * The items are deliberately not assembled a second time here: the evidence structures of the
  * two paths are field-for-field identical, and two builders would inevitably truncate the same
  * evidence to different lengths and disagree on citation numbering.
  */
@@ -131,16 +129,14 @@ export async function runLibraryServerResearch(
   });
 
   return {
-    systemInstruction: LIBRARY_CONTEXT_SYSTEM_INSTRUCTION,
-    userContext: reads.length === 0
-      ? EMPTY_LIBRARY_CONTEXT
-      : buildLibraryContextEnvelope(
-        reads,
-        resolveDirectContextCharBudget(
-          options.config,
-          options.modelContextLength,
-        ),
+    // Retrieval returning empty documents is a fact, not an error: the empty array is rendered by the assembler as libraryEmptyEntry.
+    entries: buildLibraryContextEntries(
+      reads,
+      resolveDirectContextCharBudget(
+        options.config,
+        options.modelContextLength,
       ),
+    ),
     citations,
     steps,
     warnings: result.warnings ?? [],
@@ -162,9 +158,9 @@ function toLibraryReadResult(
     ...(document.sensitive ? { sensitive: document.sensitive } : {}),
     ...(document.riskLevel ? { riskLevel: document.riskLevel } : {}),
     ...(document.redacted ? { redacted: document.redacted } : {}),
-    // The server marked this document as sending only its beginning: pass that through to
-    // buildLibraryContextEnvelope so it renders with the existing truncated="true" and
-    // truncation_notice, rather than deciding a second time here.
+    // The server marked this document as sending only its beginning: pass that through as-is to
+    // buildLibraryContextEntries so it flags truncation with the check the selected-documents
+    // path already has, rather than writing a second copy of the judgment.
     ...(document.truncated ? { truncated: true } : {}),
   };
 }

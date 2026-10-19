@@ -11,6 +11,13 @@ import { relayFirstSendTransport } from '../providers/relay-first-send-transport
 import { isRelayNegativeCached } from './relay-negative-cache';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from './stream-options';
 import { attachmentAcceptExtensions } from '../attachments/attachment-file-types';
+import {
+  TEXT_ONLY_ROUTE_IMAGE_PLACEHOLDER,
+  attachmentTransportProfile,
+  fallbackTextAttachmentTransport,
+  relayAttachmentTransport,
+  type AttachmentTransport,
+} from '@oriveo/core/providers/attachment-transport';
 
 export interface AttachmentCapabilities {
   supportsImage: boolean;
@@ -84,23 +91,43 @@ function modelImageEntryVisible(
   });
 }
 
+/** The placeholder for this route when the image gate strips an image: the route's declared placeholder if it has one, otherwise the generic text-only route placeholder. */
+function imageGatePlaceholder(
+  provider: Provider,
+  streamOptions: ReturnType<typeof buildProviderStreamOptions> | undefined,
+): string {
+  const transport: AttachmentTransport = provider.kind === 'relay'
+    ? relayAttachmentTransport(streamOptions?.relayTransport)
+    : fallbackTextAttachmentTransport(provider.kind);
+  return attachmentTransportProfile(transport).imagePlaceholderText ?? TEXT_ONLY_ROUTE_IMAGE_PLACEHOLDER;
+}
+
 /**
  * Strips images from history before sending, by the model's image rule: the same criterion as the image entry
  * (Relay sends unknown-image models as is and strips only on negative evidence or an image negative cache;
  * every other form requires supported). Shared by the four send paths (normal / continue / MCP / library);
  * `streamOptions` is the one built with this turn's attachment rule.
+ * Each stripped image is replaced by a placeholder line at the end of the text, so a user turn carrying only images does not become empty.
  */
-export function withoutUnreceivableImages<T extends { attachments?: Attachment[] }>(
+export function withoutUnreceivableImages<T extends { text: string; attachments?: Attachment[] }>(
   messages: T[],
   provider: Provider,
   model: AIModel,
   streamOptions: ReturnType<typeof buildProviderStreamOptions> | undefined,
 ): T[] {
   if (modelImageEntryVisible(provider, model, streamOptions)) return messages;
-  return messages.map((message) => ({
-    ...message,
-    attachments: message.attachments?.filter((attachment) => attachment.kind !== 'image'),
-  }));
+  const placeholder = imageGatePlaceholder(provider, streamOptions);
+  return messages.map((message) => {
+    const images = message.attachments?.filter((attachment) => attachment.kind === 'image').length ?? 0;
+    if (images === 0) return message;
+    const kept = message.attachments?.filter((attachment) => attachment.kind !== 'image') ?? [];
+    const lines = Array.from({ length: images }, () => placeholder);
+    return {
+      ...message,
+      text: (message.text.length > 0 ? [message.text, ...lines] : lines).join('\n'),
+      attachments: kept.length > 0 ? kept : undefined,
+    };
+  });
 }
 
 /**

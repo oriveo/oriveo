@@ -22,7 +22,6 @@ vi.mock('../../../utils/chat-stream-utils', () => ({
   buildChatHistory: (...args: unknown[]) => mocks.buildChatHistory(...args),
   readStream: (...args: unknown[]) => mocks.readStream(...args),
   mapErrorKindKey: () => 'network',
-  sanitizeOutboundMessages: (msgs: unknown[]) => msgs,
 }));
 
 vi.mock('../../../utils/stream-image-utils', () => ({

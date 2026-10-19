@@ -77,9 +77,8 @@ async function runAnthropicPipeline(frames: ReadonlyArray<readonly [string, stri
     messageId: MSG_ID,
     provider: { id: 'p-1', kind: 'anthropic', status: { kind: 'connected' }, models: [], catalogModels: [], apiKey: 'sk-test' } as unknown as Provider,
     model: { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', capabilities: ['text', 'web'], isAvailable: true } as unknown as AIModel,
-    chatHistory: [{ role: 'user', content: 'hi' }],
+    transport: { messages: [{ role: 'user', content: 'hi' }], options: undefined },
     initialText: '',
-    relayStreamOptions: undefined,
     setAbortFn: vi.fn(),
   });
   unsubscribe();

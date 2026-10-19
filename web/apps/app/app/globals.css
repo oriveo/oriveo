@@ -156,6 +156,8 @@ select {
   width: auto !important;
   height: auto !important;
   overflow: visible !important;
+  margin: 0 !important;
+  clip-path: none !important;
   padding: var(--o-space-sm) var(--o-space-md);
   background: var(--o-primary);
   color: var(--o-primary-text);

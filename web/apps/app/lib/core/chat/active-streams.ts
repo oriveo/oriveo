@@ -79,9 +79,9 @@ export function listActiveStreamConversationIds(): string[] {
 
 /**
  * Persists the conversation's partial as `interrupted`, then aborts and ends the stream.
- * Used for overwrite-style sends in the same conversation, stop, conversation deletion and single-conversation failures.
+ * Used for overwrite-style sends in the same conversation, stop and conversation deletion (cause defaults to 'user'); pass 'system' for sign-out, partition switch and single-conversation failures.
  */
-export function flushAndInterruptStream(convId: string): void {
+export function flushAndInterruptStream(convId: string, cause: 'user' | 'system' = 'user'): void {
   const session = sessions.get(convId);
   if (!session) return;
   // 1. Write rAF pending chunks into store.streamingTexts so the last slice is not lost
@@ -93,6 +93,7 @@ export function flushAndInterruptStream(convId: string): void {
     session.msgId,
     {
       state: 'interrupted',
+      interruptCause: cause,
       prevReasoning: session.initialReasoning,
     },
   );
@@ -104,11 +105,11 @@ export function flushAndInterruptStream(convId: string): void {
 }
 
 /**
- * Sign-out or partition switch: abort every session and persist them as interrupted.
+ * Sign-out or partition switch: abort every session and persist them as interrupted (stopReason is judged as a system interruption).
  */
 export function abortAllStreams(): void {
   for (const convId of listActiveStreamConversationIds()) {
-    flushAndInterruptStream(convId);
+    flushAndInterruptStream(convId, 'system');
   }
 }
 

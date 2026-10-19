@@ -157,11 +157,11 @@ describe('full localization coverage - Memory copy is translated in every locale
   const MEMORY_KEYS = [
     'title', 'settingsEntry', 'notSet', 'description', 'emptyTitle', 'emptyDescription',
     'exampleHint', 'generateDraft', 'generateDraftLoading', 'generateDraftFailed',
-    'manualWrite', 'save', 'saved', 'charCount',
+    'save', 'saved',
     'privacyWarning', 'indicatorTitle', 'indicatorViewEdit', 'indicatorDisable',
-    'conversationUseMemory', 'conversationUseMemoryHint', 'unsavedChanges', 'discard', 'keepEditing',
+    'conversationUseMemory', 'discard', 'keepEditing',
     // Added by the Memory page rewrite.
-    'heroChipAuto', 'heroChipReady', 'charactersUnit', 'unsavedBarTitle',
+    'heroChipAuto', 'heroChipReady',
     'draftReadyTitle', 'draftReadyMessage', 'draftApply',
     'errorNoModelTitle', 'errorNoModelMessage',
     'errorNoProviderTitle', 'errorNoProviderMessage',

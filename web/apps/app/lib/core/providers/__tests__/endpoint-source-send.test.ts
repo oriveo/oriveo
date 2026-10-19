@@ -155,9 +155,8 @@ describe('endpointSource takes effect at the production send entries', () => {
       messageId: 'assistant-1',
       provider: qwenProvider(),
       model,
-      chatHistory: [{ role: 'user', content: 'hi' }],
+      transport: { messages: [{ role: 'user', content: 'hi' }], options: undefined },
       initialText: '',
-      relayStreamOptions: undefined,
       setAbortFn: vi.fn(),
     });
     expect(sentBaseURL()).toBe(MOVED_BJ);
@@ -308,9 +307,8 @@ describe('ENDPOINT-SOURCE-SEND fixture sendPath: existing records hit the expect
             : {}),
         },
         model: { ...model, id: 'test-model' },
-        chatHistory: [{ role: 'user', content: 'hi' }],
+        transport: { messages: [{ role: 'user', content: 'hi' }], options: undefined },
         initialText: '',
-        relayStreamOptions: undefined,
         setAbortFn: vi.fn(),
       });
       await vi.waitFor(() => expect(browserBodies).toHaveLength(1));

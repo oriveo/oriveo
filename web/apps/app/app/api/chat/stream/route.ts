@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       headers: { ...JSON_HEADERS, ...rateLimitHeaders, [ERROR_SOURCE_HEADER]: "oriveo" },
     });
   }
-  const { providerKind, apiKey, modelID, messages, baseURL, stream, options, continuation, tools, toolChoice, authMode } = validation.value;
+  const { providerKind, apiKey, modelID, messages, baseURL, stream, options, continuation, continuationFingerprint, continuationDecision, tools, toolChoice, authMode } = validation.value;
   let dispatchedReq: Awaited<ReturnType<typeof buildProviderRequest>> | null = null;
   const usesGrokSubscription = providerKind === 'grok' && authMode === 'subscription';
   // The two subscription chains are dispatched by providerKind: `authMode` only says "a subscription
@@ -134,6 +134,8 @@ export async function POST(request: NextRequest) {
           // Keep the catalog builder from injecting API-key-mode web profiles first.
           options: subscriptionConfig ? { ...options, supportsWebSearch: false } : options,
           continuation,
+          ...(continuationFingerprint ? { continuationFingerprint } : {}),
+          ...(continuationDecision ? { continuationDecision } : {}),
           tools,
           toolChoice,
         }),
@@ -152,7 +154,11 @@ export async function POST(request: NextRequest) {
     // protocol adapter at this final boundary so Responses/Anthropic/Gemini retain local tools and
     // continuation messages instead of being rejected or silently losing them.
     const adaptedReq = tools?.length
-      ? applyToolCallWireAdapter(providerRequest, { providerKind, messages, tools, toolChoice })
+      ? applyToolCallWireAdapter(providerRequest, {
+        providerKind, messages, tools, toolChoice,
+        // [D] original text travels from the client in options: when the tool leg re-assembles Anthropic turns, strip [D] the same way the builder does and set the single breakpoint.
+        ...(options?.dynamicText ? { options: { dynamicText: options.dynamicText } } : {}),
+      })
       : providerRequest;
     // A request carrying a native file part does not fall back to another protocol: the Chat Completions
     // body used for the fallback has no file block.

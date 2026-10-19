@@ -12,10 +12,11 @@ import type {
 } from "@oriveo/shared";
 import type { StoreApi } from "zustand";
 import { getVanillaStore } from "../../providers/StoreProvider";
-import type { ChatOpCtx } from "../core/chat/operations";
+import type { ChatOpCtx, SendOutcome } from "../core/chat/operations";
 import { loadChatOperations } from "../core/chat/operations-lazy";
 import { initMetadata } from "../core/metadata/metadata-client";
 import { stopStream } from "../core/chat/stop-stream";
+import { pendingCapConfirmationOf, resolveCapConfirmation } from "../core/chat/context-visibility/cap-confirm-gate";
 import { reportSendBlocked } from "../core/chat/send-failure";
 import type { AppStore } from "../core/store/app-store";
 import { createProviderSelectionSnapshot } from "../core/providers/provider-selection-snapshot";
@@ -71,6 +72,11 @@ const RESERVED_MSG_ID = "__reserved__";
 
 /** Returned by `send` when the pre-send check blocks it: the caller uses it to put back the composer content that was already cleared. */
 export const SEND_BLOCKED = "blocked" as const;
+
+/** Whether the done outcome is a rollback from cancelling at the pre-send confirmation. operations is lazy-loaded, so the check lives here. */
+function isRolledBackSend(outcome: SendOutcome | void): outcome is SendOutcome {
+  return typeof outcome === "object" && outcome !== null && "rolledBack" in outcome;
+}
 
 /** The user message a retry will resend: the first user message found going up from the target (the same lookup retryMessage uses). */
 function resendUserMessage(
@@ -251,6 +257,7 @@ export function useStreamChat({
   const te = useTranslations("errors");
   const tLibrary = useTranslations("library");
   const tFileExtraction = useTranslations("pages.chat.fileExtraction");
+  const tChat = useTranslations("pages.chat");
   const libraryFeatureEnabled = isLibraryFeatureEnabled();
 
   // -- How to word attachments that do not fit --
@@ -320,6 +327,45 @@ export function useStreamChat({
     [describeAttachmentOverLimit, reasoningMode, webSearchEnabled],
   );
 
+  // Context reject pre-check: when the Skill / instructions or this message exceed the model's context,
+  // send no request and create no assistant message, using the same toast style as the attachment
+  // pre-check. An unknown window is never rejected. Returns true when the send was blocked.
+  const blockContextReject = useCallback(
+    async (
+      conv: Conversation | undefined,
+      sendProvider: Provider,
+      model: AIModel,
+      outbound: { history: ChatMessage[]; turn: ChatMessage },
+    ): Promise<boolean> => {
+      const { chatContextRejectBeforeSend, chatUserMaxOutputFor } = await import("../core/chat/context-pipeline/chat-context");
+      const reject = await chatContextRejectBeforeSend({
+        store: getVanillaStore(),
+        conversation: conv,
+        provider: sendProvider,
+        model,
+        messages: [...outbound.history, outbound.turn],
+        latestUserText: outbound.turn.text ?? "",
+        // Same window input as assemble, including the panel's max output (the user-level O).
+        userMaxOutput: chatUserMaxOutputFor({
+          provider: sendProvider,
+          model,
+          ...(conv?.id ? { conversationId: conv.id } : {}),
+          reasoningMode,
+          webSearchEnabled,
+        }),
+      });
+      if (!reject) return false;
+      showToast(
+        tChat(reject === "instructions_too_long" ? "contextRejectInstructionsTooLong" : "contextRejectMessageTooLong"),
+        6000,
+        undefined,
+        "warning",
+      );
+      return true;
+    },
+    [reasoningMode, tChat, webSearchEnabled],
+  );
+
   // -- Interrupt only when the same conversation is being overwritten --
   const guardSameConversation = useCallback(
     (targetConvId: string | undefined) => {
@@ -358,6 +404,9 @@ export function useStreamChat({
         return SEND_BLOCKED;
       }
       if (await blockUnsendableAttachments(msgAttachments, precheckSelection.provider, precheckSelection.model, { history: prevMessages, turn: preflightTurn(text, msgAttachments) })) {
+        return SEND_BLOCKED;
+      }
+      if (await blockContextReject(precheckSelection.conversation, precheckSelection.provider, precheckSelection.model, { history: prevMessages, turn: preflightTurn(text, msgAttachments) })) {
         return SEND_BLOCKED;
       }
       // Interrupt only when the target conversation already has an unfinished stream (an overwrite
@@ -466,12 +515,15 @@ export function useStreamChat({
           ...(handle.attemptKind ? { attemptKind: handle.attemptKind } : {}),
         });
 
+        let outcome: SendOutcome | void = undefined;
         try {
-          await handle.done;
+          outcome = await handle.done;
         } finally {
           endStream(handle.convId);
           clearStreamPartialBackup(handle.convId);
         }
+        // Cancelled at the pre-send confirmation: the message pair was rolled back, so return SEND_BLOCKED like the other send-blocking branches and let the caller refill the composer.
+        if (isRolledBackSend(outcome)) return SEND_BLOCKED;
       } catch (err) {
         // The dynamic import or the transaction function threw on startup: the reserved stream state must be cleared or the composer stays locked forever.
         reservation?.release();
@@ -493,6 +545,7 @@ export function useStreamChat({
       onLibraryContextFailed,
       guardSameConversation,
       blockUnsendableAttachments,
+      blockContextReject,
       describeAttachmentOverLimit,
     ],
   );
@@ -502,8 +555,15 @@ export function useStreamChat({
     if (!conversation) return;
     const convId = conversation.id;
     if (!hasStream(convId)) return;
-    flushPendingForConv(convId);
     const store = getVanillaStore();
+    // Pre-send confirmation still pending: stop = cancel. No request went out, so take the gate's cancel rollback (message deleted, composer refilled)
+    // and bypass stopStream: do not mark interrupted, do not record stopped; the send chain clears the stream state itself when it wraps up.
+    // Only the confirmation pending on this conversation counts: another conversation's confirmation is unaffected by this stop.
+    if (pendingCapConfirmationOf(store.getState(), convId)) {
+      resolveCapConfirmation(convId, { kind: "cancel" });
+      return;
+    }
+    flushPendingForConv(convId);
     const partial = store.getState().streamingTexts[convId] ?? "";
     const session = getStream(convId);
     // Same handling as stopStream (metadata derive is preserved): abort, then mark the message interrupted.
@@ -534,6 +594,9 @@ export function useStreamChat({
       if (!conversation || !provider || !currentModel) return;
       const resendUser = resendUserMessage(messages, messageId);
       if (await blockUnsendableAttachments(resendUser?.attachments, provider, currentModel, { history: messagesBefore(messages, resendUser), turn: resendUser ?? preflightTurn("", undefined) })) {
+        return;
+      }
+      if (resendUser && await blockContextReject(conversation, provider, currentModel, { history: messagesBefore(messages, resendUser), turn: resendUser })) {
         return;
       }
       guardSameConversation(conversation.id);
@@ -611,6 +674,7 @@ export function useStreamChat({
       onSendFailed,
       guardSameConversation,
       blockUnsendableAttachments,
+      blockContextReject,
       describeAttachmentOverLimit,
     ],
   );
@@ -674,10 +738,7 @@ export function useStreamChat({
           libraryFailurePresentation: libraryFailurePresentation(tLibrary),
         };
         const handle = libraryOperations
-          ? libraryOperations.continueLibraryAnswering(ctx, {
-              ...commonParams,
-              ...libraryMessagePresentation(tLibrary),
-            })
+          ? libraryOperations.continueLibraryAnswering(ctx, commonParams)
           : chatOperations!.continueAnswering(ctx, commonParams);
         resolvedConvId = handle.convId;
 
@@ -730,6 +791,12 @@ export function useStreamChat({
       ) {
         return;
       }
+      if (
+        edited?.role === "user"
+        && await blockContextReject(conversation, provider, currentModel, { history: messagesBefore(messages, edited), turn: { ...edited, text: newText } })
+      ) {
+        return;
+      }
       guardSameConversation(conversation.id);
       const { editAndResend: editAndResendOp } = await loadChatOperations();
       let resolvedConvId: string | undefined = conversation.id;
@@ -768,10 +835,12 @@ export function useStreamChat({
         startedAt: Date.now(),
         ...(handle.attemptKind ? { attemptKind: handle.attemptKind } : {}),
       });
-      void handle.done.finally(() => {
+      // Cancelled at the pre-send confirmation: return SEND_BLOCKED like send does, so the caller puts the edited text back into the composer.
+      const outcome = await handle.done.finally(() => {
         endStream(handle.convId);
         clearStreamPartialBackup(handle.convId);
       });
+      if (isRolledBackSend(outcome)) return SEND_BLOCKED;
     },
     [
       conversation,
@@ -785,6 +854,7 @@ export function useStreamChat({
       onSendFailed,
       guardSameConversation,
       blockUnsendableAttachments,
+      blockContextReject,
       describeAttachmentOverLimit,
     ],
   );

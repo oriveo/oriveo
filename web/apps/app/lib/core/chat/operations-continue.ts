@@ -10,9 +10,8 @@
 import type { ChatMessage, Conversation, AIModel, Provider, ReasoningMode } from '@oriveo/shared';
 import { PROVIDER_REQUEST_FAILED_TITLE } from '../providers/error-i18n';
 import type { GenerationParameterOverrides } from '@oriveo/core/providers/request-builders/types';
-import { mapErrorKindKey, sanitizeOutboundMessages } from '../../utils/chat-stream-utils';
-import { buildOutboundChatHistory } from './outbound-history';
-import { outboundHistoryHasVideo } from '../attachments/attachment-transport-resolver';
+import type { StreamOptions } from '@oriveo/core/providers/types';
+import { mapErrorKindKey } from '../../utils/chat-stream-utils';
 import { processImageAttachments, backfillStorageRefs } from '../../utils/stream-image-utils';
 import { customFragmentFailurePatch } from './custom-fragment-rejection';
 import { customFragmentAllowedPaths } from './custom-fragment-allowed-paths';
@@ -20,16 +19,6 @@ import { additionalBodyFailurePatch } from './additional-body-rejection';
 import { getSyncAdapter } from '../sync-port';
 import { deriveConversationMetadata, computeConversationActivityAt } from '../conversation-metadata';
 import { withErrorReporting } from '../../sentry/report-silent';
-import { buildProviderStreamOptions, buildStreamOptionsFromIntent, filterGenerationParameterOverrides, filterRequestCapabilityIntent, providerControlsAreManaged } from './stream-options';
-import { generationParameterFallbackModelId, generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from './generation-parameter-settings';
-import { capabilityPreferenceIdentity, resolveCapabilityPreferences, resolveRelayWebPreference } from './capability-preference-settings';
-import { forwardPortCustomFragmentsIfNeeded, resolveCustomFragments } from './custom-fragment-settings';
-import { withAdditionalBody } from './additional-body-settings';
-import { webPreferenceReachesTheWire } from './capability-control-presentation';
-import { relayWebProviderDefault, webSearchDispatched } from './relay-web-probe-records';
-import { getCapabilityRuntime } from '../metadata/metadata-client';
-import { withoutUnreceivableImages } from './attachment-policy';
-import { relayFirstSendMessagesBlockedByFiles } from './relay-rejection-loop';
 import { trackEvent, telemetryProviderKind, telemetryModelID } from '../telemetry';
 import { relaySendTelemetryProperties } from '../telemetry/relay-properties';
 import { reportSendStartedTelemetry } from './send-start';
@@ -43,17 +32,26 @@ import {
   createProviderSentryError,
 } from './error-reporting';
 import { recalculateConversationCost, shouldTrackProviderUsage } from './usage-tracking';
-import { runStreamPipeline } from './stream-runner';
-import { buildPromptInjectionContext } from './prompt-injection';
+import { stopReasonFromError, stopReasonFromFinish } from './stop-reason-outcome';
+import { isContextOverflowFailure } from './context-pipeline/chat-context';
 import type { ChatOpCtx, SendHandle } from './operations';
 import { clearOwnLibraryConfirmation, requestLibraryConfirmation } from '../library/confirmation';
 import type { LibraryConfirmationRequest } from '../library/types';
 import { LibraryResearchCancelledError } from './library-agent-loop';
 import { libraryFailurePatch, type LibraryFailurePresentation } from './library-failure';
 import { libraryDocumentRefsFromCitations } from './library-direct-context';
-import { appendTextToLatestUserMessage, prepareLibraryDirectContext } from './operations-send';
-import { continuationCaptured, continuationForExplicitContinue, continuationSendCompleted, continuationSendInterrupted, continuationSendStarted } from './continuation-lifecycle';
+import { continueOutboundMessages, prepareLibraryDirectContext, runChatOutbound } from './operations-send';
+import {
+  continuationFingerprintForExplicitContinue,
+  continuationForExplicitContinue,
+  continuationSendCompleted,
+  continuationSendInterrupted,
+  continuationSendStarted,
+} from './continuation-lifecycle';
 
+import { oriveoAbortReason } from '@oriveo/core/util/abort-reason';
+import { withMemoryItemIds } from './memory-item-ids';
+import { patchAssistantMessage } from './agent-send-shared';
 export function continueAnswering(
   ctx: ChatOpCtx,
   params: {
@@ -170,54 +168,41 @@ export function continueAnswering(
     if (abortRequested) requestAbort();
   };
 
+  // Wire protocol of this (most recent) attempt's outbound request: the overflow check picks its family from it.
+  let requestRelayTransport: StreamOptions['relayTransport'];
   const done = (async () => {
     try {
-      const continuation = await continuationForExplicitContinue(conversation.id, messageId);
-      // Capture is read before started clears the old state. From here every lifecycle write is
-      // serialized, so a stale continuation cannot survive a successful or interrupted retry.
+      // The continuation state and the fingerprint of the leg that produced it are read before started clears the old state; every later lifecycle write is serialized,
+      // so neither a successful nor an interrupted retry leaves stale continuation state behind.
+      const [continuation, previousFingerprint] = await Promise.all([
+        continuationForExplicitContinue(conversation.id, messageId),
+        continuationFingerprintForExplicitContinue(conversation.id, messageId),
+      ]);
       await Promise.resolve(continuationSendStarted(conversation.id, messageId)).catch(() => undefined);
       if (directContextDocuments.length > 0) {
-        setAbortFn(() => directContextController.abort());
+        setAbortFn(() => directContextController.abort(oriveoAbortReason('direct-context-cancel')));
       }
-      // The continuation target is an assistant message that is not finished yet, so it must not
-      // be resent as an ordinary history entry. The recipe compiler inserts the opaque replay
-      // right before the last user continuation; when local state is missing or damaged the
-      // resend degrades to a plain user continuation and never synthesizes assistant history.
-      const sanitizedHistory = sanitizeOutboundMessages(
-        messages.slice(0, msgIndex),
-      );
-      const attachmentScopeOptions = buildProviderStreamOptions(
-        provider,
-        buildStreamOptionsFromIntent(model, reasoningMode, webSearchEnabled),
-        model,
-      );
-      // Same vision criterion as the entry point (Relay vision "unknown" still sends).
-      const historyUpToInterrupted = withoutUnreceivableImages(sanitizedHistory, provider, model, attachmentScopeOptions);
-
-      const chatHistory = await buildOutboundChatHistory(ctx, {
-        messages: historyUpToInterrupted, provider, model, streamOptions: attachmentScopeOptions,
-      });
-      const explicitContinueInput = { role: 'user' as const, content: '[Continue from where you left off]' };
-      if (continuation?.kind === 'previous_id') {
-        // Stateful Responses/Interactions already own the prior context. Sending the full local
-        // transcript again alongside previous_*_id duplicates context and can change semantics.
-        chatHistory.splice(0, chatHistory.length, explicitContinueInput);
-      } else {
-        chatHistory.push(explicitContinueInput);
-      }
-      // First-send attachment criterion: computed from the original attachments; a previous_id continuation does not resend history, so it has none.
-      const relayMessagesBlockedByFiles = await relayFirstSendMessagesBlockedByFiles({
-        provider,
-        model,
-        messages: continuation?.kind === 'previous_id' ? [] : historyUpToInterrupted,
-        streamOptions: attachmentScopeOptions,
-      });
-      const latestUserText = [...historyUpToInterrupted].reverse()
+      const latestUserText = [...messages.slice(0, msgIndex)].reverse()
         .find((m) => m.role === 'user')
         ?.text ?? existingText;
-      const promptContext = await buildPromptInjectionContext(store, conversation, latestUserText, model, provider.kind);
-      const directContext = directContextDocuments.length > 0
-          ? await prepareLibraryDirectContext({
+      // purpose=continue: history is cut up to and including the target, and the continuation sentence is appended by the assembler;
+      // assembly, option chain, streaming, rho, manifest and overflow fallback are the same chain as sending.
+      const outbound = await runChatOutbound(ctx, {
+        purpose: 'continue',
+        conversationId: conversation.id,
+        conversation,
+        provider,
+        model,
+        reasoningMode,
+        webSearchEnabled,
+        libraryActive: directContextDocuments.length > 0,
+        messages: continueOutboundMessages(messages, interruptedMsg),
+        keepAssistantId: messageId,
+        latestUserText,
+        assistantMessageId: messageId,
+        initialText: existingText,
+        ...(directContextDocuments.length > 0 ? {
+          loadLibrary: () => prepareLibraryDirectContext({
             documents: directContextDocuments,
             provider,
             model,
@@ -225,136 +210,28 @@ export function continueAnswering(
             signal: directContextController.signal,
             requestConfirmation: requestOwnConfirmation,
             onQuota: (quota) => store.getState().setLibraryQuota(quota),
-          })
-        : undefined;
-      const systemContent = [promptContext.systemContent, directContext?.systemInstruction]
-        .filter(Boolean)
-        .join('\n\n');
-      if (systemContent) {
-        chatHistory.unshift({ role: 'system', content: systemContent });
-      }
-
-      if (directContext) {
-        appendTextToLatestUserMessage(chatHistory, directContext.userContext);
-      }
-
-      const clientControlsAllowed = !providerControlsAreManaged(provider);
-      const unresolvedGenerationParameters = clientControlsAllowed ? resolveGenerationParameterOverrides({
-        providerId: provider.id,
-        modelId: model.id,
-        profileFingerprint: generationParameterProfileFingerprint(provider, model),
-        fallbackModelId: generationParameterFallbackModelId(provider, model),
-        conversationId: conversation.id,
-        transient: transientGenerationParameters,
-        reasoningMode,
-      }) : undefined;
-      // A relay without metadata uses the fallback identity, so the web switch can still be sent.
-      const capabilityIdentity = clientControlsAllowed ? capabilityPreferenceIdentity(provider, model) : null;
-      // Continuing an answer is a discrete event too. Typed preferences are advanced by the read
-      // chain itself, while local custom fields are run explicitly once here.
-      if (capabilityIdentity) {
-        forwardPortCustomFragmentsIfNeeded({
-          provider, model, transportIdentity: capabilityIdentity.transportIdentity,
-        });
-      }
-      const resolvedPreferences = capabilityIdentity ? resolveCapabilityPreferences({
-        ...capabilityIdentity, conversationId: conversation.id,
-        skillId: conversation.skillId,
-        singleSend: directContextDocuments.length > 0 ? { web: 'off' } : undefined,
-        // Relay default layer: when nothing was ever set, a stored fragment on the first-send protocol turns web search on.
-        providerDefault: relayWebProviderDefault(provider, model),
-      }) : undefined;
-      // The relay web switch reads the fixed identity; thinking levels still use the protocol-bearing identity.
-      const relayWeb = resolvedPreferences ? resolveRelayWebPreference(provider, model, {
-        conversationId: conversation.id,
-        ...(conversation.skillId ? { skillId: conversation.skillId } : {}),
-        ...(directContextDocuments.length > 0 ? { singleSend: { web: 'off' as const } } : {}),
-        ...(relayWebProviderDefault(provider, model) ? { providerDefault: relayWebProviderDefault(provider, model) } : {}),
-      }) : undefined;
-      const capabilityPreferences = resolvedPreferences && relayWeb ? { ...resolvedPreferences, web: relayWeb } : resolvedPreferences;
-      const preliminaryOptions = clientControlsAllowed ? buildProviderStreamOptions(
-        provider,
-        buildStreamOptionsFromIntent(model, reasoningMode, directContextDocuments.length > 0 ? false : webSearchEnabled, unresolvedGenerationParameters, capabilityPreferences),
-        model,
-      ) : undefined;
-      const requestIntent = clientControlsAllowed ? filterRequestCapabilityIntent({
-        provider,
-        model,
-        reasoningMode,
-        webSearchEnabled: directContextDocuments.length > 0 ? false : webSearchEnabled,
-        // A preference that cannot reach the wire right now does not count as an explicit web request.
-        webReachesTheWire: webPreferenceReachesTheWire({
-          provider, model, ...(capabilityIdentity ? { transportIdentity: capabilityIdentity.transportIdentity } : {}),
-        }),
-        streamOptions: preliminaryOptions,
-      }) : { supportsWebSearch: false };
-      // Same filter as `operations-send`: excludeCustomFragments turns the whole set off, while
-      // excludeCustomFragmentOwners removes only the named owners.
-      const resolvedContinueFragments = clientControlsAllowed && !excludeCustomFragments
-        ? resolveCustomFragments({
-          provider, model, transportIdentity: capabilityIdentity?.transportIdentity ?? '',
-          allow: !directContextDocuments.length,
-          runtime: getCapabilityRuntime(),
-        })
-        : undefined;
-      const continueFragmentEntries = resolvedContinueFragments
-        ? Object.entries(resolvedContinueFragments)
-          .filter(([owner]) => !excludeCustomFragmentOwners.includes(owner as 'web' | 'reasoning' | 'generation'))
-        : [];
-      const continueCustomFragments = continueFragmentEntries.length > 0
-        ? Object.fromEntries(continueFragmentEntries)
-        : undefined;
-      const streamOptions = clientControlsAllowed ? buildStreamOptionsFromIntent(
-        model,
-        requestIntent.reasoning,
-        requestIntent.supportsWebSearch,
-        filterGenerationParameterOverrides(provider, model, unresolvedGenerationParameters, preliminaryOptions),
-        requestIntent.capabilityPreferences,
-        continueCustomFragments,
-      ) : undefined;
-      const optionsWithAdditionalBody = withAdditionalBody(
-        clientControlsAllowed ? buildProviderStreamOptions(provider, streamOptions, model) : undefined,
-        { provider, model, conversationId: conversation.id },
-      );
-      // Outbound history contains video (including video whose bytes are not loaded) -> Gemini does not pick Interactions.
-      const providerStreamOptions = optionsWithAdditionalBody && await outboundHistoryHasVideo(historyUpToInterrupted)
-        ? { ...optionsWithAdditionalBody, outboundHistoryHasVideo: true }
-        : optionsWithAdditionalBody;
-
-      // Continuation is a real outbound request and uses the same gate as sendMessage: web search
-      // counts as used only when the web configuration actually made it into this request. The
-      // gate is the final outbound options rather than user intent -- when the facade rejects it,
-      // or the transport envelope cannot carry web search (the intersection done in
-      // `buildProviderStreamOptions`), nothing is sent even with the toggle on.
-      // Field boundary: provider_kind / model_id are reported as registered, while execution
-      // facts such as recipe identity, requested/observed state, search terms and response
-      // evidence never enter telemetry.
-      // For a relay, "used" means the effective fragment was actually merged into this turn (webSearchDispatched).
-      if (webSearchDispatched(provider, providerStreamOptions)) {
-        trackEvent('web_search_used', {
-          provider_kind: telemetryProviderKind(provider.kind),
-          model_id: telemetryModelID(provider.kind, model.id),
-        });
-      }
-
-      const pipeline = await runStreamPipeline({
-        store,
-        appendChunk,
-        conversationId: conversation.id,
-        messageId,
-        provider,
-        model,
-        chatHistory,
-        initialText: existingText,
-        relayStreamOptions: providerStreamOptions,
-        setAbortFn,
-        suppressStreamCitations: directContextDocuments.length > 0,
-        relayMessagesBlockedByFiles,
+          }),
+        } : {}),
+        optionInputs: {
+          ...(conversation.skillId ? { skillId: conversation.skillId } : {}),
+          ...(transientGenerationParameters ? { transientGenerationParameters } : {}),
+          excludeCustomFragments,
+          excludeCustomFragmentOwners,
+        },
         continuation,
-        onContinuation: (next) => continuationCaptured(conversation.id, messageId, next),
+        previousFingerprint,
+        setAbortFn,
+        isAbortRequested: () => abortRequested,
+        onRelayTransport: (transport) => { requestRelayTransport = transport; },
       });
+      const { pipeline, promptContext } = outbound;
+      const directContext = outbound.libraryContext;
 
       if (pipeline.outcome === 'guarded') {
+        // The request has been sent: stream-runner writes the message's final state; here we only add the memory item ids injected this time.
+        if (outbound.memoryIds.length > 0) {
+          patchAssistantMessage(store, conversation.id, messageId, { memoryItemIds: outbound.memoryIds });
+        }
         reportSent();
         await Promise.resolve(continuationSendInterrupted(conversation.id, messageId)).catch(() => undefined);
         return;
@@ -382,8 +259,9 @@ export function continueAnswering(
           ? (interruptedMsg.reasoningDurationMs ?? 0) + (newReasoningDurationMs ?? 0)
           : undefined;
 
-      const completedMsg: ChatMessage = {
+      const completedMsg: ChatMessage = withMemoryItemIds({
         ...interruptedMsg, text: finalText, state: 'delivered' as const,
+        stopReason: stopReasonFromFinish(pipeline.finish, finalText.trim() !== ''),
         reasoningText: [interruptedMsg.reasoningText, reasoningText.trim()].filter(Boolean).join('\n\n') || undefined,
         ...(mergedReasoningDurationMs !== undefined ? { reasoningDurationMs: mergedReasoningDurationMs } : {}),
         estimatedCost: (interruptedMsg.estimatedCost ?? 0) + cost,
@@ -396,7 +274,7 @@ export function continueAnswering(
         // reports it, otherwise use this round's source.
         costSource: costInfo.costSource,
         ...mergeMessageUsageFields(interruptedMsg, costInfo),
-      };
+      }, outbound.memoryIds, true);
 
       // Replace the continuation target against the store's latest messages rather than the
       // snapshot, so concurrent writes during the continuation are not overwritten.
@@ -463,6 +341,8 @@ export function continueAnswering(
             ? `${existingText}\n\n${libraryContextCancelledText}`
             : libraryContextCancelledText,
           state: 'delivered',
+          // The user cancelled the library retrieval: record interrupted and leave the state as delivered.
+          stopReason: 'interrupted',
           citations: undefined,
         };
         const completedBase = store.getState().conversations
@@ -525,6 +405,13 @@ export function continueAnswering(
       // A locally rejected additional body: the text is the reason plus "nothing was sent", and the
       // technical detail is only the safe code (no retry affordance, see the bubble).
       const additionalBodyFailure = additionalBodyFailurePatch(err, te);
+      // Persist stopReason: hadContent only looks at the answer body (including what existed before the continuation), not reasoning.
+      // A user cancel that ends by throwing records interrupted; a context overflow records context_window_exceeded (same as operations-send).
+      const failureStopReason = abortRequested
+        ? 'interrupted' as const
+        : isContextOverflowFailure(err, provider.kind, requestRelayTransport)
+        ? 'context_window_exceeded' as const
+        : stopReasonFromError(err, provider.kind, partialText.trim() !== '');
       const failedMessages = failedBase.map((m) =>
         m.id === messageId
           ? {
@@ -532,6 +419,7 @@ export function continueAnswering(
               text: partialText,
               ...(mergedReasoning ? { reasoningText: mergedReasoning } : {}),
               state: 'failed' as const,
+              stopReason: failureStopReason,
               // A provider-sourced title is stored as the English source string and translated at render time (same as operations-send).
               errorTitle: additionalBodyRetry ? te('additionalBodyRejected.upstreamTitle')
                 : pe.source === 'provider' ? PROVIDER_REQUEST_FAILED_TITLE : te(`${errorKindKey}.title`),

@@ -9,6 +9,7 @@ import type { StoreApi } from 'zustand';
 import type { AIModel, Provider } from '@oriveo/shared';
 import type { AppStore } from './store/app-store';
 import { hydrateStore } from './store/persistence';
+import { createMemoryItemRepository } from './memory/memory-item-repository';
 import { hydrateMcpStore } from './mcp/mcp-store';
 import {
   getActiveUID,
@@ -47,6 +48,61 @@ import { resolveRelaySelectionTransport } from './providers/provider-selection-s
 type Store = StoreApi<AppStore>;
 
 const METADATA_HYDRATE_BUDGET_MS = 1500;
+
+async function hydrateStoreForPartition(store: Store, uid: string): Promise<void> {
+  await hydrateStore(store);
+  startMemoryLegacySync(store, uid);
+}
+
+/** The memoryText subscription of each store; the previous partition's one is unsubscribed before switching. */
+const memoryLegacySyncByStore = new WeakMap<Store, () => void>();
+
+/**
+ * Memory item legacy sync: after hydration, run reconcileLegacy once (migration / edits coming back from older clients),
+ * then run it again whenever memoryText or its digest changes. It does not block startup.
+ */
+function startMemoryLegacySync(store: Store, uid: string): void {
+  memoryLegacySyncByStore.get(store)?.();
+  memoryLegacySyncByStore.delete(store);
+  try {
+    const repository = createMemoryItemRepository({ store, uid, deviceId: getOrCreateStableWebDeviceId() });
+    const reconcile = () => {
+      if (getActiveUIDSync() !== uid) return;
+      void repository.reconcileLegacy().catch((error) => reportSilentError('memory-items.reconcileLegacy', error));
+    };
+    const unsubscribe = store.subscribe((state, prev) => {
+      if (
+        state.preferences.memoryText !== prev.preferences.memoryText
+        || state.preferences.memoryTextDigest !== prev.preferences.memoryTextDigest
+      ) {
+        reconcile();
+      }
+    });
+    memoryLegacySyncByStore.set(store, unsubscribe);
+    reconcile();
+  } catch (error) {
+    reportSilentError('memory-items.start', error);
+  }
+}
+
+const WEB_DEVICE_ID_KEY = 'oriveo.sync.deviceId';
+
+/** A device id that stays stable across launches, used to attribute memory item mutations. */
+export function getOrCreateStableWebDeviceId(): string {
+  if (typeof localStorage === 'undefined') {
+    return 'web-device-unknown';
+  }
+  const existing = localStorage.getItem(WEB_DEVICE_ID_KEY);
+  if (existing && existing.length > 0) {
+    return existing;
+  }
+  const fallback = `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  const generated = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? `web-${crypto.randomUUID()}`
+    : fallback;
+  localStorage.setItem(WEB_DEVICE_ID_KEY, generated);
+  return generated;
+}
 
 export interface BootstrapResult {
   initialUser: null;
@@ -98,7 +154,7 @@ export async function bootstrapApp(
       conversations: [],
       activeConversationId: null,
     });
-    await hydrateStore(store);
+    await hydrateStoreForPartition(store, 'guest');
     await hydrateMcpStore('guest');
     if (signal.cancelled) return { initialUser: null, authResolution: 'cancelled' };
 

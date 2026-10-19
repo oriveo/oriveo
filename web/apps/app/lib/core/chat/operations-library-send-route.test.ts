@@ -19,16 +19,12 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../utils/chat-stream-utils", () => ({
-  buildChatHistory: vi.fn(async () => []),
-  sanitizeOutboundMessages: (messages: unknown[]) => messages,
+  // Echo role / content by outbound shape: for the downgraded re-answer, check whether the [D] evidence was written into the message by transportInput.
+  buildChatHistory: vi.fn(async (messages: { role: string; text: string }[]) =>
+    messages.map(({ role, text }) => ({ role, content: text })),
+  ),
 }));
-vi.mock("./prompt-injection", () => ({
-  buildPromptInjectionContext: vi.fn(async () => ({
-    systemContent: "",
-    memoryInjected: false,
-    retrievalCost: 0,
-  })),
-}));
+// The tool loop's system is composed by the assembler (buildChatContextSources uses the real implementation); this fixture group has no memory / skills.
 vi.mock("./library-agent-loop", () => ({
   LibraryResearchCancelledError: class LibraryResearchCancelledError extends Error {},
   runLibraryAgentLoop: (...args: unknown[]) => mocks.runLoop(...args),
@@ -344,8 +340,7 @@ describe("fallback when the first leg makes zero tool calls", () => {
 
   it("returns evidence when server-side retrieval is available and reports agent_no_toolcall_fallback telemetry", async () => {
     mocks.runResearch.mockResolvedValue({
-      systemInstruction: "Untrusted evidence.",
-      userContext: "<library_context/>",
+      entries: [{ citation: 1, title: "t", text: "Grounded evidence body." }],
       citations: [{ index: 1, url: "u", title: "t" }],
       steps: [],
       warnings: [],
@@ -354,7 +349,11 @@ describe("fallback when the first leg makes zero tool calls", () => {
 
     const fallback = await runFallback();
 
-    expect(fallback).toMatchObject({ userContext: "<library_context/>" });
+    // Evidence goes into the [D] library item; the re-answer request is composed by the assembler and system is not rewritten.
+    expect(fallback).toMatchObject({ citations: [{ index: 1, url: "u", title: "t" }] });
+    expect(JSON.stringify((fallback as { messages: unknown[] }).messages)).toContain(
+      "Grounded evidence body.",
+    );
     expect(mocks.trackEvent).toHaveBeenCalledWith(
       "library_research_route",
       expect.objectContaining({

@@ -1,0 +1,284 @@
+.anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.popover {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: min(320px, calc(100vw - 24px));
+  max-height: min(640px, calc(100vh - 120px));
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* Opaque: a translucent background would show sharp text through on a user bubble */
+  background: var(--o-surface);
+  border: 1px solid var(--o-border-strong);
+  border-radius: 14px;
+  box-shadow: var(--o-elevation-modal);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  z-index: 100;
+  color: var(--o-text);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.done {
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  color: var(--o-primary-text-on-surface);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--o-radius-sm, 6px);
+}
+
+.done:focus-visible {
+  outline: 2px solid var(--o-primary);
+}
+
+.ringBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.ring {
+  position: relative;
+  width: 200px;
+  height: 200px;
+}
+
+.track {
+  stroke: var(--o-border);
+}
+
+.dashed {
+  stroke: var(--o-border-strong);
+  stroke-dasharray: 6 6;
+}
+
+.arc[data-kind='conversation'],
+.swatch[data-kind='conversation'] {
+  stroke: var(--o-primary);
+  background: var(--o-primary);
+}
+
+.arc[data-kind='library'],
+.swatch[data-kind='library'] {
+  stroke: var(--o-info);
+  background: var(--o-info);
+}
+
+.arc[data-kind='summary'],
+.swatch[data-kind='summary'] {
+  stroke: var(--o-text-secondary);
+  background: var(--o-text-secondary);
+}
+
+.arc[data-kind='instructions'],
+.swatch[data-kind='instructions'] {
+  stroke: var(--o-warning);
+  background: var(--o-warning);
+}
+
+.arc[data-kind='memory'],
+.swatch[data-kind='memory'] {
+  stroke: var(--o-row-teal);
+  background: var(--o-row-teal);
+}
+
+.swatch[data-kind='free'] {
+  background: var(--o-border);
+}
+
+.priceLineTick {
+  stroke: var(--o-text);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.swatch[data-kind='priceLine'] {
+  height: 2px;
+  border-radius: 0;
+  background: var(--o-text);
+}
+
+.center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+  padding: 0 28px;
+}
+
+.percent {
+  font-size: 28px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ringBlock[data-tone='warm'] .percent {
+  color: var(--o-warning-text);
+}
+
+.ringBlock[data-tone='error'] .percent {
+  color: var(--o-error);
+}
+
+.used {
+  font-family: var(--o-font-mono);
+  font-size: 12px;
+  color: var(--o-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.basis,
+.unavailable {
+  font-size: 12px;
+  color: var(--o-text-secondary);
+}
+
+.unavailable {
+  font-size: 15px;
+}
+
+.hint,
+.note,
+.breakerText {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--o-text-secondary);
+}
+
+.hint {
+  text-align: center;
+}
+
+.legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legendRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--o-radius-full);
+  flex-shrink: 0;
+}
+
+.legendLabel {
+  flex: 1;
+  min-width: 0;
+}
+
+.legendValue {
+  font-family: var(--o-font-mono);
+  font-size: 12px;
+  color: var(--o-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.breaker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.breakerText {
+  flex: 1;
+  color: var(--o-error);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.capRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 0;
+  border: none;
+  border-top: 1px solid var(--o-border);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.capRow:focus-visible {
+  outline: 2px solid var(--o-primary);
+  border-radius: var(--o-radius-sm, 6px);
+}
+
+.capLabel {
+  flex: 1;
+  min-width: 0;
+}
+
+.capValue {
+  color: var(--o-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.chevron {
+  color: var(--o-text-tertiary, var(--o-text-secondary));
+}
+
+/* Narrow screens: anchoring to the ring's right edge pushes the left half off-screen at 402px.
+   Drop the anchor's containing block so the popover (panel and cap picker alike) positions
+   against the composer and spans it edge to edge, same as .modelControlsPopover in
+   InputComposer.module.css. Desktop placement is unchanged. */
+@media (max-width: 767px) {
+  .anchor {
+    position: static;
+  }
+
+  .popover {
+    inset-inline: 4px;
+    bottom: 54px;
+    width: auto;
+    max-height: min(640px, calc(100vh - 180px - env(safe-area-inset-bottom, 0px)));
+    max-height: min(640px, calc(100dvh - 180px - env(safe-area-inset-bottom, 0px)));
+  }
+}

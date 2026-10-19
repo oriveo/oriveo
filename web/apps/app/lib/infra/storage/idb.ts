@@ -1,5 +1,10 @@
 import { openDB, deleteDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { Conversation, Provider, Folder, Note, NoteFolder } from '@oriveo/shared';
+import type { RhoCalibrationJSON } from '@oriveo/core/context/calibration';
+import type { ContextManifest } from '@oriveo/core/context/manifest';
+import type { ContextCheckpointRow } from './context-checkpoint-store';
+import type { MemoryItemRow } from './memory-item-store';
+import type { MemoryCandidateRow } from './memory-candidate-store';
 import { adoptLegacyResolvedRelayTransport, sanitizeMessageQuoteContext, sanitizeProviderRelayModelFields } from '@oriveo/shared';
 import { sanitizeProviderRelayKeys } from '@oriveo/shared/relay/relay-keys';
 import { getActiveUID, getActiveUIDSync, getDBName } from './partition';
@@ -45,6 +50,31 @@ interface OriveoDBSchema extends DBSchema {
     key: string;
     value: PendingProviderDeletion;
   };
+  contextRhoCalibration: {
+    /** [transportInstanceId, modelId]; out-of-line key. */
+    key: [string, string];
+    value: RhoCalibrationJSON;
+  };
+  contextManifests: {
+    /** [conversationId, requestId]. */
+    key: [string, string];
+    value: ContextManifest;
+    indexes: { 'by-conversation': string };
+  };
+  contextCheckpoints: {
+    /** [conversationId, checkpointId]. */
+    key: [string, string];
+    value: ContextCheckpointRow;
+    indexes: { 'by-conversation': string };
+  };
+  memoryItems: {
+    key: string;
+    value: MemoryItemRow;
+  };
+  memoryCandidates: {
+    key: string;
+    value: MemoryCandidateRow;
+  };
 }
 
 export interface PendingProviderDeletion {
@@ -83,7 +113,18 @@ function makeProviderDeletionOperationID(): string {
 //   generation and a late ack for D1 cannot clear D2 after a re-add.
 // - v10: ChatMessage gains a QuoteContext v1 snapshot. Optional, no backfill; the read/write
 //   boundary drops a malformed quote without discarding the message.
-export const DB_VERSION = 10;
+// - v11: context pipeline - ChatMessage gains an optional stopReason (old messages stay undefined,
+//   no backfill); adds the contextRhoCalibration (key [transportInstanceId, modelId]) and
+//   contextManifests (key [conversationId, requestId], index by-conversation) local ledger stores.
+//   Brand new stores, not part of any backup.
+// - v12: context pipeline checkpoints - adds contextCheckpoints (key [conversationId, checkpointId],
+//   index by-conversation), keeping the latest 8 per conversation and cascading with the conversation
+//   delete. Brand new store, no history to backfill.
+// - v13: memory items - adds memoryItems (keyPath id); a row = item + syncState. Brand new store;
+//   the migration is generated from memoryText by bootstrap's reconcileLegacy, upgrade backfills nothing.
+// - v14: memory candidates - adds memoryCandidates (keyPath id); a row = { id, status, candidate }.
+//   Brand new store holding only the current local partition: not part of any backup, upgrade backfills nothing.
+export const DB_VERSION = 14;
 
 // Active database name and connection promise (reset when the partition changes).
 let currentDBName: string | null = null;
@@ -155,6 +196,29 @@ async function openPartitionDB(dbName: string) {
       if (!db.objectStoreNames.contains('pendingProviderDeletions')) {
         db.createObjectStore('pendingProviderDeletions', { keyPath: 'providerId' });
       }
+      // v10 -> v11: context ledger. Brand new stores, no history to backfill.
+      if (!db.objectStoreNames.contains('contextRhoCalibration')) {
+        db.createObjectStore('contextRhoCalibration');
+      }
+      if (!db.objectStoreNames.contains('contextManifests')) {
+        const manifestStore = db.createObjectStore('contextManifests', { keyPath: ['conversationId', 'requestId'] });
+        manifestStore.createIndex('by-conversation', 'conversationId');
+      }
+      // v11 -> v12: context checkpoints. Brand new store, no history to backfill.
+      if (!db.objectStoreNames.contains('contextCheckpoints')) {
+        const checkpointStore = db.createObjectStore('contextCheckpoints', {
+          keyPath: ['conversationId', 'checkpointId'],
+        });
+        checkpointStore.createIndex('by-conversation', 'conversationId');
+      }
+      // v12 -> v13: memory items. Brand new store, no history to backfill.
+      if (!db.objectStoreNames.contains('memoryItems')) {
+        db.createObjectStore('memoryItems', { keyPath: 'id' });
+      }
+      // v13 -> v14: memory candidates. Brand new store, no history to backfill.
+      if (!db.objectStoreNames.contains('memoryCandidates')) {
+        db.createObjectStore('memoryCandidates', { keyPath: 'id' });
+      }
       if (oldVersion >= 8 && oldVersion < 9) {
         void (async () => {
           for await (const cursor of tx.objectStore('pendingProviderDeletions').iterate()) {
@@ -199,6 +263,11 @@ async function openPartitionDB(dbName: string) {
   });
   opened = await openPromise;
   return opened;
+}
+
+/** Lets other local store modules in the same partition (such as context-ledger-store) reuse the connection. */
+export async function getPartitionDB(expectedUID?: string) {
+  return getDB(expectedUID);
 }
 
 async function getDB(expectedUID?: string) {
@@ -431,7 +500,16 @@ export async function putConversationsBatch(
 
 export async function deleteConversation(id: string): Promise<void> {
   const db = await getDB();
-  await db.delete('conversations', id);
+  // A conversation and its context manifests / checkpoints are deleted in one transaction, so no orphan rows are left behind.
+  const tx = db.transaction(['conversations', 'contextManifests', 'contextCheckpoints'], 'readwrite');
+  const manifestKeys = await tx.objectStore('contextManifests').index('by-conversation').getAllKeys(id);
+  const checkpointKeys = await tx.objectStore('contextCheckpoints').index('by-conversation').getAllKeys(id);
+  await Promise.all([
+    tx.objectStore('conversations').delete(id),
+    ...manifestKeys.map((key) => tx.objectStore('contextManifests').delete(key)),
+    ...checkpointKeys.map((key) => tx.objectStore('contextCheckpoints').delete(key)),
+    tx.done,
+  ]);
 }
 
 /* ── Pending deletion queue ───────────────────────
@@ -811,7 +889,14 @@ export async function clearAllNoteFolders(): Promise<void> {
 
 export async function clearAllConversations(): Promise<void> {
   const db = await getDB();
-  await db.clear('conversations');
+  // Manifests / checkpoints belong to a conversation and are cleared with it; the rho calibration is keyed by transport+model, independent of any conversation, and is kept.
+  const tx = db.transaction(['conversations', 'contextManifests', 'contextCheckpoints'], 'readwrite');
+  await Promise.all([
+    tx.objectStore('conversations').clear(),
+    tx.objectStore('contextManifests').clear(),
+    tx.objectStore('contextCheckpoints').clear(),
+    tx.done,
+  ]);
 }
 
 export async function clearAllProviders(): Promise<void> {
@@ -867,17 +952,27 @@ export async function mergeAllInOneTx(snapshot: MainDBPutSnapshot): Promise<void
   }
 }
 
-/** Clear the five stores and put a full snapshot in one transaction (replace import); rolls back on failure. */
+/**
+ * Clear the five stores and put a full snapshot in one transaction (replace import); rolls back on failure.
+ * When memoryItems is given, the memory item store is replaced wholesale in the same transaction.
+ */
 export async function replaceAllInOneTx(
-  snapshot: Required<MainDBPutSnapshot>,
+  snapshot: Required<MainDBPutSnapshot> & { memoryItems?: readonly MemoryItemRow[] },
   expectedUID?: string,
 ): Promise<void> {
   const db = await getDB(expectedUID);
-  const tx = db.transaction([...BACKUP_MAIN_STORES, 'pendingProviderDeletions'], 'readwrite');
+  const tx = db.transaction(
+    [...BACKUP_MAIN_STORES, 'pendingProviderDeletions', 'contextManifests', 'contextCheckpoints', 'memoryItems'],
+    'readwrite',
+  );
   // ops is declared outside the try because the catch block needs it to swallow AbortError.
   const ops: Promise<unknown>[] = [];
   try {
     for (const store of BACKUP_MAIN_STORES) ops.push(tx.objectStore(store).clear());
+    // Full conversation replacement: the old conversations' manifests are cleared too (the ledger is not backed up, so imported conversations have no manifests).
+    ops.push(tx.objectStore('contextManifests').clear());
+    // Checkpoints also belong to a conversation, so a full replacement clears them as well.
+    ops.push(tx.objectStore('contextCheckpoints').clear());
     for (const conversation of snapshot.conversations) ops.push(tx.objectStore('conversations').put(conversation));
     for (const provider of snapshot.providers) ops.push(tx.objectStore('providers').put(provider));
     for (const provider of snapshot.providers) {
@@ -886,6 +981,10 @@ export async function replaceAllInOneTx(
     for (const folder of snapshot.folders) ops.push(tx.objectStore('folders').put(folder));
     for (const note of snapshot.notes) ops.push(tx.objectStore('notes').put(note));
     for (const noteFolder of snapshot.noteFolders) ops.push(tx.objectStore('noteFolders').put(noteFolder));
+    if (snapshot.memoryItems) {
+      ops.push(tx.objectStore('memoryItems').clear());
+      for (const row of snapshot.memoryItems) ops.push(tx.objectStore('memoryItems').put(row));
+    }
     ops.push(tx.done);
     await Promise.all(ops);
   } catch (err) {

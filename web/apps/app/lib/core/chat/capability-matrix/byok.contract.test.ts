@@ -18,10 +18,6 @@ vi.mock('../../../infra/storage/partition', async (importOriginal) => ({
 }));
 // Surroundings of the library send orchestration (same seams as operations-library-send.test.ts): prompt injection, settlement reporting,
 // sync, analytics, library tool execution and the confirmation dialog. Routing, memory, the agent loop and the send leg are production implementations.
-vi.mock('../prompt-injection', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../prompt-injection')>()),
-  buildPromptInjectionContext: vi.fn(async () => ({ systemContent: '', memoryInjected: false, retrievalCost: 0 })),
-}));
 vi.mock('../send-completion', () => ({ reportSendCompletion: vi.fn(), reportUsageAndBudget: vi.fn() }));
 vi.mock('../../sync', () => ({ getSyncAdapter: vi.fn(() => null) }));
 vi.mock('../../telemetry', async (importOriginal) => ({

@@ -37,6 +37,12 @@ vi.mock('../../infra/storage/idb', () => ({
   setSessionValue: (...args: unknown[]) => mocks.setSessionValue(...args),
 }));
 
+// Replace-all first reads the local memory items (those missing from the backup become tombstones); this file mocks idb entirely, so an empty table is supplied here.
+vi.mock('../../infra/storage/memory-item-store', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../infra/storage/memory-item-store')>()),
+  getAllMemoryItemRows: vi.fn(async () => []),
+}));
+
 vi.mock('../../infra/storage/image-store', () => ({
   deleteImage: (...args: unknown[]) => mocks.deleteImage(...args),
   saveImage: (...args: unknown[]) => mocks.saveImage(...args),

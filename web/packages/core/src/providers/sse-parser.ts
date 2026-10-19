@@ -13,12 +13,13 @@
  */
 
 import type { TransportPort, TransportResponse } from '../ports';
-import { isSubscriptionErrorKind, toProviderError, transportNetworkDetail } from './errors';
+import { isSubscriptionErrorKind, providerErrorRawBodyOf, toProviderError, transportNetworkDetail, withProviderErrorRawBody } from './errors';
 import { structuredErrorFields } from './generation-rejection-facts';
 import type { ProviderErrorSource } from './errors';
 import type { RelayErrorContext } from './relay-error-classifier';
 import { classifyRelayKeyAccess } from './relay-key-access';
 import { relayErrorBodyNamesReasoning } from './relay-reasoning-rejection';
+import type { StreamFinish } from '../context/stream-finish';
 import type { StreamEvent } from './types';
 
 /**
@@ -29,10 +30,16 @@ import type { StreamEvent } from './types';
  * @returns a StreamEvent, an array of StreamEvent, or null to skip the event.
  *          Arrays are supported because one SSE chunk from providers such as Gemini can carry several events
  */
-export type ParseChunkFn = (
+export type ParseChunkFn = ((
   eventType: string | null,
   data: string,
-) => StreamEvent | StreamEvent[] | null;
+) => StreamEvent | StreamEvent[] | null) & {
+  /**
+   * Called by createSSEStream when the stream reaches its end, to attach a StreamFinish to the done event.
+   * sawDoneToken: the doneToken was read. Without this hook, or when it returns undefined, done carries no finish.
+   */
+  streamFinish?: (sawDoneToken: boolean) => StreamFinish | undefined;
+};
 
 /**
  * Structured event produced by splitting SSE lines
@@ -213,6 +220,12 @@ export function parseSSELines(raw: string): SSEEntry[] {
 }
 
 export interface CreateSSEStreamOptions {
+  /**
+   * For wires whose protocol guarantees an ending `doneToken`: reaching EOF without seeing it means the
+   * stream was truncated, so no `done` is synthesized and the stream is closed for the caller to judge.
+   * Default (all other wires): a clean EOF still synthesizes `done`.
+   */
+  requireDoneToken?: boolean;
   /** End-of-stream token, "[DONE]" by default */
   doneToken?: string;
   /** AbortController signal used to cancel the stream */
@@ -275,7 +288,7 @@ export function createSSEStream(
               ? { openAISubscriptionAuth: true }
               : undefined,
         );
-        ctrl.enqueue({
+        ctrl.enqueue(withProviderErrorRawBody<StreamEvent>({
           type: 'error',
           error: pe.message,
           errorDetail: pe.detail,
@@ -297,7 +310,8 @@ export function createSSEStream(
           ...(pe.upstreamErrorType ? { upstreamErrorType: pe.upstreamErrorType } : {}),
           ...(pe.networkDetail ? { networkDetail: pe.networkDetail } : {}),
           ...(pe.relayGuidanceKey ? { relayGuidanceKey: pe.relayGuidanceKey } : {}),
-        });
+          httpStatus: response.status,
+        }, providerErrorRawBodyOf(pe)));
         ctrl.close();
         return;
       }
@@ -362,6 +376,13 @@ export function createSSEStream(
         return false;
       };
 
+      const doneEvent = (sawDoneToken: boolean): StreamEvent => {
+        const finish = parseChunk.streamFinish?.(sawDoneToken);
+        return finish ? { type: 'done', finish } : { type: 'done' };
+      };
+
+      // An end marker that only shows up in the leftover last line (no blank line after it); only requireDoneToken lines read it.
+      let sawTrailingDoneToken = false;
       try {
         while (true) {
           const { done, value } = await reader.read();
@@ -369,7 +390,7 @@ export function createSSEStream(
 
           for (const frame of decoder.push(value)) {
             if (handleFrame(frame)) {
-              ctrl.enqueue({ type: 'done' });
+              ctrl.enqueue(doneEvent(true));
               ctrl.close();
               return;
             }
@@ -378,13 +399,13 @@ export function createSSEStream(
         // Handle the last line and the pending event once the stream ends. Seeing the end token here
         // is the same as the stream ending, so the done event comes from the common tail below.
         for (const frame of decoder.finish()) {
-          if (handleFrame(frame)) break;
+          if (handleFrame(frame)) { sawTrailingDoneToken = true; break; }
         }
       } catch (err) {
         if (!signal?.aborted) {
           // Both error classes land here and are split by origin:
           //  - non-SyntaxError thrown by parseChunk (NPE on a missing field, failed type assertion and
-          //    other real parsing bugs) -> upstream: reaches Sentry and shows "Provider Error"; it must
+          //    other real parsing bugs) -> upstream: is reported as an error and shows "Provider Error"; it must
           //    not be swallowed as network noise.
           //  - thrown by reader.read() (connection reset: app backgrounded, network lost, relay drop)
           //    -> network transport failure, downgraded by shouldReportProviderError per kind so the
@@ -402,8 +423,9 @@ export function createSSEStream(
 
       // Stream ended normally without a doneToken (as with Gemini).
       // No done event is appended after an error, matching the underlying provider behavior.
-      if (!hasError && !signal?.aborted) {
-        ctrl.enqueue({ type: 'done' });
+      if (!hasError && !signal?.aborted && (!options?.requireDoneToken || sawTrailingDoneToken)) {
+        // The stream ended without the protocol family's termination marker: finish is marked eof_without_marker, no longer treated as clean.
+        ctrl.enqueue(doneEvent(sawTrailingDoneToken));
       }
       ctrl.close();
     },

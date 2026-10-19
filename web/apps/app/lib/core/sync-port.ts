@@ -58,6 +58,8 @@ export interface SyncAdapter {
 
   didUpdateConversationTitle: SyncNotification;
   didUpdateConversationUseMemory: SyncNotification;
+  didUpdateConversationInstructions: SyncNotification;
+  didUpdateConversationContextCap: SyncNotification;
   didUpdateConversationModel: SyncNotification;
   didCompleteAssistantMessage: SyncNotification;
   didCompleteRound: SyncNotification;

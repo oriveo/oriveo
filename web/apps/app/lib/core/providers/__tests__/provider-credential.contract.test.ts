@@ -129,9 +129,8 @@ describe('CREDENTIAL-RESOLVE production send path (Web)', () => {
       messageId: MSG_ID,
       provider,
       model,
-      chatHistory: [{ role: 'user', content: 'hi' }],
+      transport: { messages: [{ role: 'user', content: 'hi' }], options: undefined },
       initialText: '',
-      relayStreamOptions: undefined,
       setAbortFn: vi.fn(),
     });
 

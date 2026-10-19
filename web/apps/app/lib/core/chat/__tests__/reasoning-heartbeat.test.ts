@@ -106,9 +106,8 @@ async function runHeartbeatPipeline(dataLines: string[]) {
     messageId: MSG_ID,
     provider: byokProvider(),
     model: model(),
-    chatHistory: [{ role: 'user', content: 'hi' }],
+    transport: { messages: [{ role: 'user', content: 'hi' }], options: undefined },
     initialText: '',
-    relayStreamOptions: undefined,
     setAbortFn: vi.fn(),
   });
   return { events, result };

@@ -38,8 +38,8 @@ describe('capability result privacy boundary', () => {
 
   // The boundary is field-level: whether a capability ran never changes which events are emitted,
   // only which fields may be carried. Degrading at the event level would make relay conversations
-  // disappear from the dashboard entirely. The behavioural assertions for the attribute contract
-  // live in __tests__/chat-lifecycle-telemetry.test.ts.
+  // disappear from the dashboard entirely (online, chat_message_failed was 100% bare events).
+  // The behavioural assertions for the attribute contract live in __tests__/chat-lifecycle-telemetry.test.ts.
   it('keeps capability facts out of telemetry by field, never by dropping the whole property bag', () => {
     const root = resolve(process.cwd(), '../../..');
     const send = readFileSync(resolve(root, 'web/apps/app/lib/core/chat/operations-send.ts'), 'utf8');
@@ -51,8 +51,10 @@ describe('capability result privacy boundary', () => {
     // paths, first send and continue, use the same gate and the same shape; the behavioural
     // assertions live in __tests__/chat-lifecycle-telemetry.test.ts.
     // The gate is webSearchDispatched(final outbound options): for a relay it checks whether the effective fragment was merged, otherwise supportsWebSearch.
-    expect(send).toMatch(/if \(webSearchDispatched\(provider, relayStreamOptions\)\) \{/);
-    expect(continueAnswer).toMatch(/if \(webSearchDispatched\(provider, providerStreamOptions\)\) \{/);
+    // Continue now goes through runChatOutbound and shares the same gate with the first send instead of carrying its own.
+    expect(send).toMatch(/if \(webSearchDispatched\(provider, attempt\.transport\.options\)\) \{/);
+    expect(continueAnswer).not.toMatch(/webSearchDispatched\(/);
+    expect(continueAnswer).toMatch(/runChatOutbound\(/);
     // No dual-path fork remains: none of the three helpers may emit a bare lifecycle event without attributes
     const bareLifecycleEvent =
       /trackEvent\(\s*['"](chat_started|chat_message_sent|chat_message_completed|chat_message_failed)['"]\s*\)/;

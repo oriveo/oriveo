@@ -8,7 +8,7 @@ import { deleteAttachments } from '../sync-port';
 import { getActiveUIDSync } from '../../infra/storage/partition';
 import { withErrorReporting } from '../../sentry/report-silent';
 
-export function cleanupCloudAttachments(messages: ChatMessage[]): void {
+export function cleanupCloudAttachments(messages: ReadonlyArray<Pick<ChatMessage, 'attachments'>>): void {
   const refs = Array.from(new Set(
     messages.flatMap((msg) => msg.attachments?.map((att) => att.storageRef).filter((ref): ref is string => Boolean(ref)) ?? []),
   ));

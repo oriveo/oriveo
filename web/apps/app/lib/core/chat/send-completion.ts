@@ -22,6 +22,7 @@ import { withErrorReporting } from "../../sentry/report-silent";
 import { trackEvent, telemetryProviderKind, telemetryModelID } from "../telemetry";
 import { relaySendTelemetryProperties } from "../telemetry/relay-properties";
 import { shouldTrackProviderUsage } from "./usage-tracking";
+import type { SkillRetrievalUsageClaim } from "./prompt-injection";
 import { promoteRelayTransportOnDelivered } from "../providers/relay-model-observed";
 import { recordRelayKeyAccessOnDelivered } from "../providers/relay-key-access-writeback";
 import { recordRelayWebSearchObserved } from "./relay-web-probe-records";
@@ -46,6 +47,8 @@ export interface SendCompletionParams {
     retrievalUsage?: StreamUsage;
     retrievalCost: number;
     retrievalModelId?: string;
+    /** Shared claim flag for the retrieval cache: set when a successful finish reports the event, left unset on failure or abort. */
+    retrievalUsageClaim?: SkillRetrievalUsageClaim;
   };
   sendStartedAt: number;
   completedAt: string;

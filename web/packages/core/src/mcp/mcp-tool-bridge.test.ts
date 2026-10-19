@@ -19,7 +19,6 @@ import {
   createMcpToolEntries,
   denyingMcpConfirmationGate,
   mcpLoopLimits,
-  mcpSystemPrompt,
   planMcpTools,
   validatedMcpArguments,
   type McpBridgeServerInput,
@@ -195,7 +194,7 @@ function run(options: {
     stoppedErrorCode: MCP_LOOP_STOPPED_ERROR_CODE,
     onUnhandledToolCalls: (calls) => { unhandled.push(...calls); },
   });
-  const result = loop.run([{ role: 'system', content: mcpSystemPrompt('You are helpful.') }, { role: 'user', content: 'Weather?' }]);
+  const result = loop.run([{ role: 'system', content: `You are helpful.\n\n${MCP_SAFETY_PROMPT}` }, { role: 'user', content: 'Weather?' }]);
   return { result, server, steps, requests, unhandled };
 }
 
@@ -841,12 +840,6 @@ describe('execution and failures', () => {
     expect(requests[1].toolChoice).toBe('none');
     expect(mcpLoopLimits({ ...MCP_RUNTIME_CONFIG_FALLBACK, maxSteps: 8 }).maxSteps).toBe(8);
     expect(mcpLoopLimits(MCP_RUNTIME_CONFIG_FALLBACK).maxConsecutiveToolFailures).toBe(Number.POSITIVE_INFINITY);
-  });
-
-  it('the safety prompt is appended after the user system prompt; it stands alone when there is none', () => {
-    expect(mcpSystemPrompt('  Be brief.  ')).toBe(`Be brief.\n\n${MCP_SAFETY_PROMPT}`);
-    expect(mcpSystemPrompt('')).toBe(MCP_SAFETY_PROMPT);
-    expect(mcpSystemPrompt(null)).toBe(MCP_SAFETY_PROMPT);
   });
 });
 

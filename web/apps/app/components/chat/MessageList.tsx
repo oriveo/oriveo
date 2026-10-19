@@ -17,10 +17,16 @@ import { extractSelectionMarkdown } from '../../lib/core/notes/selection-source'
 import { copyToClipboard } from '../../lib/utils/clipboard';
 import { showSavedNoteToast } from '../notes/note-toast';
 import { showToast } from '../Toast';
+import type { MessageEditReopen } from '../../lib/hooks/useMessageEdit';
 import { MessageListItem } from './MessageListItem';
 import type { SavedNoteRef } from './MessageBubble';
 import { ChatOutlineRail, OUTLINE_MIN_USER_TURNS } from './ChatOutlineRail';
 import { SelectionNoteToolbar } from './SelectionNoteToolbar';
+import { CompactionSeparator } from './CompactionSeparator';
+import { DirectiveSuggestionBar, useDirectiveSuggestion } from './DirectiveSuggestionBar';
+import { MemorySuggestionBar, useMemorySuggestion } from './MemorySuggestionBar';
+import { useCompactionSeparator } from '../../lib/core/chat/context-compaction/use-compaction-separator';
+import type { ContextCheckpointRow } from '../../lib/infra/storage/context-checkpoint-store';
 import styles from './MessageList.module.css';
 
 interface MessageListProps {
@@ -36,9 +42,13 @@ interface MessageListProps {
   onRetry?: (messageId: string) => void;
   onRetryWithoutCustom?: (messageId: string) => void;
   onEditAndResend?: (messageId: string, newText: string) => void;
+  /** Reopen this message's edit box with the edited text (edit-and-resend cancelled at the pre-send confirm). */
+  editReopen?: (MessageEditReopen & { messageId: string }) | null;
   onContinueAnswering?: (messageId: string) => void;
   onSwitchModel?: () => void;
   onAskSelection?: (quoteContext: QuoteContext) => void;
+  /** Clicking a transcript separator row hands the latestValid row to the detail Dialog. */
+  onOpenCompactionDetail?: (row: ContextCheckpointRow) => void;
 }
 
 export function MessageList({
@@ -54,9 +64,11 @@ export function MessageList({
   onRetry,
   onRetryWithoutCustom,
   onEditAndResend,
+  editReopen,
   onContinueAnswering,
   onSwitchModel,
   onAskSelection,
+  onOpenCompactionDetail,
 }: MessageListProps) {
   const router = useRouter();
   const t = useTranslations('pages.chat');
@@ -129,6 +141,20 @@ export function MessageList({
   const conversation = useAppStore((s) =>
     s.conversations.find((candidate) => candidate.id === conversationId),
   );
+
+  // Separator row: fed the whole conversation's messages (not the visible window); ρ comes from the same source as the send path (the conversation's provider / model).
+  const conversationProvider = conversation?.providerID
+    ? providerMap.get(normalizeUUID(conversation.providerID))
+    : undefined;
+  const compactionSeparator = useCompactionSeparator(
+    conversationId,
+    conversation?.messages ?? messages,
+    conversationProvider,
+    conversation?.modelID,
+  );
+
+  const directiveSuggestion = useDirectiveSuggestion(conversationId);
+  const memorySuggestion = useMemorySuggestion(conversationId);
 
   const sourcePromptsByMessageId = useMemo(() => {
     const map = new Map<string, string>();
@@ -240,14 +266,14 @@ export function MessageList({
     <div className={styles.areaWrap}>
     <div className={styles.area} ref={areaRef} role="log" aria-live="polite">
       <div className={styles.list}>
-        {messages.map((msg, idx) => {
+        {messages.flatMap((msg, idx) => {
           // Only the message being generated gets streamingText, always live and never frozen; once pinned the user scrolls themselves and nothing follows the tail
           const msgStreamingText = msg.state === 'generating' ? streamingText : undefined;
           // Resolve the single provider for each message by direct lookup on the normalized key, with no O(n) fallback
           const msgProvider = msg.providerID ? providerMap.get(normalizeUUID(msg.providerID)) : undefined;
           // Reuse the memo above rather than repeating the same lookup inside the render loop
           const sourcePrompt = sourcePromptsByMessageId.get(msg.id);
-          return (
+          const item = (
             <MessageListItem
               key={msg.id}
               messageId={msg.id}
@@ -259,6 +285,7 @@ export function MessageList({
               onRetry={onRetry}
               onRetryWithoutCustom={onRetryWithoutCustom}
               onEditAndResend={onEditAndResend}
+              editReopen={editReopen?.messageId === msg.id ? editReopen : undefined}
               onContinueAnswering={onContinueAnswering}
               onSwitchModel={onSwitchModel}
               conversationId={conversationId}
@@ -268,6 +295,25 @@ export function MessageList({
               isLastMessage={idx === messages.length - 1}
             />
           );
+          // The suggestion bar is attached after the user message judged to be a directive.
+          if (msg.role === 'user' && directiveSuggestion?.messageId === msg.id) {
+            return [item, <DirectiveSuggestionBar key={`directive-suggestion-${msg.id}`} />];
+          }
+          // The "Save to memory?" bar is attached after that turn's assistant answer and only appears once streaming has finished.
+          if (msg.role === 'assistant' && msg.state !== 'generating' && memorySuggestion?.assistantMessageId === msg.id) {
+            return [item, <MemorySuggestionBar key={`memory-suggestion-${msg.id}`} suggestion={memorySuggestion} />];
+          }
+          // The separator row is attached after coversTo (before the next message); flatMap keeps each item's key at the same level.
+          if (compactionSeparator?.model.anchorMessageId !== msg.id) return [item];
+          const row = compactionSeparator.row;
+          return [
+            item,
+            <CompactionSeparator
+              key={`compaction-separator-${row.checkpointId}`}
+              model={compactionSeparator.model}
+              onClick={() => onOpenCompactionDetail?.(row)}
+            />,
+          ];
         })}
         {/* Pin-to-top bottom spacer: usePinToTopScroll writes the height, giving short answers room to scroll and collapsing to 0 for long ones */}
         <div ref={spacerRef} className={styles.spacer} aria-hidden="true" />

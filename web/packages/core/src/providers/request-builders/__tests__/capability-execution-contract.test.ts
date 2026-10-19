@@ -124,6 +124,7 @@ describe('shared capability execution fixture', () => {
           ? recipe.route.protocol
           : coverage.transport,
         responseParserKind: coverage.responseParserKind,
+        ...(recipe.continuationInstructionsMode ? { instructionsMode: recipe.continuationInstructionsMode } : {}),
       });
     });
   }
@@ -154,6 +155,7 @@ describe('shared capability execution fixture', () => {
             ? entry.route.protocol
             : entry.transport.protocol,
           responseParserKind: entry.responseParserKind,
+          ...(entry.continuationInstructionsMode ? { instructionsMode: entry.continuationInstructionsMode } : {}),
         });
       }
       if (entry.executionKind === 'endpoint_route') {
@@ -493,7 +495,7 @@ describe('shared capability execution fixture', () => {
         return;
       }
       const intent = item.state == null || typeof item.state !== 'object' ? null : { kind: item.kind, variant: item.variant, step: item.step, state: item.state };
-      const mapped = mapContinuationForRecipe({ id: 'fixture', providerKind: 'fixture', capability: 'web', executionKind: 'request_overlay', requestOps: [], continuationKind: item.kind, ...(item.variant ? { continuationVariant: item.variant } : {}), ...(item.targetResponseParserKind ? { responseParserKind: item.targetResponseParserKind } : {}), transport: { protocol: item.targetProtocol } }, intent);
+      const mapped = mapContinuationForRecipe({ id: 'fixture', providerKind: 'fixture', capability: 'web', executionKind: 'request_overlay', requestOps: [], continuationKind: item.kind, ...(item.kind === 'previous_id' ? { continuationInstructionsMode: 'resend' } : {}), ...(item.variant ? { continuationVariant: item.variant } : {}), ...(item.targetResponseParserKind ? { responseParserKind: item.targetResponseParserKind } : {}), transport: { protocol: item.targetProtocol } }, intent, { systemChanged: false, modelChanged: false, checkpointChanged: false });
       if (item.state == null || typeof item.state !== 'object') {
         expect(mapped).toEqual({ accepted: false, reason: 'invalid_continuation' });
       } else if (Object.hasOwn(item.expectedWire, 'bodyDelta')) {

@@ -36,6 +36,7 @@ const ALLOWED_CALL_SITES: Record<string, number> = {
   'apps/app/components/AppShellWrapper.tsx': 1,
   'apps/app/components/chat/ModelSwitcher/hooks/useModelSwitcherData.ts': 1,
   'apps/app/components/conversations/ConflictCopyGroup.tsx': 1,
+  'apps/app/lib/core/bootstrap.ts': 1,
   'apps/app/lib/core/chat/capability-recovery-runtime.ts': 5,
   'apps/app/lib/core/chat/generation-panel-presentation.ts': 1,
   'apps/app/lib/core/chat/generation-parameter-diagnostics.ts': 1,

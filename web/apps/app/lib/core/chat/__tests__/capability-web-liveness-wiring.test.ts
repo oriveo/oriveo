@@ -93,10 +93,9 @@ describe('the three consumers of the web liveness decision', () => {
     // The chip's globe rule consumes the same custom-override fact.
     expect(chatView).toContain('webCustomIsActive');
 
-    for (const file of ['lib/core/chat/operations-send.ts', 'lib/core/chat/operations-continue.ts']) {
-      const source = readSource(file);
-      expect(source, file).toContain('webReachesTheWire: webPreferenceReachesTheWire(');
-    }
+    // Continue and send share the runChatOutbound chain in operations-send; the rule is wired in that one place only.
+    expect(readSource('lib/core/chat/operations-send.ts')).toContain('webReachesTheWire: webPreferenceReachesTheWire(');
+    expect(readSource('lib/core/chat/operations-continue.ts')).toContain('runChatOutbound(ctx,');
   });
 
   /** Local custom fields have no read chain to hook into, so every discrete read site must run the forward pass itself. */
@@ -107,11 +106,12 @@ describe('the three consumers of the web liveness decision', () => {
       'components/generation/GenerationParameterPanel.tsx',
       'components/generation/CustomRequestFieldsEditor.tsx',
       'lib/core/chat/operations-send.ts',
-      'lib/core/chat/operations-continue.ts',
     ];
     for (const file of readPoints) {
       expect(readSource(file), file).toContain('forwardPortCustomFragmentsIfNeeded(');
     }
+    // Continue goes through the same outbound chain as send, so the forward pass runs with it.
+    expect(readSource('lib/core/chat/operations-continue.ts')).toContain('runChatOutbound(ctx,');
   });
 });
 

@@ -6,7 +6,9 @@ import type {
   Provider,
 } from "@oriveo/shared";
 import { createAppStore } from "../store/app-store";
+import { ContextAssembler } from "@oriveo/core/context/assemble";
 import {
+  LIBRARY_TOOL_SAFETY_PROMPT,
   continueLibraryAnswering,
   resolveActiveSources,
   retryLibraryMessage,
@@ -27,15 +29,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../utils/chat-stream-utils", () => ({
   buildChatHistory: vi.fn(async () => []),
   mapErrorKindKey: () => 'network',
-  sanitizeOutboundMessages: (messages: unknown[]) => messages,
 }));
-vi.mock("./prompt-injection", () => ({
-  buildPromptInjectionContext: vi.fn(async () => ({
-    systemContent: "",
-    memoryInjected: false,
-    retrievalCost: 0,
-  })),
-}));
+// The tool loop's system is composed by the assembler (buildChatContextSources uses the real implementation); this fixture group has no memory / skills.
 vi.mock("./library-agent-loop", () => ({
   LibraryResearchCancelledError: class LibraryResearchCancelledError extends Error {},
   runLibraryAgentLoop: (...args: unknown[]) => mocks.runLoop(...args),
@@ -269,7 +264,16 @@ describe("sendLibraryMessage", () => {
       expect.objectContaining({ modelContextLength: 128_000 }),
     );
     const loopMessages = mocks.runLoop.mock.calls[0][0].messages as Array<{ role: string; content: string }>;
-    expect(loopMessages[0]).toMatchObject({ role: "system" });
+    // The only system message = the assembler's plan.system (purpose toolLoopLeg), with the library tool description at the end.
+    const planSystem = ContextAssembler.assemble({
+      purpose: "toolLoopLeg",
+      window: { W: null, windowKind: "total", maxOutput: {} },
+      conversation: { id: "conv-1", useMemory: true },
+      history: [],
+      toolSafety: LIBRARY_TOOL_SAFETY_PROMPT,
+    }).system;
+    expect(loopMessages[0]).toEqual({ role: "system", content: planSystem });
+    expect(loopMessages.filter((message) => message.role === "system")).toHaveLength(1);
     expect(loopMessages[0].content).toContain("process the current user input");
     expect(loopMessages[0].content).not.toContain("user question");
     const assistant = store
@@ -578,20 +582,9 @@ describe("Library message recovery", () => {
     });
   });
 
-  it("continues a Library response on the same assistant message", async () => {
-    mocks.runLoop.mockResolvedValue({
-      text: "Additional evidence",
-      citations: [],
-      steps: [
-        {
-          id: "step-2",
-          tool: "library_read",
-          label: "Read roadmap",
-          status: "completed",
-          step: 1,
-        },
-      ],
-    });
+  it("continues a Library response as plain text continuation without the agent loop", async () => {
+    // Continue only does text continuation: even if routing decides agent, it no longer enters the tool loop; request body shape: see
+    // context-pipeline/continue.test.ts continue_library_agent_no_tool_loop.
     const { conv, store, ctx, presentation } = recoveryStart("interrupted");
 
     const handle = continueLibraryAnswering(ctx, {
@@ -605,18 +598,15 @@ describe("Library message recovery", () => {
     });
     await handle.done;
 
+    expect(mocks.runLoop).not.toHaveBeenCalled();
     const messages = store.getState().conversations[0].messages;
     expect(messages).toHaveLength(2);
     expect(messages[1]).toMatchObject({
       id: "assistant-1",
-      text: "Partial answer\n\nAdditional evidence",
-      state: "delivered",
       libraryResearchEnabled: true,
-      estimatedCost: 1.42,
     });
     expect(messages[1].researchSteps).toEqual([
       expect.objectContaining({ id: "step-1", step: 1 }),
-      expect.objectContaining({ id: "step-2", step: 2 }),
     ]);
   });
 });

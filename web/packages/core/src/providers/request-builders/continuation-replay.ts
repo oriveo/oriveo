@@ -6,24 +6,49 @@ import {
   validateContinuation,
   type ContinuationIntent,
 } from '../request-preference/continuation';
-import type { RuntimeRecipe } from './capability-execution';
+import { recipeContinuationInstructionsMode, type RuntimeRecipe } from './capability-execution';
+import { ContextContinuation, type ContinuationDecision } from '../../context/continuation';
+import type { ContinuationFingerprint } from './types';
 
 /** Wire mapper: opaque continuation cannot be spread into an arbitrary provider root.
  * Non-root forms are replayed only by their owning response adapter as assistant/tool messages. */
 export type RecipeContinuationMapping =
-  | { accepted: true; target: 'body'; delta: Record<string, unknown> }
+  | { accepted: true; target: 'body'; delta: Record<string, unknown>; omitRoots?: readonly string[] }
   | { accepted: true; target: 'message_append'; messages: Array<Record<string, unknown>> }
   | { accepted: true; target: 'contents_append'; contents: unknown[] }
   | { accepted: false; reason: 'invalid_continuation' | 'recipe_kind_mismatch' | 'unsupported_wire_mapping' };
 
-export function mapContinuationForRecipe(recipe: RuntimeRecipe, intent: ContinuationIntent | null | undefined): RecipeContinuationMapping {
+export function mapContinuationForRecipe(
+  recipe: RuntimeRecipe,
+  intent: ContinuationIntent | null | undefined,
+  fingerprint?: ContinuationFingerprint,
+  appDecision?: ContinuationDecision,
+): RecipeContinuationMapping {
+  // The app layer already has a continuation decision: it wins and the current recipe is not consulted again; an incompatible recipe throws instead of sending silently.
+  if (appDecision?.kind === 'stateful') return mapStatefulDecision(recipe, intent, appDecision);
   if (!intent || !validateContinuation(intent).accepted) return { accepted: false, reason: 'invalid_continuation' };
   if (recipe.continuationKind !== intent.kind || (recipe.continuationVariant ?? undefined) !== (intent.variant ?? undefined)) {
     return { accepted: false, reason: 'recipe_kind_mismatch' };
   }
   if (intent.kind === 'none') return { accepted: true, target: 'body', delta: {} };
   if (intent.kind === 'previous_id' && typeof intent.state.previousResponseId === 'string') {
-    if (recipe.transport?.protocol === 'openai_responses') return { accepted: true, target: 'body', delta: { previous_response_id: intent.state.previousResponseId } };
+    if (recipe.transport?.protocol === 'openai_responses') {
+      // The app layer chose the full plan: the builder already wrote the complete input, so no previous_response_id is attached.
+      if (appDecision?.kind === 'fullPlan') return { accepted: true, target: 'body', delta: {} };
+      // An unconfirmed continuation mode or a changed fingerprint always takes the full plan (the builder already wrote the complete input), so no previous_response_id is attached.
+      const decision = ContextContinuation.decideContinuation({
+        previousResponseId: intent.state.previousResponseId,
+        instructionsMode: recipeContinuationInstructionsMode(recipe),
+        systemChangedSinceLastLeg: fingerprint?.systemChanged ?? true,
+        modelChanged: fingerprint?.modelChanged ?? true,
+        checkpointChanged: fingerprint?.checkpointChanged ?? true,
+      });
+      if (decision.kind === 'fullPlan') return { accepted: true, target: 'body', delta: {} };
+      return {
+        accepted: true, target: 'body', delta: { previous_response_id: decision.previousResponseId },
+        ...(decision.sendInstructions ? {} : { omitRoots: ['instructions'] }),
+      };
+    }
   }
   if (intent.kind === 'replay_blocks' && Array.isArray(intent.state.blocks)) {
     const route = recipe.route;
@@ -61,6 +86,23 @@ export function mapContinuationForRecipe(recipe: RuntimeRecipe, intent: Continua
     return { accepted: true, target: 'message_append', messages: intent.state.completedMessages as Array<Record<string, unknown>> };
   }
   return { accepted: false, reason: 'unsupported_wire_mapping' };
+}
+function mapStatefulDecision(
+  recipe: RuntimeRecipe,
+  intent: ContinuationIntent | null | undefined,
+  decision: Extract<ContinuationDecision, { kind: 'stateful' }>,
+): RecipeContinuationMapping {
+  if (!intent || !validateContinuation(intent).accepted || intent.kind !== 'previous_id'
+    || intent.state.previousResponseId !== decision.previousResponseId) {
+    throw new Error('Stateful continuation decision does not match the continuation state');
+  }
+  if (recipe.continuationKind !== 'previous_id' || recipe.transport?.protocol !== 'openai_responses') {
+    throw new Error(`Stateful continuation decision is incompatible with recipe ${recipe.id}`);
+  }
+  return {
+    accepted: true, target: 'body', delta: { previous_response_id: decision.previousResponseId },
+    ...(decision.sendInstructions ? {} : { omitRoots: ['instructions'] }),
+  };
 }
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value != null && !Array.isArray(value); }
 export function isMiniMaxReasoningMessage(value: unknown): value is Record<string, unknown> {

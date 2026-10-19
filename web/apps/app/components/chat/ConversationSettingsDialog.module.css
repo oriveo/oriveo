@@ -1,0 +1,117 @@
+.panel {
+  position: relative;
+  width: min(100%, 520px);
+  padding: 28px;
+}
+
+.close {
+  position: absolute;
+  top: 14px;
+  inset-inline-end: 14px;
+}
+
+.header {
+  padding-inline-end: 44px;
+}
+
+.title {
+  margin: 0;
+  color: var(--o-text);
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.sectionLabel {
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.editor {
+  width: 100%;
+  min-height: 120px;
+  max-height: 320px;
+  padding: 12px 14px;
+  border: 1px solid var(--o-border);
+  border-radius: 12px;
+  background: var(--o-token-usage-card-bg);
+  color: var(--o-text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.editor:focus {
+  outline: none;
+  border-color: var(--o-primary);
+}
+
+.footer {
+  margin: 0;
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.carryOver {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-full);
+  background: var(--o-tag-bg);
+  color: var(--o-text-secondary);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.carryOver:hover {
+  background: var(--o-primary-subtle);
+  color: var(--o-primary);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+  color: var(--o-text);
+  font-size: 14px;
+}
+
+.rowButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 10px 0;
+  border: none;
+  border-top: 1px solid var(--o-border);
+  background: transparent;
+  color: var(--o-text);
+  font-size: 14px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.rowValue {
+  color: var(--o-text-secondary);
+  font-variant-numeric: tabular-nums;
+}

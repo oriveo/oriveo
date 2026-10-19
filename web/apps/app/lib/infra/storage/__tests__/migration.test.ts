@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { openDB } from 'idb';
-import { migrateToPartitionedStorage } from '../migration';
+import { PARTITION_DB_VERSION, migrateToPartitionedStorage } from '../migration';
 import { getActiveUID, getDBName, getImageDBName } from '../partition';
 
 const MIGRATED_KEY = 'oriveo.storage.partitioned';
@@ -139,10 +139,21 @@ describe('migration.ts', () => {
       const hasFolders = newDB.objectStoreNames.contains('folders');
       const hasNotes = newDB.objectStoreNames.contains('notes');
       const hasNoteFolders = newDB.objectStoreNames.contains('noteFolders');
+      const hasManifests = newDB.objectStoreNames.contains('contextManifests');
+      const hasRho = newDB.objectStoreNames.contains('contextRhoCalibration');
+      const hasCheckpoints = newDB.objectStoreNames.contains('contextCheckpoints');
+      const hasMemoryItems = newDB.objectStoreNames.contains('memoryItems');
+      const hasMemoryCandidates = newDB.objectStoreNames.contains('memoryCandidates');
       newDB.close();
 
-      // DB schema v10 ChatMessage QuoteContext v1 snapshot.
-      expect(version).toBe(10);
+      // The migration builds straight to the current schema: v13 memoryItems + v14 memoryCandidates.
+      expect(PARTITION_DB_VERSION).toBe(14);
+      expect(version).toBe(PARTITION_DB_VERSION);
+      expect(hasMemoryItems).toBe(true);
+      expect(hasMemoryCandidates).toBe(true);
+      expect(hasManifests).toBe(true);
+      expect(hasRho).toBe(true);
+      expect(hasCheckpoints).toBe(true);
       expect(hasFolders).toBe(true);
       expect(hasNotes).toBe(true);
       expect(hasNoteFolders).toBe(true);

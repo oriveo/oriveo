@@ -5,11 +5,13 @@ import type {
   RelayKeyValue,
   RelayWebSearchToolName,
 } from '@oriveo/shared/pure-types';
+import type { StreamFinish } from '../context/stream-finish';
 import type { UsageBreakdown } from '../chat/usage-breakdown';
 import type { RelayKeyAccessOutcome } from './relay-key-access';
-import type { CapabilityPreferenceInput, CapabilityRecipeOmission, GenerationParameterOverrides, GenerationParameterProfile } from './request-builders/types';
+import type { CapabilityPreferenceInput, CapabilityRecipeOmission, ContinuationFingerprint, GenerationParameterOverrides, GenerationParameterProfile } from './request-builders/types';
 import type { CapabilityLearningIdentity } from './unsupported-param';
 import type { ContinuationIntent } from './request-preference/continuation';
+import type { ContinuationDecision } from '../context/continuation';
 import type { ProxyToolDefinition } from './request-builders/runtime';
 import type {
   ChatNetworkDetail,
@@ -69,7 +71,8 @@ export type StreamEvent =
   | { type: 'image'; url: string }
   | { type: 'model'; modelID: string }
   | { type: 'usage'; usage: StreamUsage }
-  | { type: 'done' }
+  /** finish: how the stream ended; absent when the protocol family was not recognised. */
+  | { type: 'done'; finish?: StreamFinish }
   | {
       type: 'citations';
       citations: Citation[];
@@ -103,6 +106,8 @@ export type StreamEvent =
       traceId?: string;
       /** An error frame the upstream sent inside the stream (not the empty-stream fallback and not an HTTP error). Classification relies on this marker only and never compares message text. */
       streamErrorFrame?: true;
+      /** The termination frame is itself an error (Responses response.failed, Gemini blocked finishReason): carries that family's clean conclusion. */
+      finish?: StreamFinish;
       /** Raw structured fields from an HTTP error body that can pinpoint the cause (such as `/error/param`); used for classification locally only. */
       errorFields?: Record<string, string>;
       /** Key verdict for a relay non-2xx before any output: computed from the raw response body, because errorDetail keeps only allowlisted fragments and would lose a top-level code. Absent when none. */
@@ -119,6 +124,10 @@ export type StreamEvent =
       networkDetail?: ChatNetworkDetail;
       /** Stable guidance key of relayGuidance (failure telemetry relay_guidance). */
       relayGuidanceKey?: string;
+      /** HTTP status code of an HTTP error (used by the overflow check). */
+      httpStatus?: number;
+      /** Raw text of the HTTP error body / in-stream error frame (first 32 KB, UTF-8); used locally for the overflow check only: never displayed, logged or persisted. */
+      rawBody?: string;
     };
 
 export interface StreamHandle {
@@ -184,6 +193,11 @@ export type ContentPart =
 export interface StreamOptions {
   reasoning?: ReasoningMode;
   /**
+   * The [D] text of this request (blocks joined with "\n\n"), carried from PlannedChatRequest by transportInput;
+   * in the body [D] is still appended to the end of the last user message, and this field lets the wire layer identify that segment.
+   */
+  dynamicText?: string;
+  /**
    * This request uses Grok subscription (OAuth) credentials instead of an API key.
    *
    * **Local-only field**: the proxy layer uses it to stamp `authMode` on its own route and to route
@@ -232,9 +246,18 @@ export interface StreamOptions {
   grokSubscriptionWebSearchDeclared?: boolean;
   /** Local-only opaque continuation sent solely to Oriveo's proxy for an explicit user continue/retry. */
   continuation?: ContinuationIntent;
+  /** Local-only fingerprint comparison for `continuation`; sent beside it to Oriveo's proxy only. */
+  continuationFingerprint?: ContinuationFingerprint;
+  /** Local-only app-layer continuation decision; sent beside `continuation` to Oriveo's proxy only. */
+  continuationDecision?: ContinuationDecision;
   supportsImageGen?: boolean;
   /** Raw additional request body (stored locally and sent only with this request). It is merged as the last step of the request body, see `request-builders/additional-body`. */
   additionalBody?: { raw: string };
+  /**
+   * Prompt for relay image generation `/images/generations`: the user's original text of this turn (without [D] / checkpoint).
+   * Falls back to the last user message text when absent.
+   */
+  relayImagePrompt?: string;
   /**
    * Relay web search switch, decided from model capability + transport envelope + user intent in
    * `stream-options.ts`. The adapter layer only consumes the boolean and no longer decides for itself.
@@ -293,6 +316,11 @@ export interface StreamOptions {
    */
   relayMaxOutputTokens?: number;
   /**
+   * Output limit of the main chat path = plan.budget.oWire. It only replaces the base value of builders that already send an output limit field;
+   * builders that do not send one gain no new field because of it. When absent (non-chat paths) each builder keeps its existing value.
+   */
+  maxOutputTokens?: number;
+  /**
    * For the 1-token probe: the Responses builder omits the default built-in tools and `reasoning`. Chat has its own
    * resend loop when the upstream rejects those fields, but a probe does not; probing with them would mix the rejection
    * reason with "does this route accept this model". Output is unchanged when it is not passed.
@@ -304,6 +332,11 @@ export interface StreamOptions {
    * googleSearch are no longer merged in. Chat does not pass it.
    */
   relayFunctionTool?: ProxyToolDefinition;
+  /**
+   * Client tools attached to an ordinary send (the memory tool propose_memory): a local-only field; sendStreamProxy puts it at the top-level
+   * `tools` / `toolChoice` of the request body and does not pass it through options to the builder. Send paths that bypass the proxy do not read it.
+   */
+  clientTools?: { tools: ProxyToolDefinition[]; toolChoice: 'auto' | 'none' };
   /**
    * The segment for the effective protocol of this turn, from the connection-level web search fragment: merged into the
    * request body after the builder output and before the additional request body. Only chat requests carry it; capability

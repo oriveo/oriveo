@@ -1,0 +1,49 @@
+.ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--o-radius-full);
+  background: transparent;
+  color: var(--o-text-secondary);
+  cursor: pointer;
+}
+
+.ring[data-tone='warm'] {
+  color: var(--o-warning);
+}
+
+.ring[data-tone='error'] {
+  color: var(--o-error);
+}
+
+.ring:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 1px;
+}
+
+.track {
+  position: absolute;
+  inset: 0;
+}
+
+.trackBase {
+  stroke: var(--o-border);
+}
+
+.trackFill {
+  stroke: currentColor;
+}
+
+.label {
+  position: relative;
+  font-family: var(--o-font-mono);
+  font-size: 10px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}

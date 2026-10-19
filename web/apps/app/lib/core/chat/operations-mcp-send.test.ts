@@ -23,6 +23,7 @@ import {
   type McpToolSnapshot,
   type McpTransport,
 } from '@oriveo/core/mcp/index';
+import { ContextAssembler } from '@oriveo/core/context/assemble';
 
 const mocks = vi.hoisted(() => ({
   runStreamPipeline: vi.fn(),
@@ -32,6 +33,8 @@ const mocks = vi.hoisted(() => ({
   activeUid: { value: 'uid-mcp-send' },
   /** When set, replaces the continuation that continue-answering reads (a previous_id continuation); null = use the real implementation. */
   explicitContinuation: { value: null as unknown },
+  /** Candidate storage: the local partition database does not follow activeUid in this group; candidate decisions use the real pure functions and only the storage is replaced. */
+  generateCandidate: vi.fn(),
 }));
 
 // Pipeline of the ordinary send path: all that matters here is whether the ordinary path was taken, not
@@ -55,11 +58,6 @@ vi.mock('../../utils/chat-stream-utils', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/chat-stream-utils')>()),
   buildChatHistory: vi.fn(async (messages: ChatMessage[]) =>
     messages.filter((message) => message.text).map((message) => ({ role: message.role, content: message.text }))),
-  sanitizeOutboundMessages: (messages: unknown[]) => messages,
-}));
-vi.mock('./prompt-injection', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./prompt-injection')>()),
-  buildPromptInjectionContext: vi.fn(async () => ({ systemContent: 'You are helpful.', memoryInjected: false, retrievalCost: 0 })),
 }));
 vi.mock('./stream-options', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./stream-options')>()),
@@ -102,6 +100,18 @@ vi.mock('../library/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../library/api')>()),
   executeLibraryTool: (...args: unknown[]) => mocks.executeLibraryTool(...args),
 }));
+vi.mock('../memory/memory-candidate-repository', async (importOriginal) => {
+  const { proposeMemoryCandidate } = await import('@oriveo/core/context/memory-propose');
+  return {
+    ...(await importOriginal<typeof import('../memory/memory-candidate-repository')>()),
+    createMemoryCandidateRepository: () => ({
+      propose: async (argumentsJson: string, priorInTurn: number, context: {
+        userText: string; messageId: string; conversationId: string; folderId: string | null;
+      }) => proposeMemoryCandidate(argumentsJson, { ...context, nowMs: 1_000, activeContents: [], records: [] }, priorInTurn).candidate,
+      generate: (...args: unknown[]) => mocks.generateCandidate(...args),
+    }),
+  };
+});
 vi.mock('../../infra/storage/partition', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../infra/storage/partition')>()),
   getActiveUIDSync: () => mocks.activeUid.value,
@@ -137,11 +147,26 @@ import { deleteMessage } from './operations-delete';
 import { sendLibraryMessage } from './operations-library-send';
 import { rememberRelayCatalogEndpointTypes } from '../providers/relay-probe-candidates';
 import { isRelayNegativeCached } from './relay-negative-cache';
+import { PROPOSE_MEMORY_TOOL, PROPOSE_MEMORY_TOOL_RESULT } from '@oriveo/core/context/memory-propose';
+import { SEARCH_MEMORY_TOOL } from '@oriveo/core/context/memory-search';
+import { MemoryItems, type MemoryItem } from '@oriveo/core/context/memory-items';
+import { __resetProposeMemoryDegradedForTest, isProposeMemoryDegraded } from './propose-memory-runtime';
+import type { GenerationParameterOverrides } from '@oriveo/core/providers/request-builders/types';
+import { resolveGenerationProfileRef } from '../metadata/metadata-client';
+import { buildStreamOptionsFromIntent } from './stream-options';
+import { __resetMemorySuggestionForTest, getPendingMemorySuggestion } from './conversation-instructions/memory-suggestion';
 
 const CORPUS = resolve(__dirname, '../../../../../../shared/test-fixtures/provider-toolcall');
 const SERVER_ID = '00000000-0000-4000-8000-0000000000a1';
 const WEATHER = 'mcp_weather_get_weather';
 const TIME = 'mcp_weather_get_time';
+// In tool mode a fresh send appends propose_memory as the last registry entry.
+const PROPOSE = 'propose_memory';
+const SEARCH = 'search_memory';
+const LAPTOP_ITEM: MemoryItem = MemoryItems.canonical({
+  id: 'e-laptop', kind: 'event', content: 'Picked the ThinkPad X1 laptop for travel', mutationId: 'e-laptop-m',
+  deviceId: 'device-a', layer: 'episodic', occurredAt: '2026-10-01T00:00:00Z',
+});
 
 function model(overrides: Partial<AIModel> = {}): AIModel {
   return {
@@ -287,9 +312,11 @@ function start(options: {
   model?: AIModel;
   draftSessionId?: string;
   text?: string;
+  memoryItems?: MemoryItem[];
+  transientGenerationParameters?: GenerationParameterOverrides;
 } = {}) {
   const conv = options.newConversation ? undefined : options.conv ?? conversation();
-  const store = createAppStore({ conversations: conv ? [conv] : [] });
+  const store = createAppStore({ conversations: conv ? [conv] : [], ...(options.memoryItems ? { memoryItems: options.memoryItems } : {}) });
   const handle = sendMessage(
     { store, appendChunk: vi.fn(), te: (key) => key },
     {
@@ -300,6 +327,7 @@ function start(options: {
       model: options.model ?? model(),
       reasoningMode: 'automatic',
       ...(options.draftSessionId ? { generationParameterDraftSessionId: options.draftSessionId } : {}),
+      ...(options.transientGenerationParameters ? { transientGenerationParameters: options.transientGenerationParameters } : {}),
     },
   );
   const assistant = (): ChatMessage | undefined => store.getState().conversations
@@ -312,6 +340,26 @@ function start(options: {
  * only (conversation switches, step payloads) is deleted at that layer, which every way a
  * conversation or a message can leave the store passes through.
  */
+/** A generation-parameter profile that lets json_schema pass the request-side filter; returns the transient override sent this time. */
+const JSON_SCHEMA_VALUE = { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] };
+const JSON_SCHEMA_MODEL: Partial<AIModel> = { transport: 'openai_chat', metadataRevision: 'meta-rev-1' } as Partial<AIModel>;
+function activateJsonSchemaProfile(): GenerationParameterOverrides {
+  vi.mocked(resolveGenerationProfileRef).mockReturnValue({
+    template: 'openai_chat_completions',
+    revision: 'gen-rev-1',
+    parameters: [{ id: 'json_schema', support: 'supported', source: 'authoritative_metadata', valueSchema: 'json-schema', group: 'output_contract' }],
+    wire: { json_schema: 'response_format' },
+  });
+  return { json_schema: { state: 'value', value: JSON_SCHEMA_VALUE } };
+}
+
+/** The generation parameters in this outbound options carry an effective json_schema. */
+function expectJsonSchemaSent(): void {
+  expect(vi.mocked(buildStreamOptionsFromIntent).mock.calls.some((args) =>
+    JSON.stringify((args[3] as GenerationParameterOverrides | undefined)?.json_schema)
+      === JSON.stringify({ state: 'value', value: JSON_SCHEMA_VALUE }))).toBe(true);
+}
+
 function persistDeletions(store: ReturnType<typeof createAppStore>): () => void {
   store.setState({ hydrationPhase: 'ready' });
   return subscribeConversations(store);
@@ -341,6 +389,10 @@ beforeEach(async () => {
   mocks.trackEvent.mockReset();
   mocks.reportSendCompletion.mockReset();
   mocks.executeLibraryTool.mockReset();
+  __resetProposeMemoryDegradedForTest();
+  __resetMemorySuggestionForTest();
+  mocks.generateCandidate.mockReset();
+  mocks.generateCandidate.mockResolvedValue(null);
   localStorage.clear();
   useMcpStore.getState().reset();
   mcpConversationGrants.revokeAll();
@@ -362,11 +414,21 @@ describe('MCP only: model proposal, tool call, result fed back, reply', () => {
 
     expectValid(chat.bodies);
     expect(mocks.runStreamPipeline).not.toHaveBeenCalled();
-    // First leg: names from the lookup table, with the server's description and input schema sent as is; the safety prompt is appended to the system prompt
-    expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual([TIME, WEATHER]);
+    // First leg: names from the lookup table, with the server's description and input schema sent as is; the system prompt gets the safety prompt appended
+    expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual([TIME, WEATHER, PROPOSE]);
     expect(chat.bodies[0].tools?.[1].function.description).toBe('Description of get_weather');
     expect(chat.bodies[0].toolChoice).toBe('auto');
-    expect(chat.bodies[0].messages[0]).toEqual({ role: 'system', content: `You are helpful.\n\n${MCP_SAFETY_PROMPT}` });
+    // The single system message is the assembler's plan.system (purpose toolLoopLeg), with the safety section at the end
+    const planSystem = ContextAssembler.assemble({
+      purpose: 'toolLoopLeg',
+      window: { W: null, windowKind: 'total', maxOutput: {} },
+      conversation: { id: 'conv-1', useMemory: true },
+      history: [],
+      toolSafety: MCP_SAFETY_PROMPT,
+    }).system;
+    expect(planSystem?.endsWith(MCP_SAFETY_PROMPT)).toBe(true);
+    expect(chat.bodies[0].messages[0]).toEqual({ role: 'system', content: planSystem });
+    expect(chat.bodies[0].messages.filter((message) => message.role === 'system')).toHaveLength(1);
     // The server receives the original tool name and the arguments the model gave; the token travels as credential
     expect(server.toolCalls()).toEqual([
       { name: 'get_weather', arguments: { city: 'Melbourne', unit: 'celsius' } },
@@ -412,6 +474,21 @@ describe('MCP only: model proposal, tool call, result fed back, reply', () => {
     expect(Object.keys(message.toolSteps![0]).sort()).toEqual(
       ['argsSummary', 'durationMs', 'id', 'scope', 'serverId', 'serverName', 'status', 'step', 'title', 'toolName'],
     );
+  });
+});
+
+describe('StopReasonPersistence', () => {
+  it('mcp_send_delivered_records_stop_reason', async () => {
+    await seedServer({ enabledIn: ['conv-1'] });
+    // The last leg is truncated by max tokens: finish_reason=length + [DONE], persisted as length.
+    const truncated = `data: ${JSON.stringify({ choices: [{ index: 0, delta: { role: 'assistant', content: 'It is sunny' } }] })}\n\n`
+      + `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'length' }] })}\n\ndata: [DONE]\n\n`;
+    scriptChatStream([corpusSse(), truncated]);
+    const { handle, assistant } = start();
+    await handle.done;
+
+    expect(mocks.runStreamPipeline).not.toHaveBeenCalled();
+    expect(assistant()).toMatchObject({ state: 'delivered', text: 'It is sunny', stopReason: 'length' });
   });
 });
 
@@ -476,7 +553,7 @@ describe('when MCP tools are not sent', () => {
     const chat = scriptChatStream([textSse('Hello from A.')]);
     const a = start({ conv: conversation('conv-A') });
     await a.handle.done;
-    expect(chat.bodies[0].tools?.length).toBe(2);
+    expect(chat.bodies[0].tools?.length).toBe(3);
 
     const b = start({ conv: conversation('conv-B') });
     await b.handle.done;
@@ -538,7 +615,7 @@ describe('when MCP tools are not sent', () => {
     }
   });
 
-  it('the continue-answering path (operations-continue) also computes the first-send attachment criterion from the original attachments; a previous_id continuation does not resend history -> false', async () => {
+  it('the continue-answering path (operations-continue) also computes the first-send attachment criterion from the original attachments; an unconfirmed previous_id recipe resends history from the full plan -> true', async () => {
     const scanned = { id: 'scan-1', kind: 'file', fileName: 'scan.pdf', mimeType: 'application/pdf',
       originalBase64Data: 'JVBERi0xLjQKU2Nhbg==', base64Data: '', extractionErrorCode: 'scanned_pdf' } as Attachment;
     const metadata = await import('../metadata/metadata-client');
@@ -566,9 +643,10 @@ describe('when MCP tools are not sent', () => {
     try {
       // History has a file, no extracted text, and the Messages wire cannot send files natively -> criterion holds
       expect(await continueOnce()).toBe(true);
-      // previous_id continuation: the upstream already holds the old context, history is not resent, no attachments -> does not hold
+      // previous_id continuation whose recipe did not confirm the instructions convention and whose previous-leg fingerprint is unavailable:
+      // the full plan resends history, so the criterion is still computed from the history attachments -> holds
       mocks.explicitContinuation.value = { kind: 'previous_id', step: 1, state: { previousResponseId: 'resp_1' } };
-      expect(await continueOnce()).toBe(false);
+      expect(await continueOnce()).toBe(true);
     } finally {
       mocks.explicitContinuation.value = null;
       rememberRelayCatalogEndpointTypes(relay.id, undefined);
@@ -591,7 +669,7 @@ describe('when MCP tools are not sent', () => {
     const { handle } = start();
     await handle.done;
     expectValid(chat.bodies);
-    expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual([WEATHER]);
+    expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual([WEATHER, PROPOSE]);
     const sent = JSON.stringify(chat.bodies[0]);
     for (const hidden of ['quarantined_tool', 'disabled_tool', 'oversized_tool']) expect(sent).not.toContain(hidden);
   });
@@ -781,7 +859,7 @@ describe('per-conversation switches are stored locally only', () => {
     const chat = scriptChatStream([textSse('First answer.'), textSse('Second answer.')]);
     const first = start({ newConversation: true, draftSessionId: 'draft-1' });
     await first.handle.done;
-    expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual([TIME, WEATHER]);
+    expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual([TIME, WEATHER, PROPOSE]);
 
     const convId = first.handle.convId;
     await vi.waitFor(async () => {
@@ -879,7 +957,7 @@ describe('failure, cancellation and recovery', () => {
     const first = start({ model: manual });
     await first.handle.done;
     expect(first.assistant()).toMatchObject({ state: 'delivered', text: 'Plain answer.' });
-    expect(chat.bodies[0].tools?.length).toBe(2);
+    expect(chat.bodies[0].tools?.length).toBe(3);
     expect(chat.bodies[1].tools).toBeUndefined();
     expect(server.requests).toEqual([]);
 
@@ -903,6 +981,7 @@ describe('failure, cancellation and recovery', () => {
     const second = start();
     await second.handle.done;
     expect(chat.bodies).toHaveLength(3);
+    // The first leg carried propose_memory and was rejected -> propose is recorded as degraded, so the next send only has the MCP tools
     expect(chat.bodies[2].tools?.length).toBe(2);
     expectValid(chat.bodies);
   });
@@ -1013,7 +1092,7 @@ describe('failure, cancellation and recovery', () => {
     expect(chat.bodies).toHaveLength(1);
     const second = start();
     await second.handle.done;
-    expect(chat.bodies[1].tools?.length).toBe(2);
+    expect(chat.bodies[1].tools?.length).toBe(3);
   });
 
   it('treats a retry as a brand-new reply and does not carry over the steps of the previous round', async () => {
@@ -1369,14 +1448,17 @@ describe('mcp_tool_call event', () => {
 describe('library and MCP both on', () => {
   const ACTIVE_NOTION_CONNECTION = { id: 'notion-1', provider: 'notion' as const, displayName: 'Notion', scopes: [], status: 'active' as const };
 
-  function startLibrary() {
+  function startLibrary(memoryItems?: MemoryItem[], extra: { model?: AIModel; transientGenerationParameters?: GenerationParameterOverrides } = {}) {
     const conv = conversation();
-    const store = createAppStore({ conversations: [conv], libraryConnections: [ACTIVE_NOTION_CONNECTION] });
+    const store = createAppStore({
+      conversations: [conv], libraryConnections: [ACTIVE_NOTION_CONNECTION], ...(memoryItems ? { memoryItems } : {}),
+    });
     const handle = sendLibraryMessage(
       { store, appendChunk: vi.fn(), te: (key) => key },
       {
-        text: 'Find the roadmap and check the weather', prevMessages: [], conversation: conv, provider: provider(), model: model(),
+        text: 'Find the roadmap and check the weather', prevMessages: [], conversation: conv, provider: provider(), model: extra.model ?? model(),
         reasoningMode: 'automatic', cancelledText: 'Cancelled', errorTitle: 'Failed', errorDetail: 'Try again',
+        ...(extra.transientGenerationParameters ? { transientGenerationParameters: extra.transientGenerationParameters } : {}),
       },
     );
     const assistant = (): ChatMessage | undefined => store.getState().conversations[0].messages.find((message) => message.id === handle.msgId);
@@ -1394,7 +1476,7 @@ describe('library and MCP both on', () => {
     await handle.done;
 
     expectValid(chat.bodies);
-    expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual(['library_search', 'library_list', 'library_read', TIME, WEATHER]);
+    expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual(['library_search', 'library_list', 'library_read', TIME, WEATHER, PROPOSE]);
     const system = String(chat.bodies[0].messages[0].content);
     expect(system).toContain('Use the connected Library tools');
     expect(system).toContain(MCP_SAFETY_PROMPT);
@@ -1423,13 +1505,170 @@ describe('library and MCP both on', () => {
     expect(assistant()!.toolSteps).toHaveLength(4);
   });
 
+  it('a library loop whose first leg carries propose is deterministically rejected and resent without tools: also recorded as degraded', async () => {
+    await seedServer({ enabledIn: ['another-conversation'] });
+    const rejection = { status: 400, body: { error: { message: 'Unrecognized request argument supplied: tools', type: 'invalid_request_error' } } };
+    const chat = scriptChatStream([rejection, textSse('Plain answer.')]);
+    const { handle, assistant } = startLibrary();
+    await handle.done;
+
+    expect(assistant()).toMatchObject({ state: 'delivered', text: 'Plain answer.' });
+    expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual(['library_search', 'library_list', 'library_read', PROPOSE]);
+    expect(chat.bodies[1].tools).toBeUndefined();
+    expect(isProposeMemoryDegraded('provider-1', 'gpt-4o')).toBe(true);
+  });
+
+  it('with visible L3 items in the library loop, search_memory is ordered after propose_memory', async () => {
+    await seedServer({ enabledIn: ['another-conversation'] });
+    const chat = scriptChatStream([textSse('No tools needed.')]);
+    const { handle } = startLibrary([LAPTOP_ITEM]);
+    await handle.done;
+    expectValid(chat.bodies);
+    expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual(['library_search', 'library_list', 'library_read', PROPOSE, SEARCH]);
+  });
+
+  it('json_schema_active_uses_fallback_memory_mode (library loop)', async () => {
+    // With structured output in effect, propose / search are not registered; the library tools stay and json_schema is still sent.
+    const transient = activateJsonSchemaProfile();
+    try {
+      await seedServer({ enabledIn: ['another-conversation'] });
+      const chat = scriptChatStream([textSse('No tools needed.')]);
+      const { handle } = startLibrary([LAPTOP_ITEM], { model: model(JSON_SCHEMA_MODEL), transientGenerationParameters: transient });
+      await handle.done;
+      expectValid(chat.bodies);
+      expectJsonSchemaSent();
+      expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual(['library_search', 'library_list', 'library_read']);
+    } finally {
+      vi.mocked(resolveGenerationProfileRef).mockReturnValue(undefined);
+    }
+  });
+
   it('sends only the three library tools when the library is on but the conversation has no MCP switched on', async () => {
     await seedServer({ enabledIn: ['another-conversation'] });
     const chat = scriptChatStream([textSse('No tools needed.')]);
     const { handle } = startLibrary();
     await handle.done;
     expectValid(chat.bodies);
-    expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual(['library_search', 'library_list', 'library_read']);
+    expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual(['library_search', 'library_list', 'library_read', PROPOSE]);
     expect(JSON.stringify(chat.bodies[0])).not.toContain('mcp_');
+  });
+});
+
+describe('propose_memory in the MCP loop', () => {
+  const REMEMBER_TEXT = 'Remember that I prefer metric units.';
+  const PROPOSE_ARGS = JSON.stringify({
+    proposition: 'The user prefers metric units.', kind: 'preference', scope: 'global', sourceQuote: 'I prefer metric units',
+  });
+
+  it('in mode=tool the last registry entry is propose_memory, and calling only it still wraps up normally', async () => {
+    await seedServer({ enabledIn: ['conv-1'] });
+    const chat = scriptChatStream([proposalSse([{ id: 'p1', name: PROPOSE, args: PROPOSE_ARGS }]), textSse('Noted, metric it is.')]);
+    const { handle, assistant } = start({ text: REMEMBER_TEXT });
+    await handle.done;
+
+    expectValid(chat.bodies);
+    // The last entry is the shared definition as is, tool_choice auto
+    expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual([TIME, WEATHER, PROPOSE]);
+    expect(chat.bodies[0].tools?.at(-1)).toEqual(JSON.parse(JSON.stringify(PROPOSE_MEMORY_TOOL)));
+    expect(chat.bodies[0].toolChoice).toBe('auto');
+    // A fixed tool_result is returned and the loop moves on to the closing leg as usual; the server receives no request at all
+    const toolMessage = chat.bodies[1].messages.find((item) => item.role === 'tool' && item.tool_call_id === 'p1');
+    expect(toolMessage?.content).toBe(PROPOSE_MEMORY_TOOL_RESULT);
+    expect(server.toolCalls()).toEqual([]);
+    const message = assistant()!;
+    expect(message).toMatchObject({ state: 'delivered', text: 'Noted, metric it is.' });
+    // No step is recorded and it does not enter the "no executor" card
+    expect(message.toolSteps).toBeUndefined();
+    expect(message.unhandledToolCalls).toBeUndefined();
+    // The candidate is built through the real repository and hangs under this round's assistant message
+    expect(getPendingMemorySuggestion()).toMatchObject({
+      status: 'candidate', conversationId: 'conv-1', assistantMessageId: handle.msgId,
+      candidate: { status: 'pending', content: 'The user prefers metric units.', proposedKind: 'preference' },
+    });
+  });
+
+  it('is not attached in fallback mode', async () => {
+    await seedServer({ enabledIn: ['conv-1'] });
+    const chat = scriptChatStream([textSse('Sure.')]);
+    const { handle } = start({ conv: { ...conversation(), useMemory: false }, text: REMEMBER_TEXT });
+    await handle.done;
+
+    expectValid(chat.bodies);
+    expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual([TIME, WEATHER]);
+  });
+
+  it('json_schema_active_uses_fallback_memory_mode (MCP loop)', async () => {
+    // With structured output in effect, propose / search are not registered, the candidate uses the fallback, and json_schema is still sent.
+    const transient = activateJsonSchemaProfile();
+    try {
+      await seedServer({ enabledIn: ['conv-1'] });
+      const chat = scriptChatStream([textSse('Sure.')]);
+      const { handle } = start({
+        text: REMEMBER_TEXT, memoryItems: [LAPTOP_ITEM], model: model(JSON_SCHEMA_MODEL), transientGenerationParameters: transient,
+      });
+      await handle.done;
+
+      expectValid(chat.bodies);
+      expectJsonSchemaSent();
+      expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual([TIME, WEATHER]);
+      await vi.waitFor(() => expect(mocks.generateCandidate).toHaveBeenCalledWith(
+        expect.objectContaining({ text: REMEMBER_TEXT, conversationId: 'conv-1' }),
+      ));
+    } finally {
+      vi.mocked(resolveGenerationProfileRef).mockReturnValue(undefined);
+    }
+  });
+
+  it('a first leg whose tools are deterministically rejected is resent without tools: recorded as degraded, this round runs the fallback, and later sends no longer attach it', async () => {
+    await seedServer({ enabledIn: ['conv-1'] });
+    const rejection = { status: 400, body: { error: { message: 'Unrecognized request argument supplied: tools', type: 'invalid_request_error' } } };
+    const chat = scriptChatStream([rejection, textSse('Plain answer.'), textSse('Next.')]);
+    const first = start({ text: REMEMBER_TEXT });
+    await first.handle.done;
+
+    expect(first.assistant()).toMatchObject({ state: 'delivered', text: 'Plain answer.' });
+    expect(chat.bodies[0].tools?.at(-1)?.function.name).toBe(PROPOSE);
+    expect(chat.bodies[1].tools).toBeUndefined();
+    expect(isProposeMemoryDegraded('provider-1', 'gpt-4o')).toBe(true);
+    // The fallback takes the user's original text to generate a candidate
+    await vi.waitFor(() => expect(mocks.generateCandidate).toHaveBeenCalledWith(
+      expect.objectContaining({ text: REMEMBER_TEXT, conversationId: 'conv-1' }),
+    ));
+
+    const second = start({ text: 'What is the weather?' });
+    await second.handle.done;
+    expect(chat.bodies[2].tools?.map((tool) => tool.function.name)).toEqual([TIME, WEATHER]);
+  });
+});
+
+describe('search_memory in the MCP loop', () => {
+  const SEARCH_ARGS = JSON.stringify({ query: 'ThinkPad laptop' });
+
+  it('with visible L3 items it is registered after propose_memory; a call takes one step without recording a step, and the result goes to the next leg and into memoryIds', async () => {
+    await seedServer({ enabledIn: ['conv-1'] });
+    const chat = scriptChatStream([proposalSse([{ id: 's1', name: SEARCH, args: SEARCH_ARGS }]), textSse('You picked the ThinkPad X1.')]);
+    const { handle, assistant } = start({ text: 'Which laptop did I pick?', memoryItems: [LAPTOP_ITEM] });
+    await handle.done;
+
+    expectValid(chat.bodies);
+    expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual([TIME, WEATHER, PROPOSE, SEARCH]);
+    expect(chat.bodies[0].tools?.at(-1)).toEqual(JSON.parse(JSON.stringify(SEARCH_MEMORY_TOOL)));
+    const toolMessage = chat.bodies[1].messages.find((item) => item.role === 'tool' && item.tool_call_id === 's1');
+    expect(toolMessage?.content).toContain('<entry date="2026-10-01">Picked the ThinkPad X1 laptop for travel</entry>');
+    expect(server.toolCalls()).toEqual([]);
+    const message = assistant()!;
+    expect(message).toMatchObject({ state: 'delivered', text: 'You picked the ThinkPad X1.' });
+    expect(message.toolSteps).toBeUndefined();
+    expect(message.unhandledToolCalls).toBeUndefined();
+    expect(message.memoryItemIds).toContain('e-laptop');
+  });
+
+  it('is not registered without L3 items or with memory off', async () => {
+    await seedServer({ enabledIn: ['conv-1'] });
+    const chat = scriptChatStream([textSse('Sure.'), textSse('Sure.')]);
+    await start({ text: 'Which laptop did I pick?' }).handle.done;
+    await start({ conv: { ...conversation(), useMemory: false }, text: 'Which laptop did I pick?', memoryItems: [LAPTOP_ITEM] }).handle.done;
+    expect(chat.bodies[0].tools?.map((tool) => tool.function.name)).toEqual([TIME, WEATHER, PROPOSE]);
+    expect(chat.bodies[1].tools?.map((tool) => tool.function.name)).toEqual([TIME, WEATHER]);
   });
 });

@@ -89,6 +89,7 @@ type MockState = {
   providers: any[];
   account: { email: string } | null;
   activeConversationId: string | null;
+  draftConversationInstructions: string;
   streamingTexts: Record<string, string>;
   streamingMessageIds: Record<string, string>;
   streamingConversationIds: string[];
@@ -98,6 +99,7 @@ type MockState = {
   sidebarOpen: boolean;
   setSidebarOpen: ReturnType<typeof vi.fn>;
   preferences: { memoryText: string; sendShortcut: 'enter' };
+  memoryItems: any[];
   conversations: any[];
   notes: any[];
   catalogSkills: any[];
@@ -641,6 +643,7 @@ beforeEach(async () => {
       ],
       account: null,
       activeConversationId: null,
+      draftConversationInstructions: '',
       streamingTexts: {},
       streamingMessageIds: {},
       streamingConversationIds: [],
@@ -650,6 +653,7 @@ beforeEach(async () => {
       sidebarOpen: false,
       setSidebarOpen: vi.fn(),
       preferences: { memoryText: '', sendShortcut: 'enter' },
+      memoryItems: [],
       conversations: [],
       notes: [],
       catalogSkills: [],
@@ -931,6 +935,45 @@ beforeEach(async () => {
       undefined,
       'warning',
     );
+  });
+
+  // When a send is rejected because the provider is missing, chat_send_blocked carries the conversation's own provider_kind (it survives provider deletion), same as iOS / Android
+  it('reports provider_missing with the conversation provider kind', async () => {
+    const send = vi.fn();
+    mockState.providers = [];
+    mockState.activeConversationId = 'conversation-1';
+    mockState.conversations = [
+      {
+        id: 'conversation-1',
+        title: 'Chat',
+        hasCustomTitle: false,
+        providerID: 'deleted-provider',
+        providerKind: 'anthropic',
+        modelID: 'model-1',
+        previewText: '',
+        estimatedCost: 0,
+        isDraft: false,
+        messages: [],
+        draftText: '',
+        createdAt: '2026-06-19T00:00:00.000Z',
+        updatedAt: '2026-06-19T00:00:00.000Z',
+      },
+    ];
+    mockUseStreamChat.mockReturnValue({
+      send,
+      continueAnswering: vi.fn(),
+      retry: vi.fn(),
+      editAndResend: vi.fn(),
+      stop: vi.fn(),
+    });
+
+    await renderChatView();
+
+    fireEvent.click(screen.getByRole('button', { name: 'type draft' }));
+    fireEvent.click(screen.getByRole('button', { name: 'send draft' }));
+
+    expect(send).not.toHaveBeenCalled();
+    expect(mockReportSendBlocked).toHaveBeenCalledWith('provider_missing', 'anthropic');
   });
 
   // A weak model (no tool calls) never silently falls back to a different panel: there is

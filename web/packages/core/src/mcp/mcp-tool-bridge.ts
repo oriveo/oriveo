@@ -327,12 +327,6 @@ export function mcpLoopLimits(runtimeConfig: McpRuntimeConfig): ToolLoopLimits {
   };
 }
 
-/** Fixed text appended to the system prompt when MCP tools are enabled (fixture `safety-prompt.txt`). */
-export function mcpSystemPrompt(base: string | null | undefined): string {
-  const trimmed = (base ?? '').trim();
-  return trimmed ? `${trimmed}\n\n${MCP_SAFETY_PROMPT}` : MCP_SAFETY_PROMPT;
-}
-
 // ── Execution ────────────────────────────────────────────────────────────
 
 /**

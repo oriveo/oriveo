@@ -17,6 +17,8 @@ import { continueAnswering, retryMessage, sendMessage } from '../operations';
 import { toProviderError } from '../../providers/errors';
 import { generationParameterProfileFingerprint, saveGenerationParameterOverrides, valueOverride } from '../generation-parameter-settings';
 import type { StreamOptions } from '../../providers/types';
+import { CONTEXT_ASSEMBLE_CONSTANTS } from '@oriveo/core/context/assemble';
+import { PROPOSE_MEMORY_TOOL } from '@oriveo/core/context/memory-propose';
 
 const mocks = vi.hoisted(() => ({
   sendStream: vi.fn(),
@@ -44,7 +46,6 @@ vi.mock('../../../utils/chat-stream-utils', () => ({
   buildChatHistory: (...args: unknown[]) => mocks.buildChatHistory(...args),
   readStream: (...args: unknown[]) => mocks.readStream(...args),
   mapErrorKindKey: () => 'network',
-  sanitizeOutboundMessages: (msgs: unknown[]) => msgs,
 }));
 
 vi.mock('../../../utils/stream-image-utils', () => ({
@@ -86,6 +87,7 @@ vi.mock('../continuation-lifecycle', () => ({
   continuationSendCompleted: (...args: unknown[]) => mocks.continuationCompleted(...args),
   continuationSendInterrupted: (...args: unknown[]) => mocks.continuationInterrupted(...args),
   continuationForExplicitContinue: (...args: unknown[]) => mocks.continuationForExplicitContinue(...args),
+  continuationFingerprintForExplicitContinue: async () => undefined,
   continuationCaptured: (...args: unknown[]) => mocks.continuationCaptured(...args),
   deleteLocalMessageContinuation: vi.fn(),
 }));
@@ -99,7 +101,9 @@ vi.mock('../../skills/knowledge-api', () => ({
 }));
 
 vi.mock('../../metadata/metadata-client', () => ({
-  // These fixtures carry no metadata ETag, so identity has no revision and the negative cache fails closed.
+  // These fixtures carry no metadata ETag, so identity has no revision and the negative cache fails closed (same behavior as before).
+  // The send chain reads remote switches (context_reminder_enabled and so on); a missing one counts as on, matching the production default.
+  isRuntimeFeatureEnabled: () => true,
   getMetadataRevision: () => undefined,
   getCapabilityRuntime: () => undefined,
   // The send address is computed per request from endpointSource via requestBaseURLText; these fixtures
@@ -291,7 +295,9 @@ describe('sendMessage happy path', () => {
 
     expect(mocks.sendStream).toHaveBeenCalledWith(
       'openAI', 'sk-test', 'gpt-4o', expect.any(Array), undefined,
-      undefined,
+      // On the main chat path only the output cap plan.budget.oWire is added (when the window is unknown the O chain falls back to 8192).
+      // The default connection is a fresh send in tool mode, so propose_memory is attached (tool_choice auto).
+      { maxOutputTokens: 8192, clientTools: { tools: [PROPOSE_MEMORY_TOOL], toolChoice: 'auto' } },
     );
     const finalOptions = mocks.sendStream.mock.calls[0][5] as StreamOptions;
     expect(finalOptions?.customFragments).toBeUndefined();
@@ -459,40 +465,6 @@ describe('sendMessage happy path', () => {
 
   // Server-side retrieval reuses the same injection pipeline as explicitly named documents, so the
   // model needs no tool capability at all
-  it('does not append an anti-forget reminder even when the stored preference is on', async () => {
-    const provider = makeProvider();
-    const model = makeModel();
-    const conversation = makeConversation();
-    const longHistory = Array.from({ length: 12 }, (_, i) => [
-      { role: 'user', content: `question ${i}` },
-      { role: 'assistant', content: `answer ${i}` },
-    ]).flat();
-    mocks.buildChatHistory.mockResolvedValue([...longHistory, { role: 'user', content: 'What changed?' }]);
-    const store = createAppStore({
-      providers: [provider],
-      preferences: {
-        theme: 'system',
-        language: 'system',
-        sendShortcut: 'enter',
-        memoryText: 'Remember my tone',
-        memoryAntiForgetEnabled: true,
-        memoryAntiForgetText: 'Answer in French',
-      },
-      conversations: [conversation],
-    });
-
-    const handle = sendMessage(
-      { store, appendChunk: vi.fn(), te: (key) => key },
-      { text: 'What changed?', prevMessages: [], conversation, provider, model, reasoningMode: 'automatic' },
-    );
-    await handle.done;
-
-    const history = mocks.sendStream.mock.calls[0][3] as Array<{ role: string; content: string }>;
-    expect(history[0]).toMatchObject({ role: 'system', content: expect.stringContaining('Remember my tone') });
-    expect(JSON.stringify(history)).not.toContain('[Reminder:');
-    expect(history.at(-1)).toEqual({ role: 'user', content: 'What changed?' });
-  });
-
   it('server-side retrieval injects an envelope plus identity-only citations and sets the retry flag', async () => {
     const provider = makeProvider();
     const model = makeModel();
@@ -532,12 +504,11 @@ describe('sendMessage happy path', () => {
     );
 
     const history = mocks.sendStream.mock.calls[0][3] as Array<{ role: string; content: string }>;
-    expect(history[0]).toMatchObject({
-      role: 'system',
-      content: expect.stringContaining('untrusted evidence'),
-    });
+    // Library evidence goes into [D]: one entry per article at the end of the current user text, and system carries no explanatory sentence.
+    expect(history.some((message) => message.role === 'system')).toBe(false);
     const lastUser = [...history].reverse().find((message) => message.role === 'user');
-    expect(lastUser?.content).toContain('<library_context>');
+    expect(lastUser?.content).toContain('<oriveo-library>');
+    expect(lastUser?.content).toContain('<entry citation="1" title="Q3 Roadmap">Launch\nShip in September.</entry>');
     expect(lastUser?.content).toContain('Ship in September.');
 
     const assistant = store.getState().conversations
@@ -670,9 +641,9 @@ describe('sendMessage happy path', () => {
     const sentMessages = mocks.sendStream.mock.calls[0][3] as Array<{ role: string; content: string }>;
     expect(sentMessages[0]).toMatchObject({
       role: 'system',
-      content: expect.stringContaining('[Pinned Notes - untrusted user-saved reference data]'),
+      content: expect.stringContaining('<oriveo-notes>'),
     });
-    expect(sentMessages[0].content).toContain('"title":"Vector recall"');
+    expect(sentMessages[0].content).toContain('<entry title="Vector recall">');
     expect(sentMessages[0].content).toContain('Use tags first, then keywords.');
   });
 
@@ -723,11 +694,10 @@ describe('sendMessage happy path', () => {
       }),
     );
     const history = mocks.sendStream.mock.calls[0][3] as Array<{ role: string; content: string }>;
-    expect(history[0]).toMatchObject({
-      role: 'system',
-      content: expect.stringContaining('untrusted evidence'),
-    });
-    expect(history.at(-1)?.content).toContain('<library_context>');
+    // Library evidence goes into [D]: one entry per article at the end of the current user text, and system carries no explanatory sentence.
+    expect(history.some((message) => message.role === 'system')).toBe(false);
+    expect(history.at(-1)?.content).toContain('<oriveo-library>');
+    expect(history.at(-1)?.content).toContain('<entry citation="1" title="Q3 Roadmap">Launch\nShip in September.</entry>');
     expect(history.at(-1)?.content).toContain('Ship in September.');
 
     const assistant = store.getState().conversations[0]?.messages.find((message) => message.role === 'assistant');
@@ -933,13 +903,22 @@ describe('single-use transientGenerationParameters wiring', () => {
     const interrupted = { id: 'a-explicit', role: 'assistant', text: 'partial', state: 'interrupted', createdAt: '2026-04-12T00:00:00.001Z' } as ChatMessage;
     const conversation = makeConversation({ messages: [user, interrupted] });
     const store = createAppStore({ providers: [provider], conversations: [conversation] });
+    mocks.buildChatHistory.mockImplementationOnce(async (messages: ChatMessage[]) =>
+      messages.map((message) => ({ role: message.role, content: message.text })));
     const handle = continueAnswering({ store, appendChunk: vi.fn(), te: (key) => key }, { messageId: interrupted.id, conversation, messages: [user, interrupted], provider, model, reasoningMode: 'automatic' });
     await handle.done;
     expect(mocks.continuationForExplicitContinue).toHaveBeenCalledWith(conversation.id, interrupted.id);
     expect(mocks.continuationStarted).toHaveBeenCalledWith(conversation.id, interrupted.id);
     expect(mocks.continuationCompleted).toHaveBeenCalledWith(conversation.id, interrupted.id);
-    // previous_id owns the old transcript; the real pipeline receives only the new explicit user input.
-    expect(mocks.sendStream.mock.calls.at(-1)?.[3]).toEqual([{ role: 'user', content: '[Continue from where you left off]' }]);
+    // The recipe did not confirm the continuation mode (state has no instructionsMode) and the previous leg's fingerprint is unavailable: full plan --
+    // history is cut up to the target (inclusive) plus the core continuation sentence; the continuation state and the "everything changed" fingerprint are passed to core as is.
+    const sent = mocks.sendStream.mock.calls.at(-1)!;
+    expect((sent[3] as Array<{ role: string }>).filter((message) => message.role !== 'system')).toEqual([
+      { role: 'user', content: 'question' },
+      { role: 'assistant', content: 'partial' },
+      { role: 'user', content: CONTEXT_ASSEMBLE_CONSTANTS.continuePrompt },
+    ]);
+    expect((sent[5] as StreamOptions).continuationFingerprint).toEqual({ systemChanged: true, modelChanged: true, checkpointChanged: true });
   });
 });
 
@@ -1084,7 +1063,8 @@ describe('a failed half round is not synced (whole-round atomic sync)', () => {
 
     const history = mocks.sendStream.mock.calls[0][3] as Array<{ role: string; content: string }>;
     expect(history[0].role).toBe('system');
-    expect(history[0].content).toContain('[Pinned Notes - untrusted user-saved reference data]');
+    // The continuation system is the continue plan.system (the same one as chat; pinned notes go into <oriveo-notes>).
+    expect(history[0].content).toContain('<oriveo-notes>');
     expect(history[0].content).toContain('Vector recall');
     expect(history[0].content).toContain('Use the vector-store notes.');
   });

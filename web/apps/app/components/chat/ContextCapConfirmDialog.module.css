@@ -1,0 +1,37 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  color: var(--o-text);
+  font-size: var(--o-text-lg);
+  font-weight: 600;
+}
+
+/* When both fire the body is two sentences, joined by a line break (the over-cap sentence + the price-tier sentence). */
+.message {
+  margin: 0;
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-sm);
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.dontAsk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-sm);
+  cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}

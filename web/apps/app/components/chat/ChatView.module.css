@@ -265,7 +265,9 @@
   display: flex;
   align-items: center;
   gap: var(--o-space-sm);
-  padding: var(--o-space-xs) var(--o-space-lg);
+  margin-bottom: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
   background: color-mix(in srgb, var(--o-warning) 8%, transparent);
   flex-shrink: 0;
 }

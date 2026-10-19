@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useRef, useCallback, useEffect, useLayoutEffect, useState, useId } from 'react';
+import { useRef, useCallback, useEffect, useLayoutEffect, useState, useId, useSyncExternalStore } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import type { Attachment, AIModel, Provider, ReasoningMode, SendShortcut, QuoteContext } from '@oriveo/shared';
 import { AttachmentPreview } from './AttachmentPreview';
@@ -28,6 +28,7 @@ import type { ReasoningIntent } from '@oriveo/core/providers/request-preference/
 import { CHAT_INPUT_MAX_LENGTH, applyInputLengthLimit, limitInsertion } from '../../lib/utils/grapheme-utils';
 import { getNumberFormatter } from '../../lib/utils/format-utils';
 import { showToast } from '../Toast';
+import { cancelCompaction, isAICompacting, subscribeAICompacting } from '../../lib/core/chat/context-pipeline/compaction-coordinator';
 
 export interface AttachedNoteRef {
   id: string;
@@ -100,6 +101,8 @@ interface InputComposerProps {
    * appears above the input and sending is disabled; "Choose model" goes through onOpenModelSwitcher.
    */
   modelRemovedConnectionName?: string;
+  /** Extra notices in the composer card's notice slot (the third-tidy-up notice, the expensive-model notice, etc.), sharing the slot with "model removed". */
+  composerNotices?: React.ReactNode;
   /** The only way forward when the relay protocol is undetermined: the panel does not route itself, ChatView pushes the provider detail page. */
   onOpenConnectionSettings?: () => void;
   onOpenConnectionWebSearch?: () => void;
@@ -130,12 +133,16 @@ interface InputComposerProps {
   quoteContext?: QuoteContext;
   onRemoveQuote?: () => void;
   quoteFocusSignal?: number;
+  /** Textarea focused, or its text went from empty to non-empty by user input (context precompaction hook). */
+  onComposerEngaged?: () => void;
   /**
    * An extra control at the end of the toolbar (the remote MCP "Tools" chip and its popover). The
    * control owns its state and popover; it sits here because the popover is positioned relative to
    * the composer.
    */
   toolsExtra?: React.ReactNode;
+  /** Fixed slot between the tools row and the send button (context usage ring); does not scroll with tools. */
+  toolsTrailing?: React.ReactNode;
 }
 
 function formatPreviewDate(iso?: string): string | undefined {
@@ -299,6 +306,7 @@ function insertIntoTextarea(el: HTMLTextAreaElement, text: string, start: number
 }
 
 export function InputComposer({
+  composerNotices,
   value,
   onChange,
   onSend,
@@ -349,7 +357,9 @@ export function InputComposer({
   quoteContext,
   onRemoveQuote,
   quoteFocusSignal,
+  onComposerEngaged,
   toolsExtra,
+  toolsTrailing,
 }: InputComposerProps) {
   const t = useTranslations('pages.chat');
   // These session-scope labels live in the shared `common` contract. Keeping this namespace
@@ -584,6 +594,7 @@ export function InputComposer({
         suppressSendRestoreRef.current = false;
         lastSentValueRef.current = '';
       }
+      if (value === '' && next !== '') onComposerEngaged?.();
       // Do not judge during composition: cutting the pending pinyin string would interrupt the IME.
       // handleCompositionEnd judges after the text is committed. The event's own isComposing wins
       // (so a missing compositionend cannot leave the limit off for good); only events without
@@ -599,8 +610,12 @@ export function InputComposer({
       }
       commitUserEdit(el, value);
     },
-    [commitUserEdit, onChange, revertSuppressedRestore, value],
+    [commitUserEdit, onChange, onComposerEngaged, revertSuppressedRestore, value],
   );
+
+  const handleComposerFocus = useCallback(() => {
+    onComposerEngaged?.();
+  }, [onComposerEngaged]);
 
   const handleCompositionStart = useCallback(
     (e: React.CompositionEvent<HTMLTextAreaElement>) => {
@@ -655,6 +670,13 @@ export function InputComposer({
   const acceptTypes = buildAcceptAttribute(generationParameterProvider, currentModel, providerAttachmentSupport);
 
   const hasAttachments = attachments.length > 0;
+  // Context compaction: only while an AI summary call is in flight for this conversation.
+  const subscribeCompacting = useCallback((onChange: () => void) => subscribeAICompacting(() => onChange()), []);
+  const contextCompacting = useSyncExternalStore(
+    subscribeCompacting,
+    () => (generationParameterConversationId ? isAICompacting(generationParameterConversationId) : false),
+    () => false,
+  );
   const capabilityRuntimeReadOnly = isStreaming || Boolean(disabled);
   const capabilityRuntimeReadOnlyReason = isStreaming
     ? t('aiAnswering')
@@ -770,6 +792,20 @@ export function InputComposer({
             </button>
           </div>
         )}
+        {contextCompacting && generationParameterConversationId && (
+          <div className={styles.attachmentSyncBanner} role="status" data-testid="context-compacting-status">
+            <span className={styles.modelRemovedBannerText}>{t('contextCompaction.inProgress')}</span>
+            <button
+              type="button"
+              className={styles.modelRemovedBannerAction}
+              onClick={() => cancelCompaction(generationParameterConversationId)}
+            >
+              {t('contextCompaction.cancel')}
+            </button>
+          </div>
+        )}
+        {composerNotices}
+
         {/* Attachment preview */}
         {attachments.length > 0 && (
           <AttachmentPreview
@@ -786,6 +822,7 @@ export function InputComposer({
           placeholder={isStreaming ? t('aiAnswering') : (placeholderOverride ?? t('placeholder'))}
           value={value}
           onChange={handleTextChange}
+          onFocus={handleComposerFocus}
           onCompositionStart={handleCompositionStart}
           onCompositionEnd={handleCompositionEnd}
           onKeyDown={handleKeyDown}
@@ -887,6 +924,8 @@ export function InputComposer({
               )}
               {toolsExtra}
           </div>
+
+          {toolsTrailing}
 
           {isStreaming ? (
             <button
