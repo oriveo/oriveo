@@ -132,7 +132,8 @@ final class GenerationParameterPresetStore: @unchecked Sendable {
     }
 
     private func writeLocked(_ records: [GenerationParameterPreset]) {
-        if let data = try? JSONEncoder().encode(records) {
+        // Skip the write when the bytes are unchanged (contract `wireInvariants.inboundMergeIsQuiescent`).
+        if let data = try? JSONEncoder.stableStorage.encode(records), defaults.data(forKey: key) != data {
             defaults.set(data, forKey: key)
         }
     }

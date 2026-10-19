@@ -1658,8 +1658,11 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         Array(records.sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }.prefix(maximumRecordCount))
     }
 
+    /// Skip the write when the bytes are unchanged, so merging the same envelope twice leaves storage
+    /// untouched (contract `wireInvariants.inboundMergeIsQuiescent`).
     private func writeRecordsLocked(_ records: [Record]) {
-        guard let data = try? JSONEncoder().encode(records) else { return }
+        guard let data = try? JSONEncoder.stableStorage.encode(records),
+              defaults.data(forKey: storageKey) != data else { return }
         defaults.set(data, forKey: storageKey)
     }
 
@@ -1670,7 +1673,9 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
 
     private func writeCapabilityRecordsLocked(_ records: [CapabilityRecord]) {
         let capped = Array(records.sorted { $0.updatedAt > $1.updatedAt }.prefix(maximumRecordCount))
-        guard let data = try? JSONEncoder().encode(capped) else { return }
+        // Same as `writeRecordsLocked`: unchanged bytes are not rewritten.
+        guard let data = try? JSONEncoder.stableStorage.encode(capped),
+              defaults.data(forKey: capabilityStorageKey) != data else { return }
         defaults.set(data, forKey: capabilityStorageKey)
     }
 
@@ -1955,7 +1960,9 @@ enum GenerationParameterSyncContract {
             )] = .init(updatedAt: record.updatedAt)
         }
         var previousPresetTimestamps: [String: Date] = [:]
+        var previousPresetCreatedAt: [UUID: Date] = [:]
         for preset in presetStore.syncRecords() {
+            previousPresetCreatedAt[preset.id] = preset.createdAt
             previousPresetTimestamps[syncVersionKey(
                 recordID: "preset:\(preset.id.uuidString.lowercased())",
                 revision: max(1, preset.revision ?? 1),
@@ -2042,7 +2049,8 @@ enum GenerationParameterSyncContract {
                 profileFingerprint: "",
                 syncProfileKey: value.profileKey,
                 values: .init(values: value.values),
-                createdAt: ISO8601DateFormatter.generationParameters.date(from: value.createdAt) ?? Date(),
+                createdAt: ISO8601DateFormatter.generationParametersDate(from: value.createdAt)
+                    ?? previousPresetCreatedAt[id] ?? mergedAt,
                 updatedAt: previousPresetTimestamps[timestampKey] ?? mergedAt,
                 revision: value.revision,
                 mutationID: value.mutationId
@@ -2288,6 +2296,13 @@ enum CapabilityPreferenceSyncContract {
             value.record == nil ? CapabilityPreferenceSyncTombstone(recordId: id, revision: value.revision, mutationId: value.mutationId) : nil
         }.sorted { $0.recordId < $1.recordId }
         let merged = CapabilityPreferenceSyncPayload(schemaVersion: 2, records: Array(mergedRecords.prefix(200)), tombstones: Array(mergedTombstones.suffix(300)))
+        // Keep the local updatedAt for the same version (recordId + revision + mutationId). Stamping
+        // `Date()` on every merge would make the stored bytes differ each time and defeat the unchanged-bytes check.
+        var previousUpdatedAt: [String: Date] = [:]
+        for record in settings.capabilitySyncRecords() {
+            previousUpdatedAt["\(recordID(for: record))|\(record.revision)|\(record.mutationID)"] = record.updatedAt
+        }
+        let mergedAt = Date()
         settings.replaceCapabilitySyncRecords(merged.records.compactMap { record in
             guard let providerID = UUID(uuidString: record.providerId) else { return nil }
             let conversationID = record.conversationId.flatMap(UUID.init(uuidString:))
@@ -2309,7 +2324,8 @@ enum CapabilityPreferenceSyncContract {
                 conversationID: conversationID, skillID: skillID,
                 transportIdentity: record.transportIdentity,
                 values: .init(web: record.web, reasoningIntent: record.reasoningIntent),
-                updatedAt: Date(), revision: record.revision, mutationID: record.mutationId
+                updatedAt: previousUpdatedAt["\(record.recordId)|\(record.revision)|\(record.mutationId)"] ?? mergedAt,
+                revision: record.revision, mutationID: record.mutationId
             )
         })
         CapabilityPreferenceSyncLedger.replace(merged.tombstones ?? [], defaults: settings.defaults)
@@ -2435,11 +2451,30 @@ enum CapabilityPreferenceSyncContract {
     }
 }
 
+extension JSONEncoder {
+    /// Storage encoding with a fixed key order. Swift keyed containers emit keys in a random order on
+    /// each encode, so identical content would otherwise produce different bytes every time.
+    static var stableStorage: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return encoder
+    }
+}
+
 private extension ISO8601DateFormatter {
     static var generationParameters: ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
+    }
+
+    /// Also accept timestamps without fractional seconds (older Android exports wrote whole seconds as
+    /// `…00Z`). Failing to parse would fall back to a fresh date on every merge (contract `inboundMergeIsQuiescent`).
+    static func generationParametersDate(from value: String) -> Date? {
+        if let date = generationParameters.date(from: value) { return date }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
     }
 }
 

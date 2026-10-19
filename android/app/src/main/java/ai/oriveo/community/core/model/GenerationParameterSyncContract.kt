@@ -13,7 +13,17 @@ import kotlinx.serialization.json.doubleOrNull
 import ai.oriveo.community.core.util.canonicalSyncId
 import ai.oriveo.community.core.util.normalizeUuid
 import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.UUID
+
+/**
+ * Wire form of a preset `createdAt`: UTC with exactly three millisecond digits (contract
+ * `wireInvariants.timestampFormat`). `Instant.toString()` drops the fraction on whole seconds, which
+ * no longer matches the `.000Z` form iOS and Web emit for the same instant.
+ */
+private val WIRE_TIMESTAMP: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
 
 @Serializable
 data class GenerationParameterSyncRecord(
@@ -152,7 +162,7 @@ class GenerationParameterSyncContract(
                 modelId = preset.modelID,
                 profileKey = profileKey,
                 values = values,
-                createdAt = Instant.ofEpochMilli(preset.createdAt).toString(),
+                createdAt = WIRE_TIMESTAMP.format(Instant.ofEpochMilli(preset.createdAt)),
                 revision = (preset.revision ?: 1).coerceAtLeast(1),
                 mutationId = preset.mutationID ?: "legacy",
             )
