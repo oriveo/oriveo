@@ -1731,7 +1731,7 @@
       "editorCategory": "Kategori",
       "editorTooLong": "Maksimal 2.000 karakter",
       "deleteConfirmTitle": "Hapus memori ini?",
-      "deleteConfirmBody": "Memori ini akan dihapus dari semua perangkat Anda.",
+      "deleteConfirmBody": "Memori ini akan dihapus permanen dari perangkat ini.",
       "actionOrganize": "Pecah menjadi entri",
       "rawView": "Teks biasa",
       "rawViewHint": "Pisahkan setiap entri dengan baris yang hanya berisi ---.",

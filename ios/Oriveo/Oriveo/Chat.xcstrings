@@ -28536,97 +28536,97 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "سيُحذف من جميع أجهزتك."
+            "value" : "سيُحذف نهائيًا من هذا الجهاز."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sie wird auf all deinen Geräten gelöscht."
+            "value" : "Sie wird endgültig von diesem Gerät gelöscht."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "It will be removed from all your devices."
+            "value" : "It will be permanently deleted from this device."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se eliminará de todos tus dispositivos."
+            "value" : "Se eliminará de forma permanente de este dispositivo."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Il sera supprimé de tous vos appareils."
+            "value" : "Il sera définitivement supprimé de cet appareil."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "यह आपके सभी डिवाइस से हट जाएगी।"
+            "value" : "यह इस डिवाइस से हमेशा के लिए हट जाएगी।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Memori ini akan dihapus dari semua perangkat Anda."
+            "value" : "Memori ini akan dihapus permanen dari perangkat ini."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "すべての端末から削除されます。"
+            "value" : "この端末から完全に削除されます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "모든 기기에서 삭제돼요."
+            "value" : "이 기기에서 영구적으로 삭제돼요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ela será excluída de todos os seus dispositivos."
+            "value" : "Ela será excluída permanentemente deste dispositivo."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Она будет удалена на всех ваших устройствах."
+            "value" : "Она будет безвозвратно удалена с этого устройства."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "จะถูกลบออกจากทุกเครื่องของคุณ"
+            "value" : "จะถูกลบออกจากเครื่องนี้อย่างถาวร"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tüm cihazlarınızdan silinir."
+            "value" : "Bu cihazdan kalıcı olarak silinir."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mục này sẽ bị xóa trên mọi thiết bị của bạn."
+            "value" : "Mục này sẽ bị xóa vĩnh viễn khỏi thiết bị này."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "所有设备上都会删除。"
+            "value" : "将从这台设备上永久删除。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "所有裝置上都會刪除。"
+            "value" : "將從這台裝置上永久刪除。"
           }
         }
       }

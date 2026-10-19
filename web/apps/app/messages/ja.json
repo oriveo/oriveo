@@ -1731,7 +1731,7 @@
       "editorCategory": "カテゴリー",
       "editorTooLong": "2,000文字まで",
       "deleteConfirmTitle": "このメモリーを削除しますか？",
-      "deleteConfirmBody": "すべての端末から削除されます。",
+      "deleteConfirmBody": "この端末から完全に削除されます。",
       "actionOrganize": "項目に分ける",
       "rawView": "プレーンテキスト",
       "rawViewHint": "項目と項目のあいだは「---」だけの行で区切ってください。",

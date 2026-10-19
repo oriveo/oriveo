@@ -1731,7 +1731,7 @@
       "editorCategory": "Category",
       "editorTooLong": "Up to 2,000 characters",
       "deleteConfirmTitle": "Delete this memory?",
-      "deleteConfirmBody": "It will be removed from all your devices.",
+      "deleteConfirmBody": "It will be permanently deleted from this device.",
       "actionOrganize": "Split into items",
       "rawView": "Plain text",
       "rawViewHint": "Put a line with only --- between entries.",

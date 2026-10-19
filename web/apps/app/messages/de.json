@@ -1731,7 +1731,7 @@
       "editorCategory": "Kategorie",
       "editorTooLong": "Höchstens 2.000 Zeichen",
       "deleteConfirmTitle": "Diese Erinnerung löschen?",
-      "deleteConfirmBody": "Sie wird auf all deinen Geräten gelöscht.",
+      "deleteConfirmBody": "Sie wird endgültig von diesem Gerät gelöscht.",
       "actionOrganize": "In Einträge aufteilen",
       "rawView": "Reiner Text",
       "rawViewHint": "Trenne Einträge durch eine Zeile, die nur --- enthält.",

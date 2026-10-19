@@ -2238,7 +2238,7 @@
     <string name="memory_editor_category">Kategori</string>
     <string name="memory_editor_too_long">En fazla 2.000 karakter</string>
     <string name="memory_delete_confirm_title">Bu bellek kaydı silinsin mi?</string>
-    <string name="memory_delete_confirm_body">Tüm cihazlarınızdan silinir.</string>
+    <string name="memory_delete_confirm_body">Bu cihazdan kalıcı olarak silinir.</string>
     <string name="memory_action_organize">Kayıtlara ayır</string>
     <string name="memory_raw_view">Düz metin</string>
     <string name="memory_raw_view_hint">Kayıtları yalnızca --- içeren bir satırla ayırın.</string>

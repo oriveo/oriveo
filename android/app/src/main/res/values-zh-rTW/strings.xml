@@ -2256,7 +2256,7 @@
     <string name="memory_editor_category">分類</string>
     <string name="memory_editor_too_long">最多 2000 字</string>
     <string name="memory_delete_confirm_title">要刪除這則記憶嗎？</string>
-    <string name="memory_delete_confirm_body">所有裝置上都會刪除。</string>
+    <string name="memory_delete_confirm_body">將從這台裝置上永久刪除。</string>
     <string name="memory_action_organize">整理成多則</string>
     <string name="memory_raw_view">原文</string>
     <string name="memory_raw_view_hint">每則之間用單獨一行「---」分隔。</string>

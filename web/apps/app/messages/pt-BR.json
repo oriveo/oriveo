@@ -1731,7 +1731,7 @@
       "editorCategory": "Categoria",
       "editorTooLong": "Máximo de 2.000 caracteres",
       "deleteConfirmTitle": "Excluir esta memória?",
-      "deleteConfirmBody": "Ela será excluída de todos os seus dispositivos.",
+      "deleteConfirmBody": "Ela será excluída permanentemente deste dispositivo.",
       "actionOrganize": "Dividir em itens",
       "rawView": "Texto simples",
       "rawViewHint": "Separe as entradas com uma linha contendo apenas ---.",

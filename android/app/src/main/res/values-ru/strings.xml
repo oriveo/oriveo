@@ -2314,7 +2314,7 @@
     <string name="memory_editor_category">Категория</string>
     <string name="memory_editor_too_long">Не больше 2000 символов</string>
     <string name="memory_delete_confirm_title">Удалить эту запись?</string>
-    <string name="memory_delete_confirm_body">Она будет удалена на всех ваших устройствах.</string>
+    <string name="memory_delete_confirm_body">Она будет безвозвратно удалена с этого устройства.</string>
     <string name="memory_action_organize">Разбить на записи</string>
     <string name="memory_raw_view">Обычный текст</string>
     <string name="memory_raw_view_hint">Разделяйте записи строкой, в которой есть только ---.</string>

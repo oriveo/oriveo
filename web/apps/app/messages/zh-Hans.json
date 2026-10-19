@@ -1731,7 +1731,7 @@
       "editorCategory": "分类",
       "editorTooLong": "最多 2000 字",
       "deleteConfirmTitle": "删除这条记忆？",
-      "deleteConfirmBody": "所有设备上都会删除。",
+      "deleteConfirmBody": "将从这台设备上永久删除。",
       "actionOrganize": "整理成条目",
       "rawView": "原文",
       "rawViewHint": "每条之间用单独一行「---」分隔。",

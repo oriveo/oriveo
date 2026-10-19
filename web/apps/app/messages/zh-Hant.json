@@ -1731,7 +1731,7 @@
       "editorCategory": "分類",
       "editorTooLong": "最多 2000 字",
       "deleteConfirmTitle": "要刪除這則記憶嗎？",
-      "deleteConfirmBody": "所有裝置上都會刪除。",
+      "deleteConfirmBody": "將從這台裝置上永久刪除。",
       "actionOrganize": "整理成多則",
       "rawView": "原文",
       "rawViewHint": "每則之間用單獨一行「---」分隔。",

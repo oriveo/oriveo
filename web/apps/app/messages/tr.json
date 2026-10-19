@@ -1731,7 +1731,7 @@
       "editorCategory": "Kategori",
       "editorTooLong": "En fazla 2.000 karakter",
       "deleteConfirmTitle": "Bu bellek kaydı silinsin mi?",
-      "deleteConfirmBody": "Tüm cihazlarınızdan silinir.",
+      "deleteConfirmBody": "Bu cihazdan kalıcı olarak silinir.",
       "actionOrganize": "Kayıtlara ayır",
       "rawView": "Düz metin",
       "rawViewHint": "Kayıtları yalnızca --- içeren bir satırla ayırın.",

@@ -1731,7 +1731,7 @@
       "editorCategory": "الفئة",
       "editorTooLong": "الحد الأقصى 2000 حرف",
       "deleteConfirmTitle": "حذف عنصر الذاكرة هذا؟",
-      "deleteConfirmBody": "سيُحذف من جميع أجهزتك.",
+      "deleteConfirmBody": "سيُحذف نهائيًا من هذا الجهاز.",
       "actionOrganize": "تقسيم إلى عناصر",
       "rawView": "نص عادي",
       "rawViewHint": "يُفصل بين العناصر بسطر لا يحتوي إلا على ---.",

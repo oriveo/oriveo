@@ -2283,7 +2283,7 @@
     <string name="memory_editor_category">Kategorie</string>
     <string name="memory_editor_too_long">Höchstens 2.000 Zeichen</string>
     <string name="memory_delete_confirm_title">Diese Erinnerung löschen?</string>
-    <string name="memory_delete_confirm_body">Sie wird auf all deinen Geräten gelöscht.</string>
+    <string name="memory_delete_confirm_body">Sie wird endgültig von diesem Gerät gelöscht.</string>
     <string name="memory_action_organize">In Einträge aufteilen</string>
     <string name="memory_raw_view">Reiner Text</string>
     <string name="memory_raw_view_hint">Trenne Einträge durch eine Zeile, die nur --- enthält.</string>

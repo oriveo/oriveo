@@ -2302,7 +2302,7 @@
     <string name="memory_editor_category">Catégorie</string>
     <string name="memory_editor_too_long">2 000 caractères maximum</string>
     <string name="memory_delete_confirm_title">Supprimer ce souvenir ?</string>
-    <string name="memory_delete_confirm_body">Il sera supprimé de tous vos appareils.</string>
+    <string name="memory_delete_confirm_body">Il sera définitivement supprimé de cet appareil.</string>
     <string name="memory_action_organize">Diviser en entrées</string>
     <string name="memory_raw_view">Texte brut</string>
     <string name="memory_raw_view_hint">Séparez les entrées par une ligne ne contenant que ---.</string>

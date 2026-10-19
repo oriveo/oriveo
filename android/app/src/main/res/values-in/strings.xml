@@ -2200,7 +2200,7 @@
     <string name="memory_editor_category">Kategori</string>
     <string name="memory_editor_too_long">Maksimal 2.000 karakter</string>
     <string name="memory_delete_confirm_title">Hapus memori ini?</string>
-    <string name="memory_delete_confirm_body">Memori ini akan dihapus dari semua perangkat Anda.</string>
+    <string name="memory_delete_confirm_body">Memori ini akan dihapus permanen dari perangkat ini.</string>
     <string name="memory_action_organize">Pecah menjadi entri</string>
     <string name="memory_raw_view">Teks biasa</string>
     <string name="memory_raw_view_hint">Pisahkan setiap entri dengan baris yang hanya berisi ---.</string>

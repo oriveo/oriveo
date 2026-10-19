@@ -1731,7 +1731,7 @@
       "editorCategory": "श्रेणी",
       "editorTooLong": "ज़्यादा से ज़्यादा 2,000 अक्षर",
       "deleteConfirmTitle": "यह मेमोरी हटाएँ?",
-      "deleteConfirmBody": "यह आपके सभी डिवाइस से हट जाएगी।",
+      "deleteConfirmBody": "यह इस डिवाइस से हमेशा के लिए हट जाएगी।",
       "actionOrganize": "अलग-अलग आइटम में बाँटें",
       "rawView": "सादा टेक्स्ट",
       "rawViewHint": "हर दो आइटम के बीच एक अलग पंक्ति में सिर्फ़ --- लिखें।",

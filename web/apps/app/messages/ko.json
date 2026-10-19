@@ -1731,7 +1731,7 @@
       "editorCategory": "카테고리",
       "editorTooLong": "최대 2,000자",
       "deleteConfirmTitle": "이 메모리를 삭제할까요?",
-      "deleteConfirmBody": "모든 기기에서 삭제돼요.",
+      "deleteConfirmBody": "이 기기에서 영구적으로 삭제돼요.",
       "actionOrganize": "항목으로 나누기",
       "rawView": "일반 텍스트",
       "rawViewHint": "항목 사이에 ---만 있는 줄을 넣어 구분하세요.",

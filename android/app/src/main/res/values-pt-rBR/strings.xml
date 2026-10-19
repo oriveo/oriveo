@@ -2302,7 +2302,7 @@
     <string name="memory_editor_category">Categoria</string>
     <string name="memory_editor_too_long">Máximo de 2.000 caracteres</string>
     <string name="memory_delete_confirm_title">Excluir esta memória?</string>
-    <string name="memory_delete_confirm_body">Ela será excluída de todos os seus dispositivos.</string>
+    <string name="memory_delete_confirm_body">Ela será excluída permanentemente deste dispositivo.</string>
     <string name="memory_action_organize">Dividir em itens</string>
     <string name="memory_raw_view">Texto simples</string>
     <string name="memory_raw_view_hint">Separe as entradas com uma linha contendo apenas ---.</string>

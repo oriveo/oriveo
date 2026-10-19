@@ -1731,7 +1731,7 @@
       "editorCategory": "Catégorie",
       "editorTooLong": "2 000 caractères maximum",
       "deleteConfirmTitle": "Supprimer ce souvenir ?",
-      "deleteConfirmBody": "Il sera supprimé de tous vos appareils.",
+      "deleteConfirmBody": "Il sera définitivement supprimé de cet appareil.",
       "actionOrganize": "Diviser en entrées",
       "rawView": "Texte brut",
       "rawViewHint": "Séparez les entrées par une ligne ne contenant que ---.",

@@ -2200,7 +2200,7 @@
     <string name="memory_editor_category">หมวดหมู่</string>
     <string name="memory_editor_too_long">สูงสุด 2,000 ตัวอักษร</string>
     <string name="memory_delete_confirm_title">ลบความจำนี้ไหม</string>
-    <string name="memory_delete_confirm_body">จะถูกลบออกจากทุกเครื่องของคุณ</string>
+    <string name="memory_delete_confirm_body">จะถูกลบออกจากเครื่องนี้อย่างถาวร</string>
     <string name="memory_action_organize">แยกเป็นรายการ</string>
     <string name="memory_raw_view">ข้อความธรรมดา</string>
     <string name="memory_raw_view_hint">คั่นแต่ละรายการด้วยบรรทัดที่มีแค่ ---</string>

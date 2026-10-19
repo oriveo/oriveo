@@ -2435,7 +2435,7 @@
     <string name="memory_editor_category">الفئة</string>
     <string name="memory_editor_too_long">الحد الأقصى 2000 حرف</string>
     <string name="memory_delete_confirm_title">حذف عنصر الذاكرة هذا؟</string>
-    <string name="memory_delete_confirm_body">سيُحذف من جميع أجهزتك.</string>
+    <string name="memory_delete_confirm_body">سيُحذف نهائيًا من هذا الجهاز.</string>
     <string name="memory_action_organize">تقسيم إلى عناصر</string>
     <string name="memory_raw_view">نص عادي</string>
     <string name="memory_raw_view_hint">يُفصل بين العناصر بسطر لا يحتوي إلا على ---.</string>
