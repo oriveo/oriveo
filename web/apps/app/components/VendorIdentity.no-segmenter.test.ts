@@ -26,7 +26,7 @@ describe('VendorIdentity without Intl.Segmenter', () => {
   it('imports without throwing and the monogram falls back to code points', async () => {
     const mod = await import('./VendorIdentity');
     expect(mod.vendorMonogram('Other')).toBe('OT');
-    expect(mod.vendorMonogram('その他')).toBe('その');
+    expect(mod.vendorMonogram('\u305d\u306e\u4ed6')).toBe('\u305d\u306e');
     expect(mod.vendorMonogram('Totally Unknown')).toBe('TU');
     expect(mod.vendorMonogram('')).toBe('AI');
   });
