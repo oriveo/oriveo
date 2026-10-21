@@ -35,6 +35,7 @@ import {
   resolveFileAttachmentDelivery,
 } from '../core/attachments/attachment-delivery';
 import { applyOutboundAttachmentBudget } from '../core/attachments/outbound-attachment-budget';
+import { RELAY_IMAGE_CHAT_MODEL_REQUIRED_KIND, RELAY_IMAGE_TRANSPORT_UNSUPPORTED_KIND } from '../core/providers/relay-image-route-error';
 
 /**
  * Build the chat history sent to a provider, including content parts.
@@ -299,6 +300,8 @@ export function mapErrorKindKey(kind: string | undefined): string {
   // The attachments of this turn do not fit: the request was never sent, so this is not a provider failure.
   // The title is the neutral "request failed" and the body is the stored explanation.
   if (isAttachmentOverLimitCode(k)) return 'requestFailed';
+  // Relay image route unsupported / missing chat driver model: also a local configuration problem where no request went out, so the title is "request failed".
+  if (k === RELAY_IMAGE_TRANSPORT_UNSUPPORTED_KIND || k === RELAY_IMAGE_CHAT_MODEL_REQUIRED_KIND) return 'requestFailed';
   if (
     k === 'invalidKey' || k === 'rateLimited' || k === 'network' || k === 'upstream'
     // badRequest (attachment over limit, context too long, and so on) has its own copy. Leaving it out

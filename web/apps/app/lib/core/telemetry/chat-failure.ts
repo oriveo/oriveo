@@ -8,6 +8,7 @@ import {
   relayGuidanceStableKey,
 } from '@oriveo/core/providers/relay-error-classifier';
 import { RELAY_HTML_PAGE_ERROR } from '@oriveo/core/providers/relay-stream';
+import { RELAY_IMAGE_CHAT_MODEL_REQUIRED_KIND, RELAY_IMAGE_TRANSPORT_UNSUPPORTED_KIND } from '../providers/relay-image-route-error';
 
 /** Which user action started the request attempt (sent / completed / failed / stopped all carry it). */
 export type ChatAttemptKind = 'send' | 'edit' | 'retry' | 'regenerate' | 'continue' | 'recovery';
@@ -69,6 +70,9 @@ export const KIND_ERROR_CODES: Readonly<Record<string, string>> = {
   unauthorized: 'sign_in_required',
   customRequestFieldsRejected: 'local_request_rejected',
   additionalBodyRejected: 'local_request_rejected',
+  // Relay image generation blocked locally before sending: the Web enum has no invalid_configuration like Android, so it maps to local rejection.
+  [RELAY_IMAGE_TRANSPORT_UNSUPPORTED_KIND]: 'local_request_rejected',
+  [RELAY_IMAGE_CHAT_MODEL_REQUIRED_KIND]: 'local_request_rejected',
   attachment_text_over_limit: 'attachment_text_over_limit',
   attachment_count_over_limit: 'attachment_count_over_limit',
   grokSubscriptionUnavailable: 'subscription_grok_unavailable',

@@ -1,6 +1,7 @@
 import { RELAY_GUIDANCE } from '@oriveo/core/providers/relay-error-classifier';
 import { RELAY_HTML_PAGE_ERROR } from '@oriveo/core/providers/relay-stream';
 import { PROVIDER_VALIDATION_MESSAGES } from './validation-messages';
+import { RELAY_IMAGE_CHAT_MODEL_REQUIRED_MESSAGE, RELAY_IMAGE_ROUTE_UNSUPPORTED_MESSAGE } from './relay-image-route-error';
 
 // Maps the hardcoded English error messages from errors.ts to i18n keys.
 // The message produced by errors.ts is stored as a string in provider.status.message, so this
@@ -26,8 +27,8 @@ const RELAY_GUIDANCE_TO_KEY: Record<string, string> = {
   [RELAY_GUIDANCE.clientGated]: 'relay.clientGated',
   [RELAY_HTML_PAGE_ERROR]: 'relay.webPageReturned',
   // Image routing.
-  'Image generation is not available on this transport. Open Providers → this Relay → Advanced Settings → Transport and switch it to OpenAI Responses or Chat Completions.': 'relay.imageRouteUnsupported',
-  'Please add a chat model to this relay before using image generation.': 'relay.missingChatDriverModel',
+  [RELAY_IMAGE_ROUTE_UNSUPPORTED_MESSAGE]: 'relay.imageRouteUnsupported',
+  [RELAY_IMAGE_CHAT_MODEL_REQUIRED_MESSAGE]: 'relay.missingChatDriverModel',
 };
 
 /** Generic reason line for a local exception (e.g. a manual-setup write failing): the English source matches Android `error_generic_message` and is localized at render time. */

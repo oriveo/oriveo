@@ -65,6 +65,30 @@ describe("isIgnorableBrowserNoiseError", () => {
     expect(isIgnorableBrowserNoiseError(buildEvent([{ type: "Error", value: "Script error." }]))).toBe(true);
   });
 
+  it("drops iOS Safari userscript-manager injection errors", () => {
+    expect(isIgnorableBrowserNoiseError(buildEvent([{
+      type: "TypeError",
+      value: "undefined is not an object (evaluating 'window['3f2a9c1e-7b4d-4e8a-9c2f-1d5e6a7b8c9d']['gm_menus']')",
+    }]))).toBe(true);
+    expect(isIgnorableBrowserNoiseError(buildEvent([{
+      type: "TypeError",
+      value: "null is not an object (evaluating 'window[\"3F2A9C1E-7B4D-4E8A-9C2F-1D5E6A7B8C9D\"].GM_info')",
+    }]))).toBe(true);
+    expect(isIgnorableBrowserNoiseError(buildEvent([{ type: "TypeError", value: "Cannot read properties of undefined (reading 'gm_menus')" }]))).toBe(true);
+  });
+
+  it("KEEPS look-alike own errors (generic Safari TypeError / non-UUID window access)", () => {
+    expect(isIgnorableBrowserNoiseError(buildEvent([
+      { type: "TypeError", value: "undefined is not an object (evaluating 'window['__ORIVEO_STATE__']['menus']')" },
+    ]))).toBe(false);
+    expect(isIgnorableBrowserNoiseError(buildEvent([
+      { type: "TypeError", value: "undefined is not an object (evaluating 'state.menus')" },
+    ]))).toBe(false);
+    expect(isIgnorableBrowserNoiseError(buildEvent([
+      { type: "Error", value: "conversation 3f2a9c1e-7b4d-4e8a-9c2f-1d5e6a7b8c9d menus missing" },
+    ]))).toBe(false);
+  });
+
   it("KEEPS provider upstream/network errors (our infra signal)", () => {
     expect(isIgnorableBrowserNoiseError(buildEvent([
       { type: "ProviderError", value: "Provider upstream: The AI provider is experiencing issues." },

@@ -5,6 +5,12 @@
 // it a runtime produced by the real resolveRelayModelRuntime.
 
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { shouldReportProviderError } from '../error-reporting';
+import { mapErrorKindKey } from '../../../utils/chat-stream-utils';
+import { localizeProviderError } from '../../providers/error-i18n';
+import { chatFailureTelemetry } from '../../telemetry/chat-failure';
 import type { AIModel, Provider, StreamOptions } from '@oriveo/shared';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent, mergeRelayRuntime } from '../stream-options';
 import { resolveRelayModelRuntime } from '../../providers/relay-resolution';
@@ -52,6 +58,15 @@ function makeModel(overrides: Partial<AIModel> = {}): AIModel {
 // (which tier Auto injects) is never reached, and Auto falls back to the upstream default
 // (DeepSeek defaults to high, measured at roughly 93s). See the comment above `hasOptions` in
 // stream-options.ts for the rule.
+// Failure card body localization at render time: reads the errors namespace of the production messages files.
+function errorsOf(locale: string) {
+  return JSON.parse(readFileSync(path.join(process.cwd(), 'messages', `${locale}.json`), 'utf8')).errors;
+}
+function tErrors(locale: string) {
+  const errors = errorsOf(locale);
+  return (key: string) => key.split('.').reduce((node, part) => node[part], errors) as unknown as string;
+}
+
 describe('buildStreamOptionsFromIntent (intent carrier)', () => {
   it('carries only the intent; a web intent without a profile is ultimately rejected by the facade request gate', () => {
     const model = makeModel({ capabilities: ['text', 'web', 'imageGeneration'] });
@@ -229,6 +244,23 @@ describe('buildProviderStreamOptions - image routing derivation', () => {
 
     expect(() => buildProviderStreamOptions(responsesProvider([image]), imageGenOptions, image))
       .toThrow('Please add a chat model to this relay before using image generation.');
+
+    // Dedicated kind: not reported, telemetry maps to local_request_rejected, body is localized to errors.relay.missingChatDriverModel.
+    let thrown: unknown;
+    try {
+      buildProviderStreamOptions(responsesProvider([image]), imageGenOptions, image);
+    } catch (error) {
+      thrown = error;
+    }
+    const pe = thrown as { kind?: string; message: string; relayGuidance?: boolean };
+    expect(pe.kind).toBe('relayImageChatModelRequired');
+    expect(pe.relayGuidance).toBe(true);
+    expect(shouldReportProviderError(thrown)).toBe(false);
+    expect(mapErrorKindKey(pe.kind)).toBe('requestFailed');
+    expect(chatFailureTelemetry({ error: thrown, outputStarted: false, latencyMs: 0 }).error_code).toBe('local_request_rejected');
+    expect(localizeProviderError(pe.message, tErrors('en'))).toBe(errorsOf('en').relay.missingChatDriverModel);
+    expect(localizeProviderError(pe.message, tErrors('ja'))).toBe(errorsOf('ja').relay.missingChatDriverModel);
+    expect(errorsOf('ja').relay.missingChatDriverModel).not.toBe(errorsOf('en').relay.missingChatDriverModel);
   });
 
   it('an Anthropic transport with an image model throws a friendly unsupported error rather than failing silently', () => {
@@ -244,6 +276,21 @@ describe('buildProviderStreamOptions - image routing derivation', () => {
 
     expect(() => buildProviderStreamOptions(provider, imageGenOptions, image))
       .toThrow('Image generation is not available on this transport.');
+
+    // Dedicated kind: not reported; the failure card title is "request failed" and the body is localized to errors.relay.imageRouteUnsupported.
+    let thrown: unknown;
+    try {
+      buildProviderStreamOptions(provider, imageGenOptions, image);
+    } catch (error) {
+      thrown = error;
+    }
+    const pe = thrown as { kind?: string; message: string; relayGuidance?: boolean };
+    expect(pe.kind).toBe('relayImageTransportUnsupported');
+    expect(pe.relayGuidance).toBe(true);
+    expect(shouldReportProviderError(thrown)).toBe(false);
+    expect(mapErrorKindKey(pe.kind)).toBe('requestFailed');
+    expect(chatFailureTelemetry({ error: thrown, outputStarted: false, latencyMs: 0 }).error_code).toBe('local_request_rejected');
+    expect(localizeProviderError(pe.message, tErrors('en'))).toBe(errorsOf('en').relay.imageRouteUnsupported);
   });
 
   it('a non-image model is left alone and produces no driver/tool fields', () => {

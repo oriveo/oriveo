@@ -49,6 +49,15 @@ export function takeGraphemes(text: string, limit: number): string {
   return segments.join('');
 }
 
+/** Splits text into grapheme clusters (falls back to code points without Intl.Segmenter, never splitting a surrogate pair). */
+export function splitGraphemes(text: string): string[] {
+  const segmenter = getSegmenter();
+  if (!segmenter) {
+    return Array.from(text);
+  }
+  return Array.from(segmenter.segment(text), (part) => part.segment);
+}
+
 /**
  * Maximum length of the chat input text, in UTF-16 code units, shared across clients.
  * Why: the Android input field re-lays out the whole text on every edit (the longest frame

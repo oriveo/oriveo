@@ -131,6 +131,18 @@ vi.mock('../../core/telemetry', async (importOriginal) => ({
   trackEvent: mockTrackEvent,
 }));
 
+const streamOptionsFailure = vi.hoisted(() => ({ error: null as Error | null }));
+vi.mock('../../core/chat/stream-options', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../core/chat/stream-options')>();
+  return {
+    ...actual,
+    buildProviderStreamOptions: (...args: Parameters<typeof actual.buildProviderStreamOptions>) => {
+      if (streamOptionsFailure.error) throw streamOptionsFailure.error;
+      return actual.buildProviderStreamOptions(...args);
+    },
+  };
+});
+
 // The connection in the fixtures is not a real provider; the pre-send check's line is fixed to a Chat line
 // without native blocks, while whether the files fit is still computed by the production delivery decision.
 vi.mock('../../core/attachments/attachment-transport-resolver', () => ({
@@ -894,6 +906,32 @@ describe('useStreamChat pre-send check: do not send when attachments do not fit 
     expect(outcome).toBeUndefined();
     expect(mocks.mockSendMessage).toHaveBeenCalledTimes(1);
     expect(mockShowToast).not.toHaveBeenCalled();
+  });
+
+  it('send: a failure to build request options (Relay image wire protocol unsupported) does not escape the pre-check and falls through to sendMessage to end as an error card', async () => {
+    // Same shape as the throw in resolveRelayImageRouting; in a real send the same call is inside operations-send's try (runChatOutbound).
+    streamOptionsFailure.error = new Error('Image generation is not available on this transport.');
+    mocks.mockSendMessage.mockReturnValue(handle());
+    try {
+      const { result } = renderHook(() => useStreamChat({
+        provider, currentModel,
+        conversation: undefined,
+        messages: [],
+        reasoningMode: 'automatic',
+        onSendFailed: vi.fn(),
+      }));
+
+      let outcome: unknown;
+      await act(async () => {
+        outcome = await result.current.send('Draw a cat', [], undefined, [textFile('a.txt', 1024)]);
+      });
+
+      expect(outcome).toBeUndefined();
+      expect(mocks.mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockShowToast).not.toHaveBeenCalled();
+    } finally {
+      streamOptionsFailure.error = null;
+    }
   });
 
   it('retry: checks the attachments of the user message that will be resent, and on a hit shows a notice without calling retryMessage', async () => {

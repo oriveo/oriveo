@@ -298,22 +298,32 @@ export function useStreamChat({
       model: AIModel,
       outbound: { history: ChatMessage[]; turn: ChatMessage },
     ): Promise<boolean> => {
-      // Detect video with the history produced by the same outbound builder the real send uses.
-      const outboundMessages = buildOutboundMessages({
-        messages: [...outbound.history, outbound.turn],
-        currentTurnId: outbound.turn.id,
-        provider: sendProvider,
-        model,
-        streamOptions: buildProviderStreamOptions(sendProvider, buildStreamOptionsFromIntent(model, reasoningMode, webSearchEnabled), model),
-      });
-      const skipped = await findUnsendableAttachmentsBeforeSend({
-        attachments: messageAttachments,
-        provider: sendProvider,
-        model,
-        reasoningMode,
-        webSearchEnabled,
-        outboundMessages,
-      });
+      let skipped: Awaited<ReturnType<typeof findUnsendableAttachmentsBeforeSend>>;
+      try {
+        // Detect video with the history produced by the same outbound builder the real send uses.
+        const outboundMessages = buildOutboundMessages({
+          messages: [...outbound.history, outbound.turn],
+          currentTurnId: outbound.turn.id,
+          provider: sendProvider,
+          model,
+          streamOptions: buildProviderStreamOptions(sendProvider, buildStreamOptionsFromIntent(model, reasoningMode, webSearchEnabled), model),
+        });
+        skipped = await findUnsendableAttachmentsBeforeSend({
+          attachments: messageAttachments,
+          provider: sendProvider,
+          model,
+          reasoningMode,
+          webSearchEnabled,
+          outboundMessages,
+        });
+      } catch {
+        // The pre-check only decides "do not send if it does not fit". A failure to build the request options
+        // itself (e.g. a Relay image model configured on a wire protocol that cannot generate images, where
+        // resolveRelayImageRouting throws) is not handled here: let the real send go ahead, and sendMessage's try
+        // turns it into an error card that goes through the reporting filter. Throwing here would escape send as an
+        // unhandled rejection and the user would see no error card.
+        return false;
+      }
       if (skipped.length === 0) return false;
       trackAttachmentSendBlocked(skipped, sendProvider);
       showToast(

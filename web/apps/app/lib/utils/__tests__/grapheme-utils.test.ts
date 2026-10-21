@@ -129,3 +129,29 @@ describe('fallback path when Intl.Segmenter is unavailable (Firefox before 125)'
     expect(take('hello', -1)).toBe('');
   });
 });
+
+describe('splitGraphemes (regression: chat chunk threw on Safari without Intl.Segmenter)', () => {
+  const intlWithoutSegmenter = Object.create(Intl, {
+    Segmenter: { value: undefined },
+  }) as typeof Intl;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it('splits by grapheme cluster when Segmenter exists, keeping combining marks together', async () => {
+    vi.resetModules();
+    const { splitGraphemes } = await import('../grapheme-utils');
+    expect(splitGraphemes('अन्य')).toEqual(['अ', 'न्य']);
+    expect(splitGraphemes('👨‍👩‍👧‍👦a')).toEqual(['👨‍👩‍👧‍👦', 'a']);
+  });
+
+  it('falls back to code points without Segmenter, never splitting surrogate pairs', async () => {
+    vi.resetModules();
+    vi.stubGlobal('Intl', intlWithoutSegmenter);
+    const { splitGraphemes } = await import('../grapheme-utils');
+    expect(splitGraphemes('😀ab')).toEqual(['😀', 'a', 'b']);
+    expect(splitGraphemes('')).toEqual([]);
+  });
+});

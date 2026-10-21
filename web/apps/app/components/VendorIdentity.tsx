@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { type CSSProperties } from "react";
 import { useIsDarkTheme } from "../lib/hooks/useIsDarkTheme";
+import { splitGraphemes } from "../lib/utils/grapheme-utils";
 import { resolveOfficialVendorLogo } from "./provider-logo-assets";
 import styles from "./VendorIdentity.module.css";
 
@@ -221,11 +222,9 @@ interface VendorIdentityProps {
 // Monogram: split the localized display name into words by Unicode letters / combining marks / digits; with >= 2 words take the first character of the first two,
 // otherwise the first 2 characters of the first word (`Other` -> `OT`, `Sonstige` -> `SO`, a Japanese word for "other" -> its first two kana); an empty name or no words falls back to `AI`.
 // A "character" is a grapheme cluster (like Swift Character), otherwise combining marks in hi / th would be split apart.
-const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
-
-function graphemes(word: string): string[] {
-  return Array.from(GRAPHEMES.segment(word), (part) => part.segment);
-}
+// Never call `new Intl.Segmenter` at module top level: Safari < 16.4 lacks it and the chat chunk would throw on evaluation.
+// splitGraphemes feature-detects it and falls back to code points when missing.
+const graphemes = splitGraphemes;
 
 export function vendorMonogram(title: string): string {
   const words = title.match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];

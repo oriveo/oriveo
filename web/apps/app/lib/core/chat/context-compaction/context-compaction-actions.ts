@@ -3,6 +3,8 @@ import type { ContextCheckpointRow } from '../../../infra/storage/context-checkp
 import { compactConversationNow } from '../context-pipeline/manual-compaction';
 import type { CompactionResult } from '../context-pipeline/compaction-coordinator';
 import { ContextCompactionStore } from './context-compaction-store';
+// Grapheme truncation goes through grapheme-utils: without Intl.Segmenter (Safari < 16.4) it falls back to code points.
+import { takeGraphemes } from '../../../utils/grapheme-utils';
 
 /*
  * Compaction actions, called by the separator row details and the context panel; no UI and no copy.
@@ -84,17 +86,6 @@ export function __resetCompactionHintForTest(): void {
 
 const PARAGRAPH_SEPARATOR = '\n\n';
 
-function takeFirstGraphemes(value: string, limit: number): string {
-  if (limit <= 0) return '';
-  const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-  const out: string[] = [];
-  for (const part of segmenter.segment(value)) {
-    if (out.length >= limit) break;
-    out.push(part.segment);
-  }
-  return out.join('');
-}
-
 /**
  * Builds the pending quote from the active row R: uses the summary when non-empty (tail-truncated if too long);
  * otherwise one paragraph per verbatim user message in time order (when too long, the oldest are dropped first; if only the newest one is still too long, its tail is truncated). Returns null when unusable.
@@ -111,7 +102,7 @@ export function buildSummaryQuote(
   if (summary) {
     selectedText = summary;
     if (quoteGraphemeCount(selectedText) > budget) {
-      selectedText = takeFirstGraphemes(selectedText, budget);
+      selectedText = takeGraphemes(selectedText, budget);
       truncated = true;
     }
   } else {
@@ -124,7 +115,7 @@ export function buildSummaryQuote(
     selectedText = paragraphs.join(PARAGRAPH_SEPARATOR);
     // Only the newest one is still too long: truncate its tail.
     if (quoteGraphemeCount(selectedText) > budget) {
-      selectedText = takeFirstGraphemes(selectedText, budget);
+      selectedText = takeGraphemes(selectedText, budget);
       truncated = true;
     }
   }

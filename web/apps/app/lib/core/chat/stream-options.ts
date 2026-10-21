@@ -17,6 +17,7 @@ import { isLocalEngine, localEngineGenerationProfile } from './local-engine-prof
 import { presentCapabilityControl } from './capability-control-presentation';
 import { relayReasoningTierCacheKey, relayReasoningTierFallback, relayRejectedReasoningTiers } from './relay-reasoning-tiers';
 import { relayWebFragmentForChat } from './relay-web-probe-records';
+import { relayImageChatModelRequiredError, relayImageTransportUnsupportedError } from '../providers/relay-image-route-error';
 import { getDeclaredReasoningDefaultLevel, getDeclaredReasoningLevels } from '../metadata/metadata-client';
 import {
   capabilityLearningIdentity,
@@ -602,9 +603,7 @@ function resolveRelayImageRouting(
   const route = relayImageRoute(transport, runtimeConfig);
 
   if (route === 'unsupported') {
-    throw new Error(
-      'Image generation is not available on this transport. Open Providers → this Relay → Advanced Settings → Transport and switch it to OpenAI Responses or Chat Completions.',
-    );
+    throw relayImageTransportUnsupportedError();
   }
 
   // Whether this is an image model follows the image-generation override (same override value as
@@ -634,7 +633,7 @@ function resolveRelayImageRouting(
     ...(multiKey ? { currentKeyID: relayEffectiveKeyID(provider, model.id) } : {}),
   });
   if (!driver.ok) {
-    throw new Error('Please add a chat model to this relay before using image generation.');
+    throw relayImageChatModelRequiredError();
   }
 
   return {

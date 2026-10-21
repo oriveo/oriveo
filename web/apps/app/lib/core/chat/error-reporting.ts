@@ -10,6 +10,7 @@
 
 import { networkError, type ProviderError } from '../providers/errors';
 import { isTransportFailure } from '../reachability/transport-failure';
+import { RELAY_IMAGE_CHAT_MODEL_REQUIRED_KIND, RELAY_IMAGE_TRANSPORT_UNSUPPORTED_KIND } from '../providers/relay-image-route-error';
 import {
   PROVIDER_ERROR_DETAIL_MAX,
   attachProviderErrorDetail,
@@ -30,6 +31,9 @@ const NON_REPORTABLE_PROVIDER_ERROR_KINDS = new Set<string>([
   'customRequestFieldsRejected',
   // The additional request body was rejected locally (before the browser sent it, or at the route's second check): no request went out, and the way out is to edit the content.
   'additionalBodyRejected',
+  // Relay image model configured on a wire protocol that cannot generate images, or no chat driver model: blocked locally before sending, so the way out is to change the configuration (the error card gives the path).
+  RELAY_IMAGE_TRANSPORT_UNSUPPORTED_KIND,
+  RELAY_IMAGE_CHAT_MODEL_REQUIRED_KIND,
   // Upstream content moderation blocked the user's own prompt (OpenAI image generation's
   // moderation_blocked and the like). It is the provider's policy verdict on the user's content,
   // the error card already asks the user to rephrase and retry, and there is nothing to fix on the

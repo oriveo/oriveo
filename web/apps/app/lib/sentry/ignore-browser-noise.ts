@@ -30,6 +30,21 @@ const IDB_NOISE_PATTERNS = [
 /** Opaque cross-origin "Script error." */
 const OPAQUE_SCRIPT_ERROR = /^Script error\.?$/i;
 
+/**
+ * Errors thrown by scripts that an iOS Safari userscript manager (Userscripts / Stay and the like) injects into the page's main world.
+ *
+ * Production samples look like `undefined is not an object (evaluating 'window['<UUID>']['gm_menus']')`:
+ * the manager hangs its GM_* API on a global object named after a UUID, and an injected script that reads it
+ * before the extension context is ready throws.
+ * This is not our code: we never produce `gm_menus` and never index window with a UUID literal.
+ * Only these two fingerprints count; generic `undefined is not an object` TypeError text is not dropped,
+ * because that is the most common Safari error shape from our own code and loosening it would swallow real bugs.
+ */
+const USERSCRIPT_MANAGER_PATTERNS = [
+  /\bgm_menus\b/,
+  /window\[\s*['"][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}['"]\s*\]/i,
+] as const;
+
 function matchesAny(patterns: readonly RegExp[], value: string | undefined): boolean {
   if (!value) return false;
   return patterns.some((pattern) => pattern.test(value));
@@ -52,6 +67,7 @@ export function isIgnorableBrowserNoiseError(event: Event): boolean {
       || matchesAny(CHUNK_ERROR_PATTERNS, typeName)
       || matchesAny(IDB_NOISE_PATTERNS, haystack)
       || OPAQUE_SCRIPT_ERROR.test(haystack ?? "")
+      || matchesAny(USERSCRIPT_MANAGER_PATTERNS, haystack)
     );
   });
 }
