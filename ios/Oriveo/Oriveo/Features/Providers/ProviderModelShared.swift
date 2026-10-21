@@ -692,7 +692,10 @@ func makeProviderCatalogProjectionInput(for provider: Provider) -> ProviderCatal
         providerDisplayName: provider.displayName,
         enabledModels: provider.models,
         catalogModels: dedupedCatalog,
-        priorityScores: catalogPriorityScores(for: dedupedCatalog, provider: provider)
+        // Relay grouping follows catalog order and never reads scores; scoring capability evidence per model on a catalog of thousands blocks the main thread for seconds.
+        priorityScores: provider.kind == .relay
+            ? [:]
+            : catalogPriorityScores(for: dedupedCatalog, provider: provider)
     )
     if provider.kind == .relay {
         input.relayFamilies = dedupedCatalog.reduce(into: [:]) { families, model in

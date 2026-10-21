@@ -635,7 +635,8 @@ struct RelaySetupModelsView: View {
             }
 
             if group.isExpanded {
-                VStack(spacing: 0) {
+                // Lazy container: a group can have thousands of rows, and a VStack would instantiate them all on expand and block the main thread for tens of seconds; the enclosing view is RelaySetupView's ScrollView.
+                LazyVStack(spacing: 0) {
                     ForEach(Array(group.rows.enumerated()), id: \.element.id) { index, row in
                         if index > 0 {
                             Divider().padding(.leading, 48)
