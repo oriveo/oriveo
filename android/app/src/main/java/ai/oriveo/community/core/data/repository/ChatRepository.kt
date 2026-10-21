@@ -672,11 +672,15 @@ class ChatRepository(
 
         var relayUpstreamModelId = runtimeModelId
         var relayUseImagesEndpoint = false
+        // A route configuration error is not thrown here: the assistant placeholder is already persisted, so throwing would
+        // bypass the failure handling of the try below. Remember it and throw it as the first thing inside the try, so the
+        // assistant message is persisted as failed and the error card renders from the localized key.
+        var relayImageRouteError: ProviderServiceError? = null
         val relayTransport = RelayEndpointResolver.effectiveTransport(provider, model ?: requestOptions.activeModel)
         if (provider.kind == ProviderKind.Relay && supportsImageGen) {
             when (RelayRuntimeSupport.imageRoute(relayTransport)) {
                 RelayRuntimeSupport.ImageRoute.Unsupported ->
-                    throw ProviderServiceError.InvalidConfiguration(
+                    relayImageRouteError = ProviderServiceError.InvalidConfiguration(
                         RELAY_IMAGE_ROUTE_UNSUPPORTED_KEY,
                     )
 
@@ -700,7 +704,7 @@ class ChatRepository(
                         }
 
                         RelayRuntimeSupport.PickChatDriverResult.MissingChatDriverModel ->
-                            throw ProviderServiceError.InvalidConfiguration(
+                            relayImageRouteError = ProviderServiceError.InvalidConfiguration(
                                 RELAY_IMAGE_CHAT_MODEL_REQUIRED_KEY,
                             )
                     }
@@ -754,6 +758,7 @@ class ChatRepository(
         // The ordinary streaming first leg ran a search but the results never reached a tail leg (no tail leg / thinking branch): the returned ids are not merged into memoryIds.
         var searchResultsUnsent = false
         try {
+            relayImageRouteError?.let { throw it }
             // The main chat path sends only the plan: if the assembler yields no messages (the last outbound message is not this turn's user message) it counts as a send failure.
             val sendProjection = checkNotNull(chatProjection) { "chat request has no context plan" }
             withContext(Dispatchers.IO) {
