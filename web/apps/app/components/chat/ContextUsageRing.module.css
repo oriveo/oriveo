@@ -4,8 +4,8 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   border: none;
   border-radius: var(--o-radius-full);
@@ -20,6 +20,14 @@
 
 .ring[data-tone='error'] {
   color: var(--o-error);
+}
+
+/* Same breakpoint and size as the send button (mobile .sendBtn is 32px in InputComposer.module.css). */
+@media (max-width: 767px) {
+  .ring {
+    width: 32px;
+    height: 32px;
+  }
 }
 
 .ring:focus-visible {
@@ -43,7 +51,7 @@
 .label {
   position: relative;
   font-family: var(--o-font-mono);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }

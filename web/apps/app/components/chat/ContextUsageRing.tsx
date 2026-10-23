@@ -10,7 +10,7 @@ interface ContextUsageRingProps {
   onOpen: () => void;
 }
 
-const SIZE = 28;
+const SIZE = 34; // Same size as the send button (InputComposer .sendBtn is 34px).
 const STROKE = 2.5;
 const RADIUS = (SIZE - STROKE) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
@@ -40,7 +40,7 @@ export function ContextUsageRing({ summary, onOpen }: ContextUsageRingProps) {
       title={label}
       onClick={onOpen}
     >
-      <svg className={styles.track} width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} aria-hidden="true">
+      <svg className={styles.track} width="100%" height="100%" viewBox={`0 0 ${SIZE} ${SIZE}`} aria-hidden="true">
         <circle className={styles.trackBase} cx={SIZE / 2} cy={SIZE / 2} r={RADIUS} strokeWidth={STROKE} fill="none" />
         <circle
           className={styles.trackFill}

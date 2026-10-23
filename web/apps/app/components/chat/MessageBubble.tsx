@@ -75,6 +75,9 @@ import {
 import styles from "./MessageBubble.module.css";
 import { useRelayWebReplyNotice } from "../../lib/core/chat/relay-web-reply-notice";
 
+// Library document sources (Citation.source); anything else (web search, etc.) ignores the Library switch.
+const LIBRARY_CITATION_SOURCES = new Set(["notion", "google", "mcp"]);
+
 function hasActiveTextSelectionInside(element: HTMLElement): boolean {
   const selection = window.getSelection?.();
   if (
@@ -223,6 +226,13 @@ export const MessageBubble = memo(function MessageBubble({
   // Reply notice for relay web search: kept in session memory only, not a message field.
   const relayWebNotice = useRelayWebReplyNotice(message.id);
   const libraryFeatureEnabled = isLibraryFeatureEnabled();
+  // The Library switch only hides Library documents; web search sources stay visible even when the server leaves library.enabled=false.
+  const visibleCitations = useMemo(
+    () => (libraryFeatureEnabled
+      ? message.citations ?? []
+      : (message.citations ?? []).filter((citation) => !LIBRARY_CITATION_SOURCES.has(citation.source ?? ""))),
+    [libraryFeatureEnabled, message.citations],
+  );
   const {
     editing,
     editText,
@@ -666,12 +676,10 @@ export const MessageBubble = memo(function MessageBubble({
                guard the sources read as fully listed while the body is still blank.
                The data itself is kept, since retry and message editing resolve documents back from citations. */}
             {message.role === "assistant" &&
-              libraryFeatureEnabled &&
-              message.citations &&
-              message.citations.length > 0 &&
+              visibleCitations.length > 0 &&
               (!isStreaming || message.text.length > 0) && (
                 <CitationsBlock
-                  citations={message.citations}
+                  citations={visibleCitations}
                   isStreaming={isStreaming}
                 />
               )}

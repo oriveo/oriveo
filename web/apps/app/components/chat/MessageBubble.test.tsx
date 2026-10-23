@@ -891,6 +891,30 @@ describe("MessageBubble", () => {
     expect(onSwitchModel).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps web search citations visible when the Library feature is disabled", () => {
+    // The server defaults to library.enabled=false: web search sources (OpenRouter url_citation) must not be hidden along with Library.
+    libraryFeatureFlagMock.enabled = false;
+    mockCreateModelDisplayLookup.mockReturnValue({ resolve: vi.fn().mockReturnValue(null) });
+
+    render(
+      <MessageBubble
+        message={{
+          ...baseMessage,
+          text: "Answer",
+          citations: [
+            { url: "https://apnews.com/", title: "AP News" },
+            { url: "https://www.notion.so/roadmap", title: "Roadmap", source: "notion", docId: "roadmap" },
+          ],
+        }}
+        provider={provider}
+      />,
+    );
+
+    expect(screen.getByText("citationsLabel")).toBeTruthy();
+    expect(screen.getByText("AP News")).toBeTruthy();
+    expect(screen.queryByText("Roadmap")).toBeNull();
+  });
+
   it("renders library_not_searched as a static Tool Call row", () => {
     mockCreateModelDisplayLookup.mockReturnValue({ resolve: vi.fn().mockReturnValue(null) });
     render(

@@ -1241,6 +1241,9 @@
 }
 
 .tools {
+  /* Fill the remaining width: bottomRow is space-between, so otherwise the context ring lands in the middle. */
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 2px;
