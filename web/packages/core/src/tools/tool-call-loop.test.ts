@@ -521,6 +521,26 @@ describe('ToolCallLoop — leg failure', () => {
       message: 'upstream 500',
     });
   });
+
+  it('copies the error frame attribution fields onto ToolLoopError as own properties (failure telemetry reads them by name)', async () => {
+    const registry = new ToolRegistry([makeEntry('library_search', async () => ({ content: '{}' }))]);
+    const runner = makeRunner([
+      handle([{
+        type: 'error', error: 'busy', errorKind: 'upstream', source: 'provider', status: 503,
+        streamErrorFrame: true, upstreamErrorType: 'overloaded_error',
+      }]),
+    ]);
+    const loop = new ToolCallLoop({ registry, runLeg: runner.runLeg, signal, limits: { maxSteps: 6 } });
+
+    const error = await loop.run([{ role: 'user', content: 'hi' }]).catch((thrown: unknown) => thrown);
+    const expected = {
+      status: 503,
+      streamErrorFrame: true,
+      upstreamErrorType: 'overloaded_error',
+    };
+    expect({ ...(error as object) }).toMatchObject(expected);
+    expect((error as { diagnostics: unknown }).diagnostics).toEqual(expected);
+  });
 });
 
 function multiCall(...calls: Array<[id: string, name: string]>): StreamEvent[] {

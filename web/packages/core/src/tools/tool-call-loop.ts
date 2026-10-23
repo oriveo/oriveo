@@ -17,6 +17,7 @@ import {
   DEFAULT_TOOL_LOOP_STOPPED_ERROR_CODE,
   ToolCallRejection,
   ToolLoopError,
+  toolLoopErrorDiagnostics,
   defaultToolLoopPrompts,
   openAIChatToolAdapter,
   TOOL_LOOP_DEFAULT_MAX_STEPS,
@@ -487,6 +488,7 @@ export class ToolCallLoop {
               streamStarted,
               toolCallRejectionContext: handle.getToolCallRejectionContext?.(),
               ...(event.finish ? { finish: event.finish } : {}),
+              diagnostics: toolLoopErrorDiagnostics(event),
             });
           default:
             break;

@@ -457,14 +457,29 @@ export function sendLibraryAgentLeg(
               ...(relayKeyAccess !== 'none' ? { relayKeyAccess } : {}),
             };
           }
-          ctrl.enqueue({
+          // Same classifier as a regular send, so failure telemetry sees the real kind,
+          // HTTP status and upstream error type instead of a bare 'unknown'.
+          const pe = toProviderError(
+            response.status,
+            payload.text,
+            undefined,
+            providerKind === 'relay' ? RELAY_ERROR_CONTEXT : undefined,
+            [apiKey],
+          );
+          // The raw error body rides on the event as a non-enumerable field; first-leg
+          // rejection signature matching reads it by name (same as a regular send).
+          ctrl.enqueue(withProviderErrorRawBody<StreamEvent>({
             type: 'error',
-            error: payload.detail,
-            errorKind: response.status === 429 ? 'rate_limited' : 'unknown',
+            error: pe.message,
+            errorDetail: pe.detail,
+            errorKind: pe.kind,
             source,
             status: response.status,
+            ...(pe.upstreamErrorType ? { upstreamErrorType: pe.upstreamErrorType } : {}),
+            ...(pe.relayGuidance ? { relayGuidance: true as const } : {}),
+            ...(pe.relayGuidanceKey ? { relayGuidanceKey: pe.relayGuidanceKey } : {}),
             ...(relayKeyAccess !== 'none' ? { relayKeyAccess } : {}),
-          });
+          }, providerErrorRawBodyOf(pe)));
           ctrl.close();
           return;
         }

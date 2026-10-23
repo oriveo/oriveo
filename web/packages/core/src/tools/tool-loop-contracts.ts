@@ -1,11 +1,11 @@
-import type { ProviderErrorSource } from '../providers/errors';
+import type { ChatNetworkDetail, ProviderErrorSource } from '../providers/errors';
 import type { ContinuationIntent } from '../providers/request-preference/continuation';
 import type {
   ProxyMessage,
   ProxyToolCall,
   ProxyToolDefinition,
 } from '../providers/request-builders/runtime';
-import type { StreamHandle, StreamUsage } from '../providers/types';
+import type { StreamEvent, StreamHandle, StreamUsage } from '../providers/types';
 import type { StreamFinish } from '../context/stream-finish';
 
 // Neutral contracts of the generic tool loop (same mechanics as the iOS Core/Tools/ToolLoopContracts.swift,
@@ -226,8 +226,37 @@ export interface ToolLoopResult {
   finish?: StreamFinish;
 }
 
+/**
+ * Fields on an error frame that failure attribution (chat_message_failed) and stopReason read.
+ * Attribution reads own properties by name, so a wrapper that drops one turns the failure
+ * into `unknown`; they are carried through unchanged.
+ */
+export interface ToolLoopErrorDiagnostics {
+  status?: number;
+  streamErrorFrame?: true;
+  upstreamErrorType?: string;
+  networkDetail?: ChatNetworkDetail;
+  relayGuidance?: true;
+  relayGuidanceKey?: string;
+  relayHTMLPage?: true;
+  i18nKey?: 'moderation' | 'imageGenUser';
+}
+
+/** Extracts {@link ToolLoopErrorDiagnostics} from a stream error event; keys without a value are omitted. */
+export function toolLoopErrorDiagnostics(event: Extract<StreamEvent, { type: 'error' }>): ToolLoopErrorDiagnostics {
+  return {
+    ...(event.status !== undefined ? { status: event.status } : {}),
+    ...(event.streamErrorFrame ? { streamErrorFrame: true as const } : {}),
+    ...(event.upstreamErrorType ? { upstreamErrorType: event.upstreamErrorType } : {}),
+    ...(event.networkDetail ? { networkDetail: event.networkDetail } : {}),
+    ...(event.relayGuidance ? { relayGuidance: true as const } : {}),
+    ...(event.relayGuidanceKey ? { relayGuidanceKey: event.relayGuidanceKey } : {}),
+    ...(event.relayHTMLPage ? { relayHTMLPage: true as const } : {}),
+    ...(event.i18nKey ? { i18nKey: event.i18nKey } : {}),
+  };
+}
 /** A model leg failed (an error event in the stream). `code` is the error code given by the upstream / classifier. */
-export class ToolLoopError extends Error {
+export class ToolLoopError extends Error implements ToolLoopErrorDiagnostics {
   readonly code: string;
   readonly source?: ProviderErrorSource;
   readonly streamStarted: boolean;
@@ -235,6 +264,16 @@ export class ToolLoopError extends Error {
   readonly toolCallRejectionContext?: unknown;
   /** The family's clean conclusion when the termination frame is itself an error (used to settle stopReason). */
   readonly finish?: StreamFinish;
+  /** Attribution fields passed at construction (also spread onto the own properties below), for callers that wrap once more. */
+  readonly diagnostics: ToolLoopErrorDiagnostics;
+  declare readonly status?: number;
+  declare readonly streamErrorFrame?: true;
+  declare readonly upstreamErrorType?: string;
+  declare readonly networkDetail?: ChatNetworkDetail;
+  declare readonly relayGuidance?: true;
+  declare readonly relayGuidanceKey?: string;
+  declare readonly relayHTMLPage?: true;
+  declare readonly i18nKey?: 'moderation' | 'imageGenUser';
 
   constructor(
     message: string,
@@ -244,10 +283,14 @@ export class ToolLoopError extends Error {
       streamStarted?: boolean;
       toolCallRejectionContext?: unknown;
       finish?: StreamFinish;
+      diagnostics?: ToolLoopErrorDiagnostics;
     } = {},
   ) {
     super(message);
     this.name = 'ToolLoopError';
+    // Own properties: send paths spread the error object into attribution, which only reads this level.
+    this.diagnostics = options.diagnostics ?? {};
+    Object.assign(this, this.diagnostics);
     this.code = code;
     this.source = options.source;
     this.streamStarted = options.streamStarted ?? false;

@@ -95,7 +95,7 @@ export const KIND_ERROR_CODES: Readonly<Record<string, string>> = {
 /** Already-normalized snake values some layers throw directly (proxy layer, library agent). */
 const PASSTHROUGH_CODES: ReadonlySet<string> = new Set([
   ...Object.values(KIND_ERROR_CODES),
-  'content_filtered', 'upstream_stream_error', 'network_offline', 'network_timeout', 'network_error', 'unknown',
+  'content_filtered', 'upstream_stream_error', 'network_offline', 'network_timeout', 'network_error',
 ]);
 
 type FailureFields = Partial<ProviderError> & {
@@ -153,11 +153,11 @@ function errorCodeOf(fields: FailureFields, deviceOnline: boolean | undefined): 
   if (kind && PASSTHROUGH_CODES.has(kind)) return kind;
   if (fields.streamErrorFrame === true) return 'upstream_stream_error';
   if (kind === 'badRequest') return `upstream_${isHttpFailureStatus(status) ? status : 400}`;
-  if (kind === 'upstream') {
-    if (isHttpFailureStatus(status)) return `upstream_${status}`;
-    // Relay guidance without a usable status (e.g. a 2xx web page): same rule as a stream error.
-    if (fields.relayGuidance === true) return 'upstream_stream_error';
-  }
+  // Tier 4 holds whatever kind a wrapper left behind: an unrecognized kind (or a literal
+  // `unknown`) must not hide a status the failure still carries.
+  if (isHttpFailureStatus(status)) return `upstream_${status}`;
+  // Relay guidance without a usable status (e.g. a 2xx web page): same rule as a stream error.
+  if (kind === 'upstream' && fields.relayGuidance === true) return 'upstream_stream_error';
   return 'unknown';
 }
 

@@ -164,6 +164,13 @@ describe('chatFailureTelemetry drill-down fields', () => {
     expect(codeOf(upstream)).toMatchObject({ error_code: 'upstream_502', relay_guidance: 'upstream_unreachable' });
   });
 
+  it('CHAT-FAILURE-TOOL-LOOP-unrecognized_kind_keeps_status an unrecognized kind (including a literal unknown) does not hide the status', () => {
+    expect(codeOf({ kind: 'unknown', status: 404 })).toMatchObject({ error_code: 'upstream_404', http_status: 404 });
+    expect(codeOf({ kind: 'upstream_error', status: 503, name: 'ToolLoopError' })).toMatchObject({ error_code: 'upstream_503' });
+    expect('error_class' in codeOf({ kind: 'unknown', status: 404, name: 'ToolLoopError' })).toBe(false);
+    expect(codeOf({ kind: 'unknown', name: 'ToolLoopError' })).toMatchObject({ error_code: 'unknown', error_class: 'ToolLoopError' });
+  });
+
   it('error_class is present only for unknown, and must match the safe shape', () => {
     expect(codeOf(new RangeError('boom')).error_class).toBe('RangeError');
     expect('error_class' in codeOf({ name: 'has space' })).toBe(false);

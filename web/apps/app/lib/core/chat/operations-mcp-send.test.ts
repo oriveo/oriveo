@@ -946,7 +946,25 @@ describe('failure, cancellation and recovery', () => {
     await handle.done;
     expect(assistant()).toMatchObject({ state: 'failed', errorSource: 'provider' });
     expect(assistant()!.toolSteps?.[0].status).toBe('done');
-    expect(mocks.trackEvent.mock.calls.some(([name]) => name === 'chat_message_failed')).toBe(true);
+    // Attribution fields must survive ToolLoopError all the way to the event; asserting only
+    // that the event fired would miss them being dropped into `unknown`.
+    expect(failedEventProps()).toMatchObject({ error_code: 'upstream_500', http_status: 500 });
+    expect(failedEventProps()).not.toHaveProperty('error_class');
+  });
+
+  it('CHAT-FAILURE-TOOL-LOOP-attribution a first-leg upstream 4xx before any output (not a tools rejection) is attributed by status, not unknown + ToolLoopError', async () => {
+    await seedServer({ enabledIn: ['conv-1'] });
+    scriptChatStream([{ status: 404, body: { error: { message: 'No endpoints found for this model', type: 'not_found_error' } } }]);
+    const { handle, assistant } = start();
+    await handle.done;
+    expect(assistant()).toMatchObject({ state: 'failed', errorSource: 'provider' });
+    expect(failedEventProps()).toMatchObject({
+      error_code: 'upstream_404',
+      http_status: 404,
+      failure_phase: 'before_output',
+      upstream_error_type: 'not_found_error',
+    });
+    expect(failedEventProps()).not.toHaveProperty('error_class');
   });
 
   it('resends once without tools when the upstream deterministically rejects tools on the first leg; a manually added model (eligible for the D5 resend) is remembered, so the next send goes without them', async () => {
@@ -1672,3 +1690,8 @@ describe('search_memory in the MCP loop', () => {
     expect(chat.bodies[1].tools?.map((tool) => tool.function.name)).toEqual([TIME, WEATHER]);
   });
 });
+
+function failedEventProps(): Record<string, unknown> | undefined {
+  const call = mocks.trackEvent.mock.calls.find(([name]) => name === 'chat_message_failed');
+  return call?.[1] as Record<string, unknown> | undefined;
+}

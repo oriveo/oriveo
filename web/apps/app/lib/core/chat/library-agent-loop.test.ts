@@ -18,6 +18,7 @@ import {
   type LibraryAgentLoopOptions,
 } from "./library-agent-loop";
 import { sendLibraryAgentLeg } from '../providers/proxy-client';
+import { chatFailureTelemetry } from '../telemetry/chat-failure';
 import { relayKeyAccessOfToolRejection } from '../providers/relay-key-access-writeback';
 import {
   recordToolCallSupportFalse,
@@ -219,6 +220,22 @@ describe("runLibraryAgentLoop", () => {
 		const runLeg = vi.fn(() => rejectionLeg(status, { error: { message: 'tools unsupported' } }));
 		await expect(runLibraryAgentLoop(options({ runLeg }))).rejects.toBeInstanceOf(LibraryAgentError);
 		expect(runLeg).toHaveBeenCalledOnce();
+	});
+
+	it('CHAT-FAILURE-TOOL-LOOP-library_attribution model-leg failure keeps the frame fields failure telemetry reads', async () => {
+		const runLeg = vi.fn(() => streamLeg([{
+			type: 'error', error: 'rejected', errorKind: 'upstream', source: 'provider', status: 404,
+			upstreamErrorType: 'not_found_error',
+		}]));
+		const error = await runLibraryAgentLoop(options({ runLeg })).catch((thrown: unknown) => thrown);
+		expect(error).toBeInstanceOf(LibraryAgentError);
+		const telemetry = chatFailureTelemetry({
+			error: { ...(error as object), kind: (error as LibraryAgentError).code, name: (error as Error).name },
+			outputStarted: false,
+			latencyMs: 0,
+		});
+		expect(telemetry).toMatchObject({ error_code: 'upstream_404', http_status: 404, upstream_error_type: 'not_found_error' });
+		expect(telemetry).not.toHaveProperty('error_class');
 	});
 
 	it('does not resend a network or timeout failure', async () => {

@@ -37,6 +37,7 @@ import {
   type ToolExecutionContext,
   type ToolExecutionOutcome,
   type ToolFailureDisposition,
+  type ToolLoopErrorDiagnostics,
   type ToolLoopProgressEvent,
   type ToolLoopPrompts,
   type ToolLoopResult,
@@ -154,9 +155,13 @@ export class LibraryAgentError extends Error {
     public readonly source?: ProviderErrorSource,
     public readonly toolCallRejectionContext?: unknown,
     public readonly streamStarted = false,
+    diagnostics?: ToolLoopErrorDiagnostics,
   ) {
     super(message);
     this.name = "LibraryAgentError";
+    // A model-leg failure carries the error frame's attribution fields (same as ToolLoopError);
+    // without them failure telemetry falls back to unknown.
+    if (diagnostics) Object.assign(this, diagnostics);
   }
 }
 
@@ -737,6 +742,7 @@ function toLibraryAgentError(error: unknown): unknown {
       error.source,
       error.toolCallRejectionContext,
       error.streamStarted,
+      error.diagnostics,
     );
   }
   return error;
