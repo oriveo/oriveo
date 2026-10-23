@@ -29,7 +29,7 @@ final class FolderManager {
     }
 
     func conversations(in folderID: UUID) -> [Conversation] {
-        mergedConversationProjection()
+        visibleConversationProjection()
             .filter { $0.folderID == folderID }
             .sorted(by: ConversationProjectionMerger.sort)
     }
@@ -50,7 +50,7 @@ final class FolderManager {
         }
 
         var counts: [UUID: Int] = [:]
-        for folderID in mergedFolderAssignments().values {
+        for folderID in folderAssignments().values {
             counts[folderID, default: 0] += 1
         }
 
@@ -61,31 +61,29 @@ final class FolderManager {
         return counts
     }
 
-    private func mergedFolderAssignments() -> [UUID: UUID] {
+    /// Conversation -> folder. While the in-memory mirror is non-empty it is the whole conversation table
+    /// (folder moves change memory first and reach the store asynchronously), so only memory counts:
+    /// unioning in stored assignments would bring back moves and removals still queued for the store.
+    /// Only an empty mirror reads the store's narrow projection.
+    private func folderAssignments() -> [UUID: UUID] {
+        if !appState.conversations.isEmpty {
+            var assignments: [UUID: UUID] = [:]
+            for conversation in appState.conversations {
+                if let folderID = conversation.folderID {
+                    assignments[conversation.id] = folderID
+                }
+            }
+            return assignments
+        }
         let partitionUID = appState.sessionPartitionUID
-        var databaseAssignments: [UUID: ConversationFolderAssignment] = [:]
-        if usesAuthoritativeProjection(for: partitionUID),
-           let rows = try? appState.conversationRuntimeBridge.fetchFolderAssignments(uid: partitionUID) {
-            databaseAssignments = Dictionary(
-                rows.map { ($0.conversationID, $0) },
-                uniquingKeysWith: { first, _ in first }
-            )
+        guard usesAuthoritativeProjection(for: partitionUID),
+              let rows = try? appState.conversationRuntimeBridge.fetchFolderAssignments(uid: partitionUID) else {
+            return [:]
         }
-
-        var assignments = databaseAssignments.mapValues(\.folderID)
-        for conversation in appState.conversations {
-            if let folderID = conversation.folderID {
-                assignments[conversation.id] = folderID
-                continue
-            }
-            guard let stored = databaseAssignments[conversation.id] else { continue }
-            let storedAt = stored.metadataUpdatedAt ?? .distantPast
-            let memoryAt = conversation.metadataUpdatedAt ?? .distantPast
-            if storedAt < memoryAt {
-                assignments.removeValue(forKey: conversation.id)
-            }
-        }
-        return assignments
+        return Dictionary(
+            rows.map { ($0.conversationID, $0.folderID) },
+            uniquingKeysWith: { first, _ in first }
+        )
     }
 
     func searchConversations(in folderID: UUID, matching query: String) -> [Conversation] {
@@ -103,11 +101,19 @@ final class FolderManager {
             }
         }
 
-        return (try? appState.conversationRuntimeBridge.searchConversationProjections(
+        let hits = (try? appState.conversationRuntimeBridge.searchConversationProjections(
             in: folderID,
             query: normalizedQuery,
             uid: partitionUID
         )) ?? []
+        // The store's search only gives matching ids and their order. While the in-memory mirror is
+        // non-empty it is the whole table: drop hits memory no longer has or has moved out of this
+        // folder, and use the memory row.
+        guard !appState.conversations.isEmpty else { return hits }
+        return hits.compactMap { hit in
+            guard let live = appState.conversation(for: hit.id), live.folderID == folderID else { return nil }
+            return live
+        }
     }
 
     func folder(for id: UUID) -> Folder? {
@@ -293,7 +299,10 @@ final class FolderManager {
         )) ?? appState.conversations
     }
 
-    private func mergedConversationProjection() -> [Conversation] {
+    /// Data source of the folder lists: the in-memory mirror when it is non-empty (it is the whole table),
+    /// otherwise the store's summaries, cached by version.
+    private func visibleConversationProjection() -> [Conversation] {
+        guard appState.conversations.isEmpty else { return appState.conversations }
         let partitionUID = appState.sessionPartitionUID
         let conversationVersion = appState.conversationsVersion
         let usesAuthoritative = usesAuthoritativeProjection(for: partitionUID)
@@ -305,21 +314,11 @@ final class FolderManager {
         }
 
         let authoritative = authoritativeConversations()
-        let merged: [Conversation]
-        if appState.conversations.isEmpty {
-            merged = authoritative
-        } else {
-            merged = ConversationProjectionMerger.merge(
-            preferred: appState.conversations,
-            fallback: authoritative
-        )
-        }
-
-        cachedMergedProjection = merged
+        cachedMergedProjection = authoritative
         cachedMergedProjectionVersion = conversationVersion
         cachedMergedProjectionUID = partitionUID
         cachedMergedProjectionUsesAuthoritative = usesAuthoritative
-        return merged
+        return authoritative
     }
 
     private func usesAuthoritativeProjection(for partitionUID: String) -> Bool {

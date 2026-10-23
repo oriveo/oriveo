@@ -314,6 +314,14 @@ final class AppState {
     }
 
 #if DEBUG
+    /// Test seam: parks a blocker on the persist queue so later writes and reads wait until `signal()`,
+    /// which reproduces the "memory already changed, store not yet written" window deterministically.
+    func _testingBlockConversationPersistQueue() -> DispatchSemaphore {
+        let gate = DispatchSemaphore(value: 0)
+        conversationPersistQueue.async { gate.wait() }
+        return gate
+    }
+
     var _testingBeforeConversationProjectionUpsert: ((Conversation) -> Void)?
 
     func _testingSetPendingChatAnchorUserMessageID(_ userMessageID: UUID, in conversationID: UUID) {

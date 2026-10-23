@@ -516,9 +516,9 @@ struct ConversationManagerTests {
         #expect(afterClear.messages.isEmpty, "The draft path must not refill the summary mirror with full bodies")
     }
 
-    @Test("homeConversationSections prefers a newer authoritative recent snapshot when the mirror is stale")
+    @Test("homeConversationSections reads only the in-memory mirror while it is non-empty, even if the store row is newer")
     @MainActor
-    func homeConversationSectionsPreferNewerAuthoritativeSnapshotWhenMirrorIsStale() throws {
+    func homeConversationSectionsUseMemoryMirrorOverAuthoritativeSnapshot() throws {
         let (state, uid) = makeIsolatedAppState(prefix: "home-recent-mirror-")
 
         defer { cleanupIsolatedAppState(state, uid: uid) }
@@ -549,7 +549,7 @@ struct ConversationManagerTests {
 
         let homeSections = state.homeConversationSections(earlierLimit: 10)
 
-        #expect(homeSections.map(\.section) == [.today])
-        #expect(homeSections.first?.conversations.map(\.title) == ["Authoritative Today"])
+        #expect(homeSections.map(\.section) == [.yesterday])
+        #expect(homeSections.first?.conversations.map(\.title) == ["Mirror Yesterday"])
     }
 }

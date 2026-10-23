@@ -8,37 +8,6 @@ struct HomeConversationSnapshot {
 }
 
 enum ConversationProjectionMerger {
-    static func merge(preferred: [Conversation], fallback: [Conversation]) -> [Conversation] {
-        guard !preferred.isEmpty else { return fallback.sorted(by: sort) }
-        guard !fallback.isEmpty else { return preferred.sorted(by: sort) }
-
-        var mergedByID = Dictionary(uniqueKeysWithValues: fallback.map { ($0.id, $0) })
-        for conversation in preferred {
-            if let existing = mergedByID[conversation.id] {
-                mergedByID[conversation.id] = preferredConversation(
-                    preferred: conversation,
-                    fallback: existing
-                )
-            } else {
-                mergedByID[conversation.id] = conversation
-            }
-        }
-
-        let preferredIDs = Set(preferred.map(\.id))
-        let orderedIDs = preferred.map(\.id) + fallback.map(\.id).filter { !preferredIDs.contains($0) }
-        let stableOrder = Dictionary(uniqueKeysWithValues: orderedIDs.enumerated().map { ($1, $0) })
-
-        return mergedByID.values.sorted { lhs, rhs in
-            if sort(lhs, rhs) {
-                return true
-            }
-            if sort(rhs, lhs) {
-                return false
-            }
-            return (stableOrder[lhs.id] ?? .max) < (stableOrder[rhs.id] ?? .max)
-        }
-    }
-
     static func recover(authoritative: [Conversation], recovered: [Conversation]) -> [Conversation] {
         guard !authoritative.isEmpty else { return recovered.sorted(by: sort) }
         guard !recovered.isEmpty else { return authoritative.sorted(by: sort) }
@@ -278,51 +247,10 @@ final class ConversationManager {
         #endif
         refreshCachesIfNeeded(now: now)
 
-        if let snapshot = authoritativeHomeConversationSnapshot(earlierLimit: earlierLimit, now: now) {
-            let recentInput: [Conversation]
-            if conversations.isEmpty {
-                recentInput = snapshot.recentConversations
-            } else {
-                recentInput = ConversationProjectionMerger.merge(
-                    preferred: cachedRecentConversations,
-                    fallback: snapshot.recentConversations
-                )
-            }
-            #if DEBUG
-            let startOfToday = Calendar.current.startOfDay(for: now)
-            AppLog.info(
-                "Home sections from the authoritative branch: inMemory=\(conversations.count) "
-                + "cachedRecent=\(cachedRecentConversations.count) storedRecent=\(snapshot.recentConversations.count) "
-                + "storedEarlier=\(snapshot.earlierConversations.count) mergedRecent=\(recentInput.count)",
-                module: "Conversations"
-            )
-            for c in recentInput.prefix(5) {
-                let age = now.timeIntervalSince(c.updatedAt)
-                let isToday = c.updatedAt >= startOfToday
-                AppLog.info(
-                    "  recent conversation \(c.id.uuidString.prefix(8)): updatedAt=\(c.updatedAt) "
-                    + "age=\(String(format: "%.0f", age))s isToday=\(isToday) draft=\(c.isDraft) "
-                    + "folder=\(c.folderID?.uuidString.prefix(8) ?? "none") "
-                    + "visible=\(c.isVisibleInUngroupedConversationList)",
-                    module: "Conversations"
-                )
-            }
-            #endif
-            let result = Self.makeHomeConversationSections(
-                recentConversations: recentInput,
-                earlierConversations: snapshot.earlierConversations,
-                earlierTotalCount: snapshot.earlierTotalCount,
-                now: now
-            )
-            #if DEBUG
-            AppLog.info(
-                "  sections: \(result.map { "\($0.section)=\($0.conversations.count)" })",
-                module: "Conversations"
-            )
-            #endif
-            return result
-        }
-
+        // While the in-memory mirror is non-empty it is the whole conversation table (writes change memory
+        // first and reach the store asynchronously), so section membership and content come from memory only.
+        // Unioning in a store snapshot would bring back changes that are still queued and costs a
+        // synchronous store read on the main thread per version change.
         if !conversations.isEmpty {
             return cachedRecentConversationSections.map { section, conversations in
                 if section == .earlier {
@@ -403,6 +331,12 @@ final class ConversationManager {
     }
 
     private func resolvePinnedConversations(ids: [UUID]) -> [Conversation] {
+        // The in-memory mirror, when non-empty, is the whole conversation table: resolve by id from memory
+        // and skip the store (it may still hold a conversation whose removal is queued).
+        if !conversations.isEmpty {
+            return ids.compactMap { appState.conversation(for: $0) }
+                .filter(\.isVisibleInConversationList)
+        }
         let ordering = Dictionary(uniqueKeysWithValues: ids.enumerated().map { ($1, $0) })
         let partitionUID = appState.sessionPartitionUID
         if appState.prefersAuthoritativeConversationStore,
@@ -416,9 +350,7 @@ final class ConversationManager {
                 .sorted { (ordering[$0.id] ?? .max) < (ordering[$1.id] ?? .max) }
         }
 
-        let lookup = Dictionary(conversations.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return ids.compactMap { lookup[$0] }
-            .filter(\.isVisibleInConversationList)
+        return []
     }
 
     func togglePin(conversationID: UUID) {
@@ -466,7 +398,7 @@ final class ConversationManager {
         let versionAtStart = appState.conversationsVersion
         let filtered: [Conversation]
         if let authoritative = await authoritativeSearchResults(matching: normalizedQuery) {
-            filtered = authoritative
+            filtered = projectSearchHitsOntoMemory(authoritative)
         } else {
             filtered = inMemorySearchResults(matching: normalizedQuery, allowAuthoritativeFallback: true)
         }
@@ -474,6 +406,14 @@ final class ConversationManager {
             cachedSearchResults[cacheKey] = filtered
         }
         return filtered
+    }
+
+    /// The store's full-text search only says which ids match and in what order. While the in-memory mirror
+    /// is non-empty it is the whole conversation table: drop hits memory no longer has (removal still queued
+    /// for the store) and use the memory row, which may be newer than the stored title or folder.
+    private func projectSearchHitsOntoMemory(_ hits: [Conversation]) -> [Conversation] {
+        guard !conversations.isEmpty else { return hits }
+        return hits.compactMap { appState.conversation(for: $0.id) }
     }
 
     private func inMemorySearchResults(

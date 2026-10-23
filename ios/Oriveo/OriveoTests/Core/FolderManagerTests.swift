@@ -223,9 +223,9 @@ struct FolderManagerTests {
         #expect(state.folderManager.conversationCount(in: folderID) == 1)
     }
 
-    @Test("conversations(in:) merges the runtime mirror so folder conversations are not missed before background persist")
+    @Test("conversations(in:) reads only the runtime mirror while it is non-empty, so stored leftovers are not merged back")
     @MainActor
-    func conversationsInFolderMergeRuntimeMirrorBeforePersistenceCompletes() throws {
+    func conversationsInFolderUseRuntimeMirrorOnlyBeforePersistenceCompletes() throws {
         let (state, uid) = makeIsolatedAppState(prefix: "folder-runtime-merge-")
 
         defer {
@@ -248,11 +248,16 @@ struct FolderManagerTests {
             folderID: folderID
         )
 
-        try persistAuthoritativeConversations([persistedConversation], uid: uid)
+        let leftover = TestFactories.makeConversation(
+            title: "Stored Leftover",
+            folderID: folderID
+        )
+        try persistAuthoritativeConversations([persistedConversation, leftover], uid: uid)
         state.conversations = [persistedConversation, pendingConversation]
 
         let inFolder = state.folderManager.conversations(in: folderID)
 
+        // The leftover exists only in the store (its removal is still queued), so it must not come back.
         #expect(inFolder.count == 2)
         #expect(Set(inFolder.map(\.title)) == Set(["Persisted", "Pending Runtime"]))
         #expect(state.folderManager.conversationCount(in: folderID) == 2)
