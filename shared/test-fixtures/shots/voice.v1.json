@@ -1,0 +1,36 @@
+{
+  "$comment": "Shared sample-screen manifest for the voice family (shots tool, voice dictation / read aloud / voice conversation). One source for page names and per-page demo states across the iOS and Android debug shot entries (iOS is the gold reference; Web has no voice UI). Every end seeds in-memory state only: never opens the microphone, never plays audio, never touches the network, never writes a real store. The voice catalog is decoded from catalog (a repo path) through the production catalog decoder instead of being fetched; connections listed in connections are seeded in memory with placeholder keys so engine rows have candidates. surface: readAloud = chat page with the conversation below, read-aloud control on the last assistant message; dictation = chat page composer with the dictation state; settings = Settings > Voice; engineSheet = the dictation engine picker sheet opened from Settings > Voice; composer = chat page with an empty draft (primary button shows the voice-conversation waveform); home = home page with an empty hero draft; voiceBar = chat page with the voice conversation bar in place of the composer. The realtime engine is chosen only on pages with realtimeNotice: acknowledged (the voice-conversation engine row shows that model, no notice); every other page keeps the default engine (follow current model). disclosure: the one-time provider notice (\"Use X for voice conversations?\") raised by the engine sheet when the realtime model of that provider is chosen, shown over the sheet.",
+  "schema": "oriveo.shots.voice/v1",
+  "conversation": [
+    { "role": "user", "text": "Give me three tips for a calmer morning." },
+    { "role": "assistant", "text": "1. Lay out tomorrow's clothes tonight.\n2. Keep your phone out of reach for the first twenty minutes.\n3. Drink a glass of water before coffee." }
+  ],
+  "catalog": "shared/model-contracts/voice_catalog_contract.v2.json",
+  "connections": ["openAI", "groq"],
+  "dictationEngine": { "provider": "openAI", "model": "gpt-transcribe" },
+  "realtime": { "provider": "openAI", "model": "gpt-realtime-2.1" },
+  "$dictationLevels": "Static level meter for the recording page (0...1, oldest to newest); both ends draw exactly these bars.",
+  "dictationLevels": [0.18, 0.32, 0.55, 0.74, 0.62, 0.40, 0.28, 0.46, 0.68, 0.82, 0.70, 0.52, 0.36, 0.58, 0.77, 0.64, 0.44, 0.30, 0.50, 0.72, 0.60, 0.42, 0.26, 0.20],
+  "$pages": "name is the shared page id (iOS VoiceShots.Shot / Android voice shot page); the other keys are the demo state for that page.",
+  "pages": [
+    { "name": "voiceReadAloudIdle", "surface": "readAloud", "readAloud": "idle" },
+    { "name": "voiceReadAloudSpeaking", "surface": "readAloud", "readAloud": "speaking" },
+    { "name": "voiceDictationRecording", "surface": "dictation", "dictation": "recording", "elapsedSec": 12 },
+    { "name": "voiceDictationTranscribing", "surface": "dictation", "dictation": "transcribing" },
+    { "name": "voiceDictationFailed", "surface": "dictation", "dictation": "failed", "failure": "checkConnection" },
+    { "name": "voiceDictationInterrupted", "surface": "dictation", "dictation": "interrupted" },
+    { "name": "voiceSettings", "surface": "settings" },
+    { "name": "voiceEngineSheet", "surface": "engineSheet", "direction": "dictation" },
+    { "name": "voiceComposerButton", "surface": "composer" },
+    { "name": "voiceHome", "surface": "home" },
+    { "name": "voiceHomeDraft", "surface": "home" },
+    { "name": "voiceBarListening", "surface": "voiceBar", "status": "listening" },
+    { "name": "voiceBarThinking", "surface": "voiceBar", "status": "thinking" },
+    { "name": "voiceBarSpeaking", "surface": "voiceBar", "status": "speaking" },
+    { "name": "voiceBarMuted", "surface": "voiceBar", "status": "muted" },
+    { "name": "voiceBarAwaitingApproval", "surface": "voiceBar", "status": "awaitingApproval" },
+    { "name": "voiceBarError", "surface": "voiceBar", "status": "error" },
+    { "name": "voiceRealtimeRow", "surface": "settings", "scrollTo": "realtimeEngine", "realtimeNotice": "acknowledged" },
+    { "name": "voiceRealtimeNotice", "surface": "engineSheet", "direction": "realtime", "disclosure": "openAI" }
+  ]
+}

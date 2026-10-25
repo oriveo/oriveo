@@ -1,0 +1,1109 @@
+{
+  "code": 0,
+  "data": {
+    "schemaVersion": 2,
+    "revision": "sha256:16b6339275522bc261d7c8385273793fa954c7ae74c58454d8676d6a3ffd1198",
+    "providers": {
+      "gemini": {
+        "stt": [
+          {
+            "model": "gemini-3.5-transcribe",
+            "transport": "gemini_transcribe",
+            "path": "/v1beta/interactions",
+            "maxBytes": 14500000,
+            "maxDurationSec": 600,
+            "isDefault": true
+          }
+        ],
+        "tts": [
+          {
+            "model": "gemini-3.8-flash-lite-tts",
+            "transport": "gemini_tts",
+            "path": "/v1beta/interactions",
+            "voices": [
+              {
+                "id": "Zephyr"
+              },
+              {
+                "id": "Puck"
+              },
+              {
+                "id": "Charon"
+              },
+              {
+                "id": "Kore",
+                "isDefault": true
+              },
+              {
+                "id": "Fenrir"
+              },
+              {
+                "id": "Leda"
+              },
+              {
+                "id": "Orus"
+              },
+              {
+                "id": "Aoede"
+              },
+              {
+                "id": "Callirrhoe"
+              },
+              {
+                "id": "Autonoe"
+              },
+              {
+                "id": "Enceladus"
+              },
+              {
+                "id": "Iapetus"
+              },
+              {
+                "id": "Umbriel"
+              },
+              {
+                "id": "Algieba"
+              },
+              {
+                "id": "Despina"
+              },
+              {
+                "id": "Erinome"
+              },
+              {
+                "id": "Algenib"
+              },
+              {
+                "id": "Rasalgethi"
+              },
+              {
+                "id": "Laomedeia"
+              },
+              {
+                "id": "Achernar"
+              },
+              {
+                "id": "Alnilam"
+              },
+              {
+                "id": "Schedar"
+              },
+              {
+                "id": "Gacrux"
+              },
+              {
+                "id": "Pulcherrima"
+              },
+              {
+                "id": "Achird"
+              },
+              {
+                "id": "Zubenelgenubi"
+              },
+              {
+                "id": "Vindemiatrix"
+              },
+              {
+                "id": "Sadachbia"
+              },
+              {
+                "id": "Sadaltager"
+              },
+              {
+                "id": "Sulafat"
+              }
+            ],
+            "outputFormat": "wav",
+            "maxChars": 3000,
+            "isDefault": false
+          },
+          {
+            "model": "gemini-3.8-flash-tts",
+            "transport": "gemini_tts",
+            "path": "/v1beta/interactions",
+            "voices": [
+              {
+                "id": "Zephyr"
+              },
+              {
+                "id": "Puck"
+              },
+              {
+                "id": "Charon"
+              },
+              {
+                "id": "Kore",
+                "isDefault": true
+              },
+              {
+                "id": "Fenrir"
+              },
+              {
+                "id": "Leda"
+              },
+              {
+                "id": "Orus"
+              },
+              {
+                "id": "Aoede"
+              },
+              {
+                "id": "Callirrhoe"
+              },
+              {
+                "id": "Autonoe"
+              },
+              {
+                "id": "Enceladus"
+              },
+              {
+                "id": "Iapetus"
+              },
+              {
+                "id": "Umbriel"
+              },
+              {
+                "id": "Algieba"
+              },
+              {
+                "id": "Despina"
+              },
+              {
+                "id": "Erinome"
+              },
+              {
+                "id": "Algenib"
+              },
+              {
+                "id": "Rasalgethi"
+              },
+              {
+                "id": "Laomedeia"
+              },
+              {
+                "id": "Achernar"
+              },
+              {
+                "id": "Alnilam"
+              },
+              {
+                "id": "Schedar"
+              },
+              {
+                "id": "Gacrux"
+              },
+              {
+                "id": "Pulcherrima"
+              },
+              {
+                "id": "Achird"
+              },
+              {
+                "id": "Zubenelgenubi"
+              },
+              {
+                "id": "Vindemiatrix"
+              },
+              {
+                "id": "Sadachbia"
+              },
+              {
+                "id": "Sadaltager"
+              },
+              {
+                "id": "Sulafat"
+              }
+            ],
+            "outputFormat": "wav",
+            "maxChars": 3000,
+            "isDefault": true
+          }
+        ],
+        "realtime": [
+          {
+            "model": "gemini-3.8-live",
+            "transport": "gemini_live",
+            "path": "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent",
+            "contextWindow": 131072,
+            "voices": [
+              {
+                "id": "Zephyr"
+              },
+              {
+                "id": "Puck"
+              },
+              {
+                "id": "Charon"
+              },
+              {
+                "id": "Kore",
+                "isDefault": true
+              },
+              {
+                "id": "Fenrir"
+              },
+              {
+                "id": "Leda"
+              },
+              {
+                "id": "Orus"
+              },
+              {
+                "id": "Aoede"
+              },
+              {
+                "id": "Callirrhoe"
+              },
+              {
+                "id": "Autonoe"
+              },
+              {
+                "id": "Enceladus"
+              },
+              {
+                "id": "Iapetus"
+              },
+              {
+                "id": "Umbriel"
+              },
+              {
+                "id": "Algieba"
+              },
+              {
+                "id": "Despina"
+              },
+              {
+                "id": "Erinome"
+              },
+              {
+                "id": "Algenib"
+              },
+              {
+                "id": "Rasalgethi"
+              },
+              {
+                "id": "Laomedeia"
+              },
+              {
+                "id": "Achernar"
+              },
+              {
+                "id": "Alnilam"
+              },
+              {
+                "id": "Schedar"
+              },
+              {
+                "id": "Gacrux"
+              },
+              {
+                "id": "Pulcherrima"
+              },
+              {
+                "id": "Achird"
+              },
+              {
+                "id": "Zubenelgenubi"
+              },
+              {
+                "id": "Vindemiatrix"
+              },
+              {
+                "id": "Sadachbia"
+              },
+              {
+                "id": "Sadaltager"
+              },
+              {
+                "id": "Sulafat"
+              }
+            ],
+            "isDefault": true
+          }
+        ]
+      },
+      "grok": {
+        "stt": [
+          {
+            "model": "grok-voice-transcribe-2.0",
+            "transport": "xai_stt",
+            "path": "/v1/stt",
+            "maxBytes": 500000000,
+            "maxDurationSec": 600,
+            "languageField": "language",
+            "isDefault": true
+          }
+        ],
+        "tts": [
+          {
+            "model": "xai-tts",
+            "transport": "xai_tts",
+            "path": "/v1/tts",
+            "voices": [
+              {
+                "id": "carina"
+              },
+              {
+                "id": "zagan"
+              },
+              {
+                "id": "helix"
+              },
+              {
+                "id": "orion"
+              },
+              {
+                "id": "luna"
+              },
+              {
+                "id": "iris"
+              },
+              {
+                "id": "altair"
+              },
+              {
+                "id": "zenith"
+              },
+              {
+                "id": "perseus"
+              },
+              {
+                "id": "helios"
+              },
+              {
+                "id": "lux"
+              },
+              {
+                "id": "kepler"
+              },
+              {
+                "id": "rigel"
+              },
+              {
+                "id": "cosmo"
+              },
+              {
+                "id": "celeste"
+              },
+              {
+                "id": "ursa"
+              },
+              {
+                "id": "sirius"
+              },
+              {
+                "id": "lumen"
+              },
+              {
+                "id": "castor"
+              },
+              {
+                "id": "naksh"
+              },
+              {
+                "id": "atlas"
+              },
+              {
+                "id": "ara"
+              },
+              {
+                "id": "eve",
+                "isDefault": true
+              },
+              {
+                "id": "leo"
+              },
+              {
+                "id": "rex"
+              },
+              {
+                "id": "sal"
+              }
+            ],
+            "outputFormat": "mp3",
+            "maxChars": 60000,
+            "speedRange": {
+              "min": 0.7,
+              "max": 1.5
+            },
+            "isDefault": true
+          }
+        ],
+        "realtime": []
+      },
+      "groq": {
+        "stt": [
+          {
+            "model": "whisper-large-v3-turbo",
+            "transport": "openai_transcriptions",
+            "path": "/openai/v1/audio/transcriptions",
+            "maxBytes": 25000000,
+            "maxDurationSec": 600,
+            "languageField": "language",
+            "isDefault": true
+          }
+        ],
+        "tts": [
+          {
+            "model": "canopylabs/orpheus-v1-english",
+            "transport": "openai_speech",
+            "path": "/openai/v1/audio/speech",
+            "voices": [
+              {
+                "id": "autumn",
+                "isDefault": true
+              },
+              {
+                "id": "diana"
+              },
+              {
+                "id": "hannah"
+              },
+              {
+                "id": "austin"
+              },
+              {
+                "id": "daniel"
+              },
+              {
+                "id": "troy"
+              }
+            ],
+            "outputFormat": "wav",
+            "maxChars": 200,
+            "isDefault": true
+          }
+        ],
+        "realtime": []
+      },
+      "mistral": {
+        "stt": [
+          {
+            "model": "voxtral-mini-transcribe-3-0",
+            "transport": "openai_transcriptions",
+            "path": "/v1/audio/transcriptions",
+            "maxBytes": 25000000,
+            "maxDurationSec": 600,
+            "languageField": "language",
+            "isDefault": true
+          }
+        ],
+        "tts": [
+          {
+            "model": "voxtral-mini-tts-3-0",
+            "transport": "mistral_speech",
+            "path": "/v1/audio/speech",
+            "voices": [
+              {
+                "id": "en_paul_neutral",
+                "isDefault": true
+              },
+              {
+                "id": "en_paul_happy"
+              },
+              {
+                "id": "en_paul_cheerful"
+              },
+              {
+                "id": "en_paul_excited"
+              },
+              {
+                "id": "en_paul_confident"
+              },
+              {
+                "id": "en_paul_sad"
+              },
+              {
+                "id": "en_paul_frustrated"
+              },
+              {
+                "id": "en_paul_angry"
+              },
+              {
+                "id": "gb_jane_neutral"
+              },
+              {
+                "id": "gb_jane_confident"
+              },
+              {
+                "id": "gb_jane_curious"
+              },
+              {
+                "id": "gb_jane_confused"
+              },
+              {
+                "id": "gb_jane_sarcasm"
+              },
+              {
+                "id": "gb_jane_sad"
+              },
+              {
+                "id": "gb_jane_shameful"
+              },
+              {
+                "id": "gb_jane_jealousy"
+              },
+              {
+                "id": "gb_jane_frustrated"
+              },
+              {
+                "id": "gb_oliver_neutral"
+              },
+              {
+                "id": "gb_oliver_cheerful"
+              },
+              {
+                "id": "gb_oliver_excited"
+              },
+              {
+                "id": "gb_oliver_confident"
+              },
+              {
+                "id": "gb_oliver_curious"
+              },
+              {
+                "id": "gb_oliver_sad"
+              },
+              {
+                "id": "gb_oliver_angry"
+              },
+              {
+                "id": "fr_marie_neutral"
+              },
+              {
+                "id": "fr_marie_happy"
+              },
+              {
+                "id": "fr_marie_excited"
+              },
+              {
+                "id": "fr_marie_curious"
+              },
+              {
+                "id": "fr_marie_sad"
+              },
+              {
+                "id": "fr_marie_angry"
+              },
+              {
+                "id": "voice_478"
+              },
+              {
+                "id": "voice_447"
+              },
+              {
+                "id": "voice_485"
+              },
+              {
+                "id": "voice_484"
+              },
+              {
+                "id": "voice_483"
+              },
+              {
+                "id": "voice_482"
+              },
+              {
+                "id": "voice_481"
+              },
+              {
+                "id": "voice_480"
+              },
+              {
+                "id": "voice_479"
+              }
+            ],
+            "outputFormat": "mp3",
+            "maxChars": 1500,
+            "isDefault": true
+          }
+        ],
+        "realtime": []
+      },
+      "openAI": {
+        "stt": [
+          {
+            "model": "gpt-transcribe",
+            "transport": "openai_transcriptions",
+            "path": "/v1/audio/transcriptions",
+            "maxBytes": 25000000,
+            "maxDurationSec": 600,
+            "languageField": "language",
+            "isDefault": true
+          },
+          {
+            "model": "whisper-1",
+            "transport": "openai_transcriptions",
+            "path": "/v1/audio/transcriptions",
+            "maxBytes": 25000000,
+            "maxDurationSec": 600,
+            "languageField": "language",
+            "isDefault": false
+          }
+        ],
+        "tts": [
+          {
+            "model": "gpt-4o-mini-tts",
+            "transport": "openai_speech",
+            "path": "/v1/audio/speech",
+            "voices": [
+              {
+                "id": "alloy"
+              },
+              {
+                "id": "ash"
+              },
+              {
+                "id": "ballad"
+              },
+              {
+                "id": "coral"
+              },
+              {
+                "id": "echo"
+              },
+              {
+                "id": "fable"
+              },
+              {
+                "id": "onyx"
+              },
+              {
+                "id": "nova"
+              },
+              {
+                "id": "sage"
+              },
+              {
+                "id": "shimmer"
+              },
+              {
+                "id": "verse"
+              },
+              {
+                "id": "marin",
+                "isDefault": true
+              },
+              {
+                "id": "cedar"
+              }
+            ],
+            "outputFormat": "mp3",
+            "maxChars": 4096,
+            "speedRange": {
+              "min": 0.25,
+              "max": 4
+            },
+            "isDefault": true
+          },
+          {
+            "model": "tts-1",
+            "transport": "openai_speech",
+            "path": "/v1/audio/speech",
+            "voices": [
+              {
+                "id": "alloy",
+                "isDefault": true
+              },
+              {
+                "id": "ash"
+              },
+              {
+                "id": "coral"
+              },
+              {
+                "id": "echo"
+              },
+              {
+                "id": "fable"
+              },
+              {
+                "id": "onyx"
+              },
+              {
+                "id": "nova"
+              },
+              {
+                "id": "sage"
+              },
+              {
+                "id": "shimmer"
+              }
+            ],
+            "outputFormat": "mp3",
+            "maxChars": 4096,
+            "speedRange": {
+              "min": 0.25,
+              "max": 4
+            },
+            "isDefault": false
+          }
+        ],
+        "realtime": [
+          {
+            "model": "gpt-realtime-2.1",
+            "transport": "openai_realtime",
+            "path": "/v1/realtime",
+            "contextWindow": 128000,
+            "voices": [
+              {
+                "id": "alloy"
+              },
+              {
+                "id": "ash"
+              },
+              {
+                "id": "ballad"
+              },
+              {
+                "id": "coral"
+              },
+              {
+                "id": "echo"
+              },
+              {
+                "id": "sage"
+              },
+              {
+                "id": "shimmer"
+              },
+              {
+                "id": "verse"
+              },
+              {
+                "id": "marin",
+                "isDefault": true
+              },
+              {
+                "id": "cedar"
+              }
+            ],
+            "maxSessionSec": 3600,
+            "inputTranscriptionModel": "gpt-4o-mini-transcribe",
+            "isDefault": true
+          },
+          {
+            "model": "gpt-realtime-2.1-mini",
+            "transport": "openai_realtime",
+            "path": "/v1/realtime",
+            "contextWindow": 128000,
+            "voices": [
+              {
+                "id": "alloy"
+              },
+              {
+                "id": "ash"
+              },
+              {
+                "id": "ballad"
+              },
+              {
+                "id": "coral"
+              },
+              {
+                "id": "echo"
+              },
+              {
+                "id": "sage"
+              },
+              {
+                "id": "shimmer"
+              },
+              {
+                "id": "verse"
+              },
+              {
+                "id": "marin",
+                "isDefault": true
+              },
+              {
+                "id": "cedar"
+              }
+            ],
+            "maxSessionSec": 3600,
+            "inputTranscriptionModel": "gpt-4o-mini-transcribe",
+            "isDefault": false
+          }
+        ]
+      },
+      "qwen": {
+        "stt": [
+          {
+            "model": "qwen-audio-3.0-asr-flash",
+            "transport": "dashscope_asr",
+            "path": "/api/v1/services/aigc/multimodal-generation/generation",
+            "maxBytes": 7000000,
+            "maxDurationSec": 300,
+            "languageField": "language_hints",
+            "isDefault": true
+          }
+        ],
+        "tts": [
+          {
+            "model": "qwen3-tts-flash",
+            "transport": "dashscope_tts",
+            "path": "/api/v1/services/aigc/multimodal-generation/generation",
+            "voices": [
+              {
+                "id": "Cherry",
+                "isDefault": true
+              },
+              {
+                "id": "Serena"
+              },
+              {
+                "id": "Ethan"
+              },
+              {
+                "id": "Chelsie"
+              },
+              {
+                "id": "Momo"
+              },
+              {
+                "id": "Vivian"
+              },
+              {
+                "id": "Moon"
+              },
+              {
+                "id": "Maia"
+              },
+              {
+                "id": "Kai"
+              },
+              {
+                "id": "Nofish"
+              },
+              {
+                "id": "Bella"
+              },
+              {
+                "id": "Jennifer"
+              },
+              {
+                "id": "Ryan"
+              },
+              {
+                "id": "Katerina"
+              },
+              {
+                "id": "Aiden"
+              },
+              {
+                "id": "Eldric Sage"
+              },
+              {
+                "id": "Mia"
+              },
+              {
+                "id": "Mochi"
+              },
+              {
+                "id": "Bellona"
+              },
+              {
+                "id": "Vincent"
+              },
+              {
+                "id": "Bunny"
+              },
+              {
+                "id": "Neil"
+              },
+              {
+                "id": "Elias"
+              },
+              {
+                "id": "Arthur"
+              },
+              {
+                "id": "Nini"
+              },
+              {
+                "id": "Seren"
+              },
+              {
+                "id": "Pip"
+              },
+              {
+                "id": "Stella"
+              },
+              {
+                "id": "Bodega"
+              },
+              {
+                "id": "Sonrisa"
+              },
+              {
+                "id": "Alek"
+              },
+              {
+                "id": "Dolce"
+              },
+              {
+                "id": "Sohee"
+              },
+              {
+                "id": "Ono Anna"
+              },
+              {
+                "id": "Lenn"
+              },
+              {
+                "id": "Emilien"
+              },
+              {
+                "id": "Andre"
+              },
+              {
+                "id": "Radio Gol"
+              },
+              {
+                "id": "Jada"
+              },
+              {
+                "id": "Dylan"
+              },
+              {
+                "id": "Li"
+              },
+              {
+                "id": "Marcus"
+              },
+              {
+                "id": "Roy"
+              },
+              {
+                "id": "Peter"
+              },
+              {
+                "id": "Sunny"
+              },
+              {
+                "id": "Eric"
+              },
+              {
+                "id": "Rocky"
+              },
+              {
+                "id": "Kiki"
+              }
+            ],
+            "outputFormat": "wav",
+            "maxChars": 600,
+            "isDefault": true
+          }
+        ],
+        "realtime": []
+      },
+      "siliconFlow": {
+        "stt": [
+          {
+            "model": "FunAudioLLM/SenseVoiceSmall",
+            "transport": "openai_transcriptions",
+            "path": "/v1/audio/transcriptions",
+            "maxBytes": 50000000,
+            "maxDurationSec": 3600,
+            "isDefault": true
+          }
+        ],
+        "tts": [
+          {
+            "model": "FunAudioLLM/CosyVoice2-0.5B",
+            "transport": "openai_speech",
+            "path": "/v1/audio/speech",
+            "voices": [
+              {
+                "id": "FunAudioLLM/CosyVoice2-0.5B:alex",
+                "isDefault": true
+              },
+              {
+                "id": "FunAudioLLM/CosyVoice2-0.5B:anna"
+              },
+              {
+                "id": "FunAudioLLM/CosyVoice2-0.5B:bella"
+              },
+              {
+                "id": "FunAudioLLM/CosyVoice2-0.5B:benjamin"
+              },
+              {
+                "id": "FunAudioLLM/CosyVoice2-0.5B:charles"
+              },
+              {
+                "id": "FunAudioLLM/CosyVoice2-0.5B:claire"
+              },
+              {
+                "id": "FunAudioLLM/CosyVoice2-0.5B:david"
+              },
+              {
+                "id": "FunAudioLLM/CosyVoice2-0.5B:diana"
+              }
+            ],
+            "outputFormat": "mp3",
+            "maxChars": 128000,
+            "speedRange": {
+              "min": 0.25,
+              "max": 4
+            },
+            "isDefault": true
+          }
+        ],
+        "realtime": []
+      },
+      "together": {
+        "stt": [
+          {
+            "model": "openai/whisper-large-v3",
+            "transport": "openai_transcriptions",
+            "path": "/v1/audio/transcriptions",
+            "maxBytes": 25000000,
+            "maxDurationSec": 600,
+            "languageField": "language",
+            "isDefault": true
+          }
+        ],
+        "tts": [
+          {
+            "model": "canopylabs/orpheus-3b-0.1-ft",
+            "transport": "openai_speech",
+            "path": "/v1/audio/speech",
+            "voices": [
+              {
+                "id": "tara",
+                "isDefault": true
+              },
+              {
+                "id": "leah"
+              },
+              {
+                "id": "jess"
+              },
+              {
+                "id": "leo"
+              },
+              {
+                "id": "dan"
+              },
+              {
+                "id": "mia"
+              },
+              {
+                "id": "zac"
+              },
+              {
+                "id": "zoe"
+              }
+            ],
+            "outputFormat": "mp3",
+            "maxChars": 2000,
+            "isDefault": true
+          }
+        ],
+        "realtime": []
+      }
+    },
+    "view": "voice"
+  },
+  "message": "ok"
+}
