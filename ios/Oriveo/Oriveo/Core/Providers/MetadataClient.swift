@@ -2,6 +2,7 @@
 
 import Foundation
 import GRDB
+import OriveoProviderKit
 import os
 
 extension Notification.Name {
@@ -221,6 +222,102 @@ actor MetadataClient {
         /// `var` because the catalog view fills it from `capabilityControlsRef` during expansion.
         var capabilityControls: [String: CapabilityControl]?
         @CapabilityEvidenceRawField var capabilityEvidenceView: JSONValue?
+        /// schema 2 model lifecycle. Kept as-is and round-tripped through the cache; retirement checks read only state / shutdownAt / routedTo.
+        var lifecycle: JSONValue? = nil
+
+        /// lifecycle.state (for example `deprecated`); nil when missing or not a string.
+        var lifecycleState: String? { lifecycleString("state") }
+        /// lifecycle.shutdownAt (ISO 8601); nil when missing or unparsable.
+        var lifecycleShutdownAt: Date? { lifecycleString("shutdownAt").flatMap(ConversationModelRetirement.parseDate) }
+        /// lifecycle.routedTo: the successor model id given by the vendor; nil when missing or null.
+        var lifecycleRoutedTo: String? { lifecycleString("routedTo") }
+
+        private func lifecycleString(_ key: String) -> String? {
+            guard case .object(let object)? = lifecycle, case .string(let value)? = object[key], !value.isEmpty else {
+                return nil
+            }
+            return value
+        }
+        /// schema 2 per-parameter support verdicts. Kept as-is and round-tripped through the cache; handed to the parameter gate via `ResolvedModelMetadata.parameterSupport`.
+        var parameterSupport: JSONValue? = nil
+        /// Pricing v2. A malformed shape drops only this key (see `KeyedDecodingContainer.decodeIfPresent(PricingV2.Type...)`).
+        var pricingV2: PricingV2? = nil
+        /// Currency of the model-level price (ISO 4217); defaults to USD.
+        var currencyCode: String? = nil
+        /// Prices for regions other than the model-level regionScope. A bad entry drops only itself (see
+        /// `KeyedDecodingContainer.decodeIfPresent([RegionPricingEntry].Type...)`); unknown keys are ignored.
+        var regionPricing: [RegionPricingEntry]? = nil
+        /// Model-level promptCache (for example `{"policyRef":"anthropic.explicit"}`). Kept as raw JSON and round-tripped through the cache;
+        /// an unrecognized shape just means no policyRef instead of failing the whole catalog decode.
+        var promptCache: JSONValue? = nil
+
+        /// promptCache.policyRef; nil when missing or not a string.
+        var promptCachePolicyRef: String? {
+            guard case .object(let object)? = promptCache, case .string(let ref)? = object["policyRef"] else { return nil }
+            return ref
+        }
+    }
+
+    /// One regional price of a model: when the connection's effective region equals `regionScope`, it replaces the five model-level price keys as a whole
+    /// (currencyCode / pricingStatus / pricingUnit / pricing / pricingV2; an entry without pricingV2 has none).
+    /// A bad shape (missing required key, wrong type, bad pricingV2) fails the whole entry, and the caller drops just that entry.
+    struct RegionPricingEntry: Codable, Sendable {
+        let regionScope: String
+        let currencyCode: String
+        let pricingStatus: String
+        let pricingUnit: String
+        let pricing: ModelPricing?
+        let pricingV2: PricingV2?
+
+        private enum CodingKeys: String, CodingKey {
+            case regionScope, currencyCode, pricingStatus, pricingUnit, pricing, pricingV2
+        }
+
+        nonisolated init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            regionScope = try container.decode(String.self, forKey: .regionScope)
+            guard !regionScope.isEmpty else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .regionScope, in: container, debugDescription: "regionScope must not be empty"
+                )
+            }
+            currencyCode = try container.decode(String.self, forKey: .currencyCode)
+            pricingStatus = try container.decode(String.self, forKey: .pricingStatus)
+            guard ["priced", "free", "unknown"].contains(pricingStatus) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .pricingStatus, in: container, debugDescription: "unknown pricingStatus"
+                )
+            }
+            pricingUnit = try container.decode(String.self, forKey: .pricingUnit)
+            guard ["per_token", "per_image", "per_second"].contains(pricingUnit) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .pricingUnit, in: container, debugDescription: "unknown pricingUnit"
+                )
+            }
+            // pricing is required but may be null; anything that is neither an object nor null voids the entry.
+            guard container.contains(.pricing) else {
+                throw DecodingError.keyNotFound(
+                    CodingKeys.pricing, .init(codingPath: container.codingPath, debugDescription: "pricing is required")
+                )
+            }
+            pricing = try container.decodeNil(forKey: .pricing) ? nil : container.decode(ModelPricing.self, forKey: .pricing)
+            // A bad pricingV2 inside an entry spoils the whole entry (same rule as schema validation), so the lenient model-level decoding that drops only pricingV2 is not used.
+            if container.contains(.pricingV2), try !container.decodeNil(forKey: .pricingV2) {
+                pricingV2 = try container.decode(PricingV2.self, forKey: .pricingV2)
+            } else {
+                pricingV2 = nil
+            }
+        }
+
+        nonisolated func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(regionScope, forKey: .regionScope)
+            try container.encode(currencyCode, forKey: .currencyCode)
+            try container.encode(pricingStatus, forKey: .pricingStatus)
+            try container.encode(pricingUnit, forKey: .pricingUnit)
+            try container.encode(pricing, forKey: .pricing)
+            try container.encodeIfPresent(pricingV2, forKey: .pricingV2)
+        }
     }
 
     struct CapabilityControl: Codable, Sendable {
@@ -230,6 +327,22 @@ actor MetadataClient {
         let sourceRefs: [String]?
         let availableIntents: [String]?
         let customControlRefs: [String]?
+        /// Wire family of the input capability key (for example `openai_chat.image_url`); nil means the server did not declare it.
+        /// Used for the local implementation check and the negative-cache key.
+        let wireFamily: String?
+
+        init(
+            state: String, recipeRef: String?, reasonCode: String?, sourceRefs: [String]?,
+            availableIntents: [String]?, customControlRefs: [String]?, wireFamily: String? = nil
+        ) {
+            self.state = state
+            self.recipeRef = recipeRef
+            self.reasonCode = reasonCode
+            self.sourceRefs = sourceRefs
+            self.availableIntents = availableIntents
+            self.customControlRefs = customControlRefs
+            self.wireFamily = wireFamily
+        }
     }
 
     struct CapabilityRecipeOperation: Codable, Sendable {
@@ -388,21 +501,24 @@ actor MetadataClient {
         let maxOutputTokens: Int?
         let supportsTemperature: Bool?
         let billingSku: String?
-        let pricingUnit: String
+        var pricingUnit: String
         let sourceSummary: ModelSourceSummary?
-        let pricingStatus: String
+        var pricingStatus: String
         let capabilities: [ModelCapability]
-        let promptPerToken: Double?
-        let completionPerToken: Double?
-        let costPerUnit: Double?
-        let costInputBatches: Double?
-        let costOutputBatches: Double?
-        let costInputPriority: Double?
-        let costOutputPriority: Double?
-        let cacheReadInputPerMToken: Double?
-        let cacheCreationInputPerMToken: Double?
-        let cacheWrite5mPerMToken: Double?
-        let cacheWrite1hPerMToken: Double?
+        var promptPerToken: Double?
+        var completionPerToken: Double?
+        var costPerUnit: Double?
+        var costInputBatches: Double?
+        var costOutputBatches: Double?
+        var costInputPriority: Double?
+        var costOutputPriority: Double?
+        var cacheReadInputPerMToken: Double?
+        /// Legacy single-field cacheCreation price (not split by TTL). Kept as the `cacheWrite5m` fallback.
+        var cacheCreationInputPerMToken: Double?
+        /// Anthropic 5 min TTL cache write price (USD / 1M tokens). Always nil for other providers.
+        var cacheWrite5mPerMToken: Double?
+        /// Anthropic 1 h TTL cache write price (USD / 1M tokens). Always nil for other providers.
+        var cacheWrite1hPerMToken: Double?
         let profiles: (reasoning: String?, webSearch: String?, imageGen: String?)
         let generationProfile: GenerationProfileRef?
         let supportsPdfInput: Bool
@@ -426,6 +542,19 @@ actor MetadataClient {
         var attachmentExtraction: AttachmentExtractionLimits? = nil
         /// pricing.longContext is carried through as is; the surcharge line T = longContext.thresholdTokens (not written into AIModel).
         var longContext: LongContextPricing? = nil
+        /// Model-level pricingV2, passed through as-is; local estimation is handed by `CostCalculator` to `PricingV2Estimator`.
+        var pricingV2: PricingV2? = nil
+        /// Model-level promptCache.policyRef, passed through as-is; official Anthropic uses it to decide whether to place cache_control breakpoints.
+        var promptCachePolicyRef: String? = nil
+        /// schema 2 per-parameter support verdicts, passed through as-is; the generation-parameter gate of official connections uses them to decide
+        /// whether temperature / top_p / structured_output go out (`ProfileParamsResolver.officialParameterGate`).
+        var parameterSupport: JSONValue? = nil
+        /// Legacy single-tier cache read price (USD / 1M tokens); the fallback cache read price when `cacheReadInputPerMToken` is missing.
+        var cachedInputPerMToken: Double? = nil
+        /// Currency of the model-level price (USD by default); after a region entry is selected, that entry's currency.
+        var currencyCode: String? = nil
+        /// Regional prices passed through as-is; selection by the connection's effective region lives in `RegionPricingSelector`.
+        var regionPricing: [RegionPricingEntry] = []
     }
 
     struct AttachmentSupport: Codable, Sendable, Equatable {
@@ -704,6 +833,17 @@ actor MetadataClient {
         let resolveMap: [String: String]?
         let models: [String: ModelMetadataEntry]
         let transport: ProviderTransportDefinition?
+        /// Tombstones of retired models. With a split catalog only the index carries them, like defaultModelId.
+        let retiredModels: [RetiredModelTombstone]?
+    }
+
+    /// Tombstone of a retired model: a model a conversation still references but the catalog no longer offers.
+    struct RetiredModelTombstone: Codable, Sendable, Equatable {
+        let id: String
+        let displayName: String?
+        let retiredAt: String?
+        /// Id of the successor model given by the vendor; null means there is no successor.
+        let routedTo: String?
     }
 
     struct ProviderValidation: Codable, Sendable, Equatable {
@@ -974,6 +1114,7 @@ actor MetadataClient {
         let transport: ProviderTransportDefinition?
         let modelCount: Int?
         let catalogRevision: String?
+        let retiredModels: [RetiredModelTombstone]?
     }
 
     /// `view=index`: same top level as lean, without generationParameterTables / modelFacts.
@@ -990,8 +1131,44 @@ actor MetadataClient {
         let runtimeConfig: RawRuntimeConfig?
         let mcpRuntimeConfig: JSONValue?
         let capabilityRuntime: CapabilityRuntimeEnvelope?
+        let metadataSchema: Int?
+        /// wire `metadataRevision`; named payloadRevision on iOS, unrelated to the syncMetadataETag derived from the ETag.
+        let payloadRevision: Int?
+        let generatedAt: String?
+        let rollbackOf: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case version, view, contractVersion, capabilityContractVersion, updatedAt, profiles, providers
+            case providerConfigs, relayRuntimeConfig, runtimeConfig, libraryRuntimeConfig, mcpRuntimeConfig
+            case capabilityRuntime, metadataSchema, generatedAt, rollbackOf
+            case payloadRevision = "metadataRevision"
     }
 
+    }
+
+    /// Revision number used for the only-grows comparison: only schema 2 / 3 bodies have one.
+    nonisolated private static func comparablePayloadRevision(schema: Int?, revision: Int?) -> Int? {
+        schema == 2 || schema == 3 ? revision : nil
+    }
+
+    enum PayloadRevisionDecision: String, Sendable {
+        case accept
+        case unchanged
+        case reject
+    }
+
+    /// Accept when the cache has no value (schema 1 / no cache / revision 0) or the incoming one has none; newer wins; equal counts as 304; older is rejected.
+    /// Cache 0 is the bundled snapshot generation, so any online response is newer than it.
+    nonisolated static func payloadRevisionDecision(cached: Int?, incoming: Int?) -> PayloadRevisionDecision {
+        guard let cached, cached != 0, let incoming else { return .accept }
+        if incoming > cached { return .accept }
+        return incoming == cached ? .unchanged : .reject
+    }
+
+    /// The single switch for the metadata schema to request. 1 = legacy request URL / header; with >= 2 both the header and `?schema=` are sent
+    /// (production requests 3 = compact index / catalog; the response is still decoded by the body's metadataSchema).
+    nonisolated static let requestedMetadataSchema = 3
+    nonisolated static let metadataSchemaHeader = "X-Oriveo-Metadata-Schema"
     /// Content-deduplicated tables of one catalog; refs only resolve within that catalog.
     private struct CatalogTables: Codable, Sendable {
         var generationParameters: [String: [GenerationParameterRef]]?
@@ -1039,6 +1216,21 @@ actor MetadataClient {
         var tables: CatalogTables?
         let resolveMap: [String: String]?
         let models: [String: CatalogModelEntry]
+        let metadataSchema: Int?
+        /// wire `metadataRevision`, persisted with the catalog cache row payload.
+        let payloadRevision: Int?
+        let generatedAt: String?
+        let rollbackOf: Int?
+        /// On the wire: from schema 3 on, tombstones move from the index to the catalog top level; schema 1 / 2 catalogs have no such key.
+        /// On disk: the tombstone snapshot at adoption time - for schema 3 the catalog's own, otherwise the index's for this provider at that time;
+        /// a missing key means a row written by an older version, with no snapshot.
+        var retiredModels: [RetiredModelTombstone]?
+
+        enum CodingKeys: String, CodingKey {
+            case view, provider, catalogRevision, tables, resolveMap, models
+            case metadataSchema, generatedAt, rollbackOf, retiredModels
+            case payloadRevision = "metadataRevision"
+        }
     }
 
     /// One expanded catalog whose models have exactly the lean shape. `revision == nil` only appears on
@@ -1049,6 +1241,12 @@ actor MetadataClient {
         let resolveMap: [String: String]?
         let models: [String: ModelMetadataEntry]
         let generationParameters: [String: [GenerationParameterRef]]
+        /// Only schema 2 / 3 catalogs have a value; nil for a last-good migrated from lean.
+        var payloadRevision: Int? = nil
+        /// metadataSchema of the catalog body; revisions are compared only within the same schema.
+        var payloadSchema: Int? = nil
+        /// Tombstone snapshot at the time this catalog was adopted; used when assembling a provider while the index is schema 3. nil = a row cached by an older version, no snapshot.
+        var retiredModels: [RetiredModelTombstone]? = nil
     }
 
     private enum CatalogRejection: String, Error, Sendable {
@@ -1070,6 +1268,9 @@ actor MetadataClient {
         var catalogs: [String: CachedCatalog]
         var modelFacts: [String: ModelFacts]?
         var modelFactsRevision: String?
+        /// Snapshot backfilled for an old cached catalog that has no tombstone snapshot when the index switches from schema 1 / 2 to 3 (taken from the old index's tombstones for this provider);
+        /// written into the matching catalog row on the next commit, then cleared.
+        var tombstoneBackfill: [String: [RetiredModelTombstone]] = [:]
     }
 
     /// Catalog diagnostics carry the reason and provider only, never any payload.
@@ -1140,8 +1341,16 @@ actor MetadataClient {
 
     private let session: URLSession
     private let allowsNetworkRequestsInTests: Bool
+    /// The metadata schema this instance requests; production always uses `requestedMetadataSchema`, tests may inject one.
+    private let metadataRequestSchema: Int
     private let errorReporter: ErrorReporter
 
+    /// metadata v2 schema injected by tests; nil means the one bundled in the app.
+    private let payloadSchemaData: Data?
+    private lazy var payloadSchemaValidator: MetadataPayloadSchemaValidator? = {
+        guard let payloadSchemaData else { return Self.bundledPayloadSchemaValidator }
+        return try? MetadataPayloadSchemaValidator(schemaData: payloadSchemaData)
+    }()
     private func cacheStorageFormatVersionKey(for boundUID: String) -> String {
         "\(cacheStorageFormatVersionKeyPrefix).\(boundUID)"
     }
@@ -1222,6 +1431,8 @@ actor MetadataClient {
         /// the same lock and generation as the snapshot, so a resolver that misses a model can tell
         /// whether the catalog simply is not there yet. Always empty in lean mode.
         var pendingCatalogKinds: Set<String> = []
+        /// The current snapshot is the bundled snapshot (switches in the same generation as `servingBundledSnapshot` inside the actor).
+        var servingBundledSnapshot = false
     }
     private static let sharedStateLock = OSAllocatedUnfairLock(
         initialState: SharedMetadataState(box: nil, etag: nil, generation: 0)
@@ -1241,11 +1452,24 @@ actor MetadataClient {
 
     nonisolated private static var sharedETag: String? { sharedStateLock.withLock { $0.etag } }
 
+    #if DEBUG
+    /// Write gate for tests only: called with the entry name before replacing the shared snapshot and posting `.metadataSnapshotDidPublish`;
+    /// returning false skips both (blocks a Task outside its test scope from writing while another test holds the lock). Always nil in production.
+    nonisolated(unsafe) static var debugSharedWriteGate: (@Sendable (String) -> Bool)?
+    #endif
+
+    /// Returns false only when the DEBUG write gate discarded this write; the caller uses it to skip posting the publish notification.
+    @discardableResult
     nonisolated private static func replaceSharedState(
         snapshot: MetadataResponse?,
         etag: String?,
-        pendingCatalogKinds: Set<String> = []
-    ) {
+        pendingCatalogKinds: Set<String> = [],
+        servingBundledSnapshot: Bool = false,
+        entry: String = #function
+    ) -> Bool {
+        #if DEBUG
+        if let gate = debugSharedWriteGate, !gate(entry) { return false }
+        #endif
         let box = snapshot.map(MetadataSnapshotBox.init)
         let previous = sharedStateLock.withLock { state -> MetadataSnapshotBox? in
             let old = state.box
@@ -1253,11 +1477,13 @@ actor MetadataClient {
                 box: box,
                 etag: etag,
                 generation: state.generation &+ 1,
-                pendingCatalogKinds: snapshot == nil ? [] : pendingCatalogKinds
+                pendingCatalogKinds: snapshot == nil ? [] : pendingCatalogKinds,
+                servingBundledSnapshot: snapshot != nil && servingBundledSnapshot
             )
             return old
         }
         withExtendedLifetime(previous) {}
+        return true
     }
 
     private static let snapshotConfirmedLock = OSAllocatedUnfairLock(initialState: false)
@@ -1296,6 +1522,9 @@ actor MetadataClient {
     /// The current split index was confirmed by the backend this session (200/304). The index is only
     /// ever replaced by a confirmed response, so a single flag is enough.
     private var splitIndexConfirmed = false
+    /// The current table is the bundled snapshot (fallback for a cold start with no cache and a failed first fetch): memory only, never written to GRDB, not counted as confirmed,
+    /// and not used as the split last-good seed; cleared whenever online data replaces the table.
+    private var servingBundledSnapshot = false
     /// An older backend answers view=index with 400: fall back to lean for this process so a cold start
     /// still works when the server has not been upgraded yet.
     private var serverLacksSplitViews = false
@@ -1313,6 +1542,10 @@ actor MetadataClient {
     #if DEBUG
     private var grdbPersistCountForTesting = 0
     private var splitBodyWriteCountForTesting = 0
+    /// Bootstrap tasks spawned by `initialize()` that a caller is still awaiting (keyed by token).
+    private var bootstrapTasksForTesting: [UUID: Task<Void, Never>] = [:]
+    /// `initialize()` calls that have entered the actor and not yet returned.
+    private var initializeCallsInFlightForTesting = 0
     #endif
 
     init(
@@ -1322,16 +1555,24 @@ actor MetadataClient {
             Task { @MainActor in
                 AppLog.error(error, module: "metadata", context: context)
             }
-        }
+        },
+        payloadSchemaData: Data? = nil,
+        requestedMetadataSchema: Int = MetadataClient.requestedMetadataSchema
     ) {
+        self.metadataRequestSchema = requestedMetadataSchema
         self.session = session
         self.allowsNetworkRequestsInTests = allowsNetworkRequestsInTests
         self.errorReporter = errorReporter
+        self.payloadSchemaData = payloadSchemaData
     }
 
     // MARK: - Public API
 
     func initialize() async {
+        #if DEBUG
+        initializeCallsInFlightForTesting += 1
+        defer { initializeCallsInFlightForTesting -= 1 }
+        #endif
         while true {
             let requestedUID = AppSessionStore.activeUID
             if bootstrappedUID == requestedUID, boundUID == requestedUID { return }
@@ -1350,7 +1591,13 @@ actor MetadataClient {
                 await self.bootstrap(boundUID: requestedUID)
             }
             initialization = (token, requestedUID, task)
+            #if DEBUG
+            bootstrapTasksForTesting[token] = task
+            #endif
             await task.value
+            #if DEBUG
+            bootstrapTasksForTesting[token] = nil
+            #endif
             if initialization?.token == token {
                 initialization = nil
             }
@@ -1428,6 +1675,89 @@ actor MetadataClient {
         }
 
         await refreshMetadata(boundUID: requestedUID)
+        if table == nil, split == nil {
+            await adoptBundledSnapshotIfEligible(boundUID: requestedUID)
+        }
+    }
+
+    /// Cold start with no cache and a failed first fetch: when schema >= 2 is requested, adopt the bundled snapshot. It is schema 2 full data with
+    /// metadataRevision 0, so any online response is newer; under schema 1 the old deepseek builder would swallow images, so it is not used.
+    private func adoptBundledSnapshotIfEligible(boundUID requestedUID: String) async {
+        guard metadataRequestSchema >= 2,
+              table == nil, split == nil,
+              boundUID == requestedUID,
+              AppSessionStore.activeUID == requestedUID,
+              let snapshot = Self.loadBundledMetadataSnapshot(validator: payloadSchemaValidator) else { return }
+        replaceTable(snapshot)
+        servingBundledSnapshot = true
+        // Only the shared instance writes the process-wide shared state; an instance created separately in a test writes only itself,
+        // so concurrent tests cannot pollute shared (production only has shared, so behavior is unchanged).
+        guard self === Self.shared else { return }
+        let published = Self.replaceSharedState(snapshot: snapshot, etag: nil, servingBundledSnapshot: true)
+        Self.confirmedCatalogLock.withLock { $0 = ConfirmedCatalogState() }
+        await publishCapabilityEvidenceContent(snapshot: snapshot, etag: nil)
+        Self.syncSelfHealPatternsToClassifier()
+        guard published else { return }
+        await MainActor.run {
+            NotificationCenter.default.post(name: .metadataSnapshotDidPublish, object: nil)
+        }
+    }
+
+    /// Reads the app-bundled `bundled-metadata.v2.json.gz` (the data body, without the outer response).
+    nonisolated private static func loadBundledMetadataSnapshot(
+        validator: MetadataPayloadSchemaValidator?
+    ) -> MetadataResponse? {
+        let url = Bundle.main.url(forResource: "bundled-metadata.v2.json", withExtension: "gz")
+            ?? Bundle.main.url(
+                forResource: "bundled-metadata.v2.json", withExtension: "gz", subdirectory: "BundledMetadata"
+            )
+        guard let url,
+              let compressed = try? Data(contentsOf: url),
+              let data = try? GzipData.gunzip(compressed) else { return nil }
+        return bundledMetadataSnapshot(data, validator: validator)
+    }
+
+    /// Bundled snapshot decoding: if the shell (providers emptied) has any `fullOrIndex` violation the whole snapshot is unused; a bad model drops only itself
+    /// (schema or Codable mismatch, aliases pruned with it), a bad provider drops only that provider, and the rest stay in use.
+    nonisolated private static func bundledMetadataSnapshot(
+        _ data: Data,
+        validator: MetadataPayloadSchemaValidator?
+    ) -> MetadataResponse? {
+        guard var body = schemaV2Body(data), let validator else { return nil }
+        var shell = body
+        let providers = body["providers"] as? [String: Any]
+        if providers != nil { shell["providers"] = [String: Any]() }
+        guard validator.validate(shell, def: "fullOrIndex").isEmpty else { return nil }
+        var keptProviders: [String: Any] = [:]
+        for (kind, raw) in providers ?? [:] {
+            guard var entry = raw as? [String: Any] else { continue }
+            var keptModels: [String: Any] = [:]
+            for (modelID, model) in entry["models"] as? [String: Any] ?? [:] {
+                var model = model
+                let violations = validator.validate(model, def: "model")
+                if !violations.isEmpty {
+                    guard let object = model as? [String: Any],
+                          let stripped = pricingSalvaged(object, violations: violations, validator: validator)
+                    else { continue }
+                    model = stripped
+                }
+                guard entryDecodes(ModelMetadataEntry.self, model) else { continue }
+                keptModels[modelID] = model
+            }
+            if entry["models"] != nil { entry["models"] = keptModels }
+            if let resolveMap = entry["resolveMap"] as? [String: Any] {
+                entry["resolveMap"] = prunedResolveMap(resolveMap, kept: keptModels)
+            }
+            var lean = entry
+            lean["models"] = nil
+            guard validator.validate(lean, def: "provider").isEmpty,
+                  entryDecodes(ProviderData.self, entry) else { continue }
+            keptProviders[kind] = entry
+        }
+        if providers != nil { body["providers"] = keptProviders }
+        guard let pruned = try? JSONSerialization.data(withJSONObject: body),
+              let decoded = try? JSONDecoder().decode(MetadataResponse.self, from: pruned) else { return nil }
+        return sanitizedMetadataResponse(decoded)
     }
 
     /// A fresh cache already renders, so the conditional request runs in the background instead of
@@ -1442,6 +1772,14 @@ actor MetadataClient {
 
     func ensureInitialized() async {
         await initialize()
+    }
+
+    /// Only models outside the catalog / subscription models need this fact table; an ordinary metadata cold start does not download it.
+    func ensureModelFactsLoaded() async {
+        await ensureInitialized()
+        // An old full cache can supply facts first, but it has no sidecar ETag, so it must still be revalidated the first time it is really needed.
+        guard table?.modelFacts == nil || storedModelFactsETag == nil else { return }
+        await fetchModelFacts()
     }
 
     func refreshModelFacts() async {
@@ -1548,6 +1886,114 @@ actor MetadataClient {
         Self.withSharedSnapshot { Self.providerData(for: providerKind, in: $0)?.defaultModelId }
     }
 
+    /// Whether the current shared snapshot is the bundled snapshot (fallback for a cold start with no cache and a failed first fetch).
+    nonisolated func syncIsServingBundledSnapshot() -> Bool {
+        Self.sharedStateLock.withLock { $0.servingBundledSnapshot }
+    }
+
+    /// Values read at once for the conversation-model retirement check: the catalog (nil = snapshot absent / this provider not in the snapshot / catalog pending, treated as available)
+    /// and whether the current snapshot is the bundled one. Both are taken under one lock so they cannot mix across generations.
+    struct ConversationRetirementRead: Sendable {
+        var catalog: ConversationModelRetirement.Catalog?
+        var servingBundledSnapshot: Bool
+    }
+
+    /// Catalog values for the conversation-model retirement check: builds only `modelIDs`, their canonicals, successors and the catalog default model;
+    /// pending, bundled-snapshot state and the snapshot are all read under one lock.
+    nonisolated func syncConversationRetirementRead(
+        providerKind: ProviderKind,
+        modelIDs: [String]
+    ) -> ConversationRetirementRead {
+        syncConversationRetirementSource(providerKind: providerKind).read(modelIDs: modelIDs)
+    }
+
+    /// Catalog source for the retirement check: this provider's catalog read under one lock (nil when pending / snapshot absent / not in the snapshot) plus the bundled-snapshot state,
+    /// with tombstones already indexed by id. When judging several candidates take the source once, then slice it per candidate with `read(modelIDs:)`;
+    /// use it within a single call only and do not hold it across calls (so it never goes stale after a catalog revision).
+    struct ConversationRetirementSource: Sendable {
+        var servingBundledSnapshot: Bool
+        fileprivate var slice: (@Sendable ([String]) -> ConversationModelRetirement.Catalog)?
+
+        /// Builds only `modelIDs`, their canonicals, successors and the catalog default model.
+        func read(modelIDs: [String]) -> ConversationRetirementRead {
+            ConversationRetirementRead(catalog: slice?(modelIDs), servingBundledSnapshot: servingBundledSnapshot)
+        }
+    }
+
+    /// When pending, triggers a fetch and treats it as no catalog (available); the catalog and the bundled-snapshot flag are taken under one lock so they cannot mix across generations.
+    nonisolated func syncConversationRetirementSource(providerKind: ProviderKind) -> ConversationRetirementSource {
+        guard let kind = Self.catalogKind(for: providerKind) else {
+            return ConversationRetirementSource(servingBundledSnapshot: syncIsServingBundledSnapshot(), slice: nil)
+        }
+        let state = Self.sharedStateLock.withLock { $0 }
+        if state.pendingCatalogKinds.contains(kind) {
+            requestCatalogs([kind])
+            return ConversationRetirementSource(servingBundledSnapshot: state.servingBundledSnapshot, slice: nil)
+        }
+        let slice = Self.providerData(for: providerKind, in: state.box?.snapshot).map { provider in
+            let index = TombstoneIndex(provider.retiredModels ?? [])
+            return { @Sendable (modelIDs: [String]) in
+                Self.conversationRetirementCatalog(provider: provider, tombstones: index, modelIDs: modelIDs)
+            }
+        }
+        return ConversationRetirementSource(servingBundledSnapshot: state.servingBundledSnapshot, slice: slice)
+    }
+
+    /// Index of tombstones by id: the successor takes the first entry with the same id, and a slice keeps all entries with the same id in their original order.
+    private struct TombstoneIndex: Sendable {
+        var byID: [String: [(offset: Int, tombstone: RetiredModelTombstone)]] = [:]
+
+        init(_ tombstones: [RetiredModelTombstone]) {
+            for (offset, tombstone) in tombstones.enumerated() {
+                byID[tombstone.id, default: []].append((offset, tombstone))
+            }
+        }
+
+        func first(_ id: String) -> RetiredModelTombstone? { byID[id]?.first?.tombstone }
+
+        func filter(_ ids: Set<String>) -> [RetiredModelTombstone] {
+            ids.flatMap { byID[$0] ?? [] }.sorted { $0.offset < $1.offset }.map(\.tombstone)
+        }
+    }
+
+    nonisolated private static func conversationRetirementCatalog(
+        provider: ProviderData,
+        tombstones: TombstoneIndex,
+        modelIDs: [String]
+    ) -> ConversationModelRetirement.Catalog {
+        let resolveMap = provider.resolveMap ?? [:]
+        var wanted = Set<String>()
+        var resolveSubset: [String: String] = [:]
+        func addWithCanonical(_ id: String) {
+            wanted.insert(id)
+            if let canonical = resolveMap[id] ?? provider.models[id]?.canonicalModelId, !canonical.isEmpty {
+                resolveSubset[id] = canonical
+                wanted.insert(canonical)
+            }
+        }
+        modelIDs.forEach(addWithCanonical)
+        if let defaultId = provider.defaultModelId { addWithCanonical(defaultId) }
+        // Successors: the models that a candidate's tombstone / lifecycle points to; the check must see whether each is still available now.
+        let successors = wanted.compactMap { id -> String? in
+            tombstones.first(id)?.routedTo ?? provider.models[id]?.lifecycleRoutedTo
+        }
+        wanted.formUnion(successors.filter { !$0.isEmpty })
+        let models = wanted.sorted().compactMap { id -> ConversationModelRetirement.CatalogModel? in
+            guard let entry = provider.models[id] else { return nil }
+            let lifecycle: ConversationModelRetirement.Lifecycle? = entry.lifecycle == nil ? nil : .init(
+                state: entry.lifecycleState,
+                shutdownAt: entry.lifecycleShutdownAt,
+                routedTo: entry.lifecycleRoutedTo
+            )
+            return .init(id: id, displayName: entry.displayName, lifecycle: lifecycle)
+        }
+        return ConversationModelRetirement.Catalog(
+            models: models,
+            retiredModels: tombstones.filter(wanted),
+            resolveMap: resolveSubset,
+            defaultModelId: provider.defaultModelId
+        )
+    }
     func providerValidation(providerKind: ProviderKind) -> ProviderValidation? {
         providerData(for: providerKind)?.validation
     }
@@ -1954,11 +2400,6 @@ actor MetadataClient {
         #endif
     }
 
-    nonisolated func syncHasCatalogModel(modelID: String, providerKind: ProviderKind) -> Bool {
-        Self.withSharedSnapshot {
-            Self.resolveCatalogModel(in: $0, modelID: modelID, providerKind: providerKind)
-        } != nil
-    }
 
     nonisolated static func syncSelfHealPatternsToClassifier() {
         UnsupportedParamClassifier.setRuntimePatterns(withSharedSnapshot { $0?.runtimeConfig?.selfHealPatterns } ?? [])
@@ -2128,6 +2569,7 @@ actor MetadataClient {
     private func replaceTable(_ newValue: MetadataResponse?) {
         let previous = table
         table = newValue
+        servingBundledSnapshot = false
         Self.drainOffCallerThread(previous)
     }
 
@@ -2208,6 +2650,9 @@ actor MetadataClient {
         providerKind: ProviderKind,
         metadataRevision: String? = nil
     ) -> ResolvedModelMetadata? {
+#if DEBUG
+        debugResolveCatalogModelCountLock.withLock { $0 &+= 1 }
+#endif
         guard let provider = providerData(for: providerKind, in: table),
               let resolveMap = provider.resolveMap else { return nil }
 
@@ -2255,7 +2700,7 @@ actor MetadataClient {
             .compactMap { ModelCapability(rawValue: $0) }
             .filter { $0 != .text }
 
-        return ResolvedModelMetadata(
+        var resolved = ResolvedModelMetadata(
             canonicalModelId: model.canonicalModelId ?? canonicalId,
             modelRef: Self.trimmedNonEmpty(model.modelRef),
             displayName: model.displayName,
@@ -2311,8 +2756,44 @@ actor MetadataClient {
             nativeFileMimes: (model.nativeFileMimes ?? []).map { $0.lowercased() },
             pdfNativeDefault: model.pdfNativeDefault ?? false,
             attachmentExtraction: model.attachmentExtraction,
-            longContext: pricing?.longContext
+            longContext: pricing?.longContext,
+            pricingV2: model.pricingV2,
+            promptCachePolicyRef: model.promptCachePolicyRef,
+            parameterSupport: model.parameterSupport,
+            cachedInputPerMToken: pricing?.cachedInputPerMToken
         )
+        resolved.currencyCode = model.currencyCode
+        resolved.regionPricing = model.regionPricing ?? []
+        return resolved
+    }
+
+    /// The selected region entry replaces the five model-level price keys as a whole; other fields (capabilities, profiles and so on) are untouched.
+    nonisolated static func applyingRegionPrice(
+        _ entry: RegionPricingEntry,
+        to model: ResolvedModelMetadata
+    ) -> ResolvedModelMetadata {
+        var selected = model
+        let pricing = entry.pricing
+        let pricingUnit = normalizePricingUnit(entry.pricingUnit)
+        let tokenPriced = entry.pricingStatus != "unknown" && pricingUnit == "per_token"
+        selected.currencyCode = entry.currencyCode
+        selected.pricingStatus = entry.pricingStatus
+        selected.pricingUnit = pricingUnit
+        selected.promptPerToken = tokenPriced ? pricing?.promptPerToken : nil
+        selected.completionPerToken = tokenPriced ? pricing?.completionPerToken : nil
+        selected.costPerUnit = pricing?.costPerUnit
+        selected.costInputBatches = pricing?.costInputBatches
+        selected.costOutputBatches = pricing?.costOutputBatches
+        selected.costInputPriority = pricing?.costInputPriority
+        selected.costOutputPriority = pricing?.costOutputPriority
+        selected.cacheReadInputPerMToken = pricing?.cacheReadInputPerMToken
+        selected.cacheCreationInputPerMToken = pricing?.cacheCreationInputPerMToken
+        selected.cacheWrite5mPerMToken = pricing?.cacheWrite5mPerMToken
+        selected.cacheWrite1hPerMToken = pricing?.cacheWrite1hPerMToken
+        selected.cachedInputPerMToken = pricing?.cachedInputPerMToken
+        selected.longContext = pricing?.longContext
+        selected.pricingV2 = entry.pricingV2
+        return selected
     }
 
     nonisolated private static func normalizeCapabilityEvidenceView(
@@ -2676,7 +3157,7 @@ actor MetadataClient {
                 throw error
             }
             let decoded = Self.sanitizedMetadataResponse(
-                Self.preservingModelFactsForLean(rawDecoded, from: table)
+                Self.preservingModelFactsForLean(rawDecoded, from: servingBundledSnapshot ? nil : table)
             )
             persistCache(decoded, etag: responseETag, boundUID: requestedUID)
             guard AppSessionStore.activeUID == requestedUID, boundUID == requestedUID else { return }
@@ -2705,6 +3186,8 @@ actor MetadataClient {
 
     private enum IndexFetchResult: Sendable {
         case updated(IndexResponse, etag: String?)
+        /// A 200 whose payloadRevision equals the cache: the data stays, only the ETag changes.
+        case unchanged(etag: String?)
         case notModified
         case unsupported
         case failed
@@ -2712,6 +3195,8 @@ actor MetadataClient {
 
     private enum CatalogFetchResult: Sendable {
         case updated(CatalogResponse, etag: String?)
+        /// A 200 whose payloadRevision equals this provider's cache: the data stays, only the ETag changes.
+        case unchanged(etag: String?)
         case notModified
         /// 404: the current snapshot has no such provider. Never the same as an empty catalog.
         case notFound
@@ -2778,11 +3263,19 @@ actor MetadataClient {
         var indexTouched = false
 
         if refetchIndex || current == nil {
-            switch await fetchIndex(etag: current?.indexETag) {
+            switch await fetchIndex(
+                etag: current?.indexETag,
+                cachedRevision: Self.indexPayloadRevision(current),
+                cachedSchema: current?.index.metadataSchema
+            ) {
             case .unsupported:
                 return .indexUnsupported
             case .failed:
                 guard current != nil else { return .failed }
+            case let .unchanged(etag):
+                current?.indexETag = etag
+                indexConfirmed = true
+                indexTouched = true
             case .notModified:
                 indexConfirmed = true
                 indexTouched = true
@@ -2815,16 +3308,31 @@ actor MetadataClient {
                 case .notFound:
                     // Listed by the index yet 404: the snapshot rolled over; treat it like a revision mismatch.
                     mismatched.insert(kind)
-                case .notModified:
+                case .notModified, .unchanged:
+                    // An equal 200: a provider whose revision matches what the index announces sends no request, so the only way to get here is a mismatch with the index;
+                    // the ETag is first refreshed atomically on that provider's cache row, then the mismatch refetches the index.
+                    if case let .unchanged(etag) = result,
+                       let cached = working.catalogs[kind],
+                       cached.expanded.revision != nil {
+                        working.catalogs[kind] = CachedCatalog(expanded: cached.expanded, etag: etag)
+                        touchedCatalogs.insert(kind)
+                    }
                     if let cached = working.catalogs[kind],
                        cached.expanded.revision != nil,
                        expected == nil || cached.expanded.revision == expected {
+                        if case let .unchanged(etag) = result {
+                            working.catalogs[kind] = CachedCatalog(expanded: cached.expanded, etag: etag)
+                        }
                         touchedCatalogs.insert(kind)
                     } else {
                         mismatched.insert(kind)
                     }
                 case let .updated(raw, etag):
-                    let safe = Self.sanitizedCatalogResponse(raw)
+                    var safe = Self.sanitizedCatalogResponse(raw)
+                    // The tombstone snapshot is stored with the catalog: for schema 3 the catalog's own, otherwise the index's for this provider right now.
+                    safe.retiredModels = raw.metadataSchema == 3
+                        ? (raw.retiredModels ?? [])
+                        : (working.index.providers[kind]?.retiredModels ?? [])
                     switch Self.expandCatalog(safe, provider: kind, expectedRevision: expected) {
                     case let .success(expanded):
                         working.catalogs[kind] = CachedCatalog(expanded: expanded, etag: etag)
@@ -2846,7 +3354,16 @@ actor MetadataClient {
             // Revision disagrees with the index: refetch the index once and retry; if it still disagrees,
             // keep last-good and report a diagnostic.
             retriedIndex = true
-            switch await fetchIndex(etag: working.indexETag) {
+            switch await fetchIndex(
+                etag: working.indexETag,
+                cachedRevision: Self.indexPayloadRevision(working),
+                cachedSchema: working.index.metadataSchema,
+                bypassEdgeCache: true
+            ) {
+            case let .unchanged(etag):
+                working.indexETag = etag
+                indexConfirmed = true
+                indexTouched = true
             case .notModified:
                 indexConfirmed = true
                 indexTouched = true
@@ -2885,6 +3402,7 @@ actor MetadataClient {
             migratingFromLean: !wasSplit,
             boundUID: requestedUID
         )
+        working.tombstoneBackfill = [:]
         if !wasSplit {
             storedETag = nil
         }
@@ -2910,11 +3428,26 @@ actor MetadataClient {
         etag: String?
     ) -> SplitState {
         if var state {
+            // The old index (schema 1 / 2) carries tombstones; after switching to schema 3 they live only in the catalogs. An old cached catalog without a snapshot
+            // is topped up from the old index's tombstones for this provider at this moment, otherwise the tombstones would be lost if that catalog's refetch failed.
+            if index.metadataSchema == 3, state.index.metadataSchema != 3 {
+                for (kind, cached) in state.catalogs where cached.expanded.retiredModels == nil {
+                    let tombstones = state.index.providers[kind]?.retiredModels ?? []
+                    var expanded = cached.expanded
+                    expanded.retiredModels = tombstones
+                    state.catalogs[kind] = CachedCatalog(expanded: expanded, etag: cached.etag)
+                    if cached.expanded.revision != nil {
+                        state.tombstoneBackfill[kind] = tombstones
+                    }
+                }
+            }
             state.index = index
             state.indexETag = etag
             return state
         }
         var seeds: [String: CachedCatalog] = [:]
+        // The bundled snapshot is not a last-good: it is not split into a seed, and its fact table does not go into the split.
+        let table = servingBundledSnapshot ? nil : self.table
         if let table {
             let parameters = table.generationParameterTables ?? [:]
             for (kind, provider) in table.providers {
@@ -2923,7 +3456,8 @@ actor MetadataClient {
                         revision: nil,
                         resolveMap: provider.resolveMap,
                         models: provider.models,
-                        generationParameters: parameters
+                        generationParameters: parameters,
+                        retiredModels: provider.retiredModels ?? []
                     ),
                     etag: nil
                 )
@@ -2974,7 +3508,18 @@ actor MetadataClient {
         await withTaskGroup(of: (String, CatalogFetchResult).self) { group in
             for kind in kinds {
                 let etag = state.catalogs[kind]?.etag
-                group.addTask { (kind, await self.fetchCatalog(kind: kind, etag: etag)) }
+                let cachedRevision = state.catalogs[kind]?.expanded.payloadRevision
+                let cachedSchema = state.catalogs[kind]?.expanded.payloadSchema
+                let announcedRevision = state.index.providers[kind]?.catalogRevision
+                group.addTask {
+                    (kind, await self.fetchCatalog(
+                        kind: kind,
+                        etag: etag,
+                        cachedRevision: cachedRevision,
+                        cachedSchema: cachedSchema,
+                        announcedRevision: announcedRevision
+                    ))
+                }
             }
             var results: [String: CatalogFetchResult] = [:]
             for await (kind, result) in group {
@@ -2984,13 +3529,40 @@ actor MetadataClient {
         }
     }
 
-    private func fetchIndex(etag: String?) async -> IndexFetchResult {
+    nonisolated private static func indexPayloadRevision(_ state: SplitState?) -> Int? {
+        guard let index = state?.index else { return nil }
+        return comparablePayloadRevision(schema: index.metadataSchema, revision: index.payloadRevision)
+    }
+
+    /// With schema >= 2 the header and the query item are both sent; with 1 nothing is added.
+    private func applyRequestedSchema(_ request: inout URLRequest) {
+        guard metadataRequestSchema >= 2 else { return }
+        request.setValue(String(metadataRequestSchema), forHTTPHeaderField: Self.metadataSchemaHeader)
+    }
+
+    /// `bypassEdgeCache` is used only for the one refetch after a revision mismatch: a one-off `fresh`
+    /// query item makes the request skip the edge cache.
+    private func fetchIndex(
+        etag: String?,
+        cachedRevision: Int?,
+        cachedSchema: Int?,
+        bypassEdgeCache: Bool = false
+    ) async -> IndexFetchResult {
         let resolvedURL = BackendURLResolver.resolve()
-        guard !resolvedURL.isEmpty,
-              let url = URL(string: "\(resolvedURL)/api/metadata?view=index") else {
+        guard !resolvedURL.isEmpty else { return .failed }
+        var components = URLComponents(string: "\(resolvedURL)/api/metadata")
+        components?.queryItems = [URLQueryItem(name: "view", value: "index")]
+        if metadataRequestSchema >= 2 {
+            components?.queryItems?.append(URLQueryItem(name: "schema", value: String(metadataRequestSchema)))
+        }
+        if bypassEdgeCache {
+            components?.queryItems?.append(URLQueryItem(name: "fresh", value: UUID().uuidString))
+        }
+        guard let url = components?.url else {
             return .failed
         }
         var request = URLRequest(url: url)
+        applyRequestedSchema(&request)
         if let etag {
             request.setValue(etag, forHTTPHeaderField: "If-None-Match")
         }
@@ -3003,12 +3575,37 @@ actor MetadataClient {
             case 400:
                 return .unsupported
             case 200:
-                guard let decoded = try? decodeWrappedPayload(IndexResponse.self, from: data),
+                // Revision comes before validation: a regression is rejected and an equal revision means unchanged, and neither validates the body.
+                let responseETag = http.value(forHTTPHeaderField: "Etag")
+                switch Self.payloadRevisionDecision(
+                    cached: cachedRevision,
+                    incoming: Self.schemaV2IncomingRevision(data, cachedSchema: cachedSchema)
+                ) {
+                case .accept:
+                    break
+                case .unchanged:
+                    return .unchanged(etag: responseETag ?? etag)
+                case .reject:
+                    reportCatalogDiagnostic(reason: "revision_regressed", provider: "index")
+                    return .failed
+                }
+                var payload = data
+                switch Self.schemaV2PrunedIndex(data, validator: payloadSchemaValidator) {
+                case .notSchemaV2:
+                    break
+                case .rejected:
+                    reportMetadataDecodingFailure(source: .network, byteCount: data.count, statusCode: 200)
+                    return .failed
+                case let .pruned(pruned, drops):
+                    payload = pruned
+                    reportSchemaV2Drops(drops)
+                }
+                guard let decoded = try? decodeWrappedPayload(IndexResponse.self, from: payload),
                       decoded.view == "index" else {
                     reportMetadataDecodingFailure(source: .network, byteCount: data.count, statusCode: 200)
                     return .failed
                 }
-                return .updated(decoded, etag: http.value(forHTTPHeaderField: "Etag"))
+                return .updated(decoded, etag: responseETag)
             default:
                 return .failed
             }
@@ -3017,7 +3614,16 @@ actor MetadataClient {
         }
     }
 
-    private func fetchCatalog(kind: String, etag: String?) async -> CatalogFetchResult {
+    /// `announcedRevision` is the catalogRevision the current index announces for this provider: sent as
+    /// `rev` so the URL is content-addressed and a new revision always bypasses a stale edge copy; without
+    /// an announcement it is omitted.
+    private func fetchCatalog(
+        kind: String,
+        etag: String?,
+        cachedRevision: Int?,
+        cachedSchema: Int?,
+        announcedRevision: String?
+    ) async -> CatalogFetchResult {
         let resolvedURL = BackendURLResolver.resolve()
         guard !resolvedURL.isEmpty else { return .failed }
         var components = URLComponents(string: "\(resolvedURL)/api/metadata")
@@ -3025,8 +3631,15 @@ actor MetadataClient {
             URLQueryItem(name: "view", value: "catalog"),
             URLQueryItem(name: "provider", value: kind),
         ]
+        if metadataRequestSchema >= 2 {
+            components?.queryItems?.append(URLQueryItem(name: "schema", value: String(metadataRequestSchema)))
+        }
+        if let announcedRevision {
+            components?.queryItems?.append(URLQueryItem(name: "rev", value: announcedRevision))
+        }
         guard let url = components?.url else { return .failed }
         var request = URLRequest(url: url)
+        applyRequestedSchema(&request)
         if let etag {
             request.setValue(etag, forHTTPHeaderField: "If-None-Match")
         }
@@ -3039,11 +3652,51 @@ actor MetadataClient {
             case 404:
                 return .notFound
             case 200:
-                guard let decoded = try? decodeWrappedPayload(CatalogResponse.self, from: data) else {
+                // Revision comes before validation: a regression is rejected and an equal revision means unchanged, and neither validates the body.
+                let responseETag = http.value(forHTTPHeaderField: "Etag")
+                switch Self.payloadRevisionDecision(
+                    cached: cachedRevision,
+                    incoming: Self.schemaV2IncomingRevision(data, cachedSchema: cachedSchema)
+                ) {
+                case .accept:
+                    break
+                case .unchanged:
+                    return .unchanged(etag: responseETag ?? etag)
+                case .reject:
+                    reportCatalogDiagnostic(reason: "revision_regressed", provider: kind)
+                    return .failed
+                }
+                // schema 3 is first expanded into the schema 2 shape, then goes through the same validation / pruning (validation happens after expansion).
+                var source = data
+                switch Self.compactCatalogExpanded(data) {
+                case .notCompact:
+                    break
+                case let .expanded(expanded):
+                    source = expanded
+                case .unresolvedRef:
+                    // Same treatment as an unresolved ref: reject the whole payload, keep last-good, record a diagnostic.
+                    reportCatalogDiagnostic(reason: CatalogRejection.unresolvedRef.rawValue, provider: kind)
+                    return .failed
+                case .malformed:
                     reportMetadataDecodingFailure(source: .network, byteCount: data.count, statusCode: 200)
                     return .failed
                 }
-                return .updated(decoded, etag: http.value(forHTTPHeaderField: "Etag"))
+                var payload = source
+                switch Self.schemaV2PrunedCatalog(source, validator: payloadSchemaValidator) {
+                case .notSchemaV2:
+                    break
+                case .rejected:
+                    reportMetadataDecodingFailure(source: .network, byteCount: data.count, statusCode: 200)
+                    return .failed
+                case let .pruned(pruned, drops):
+                    payload = pruned
+                    reportSchemaV2Drops(drops)
+                }
+                guard let decoded = try? decodeWrappedPayload(CatalogResponse.self, from: payload) else {
+                    reportMetadataDecodingFailure(source: .network, byteCount: data.count, statusCode: 200)
+                    return .failed
+                }
+                return .updated(decoded, etag: responseETag)
             default:
                 return .failed
             }
@@ -3061,6 +3714,375 @@ actor MetadataClient {
             throw MetadataPayloadDecodeSentinel()
         }
         return direct
+    }
+
+    // MARK: - metadataSchema 2 validation and per-entry tolerance
+
+    /// The app-bundled v2 schema, read only once per process.
+    nonisolated private static let bundledPayloadSchemaValidator: MetadataPayloadSchemaValidator? = {
+        let url = Bundle.main.url(forResource: "metadata_payload.v2.schema", withExtension: "json")
+            ?? Bundle.main.url(
+                forResource: "metadata_payload.v2.schema", withExtension: "json", subdirectory: "BundledMetadata"
+            )
+        guard let url, let data = try? Data(contentsOf: url) else { return nil }
+        return try? MetadataPayloadSchemaValidator(schemaData: data)
+    }()
+
+    /// One entry pruned by schema 2: provider level (modelID == nil) or model level. Records only the location and keyword, never the value.
+    private struct SchemaV2Drop: Sendable, Equatable {
+        let provider: String
+        let modelID: String?
+        let instancePath: String
+        let keyword: String
+    }
+
+    private enum SchemaV2Outcome: Sendable {
+        /// The body has no metadataSchema or it is not 2 / 3: take the original path, no validation.
+        case notSchemaV2
+        /// The shell does not fit the schema (or the schema is unavailable): reject the whole payload and keep last-good.
+        case rejected
+        /// The shell is valid; bad entries have been pruned, and `Data` is the pruned body (without the `{code,data}` wrapper).
+        case pruned(Data, drops: [SchemaV2Drop])
+    }
+
+    /// Extracts the response body (both the `{code,data,message}` wrapper and a bare body) and tells whether it is schema 2 / 3.
+    nonisolated private static func schemaV2Body(_ data: Data) -> [String: Any]? {
+        guard let top = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        let body = top["data"] as? [String: Any] ?? top
+        guard let schema = body["metadataSchema"] as? NSNumber,
+              CFGetTypeID(schema) != CFBooleanGetTypeID(),
+              schema.doubleValue == 2 || schema.doubleValue == 3 else { return nil }
+        return body
+    }
+
+    /// The revision at the top level of a schema 2 / 3 body (`data.metadataRevision`); nil when it is not an integer.
+    /// Revisions are comparable only within the same schema: a body schema different from the cache (for example 2 -> 3 after an upgrade) also gives nil, i.e. it is accepted as new.
+    nonisolated private static func schemaV2IncomingRevision(_ data: Data, cachedSchema: Int?) -> Int? {
+        guard let body = schemaV2Body(data),
+              let schema = body["metadataSchema"] as? NSNumber,
+              Int(exactly: schema.doubleValue) == cachedSchema,
+              let number = body["metadataRevision"] as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+        return Int(exactly: number.doubleValue)
+    }
+
+    private enum CompactCatalogOutcome: Sendable {
+        /// The body is not schema 3: hand it as-is to the schema 2 / 1 path.
+        case notCompact
+        /// A body already expanded into the schema 2 shape (without the `{code,data}` wrapper).
+        case expanded(Data)
+        /// Some parameterSupportRef was not found: reject the whole payload.
+        case unresolvedRef
+        case malformed
+    }
+
+    nonisolated private static func compactCatalogExpanded(_ data: Data) -> CompactCatalogOutcome {
+        guard let top = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return .notCompact }
+        let body = top["data"] as? [String: Any] ?? top
+        guard let schema = body["metadataSchema"] as? NSNumber,
+              CFGetTypeID(schema) != CFBooleanGetTypeID(),
+              schema.doubleValue == 3 else { return .notCompact }
+        guard let expanded = expandedCompactCatalogBody(body) else { return .unresolvedRef }
+        guard JSONSerialization.isValidJSONObject(expanded),
+              let out = try? JSONSerialization.data(withJSONObject: expanded) else { return .malformed }
+        return .expanded(out)
+    }
+
+    /// schema 3 compact catalog -> schema 2 shape (fixed order): modelDefaults fills missing keys -> billingSku defaults to the key and null removes it ->
+    /// uiHints groups default to the vendor and null removes them -> parameterSupportRef is looked up in tables.parameterSupport. Other refs are left to the schema 2 expansion.
+    /// nil = any ref missing / null / empty string (schema 3 always rejects the whole payload instead of dropping model by model like schema 2);
+    /// non-object models are left as-is for the validation layer to drop.
+    nonisolated static func expandedCompactCatalogBody(_ body: [String: Any]) -> [String: Any]? {
+        var body = body
+        let defaults = body["modelDefaults"] as? [String: Any] ?? [:]
+        var tables = body["tables"] as? [String: Any]
+        let parameterSupport = tables?["parameterSupport"] as? [String: Any] ?? [:]
+        if let models = body["models"] as? [String: Any] {
+            var expanded: [String: Any] = [:]
+            expanded.reserveCapacity(models.count)
+            for (key, raw) in models {
+                guard let compact = raw as? [String: Any] else {
+                    expanded[key] = raw
+                    continue
+                }
+                guard let model = expandedCompactModel(
+                    compact, key: key, defaults: defaults, parameterSupport: parameterSupport
+                ), compactModelRefsResolve(model, tables: tables ?? [:]) else { return nil }
+                expanded[key] = model
+            }
+            body["models"] = expanded
+        }
+        body["modelDefaults"] = nil
+        if tables != nil {
+            tables?["parameterSupport"] = nil
+            body["tables"] = tables
+        }
+        return body
+    }
+
+    /// schema 3: capabilityControlsRef / profilesRef / capabilityEvidenceRef on a model and the expanded parametersRef must all be non-empty keys in this catalog's tables;
+    /// null / empty string counts as a miss.
+    nonisolated private static func compactModelRefsResolve(_ model: [String: Any], tables: [String: Any]) -> Bool {
+        func entry(_ ref: Any, in table: String) -> Any? {
+            guard let key = ref as? String, !key.isEmpty else { return nil }
+            return (tables[table] as? [String: Any])?[key]
+        }
+        if let ref = model["capabilityControlsRef"], entry(ref, in: "capabilityControls") == nil { return false }
+        if let ref = model["capabilityEvidenceRef"], entry(ref, in: "capabilityEvidence") == nil { return false }
+        if let ref = model["profilesRef"] {
+            guard let profiles = entry(ref, in: "profiles") else { return false }
+            if let generation = (profiles as? [String: Any])?["generation"] as? [String: Any],
+               let parametersRef = generation["parametersRef"],
+               entry(parametersRef, in: "generationParameters") == nil {
+                return false
+            }
+        }
+        return true
+    }
+
+    nonisolated private static func expandedCompactModel(
+        _ compact: [String: Any],
+        key: String,
+        defaults: [String: Any],
+        parameterSupport: [String: Any]
+    ) -> [String: Any]? {
+        var model = compact
+        for (field, value) in defaults where model[field] == nil {
+            model[field] = value
+        }
+        switch model["billingSku"] {
+        case .none:
+            model["billingSku"] = key
+        case .some(is NSNull):
+            model["billingSku"] = nil
+        default:
+            break
+        }
+        if var hints = model["uiHints"] as? [String: Any] {
+            for (hint, vendor) in [("groupKey", "vendorKey"), ("groupName", "vendorName")] {
+                switch hints[hint] {
+                case .none:
+                    if let value = model[vendor], !(value is NSNull) { hints[hint] = value }
+                case .some(is NSNull):
+                    hints[hint] = nil
+                default:
+                    break
+                }
+            }
+            model["uiHints"] = hints
+        }
+        if let ref = model["parameterSupportRef"] {
+            guard let refKey = ref as? String, !refKey.isEmpty, let support = parameterSupport[refKey] else { return nil }
+            model["parameterSupportRef"] = nil
+            model["parameterSupport"] = support
+        }
+        return model
+    }
+
+    /// Whether one entry can be decoded by the local Codable; one that passes the schema but has a wrong type (for example a string given to a Bool field) is also dropped on its own.
+    nonisolated private static func entryDecodes<T: Decodable>(_ type: T.Type, _ object: Any) -> Bool {
+        guard JSONSerialization.isValidJSONObject(object),
+              let data = try? JSONSerialization.data(withJSONObject: object) else { return false }
+        return (try? JSONDecoder().decode(T.self, from: data)) != nil
+    }
+
+    nonisolated private static func schemaV2DecodeDrop(provider: String, modelID: String?) -> SchemaV2Drop {
+        SchemaV2Drop(provider: provider, modelID: modelID, instancePath: "", keyword: "decode")
+    }
+
+    /// When every model violation falls under `/pricingV2` or some `/regionPricing/<i>`, remove the bad pricingV2 / bad region entries
+    /// (remove the whole key if no region entry is left) and validate again; if it passes return the stripped model, otherwise nil (the whole model is dropped as before).
+    nonisolated private static func pricingSalvaged(
+        _ model: [String: Any],
+        violations: [MetadataPayloadSchemaValidator.Violation],
+        validator: MetadataPayloadSchemaValidator
+    ) -> [String: Any]? {
+        guard let stripped = pricingViolationsStripped(model, violations: violations) else { return nil }
+        return validator.validate(stripped, def: "model").isEmpty ? stripped : nil
+    }
+
+    /// Removes only the locations of price violations: the whole `/pricingV2` key and the `/regionPricing/<i>` entry (a bad `/regionPricing` itself removes the whole key).
+    /// Returns nil if any violation lies elsewhere. The model has the same two keys before and after expansion, so both call sites can share one violation list.
+    nonisolated private static func pricingViolationsStripped(
+        _ model: [String: Any],
+        violations: [MetadataPayloadSchemaValidator.Violation]
+    ) -> [String: Any]? {
+        guard !violations.isEmpty else { return nil }
+        var dropPricingV2 = false
+        var dropRegionPricing = false
+        var badRegionIndexes = Set<Int>()
+        for violation in violations {
+            let path = violation.instancePath
+            if path == "/pricingV2" || path.hasPrefix("/pricingV2/") {
+                dropPricingV2 = true
+            } else if path == "/regionPricing" {
+                dropRegionPricing = true
+            } else if path.hasPrefix("/regionPricing/") {
+                let segment = path.dropFirst("/regionPricing/".count).split(separator: "/", maxSplits: 1).first
+                guard let segment, let index = Int(segment) else { return nil }
+                badRegionIndexes.insert(index)
+            } else {
+                return nil
+            }
+        }
+        var stripped = model
+        if dropPricingV2 {
+            guard model["pricingV2"] != nil else { return nil }
+            stripped["pricingV2"] = nil
+        }
+        if dropRegionPricing {
+            stripped["regionPricing"] = nil
+        } else if !badRegionIndexes.isEmpty {
+            guard let entries = model["regionPricing"] as? [Any] else { return nil }
+            let kept = entries.enumerated().filter { !badRegionIndexes.contains($0.offset) }.map(\.element)
+            stripped["regionPricing"] = kept.isEmpty ? nil : kept
+        }
+        return stripped
+    }
+
+    /// Filters aliases by the kept set: keeps only those pointing at a kept model (non-string targets are kept as-is for the shell validation).
+    nonisolated private static func prunedResolveMap(_ resolveMap: [String: Any], kept: [String: Any]) -> [String: Any] {
+        resolveMap.filter { _, target in
+            guard let target = target as? String else { return true }
+            return kept[target] != nil
+        }
+    }
+
+    nonisolated private static func schemaV2Drop(
+        provider: String,
+        modelID: String?,
+        _ violation: MetadataPayloadSchemaValidator.Violation
+    ) -> SchemaV2Drop {
+        SchemaV2Drop(provider: provider, modelID: modelID, instancePath: violation.instancePath, keyword: violation.keyword)
+    }
+
+    /// index: shell (providers emptied) -> per-provider validation (models removed); a bad provider is dropped as a whole.
+    nonisolated private static func schemaV2PrunedIndex(
+        _ data: Data,
+        validator: MetadataPayloadSchemaValidator?
+    ) -> SchemaV2Outcome {
+        guard var body = schemaV2Body(data) else { return .notSchemaV2 }
+        guard let validator else { return .rejected }
+        var shell = body
+        let providers = body["providers"] as? [String: Any]
+        if providers != nil { shell["providers"] = [String: Any]() }
+        guard validator.validate(shell, def: "fullOrIndex").isEmpty else { return .rejected }
+        var drops: [SchemaV2Drop] = []
+        var kept: [String: Any] = [:]
+        for (kind, raw) in providers ?? [:] {
+            var lean: Any = raw
+            if var entry = raw as? [String: Any] {
+                entry["models"] = nil
+                lean = entry
+            }
+            if let first = validator.validate(lean, def: "provider").first {
+                drops.append(schemaV2Drop(provider: kind, modelID: nil, first))
+            } else if !entryDecodes(IndexProviderData.self, lean) {
+                drops.append(schemaV2DecodeDrop(provider: kind, modelID: nil))
+            } else {
+                kept[kind] = raw
+            }
+        }
+        if providers != nil { body["providers"] = kept }
+        guard let pruned = try? JSONSerialization.data(withJSONObject: body) else { return .rejected }
+        return .pruned(pruned, drops: drops.sorted { $0.provider < $1.provider })
+    }
+
+    /// catalog: shell (models emptied) validation -> per-model validation after ref expansion; a bad model / unresolved ref drops only that model
+    /// and removes the aliases in resolveMap that point to it. schema 2 treats a missing tables as an empty table.
+    nonisolated private static func schemaV2PrunedCatalog(
+        _ data: Data,
+        validator: MetadataPayloadSchemaValidator?
+    ) -> SchemaV2Outcome {
+        guard var body = schemaV2Body(data) else { return .notSchemaV2 }
+        guard let validator else { return .rejected }
+        var shell = body
+        let models = body["models"] as? [String: Any]
+        if models != nil { shell["models"] = [String: Any]() }
+        guard validator.validate(shell, def: "catalog").isEmpty, let models else { return .rejected }
+        let provider = body["provider"] as? String ?? ""
+        let tables = body["tables"] as? [String: Any] ?? [:]
+        let parameterTables = tables["generationParameters"] as? [String: Any] ?? [:]
+
+        func table(_ name: String, _ ref: Any) -> Any? {
+            guard let key = ref as? String else { return nil }
+            return (tables[name] as? [String: Any])?[key]
+        }
+
+        var drops: [SchemaV2Drop] = []
+        var kept: [String: Any] = [:]
+        for (modelID, raw) in models {
+            guard let rawModel = raw as? [String: Any] else {
+                let first = validator.validate(raw, def: "model").first
+                    ?? MetadataPayloadSchemaValidator.Violation(instancePath: "", keyword: "type")
+                drops.append(schemaV2Drop(provider: provider, modelID: modelID, first))
+                continue
+            }
+            // Remove the three *Ref keys first, then backfill from the tables, so the expanded object carries no ref keys.
+            var expanded = rawModel
+            for interned in ["capabilityControlsRef", "profilesRef", "capabilityEvidenceRef"] {
+                expanded[interned] = nil
+            }
+            var unresolvedPath: String?
+            if let ref = rawModel["capabilityControlsRef"] {
+                if let controls = table("capabilityControls", ref) {
+                    expanded["capabilityControls"] = controls
+                } else {
+                    unresolvedPath = "/capabilityControlsRef"
+                }
+            }
+            if unresolvedPath == nil, let ref = rawModel["profilesRef"] {
+                if let profiles = table("profiles", ref) {
+                    expanded["profiles"] = profiles
+                } else {
+                    unresolvedPath = "/profilesRef"
+                }
+            }
+            if unresolvedPath == nil, let ref = rawModel["capabilityEvidenceRef"] {
+                if let evidence = table("capabilityEvidence", ref) {
+                    expanded["capabilityEvidenceView"] = evidence
+                } else {
+                    unresolvedPath = "/capabilityEvidenceRef"
+                }
+            }
+            // The expanded parametersRef is looked up in this catalog's generationParameters.
+            if unresolvedPath == nil,
+               let generation = (expanded["profiles"] as? [String: Any])?["generation"] as? [String: Any],
+               let parametersRef = generation["parametersRef"] {
+                let key = (parametersRef as? String).flatMap { trimmedNonEmpty($0) }
+                if key.map({ parameterTables[$0] == nil }) ?? true {
+                    unresolvedPath = "/profiles/generation/parametersRef"
+                }
+            }
+            if let unresolvedPath {
+                drops.append(SchemaV2Drop(
+                    provider: provider, modelID: modelID, instancePath: unresolvedPath, keyword: "unresolved_ref"
+                ))
+            } else {
+                var keptModel = rawModel
+                let violations = validator.validate(expanded, def: "model")
+                if let first = violations.first {
+                    // When only pricingV2 / some region entries are bad: remove them and keep the model, still recording this drop.
+                    drops.append(schemaV2Drop(provider: provider, modelID: modelID, first))
+                    guard pricingSalvaged(expanded, violations: violations, validator: validator) != nil,
+                          let salvaged = pricingViolationsStripped(keptModel, violations: violations) else {
+                        continue
+                    }
+                    keptModel = salvaged
+                }
+                if !entryDecodes(CatalogModelEntry.self, keptModel) {
+                    drops.append(schemaV2DecodeDrop(provider: provider, modelID: modelID))
+                } else {
+                    kept[modelID] = violations.isEmpty ? raw : keptModel
+                }
+            }
+        }
+        body["models"] = kept
+        if let resolveMap = body["resolveMap"] as? [String: Any] {
+            body["resolveMap"] = prunedResolveMap(resolveMap, kept: kept)
+        }
+        guard let pruned = try? JSONSerialization.data(withJSONObject: body) else { return .rejected }
+        return .pruned(pruned, drops: drops.sorted { ($0.modelID ?? "") < ($1.modelID ?? "") })
     }
 
     /// Validates and expands one catalog. Any unresolved ref rejects the whole catalog: models are never
@@ -3111,7 +4133,12 @@ actor MetadataClient {
             revision: revision,
             resolveMap: catalog.resolveMap,
             models: models,
-            generationParameters: parameterTables
+            generationParameters: parameterTables,
+            payloadRevision: comparablePayloadRevision(
+                schema: catalog.metadataSchema, revision: catalog.payloadRevision
+            ),
+            payloadSchema: catalog.metadataSchema,
+            retiredModels: catalog.retiredModels
         ))
     }
 
@@ -3137,7 +4164,12 @@ actor MetadataClient {
             catalogRevision: safe.catalogRevision,
             tables: safe.tables,
             resolveMap: safe.resolveMap,
-            models: models
+            models: models,
+            metadataSchema: safe.metadataSchema,
+            payloadRevision: safe.payloadRevision,
+            generatedAt: safe.generatedAt,
+            rollbackOf: safe.rollbackOf,
+            retiredModels: safe.retiredModels
         )
     }
 
@@ -3145,6 +4177,7 @@ actor MetadataClient {
     /// path (parametersRef lookup, identity completion, evidence normalization). Providers whose
     /// catalog is not loaded only carry provider-level fields.
     nonisolated private static func assembleSplitSnapshot(_ state: SplitState) -> MetadataResponse {
+        let index = state.index
         var parameterTables: [String: [GenerationParameterRef]] = [:]
         var providers: [String: ProviderData] = [:]
         providers.reserveCapacity(state.index.providers.count)
@@ -3161,10 +4194,11 @@ actor MetadataClient {
                 validation: entry.validation,
                 resolveMap: catalog?.resolveMap,
                 models: catalog?.models ?? [:],
-                transport: entry.transport
+                transport: entry.transport,
+                // When the index is schema 3 tombstones live only in the catalogs: use the tombstone snapshot cached with this provider's catalog; otherwise use the index's.
+                retiredModels: index.metadataSchema == 3 ? catalog?.retiredModels : entry.retiredModels
             )
         }
-        let index = state.index
         return MetadataResponse(
             version: index.version,
             view: "lean",
@@ -3192,7 +4226,7 @@ actor MetadataClient {
         guard let state = split else { return }
         let snapshot = Self.assembleSplitSnapshot(state)
         replaceTable(snapshot)
-        Self.replaceSharedState(
+        let published = Self.replaceSharedState(
             snapshot: snapshot,
             etag: state.indexETag,
             pendingCatalogKinds: Self.pendingCatalogKinds(in: state)
@@ -3200,6 +4234,7 @@ actor MetadataClient {
         publishConfirmedCatalogs()
         await publishCapabilityEvidenceContent(snapshot: snapshot, etag: state.indexETag)
         Self.syncSelfHealPatternsToClassifier()
+        guard published else { return }
         // When metadata arrives later than providers, the relay legacy key aliases must be re-registered against the new snapshot; the post is delivered synchronously on the main thread, so they are registered by the time publishing returns
         await MainActor.run {
             NotificationCenter.default.post(name: .metadataSnapshotDidPublish, object: nil)
@@ -3231,11 +4266,20 @@ actor MetadataClient {
         }
     }
 
-    private func reportCatalogDiagnostic(reason: String, provider: String) {
-        errorReporter(
-            MetadataCatalogDiagnostic(reason: reason),
-            ["operation": "catalog_\(reason)", "provider": provider]
-        )
+    private func reportCatalogDiagnostic(reason: String, provider: String, extraContext: [String: String] = [:]) {
+        var context = ["operation": "catalog_\(reason)", "reason": reason, "provider": provider]
+        context.merge(extraContext) { current, _ in current }
+        errorReporter(MetadataCatalogDiagnostic(reason: reason), context)
+    }
+
+    /// Reports each entry pruned by schema validation one by one: only the provider, the model id and
+    /// the location and keyword of the first violation, never any value.
+    private func reportSchemaV2Drops(_ drops: [SchemaV2Drop]) {
+        for drop in drops {
+            var context = ["instance_path": drop.instancePath, "keyword": drop.keyword]
+            if let modelID = drop.modelID { context["model_id"] = modelID }
+            reportCatalogDiagnostic(reason: "model_entry_invalid", provider: drop.provider, extraContext: context)
+        }
     }
 
     private func dataForBackendRequest(_ request: URLRequest) async throws -> (Data, URLResponse) {
@@ -3425,7 +4469,9 @@ actor MetadataClient {
         etag: String?,
         boundUID requestedUID: String
     ) {
+        let bundled = servingBundledSnapshot
         replaceTable(snapshot)
+        servingBundledSnapshot = bundled
         if var state = split {
             state.modelFacts = facts?.facts
             state.modelFactsRevision = facts?.revision
@@ -3433,17 +4479,21 @@ actor MetadataClient {
             Self.replaceSharedState(
                 snapshot: snapshot,
                 etag: state.indexETag,
-                pendingCatalogKinds: Self.pendingCatalogKinds(in: state)
+                pendingCatalogKinds: Self.pendingCatalogKinds(in: state),
+                servingBundledSnapshot: bundled
             )
             persistSplitModelFacts(facts, etag: etag, boundUID: requestedUID)
         } else {
-            Self.replaceSharedState(snapshot: snapshot, etag: storedETag)
+            Self.replaceSharedState(snapshot: snapshot, etag: storedETag, servingBundledSnapshot: bundled)
             if let etag {
                 UserDefaults.standard.set(etag, forKey: modelFactsETagKey(for: requestedUID))
             } else {
                 UserDefaults.standard.removeObject(forKey: modelFactsETagKey(for: requestedUID))
             }
+            // The bundled snapshot is memory only: the facts added here are not written to GRDB either.
+            if !bundled {
             persistCache(snapshot, etag: storedETag, boundUID: requestedUID)
+            }
         }
     }
 
@@ -3470,6 +4520,10 @@ actor MetadataClient {
     }
 
     private func publishCapabilityEvidenceContent(snapshot: MetadataResponse, etag: String?) async {
+        #if DEBUG
+        // Same write gate as the shared snapshot: a discarded leaked write must not advance the evidence contentRevision (otherwise the UI would still recompute).
+        if let gate = Self.debugSharedWriteGate, !gate("publishCapabilityEvidenceContent") { return }
+        #endif
         let expiries = Self.capabilityEvidenceExpiries(in: snapshot, metadataRevision: etag)
         await CapabilityEvidenceObservationBridge.shared.publishContent(candidateExpiries: expiries)
     }
@@ -3520,7 +4574,8 @@ actor MetadataClient {
                 validation: provider.validation,
                 resolveMap: provider.resolveMap,
                 models: models,
-                transport: provider.transport
+                transport: provider.transport,
+                retiredModels: provider.retiredModels
             )
         }
         return MetadataResponse(
@@ -3783,6 +4838,10 @@ actor MetadataClient {
             let factsETag = storedModelFactsETag
             let contractVersion = state.index.contractVersion ?? 0
             let indexETag = state.indexETag
+            let touchedCatalogETags = touchedCatalogs.map { ($0, state.catalogs[$0]?.etag) }
+            let tombstoneBackfillRows: [(key: String, tombstones: String)] = try state.tombstoneBackfill
+                .filter { updatedCatalogs[$0.key] == nil }
+                .map { (Self.splitCatalogKeyPrefix + $0.key, String(decoding: try encoder.encode($0.value), as: UTF8.self)) }
             try pool.write { db in
                 if let indexPayload {
                     try Self.upsertSplitRow(
@@ -3790,7 +4849,8 @@ actor MetadataClient {
                         contractVersion: contractVersion, etag: indexETag, updatedAt: now
                     )
                 } else if touchIndex {
-                    try Self.touchSplitRow(db, key: Self.splitIndexKey, updatedAt: now)
+                    // The ETag is refreshed in the same transaction and row as the data (on a 304 the etag is unchanged and the same value is written back).
+                    try Self.touchSplitRow(db, key: Self.splitIndexKey, etag: indexETag, updatedAt: now)
                 }
                 for row in catalogRows {
                     try Self.upsertSplitRow(
@@ -3798,8 +4858,11 @@ actor MetadataClient {
                         contractVersion: contractVersion, etag: row.etag, updatedAt: now
                     )
                 }
-                for kind in touchedCatalogs {
-                    try Self.touchSplitRow(db, key: Self.splitCatalogKeyPrefix + kind, updatedAt: now)
+                for (kind, etag) in touchedCatalogETags {
+                    try Self.touchSplitRow(db, key: Self.splitCatalogKeyPrefix + kind, etag: etag, updatedAt: now)
+                }
+                for row in tombstoneBackfillRows {
+                    try Self.patchSplitCatalogTombstones(db, key: row.key, tombstonesJSON: row.tombstones)
                 }
                 if migratingFromLean {
                     try db.execute(sql: "DELETE FROM metadata_cache")
@@ -3880,10 +4943,38 @@ actor MetadataClient {
         )
     }
 
-    nonisolated private static func touchSplitRow(_ db: Database, key: String, updatedAt: TimeInterval) throws {
+    /// Backfills the tombstone snapshot into a catalog row written by an older version: changes only `retiredModels` in the payload; revision / etag / timestamp stay.
+    /// `tombstonesJSON == nil` removes the key (used only by tests to build a row of an older version).
+    nonisolated private static func patchSplitCatalogTombstones(
+        _ db: Database,
+        key: String,
+        tombstonesJSON: String?
+    ) throws {
+        guard let payload = try String.fetchOne(
+            db, sql: "SELECT payload FROM metadata_split_cache WHERE key = ?", arguments: [key]
+        ), var object = (try? JSONSerialization.jsonObject(with: Data(payload.utf8))) as? [String: Any] else { return }
+        if let tombstonesJSON {
+            guard let tombstones = try? JSONSerialization.jsonObject(with: Data(tombstonesJSON.utf8)) else { return }
+            object["retiredModels"] = tombstones
+        } else {
+            object["retiredModels"] = nil
+        }
+        let patched = try JSONSerialization.data(withJSONObject: object)
         try db.execute(
-            sql: "UPDATE metadata_split_cache SET updatedAt = ? WHERE key = ?",
-            arguments: [updatedAt, key]
+            sql: "UPDATE metadata_split_cache SET payload = ? WHERE key = ?",
+            arguments: [String(decoding: patched, as: UTF8.self), key]
+        )
+    }
+
+    nonisolated private static func touchSplitRow(
+        _ db: Database,
+        key: String,
+        etag: String?,
+        updatedAt: TimeInterval
+    ) throws {
+        try db.execute(
+            sql: "UPDATE metadata_split_cache SET updatedAt = ?, etag = ? WHERE key = ?",
+            arguments: [updatedAt, etag, key]
         )
     }
 
@@ -4034,14 +5125,33 @@ extension MetadataClient {
     func calcCost(
         breakdown: UsageBreakdown,
         modelID: String,
-        providerKind: ProviderKind
+        providerKind: ProviderKind,
+        at: Date
     ) -> (cost: Double, source: CostSource) {
         let metadata = resolveCatalogModel(modelID: modelID, providerKind: providerKind)
-        return CostCalculator.calcCost(breakdown: breakdown, pricing: metadata)
+        return CostCalculator.calcCost(breakdown: breakdown, pricing: metadata, at: at)
     }
 }
 
 extension KeyedDecodingContainer {
+    /// A bad `regionPricing` entry drops only itself: the synthesized `Decodable` prefers this concrete-type overload;
+    /// when the whole key is not an array it is treated as no regional prices instead of failing the model entry.
+    nonisolated func decodeIfPresent(
+        _ type: [MetadataClient.RegionPricingEntry].Type,
+        forKey key: Key
+    ) throws -> [MetadataClient.RegionPricingEntry]? {
+        guard contains(key), (try? decodeNil(forKey: key)) == false,
+              var array = try? nestedUnkeyedContainer(forKey: key) else { return nil }
+        var entries: [MetadataClient.RegionPricingEntry] = []
+        while !array.isAtEnd {
+            if let entry = try? array.decode(MetadataClient.RegionPricingEntry.self) {
+                entries.append(entry)
+            } else if (try? array.decode(MetadataClient.JSONValue.self)) == nil {
+                break
+            }
+        }
+        return entries
+    }
     func decode(
         _ type: MetadataClient.CapabilityEvidenceRawField.Type,
         forKey key: Key
@@ -4112,6 +5222,21 @@ extension MetadataClient {
         }
     }
 
+    /// Whether any `initialize()` call or the bootstrap Task it started is still in flight.
+    var hasPendingBackgroundWorkForTesting: Bool {
+        initializeCallsInFlightForTesting > 0 || !bootstrapTasksForTesting.isEmpty
+    }
+
+    /// Waits for the bootstrap Tasks started by `initialize()` and their callers to all return; call before releasing the lock so a leaked Task does not live into the next test.
+    func drainBackgroundWorkForTesting() async {
+        while hasPendingBackgroundWorkForTesting {
+            for task in Array(bootstrapTasksForTesting.values) {
+                await task.value
+            }
+            // Let the `initialize()` caller get back to the actor to finish (clear the handle, decrement the count), so an already finished Task does not make this loop spin and hog the actor.
+            await Task.yield()
+        }
+    }
     /// Waits for background refreshes and pending-triggered fetches so tests can assert on requests.
     func waitForBackgroundWorkForTesting() async {
         while true {
@@ -4129,6 +5254,49 @@ extension MetadataClient {
         }
     }
 
+    /// Verdict of the production decoding chain of a schema 2 catalog (prune -> Codable -> persistence sanitizing -> expand) on one body:
+    /// nil = the whole payload is rejected; otherwise the kept model ids and the dropped model ids. When the schema is not 2 / 3, kept follows the original path.
+    nonisolated static func schemaV2CatalogOutcomeForTesting(
+        _ data: Data,
+        schemaData: Data
+    ) -> (kept: [String], dropped: [String])? {
+        let validator = try? MetadataPayloadSchemaValidator(schemaData: schemaData)
+        var source = data
+        switch compactCatalogExpanded(data) {
+        case .notCompact:
+            break
+        case let .expanded(expanded):
+            source = expanded
+        case .unresolvedRef, .malformed:
+            return nil
+        }
+        var payload = source
+        var dropped: [String] = []
+        switch schemaV2PrunedCatalog(source, validator: validator) {
+        case .notSchemaV2:
+            break
+        case .rejected:
+            return nil
+        case let .pruned(pruned, drops):
+            payload = pruned
+            dropped = drops.compactMap(\.modelID).sorted()
+        }
+        guard let raw = try? JSONDecoder().decode(CatalogResponse.self, from: payload),
+              let provider = raw.provider,
+              case let .success(expanded) = expandCatalog(
+                sanitizedCatalogResponse(raw), provider: provider, expectedRevision: nil
+              ) else { return nil }
+        return (expanded.models.keys.sorted(), dropped)
+    }
+
+    /// Verdict of the bundled-snapshot decoding chain on one (already decompressed) body: nil = the whole snapshot is unused; otherwise provider -> kept model ids.
+    nonisolated static func bundledSnapshotModelIDsForTesting(
+        _ data: Data,
+        schemaData: Data
+    ) -> [String: [String]]? {
+        let validator = try? MetadataPayloadSchemaValidator(schemaData: schemaData)
+        return bundledMetadataSnapshot(data, validator: validator)?.providers.mapValues { $0.models.keys.sorted() }
+    }
     /// Test only: injects a split snapshot (index plus catalogs) through the production expansion and
     /// assembly path, treated as confirmed this session.
     func loadSplitForTesting(
@@ -4140,7 +5308,9 @@ extension MetadataClient {
         let index = try decodeWrappedPayload(IndexResponse.self, from: Data(indexJSON.utf8))
         var catalogs: [String: CachedCatalog] = [:]
         for (kind, json) in catalogJSONs {
-            let raw = try decodeWrappedPayload(CatalogResponse.self, from: Data(json.utf8))
+            var catalogData = Data(json.utf8)
+            if case let .expanded(expanded) = Self.compactCatalogExpanded(catalogData) { catalogData = expanded }
+            let raw = try decodeWrappedPayload(CatalogResponse.self, from: catalogData)
             let expanded = try Self.expandCatalog(
                 Self.sanitizedCatalogResponse(raw),
                 provider: kind,
@@ -4162,6 +5332,29 @@ extension MetadataClient {
 
     func splitBodyWriteCountSnapshotForTesting() -> Int {
         splitBodyWriteCountForTesting
+    }
+
+    /// Test only: the payloadRevision of the index and of each provider's catalog in the current split state.
+    func splitPayloadRevisionsForTesting() -> (index: Int?, catalogs: [String: Int?]) {
+        guard let state = split else { return (nil, [:]) }
+        return (Self.indexPayloadRevision(state), state.catalogs.mapValues(\.expanded.payloadRevision))
+    }
+
+    /// Test only: the lifecycle / parameterSupport kept as-is on a model in a provider's catalog.
+    func splitModelRawFieldsForTesting(
+        kind: String,
+        modelID: String
+    ) -> (lifecycle: JSONValue?, parameterSupport: JSONValue?)? {
+        guard let entry = split?.catalogs[kind]?.expanded.models[modelID] else { return nil }
+        return (entry.lifecycle, entry.parameterSupport)
+    }
+
+    /// Test only: turns a provider's catalog row into what an older version wrote (the payload carries no tombstone snapshot).
+    func stripSplitCatalogTombstonesForTesting(kind: String, boundUID requestedUID: String? = nil) throws {
+        let pool = try DatabaseManager.shared.openIfNeeded(for: requestedUID ?? AppSessionStore.activeUID)
+        try pool.write { db in
+            try Self.patchSplitCatalogTombstones(db, key: Self.splitCatalogKeyPrefix + kind, tombstonesJSON: nil)
+        }
     }
 
     /// Test only: reads (revision, etag, updatedAt) of every split cache row.
@@ -4238,6 +5431,14 @@ extension MetadataClient {
         )
     }
 
+    func servingBundledSnapshotForTesting() -> Bool {
+        servingBundledSnapshot
+    }
+
+    /// Reads the model set of this instance (the actor-side table), not through the process-wide shared snapshot.
+    func instanceProviderModelIDsForTesting(providerKind: ProviderKind) -> [String] {
+        providerData(for: providerKind)?.models.keys.sorted() ?? []
+    }
     func grdbPersistCountSnapshotForTesting() -> Int {
         grdbPersistCountForTesting
     }
