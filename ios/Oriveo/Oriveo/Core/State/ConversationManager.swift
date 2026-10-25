@@ -464,8 +464,9 @@ final class ConversationManager {
             }
         }
         let partitionUID = AppSessionStore.activeUID
-        cleanupDiskImages(attachmentCleanupRefs(for: toRemove), partitionUID: partitionUID)
+        let imageCandidates = Self.imagePurgeCandidates(attachmentCleanupRefs(for: toRemove))
         deleteProjection()
+        cleanupDiskImages(candidates: imageCandidates, partitionUID: partitionUID)
     }
 
     private func attachmentCleanupRefs(for conversations: [Conversation]) -> [ConversationStore.AttachmentCleanupRef] {
@@ -816,7 +817,14 @@ final class ConversationManager {
     }
 
 
-    func cleanupDiskImages(in convos: [Conversation], partitionUID: String = AppSessionStore.activeUID) {
+    /// The most recent background image purge; tests wait on it.
+    private(set) var pendingImagePurge: Task<Void, Never>?
+
+    @discardableResult
+    func cleanupDiskImages(
+        in convos: [Conversation],
+        partitionUID: String = AppSessionStore.activeUID
+    ) -> Task<Void, Never>? {
         let refs = convos.flatMap { conv in
             conv.messages.flatMap { msg in
                 (msg.attachments ?? []).map {
@@ -824,19 +832,35 @@ final class ConversationManager {
                 }
             }
         }
-        cleanupDiskImages(refs, partitionUID: partitionUID)
+        return cleanupDiskImages(candidates: Self.imagePurgeCandidates(refs), partitionUID: partitionUID)
     }
 
-    /// The caller captures the partition when the deletion starts, so the files are removed from the
-    /// partition the conversations belonged to.
-    private func cleanupDiskImages(_ refs: [ConversationStore.AttachmentCleanupRef], partitionUID: String) {
+    /// Image candidate keys of the deleted attachments. Downloaded originals are stored under the
+    /// attachment.id key while locally imported images use localImageID; both are candidates, otherwise
+    /// originals restored on another device would stay on disk forever.
+    private static func imagePurgeCandidates(_ refs: [ConversationStore.AttachmentCleanupRef]) -> Set<String> {
+        var candidates = Set<String>()
         for att in refs {
-            if let lid = att.localImageID {
-                ImageStore.deleteImage(for: lid, partitionUID: partitionUID)
-            }
-            if att.kind == .image {
-                ImageStore.deleteImage(for: att.id.uuidString, partitionUID: partitionUID)
-            }
+            if let lid = att.localImageID, !lid.isEmpty { candidates.insert(lid) }
+            if att.kind == .image { candidates.insert(att.id.uuidString) }
         }
+        return candidates
+    }
+
+    /// The caller captures the partition when the deletion starts: reading it at deletion time would fall
+    /// back to the guest partition after sign-out (a no-op), leaving the account's image files behind. The
+    /// reference set's database connection is bound on the main thread; reading it and deleting files both
+    /// happen in the background.
+    @discardableResult
+    private func cleanupDiskImages(candidates: Set<String>, partitionUID: String) -> Task<Void, Never>? {
+        guard !candidates.isEmpty else { return nil }
+        let bridge = isBound ? appState.conversationRuntimeBridge : ConversationRuntimeBridge()
+        guard let references = try? bridge.imageReferenceReader(uid: partitionUID) else { return nil }
+        let task = Task.detached(priority: .utility) {
+            ImageOrphanSweeper.purgeUnreferencedImages(candidates, partitionUID: partitionUID, references: references)
+            return
+        }
+        pendingImagePurge = task
+        return task
     }
 }

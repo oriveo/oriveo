@@ -340,6 +340,53 @@ nonisolated enum ImageStore {
         )
     }
 
+    /// How a file's last-write time is read. Returns nil when unavailable, and the caller skips the file
+    /// (it is not treated as old).
+    typealias FileDateReader = @Sendable (URLResourceValues) -> Date?
+    /// Resource keys to prefetch before applying a `FileDateReader`.
+    static let fileDateResourceKeys: Set<URLResourceKey> = [.contentModificationDateKey, .attributeModificationDateKey]
+
+    /// Production reading: max(content modification date, attribute change date). `copyItem` keeps the
+    /// source file's old mtime (guest images copied into an account partition) while the attribute change
+    /// date is the moment of the copy; taking the larger keeps freshly copied images from looking like old
+    /// files outside the grace window.
+    static let lastWriteDate: FileDateReader = { values in
+        switch (values.contentModificationDate, values.attributeModificationDate) {
+        case let (content?, attribute?): max(content, attribute)
+        case let (content?, nil): content
+        case let (nil, attribute?): attribute
+        case (nil, nil): nil
+        }
+    }
+
+    /// Lists every image key in the partition's images directory (an original `.img` and its `.thumb` merge
+    /// into one key) with its most recent write time, for the launch orphan sweep to filter by grace window.
+    /// Returns empty if the directory does not exist and throws if listing fails (the caller then deletes
+    /// nothing). Files whose time is unavailable are recorded as `.distantFuture` (always inside the grace
+    /// window, never deleted). Read-only on the file system, creates no directory; callers run it on a
+    /// background thread.
+    /// - Parameter fileDate: How the time is read, `lastWriteDate` by default.
+    static func allImageKeys(
+        partitionUID: String,
+        fileDate: FileDateReader = ImageStore.lastWriteDate
+    ) throws -> [String: Date] {
+        let dir = AppSessionStore.imagesDir(for: partitionUID)
+        guard FileManager.default.fileExists(atPath: dir.path) else { return [:] }
+        let urls = try FileManager.default.contentsOfDirectory(
+            at: dir,
+            includingPropertiesForKeys: Array(fileDateResourceKeys),
+            options: [.skipsHiddenFiles]
+        )
+        var keys: [String: Date] = [:]
+        for url in urls where url.pathExtension == "img" || url.pathExtension == "thumb" {
+            let key = url.deletingPathExtension().lastPathComponent
+            guard !key.isEmpty else { continue }
+            let modified = (try? url.resourceValues(forKeys: fileDateResourceKeys)).flatMap(fileDate) ?? .distantFuture
+            keys[key] = max(keys[key] ?? .distantPast, modified)
+        }
+        return keys
+    }
+
     static func imageExists(for id: String, partitionUID: String? = nil) -> Bool {
         guard let url = imageURL(for: id, partitionUID: partitionUID) else { return false }
         return FileManager.default.fileExists(atPath: url.path)
