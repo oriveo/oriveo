@@ -3,7 +3,7 @@ import Testing
 @testable import Oriveo
 
 /// Parsing of the `mcpRuntimeConfig` section of the model catalog: missing fields use the fallback, out-of-range values are clamped.
-@Suite("MCP runtime config parsing")
+@Suite("MCP runtime config parsing", .sharedProcessState)
 struct McpRuntimeConfigTests {
 
     private func parse(_ json: String) throws -> McpRuntimeConfig {

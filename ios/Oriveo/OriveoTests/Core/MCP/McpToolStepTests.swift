@@ -149,7 +149,7 @@ private func sendThroughChatManager(
 
 extension McpToolBridgeTests {
 
-    @Test("toolSteps: the production path writes a step onto the message; what is stored with the message and what goes into a backup hold only the summary, while raw arguments and results stay in the payload table")
+    @Test("toolSteps: the production path writes a step onto the message; what is stored with the message and what goes into a backup hold only the summary, while raw arguments and results stay in the payload table", .sharedProcessState)
     @MainActor
     func toolStepsAreRecordedAndStoredWithoutPayload() async throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }
@@ -205,7 +205,7 @@ extension McpToolBridgeTests {
         #expect(try JSONDecoder().decode(ChatMessage.self, from: Data(envelope.utf8)).toolSteps == steps)
     }
 
-    @Test("toolSteps: a tool error gives status failed with the closed-set code tool_error; the server's error text goes only to the payload table, never to the message or to the model")
+    @Test("toolSteps: a tool error gives status failed with the closed-set code tool_error; the server's error text goes only to the payload table, never to the message or to the model", .sharedProcessState)
     @MainActor
     func failedStepKeepsServerTextOnDeviceOnly() async throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }
@@ -236,7 +236,7 @@ extension McpToolBridgeTests {
         #expect(!modelSaw.contains("acme-internal"), "only the closed-set code is fed back to the model")
     }
 
-    @Test("after a reload, a step still running on a message that is no longer generating becomes interrupted; a generating message is left as is")
+    @Test("after a reload, a step still running on a message that is no longer generating becomes interrupted; a generating message is left as is", .sharedProcessState)
     @MainActor
     func runningStepsLoadAsInterrupted() throws {
         let uid = "mcp-toolsteps-\(UUID().uuidString)"
@@ -285,7 +285,7 @@ extension McpToolBridgeTests {
         #expect(clearedStored.messages.first { $0.id == killed.id }?.toolSteps == nil)
     }
 
-    @Test("reading a backup: a `running` step reads as interrupted; a list holding an unknown status degrades to no steps; an older envelope without toolSteps reads normally")
+    @Test("reading a backup: a `running` step reads as interrupted; a list holding an unknown status degrades to no steps; an older envelope without toolSteps reads normally", .sharedProcessState)
     @MainActor
     func backupStepsNeverStayRunning() throws {
         func decode(steps: [[String: Any]]?) throws -> ChatMessage {
@@ -319,7 +319,7 @@ extension McpToolBridgeTests {
         #expect(try decode(steps: nil).toolSteps == nil)
     }
 
-    @Test("late callback: once the send has settled, it may only move its own step from running to a terminal state and never adds a step")
+    @Test("late callback: once the send has settled, it may only move its own step from running to a terminal state and never adds a step", .sharedProcessState)
     @MainActor
     func lateStepUpdatesOnlyCloseRunningSteps() async throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }
@@ -350,7 +350,7 @@ extension McpToolBridgeTests {
         #expect(after == [existing], "a step already in a terminal state is not rewritten by a late callback, and no step is added")
     }
 
-    @Test("while waiting for confirmation the step is already running and the activity is mcp_tool; after a denial the step is denied, the activity is cleared and the server received no call")
+    @Test("while waiting for confirmation the step is already running and the activity is mcp_tool; after a denial the step is denied, the activity is cleared and the server received no call", .sharedProcessState)
     @MainActor
     func confirmationWaitShowsRunningStepAndActivity() async throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }
@@ -388,7 +388,7 @@ extension McpToolBridgeTests {
         #expect(try database.store.fetchStepPayload(messageID: message.id, stepID: step.id)?.arguments?.contains("Melbourne") == true)
     }
 
-    @Test("the production default gate is the confirmation coordinator: the choice comes back through it, and tools/call is sent only after allowing")
+    @Test("the production default gate is the confirmation coordinator: the choice comes back through it, and tools/call is sent only after allowing", .sharedProcessState)
     @MainActor
     func defaultGateIsTheCoordinator() async throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }
@@ -425,7 +425,7 @@ extension McpToolBridgeTests {
 
     // MARK: Abnormal states
 
-    @Test("auth expires midway -> paused; after skipping, auth_skipped is fed back and the answer continues; the server is recorded on this device as needing a new sign-in")
+    @Test("auth expires midway -> paused; after skipping, auth_skipped is fed back and the answer continues; the server is recorded on this device as needing a new sign-in", .sharedProcessState)
     @MainActor
     func reauthorizationPauseThenSkip() async throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }
@@ -466,7 +466,7 @@ extension McpToolBridgeTests {
         #expect(state.mcpReauthorizationCoordinator.pending.isEmpty)
     }
 
-    @Test("auth expires midway -> resumes from this step after signing in again: only this step is resent and earlier results are not redone")
+    @Test("auth expires midway -> resumes from this step after signing in again: only this step is resent and earlier results are not redone", .sharedProcessState)
     @MainActor
     func reauthorizationPauseThenResume() async throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }
@@ -498,7 +498,7 @@ extension McpToolBridgeTests {
         #expect(ScriptedModelURLProtocol.snapshot().count == 2, "the model side did not run an extra leg")
     }
 
-    @Test("step limit reached: the answer comes from a tool-free synthesis leg, the message carries the limit marker, and the step block shows a trailing line and collapses the earlier steps")
+    @Test("step limit reached: the answer comes from a tool-free synthesis leg, the message carries the limit marker, and the step block shows a trailing line and collapses the earlier steps", .sharedProcessState)
     @MainActor
     func stepLimitFallsBackToSynthesis() async throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }
@@ -548,7 +548,7 @@ extension McpToolBridgeTests {
         #expect(rendered.rowTitles.count == maxSteps && rendered.earlierButtonTitle == nil)
     }
 
-    @Test("user stop: the step in flight is recorded as interrupted, the whole loop winds down and no further request is sent")
+    @Test("user stop: the step in flight is recorded as interrupted, the whole loop winds down and no further request is sent", .sharedProcessState)
     @MainActor
     func userStopInterruptsRunningStep() async throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }
@@ -607,7 +607,7 @@ extension McpToolBridgeTests {
 
     // MARK: Re-checking local state before execution
 
-    @Test("paused on expired auth -> the tool definition changed at re-sign-in and is quarantined -> the resume sends no tools/call and feeds back tool_unavailable for this step")
+    @Test("paused on expired auth -> the tool definition changed at re-sign-in and is quarantined -> the resume sends no tools/call and feeds back tool_unavailable for this step", .sharedProcessState)
     @MainActor
     func resumeAfterReauthorizationSkipsQuarantinedTool() async throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }
@@ -637,7 +637,7 @@ extension McpToolBridgeTests {
         #expect(ScriptedModelURLProtocol.snapshot().last.map { documentText($0.body) }?.contains("tool_unavailable") == true)
     }
 
-    @Test("a tool set to \"Don't use\" mid-turn -> later calls are not sent, even when changed while the confirmation dialog is open")
+    @Test("a tool set to \"Don't use\" mid-turn -> later calls are not sent, even when changed while the confirmation dialog is open", .sharedProcessState)
     @MainActor
     func toolTurnedOffMidRunIsNotCalled() async throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }
@@ -675,7 +675,7 @@ extension McpToolBridgeTests {
         #expect(message.text == "Only Melbourne.")
     }
 
-    @Test("a run-automatically tool changed to ask every time midway -> the resume passes the confirmation gate again and sends only after allowing")
+    @Test("a run-automatically tool changed to ask every time midway -> the resume passes the confirmation gate again and sends only after allowing", .sharedProcessState)
     @MainActor
     func toolTightenedToAskMidRunAsksBeforeCalling() async throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }
@@ -710,7 +710,7 @@ extension McpToolBridgeTests {
 
     // MARK: Tool names round-trip unchanged
 
-    @Test("an outbound name containing fragments such as `_de` / `_ad` that look like escape sequences comes back as the exact name sent, runs normally and is fed back unchanged")
+    @Test("an outbound name containing fragments such as `_de` / `_ad` that look like escape sequences comes back as the exact name sent, runs normally and is fed back unchanged", .sharedProcessState)
     @MainActor
     func outboundNamesSurviveTheRoundTrip() async throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }
@@ -781,7 +781,7 @@ extension McpToolBridgeTests {
 
     // MARK: Removing a server while streaming
 
-    @Test("removing a server while the answer is still running: that step sends no tools/call, its raw arguments already on the device are deleted with it and are never written back")
+    @Test("removing a server while the answer is still running: that step sends no tools/call, its raw arguments already on the device are deleted with it and are never written back", .sharedProcessState)
     @MainActor
     func removingServerMidRunDeletesTheRunningStepPayload() async throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }
@@ -817,7 +817,7 @@ extension McpToolBridgeTests {
 
     // MARK: One authorizer per partition
 
-    @Test("the chat loop refreshes tokens through the directory's single authorizer for this partition: a concurrent refresh elsewhere hits the token endpoint once, and production code constructs the authorizer in one place only")
+    @Test("the chat loop refreshes tokens through the directory's single authorizer for this partition: a concurrent refresh elsewhere hits the token endpoint once, and production code constructs the authorizer in one place only", .sharedProcessState)
     @MainActor
     func chatLoopRefreshesThroughThePartitionAuthorizer() async throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }
@@ -903,7 +903,7 @@ extension McpToolBridgeTests {
 
     // MARK: Names outside the name table
 
-    @Test("the model proposes an mcp_ tool name outside the name table: nothing is executed and the name goes to the notice card")
+    @Test("the model proposes an mcp_ tool name outside the name table: nothing is executed and the name goes to the notice card", .sharedProcessState)
     @MainActor
     func unknownMcpToolNameIsNotExecuted() async throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }
@@ -930,7 +930,7 @@ private let mcpToolsRejected422 = #"{"detail":[{"type":"extra_forbidden","loc":[
 
 extension McpToolBridgeTests {
 
-    @Test("MCP_TOOLS_4XX_resend_once_without_tools：a deterministic first-leg tools 4xx resends once without tools in the same turn and shows no error card; a 4xx on a non-first leg is still an ordinary failure")
+    @Test("MCP_TOOLS_4XX_resend_once_without_tools: a deterministic first-leg tools 4xx resends once without tools in the same turn and shows no error card; a 4xx on a non-first leg is still an ordinary failure", .sharedProcessState)
     @MainActor
     func MCP_TOOLS_4XX_resend_once_without_tools() async throws {
         // First leg, no structured tool_calls seen: resend once without tools, and the answer is delivered as usual; a connection eligible for memory records false.

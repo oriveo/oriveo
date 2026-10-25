@@ -343,7 +343,7 @@ private func wireSystemTexts(_ body: [String: Any]) -> [String] {
 
 private let weatherPlan = McpToolBridge.plan(servers: [input(snapshots: [snapshot("get_weather")])], runtimeConfig: .fallback)
 
-@Suite("MCP tool bridge and loop wiring", .serialized)
+@Suite("MCP tool bridge and loop wiring", .serialized, .sharedProcessState)
 struct McpToolBridgeTests {
 
     @Test("a large catalog does not use up the limit before later servers get a turn, and a server with no usable tools takes no turn")
