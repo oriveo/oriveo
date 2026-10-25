@@ -1,0 +1,643 @@
+{
+  "schema": "oriveo.voice.conversation",
+  "version": 1,
+  "$comment": "Voice conversation turn-taking contract. Every client implements runVad, isEcho, reduce and displayState as pure functions (no IO, no clock, no randomness; time only comes from event atMs) and compares each case byte-exact with expected. vad: input.frames is run-length [[dBFS, frameCount], ...], expand before feeding. echo: compare echo exactly and overlap within 0.00005 (null when the transcript has no units). reduce: start from initialState(), fold input.events one by one; expected[i] is displayState, statusKey, the effect list and nextDeadlineMs after event i.",
+  "constants": {
+    "frameMs": 20,
+    "vadStartMs": 120,
+    "vadEndSilenceMs": 600,
+    "vadMinUtteranceMs": 250,
+    "vadPrerollMs": 300,
+    "vadStartOverFloorDb": 12,
+    "vadContinueOverFloorDb": 6,
+    "vadAbsoluteMinDb": -55,
+    "floorInitDb": -50,
+    "floorAlpha": 0.05,
+    "floorClampDb": [
+      -90,
+      -30
+    ],
+    "frameDbClampDb": [
+      -120,
+      0
+    ],
+    "bargeInGraceMs": 1000,
+    "bargeInMinSpeechMs": 300,
+    "echoOverlapRatio": 0.6,
+    "falseBargeInsPerConversation": 2,
+    "conversationsToRemember": 2,
+    "idleTimeoutMs": 120000,
+    "thinkingEarconMs": 3000,
+    "listenToThinkTapGuardMs": 600,
+    "stopToVoiceGuardMs": 500,
+    "sttRetries": 1
+  },
+  "pageReachableStatusKeys": {
+    "home": ["listening", "thinking", "muted", "error"],
+    "chat": ["listening", "thinking", "speaking", "speakingTapToInterrupt", "muted", "awaitingApproval", "error"]
+  },
+  "rules": {
+    "vad": [
+      "Input is one dBFS value per frameMs frame. Clamp every value to frameDbClampDb first (NaN and -Infinity become -120). All arithmetic is IEEE-754 double in exactly the order written here.",
+      "floor starts at floorInitDb. It is updated only on non-voiced frames: floor = floor + floorAlpha * (db - floor), then clamped to floorClampDb.",
+      "Not speaking: a frame is voiced iff db >= floor + vadStartOverFloorDb and db >= vadAbsoluteMinDb. A non-voiced frame resets the pending voiced run. When the run reaches vadStartMs / frameMs frames (bargeInMinSpeechMs / frameMs in candidate mode), emit {type:speechStart, frame, prerollFrame} where frame is the first frame of the run and prerollFrame = max(0, frame - vadPrerollMs / frameMs); voicedMs starts at run length * frameMs.",
+      "Speaking: a frame is voiced iff db >= floor + vadContinueOverFloorDb (no absolute minimum). A voiced frame adds frameMs to voicedMs and resets the silence count. When vadEndSilenceMs / frameMs consecutive non-voiced frames are reached, emit at that frame index {type:speechEnd, frame, voicedMs} if voicedMs >= vadMinUtteranceMs, else {type:discarded, frame}; then go back to not speaking.",
+      "Candidate mode (barge-in candidate) applies only when opts.route is speaker and opts.playbackStartFrame is not null, and only to frames with index >= playbackStartFrame. Headphones and bluetooth never use candidate mode.",
+      "Grace frames are indexes playbackStartFrame .. playbackStartFrame + bargeInGraceMs / frameMs - 1 in candidate mode. They are skipped: no floor update, no voiced or silence counting, and a pending (not yet started) voiced run is reset to 0. A run crossing the end of the grace window starts at the first frame after it.",
+      "The end of the input emits nothing: an open utterance stays open (the host keeps feeding frames). Events are therefore strictly alternating speechStart then speechEnd|discarded, with non-decreasing frame numbers.",
+      "Audio sent to STT is frames prerollFrame .. speechEnd.frame inclusive (the trailing silence is included)."
+    ],
+    "echo": [
+      "isEcho(transcript, sentences) returns {echo, overlap}. sentences holds the previous sentence and the sentence currently playing (sentenceStarted events), whichever exist; their units are pooled into one multiset.",
+      "Units: normalize with NFKC, then full Unicode lowercase (locale-independent: JS toLowerCase, Kotlin lowercase(), Swift lowercased()). Walk code points (not grapheme clusters): a code point in \\p{P}, \\p{S}, \\p{Z}, \\p{Cc}, \\p{Cf} or a variation selector (U+FE00..U+FE0F, U+E0100..U+E01EF) is a separator and is dropped; a code point inside a singleUnitRanges range (Han, kana, Hangul) is its own unit; every other maximal run of code points is one unit.",
+      "Separators split runs before they are removed: \"hello world\" is two units, \"helloworld\" is one.",
+      "singleUnitRanges: U+1100..U+11FF, U+2E80..U+2FDF, U+3005, U+3007, U+3021..U+3029, U+3038..U+303B, U+3040..U+30FF, U+3130..U+318F, U+31F0..U+31FF, U+3400..U+4DBF, U+4E00..U+9FFF, U+A960..U+A97F, U+AC00..U+D7FF, U+F900..U+FAFF, U+FF66..U+FF9F, U+FFA0..U+FFDC, U+1B000..U+1B16F, U+20000..U+3FFFF.",
+      "hits = size of the multiset intersection of transcript units and the pooled sentence units. ratio = hits / transcriptUnits as a double. echo = ratio >= echoOverlapRatio (double comparison; 3/5 equals the literal 0.6). overlap = round(ratio * 10000) / 10000.",
+      "A transcript with zero units (empty, whitespace or punctuation only) is an echo with overlap null. With no sentences and a non-empty transcript, overlap is 0 and it is not an echo.",
+      "Fixtures avoid Greek capital sigma and Turkish dotted I, where platform lowercasing may differ."
+    ],
+    "state": [
+      "initialState(): phase idle, route speaker, all flags false, counters 0, timestamps null. Phases: idle | listening | thinking | speaking | ended.",
+      "reduce(state, event) returns {state, effects}. It never mutates its input. Unknown event types, and every event while phase is ended, return the state unchanged with no effects. While phase is idle only start is accepted.",
+      "Every accepted-type event other than deadline sets lastActivityMs = atMs (even when the event is otherwise dropped).",
+      "A turn reset (on entering listening, and on entering thinking for a new turn) clears userSpeaking, playbackStopped, sttAttempts, awaitedUtteranceId, bargeIn, reply (none), drained, thinkingSinceMs, thinkingEarconPlayed, previousSentence and currentSentence. Entering listening also sets lastActivityMs = atMs; entering thinking sets thinkingSinceMs = atMs.",
+      "speakerBargeIn = route != speaker || !(deviceRemembersNoSpeakerBargeIn || falseBargeIns >= falseBargeInsPerConversation). It is recomputed on start, routeChanged and when the false barge-in limit is reached.",
+      "A reply is in flight from sendMessage until replyCompleted, replyFailed or cancelGeneration. The host must not forward events of a cancelled generation; the reducer additionally drops replySentence, replyCompleted and replyFailed when no reply is streaming."
+    ],
+    "events": [
+      "start{route, deviceRemembersNoSpeakerBargeIn}: only from idle. Phase listening, effect startCapture. route is speaker | headphones | bluetooth (anything else is speaker).",
+      "VAD events (vadSpeechStart, vadSpeechEnd, vadDiscarded, bargeInDetected) are dropped while muted, interrupted, screenReaderSpeaking, messagePlaying, in phase thinking, and in phase speaking when !speakerBargeIn or a barge-in transcription is awaited.",
+      "vadSpeechStart: userSpeaking = true. vadSpeechEnd{utteranceId} and vadDiscarded are dropped unless userSpeaking; both set userSpeaking = false.",
+      "vadSpeechEnd in listening: enter thinking (turn reset), awaitedUtteranceId = utteranceId, sttAttempts = 1, effect transcribe{utteranceId}. In speaking with bargeIn: same awaited / attempts / transcribe, phase stays speaking. In speaking without bargeIn: nothing else.",
+      "vadDiscarded in speaking with bargeIn: bargeIn = false, effect resumePlayback{from:pausePoint} unless playbackStopped, then the finish check.",
+      "bargeInDetected: only in speaking, when userSpeaking and not already bargeIn. bargeIn = true, effect pausePlayback unless playbackStopped.",
+      "sttResult{utteranceId, text} and sttFailed{utteranceId} are dropped unless utteranceId == awaitedUtteranceId (late results after a cancel are ignored).",
+      "sttResult with bargeIn: isEcho(text, [previousSentence, currentSentence]). Echo: bargeIn = false, effect resumePlayback{from:sentenceStart} unless playbackStopped; only on route speaker falseBargeIns += 1, and when it reaches falseBargeInsPerConversation speakerBargeIn becomes false and effect rememberFalseBargeInConversation follows; then the finish check. Not echo: effects cancelGeneration, sendMessage{text}; enter thinking for a new turn with a streaming reply.",
+      "sttResult without bargeIn: text with zero echo units -> enter listening, no effect (not a failure). Otherwise effect sendMessage{text} (text unchanged), reply streaming, phase stays thinking.",
+      "sttFailed: if sttAttempts <= sttRetries then sttAttempts += 1 and effect transcribe{utteranceId}. Otherwise effects [cancelGeneration if bargeIn], speakPrompt{prompt:didNotCatch}, enter listening. Nothing is written to the pending-transcription slot.",
+      "replySentence{text}: only while the reply is streaming, in thinking or speaking. Phase speaking; unless playbackStopped: drained = false and effect enqueueSpeech{text}.",
+      "sentenceStarted{text} (host: a queued sentence began playing; feeds the echo check): only in speaking. previousSentence = currentSentence, currentSentence = text.",
+      "replyCompleted: reply completed; in thinking enter listening immediately, in speaking run the finish check. playbackDrained (queue empty): only in speaking; drained = true, then the finish check.",
+      "nextDeadlineMs(state): listening && !muted && !userSpeaking && !awaitingApproval && !interrupted && !screenReaderSpeaking && !messagePlaying -> lastActivityMs + idleTimeoutMs; thinking && !thinkingEarconPlayed && !awaitingApproval && !interrupted -> thinkingSinceMs + thinkingEarconMs; otherwise null. A deadline before it changes nothing; a deadline at or after it fires its rule.",
+      "Finish check: phase speaking && reply completed && (drained || playbackStopped) && !bargeIn -> enter listening.",
+      "replyFailed{code}: only while streaming. error = true, phase ended, effect endConversation{reason:error, code}.",
+      "approvalPending: accepted in any active phase. If not already set: awaitingApproval = true, effect speakPrompt{prompt:approvalNeeded}. approvalResolved clears it, no effect.",
+      "tapOrb: awaitingApproval -> nothing. muted && listening -> same as toggleMute. listening: effect forceEndUtterance if userSpeaking, else nothing. thinking: nothing while atMs - thinkingSinceMs < listenToThinkTapGuardMs (599 ignored, 600 acts), else effect cancelGeneration and enter listening. speaking: unless playbackStopped, playbackStopped = true, effect stopPlayback, then the finish check (text keeps generating; later sentences are not enqueued).",
+      "toggleMute: flip muted, effect setCaptureMuted{muted}. Muting clears userSpeaking (the open utterance is discarded by the host). Capture input is never closed.",
+      "deadline (host fires it once at nextDeadlineMs; there is no periodic tick): listening && !muted && !userSpeaking && !awaitingApproval && !interrupted && !screenReaderSpeaking && !messagePlaying && atMs - lastActivityMs >= idleTimeoutMs -> effects earcon{kind:end}, endConversation{reason:idle}, phase ended. thinking && !thinkingEarconPlayed && !awaitingApproval && !interrupted && atMs - thinkingSinceMs >= thinkingEarconMs -> effect earcon{kind:thinking}, once per turn.",
+      "interruptionBegan (if not already): interrupted = true, userSpeaking = false, effects [pausePlayback if speaking and !playbackStopped], pauseCapture. interruptionEnded (if set): interrupted = false; if speaking and !playbackStopped then playbackStopped = true and effect stopPlayback (playback never auto-resumes after a call); effect resumeCapture; then the finish check.",
+      "screenReaderSpeaking{speaking}: sets the flag; true also clears userSpeaking. VAD events are dropped while it is set.",
+      "routeChanged{route}: recompute speakerBargeIn. Leaving a private route (headphones / bluetooth) for speaker while speaking and !playbackStopped: playbackStopped = true, effect stopPlayback, then the finish check.",
+      "playMessage{messageId}: only in listening, not interrupted, not already playing. messagePlaying = true, userSpeaking = false, effects pauseCapture, playMessage{messageId}. messagePlaybackEnded (if playing): effect resumeCapture.",
+      "end{reason}: reason user | system (anything else is system). Effects [transcribeToDraft if reason user and userSpeaking], endConversation{reason}; phase ended."
+    ],
+    "display": [
+      "displayState: error if error; null in idle or ended; else awaitingApproval; else muted if muted && phase listening; else the phase (listening | thinking | speaking).",
+      "statusKey = displayState, except speaking with route speaker and !speakerBargeIn -> speakingTapToInterrupt. Ids: listening, thinking, speaking, speakingTapToInterrupt, muted, awaitingApproval, error.",
+      "The UI reads only displayState / statusKey; it never derives state on its own."
+    ],
+    "host": [
+      "The host turns real signals into events and executes effects in list order. cancelGeneration cancels the in-flight reply or transcription and discards its queued or paused speech.",
+      "rememberFalseBargeInConversation: the host counts such conversations per device; after conversationsToRemember of them it starts later conversations with deviceRemembersNoSpeakerBargeIn = true.",
+      "Page reachability (both engines): the voice bar on the home page only ever shows pageReachableStatusKeys.home; speaking always happens on the chat page because the host has already moved there (cascade: first sendMessage; realtime: first turn event, realtime-conversation rules.host).",
+      "Host only: create the chat on the first sendMessage from the home screen; ignore the voice button for stopToVoiceGuardMs after it turns back from stop.",
+      "Timers: no periodic tick. After every reduce the host reads nextDeadlineMs(state); when it differs from the armed value the host cancels the armed one-shot timer and, if non-null, arms one that dispatches deadline{atMs: now} once at that time (immediately when already past). It never polls. atMs uses one monotonic clock for all events."
+    ]
+  },
+  "vad": [
+    {
+      "id": "silence_only",
+      "input": {"frames":[[-60,100]],"opts":{}},
+      "expected": []
+    },
+    {
+      "id": "single_utterance",
+      "input": {"frames":[[-60,20],[-30,30],[-60,40]],"opts":{}},
+      "expected": [{"type":"speechStart","frame":20,"prerollFrame":5},{"type":"speechEnd","frame":79,"voicedMs":600}]
+    },
+    {
+      "id": "pause_580ms_29_frames_continues",
+      "input": {"frames":[[-60,20],[-30,20],[-60,29],[-30,20],[-60,35]],"opts":{}},
+      "expected": [{"type":"speechStart","frame":20,"prerollFrame":5},{"type":"speechEnd","frame":118,"voicedMs":800}]
+    },
+    {
+      "id": "pause_600ms_30_frames_ends",
+      "input": {"frames":[[-60,20],[-30,20],[-60,30],[-30,20],[-60,35]],"opts":{}},
+      "expected": [{"type":"speechStart","frame":20,"prerollFrame":5},{"type":"speechEnd","frame":69,"voicedMs":400},{"type":"speechStart","frame":70,"prerollFrame":55},{"type":"speechEnd","frame":119,"voicedMs":400}]
+    },
+    {
+      "id": "run_100ms_no_start",
+      "input": {"frames":[[-60,20],[-30,5],[-60,40]],"opts":{}},
+      "expected": []
+    },
+    {
+      "id": "run_exactly_120ms_starts_then_discarded",
+      "input": {"frames":[[-60,20],[-30,6],[-60,40]],"opts":{}},
+      "expected": [{"type":"speechStart","frame":20,"prerollFrame":5},{"type":"discarded","frame":55}]
+    },
+    {
+      "id": "short_noise_240ms_discarded",
+      "input": {"frames":[[-60,20],[-30,12],[-60,40]],"opts":{}},
+      "expected": [{"type":"speechStart","frame":20,"prerollFrame":5},{"type":"discarded","frame":61}]
+    },
+    {
+      "id": "voiced_260ms_kept",
+      "input": {"frames":[[-60,20],[-30,13],[-60,40]],"opts":{}},
+      "expected": [{"type":"speechStart","frame":20,"prerollFrame":5},{"type":"speechEnd","frame":62,"voicedMs":260}]
+    },
+    {
+      "id": "hysteresis_quieter_tail_still_voiced",
+      "input": {"frames":[[-60,20],[-30,10],[-48,20],[-60,40]],"opts":{}},
+      "expected": [{"type":"speechStart","frame":20,"prerollFrame":5},{"type":"speechEnd","frame":79,"voicedMs":600}]
+    },
+    {
+      "id": "floor_rises_with_noise_then_speech_starts",
+      "input": {"frames":[[-40,200],[-26,25],[-40,40]],"opts":{}},
+      "expected": [{"type":"speechStart","frame":200,"prerollFrame":185},{"type":"speechEnd","frame":254,"voicedMs":500}]
+    },
+    {
+      "id": "noise_floor_plus_10_not_speech",
+      "input": {"frames":[[-40,200],[-30,25],[-40,40]],"opts":{}},
+      "expected": []
+    },
+    {
+      "id": "below_absolute_min_not_speech",
+      "input": {"frames":[[-80,300],[-58,20],[-80,10],[-54,20],[-80,40]],"opts":{}},
+      "expected": [{"type":"speechStart","frame":330,"prerollFrame":315},{"type":"speechEnd","frame":379,"voicedMs":400}]
+    },
+    {
+      "id": "digital_silence_clamped_then_speech",
+      "input": {"frames":[[-200,300],[-50,20],[-200,40]],"opts":{}},
+      "expected": [{"type":"speechStart","frame":300,"prerollFrame":285},{"type":"speechEnd","frame":349,"voicedMs":400}]
+    },
+    {
+      "id": "preroll_clamped_to_frame_zero",
+      "input": {"frames":[[-60,3],[-30,20],[-60,40]],"opts":{}},
+      "expected": [{"type":"speechStart","frame":3,"prerollFrame":0},{"type":"speechEnd","frame":52,"voicedMs":400}]
+    },
+    {
+      "id": "preroll_15_frames_before_start",
+      "input": {"frames":[[-60,40],[-30,20],[-60,40]],"opts":{}},
+      "expected": [{"type":"speechStart","frame":40,"prerollFrame":25},{"type":"speechEnd","frame":89,"voicedMs":400}]
+    },
+    {
+      "id": "two_utterances_frames_monotonic",
+      "input": {"frames":[[-60,10],[-30,20],[-60,40],[-28,25],[-60,40]],"opts":{}},
+      "expected": [{"type":"speechStart","frame":10,"prerollFrame":0},{"type":"speechEnd","frame":59,"voicedMs":400},{"type":"speechStart","frame":70,"prerollFrame":55},{"type":"speechEnd","frame":124,"voicedMs":500}]
+    },
+    {
+      "id": "open_utterance_at_end_no_end_event",
+      "input": {"frames":[[-60,10],[-30,40]],"opts":{}},
+      "expected": [{"type":"speechStart","frame":10,"prerollFrame":0}]
+    },
+    {
+      "id": "speaker_speech_inside_grace_ignored",
+      "input": {"frames":[[-30,45],[-60,60]],"opts":{"route":"speaker","playbackStartFrame":0}},
+      "expected": []
+    },
+    {
+      "id": "speaker_speech_crossing_grace_starts_at_grace_end",
+      "input": {"frames":[[-60,40],[-30,31],[-60,40]],"opts":{"route":"speaker","playbackStartFrame":0}},
+      "expected": [{"type":"speechStart","frame":50,"prerollFrame":35},{"type":"speechEnd","frame":100,"voicedMs":420}]
+    },
+    {
+      "id": "speaker_280ms_after_grace_no_start",
+      "input": {"frames":[[-60,60],[-30,14],[-60,40]],"opts":{"route":"speaker","playbackStartFrame":0}},
+      "expected": []
+    },
+    {
+      "id": "speaker_300ms_after_grace_starts",
+      "input": {"frames":[[-60,60],[-30,15],[-60,40]],"opts":{"route":"speaker","playbackStartFrame":0}},
+      "expected": [{"type":"speechStart","frame":60,"prerollFrame":45},{"type":"speechEnd","frame":104,"voicedMs":300}]
+    },
+    {
+      "id": "headphones_no_grace_no_300ms",
+      "input": {"frames":[[-30,6],[-60,40]],"opts":{"route":"headphones","playbackStartFrame":0}},
+      "expected": [{"type":"speechStart","frame":0,"prerollFrame":0},{"type":"discarded","frame":35}]
+    },
+    {
+      "id": "bluetooth_no_grace",
+      "input": {"frames":[[-60,10],[-30,8],[-60,40]],"opts":{"route":"bluetooth","playbackStartFrame":0}},
+      "expected": [{"type":"speechStart","frame":10,"prerollFrame":0},{"type":"discarded","frame":47}]
+    },
+    {
+      "id": "speaker_not_playing_normal_rules",
+      "input": {"frames":[[-60,10],[-30,6],[-60,40]],"opts":{"route":"speaker","playbackStartFrame":null}},
+      "expected": [{"type":"speechStart","frame":10,"prerollFrame":0},{"type":"discarded","frame":45}]
+    },
+    {
+      "id": "speaker_playback_mid_sequence",
+      "input": {"frames":[[-60,10],[-30,15],[-60,40],[-30,10],[-60,30],[-30,40],[-60,40]],"opts":{"route":"speaker","playbackStartFrame":70}},
+      "expected": [{"type":"speechStart","frame":10,"prerollFrame":0},{"type":"speechEnd","frame":54,"voicedMs":300},{"type":"speechStart","frame":120,"prerollFrame":105},{"type":"speechEnd","frame":174,"voicedMs":500}]
+    }
+  ],
+  "echo": [
+    {
+      "id": "zh_exact_echo",
+      "input": {"transcript":"今天天气很好","sentences":["今天天气很好。"]},
+      "expected": {"echo":true,"overlap":1}
+    },
+    {
+      "id": "zh_partial_echo",
+      "input": {"transcript":"天气很好","sentences":["今天天气很好。"]},
+      "expected": {"echo":true,"overlap":1}
+    },
+    {
+      "id": "zh_real_user_question",
+      "input": {"transcript":"我想问别的问题","sentences":["今天天气很好。"]},
+      "expected": {"echo":false,"overlap":0}
+    },
+    {
+      "id": "en_case_and_punctuation",
+      "input": {"transcript":"Hello, WORLD!","sentences":["hello world."]},
+      "expected": {"echo":true,"overlap":1}
+    },
+    {
+      "id": "en_real_user_overlap_half",
+      "input": {"transcript":"no stop please wait","sentences":["Please wait while I check."]},
+      "expected": {"echo":false,"overlap":0.5}
+    },
+    {
+      "id": "en_exactly_0_6_is_echo",
+      "input": {"transcript":"one two three four five","sentences":["One, two, three."]},
+      "expected": {"echo":true,"overlap":0.6}
+    },
+    {
+      "id": "en_4_of_7_below_ratio",
+      "input": {"transcript":"one two three four five six seven","sentences":["one two three four"]},
+      "expected": {"echo":false,"overlap":0.5714}
+    },
+    {
+      "id": "words_not_merged_after_separator_removal",
+      "input": {"transcript":"helloworld","sentences":["hello world"]},
+      "expected": {"echo":false,"overlap":0}
+    },
+    {
+      "id": "ja_kana_and_kanji",
+      "input": {"transcript":"こんにちは世界","sentences":["こんにちは、世界！"]},
+      "expected": {"echo":true,"overlap":1}
+    },
+    {
+      "id": "ja_katakana_long_vowel",
+      "input": {"transcript":"コーヒーをください","sentences":["コーヒーをどうぞ。"]},
+      "expected": {"echo":false,"overlap":0.5556}
+    },
+    {
+      "id": "ko_hangul_each_syllable",
+      "input": {"transcript":"안녕하세요","sentences":["안녕하세요, 반갑습니다."]},
+      "expected": {"echo":true,"overlap":1}
+    },
+    {
+      "id": "ko_real_user",
+      "input": {"transcript":"아니요 멈춰요","sentences":["안녕하세요, 반갑습니다."]},
+      "expected": {"echo":false,"overlap":0.3333}
+    },
+    {
+      "id": "mixed_cjk_latin_digits",
+      "input": {"transcript":"iPhone 15很好","sentences":["iPhone 15 很好用。"]},
+      "expected": {"echo":true,"overlap":1}
+    },
+    {
+      "id": "empty_transcript_is_echo",
+      "input": {"transcript":"","sentences":["今天天气很好。"]},
+      "expected": {"echo":true,"overlap":null}
+    },
+    {
+      "id": "punctuation_only_is_echo",
+      "input": {"transcript":"。！?","sentences":["今天天气很好。"]},
+      "expected": {"echo":true,"overlap":null}
+    },
+    {
+      "id": "previous_sentence_counts",
+      "input": {"transcript":"第一句话","sentences":["第一句话。","第二句话。"]},
+      "expected": {"echo":true,"overlap":1}
+    },
+    {
+      "id": "no_sentences_not_echo",
+      "input": {"transcript":"hello","sentences":[]},
+      "expected": {"echo":false,"overlap":0}
+    },
+    {
+      "id": "multiset_counts_repeats",
+      "input": {"transcript":"好好好好","sentences":["很好"]},
+      "expected": {"echo":false,"overlap":0.25}
+    },
+    {
+      "id": "fullwidth_latin_nfkc",
+      "input": {"transcript":"ＡＢＣ","sentences":["abc"]},
+      "expected": {"echo":true,"overlap":1}
+    },
+    {
+      "id": "nfd_accent_matches_nfc",
+      "input": {"transcript":"café","sentences":["café"]},
+      "expected": {"echo":true,"overlap":1}
+    },
+    {
+      "id": "two_thirds_rounded",
+      "input": {"transcript":"天气好","sentences":["天气不错"]},
+      "expected": {"echo":true,"overlap":0.6667}
+    },
+    {
+      "id": "one_third_rounded",
+      "input": {"transcript":"stop it now","sentences":["now playing"]},
+      "expected": {"echo":false,"overlap":0.3333}
+    }
+  ],
+  "reduce": [
+    {
+      "id": "start_speaker_listening",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000}]
+    },
+    {
+      "id": "events_before_start_ignored",
+      "input": {"events":[{"type":"tapOrb","atMs":0},{"type":"vadSpeechStart","atMs":0},{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false}]},
+      "expected": [{"displayState":null,"statusKey":null,"effects":[],"nextDeadlineMs":null},{"displayState":null,"statusKey":null,"effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000}]
+    },
+    {
+      "id": "basic_turn_back_to_listening",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"replyCompleted","atMs":4000},{"type":"playbackDrained","atMs":5000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":125000}]
+    },
+    {
+      "id": "drained_before_completed_waits",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"playbackDrained","atMs":4000},{"type":"replySentence","atMs":4500,"text":"下午有雨。"},{"type":"replyCompleted","atMs":4600},{"type":"playbackDrained","atMs":6000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"下午有雨。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":126000}]
+    },
+    {
+      "id": "reply_completed_without_sentences",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"嗯"},{"type":"replyCompleted","atMs":3000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"嗯"}],"nextDeadlineMs":5000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":123000}]
+    },
+    {
+      "id": "stt_empty_back_to_listening",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":""}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":122500}]
+    },
+    {
+      "id": "stt_punctuation_only_is_empty",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"。"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":122500}]
+    },
+    {
+      "id": "stt_retry_once_then_did_not_catch",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttFailed","atMs":2500,"utteranceId":"u1"},{"type":"sttFailed","atMs":3000,"utteranceId":"u1"},{"type":"sttResult","atMs":3500,"utteranceId":"u1","text":"迟到的结果"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"listening","statusKey":"listening","effects":[{"type":"speakPrompt","prompt":"didNotCatch"}],"nextDeadlineMs":123000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":123500}]
+    },
+    {
+      "id": "stt_retry_then_success",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttFailed","atMs":2500,"utteranceId":"u1"},{"type":"sttResult","atMs":3000,"utteranceId":"u1","text":"你好"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"你好"}],"nextDeadlineMs":5000}]
+    },
+    {
+      "id": "stale_stt_result_other_utterance_ignored",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u0","text":"旧的"},{"type":"sttResult","atMs":2600,"utteranceId":"u1","text":"新的"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"新的"}],"nextDeadlineMs":5000}]
+    },
+    {
+      "id": "vad_end_without_start_dropped",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechEnd","atMs":1000,"utteranceId":"u1"},{"type":"vadDiscarded","atMs":1100}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":121000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":121100}]
+    },
+    {
+      "id": "vad_discarded_in_listening",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadDiscarded","atMs":1800}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":121800}]
+    },
+    {
+      "id": "tap_thinking_599ms_ignored",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"tapOrb","atMs":2599}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[],"nextDeadlineMs":5000}]
+    },
+    {
+      "id": "tap_thinking_600ms_cancels_late_result_dropped",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"tapOrb","atMs":2600},{"type":"sttResult","atMs":2800,"utteranceId":"u1","text":"你好"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"listening","statusKey":"listening","effects":[{"type":"cancelGeneration"}],"nextDeadlineMs":122600},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":122800}]
+    },
+    {
+      "id": "tap_thinking_after_send_cancels_generation",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2300,"utteranceId":"u1","text":"你好"},{"type":"tapOrb","atMs":4000},{"type":"replySentence","atMs":4100,"text":"迟到的一句。"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"你好"}],"nextDeadlineMs":5000},{"displayState":"listening","statusKey":"listening","effects":[{"type":"cancelGeneration"}],"nextDeadlineMs":124000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":124100}]
+    },
+    {
+      "id": "tap_listening_with_voice_forces_end",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"tapOrb","atMs":1500},{"type":"vadSpeechEnd","atMs":1520,"utteranceId":"u1"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[{"type":"forceEndUtterance"}],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":4520}]
+    },
+    {
+      "id": "tap_listening_silent_noop",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"tapOrb","atMs":1000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":121000}]
+    },
+    {
+      "id": "tap_speaking_stops_later_sentences_not_enqueued",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"tapOrb","atMs":4000},{"type":"replySentence","atMs":4500,"text":"第二句。"},{"type":"replyCompleted","atMs":5000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"stopPlayback"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":125000}]
+    },
+    {
+      "id": "tap_speaking_twice_second_noop",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"tapOrb","atMs":4000},{"type":"tapOrb","atMs":4100}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"stopPlayback"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "approval_prompt_and_tap_noop",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2300,"utteranceId":"u1","text":"删掉这个文件"},{"type":"approvalPending","atMs":3000},{"type":"approvalPending","atMs":3100},{"type":"tapOrb","atMs":4000},{"type":"deadline","atMs":9000},{"type":"approvalResolved","atMs":10000},{"type":"deadline","atMs":10100}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"删掉这个文件"}],"nextDeadlineMs":5000},{"displayState":"awaitingApproval","statusKey":"awaitingApproval","effects":[{"type":"speakPrompt","prompt":"approvalNeeded"}],"nextDeadlineMs":null},{"displayState":"awaitingApproval","statusKey":"awaitingApproval","effects":[],"nextDeadlineMs":null},{"displayState":"awaitingApproval","statusKey":"awaitingApproval","effects":[],"nextDeadlineMs":null},{"displayState":"awaitingApproval","statusKey":"awaitingApproval","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"earcon","kind":"thinking"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "approval_pauses_idle",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"approvalPending","atMs":1000},{"type":"deadline","atMs":200000},{"type":"approvalResolved","atMs":200000},{"type":"deadline","atMs":319999},{"type":"deadline","atMs":320000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"awaitingApproval","statusKey":"awaitingApproval","effects":[{"type":"speakPrompt","prompt":"approvalNeeded"}],"nextDeadlineMs":null},{"displayState":"awaitingApproval","statusKey":"awaitingApproval","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":320000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":320000},{"displayState":null,"statusKey":null,"effects":[{"type":"earcon","kind":"end"},{"type":"endConversation","reason":"idle"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "idle_ends_at_120000_then_ended_inert",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"deadline","atMs":119999},{"type":"deadline","atMs":120000},{"type":"tapOrb","atMs":120100},{"type":"vadSpeechStart","atMs":120200},{"type":"end","atMs":120300,"reason":"user"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":120000},{"displayState":null,"statusKey":null,"effects":[{"type":"earcon","kind":"end"},{"type":"endConversation","reason":"idle"}],"nextDeadlineMs":null},{"displayState":null,"statusKey":null,"effects":[],"nextDeadlineMs":null},{"displayState":null,"statusKey":null,"effects":[],"nextDeadlineMs":null},{"displayState":null,"statusKey":null,"effects":[],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "idle_counts_from_turn_end",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"replyCompleted","atMs":4000},{"type":"playbackDrained","atMs":10000},{"type":"deadline","atMs":129999},{"type":"deadline","atMs":130000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":130000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":130000},{"displayState":null,"statusKey":null,"effects":[{"type":"earcon","kind":"end"},{"type":"endConversation","reason":"idle"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "idle_not_while_muted",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"toggleMute","atMs":1000},{"type":"deadline","atMs":200000},{"type":"toggleMute","atMs":200000},{"type":"deadline","atMs":319999},{"type":"deadline","atMs":320000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"muted","statusKey":"muted","effects":[{"type":"setCaptureMuted","muted":true}],"nextDeadlineMs":null},{"displayState":"muted","statusKey":"muted","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[{"type":"setCaptureMuted","muted":false}],"nextDeadlineMs":320000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":320000},{"displayState":null,"statusKey":null,"effects":[{"type":"earcon","kind":"end"},{"type":"endConversation","reason":"idle"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "idle_not_while_user_speaking",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"deadline","atMs":200000},{"type":"vadDiscarded","atMs":200500},{"type":"deadline","atMs":320499},{"type":"deadline","atMs":320500}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":320500},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":320500},{"displayState":null,"statusKey":null,"effects":[{"type":"earcon","kind":"end"},{"type":"endConversation","reason":"idle"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "dropped_event_still_refreshes_idle",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"sttResult","atMs":60000,"utteranceId":"stale","text":"迟到的转写"},{"type":"deadline","atMs":120000},{"type":"deadline","atMs":179999},{"type":"deadline","atMs":180000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":180000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":180000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":180000},{"displayState":null,"statusKey":null,"effects":[{"type":"earcon","kind":"end"},{"type":"endConversation","reason":"idle"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "idle_not_in_thinking",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2300,"utteranceId":"u1","text":"你好"},{"type":"deadline","atMs":200000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"你好"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"earcon","kind":"thinking"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "thinking_earcon_once",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"deadline","atMs":4999},{"type":"deadline","atMs":5000},{"type":"deadline","atMs":6000},{"type":"sttResult","atMs":6500,"utteranceId":"u1","text":"你好"},{"type":"deadline","atMs":9000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"earcon","kind":"thinking"}],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"你好"}],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "thinking_earcon_resets_next_turn",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"deadline","atMs":5000},{"type":"sttResult","atMs":5100,"utteranceId":"u1","text":""},{"type":"vadSpeechStart","atMs":6000},{"type":"vadSpeechEnd","atMs":7000,"utteranceId":"u2"},{"type":"deadline","atMs":10000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"earcon","kind":"thinking"}],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":125100},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u2"}],"nextDeadlineMs":10000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"earcon","kind":"thinking"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "muted_tap_unmutes",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"toggleMute","atMs":1000},{"type":"tapOrb","atMs":2000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"muted","statusKey":"muted","effects":[{"type":"setCaptureMuted","muted":true}],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[{"type":"setCaptureMuted","muted":false}],"nextDeadlineMs":122000}]
+    },
+    {
+      "id": "muted_drops_vad",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"toggleMute","atMs":1000},{"type":"vadSpeechStart","atMs":1500},{"type":"vadSpeechEnd","atMs":2500,"utteranceId":"u1"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"muted","statusKey":"muted","effects":[{"type":"setCaptureMuted","muted":true}],"nextDeadlineMs":null},{"displayState":"muted","statusKey":"muted","effects":[],"nextDeadlineMs":null},{"displayState":"muted","statusKey":"muted","effects":[],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "mute_while_speaking_discards_utterance",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"toggleMute","atMs":1500},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"toggleMute","atMs":2500}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"muted","statusKey":"muted","effects":[{"type":"setCaptureMuted","muted":true}],"nextDeadlineMs":null},{"displayState":"muted","statusKey":"muted","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[{"type":"setCaptureMuted","muted":false}],"nextDeadlineMs":122500}]
+    },
+    {
+      "id": "muted_during_speaking_shows_speaking",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"toggleMute","atMs":4000},{"type":"tapOrb","atMs":4100},{"type":"replyCompleted","atMs":4200}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"setCaptureMuted","muted":true}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"stopPlayback"}],"nextDeadlineMs":null},{"displayState":"muted","statusKey":"muted","effects":[],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "barge_in_headphones_real_speech",
+      "input": {"events":[{"type":"start","atMs":0,"route":"headphones","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"vadSpeechStart","atMs":4000},{"type":"bargeInDetected","atMs":4300},{"type":"vadSpeechEnd","atMs":5200,"utteranceId":"u2"},{"type":"sttResult","atMs":5600,"utteranceId":"u2","text":"等一下，换个话题"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"pausePlayback"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"transcribe","utteranceId":"u2"}],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"cancelGeneration"},{"type":"sendMessage","text":"等一下，换个话题"}],"nextDeadlineMs":8600}]
+    },
+    {
+      "id": "barge_in_speaker_echo_resumes",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"vadSpeechStart","atMs":4000},{"type":"bargeInDetected","atMs":4300},{"type":"vadSpeechEnd","atMs":5200,"utteranceId":"u2"},{"type":"sttResult","atMs":5600,"utteranceId":"u2","text":"天气很好"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"pausePlayback"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"transcribe","utteranceId":"u2"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"resumePlayback","from":"sentenceStart"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "two_false_barge_ins_disable_speaker_barge_in",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"vadSpeechStart","atMs":4000},{"type":"bargeInDetected","atMs":4300},{"type":"vadSpeechEnd","atMs":5200,"utteranceId":"u2"},{"type":"sttResult","atMs":5600,"utteranceId":"u2","text":"天气很好"},{"type":"vadSpeechStart","atMs":6000},{"type":"bargeInDetected","atMs":6300},{"type":"vadSpeechEnd","atMs":7200,"utteranceId":"u3"},{"type":"sttResult","atMs":7600,"utteranceId":"u3","text":"今天天气"},{"type":"vadSpeechStart","atMs":8000},{"type":"bargeInDetected","atMs":8300}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"pausePlayback"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"transcribe","utteranceId":"u2"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"resumePlayback","from":"sentenceStart"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"pausePlayback"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"transcribe","utteranceId":"u3"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speakingTapToInterrupt","effects":[{"type":"resumePlayback","from":"sentenceStart"},{"type":"rememberFalseBargeInConversation"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speakingTapToInterrupt","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speakingTapToInterrupt","effects":[],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "false_barge_in_on_headphones_not_counted",
+      "input": {"events":[{"type":"start","atMs":0,"route":"headphones","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"vadSpeechStart","atMs":4000},{"type":"bargeInDetected","atMs":4300},{"type":"vadSpeechEnd","atMs":5200,"utteranceId":"u2"},{"type":"sttResult","atMs":5600,"utteranceId":"u2","text":"天气很好"},{"type":"vadSpeechStart","atMs":6000},{"type":"bargeInDetected","atMs":6300},{"type":"vadSpeechEnd","atMs":7200,"utteranceId":"u3"},{"type":"sttResult","atMs":7600,"utteranceId":"u3","text":"今天天气"},{"type":"vadSpeechStart","atMs":8000},{"type":"bargeInDetected","atMs":8300},{"type":"vadSpeechEnd","atMs":9200,"utteranceId":"u4"},{"type":"sttResult","atMs":9600,"utteranceId":"u4","text":"很好"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"pausePlayback"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"transcribe","utteranceId":"u2"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"resumePlayback","from":"sentenceStart"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"pausePlayback"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"transcribe","utteranceId":"u3"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"resumePlayback","from":"sentenceStart"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"pausePlayback"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"transcribe","utteranceId":"u4"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"resumePlayback","from":"sentenceStart"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "barge_in_empty_transcript_counts_as_echo",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"vadSpeechStart","atMs":4000},{"type":"bargeInDetected","atMs":4300},{"type":"vadSpeechEnd","atMs":5200,"utteranceId":"u2"},{"type":"sttResult","atMs":5600,"utteranceId":"u2","text":""}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"pausePlayback"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"transcribe","utteranceId":"u2"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"resumePlayback","from":"sentenceStart"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "barge_in_discarded_resumes_pause_point",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"vadSpeechStart","atMs":4000},{"type":"bargeInDetected","atMs":4300},{"type":"vadDiscarded","atMs":5000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"pausePlayback"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"resumePlayback","from":"pausePoint"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "barge_in_stt_failed_twice_did_not_catch",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"vadSpeechStart","atMs":4000},{"type":"bargeInDetected","atMs":4300},{"type":"vadSpeechEnd","atMs":5000,"utteranceId":"u2"},{"type":"sttFailed","atMs":5400,"utteranceId":"u2"},{"type":"sttFailed","atMs":5800,"utteranceId":"u2"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"pausePlayback"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"transcribe","utteranceId":"u2"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"transcribe","utteranceId":"u2"}],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[{"type":"cancelGeneration"},{"type":"speakPrompt","prompt":"didNotCatch"}],"nextDeadlineMs":125800}]
+    },
+    {
+      "id": "remembered_device_speaker_tap_to_interrupt",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":true},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"vadSpeechStart","atMs":4000},{"type":"bargeInDetected","atMs":4300},{"type":"vadSpeechEnd","atMs":5000,"utteranceId":"u2"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speakingTapToInterrupt","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speakingTapToInterrupt","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speakingTapToInterrupt","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speakingTapToInterrupt","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speakingTapToInterrupt","effects":[],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "remembered_device_headphones_can_barge_in",
+      "input": {"events":[{"type":"start","atMs":0,"route":"headphones","deviceRemembersNoSpeakerBargeIn":true},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"vadSpeechStart","atMs":4000},{"type":"bargeInDetected","atMs":4300}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"pausePlayback"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "reply_completed_during_barge_in_waits",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"vadSpeechStart","atMs":4000},{"type":"bargeInDetected","atMs":4300},{"type":"replyCompleted","atMs":4500},{"type":"vadSpeechEnd","atMs":5000,"utteranceId":"u2"},{"type":"sttResult","atMs":5400,"utteranceId":"u2","text":"天气很好"},{"type":"playbackDrained","atMs":7000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"pausePlayback"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"transcribe","utteranceId":"u2"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"resumePlayback","from":"sentenceStart"}],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":127000}]
+    },
+    {
+      "id": "vad_during_thinking_dropped",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"vadSpeechStart","atMs":2200},{"type":"vadSpeechEnd","atMs":3000,"utteranceId":"u2"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[],"nextDeadlineMs":5000}]
+    },
+    {
+      "id": "reply_failed_error_ends",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"replyFailed","atMs":4000,"code":"network"},{"type":"tapOrb","atMs":4100},{"type":"deadline","atMs":200000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"error","statusKey":"error","effects":[{"type":"endConversation","reason":"error","code":"network"}],"nextDeadlineMs":null},{"displayState":"error","statusKey":"error","effects":[],"nextDeadlineMs":null},{"displayState":"error","statusKey":"error","effects":[],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "reply_failed_after_cancel_ignored",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2300,"utteranceId":"u1","text":"你好"},{"type":"tapOrb","atMs":3000},{"type":"replyFailed","atMs":3100,"code":"cancelled"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"你好"}],"nextDeadlineMs":5000},{"displayState":"listening","statusKey":"listening","effects":[{"type":"cancelGeneration"}],"nextDeadlineMs":123000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":123100}]
+    },
+    {
+      "id": "screen_reader_drops_vad",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"screenReaderSpeaking","atMs":1000,"speaking":true},{"type":"vadSpeechStart","atMs":1100},{"type":"vadSpeechEnd","atMs":1900,"utteranceId":"u1"},{"type":"screenReaderSpeaking","atMs":2000,"speaking":false},{"type":"vadSpeechStart","atMs":2500},{"type":"vadSpeechEnd","atMs":3500,"utteranceId":"u2"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":122000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u2"}],"nextDeadlineMs":6500}]
+    },
+    {
+      "id": "screen_reader_clears_user_speaking",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"screenReaderSpeaking","atMs":1200,"speaking":true},{"type":"screenReaderSpeaking","atMs":3000,"speaking":false},{"type":"vadSpeechEnd","atMs":3100,"utteranceId":"u1"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":123000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":123100}]
+    },
+    {
+      "id": "headphones_unplugged_stops_playback",
+      "input": {"events":[{"type":"start","atMs":0,"route":"headphones","deviceRemembersNoSpeakerBargeIn":true},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"routeChanged","atMs":4000,"route":"speaker"},{"type":"replySentence","atMs":4200,"text":"第二句。"},{"type":"replyCompleted","atMs":4500}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speakingTapToInterrupt","effects":[{"type":"stopPlayback"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speakingTapToInterrupt","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":124500}]
+    },
+    {
+      "id": "bluetooth_to_headphones_keeps_playing",
+      "input": {"events":[{"type":"start","atMs":0,"route":"bluetooth","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"routeChanged","atMs":4000,"route":"headphones"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "speaker_to_headphones_reenables_barge_in",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":true},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"routeChanged","atMs":4000,"route":"headphones"},{"type":"vadSpeechStart","atMs":4500},{"type":"bargeInDetected","atMs":4800}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speakingTapToInterrupt","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speakingTapToInterrupt","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"pausePlayback"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "interruption_while_speaking_pauses_then_stops",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"sttResult","atMs":2500,"utteranceId":"u1","text":"今天天气怎么样"},{"type":"replySentence","atMs":3500,"text":"今天天气很好。"},{"type":"sentenceStarted","atMs":3600,"text":"今天天气很好。"},{"type":"interruptionBegan","atMs":4000},{"type":"vadSpeechStart","atMs":4100},{"type":"interruptionEnded","atMs":60000},{"type":"replyCompleted","atMs":61000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"sendMessage","text":"今天天气怎么样"}],"nextDeadlineMs":5000},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"enqueueSpeech","text":"今天天气很好。"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"pausePlayback"},{"type":"pauseCapture"}],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[],"nextDeadlineMs":null},{"displayState":"speaking","statusKey":"speaking","effects":[{"type":"stopPlayback"},{"type":"resumeCapture"}],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":181000}]
+    },
+    {
+      "id": "interruption_in_listening_pauses_idle",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"interruptionBegan","atMs":1000},{"type":"deadline","atMs":200000},{"type":"interruptionEnded","atMs":200000},{"type":"deadline","atMs":320000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[{"type":"pauseCapture"}],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[{"type":"resumeCapture"}],"nextDeadlineMs":320000},{"displayState":null,"statusKey":null,"effects":[{"type":"earcon","kind":"end"},{"type":"endConversation","reason":"idle"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "play_message_pauses_capture",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"playMessage","atMs":1000,"messageId":"m1"},{"type":"vadSpeechStart","atMs":1500},{"type":"deadline","atMs":200000},{"type":"messagePlaybackEnded","atMs":200000},{"type":"vadSpeechStart","atMs":201000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[{"type":"pauseCapture"},{"type":"playMessage","messageId":"m1"}],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"listening","statusKey":"listening","effects":[{"type":"resumeCapture"}],"nextDeadlineMs":320000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "play_message_not_in_thinking",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"vadSpeechEnd","atMs":2000,"utteranceId":"u1"},{"type":"playMessage","atMs":2100,"messageId":"m1"},{"type":"messagePlaybackEnded","atMs":2200}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":"thinking","statusKey":"thinking","effects":[{"type":"transcribe","utteranceId":"u1"}],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[],"nextDeadlineMs":5000},{"displayState":"thinking","statusKey":"thinking","effects":[],"nextDeadlineMs":5000}]
+    },
+    {
+      "id": "end_user_while_speaking_to_draft",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"end","atMs":1500,"reason":"user"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":null,"statusKey":null,"effects":[{"type":"transcribeToDraft"},{"type":"endConversation","reason":"user"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "end_user_silent",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"end","atMs":1500,"reason":"user"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":null,"statusKey":null,"effects":[{"type":"endConversation","reason":"user"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "end_system_while_speaking_no_draft",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"vadSpeechStart","atMs":1000},{"type":"end","atMs":1500,"reason":"system"}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":null},{"displayState":null,"statusKey":null,"effects":[{"type":"endConversation","reason":"system"}],"nextDeadlineMs":null}]
+    },
+    {
+      "id": "unknown_event_ignored",
+      "input": {"events":[{"type":"start","atMs":0,"route":"speaker","deviceRemembersNoSpeakerBargeIn":false},{"type":"somethingNew","atMs":1000},{"type":"deadline","atMs":120000}]},
+      "expected": [{"displayState":"listening","statusKey":"listening","effects":[{"type":"startCapture"}],"nextDeadlineMs":120000},{"displayState":"listening","statusKey":"listening","effects":[],"nextDeadlineMs":120000},{"displayState":null,"statusKey":null,"effects":[{"type":"earcon","kind":"end"},{"type":"endConversation","reason":"idle"}],"nextDeadlineMs":null}]
+    }
+  ]
+}
