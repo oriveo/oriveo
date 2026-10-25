@@ -412,7 +412,7 @@
         "derived": null,
         "proactiveCompaction": false
       },
-      "note": "BUG-13: W < 1024 is unknown, never a real window."
+      "note": "W < 1024 is unknown, never a real window."
     },
     {
       "id": "window_1023_is_unknown",

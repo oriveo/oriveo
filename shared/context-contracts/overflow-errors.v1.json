@@ -1,5 +1,5 @@
 {
-  "$comment": "Context overflow recognition contract (context pipeline §8.6). Structured fields first; message regexes are family-scoped and only for HTTP 400. Patterns below are the initial set; Server selfHealPatterns may append more per family without a release. Cases without a source field use illustrative wording (shape and matching behaviour are what is locked). Clients also treat stopReason context_window_exceeded (Anthropic stream) as overflow — see stop-reason.v1.json.",
+  "$comment": "Context overflow recognition contract (context pipeline §8.6). Structured fields first; message regexes are family-scoped and only for HTTP 400. Patterns below are the complete set; there is no remote append: Server selfHealPatterns is reserved for parameter self-heal and is never read here, so changing a pattern means changing this file and shipping clients. Cases without a source field use illustrative wording (shape and matching behaviour are what is locked). Clients also treat stopReason context_window_exceeded (Anthropic stream) as overflow — see stop-reason.v1.json.",
   "schema": "oriveo.context.overflow-errors",
   "version": 1,
   "rules": [
@@ -148,7 +148,7 @@
         "overflow": true,
         "via": "status+regex"
       },
-      "note": "Wording not on an official page we could cite; the regex ships via Server selfHealPatterns so it can be corrected without a release."
+      "note": "Wording not on an official page we could cite; correcting the regex means changing this file and shipping clients (no remote append)."
     },
     {
       "id": "managed_code",
@@ -184,7 +184,7 @@
         "overflow": true,
         "via": "code"
       },
-      "note": "P1 Server: new 40022 envelope; 40021 stays 'request rejected'."
+      "note": "new 40022 envelope; 40021 stays 'request rejected'."
     },
     {
       "id": "free_40021_is_not_overflow",
