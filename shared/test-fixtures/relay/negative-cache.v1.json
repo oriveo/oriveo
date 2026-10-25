@@ -67,5 +67,12 @@
     {"caseId": "codex_identity_403_is_none", "status": 403, "body": "{\"error\":{\"message\":\"Only Codex official clients are allowed\"}}", "expect": "none"},
     {"caseId": "token_model_forbidden_403_is_none", "status": 403, "body": "{\"error\":{\"message\":\"该令牌无权访问模型 claude-sonnet-4-5\",\"type\":\"new_api_error\"}}", "expect": "none"},
     {"caseId": "messages_dispatch_403_is_none", "status": 403, "body": "{\"type\":\"error\",\"error\":{\"type\":\"permission_error\",\"message\":\"This group does not allow \\/v1\\/messages dispatch\"}}", "expect": "none"}
+  ],
+  "advancedBoardCasesComment": "Relay advanced board (per-model capability rows) must give the same state as the composer entry projection, and a source that explains it. Precedence: user override > live negative-cache rejection (source detected; desktop enum NegativeCache) > tested override > engine declaration > official catalog. Local connections follow the same order. An auto-transport model resolves its effective transport before building the capability identity, so catalog-declared rows keep source catalog. Ends map their own source enums: user / tested / detected / engine / catalog.",
+  "advancedBoardCases": [
+    {"caseId": "board_tested_loses_to_negative_cache", "connection": "remote", "transport": "openai_chat", "capability": "image", "override": {"value": true, "source": "tested"}, "negCacheRejected": true, "catalogDeclares": false, "expect": {"state": "unsupported", "source": "detected"}},
+    {"caseId": "board_user_beats_negative_cache", "connection": "remote", "transport": "openai_chat", "capability": "image", "override": {"value": true, "source": "user"}, "negCacheRejected": true, "catalogDeclares": false, "expect": {"state": "supported", "source": "user"}},
+    {"caseId": "board_local_tested_loses_to_negative_cache", "connection": "local", "transport": "openai_chat", "capability": "image", "override": {"value": true, "source": "tested"}, "negCacheRejected": true, "catalogDeclares": false, "expect": {"state": "unsupported", "source": "detected"}},
+    {"caseId": "board_auto_transport_keeps_catalog_source", "connection": "remote", "transport": "auto", "capability": "image", "override": null, "negCacheRejected": false, "catalogDeclares": true, "expect": {"state": "supported", "source": "catalog"}}
   ]
 }

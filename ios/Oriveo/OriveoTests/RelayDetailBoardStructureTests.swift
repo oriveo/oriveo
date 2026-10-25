@@ -372,6 +372,71 @@ struct RelayDetailBoardStructureTests {
 
     // MARK: - BOARD-DETAIL-09
 
+    private static func apiKeyRow(_ provider: Provider) throws -> Board.Row {
+        try #require(Board.make(provider)?.connectionRows.first { $0.id == .apiKey })
+    }
+
+    @Test("With a single stored key, the row's trailing hint says more keys can be added")
+    func singleStoredKeyHintsMoreKeys() throws {
+        // Implicit single key. The mask stays in the value position; the row end no longer says "Saved".
+        let implicit = try Self.apiKeyRow(Self.relayProvider())
+        #expect(implicit.value == .verbatim("sk-…7f2a"))
+        #expect(implicit.trailingKey == "Add more keys")
+        // The hint is not a button: the whole row still has only one destination, the keys page.
+        #expect(implicit.destination == .apiKeys)
+
+        // The list is materialized but only one key is left: same hint.
+        var single = Self.relayProvider()
+        single.relayKeys = [RelayKey(id: "initial", name: "Main")]
+        #expect(try Self.apiKeyRow(single).trailingKey == "Add more keys")
+
+        // The copy lives in the Providers table: all 16 languages are present and none falls back to the English source string (English itself excepted).
+        let catalog = try Self.providersCatalogEntry("Add more keys")
+        #expect(catalog["extractionState"] as? String == "manual")
+        let localizations = try #require(catalog["localizations"] as? [String: [String: [String: String]]])
+        #expect(Set(localizations.keys) == [
+            "ar", "de", "en", "es", "fr", "hi", "id", "ja", "ko", "pt-BR", "ru", "th", "tr", "vi", "zh-Hans", "zh-Hant",
+        ])
+        #expect(localizations["zh-Hans"]?["stringUnit"]?["value"] == "\u{53EF}\u{6DFB}\u{52A0}\u{591A}\u{628A}")
+        for (language, unit) in localizations where language != "en" {
+            let value = unit["stringUnit"]?["value"] ?? ""
+            #expect(!value.isEmpty && value != "Add more keys", "\(language)")
+        }
+    }
+
+    @Test("The hint does not appear with multiple keys / unset / no key needed")
+    func otherKeyStatesOmitMoreKeysHint() throws {
+        var two = Self.relayProvider()
+        two.relayKeys = [RelayKey(id: "initial", name: "Main"), RelayKey(id: "k-b", apiKey: "sk-b-0000-1111-2222")]
+        let multi = try Self.apiKeyRow(two)
+        #expect(multi.titleKey == "API Keys")
+        #expect(multi.trailingKey == nil)
+
+        let unset = try Self.apiKeyRow(Self.relayProvider(apiKey: "", apiKeyPreview: ""))
+        #expect(unset.value == .key("Tap to set"))
+        #expect(unset.trailingKey == nil)
+
+        let noKeyNeeded = try Self.apiKeyRow(Self.relayProvider(apiKey: "", apiKeyPreview: "", authMode: .none))
+        #expect(noKeyNeeded.value == .key("No key needed"))
+        #expect(noKeyNeeded.trailingKey == nil)
+
+        // No auth needed but a key is left over: the mask and tappability stay as they were, and the row end shows no hint.
+        let residual = try Self.apiKeyRow(Self.relayProvider(authMode: .none))
+        #expect(residual.titleKey == "API Key")
+        #expect(residual.value == .verbatim("sk-…7f2a"))
+        #expect(residual.trailingKey == nil)
+        #expect(residual.destination == .apiKeys)
+    }
+
+    private static func providersCatalogEntry(_ key: String) throws -> [String: Any] {
+        let url = providerSource("RelayDetailBoardModel.swift")
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Providers.xcstrings")
+        let root = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let strings = try #require(root["strings"] as? [String: Any])
+        return try #require(strings[key] as? [String: Any])
+    }
+
     @Test("BOARD-DETAIL-09 2 or more keys: a title row \"API Keys · N keys\" + the first 3 keys inline, and \"%lld more\" when there are more than 3")
     func boardDetail09MultiKeyRow() throws {
         var two = Self.relayProvider()
@@ -450,6 +515,30 @@ struct RelayDetailBoardStructureTests {
         #expect(L10n.format(ruFormat, locale: ruLocale, Int64(5)) != String.localizedStringWithFormat(ruFormat, Int64(5)))
         // Without a locale argument it follows the UI language (AppLocalization.currentLocale).
         #expect(L10n.format(format, Int64(1)) == String(format: format, locale: AppLocalization.currentLocale, Int64(1)))
+    }
+
+    @Test("UI language ar: counted copy uses Latin digits 0-9, plural forms still follow the ar rules")
+    func arabicCountsUseLatinDigits() throws {
+        let arPath = try #require(Bundle.main.path(forResource: "ar", ofType: "lproj"))
+        let ar = try #require(Bundle(path: arPath))
+        let format = ar.localizedString(forKey: "Catalog: %lld models", value: nil, table: "Providers")
+        let arLocale = AppLanguage.arabic.locale
+        // Plural forms use the actual ar values in Providers.xcstrings: 2 -> two, 5 -> few, 11 -> many.
+        #expect(L10n.format(format, locale: arLocale, Int64(2)) == "الكتالوج: نموذجان")
+        #expect(L10n.format(format, locale: arLocale, Int64(5)) == "الكتالوج: 5 نماذج")
+        #expect(L10n.format(format, locale: arLocale, Int64(11)) == "الكتالوج: 11 نموذجًا")
+        let arabicIndic = CharacterSet(charactersIn: "\u{0660}"..."\u{0669}")
+        let eastern = CharacterSet(charactersIn: "\u{06F0}"..."\u{06F9}")
+        let five = L10n.format(format, locale: arLocale, Int64(5))
+        #expect(five.unicodeScalars.allSatisfy { !arabicIndic.contains($0) && !eastern.contains($0) })
+        // Don't rely on the current system ICU default: the formatting locale pins latn explicitly.
+        #expect(L10n.formattingLocale(arLocale).numberingSystem.identifier == "latn")
+        #expect(L10n.formattingLocale(AppLanguage.russian.locale) == AppLanguage.russian.locale)
+        // Other languages are unchanged.
+        let enPath = try #require(Bundle.main.path(forResource: "en", ofType: "lproj"))
+        let en = try #require(Bundle(path: enPath))
+        let enFormat = en.localizedString(forKey: "Catalog: %lld models", value: nil, table: "Providers")
+        #expect(L10n.format(enFormat, locale: AppLanguage.english.locale, Int64(1)) == "Catalog: 1 model")
     }
 
     @Test("BOARD-DETAIL-11 The parameters row is the third row of the models card (relay / local), its icon doesn't clash with Edit connection, and the detail page no longer has a Settings section")
@@ -708,7 +797,7 @@ struct RelayDetailBoardStructureTests {
 
     // MARK: - BOARD-DETAIL-05
 
-    @Test("BOARD-DETAIL-05 Re-detect: tapping calls the production redetectRelayModels, it can't be tapped while in progress, and success updates the detection time")
+    @Test("BOARD-DETAIL-05 Re-detect: tapping calls the production redetectRelayModels, it can't be tapped while in progress, and success updates the detection time", .sharedProcessState)
     func boardDetail05RedetectButton() async throws {
         var provider = Self.relayProvider()
         // The default protocol has already been set by the user: re-detection does not probe protocols and only refreshes the catalog.

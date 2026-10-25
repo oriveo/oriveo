@@ -5,7 +5,7 @@ import Testing
 
 /// Model > Advanced: asserts the page structure produced by `RelayModelAdvancedBoard`,
 /// the four write functions of `ProviderManager`, and the effect of overrides at the three production consumers: attachment routing, image-generation dispatch and thinking controls.
-@Suite("Relay 2.0 · model advanced page", .serialized)
+@Suite("Relay 2.0 · model advanced page", .serialized, .sharedProcessState)
 @MainActor
 struct RelayModelAdvancedBoardTests {
     typealias Board = RelayModelAdvancedBoard
@@ -77,7 +77,7 @@ struct RelayModelAdvancedBoardTests {
         return try JSONDecoder().decode(Provider.self, from: JSONEncoder().encode(current))
     }
 
-    private static func fixtureURL(_ relative: String) throws -> URL {
+    nonisolated private static func fixtureURL(_ relative: String) throws -> URL {
         var cursor = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         while cursor.path != "/" {
             let candidate = cursor.appendingPathComponent(relative)
@@ -281,6 +281,105 @@ struct RelayModelAdvancedBoardTests {
         #expect(stored.catalogModels.first?.relayTransport == nil)
     }
 
+    // MARK: - relay/negative-cache.v1 advancedBoardCases
+
+    nonisolated private static func advancedBoardCases() throws -> [[String: Any]] {
+        let data = try Data(contentsOf: fixtureURL("shared/test-fixtures/relay/negative-cache.v1.json"))
+        let object = try JSONSerialization.jsonObject(with: data)
+        let root = try #require(object as? [String: Any])
+        return try #require(root["advancedBoardCases"] as? [[String: Any]])
+    }
+
+    /// Parameterized cases are named by caseId; an unreadable fixture yields an empty set, which the non-empty assertion below catches.
+    nonisolated private static let advancedBoardCaseIDs: [String] =
+        ((try? advancedBoardCases()) ?? []).compactMap { $0["caseId"] as? String }
+
+    @Test("advancedBoardCases fixture is non-empty")
+    func advancedBoardCasesPresent() {
+        #expect(!Self.advancedBoardCaseIDs.isEmpty)
+    }
+
+    @Test(
+        "relay/negative-cache.v1 advancedBoardCases: tested loses to the negative cache, user beats it, local follows the same order, Auto resolves the effective transport first",
+        arguments: advancedBoardCaseIDs
+    )
+    func advancedBoardCase(_ caseID: String) async throws {
+        try await Self.loadRelayMetadata()
+        let cases = try Self.advancedBoardCases()
+        let item = try #require(cases.first { $0["caseId"] as? String == caseID })
+        #expect(item["capability"] as? String == "image", "\(caseID): only the image row is covered so far")
+        let transport: RelayTransport? = switch item["transport"] as? String {
+        case "openai_chat"?: .openaiChatCompletions
+        case "auto"?: nil
+        default: throw CocoaError(.coderInvalidValue)
+        }
+        let catalogDeclares = try #require(item["catalogDeclares"] as? Bool)
+        var model = Self.model(
+            "board-\(caseID)",
+            capabilities: catalogDeclares ? [.text, .image] : [.text],
+            transport: transport
+        )
+        if let override = item["override"] as? [String: Any] {
+            let rawSource = try #require(override["source"] as? String)
+            model.relayCapabilityOverrides = RelayCapabilityOverrides(
+                image: try #require(override["value"] as? Bool),
+                source: try #require(RelayCapabilityOverrides.Source(rawValue: rawSource))
+            )
+        }
+        let isLocal = try #require(item["connection"] as? String) == "local"
+        let provider = Self.relayProvider(models: [model], engineProfile: isLocal ? "ollama" : nil)
+        let cache = RelayNegativeCache.shared
+        let connectionID = provider.id.uuidString
+        defer { cache.clearConnection(connectionID) }
+        if try #require(item["negCacheRejected"] as? Bool) {
+            cache.record(
+                connectionID: connectionID, modelID: model.id,
+                transport: try #require(transport).rawValue, kind: .image
+            )
+        }
+
+        let row = try Self.row(Self.board(provider, model.id), .image)
+        let expect = try #require(item["expect"] as? [String: String])
+        let expectedState: Board.Support = switch expect["state"] {
+        case "supported"?: .supported
+        case "unsupported"?: .unsupported
+        case "unknown"?: .unknown
+        default: throw CocoaError(.coderInvalidValue)
+        }
+        let expectedSource: Board.Source? = switch expect["source"] {
+        case "catalog"?: .catalog
+        case "detected"?: .detected
+        case "tested"?: .tested
+        case "engine"?: .engine
+        case "user"?: .user
+        case nil: nil
+        default: throw CocoaError(.coderInvalidValue)
+        }
+        #expect(row.state == expectedState, "\(caseID)")
+        #expect(row.source == expectedSource, "\(caseID)")
+    }
+
+    @Test("When the envelope does not accept images and the model has no .image, the image row draws no catalog source (an unsupported declaration from the facade is not visible)")
+    func envelopeWithoutImageHasNoCatalogSource() async throws {
+        let data = try Data(contentsOf: Self.fixtureURL("shared/test-fixtures/relay/metadata-fixture.json"))
+        var root = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        var runtime = try #require(root["relayRuntimeConfig"] as? [String: Any])
+        var envelopes = try #require(runtime["transportEnvelopes"] as? [String: Any])
+        var chat = try #require(envelopes["openai_chat_completions"] as? [String: Any])
+        chat["image"] = false
+        envelopes["openai_chat_completions"] = chat
+        runtime["transportEnvelopes"] = envelopes
+        root["relayRuntimeConfig"] = runtime
+        let json = String(decoding: try JSONSerialization.data(withJSONObject: root), as: UTF8.self)
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: json)
+
+        let model = Self.model("envelope-no-image", transport: .openaiChatCompletions)
+        let provider = Self.relayProvider(models: [model])
+        let row = try Self.row(Self.board(provider, model.id), .image)
+        #expect(row.source == nil)
+    }
+
     // MARK: - BOARD-ADVANCED-04
 
     @Test("BOARD-ADVANCED-04 four-row status and source order: user > tested > engine declaration > negative cache > official catalog > none; unknown image generation uses Unknown")
@@ -300,12 +399,17 @@ struct RelayModelAdvancedBoardTests {
         var declared = Self.model("declared")
         declared.engineDeclaration = EngineDeclaration(image: true, toolCall: false)
         let bare = Self.model("bare")
+        var testedImage = Self.model("tested-image", capabilities: [.text, .image])
+        testedImage.relayCapabilityOverrides = RelayCapabilityOverrides(image: true, source: .tested)
 
-        let provider = Self.relayProvider(models: [userImage, testedTool, rejected, catalog, declared, bare])
+        let provider = Self.relayProvider(
+            models: [userImage, testedTool, rejected, catalog, declared, bare, testedImage]
+        )
         let connectionID = provider.id.uuidString
         defer { cache.clearConnection(connectionID) }
         let chat = RelayTransport.openaiChatCompletions.rawValue
         cache.record(connectionID: connectionID, modelID: "user-image", transport: chat, kind: .image)
+        cache.record(connectionID: connectionID, modelID: "tested-image", transport: chat, kind: .image)
         for kind in RelayNegativeCache.Kind.allCases {
             cache.record(connectionID: connectionID, modelID: "rejected", transport: chat, kind: kind)
         }
@@ -319,6 +423,13 @@ struct RelayModelAdvancedBoardTests {
         #expect(tested.source == .tested, "tested overrides the tool declaration carried by the model")
         #expect(tested.state == .unsupported)
         #expect(tested.control == .off)
+
+        // relay/negative-cache.v1 relay_override_true_shows_even_if_cached:
+        // a tested override cannot beat the negative cache, only a user override can (same order as the composer entry).
+        let testedImageRow = try Self.row(Self.board(provider, "tested-image"), .image)
+        #expect(testedImageRow.state == .unsupported)
+        #expect(testedImageRow.source == .detected)
+        #expect(testedImageRow.control == .on)
 
         let rejectedBoard = try Self.board(provider, "rejected")
         for capability in [Board.Capability.image, .file, .toolCall] {

@@ -68,7 +68,7 @@ private final class CatalogBoardEngineRecording: URLProtocol, @unchecked Sendabl
 }
 
 /// Model library board: asserts the sections, chips, row states and the three-state values of the five capabilities produced by `RelayCatalogBoardModel`.
-@Suite("Relay 2.0 · model library board structure", .serialized)
+@Suite("Relay 2.0 · model library board structure", .serialized, .sharedProcessState)
 @MainActor
 struct RelayCatalogBoardStructureTests {
     typealias Board = RelayCatalogBoardModel
@@ -429,11 +429,20 @@ struct RelayCatalogBoardStructureTests {
         let enabled = [imageOverride, imageRejected, noEvidence, toolRejected, fileAllowed, fileRejected, fileForcedOn, fileForcedOff]
         let provider = Self.relayProvider(transport: .auto, enabled: enabled, catalog: enabled)
         let connectionID = provider.id.uuidString
-        defer { cache.clearConnection(connectionID) }
+        defer {
+            cache.clearConnection(connectionID)
+            CapabilityNegativeCache.shared.clearConnection(connectionID)
+        }
         let chat = RelayTransport.openaiChatCompletions.rawValue
         // Override true beats the image negative cache.
         cache.record(connectionID: connectionID, modelID: "image-override", transport: chat, kind: .image)
-        cache.record(connectionID: connectionID, modelID: "image-rejected", transport: chat, kind: .image)
+        // An image rejection goes through the production write (v1 and v2 together): the board reads v1, the composer's album entry reads only v2.
+        let imageRejection = RelayPreOutputRejection(
+            status: 400, contentType: "application/json", body: Data(#"{"error":{"message":"x"}}"#.utf8)
+        )
+        #expect(RelayRejectionRecording.recordImageRejection(
+            provider: provider, model: imageRejected, transport: .openaiChatCompletions, rejection: imageRejection
+        ))
         cache.record(connectionID: connectionID, modelID: "tool-rejected", transport: chat, kind: .toolCall)
         cache.record(connectionID: connectionID, modelID: "file-rejected", transport: chat, kind: .file)
         cache.record(connectionID: connectionID, modelID: "file-forced-on", transport: chat, kind: .file)
