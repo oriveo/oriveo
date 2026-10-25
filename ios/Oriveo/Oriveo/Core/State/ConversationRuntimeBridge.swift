@@ -266,6 +266,11 @@ final class ConversationRuntimeBridge {
         try store.deleteConversation(id: id)
     }
 
+    func deleteConversationIfEmpty(id: UUID, uid: String) throws -> Bool {
+        let store = try makeStore(for: uid)
+        return try store.deleteConversationIfEmpty(id: id)
+    }
+
     func deleteConversations(ids: [UUID], uid: String) throws {
         let store = try makeStore(for: uid)
         try store.deleteConversations(ids: ids)
@@ -279,6 +284,22 @@ final class ConversationRuntimeBridge {
     /// Drop journal rows past the retention window.
     func pruneDeletionJournal(uid: String) throws {
         try makeStore(for: uid).pruneDeletionJournal()
+    }
+
+    /// Aligns the attachment file directory with the references in the database. Runs in the background
+    /// after launch, guarded by partition, cap and grace period.
+    func pruneAttachmentFiles(uid: String, launchedAt: Date) throws {
+        try makeStore(for: uid).pruneAttachmentFilesToDatabase(
+            launchGuard: AttachmentLaunchPruneGuard(partitionUID: uid, launchedAt: launchedAt)
+        )
+    }
+
+    /// Image reference reader. The partition's database connection is fixed at the call site (main
+    /// thread) and the background work reads only that connection, so it never switches the shared
+    /// database through DatabaseManager and cannot read the wrong partition after an account switch.
+    func imageReferenceReader(uid: String) throws -> ImageOrphanSweeper.ReferenceReader {
+        let pool = try databaseManager.openIfNeeded(for: uid)
+        return { try ImageOrphanSweeper.referenceKeys(in: pool) }
     }
 
     func loadLegacyProjection(uid: String, hydrateFilePayloads: Bool = true) throws -> [Conversation] {

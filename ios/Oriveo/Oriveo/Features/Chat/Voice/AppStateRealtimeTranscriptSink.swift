@@ -145,8 +145,7 @@ final class AppStateRealtimeTranscriptSink: RealtimeConversationSink {
             modelID: attribution.model,
             modelName: attribution.model,
             state: .delivered,
-            createdAt: createdAt,
-            providerMode: .byok
+            createdAt: createdAt
         )
     }
 

@@ -327,6 +327,15 @@ final class ReadAloudController: ObservableObject {
                   notificationCenter: notificationCenter, detectLanguage: detectLanguage)
     }
 
+    #if DEBUG
+    /// Screenshots only: stages the playing state directly without creating a session, starting synthesis
+    /// or touching the audio session, so nothing is played.
+    func showSpeakingForShots(messageID: UUID, text: String) {
+        let total = SpeakableText.segments(text: text, final: true).count
+        state = .speaking(messageID: messageID, index: 0, total: max(total, 1))
+    }
+    #endif
+
     var speakingMessageID: UUID? {
         if case .speaking(let messageID, _, _) = state { return messageID }
         return nil

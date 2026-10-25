@@ -421,7 +421,8 @@ nonisolated enum ChatRequestBuilder {
         let dynamic = ContextDynamicInput(
             recall: useMemory ? snapshot.recall : [],
             library: snapshot.library,
-            attachmentGuide: hasFileAttachments ? AttachmentInjector.systemPromptGuidance : nil
+            attachmentGuide: hasFileAttachments ? AttachmentInjector.systemPromptGuidance : nil,
+                delivery: snapshot.delivery
         )
 
         let input = ContextAssembleInput(

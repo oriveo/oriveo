@@ -417,6 +417,8 @@ struct ProviderCatalogModelRow: View, Equatable {
     var nested: Bool = false
     /// Board row of the relay / local model library subpage; nil = the existing row look.
     var catalogBoard: RelayCatalogBoardContext? = nil
+    /// Generation of the shared metadata snapshot: when the catalog rolls over the unit price label is re-selected, so equality cannot look at model / provider alone.
+    var metadataGeneration: UInt64 = MetadataClient.sharedSnapshotGeneration()
     /// Tapping a board row opens the read-only "Advanced" page (no request is made); enabling goes only through the trailing plus.
     var openAdvancedAction: () -> Void = {}
     var addAction: () -> Void
@@ -453,7 +455,8 @@ struct ProviderCatalogModelRow: View, Equatable {
             lhs.provider == rhs.provider &&
             lhs.capabilityEvidenceRevision == rhs.capabilityEvidenceRevision &&
             lhs.nested == rhs.nested &&
-            lhs.catalogBoard == rhs.catalogBoard
+            lhs.catalogBoard == rhs.catalogBoard &&
+            lhs.metadataGeneration == rhs.metadataGeneration
     }
 
     #if DEBUG
@@ -480,13 +483,18 @@ struct ProviderCatalogModelRow: View, Equatable {
         let _ = Self.debugBodyEvaluationCount += 1
         #endif
         // A board row draws no capability badges, specifications or price tier, so it needs no projection.
-        let specifications = catalogBoard == nil ? providerModelSpecifications(for: model) : []
+        let pricedModel = catalogBoard == nil ? CatalogModelBuilder.connectionPriced(model, provider: provider) : model
+        let specifications = catalogBoard == nil ? providerModelSpecifications(for: pricedModel) : []
         let visibleMetadataCapabilities = catalogBoard == nil ? model.visibleMetadataCapabilities(provider: provider) : []
 
         if let catalogBoard {
             boardRow(catalogBoard)
         } else {
-            plainRow(specifications: specifications, visibleMetadataCapabilities: visibleMetadataCapabilities)
+            plainRow(
+                specifications: specifications,
+                visibleMetadataCapabilities: visibleMetadataCapabilities,
+                priceTier: pricedModel.normalizedPriceTier
+            )
         }
     }
 
@@ -562,7 +570,8 @@ struct ProviderCatalogModelRow: View, Equatable {
 
     private func plainRow(
         specifications: [ProviderModelSpecification],
-        visibleMetadataCapabilities: [ModelCapability]
+        visibleMetadataCapabilities: [ModelCapability],
+        priceTier: String
     ) -> some View {
         let hasDetailedSpecifications = !specifications.isEmpty
         return Button { perform(.row) } label: {
@@ -600,8 +609,8 @@ struct ProviderCatalogModelRow: View, Equatable {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                if !hasDetailedSpecifications && !model.normalizedPriceTier.isEmpty {
-                    Text(model.normalizedPriceTier)
+                if !hasDetailedSpecifications && !priceTier.isEmpty {
+                    Text(priceTier)
                         .font(OriveoTheme.Typography.caption.weight(.medium))
                         .monospacedDigit()
                         .foregroundStyle(OriveoTheme.Palette.textTertiary)

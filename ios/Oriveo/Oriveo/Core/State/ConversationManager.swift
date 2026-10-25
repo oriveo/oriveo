@@ -151,6 +151,7 @@ final class ConversationManager {
     private var cachedRecentConversationSections: [(ConversationSection, [Conversation])] = []
     private var cachedMonthlyCostSummary = MonthlyCostSummary()
     private var cachedMonthlyCostByProvider: [UUID: Double] = [:]
+    private var cachedMonthlyActivityByProvider: [UUID: ProviderMonthlyActivity] = [:]
     private var cachedSearchResults: [String: [Conversation]] = [:]
     private var cachedConversationVersion: UInt = .max
     private var cachedDayKey = ""
@@ -308,6 +309,11 @@ final class ConversationManager {
     var localMonthlyCostByProvider: [UUID: Double] {
         refreshCachesIfNeeded()
         return cachedMonthlyCostByProvider
+    }
+
+    var localMonthlyActivityByProvider: [UUID: ProviderMonthlyActivity] {
+        refreshCachesIfNeeded()
+        return cachedMonthlyActivityByProvider
     }
 
     var draftConversation: Conversation? {
@@ -634,6 +640,7 @@ final class ConversationManager {
             providers: appState.providers
         )
         cachedMonthlyCostByProvider = CostSummaryCalculator.monthlyCostByProvider(from: costAggregates)
+        cachedMonthlyActivityByProvider = CostSummaryCalculator.monthlyActivityByProvider(from: costAggregates)
         cachedSearchResults.removeAll(keepingCapacity: true)
         cachedConversationVersion = appState.conversationsVersion
         cachedDayKey = dayKey ?? Self.dayKey(for: now)
@@ -732,6 +739,7 @@ final class ConversationManager {
                 providers: appState.providers
             )
             cachedMonthlyCostByProvider = CostSummaryCalculator.monthlyCostByProvider(from: costAggregates)
+            cachedMonthlyActivityByProvider = CostSummaryCalculator.monthlyActivityByProvider(from: costAggregates)
         }
         cachedDayKey = dayKey
         cachedMonthKey = monthKey

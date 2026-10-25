@@ -1179,10 +1179,14 @@ private struct ModelPickerRow: View {
     let capabilityEvidenceRevision: UInt64
     let isNestedUnderVendor: Bool
     let isSelected: Bool
+    /// Generation of the shared metadata snapshot: the unit price label is re-selected after the catalog
+    /// arrives or rolls over, so the view comparison cannot rely on model / provider alone.
+    var metadataGeneration: UInt64 = MetadataClient.sharedSnapshotGeneration()
     let onTap: () -> Void
 
+    /// The unit price label is selected for the region effective on this connection.
     private var pricing: ModelPickerPricePresentation {
-        ModelPickerPricePresentation(model: model)
+        ModelPickerPricePresentation(model: CatalogModelBuilder.connectionPriced(model, provider: provider))
     }
 
     private var title: String {

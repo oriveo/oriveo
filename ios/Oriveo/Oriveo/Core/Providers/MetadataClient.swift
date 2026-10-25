@@ -1139,11 +1139,10 @@ actor MetadataClient {
 
         enum CodingKeys: String, CodingKey {
             case version, view, contractVersion, capabilityContractVersion, updatedAt, profiles, providers
-            case providerConfigs, relayRuntimeConfig, runtimeConfig, libraryRuntimeConfig, mcpRuntimeConfig
+            case providerConfigs, relayRuntimeConfig, runtimeConfig, mcpRuntimeConfig
             case capabilityRuntime, metadataSchema, generatedAt, rollbackOf
             case payloadRevision = "metadataRevision"
-    }
-
+        }
     }
 
     /// Revision number used for the only-grows comparison: only schema 2 / 3 bodies have one.

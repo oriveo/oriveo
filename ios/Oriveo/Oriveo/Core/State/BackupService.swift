@@ -1077,6 +1077,9 @@ enum BackupService {
             partitionUID: partitionUID
         )
 
+        // A conversation table write that returns normally is committed: if the session is switched
+        // afterwards, the image directory already matches the restored conversations and is not rolled back.
+        var conversationsCommitted = false
         do {
             #if DEBUG
             if let hook = await currentBeforeReplaceAllCommitHook() {
@@ -1084,12 +1087,16 @@ enum BackupService {
             }
             #endif
 
+            // Validates the partition first (a switched account throws sessionChangedDuringImport and
+            // leaves memory untouched), then swaps memory for the restored content; the whole-table write
+            // runs on the persist queue, never on the main thread. Failures throw and take the rollback path.
+            try await appState.replaceConversationProjectionOrThrow(
+                importedConversations,
+                persistedUID: partitionUID
+            )
+            conversationsCommitted = true
             try await MainActor.run {
                 try ensureSessionStillBound(appState, partitionUID: partitionUID)
-                try appState.replaceConversationProjectionOrThrow(
-                    importedConversations,
-                    persistedUID: partitionUID
-                )
                 try commitReplaceAllProviders(
                     importedProviders,
                     partitionUID: partitionUID,
@@ -1101,7 +1108,15 @@ enum BackupService {
                 appState.persistSessionNow(for: partitionUID)
             }
         } catch {
-            rollbackImageStoreReplacement(replacement)
+            if conversationsCommitted {
+                // The conversations are committed and the session was rebound afterwards: the images match
+                // the restored conversations in the old partition, so they are kept. Providers, folders,
+                // notes and skills are not written: they live in the memory of the currently bound AppState,
+                // and writing them would land on the rebound account.
+                finalizeImageStoreReplacement(replacement)
+            } else {
+                rollbackImageStoreReplacement(replacement)
+            }
             throw error
         }
 

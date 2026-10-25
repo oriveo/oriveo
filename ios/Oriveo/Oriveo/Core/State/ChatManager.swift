@@ -173,6 +173,9 @@ final class ChatManager {
         /// Plain resend after a thinking first leg with empty text: that leg's delivery, whose usage and
         /// cost are added to this attempt's delivered completion.
         var proposeCarriedDelivery: ProposeMemoryDeferredDelivery?
+        /// Model and connection of this attempt, set with `proposeCarriedDelivery`: the two legs' costs are merged
+        /// once for per-unit pricing.
+        var proposeCarriedPricing: (model: AIModel, provider: Provider)?
 
         /// Appends a reasoning delta in place; when messageID / sendTaskID do not match nothing is written and false is returned.
         ///
@@ -530,7 +533,7 @@ final class ChatManager {
             conversationID: conversationID,
             messageID: messageID,
             expectedSendTaskID: sendTaskID,
-            estimatedCost: estimatedCost,
+            estimatedCost: estimatedCost.map { DeliveredCost.usd($0) },
             state: .delivered,
             servedModelID: servedModelID,
             usageMetrics: usageMetrics
@@ -2593,6 +2596,7 @@ final class ChatManager {
         sessions[conversationID]?.baselineText = initialText
         sessions[conversationID]?.proposeTurn = proposeTurn
         sessions[conversationID]?.proposeCarriedDelivery = proposeCarriedDelivery
+        sessions[conversationID]?.proposeCarriedPricing = proposeCarriedDelivery == nil ? nil : (model, provider)
         if providerKind == .relay {
             sessions[conversationID]?.relayDeliveryRoute = RelayDeliveryRoute(
                 providerID: providerID,
@@ -3174,7 +3178,8 @@ final class ChatManager {
                             estimatedCost: self.resolvedDeliveredCost(
                                 from: result,
                                 model: model,
-                                providerKind: providerKind
+                                provider: provider,
+                                streamedImagesIn: conversationID
                             ),
                             usageMetrics: ChatDeliveredUsageMetrics(result: result)
                         )
@@ -3205,7 +3210,7 @@ final class ChatManager {
                             supportsImageGen: true,
                             requestOptions: transport.options
                         )
-                        let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind)
+                        let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID)
                         #if DEBUG
                         print("[ImageGen] OpenRouter non-streaming result: text=\(result.text.prefix(100)), attachments=\(result.attachments?.count ?? 0)")
                         #endif
@@ -3256,7 +3261,7 @@ final class ChatManager {
                                 self.recordStreamFinish(finish, in: conversationID, sendTaskID: sendTaskID)
                             case let .done(result):
                                 await flushBufferedDelta(force: true)
-                                let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind)
+                                let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID)
                                 await MainActor.run {
                                     self.reconcileStreamingText(
                                         with: result.text,
@@ -3339,7 +3344,7 @@ final class ChatManager {
                                         conversationID: conversationID,
                                         messageID: assistantMessageID,
                                         expectedSendTaskID: sendTaskID,
-                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID),
                                         state: .delivered,
                                         attachments: result.attachments,
                                         usageMetrics: ChatDeliveredUsageMetrics(result: result),
@@ -3407,7 +3412,7 @@ final class ChatManager {
                                     conversationID: conversationID,
                                     messageID: assistantMessageID,
                                     expectedSendTaskID: sendTaskID,
-                                    estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                    estimatedCost: self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID),
                                     state: .delivered,
                                     attachments: result.attachments,
                                     usageMetrics: ChatDeliveredUsageMetrics(result: result),
@@ -3476,7 +3481,7 @@ final class ChatManager {
                                     conversationID: conversationID,
                                     messageID: assistantMessageID,
                                     expectedSendTaskID: sendTaskID,
-                                    estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                    estimatedCost: self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID),
                                     state: .delivered,
                                     attachments: result.attachments,
                                     usageMetrics: ChatDeliveredUsageMetrics(result: result),
@@ -3545,7 +3550,7 @@ final class ChatManager {
                                         conversationID: conversationID,
                                         messageID: assistantMessageID,
                                         expectedSendTaskID: sendTaskID,
-                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID),
                                         state: .delivered,
                                         attachments: result.attachments,
                                         usageMetrics: ChatDeliveredUsageMetrics(result: result),
@@ -3587,7 +3592,7 @@ final class ChatManager {
                                 conversationID: conversationID,
                                 messageID: assistantMessageID,
                                 result: result,
-                                estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                estimatedCost: self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID),
                                 usageMetrics: ChatDeliveredUsageMetrics(result: result)
                             )
                         }
@@ -3638,7 +3643,7 @@ final class ChatManager {
                                         conversationID: conversationID,
                                         messageID: assistantMessageID,
                                         expectedSendTaskID: sendTaskID,
-                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID),
                                         state: .delivered,
                                         attachments: result.attachments,
                                         usageMetrics: ChatDeliveredUsageMetrics(result: result),
@@ -3700,7 +3705,7 @@ final class ChatManager {
                             self.recordStreamFinish(finish, in: conversationID, sendTaskID: sendTaskID)
                         case let .done(result):
                             await flushBufferedDelta(force: true)
-                            let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind)
+                            let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID)
                             await MainActor.run {
                                 self.reconcileStreamingText(
                                     with: result.text,
@@ -3780,7 +3785,7 @@ final class ChatManager {
                                     conversationID: conversationID,
                                     messageID: assistantMessageID,
                                     expectedSendTaskID: sendTaskID,
-                                    estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                    estimatedCost: self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID),
                                     state: .delivered,
                                     attachments: result.attachments,
                                     usageMetrics: ChatDeliveredUsageMetrics(result: result),
@@ -3849,7 +3854,7 @@ final class ChatManager {
                                         conversationID: conversationID,
                                         messageID: assistantMessageID,
                                         expectedSendTaskID: sendTaskID,
-                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID),
                                         state: .delivered,
                                         attachments: result.attachments,
                                         usageMetrics: ChatDeliveredUsageMetrics(result: result),
@@ -3917,7 +3922,7 @@ final class ChatManager {
                                     conversationID: conversationID,
                                     messageID: assistantMessageID,
                                     expectedSendTaskID: sendTaskID,
-                                    estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                    estimatedCost: self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID),
                                     state: .delivered,
                                     attachments: result.attachments,
                                     usageMetrics: ChatDeliveredUsageMetrics(result: result),
@@ -3956,7 +3961,7 @@ final class ChatManager {
                                 conversationID: conversationID,
                                 messageID: assistantMessageID,
                                 result: result,
-                                estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                estimatedCost: self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID),
                                 usageMetrics: ChatDeliveredUsageMetrics(result: result)
                             )
                         }
@@ -4007,7 +4012,7 @@ final class ChatManager {
                                         conversationID: conversationID,
                                         messageID: assistantMessageID,
                                         expectedSendTaskID: sendTaskID,
-                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID),
                                         state: .delivered,
                                         attachments: result.attachments,
                                         usageMetrics: ChatDeliveredUsageMetrics(result: result),
@@ -4078,7 +4083,7 @@ final class ChatManager {
                                         conversationID: conversationID,
                                         messageID: assistantMessageID,
                                         expectedSendTaskID: sendTaskID,
-                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID),
                                         state: .delivered,
                                         attachments: result.attachments,
                                         usageMetrics: ChatDeliveredUsageMetrics(result: result),
@@ -4117,7 +4122,7 @@ final class ChatManager {
                                 conversationID: conversationID,
                                 messageID: assistantMessageID,
                                 result: result,
-                                estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                estimatedCost: self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID),
                                 usageMetrics: ChatDeliveredUsageMetrics(result: result)
                             )
                         }
@@ -4169,7 +4174,7 @@ final class ChatManager {
                                         conversationID: conversationID,
                                         messageID: assistantMessageID,
                                         expectedSendTaskID: sendTaskID,
-                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID),
                                         state: .delivered,
                                         attachments: result.attachments,
                                         usageMetrics: ChatDeliveredUsageMetrics(result: result),
@@ -4240,7 +4245,7 @@ final class ChatManager {
                                     conversationID: conversationID,
                                     messageID: assistantMessageID,
                                     expectedSendTaskID: sendTaskID,
-                                    estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                    estimatedCost: self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID),
                                     state: .delivered,
                                     attachments: result.attachments,
                                     servedModelID: result.servedModelID,
@@ -4311,7 +4316,7 @@ final class ChatManager {
                                         conversationID: conversationID,
                                         messageID: assistantMessageID,
                                         expectedSendTaskID: sendTaskID,
-                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID),
                                         state: .delivered,
                                         attachments: result.attachments,
                                         usageMetrics: ChatDeliveredUsageMetrics(result: result),
@@ -4432,7 +4437,7 @@ final class ChatManager {
                                         conversationID: conversationID,
                                         messageID: assistantMessageID,
                                         result: result,
-                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind),
+                                        estimatedCost: self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID),
                                         servedModelID: result.servedModelID,
                                         usageMetrics: ChatDeliveredUsageMetrics(result: result)
                                     )
@@ -4509,7 +4514,7 @@ final class ChatManager {
                                         self.recordStreamFinish(finish, in: conversationID, sendTaskID: sendTaskID)
                                     case let .done(result):
                                         await flushBufferedDelta(force: true)
-                                        let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind)
+                                        let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID)
                                         await MainActor.run {
                                             self.reconcileStreamingText(
                                                 with: result.text,
@@ -4571,7 +4576,7 @@ final class ChatManager {
                                 requestOptions: transport.options
                             )
 
-                            let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind)
+                            let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID)
                             await MainActor.run {
                                 self.applyNonStreamingCompletionIfCurrent(
                                     taskID: sendTaskID,
@@ -4623,7 +4628,7 @@ final class ChatManager {
                                     self.recordStreamFinish(finish, in: conversationID, sendTaskID: sendTaskID)
                                 case let .done(result):
                                     await flushBufferedDelta(force: true)
-                                    let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind)
+                                    let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, provider: provider, streamedImagesIn: conversationID)
                                     await MainActor.run {
                                         self.reconcileStreamingText(
                                             with: result.text,
@@ -5412,18 +5417,13 @@ final class ChatManager {
         )
         let promptTokens = result.usage?.promptTokens ?? 0
         let completionTokens = result.usage?.completionTokens ?? 0
-        let providerResult = ProviderChatResult(
-            text: result.text,
-            promptTokens: promptTokens,
-            completionTokens: completionTokens,
-            estimatedCost: 0,
-            usageBreakdown: UsageBreakdown(promptTokens: promptTokens, completionTokens: completionTokens)
-        )
+        // The tool loop prices each leg and adds them up; a leg without a usage report makes the whole message unknown.
+        let deliveredCost = resolvedMultiLegCost(result.usage, model: model, provider: provider, conversationID: conversationID)
         completeStreamingMessage(
             conversationID: conversationID,
             messageID: assistantMessageID,
             expectedSendTaskID: sendTaskID,
-            estimatedCost: resolvedDeliveredCost(from: providerResult, model: model, providerKind: provider.kind),
+            estimatedCost: deliveredCost,
             state: .delivered,
             usageMetrics: ChatDeliveredUsageMetrics(promptTokens: promptTokens, completionTokens: completionTokens),
             // The tool loop records stopReason from the stream-finish info of the last leg; paths with no single-leg finish, such as a resend without tools, record unknown.
@@ -5586,6 +5586,7 @@ final class ChatManager {
     }
 
     /// Executes propose in call order: each counts toward priorInTurn, and only an outcome of create writes a candidate; what was created goes to the suggestion strip (the first strip of this turn).
+    /// An outcome of instruct counts toward priorInstructInTurn, and its sentence goes to the conversation-instruction suggestion.
     /// Other names (search_memory) are not executed here.
     private func runProposeCalls(_ calls: [ProviderToolCall], turn: inout ProposeMemoryTurn, assistantMessageID: UUID, conversationID: UUID) async {
         guard let context = turn.context else { return }
@@ -5593,16 +5594,23 @@ final class ChatManager {
             let prior = turn.callCount
             turn.callCount += 1
             do {
-                let candidate = try await context.repository.propose(
+                let result = try await context.repository.propose(
                     argumentsJSON: call.rawArguments,
                     priorInTurn: prior,
+                    priorInstructInTurn: turn.instructCount,
                     userText: context.userText,
                     messageId: turn.userMessageID.uuidString,
                     conversationId: conversationID.uuidString,
                     folderId: context.folderID,
                     nowMs: Int64(Date().timeIntervalSince1970 * 1000)
                 )
-                if let candidate { context.onCandidate(candidate, assistantMessageID) }
+                switch result {
+                case let .candidate(candidate): context.onCandidate(candidate, assistantMessageID)
+                case let .instruct(sentence):
+                    turn.instructCount += 1
+                    context.onInstruct(sentence, turn.userMessageID)
+                case .none: break
+                }
             } catch {
                 #if DEBUG
                 print("[ProposeMemory] propose failed: \(error)")
@@ -5803,15 +5811,14 @@ final class ChatManager {
         if let tail {
             let tailPrompt = tail.usage?.promptTokens ?? 0
             let tailCompletion = tail.usage?.completionTokens ?? 0
-            let tailResult = ProviderChatResult(
-                text: "",
-                promptTokens: tailPrompt,
-                completionTokens: tailCompletion,
-                estimatedCost: 0,
-                usageBreakdown: UsageBreakdown(promptTokens: tailPrompt, completionTokens: tailCompletion)
+            let tailCost = resolvedMultiLegCost(tail.usage, model: model, provider: provider, conversationID: conversationID)
+            // Legs add up per currency: one unknown leg makes the whole message unknown, a first leg without a cost merges as an unknown leg,
+            // and per-unit pricing counts the produced images once for the whole message.
+            estimatedCost = ChatDeliveryAccounting.combiningDeliveries(
+                estimatedCost, tailCost, model: model, provider: provider,
+                producedAttachments: (delivery.attachments ?? []) + (sessions[conversationID]?.attachments ?? []),
+                at: Date()
             )
-            let tailCost = resolvedDeliveredCost(from: tailResult, model: model, providerKind: provider.kind)
-            estimatedCost = (estimatedCost ?? 0) + tailCost
             usageMetrics = ChatDeliveredUsageMetrics(
                 promptTokens: (delivery.usageMetrics?.promptTokens ?? 0) + tailPrompt,
                 completionTokens: (delivery.usageMetrics?.completionTokens ?? 0) + tailCompletion
@@ -6325,7 +6332,7 @@ final class ChatManager {
         conversationID: UUID,
         messageID: UUID,
         result: ProviderChatResult,
-        estimatedCost: Double,
+        estimatedCost: DeliveredCost,
         servedModelID: String? = nil,
         usageMetrics: ChatDeliveredUsageMetrics? = nil,
         provider: Provider? = nil,
@@ -6369,7 +6376,7 @@ final class ChatManager {
         conversationID: UUID,
         messageID: UUID,
         expectedSendTaskID: UUID?,
-        estimatedCost: Double? = nil,
+        estimatedCost: DeliveredCost? = nil,
         state: ChatMessageState,
         errorTitle: String? = nil,
         errorDetail: String? = nil,
@@ -6407,7 +6414,16 @@ final class ChatManager {
             // Thinking resend with an empty body: the first leg is already billed, so usage and cost of the two attempts are added.
             if state == .delivered, let carried = session.proposeCarriedDelivery {
                 if carried.estimatedCost != nil || estimatedCost != nil {
-                    estimatedCost = (carried.estimatedCost ?? 0) + (estimatedCost ?? 0)
+                    // Legs add up per currency; a leg without a cost merges as unknown, not 0, and per-unit pricing
+                    // counts the produced images once for the whole message.
+                    // proposeCarriedPricing is written together with proposeCarriedDelivery, so it is always set here.
+                    if let pricing = session.proposeCarriedPricing {
+                        estimatedCost = ChatDeliveryAccounting.combiningDeliveries(
+                            carried.estimatedCost, estimatedCost, model: pricing.model, provider: pricing.provider,
+                            producedAttachments: (carried.attachments ?? []) + (attachments ?? []) + session.attachments,
+                            at: Date()
+                        )
+                    }
                 }
                 usageMetrics = ChatDeliveredUsageMetrics(
                     promptTokens: (carried.usageMetrics?.promptTokens ?? 0) + (usageMetrics?.promptTokens ?? 0),
@@ -6496,10 +6512,22 @@ final class ChatManager {
         }
 
         if let estimatedCost {
+            // Persisted shape: estimatedCost holds only the USD part, the non-USD part goes to nonUsdCost.
+            let roundRecord = ChatDeliveryAccounting.record(estimatedCost)
             // A continuation adds to the cost of the first round instead of overwriting it.
-            updated.messages[mi].estimatedCost = activeSession?.attemptKind == .continueResponse
-                ? updated.messages[mi].estimatedCost + estimatedCost
-                : estimatedCost
+            let record = activeSession?.attemptKind == .continueResponse
+                ? ChatDeliveryAccounting.addMessageCost(
+                    MessageCostRecord(
+                        estimatedCost: updated.messages[mi].estimatedCost,
+                        costSource: updated.messages[mi].costSource,
+                        nonUsdCost: updated.messages[mi].nonUsdCost
+                    ),
+                    roundRecord
+                )
+                : roundRecord
+            updated.messages[mi].estimatedCost = record.estimatedCost
+            updated.messages[mi].costSource = record.costSource
+            updated.messages[mi].nonUsdCost = record.nonUsdCost
         }
         if let servedModelID, !servedModelID.isEmpty {
             updated.messages[mi].servedModelID = servedModelID
@@ -7131,8 +7159,37 @@ final class ChatManager {
         return conversations[conversationIndex].messages[messageIndex].estimatedCost
     }
 
-    private func resolvedDeliveredCost(from result: ProviderChatResult, model: AIModel, providerKind: ProviderKind) -> Double {
-        ChatDeliveryAccounting.deliveredCost(result: result, model: model, providerKind: providerKind)
+    /// Delivered cost of a multi-leg message (tool loop / MCP / propose tail leg): each leg is priced through `resolvedDeliveredCost`;
+    /// per-unit pricing counts the images this conversation actually received once for the whole message.
+    private func resolvedMultiLegCost(
+        _ usage: ToolLoopUsage?,
+        model: AIModel,
+        provider: Provider,
+        conversationID: UUID
+    ) -> DeliveredCost {
+        ChatDeliveryAccounting.multiLegCost(
+            usage, model: model, provider: provider,
+            producedAttachments: sessions[conversationID]?.attachments ?? [], at: Date()
+        ) {
+            resolvedDeliveredCost(from: $0, model: model, provider: provider)
+        }
+    }
+
+    /// `streamedImagesIn`: when given, images this conversation received while streaming (the `.done` result does not carry them)
+    /// are counted into the unit count of per-unit pricing.
+    private func resolvedDeliveredCost(
+        from result: ProviderChatResult,
+        model: AIModel,
+        provider: Provider,
+        streamedImagesIn conversationID: UUID? = nil
+    ) -> DeliveredCost {
+        ChatDeliveryAccounting.generationCost(
+            result: result,
+            model: model,
+            provider: provider,
+            streamedAttachments: conversationID.flatMap { sessions[$0]?.attachments } ?? [],
+            at: Date()
+        )
     }
 
     private func sampleContinuation(for modelName: String) -> String {
@@ -7226,7 +7283,7 @@ final class ChatManager {
             conversationID: conversationID,
             messageID: messageID,
             result: result,
-            estimatedCost: result.estimatedCost
+            estimatedCost: .usd(result.estimatedCost, source: result.costSource)
         )
     }
 

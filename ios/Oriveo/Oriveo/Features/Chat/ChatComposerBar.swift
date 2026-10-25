@@ -1668,7 +1668,7 @@ struct ChatComposerBar: View {
                 .scaleEffect(isLit ? 1 : 0.96)
                 .disabled(!isLit)
                 // ≋ and ↑ are both icon-only: each gets a screen reader name (↑ shares "Send" with the home page key)
-                .accessibilityLabel(isVoice ? Text(VoiceConversationCopy.startA11y) : Text(L10n.tr("Send", table: .notices)))
+                .accessibilityLabel(isVoice ? Text(VoiceConversationCopy.startA11y) : Text(L10n.tr("memory_extraction_send", table: .chat)))
             }
         }
         .animation(preferredAnimation, value: isSendingMessage)

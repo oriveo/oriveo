@@ -269,6 +269,8 @@ struct ProviderEnabledModelRow: View, Equatable {
     var advancedAction: () -> Void = {}
     /// Board row of the relay / local model library subpage; nil = the existing row look.
     var catalogBoard: RelayCatalogBoardContext? = nil
+    /// Generation of the shared metadata snapshot: when the catalog rolls over the unit price label is re-selected, so equality cannot look at model / provider alone.
+    var metadataGeneration: UInt64 = MetadataClient.sharedSnapshotGeneration()
 
     /// The row menu keeps only set-as-default and remove; capability testing and auto-recovery moved to the advanced page. A board row's "..." is `boardMenu`.
     enum MenuItem: Equatable {
@@ -329,7 +331,8 @@ struct ProviderEnabledModelRow: View, Equatable {
             lhs.isLast == rhs.isLast &&
             lhs.canSetDefault == rhs.canSetDefault &&
             lhs.canRemove == rhs.canRemove &&
-            lhs.catalogBoard == rhs.catalogBoard
+            lhs.catalogBoard == rhs.catalogBoard &&
+            lhs.metadataGeneration == rhs.metadataGeneration
     }
 
     private var rowBackgroundTint: Color {
@@ -365,7 +368,8 @@ struct ProviderEnabledModelRow: View, Equatable {
         #endif
         // A board row draws no capability badges or specifications, so it needs no projection.
         let visibleMetadataCapabilities = catalogBoard == nil ? model.visibleMetadataCapabilities(provider: provider) : []
-        let specifications = catalogBoard == nil ? providerModelSpecifications(for: model) : []
+        let pricedModel = catalogBoard == nil ? CatalogModelBuilder.connectionPriced(model, provider: provider) : model
+        let specifications = catalogBoard == nil ? providerModelSpecifications(for: pricedModel) : []
         let hasDetailedSpecifications = !specifications.isEmpty
         ZStack(alignment: .leading) {
             rowBackgroundTint
@@ -423,8 +427,8 @@ struct ProviderEnabledModelRow: View, Equatable {
                     .disabled(!model.isAvailable)
                     .opacity(model.isAvailable ? 1 : 0.72)
 
-                    if !hasDetailedSpecifications && !model.normalizedPriceTier.isEmpty {
-                        Text(model.normalizedPriceTier)
+                    if !hasDetailedSpecifications && !pricedModel.normalizedPriceTier.isEmpty {
+                        Text(pricedModel.normalizedPriceTier)
                             .font(OriveoTheme.Typography.caption.weight(.medium))
                             .monospacedDigit()
                             .foregroundStyle(OriveoTheme.Palette.textTertiary)

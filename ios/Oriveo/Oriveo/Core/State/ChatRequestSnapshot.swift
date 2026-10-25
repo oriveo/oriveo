@@ -115,6 +115,8 @@ nonisolated struct ChatRequestSnapshot: Sendable {
     let retrievedSnippets: [ChatRequestRetrievedSnippet]
     private(set) var pinnedNotes: [ChatRequestPinnedNoteSnapshot]
     let sendPath: ChatRequestSendPath
+    /// The tone envelope of this turn's reply: a turn sent from a voice conversation is `.voice`, shared by every leg of the turn; nil = a normal send, and assembly is byte-for-byte unchanged.
+    let delivery: ContextDelivery?
     /// Library evidence for this message (goes into [D] `<oriveo-library>`). nil = the library was not searched; empty array = searched but no evidence.
     /// The evidence is read back inside the send task, so it is not part of init; `withLibrary` fills it in before the builder gets it.
     private(set) var library: [ContextLibraryEntry]?
@@ -129,7 +131,8 @@ nonisolated struct ChatRequestSnapshot: Sendable {
         skill: ChatRequestSkillSnapshot?,
         retrievedSnippets: [ChatRequestRetrievedSnippet] = [],
         pinnedNotes: [ChatRequestPinnedNoteSnapshot] = [],
-        sendPath: ChatRequestSendPath
+        sendPath: ChatRequestSendPath,
+        delivery: ContextDelivery? = nil
     ) {
         self.conversation = conversation
         self.messages = messages
@@ -138,6 +141,7 @@ nonisolated struct ChatRequestSnapshot: Sendable {
         self.retrievedSnippets = retrievedSnippets
         self.pinnedNotes = pinnedNotes
         self.sendPath = sendPath
+        self.delivery = delivery
     }
 
     func withLibrary(_ entries: [ContextLibraryEntry]) -> ChatRequestSnapshot {

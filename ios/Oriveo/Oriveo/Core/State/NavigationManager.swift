@@ -80,6 +80,10 @@ final class NavigationManager {
     /// instead of being pushed full screen; only non-nil at `isRegularWidth`, and moved back onto
     /// `path` by `updateLayoutWidth` when the window narrows.
     var providersDetail: AppRoute?
+    /// The detail route in the Settings tab's right column on wide screens. nil shows the empty
+    /// backdrop. Like `providersDetail` it is only non-nil at `isRegularWidth` and moves back onto
+    /// `path` when the window narrows.
+    var settingsDetail: AppRoute?
     /// The note selected next to the notes list on wide screens. The list itself is on `path`; the
     /// note is no longer pushed, or tapping a note in two columns would cover the whole list. When
     /// the window narrows it goes back in after the last `.notesList`.
@@ -397,6 +401,8 @@ final class NavigationManager {
         switch route {
         case .providerDetail:
             return .providers
+        case .memory, .contextSettings, .voiceSettings, .skillsList, .mcpServers, .backup:
+            return .settings
         default:
             return nil
         }
@@ -405,13 +411,15 @@ final class NavigationManager {
     /// Clears every right-column detail, for the "back to the root" cases.
     func clearColumnDetails() {
         providersDetail = nil
+        settingsDetail = nil
         notesDetail = nil
     }
 
     private func columnDetail(for tab: AppTab) -> AppRoute? {
         switch tab {
         case .providers: return providersDetail
-        case .settings, .home: return nil
+        case .settings: return settingsDetail
+        case .home: return nil
         }
     }
 
@@ -419,7 +427,9 @@ final class NavigationManager {
         switch tab {
         case .providers:
             providersDetail = route
-        case .settings, .home:
+        case .settings:
+            settingsDetail = route
+        case .home:
             break
         }
     }

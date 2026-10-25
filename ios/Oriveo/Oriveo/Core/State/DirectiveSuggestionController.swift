@@ -12,12 +12,11 @@ import OriveoProviderKit
 final class DirectiveSuggestionController {
     struct Suggestion: Equatable, Sendable {
         let messageID: UUID
-        /// Detector span, or the trimmed full text when the span is empty.
+        /// Lexical route: detector span, or the trimmed full text when the span is empty.
+        /// Tool route: the instruct sentence (propose_memory sourceQuote, trimmed).
         let sentence: String
     }
 
-    /// Ignores in a row after which a conversation stops getting suggestions.
-    static let ignoreLimit = 3
     static let undoDuration: TimeInterval = 5
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -33,16 +32,15 @@ final class DirectiveSuggestionController {
 
     // MARK: Rules
 
-    /// The sentence to offer, or nil when the message is not a directive, the sentence is already part of the
-    /// instructions, or appending it would exceed `ConversationInstructions.maxCodePoints`.
+    /// Lexical route (requests that cannot carry propose_memory): the sentence to offer, or nil when the message
+    /// is not a directive, its detected language is not in the detector's suggestionLanguages (propose-v3), the
+    /// sentence is already part of the instructions, or appending it would exceed `ConversationInstructions.maxCodePoints`.
     nonisolated static func candidateSentence(for text: String, instructions: String) -> String? {
         let detection = DirectiveDetector.detect(text)
-        guard detection.isDirective else { return nil }
+        guard detection.isSuggestionLanguage else { return nil }
         let span = trimWhiteSpace(detection.span ?? "")
         let sentence = span.isEmpty ? trimWhiteSpace(text) : span
-        guard !sentence.isEmpty else { return nil }
-        if containsScalars(instructions, sentence) { return nil }
-        guard appended(sentence, to: instructions).unicodeScalars.count <= ConversationInstructions.maxCodePoints
+        guard MemoryPropose.instructionBarShows(sentence: sentence, instructions: instructions, ignoreCount: 0)
         else { return nil }
         return sentence
     }
@@ -60,18 +58,6 @@ final class DirectiveSuggestionController {
 
     nonisolated static func appended(_ sentence: String, to instructions: String) -> String {
         instructions.isEmpty ? sentence : instructions + "\n" + sentence
-    }
-
-    /// Code-point substring test (String.contains compares canonically equivalent Characters, unlike the
-    /// other clients).
-    nonisolated private static func containsScalars(_ haystack: String, _ needle: String) -> Bool {
-        let hay = Array(haystack.unicodeScalars.map(\.value))
-        let pin = Array(needle.unicodeScalars.map(\.value))
-        guard !pin.isEmpty, pin.count <= hay.count else { return pin.isEmpty }
-        for start in 0...(hay.count - pin.count) where hay[start] == pin[0] {
-            if Array(hay[start..<(start + pin.count)]) == pin { return true }
-        }
-        return false
     }
 
     // MARK: State
@@ -95,9 +81,25 @@ final class DirectiveSuggestionController {
     ) {
         pendingByConversation[conversationID] = nil
         guard suggestion == .conversationInstruction,
-              ignoreCount(in: conversationID) < Self.ignoreLimit,
+              ignoreCount(in: conversationID) < MemoryPropose.instructionBarIgnoreLimit,
               let sentence = Self.candidateSentence(for: text, instructions: instructions)
         else { return }
+        pendingByConversation[conversationID] = Suggestion(messageID: messageID, sentence: sentence)
+    }
+
+    /// A tool-mode fresh send (propose-v3): the lexical route does not run; only the previous message's
+    /// suggestion is dropped, so an instruct that already arrived for this message stays.
+    func beginToolTurn(messageID: UUID, conversationID: UUID) {
+        guard let pending = pendingByConversation[conversationID], pending.messageID != messageID else { return }
+        pendingByConversation[conversationID] = nil
+    }
+
+    /// The model's propose_memory instruct outcome for this user message (propose-v3 rule 5): offered under the
+    /// same ignore / substring / length rules as the lexical bar.
+    func offerInstruct(sentence: String, messageID: UUID, conversationID: UUID, instructions: String) {
+        guard MemoryPropose.instructionBarShows(
+            sentence: sentence, instructions: instructions, ignoreCount: ignoreCount(in: conversationID)
+        ) else { return }
         pendingByConversation[conversationID] = Suggestion(messageID: messageID, sentence: sentence)
     }
 

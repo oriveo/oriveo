@@ -6,6 +6,7 @@ import SwiftUI
 /// looks the same pushed full screen or shown in the right column.
 struct AppRouteDestination: View {
     let route: AppRoute
+    @Environment(AppState.self) private var appState
 
     var body: some View {
         switch route {
@@ -53,6 +54,9 @@ struct AppRouteDestination: View {
                 .oriveoNavigationChrome()
         case .contextSettings:
             ContextSettingsView()
+                .oriveoNavigationChrome()
+        case .voiceSettings:
+            VoiceSettingsView(appState: appState)
                 .oriveoNavigationChrome()
         case .mcpServers:
             McpServersView()
