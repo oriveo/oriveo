@@ -1,7 +1,7 @@
 import Testing
 @testable import Oriveo
 
-@Suite("ConversationRowMirror", .serialized)
+@Suite("ConversationRowMirror", .serialized, .sharedProcessState)
 @MainActor
 struct ConversationRowMirrorTests {
     private func withOpenAIMetadata<Result>(

@@ -21,7 +21,7 @@ final class MockProviderService {
 
 
     var sendMessageResult: Result<ProviderChatResult, Error> = .success(
-        ProviderChatResult(text: "Mock reply", promptTokens: 10, completionTokens: 20, estimatedCost: 0.001)
+        ProviderChatResult(text: "Mock reply", promptTokens: 10, completionTokens: 20, estimatedCost: 0.001, usageReported: true)
     )
     var sendMessageCallCount = 0
     var lastSentMessages: [ChatMessage]?
@@ -40,7 +40,7 @@ final class MockProviderService {
     var streamEvents: [StreamEvent] = [
         .delta("Hello"),
         .delta(" world"),
-        .done(ProviderChatResult(text: "Hello world", promptTokens: 5, completionTokens: 10, estimatedCost: 0.0005))
+        .done(ProviderChatResult(text: "Hello world", promptTokens: 5, completionTokens: 10, estimatedCost: 0.0005, usageReported: true))
     ]
     var streamError: Error?
     var sendMessageStreamCallCount = 0
@@ -73,14 +73,14 @@ final class MockProviderService {
         syncProviderCallCount = 0
         lastSyncAPIKey = nil
         sendMessageResult = .success(
-            ProviderChatResult(text: "Mock reply", promptTokens: 10, completionTokens: 20, estimatedCost: 0.001)
+            ProviderChatResult(text: "Mock reply", promptTokens: 10, completionTokens: 20, estimatedCost: 0.001, usageReported: true)
         )
         sendMessageCallCount = 0
         lastSentMessages = nil
         streamEvents = [
             .delta("Hello"),
             .delta(" world"),
-            .done(ProviderChatResult(text: "Hello world", promptTokens: 5, completionTokens: 10, estimatedCost: 0.0005))
+            .done(ProviderChatResult(text: "Hello world", promptTokens: 5, completionTokens: 10, estimatedCost: 0.0005, usageReported: true))
         ]
         streamError = nil
         sendMessageStreamCallCount = 0

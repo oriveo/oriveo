@@ -28,7 +28,7 @@ private final class MemoryInboxStubProtocol: URLProtocol, @unchecked Sendable {
     override func stopLoading() {}
 }
 
-@Suite("MemoryInboxPresentation", .serialized)
+@Suite("MemoryInboxPresentation", .serialized, .sharedProcessState)
 struct MemoryInboxPresentationTests {
     /// Explicit "remember ..." -> candidate.
     private static let remember = "zh_explicit_01_golden"
