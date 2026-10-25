@@ -1,0 +1,2099 @@
+{
+ "schema": "oriveo.voice.realtime-recording",
+ "version": 1,
+ "$comment": "Real gemini-3.8-live server messages, recorded from a live session (two Chinese TTS turns, ~2.3 s each, English replies). Sanitized: audio base64 replaced by {audioBytes}, resumption handle and ids redacted. ms is relative to connect. Replay these in order through the production mapper, reducer and sink; never send a real request to re-derive them.",
+ "provider": "gemini_live",
+ "model": "gemini-3.8-live",
+ "expectedMessages": [
+  {
+   "role": "user",
+   "text": "这个会员一个月多少钱?"
+  },
+  {
+   "role": "assistant",
+   "text": "Which membership are you asking about?"
+  },
+  {
+   "role": "user",
+   "text": "北京今天气温多少度?"
+  },
+  {
+   "role": "assistant",
+   "text": "I do not have access to real-time weather information."
+  }
+ ],
+ "messages": [
+  {
+   "conn": 1,
+   "ms": 851,
+   "msg": {
+    "setupComplete": {}
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 851,
+   "msg": {
+    "sessionResumptionUpdate": {
+     "newHandle": "<redacted>",
+     "resumable": true
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 1148,
+   "msg": {
+    "voiceActivity": {
+     "audioOffset": "0.200s",
+     "type": "ACTIVITY_START"
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 4499,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 4504,
+   "msg": {
+    "serverContent": {
+     "inputTranscription": {
+      "text": "这个会员一个月多少钱?"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 4504,
+   "msg": {
+    "voiceActivity": {
+     "audioOffset": "3.560s",
+     "type": "ACTIVITY_END"
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 4504,
+   "msg": {
+    "serverContent": {}
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 4506,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 4508,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 6720
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "Which membership are "
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 4551,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 4553,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 4677,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 4680,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 26880
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "you asking about?"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 4680,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 4682,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 19200
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 4725,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 4728,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 4760,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 4763,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 11520
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 4777,
+   "msg": {
+    "serverContent": {
+     "generationComplete": true
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 6530,
+   "msg": {
+    "serverContent": {
+     "turnComplete": true
+    },
+    "usageMetadata": {
+     "promptTokenCount": 682,
+     "promptTokensDetails": [
+      {
+       "modality": "TEXT",
+       "tokenCount": 421
+      },
+      {
+       "modality": "AUDIO",
+       "tokenCount": 234
+      }
+     ],
+     "responseTokenCount": 56,
+     "responseTokensDetails": [
+      {
+       "modality": "AUDIO",
+       "tokenCount": 56
+      }
+     ],
+     "thoughtsTokenCount": 118,
+     "totalTokenCount": 738
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 6734,
+   "msg": {
+    "voiceActivity": {
+     "audioOffset": "5.800s",
+     "type": "ACTIVITY_START"
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 9904,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 9905,
+   "msg": {
+    "serverContent": {
+     "inputTranscription": {
+      "text": "北京今天气温多少度?"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 9905,
+   "msg": {
+    "voiceActivity": {
+     "audioOffset": "8.960s",
+     "type": "ACTIVITY_END"
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 9905,
+   "msg": {
+    "serverContent": {}
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 9914,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 9916,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 2
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "I do not have "
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 9938,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 9940,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 3840
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 9954,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 9956,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 7680
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 10034,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 10037,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 10088,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 10091,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 9600
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 10207,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 10207,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 10208,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "access to real-time"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 10208,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 7680
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 10286,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 10320,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 24960
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 10453,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 10458,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 32640
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": " weather information."
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 10550,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 10552,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 10565,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 10595,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 10612,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 10615,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 11520
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 10633,
+   "msg": {
+    "serverContent": {
+     "generationComplete": true
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 13299,
+   "msg": {
+    "serverContent": {
+     "turnComplete": true
+    },
+    "usageMetadata": {
+     "promptTokenCount": 834,
+     "promptTokensDetails": [
+      {
+       "modality": "TEXT",
+       "tokenCount": 435
+      },
+      {
+       "modality": "AUDIO",
+       "tokenCount": 356
+      }
+     ],
+     "responseTokenCount": 90,
+     "responseTokensDetails": [
+      {
+       "modality": "AUDIO",
+       "tokenCount": 90
+      }
+     ],
+     "thoughtsTokenCount": 59,
+     "totalTokenCount": 924
+    }
+   }
+  }
+ ],
+ "variants": [
+  {
+   "id": "human_pauses_first_turn_three_fragments",
+   "$comment": "Derived from the recording: the first turn's inputTranscription split into three fragments 150-250 ms apart, the first one before any modelTurn, as a human with pauses produces. The first fragment is also the home creation trigger. Same expectedMessages.",
+   "messages": [
+    {
+     "conn": 1,
+     "ms": 851,
+     "msg": {
+      "setupComplete": {}
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 851,
+     "msg": {
+      "sessionResumptionUpdate": {
+       "newHandle": "<redacted>",
+       "resumable": true
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 1148,
+     "msg": {
+      "voiceActivity": {
+       "audioOffset": "0.200s",
+       "type": "ACTIVITY_START"
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4100,
+     "msg": {
+      "serverContent": {
+       "inputTranscription": {
+        "text": "这个会员"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4350,
+     "msg": {
+      "serverContent": {
+       "inputTranscription": {
+        "text": "一个月"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4499,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 4504,
+     "msg": {
+      "serverContent": {
+       "inputTranscription": {
+        "text": "多少钱?"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4504,
+     "msg": {
+      "voiceActivity": {
+       "audioOffset": "3.560s",
+       "type": "ACTIVITY_END"
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4504,
+     "msg": {
+      "serverContent": {}
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4506,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 4508,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 6720
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       },
+       "outputTranscription": {
+        "text": "Which membership are "
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4551,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 4553,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 15360
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4677,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 4680,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 26880
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       },
+       "outputTranscription": {
+        "text": "you asking about?"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4680,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 4682,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 19200
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4725,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 4728,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 17280
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4760,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 4763,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 11520
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4777,
+     "msg": {
+      "serverContent": {
+       "generationComplete": true
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 6530,
+     "msg": {
+      "serverContent": {
+       "turnComplete": true
+      },
+      "usageMetadata": {
+       "promptTokenCount": 682,
+       "promptTokensDetails": [
+        {
+         "modality": "TEXT",
+         "tokenCount": 421
+        },
+        {
+         "modality": "AUDIO",
+         "tokenCount": 234
+        }
+       ],
+       "responseTokenCount": 56,
+       "responseTokensDetails": [
+        {
+         "modality": "AUDIO",
+         "tokenCount": 56
+        }
+       ],
+       "thoughtsTokenCount": 118,
+       "totalTokenCount": 738
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 6734,
+     "msg": {
+      "voiceActivity": {
+       "audioOffset": "5.800s",
+       "type": "ACTIVITY_START"
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 9904,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 9905,
+     "msg": {
+      "serverContent": {
+       "inputTranscription": {
+        "text": "北京今天气温多少度?"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 9905,
+     "msg": {
+      "voiceActivity": {
+       "audioOffset": "8.960s",
+       "type": "ACTIVITY_END"
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 9905,
+     "msg": {
+      "serverContent": {}
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 9914,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 9916,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 2
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       },
+       "outputTranscription": {
+        "text": "I do not have "
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 9938,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 9940,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 3840
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 9954,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 9956,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 7680
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10034,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10037,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 15360
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10088,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10091,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 9600
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10207,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10207,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10208,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 15360
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       },
+       "outputTranscription": {
+        "text": "access to real-time"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10208,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 7680
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10286,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10320,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 24960
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10453,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10458,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 32640
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       },
+       "outputTranscription": {
+        "text": " weather information."
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10550,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10552,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 17280
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10565,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10595,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 15360
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10612,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10615,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 11520
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10633,
+     "msg": {
+      "serverContent": {
+       "generationComplete": true
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 13299,
+     "msg": {
+      "serverContent": {
+       "turnComplete": true
+      },
+      "usageMetadata": {
+       "promptTokenCount": 834,
+       "promptTokensDetails": [
+        {
+         "modality": "TEXT",
+         "tokenCount": 435
+        },
+        {
+         "modality": "AUDIO",
+         "tokenCount": 356
+        }
+       ],
+       "responseTokenCount": 90,
+       "responseTokensDetails": [
+        {
+         "modality": "AUDIO",
+         "tokenCount": 90
+        }
+       ],
+       "thoughtsTokenCount": 59,
+       "totalTokenCount": 924
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "speaker_echo_during_first_reply",
+   "$comment": "Derived from the recording: during the first reply the microphone picks up the speaker (ACTIVITY_START at 4800 ms, inputTranscription \"这样\" at 5200 ms, before turnComplete), as seen on iPhone 2026-10-21. The first user message still persists before its reply; the echoed text belongs to the next user turn.",
+   "messages": [
+    {
+     "conn": 1,
+     "ms": 851,
+     "msg": {
+      "setupComplete": {}
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 851,
+     "msg": {
+      "sessionResumptionUpdate": {
+       "newHandle": "<redacted>",
+       "resumable": true
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 1148,
+     "msg": {
+      "voiceActivity": {
+       "audioOffset": "0.200s",
+       "type": "ACTIVITY_START"
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4499,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 4504,
+     "msg": {
+      "serverContent": {
+       "inputTranscription": {
+        "text": "这个会员一个月多少钱?"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4504,
+     "msg": {
+      "voiceActivity": {
+       "audioOffset": "3.560s",
+       "type": "ACTIVITY_END"
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4504,
+     "msg": {
+      "serverContent": {}
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4506,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 4508,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 6720
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       },
+       "outputTranscription": {
+        "text": "Which membership are "
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4551,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 4553,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 15360
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4677,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 4680,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 26880
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       },
+       "outputTranscription": {
+        "text": "you asking about?"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4680,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 4682,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 19200
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4725,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 4728,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 17280
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4760,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 4763,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 11520
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4777,
+     "msg": {
+      "serverContent": {
+       "generationComplete": true
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 4800,
+     "msg": {
+      "voiceActivity": {
+       "type": "ACTIVITY_START"
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 5200,
+     "msg": {
+      "serverContent": {
+       "inputTranscription": {
+        "text": "这样"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 6530,
+     "msg": {
+      "serverContent": {
+       "turnComplete": true
+      },
+      "usageMetadata": {
+       "promptTokenCount": 682,
+       "promptTokensDetails": [
+        {
+         "modality": "TEXT",
+         "tokenCount": 421
+        },
+        {
+         "modality": "AUDIO",
+         "tokenCount": 234
+        }
+       ],
+       "responseTokenCount": 56,
+       "responseTokensDetails": [
+        {
+         "modality": "AUDIO",
+         "tokenCount": 56
+        }
+       ],
+       "thoughtsTokenCount": 118,
+       "totalTokenCount": 738
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 6734,
+     "msg": {
+      "voiceActivity": {
+       "audioOffset": "5.800s",
+       "type": "ACTIVITY_START"
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 9904,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 9905,
+     "msg": {
+      "serverContent": {
+       "inputTranscription": {
+        "text": "北京今天气温多少度?"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 9905,
+     "msg": {
+      "voiceActivity": {
+       "audioOffset": "8.960s",
+       "type": "ACTIVITY_END"
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 9905,
+     "msg": {
+      "serverContent": {}
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 9914,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 9916,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 2
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       },
+       "outputTranscription": {
+        "text": "I do not have "
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 9938,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 9940,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 3840
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 9954,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 9956,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 7680
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10034,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10037,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 15360
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10088,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10091,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 9600
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10207,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10207,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10208,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 15360
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       },
+       "outputTranscription": {
+        "text": "access to real-time"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10208,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 7680
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10286,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10320,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 24960
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10453,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10458,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 32640
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       },
+       "outputTranscription": {
+        "text": " weather information."
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10550,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10552,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 17280
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10565,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10595,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 15360
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10612,
+     "msg": {}
+    },
+    {
+     "conn": 1,
+     "ms": 10615,
+     "msg": {
+      "serverContent": {
+       "modelTurn": {
+        "parts": [
+         {
+          "inlineData": {
+           "data": {
+            "audioBytes": 11520
+           },
+           "mimeType": "audio/pcm;rate=24000"
+          }
+         }
+        ],
+        "role": "model"
+       }
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 10633,
+     "msg": {
+      "serverContent": {
+       "generationComplete": true
+      }
+     }
+    },
+    {
+     "conn": 1,
+     "ms": 13299,
+     "msg": {
+      "serverContent": {
+       "turnComplete": true
+      },
+      "usageMetadata": {
+       "promptTokenCount": 834,
+       "promptTokensDetails": [
+        {
+         "modality": "TEXT",
+         "tokenCount": 435
+        },
+        {
+         "modality": "AUDIO",
+         "tokenCount": 356
+        }
+       ],
+       "responseTokenCount": 90,
+       "responseTokensDetails": [
+        {
+         "modality": "AUDIO",
+         "tokenCount": 90
+        }
+       ],
+       "thoughtsTokenCount": 59,
+       "totalTokenCount": 924
+      }
+     }
+    }
+   ],
+   "expectedMessages": [
+    {
+     "role": "user",
+     "text": "这个会员一个月多少钱?"
+    },
+    {
+     "role": "assistant",
+     "text": "Which membership are you asking about?"
+    },
+    {
+     "role": "user",
+     "text": "这样北京今天气温多少度?"
+    },
+    {
+     "role": "assistant",
+     "text": "I do not have access to real-time weather information."
+    }
+   ]
+  }
+ ]
+}

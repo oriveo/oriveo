@@ -1,0 +1,632 @@
+{
+  "schema": "oriveo.voice.p2-copy",
+  "version": 1,
+  "locales": [
+    "ar",
+    "de",
+    "en",
+    "es",
+    "fr",
+    "hi",
+    "id",
+    "ja",
+    "ko",
+    "pt-BR",
+    "ru",
+    "th",
+    "tr",
+    "vi",
+    "zh-Hans",
+    "zh-Hant"
+  ],
+  "keys": {
+    "voice_conversation_start_a11y": {
+      "intent": "Accessibility label of the empty-draft main button (≋) that starts a hands-free voice conversation in the current chat.",
+      "maxChars": null,
+      "values": {
+        "ar": "بدء محادثة صوتية",
+        "de": "Sprachgespräch starten",
+        "en": "Start voice conversation",
+        "es": "Iniciar conversación por voz",
+        "fr": "Démarrer une conversation vocale",
+        "hi": "बोलकर बातचीत शुरू करें",
+        "id": "Mulai percakapan suara",
+        "ja": "音声会話を開始",
+        "ko": "음성 대화 시작",
+        "pt-BR": "Iniciar conversa por voz",
+        "ru": "Начать голосовой диалог",
+        "th": "เริ่มสนทนาด้วยเสียง",
+        "tr": "Sesli sohbeti başlat",
+        "vi": "Bắt đầu trò chuyện bằng giọng nói",
+        "zh-Hans": "开始语音对话",
+        "zh-Hant": "開始語音對話"
+      }
+    },
+    "voice_conversation_status_listening": {
+      "intent": "Status word next to the orb: the app is listening to the user. Must read as a state, not a command. 1–2 words.",
+      "maxChars": 24,
+      "values": {
+        "ar": "جارٍ الاستماع",
+        "de": "Hört zu",
+        "en": "Listening",
+        "es": "Escuchando",
+        "fr": "À l’écoute",
+        "hi": "सुन रहे हैं",
+        "id": "Mendengarkan",
+        "ja": "聞いています",
+        "ko": "듣는 중",
+        "pt-BR": "Ouvindo",
+        "ru": "Слушаю",
+        "th": "กำลังฟัง",
+        "tr": "Dinliyor",
+        "vi": "Đang nghe",
+        "zh-Hans": "在听",
+        "zh-Hant": "在聽"
+      }
+    },
+    "voice_conversation_status_thinking": {
+      "intent": "Status word: the model is generating the reply (nothing spoken yet). State, 1–2 words.",
+      "maxChars": 24,
+      "values": {
+        "ar": "جارٍ التفكير",
+        "de": "Denkt nach",
+        "en": "Thinking",
+        "es": "Pensando",
+        "fr": "Réflexion",
+        "hi": "सोच रहे हैं",
+        "id": "Berpikir",
+        "ja": "考えています",
+        "ko": "생각하는 중",
+        "pt-BR": "Pensando",
+        "ru": "Думаю",
+        "th": "กำลังคิด",
+        "tr": "Düşünüyor",
+        "vi": "Đang suy nghĩ",
+        "zh-Hans": "在想",
+        "zh-Hant": "在想"
+      }
+    },
+    "voice_conversation_status_speaking": {
+      "intent": "Status word: the reply is being read aloud. State, 1–2 words.",
+      "maxChars": 24,
+      "values": {
+        "ar": "جارٍ التحدث",
+        "de": "Spricht",
+        "en": "Speaking",
+        "es": "Hablando",
+        "fr": "Réponse en cours",
+        "hi": "बोल रहे हैं",
+        "id": "Berbicara",
+        "ja": "話しています",
+        "ko": "말하는 중",
+        "pt-BR": "Falando",
+        "ru": "Отвечаю",
+        "th": "กำลังพูด",
+        "tr": "Konuşuyor",
+        "vi": "Đang nói",
+        "zh-Hans": "在说",
+        "zh-Hant": "在說"
+      }
+    },
+    "voice_conversation_status_speaking_tap_to_interrupt": {
+      "intent": "Status while speaking on the loudspeaker with voice interruption off: the user can interrupt only by tapping the orb. Same speaking word + ' · ' + short tap hint.",
+      "maxChars": 44,
+      "values": {
+        "ar": "جارٍ التحدث · اضغط للمقاطعة",
+        "de": "Spricht · Tippen zum Unterbrechen",
+        "en": "Speaking · tap to interrupt",
+        "es": "Hablando · toca para interrumpir",
+        "fr": "Réponse en cours · touchez pour interrompre",
+        "hi": "बोल रहे हैं · रोकने के लिए टैप करें",
+        "id": "Berbicara · ketuk untuk menyela",
+        "ja": "話しています · タップで中断",
+        "ko": "말하는 중 · 탭하여 중단",
+        "pt-BR": "Falando · toque para interromper",
+        "ru": "Отвечаю · нажмите, чтобы прервать",
+        "th": "กำลังพูด · แตะเพื่อขัดจังหวะ",
+        "tr": "Konuşuyor · kesmek için dokunun",
+        "vi": "Đang nói · chạm để ngắt lời",
+        "zh-Hans": "在说 · 轻点打断",
+        "zh-Hant": "在說 · 點一下打斷"
+      }
+    },
+    "voice_conversation_status_muted": {
+      "intent": "Status word: the microphone is muted by the user. State.",
+      "maxChars": 24,
+      "values": {
+        "ar": "الميكروفون مكتوم",
+        "de": "Stummgeschaltet",
+        "en": "Muted",
+        "es": "Silenciado",
+        "fr": "Micro coupé",
+        "hi": "माइक म्यूट है",
+        "id": "Mikrofon dibisukan",
+        "ja": "ミュート中",
+        "ko": "음소거됨",
+        "pt-BR": "Microfone silenciado",
+        "ru": "Микрофон выключен",
+        "th": "ปิดไมค์อยู่",
+        "tr": "Mikrofon kapalı",
+        "vi": "Đã tắt micrô",
+        "zh-Hans": "已静音",
+        "zh-Hant": "已靜音"
+      }
+    },
+    "voice_conversation_status_awaiting_approval": {
+      "intent": "Status word: paused until the user confirms a tool action on the approval card in the chat.",
+      "maxChars": 24,
+      "values": {
+        "ar": "بانتظار تأكيدك",
+        "de": "Wartet auf dich",
+        "en": "Waiting for you",
+        "es": "Esperando confirmación",
+        "fr": "Confirmation requise",
+        "hi": "आपकी पुष्टि का इंतज़ार",
+        "id": "Menunggu konfirmasi",
+        "ja": "確認待ち",
+        "ko": "확인 대기 중",
+        "pt-BR": "Aguardando confirmação",
+        "ru": "Нужно подтверждение",
+        "th": "รอคุณยืนยัน",
+        "tr": "Onayınız bekleniyor",
+        "vi": "Chờ bạn xác nhận",
+        "zh-Hans": "等你确认",
+        "zh-Hant": "等你確認"
+      }
+    },
+    "voice_conversation_status_error": {
+      "intent": "Status word: the conversation hit an error and ended; the chat shows the error card.",
+      "maxChars": 24,
+      "values": {
+        "ar": "حدث خطأ ما",
+        "de": "Etwas ist schiefgelaufen",
+        "en": "Something went wrong",
+        "es": "Algo ha salido mal",
+        "fr": "Un problème est survenu",
+        "hi": "कुछ गड़बड़ हो गई",
+        "id": "Terjadi kesalahan",
+        "ja": "問題が発生しました",
+        "ko": "문제가 발생했습니다",
+        "pt-BR": "Algo deu errado",
+        "ru": "Что-то пошло не так",
+        "th": "เกิดข้อผิดพลาด",
+        "tr": "Bir sorun oluştu",
+        "vi": "Đã xảy ra lỗi",
+        "zh-Hans": "出错了",
+        "zh-Hant": "出錯了"
+      }
+    },
+    "voice_conversation_orb_hint_listening": {
+      "intent": "VoiceOver/TalkBack hint on the orb while listening: activating it means 'I'm done talking' and sends now.",
+      "maxChars": null,
+      "values": {
+        "ar": "اضغط عند الانتهاء من الكلام",
+        "de": "Tippen, wenn du fertig bist",
+        "en": "Tap when you're done",
+        "es": "Toca cuando termines",
+        "fr": "Touchez quand vous avez terminé",
+        "hi": "बोलना पूरा होने पर टैप करें",
+        "id": "Ketuk setelah selesai bicara",
+        "ja": "話し終えたらタップ",
+        "ko": "말을 마치면 탭하세요",
+        "pt-BR": "Toque quando terminar",
+        "ru": "Нажмите, когда закончите",
+        "th": "แตะเมื่อพูดจบ",
+        "tr": "Bitirince dokunun",
+        "vi": "Chạm khi bạn nói xong",
+        "zh-Hans": "说完后轻点",
+        "zh-Hant": "說完後點一下"
+      }
+    },
+    "voice_conversation_orb_hint_thinking": {
+      "intent": "Hint on the orb while thinking: activating it stops generating and goes back to listening.",
+      "maxChars": null,
+      "values": {
+        "ar": "اضغط للإيقاف",
+        "de": "Tippen zum Stoppen",
+        "en": "Tap to stop",
+        "es": "Toca para detener",
+        "fr": "Touchez pour arrêter",
+        "hi": "रोकने के लिए टैप करें",
+        "id": "Ketuk untuk berhenti",
+        "ja": "タップで停止",
+        "ko": "탭하여 중지",
+        "pt-BR": "Toque para parar",
+        "ru": "Нажмите, чтобы остановить",
+        "th": "แตะเพื่อหยุด",
+        "tr": "Durdurmak için dokunun",
+        "vi": "Chạm để dừng",
+        "zh-Hans": "轻点停止",
+        "zh-Hant": "點一下停止"
+      }
+    },
+    "voice_conversation_orb_hint_speaking": {
+      "intent": "Hint on the orb while speaking: activating it stops the speech only; the text keeps generating.",
+      "maxChars": null,
+      "values": {
+        "ar": "اضغط لإيقاف القراءة الصوتية",
+        "de": "Tippen, um die Sprachausgabe zu stoppen",
+        "en": "Tap to stop speaking",
+        "es": "Toca para detener la voz",
+        "fr": "Touchez pour arrêter la lecture",
+        "hi": "आवाज़ रोकने के लिए टैप करें",
+        "id": "Ketuk untuk menghentikan suara",
+        "ja": "タップで音声を停止",
+        "ko": "탭하여 음성 중지",
+        "pt-BR": "Toque para parar a fala",
+        "ru": "Нажмите, чтобы остановить озвучку",
+        "th": "แตะเพื่อหยุดเสียงพูด",
+        "tr": "Sesli yanıtı durdurmak için dokunun",
+        "vi": "Chạm để dừng đọc",
+        "zh-Hans": "轻点停止播报",
+        "zh-Hant": "點一下停止播報"
+      }
+    },
+    "voice_conversation_mute_a11y": {
+      "intent": "Accessibility label of the mute button (microphone icon) when not muted.",
+      "maxChars": null,
+      "values": {
+        "ar": "كتم الميكروفون",
+        "de": "Mikrofon stummschalten",
+        "en": "Mute microphone",
+        "es": "Silenciar micrófono",
+        "fr": "Couper le micro",
+        "hi": "माइक म्यूट करें",
+        "id": "Bisukan mikrofon",
+        "ja": "マイクをミュート",
+        "ko": "마이크 음소거",
+        "pt-BR": "Silenciar microfone",
+        "ru": "Выключить микрофон",
+        "th": "ปิดไมค์",
+        "tr": "Mikrofonu kapat",
+        "vi": "Tắt micrô",
+        "zh-Hans": "静音麦克风",
+        "zh-Hant": "將麥克風靜音"
+      }
+    },
+    "voice_conversation_unmute_a11y": {
+      "intent": "Accessibility label of the same button while muted.",
+      "maxChars": null,
+      "values": {
+        "ar": "إلغاء كتم الميكروفون",
+        "de": "Stummschaltung aufheben",
+        "en": "Unmute microphone",
+        "es": "Activar micrófono",
+        "fr": "Réactiver le micro",
+        "hi": "माइक अनम्यूट करें",
+        "id": "Aktifkan mikrofon",
+        "ja": "ミュートを解除",
+        "ko": "음소거 해제",
+        "pt-BR": "Ativar microfone",
+        "ru": "Включить микрофон",
+        "th": "เปิดไมค์",
+        "tr": "Mikrofonu aç",
+        "vi": "Bật micrô",
+        "zh-Hans": "取消静音",
+        "zh-Hant": "取消靜音"
+      }
+    },
+    "voice_conversation_end_a11y": {
+      "intent": "Accessibility label of the ✕ button that ends the voice conversation and returns to text input.",
+      "maxChars": null,
+      "values": {
+        "ar": "إنهاء المحادثة الصوتية",
+        "de": "Sprachgespräch beenden",
+        "en": "End voice conversation",
+        "es": "Terminar conversación por voz",
+        "fr": "Terminer la conversation vocale",
+        "hi": "बोलकर बातचीत बंद करें",
+        "id": "Akhiri percakapan suara",
+        "ja": "音声会話を終了",
+        "ko": "음성 대화 종료",
+        "pt-BR": "Encerrar conversa por voz",
+        "ru": "Завершить голосовой диалог",
+        "th": "จบการสนทนาด้วยเสียง",
+        "tr": "Sesli sohbeti bitir",
+        "vi": "Kết thúc trò chuyện bằng giọng nói",
+        "zh-Hans": "结束语音对话",
+        "zh-Hant": "結束語音對話"
+      }
+    },
+    "voice_conversation_prompt_did_not_catch": {
+      "intent": "Spoken aloud by TTS after speech recognition failed twice; then the app listens again. Short, natural when heard, gender-neutral.",
+      "maxChars": null,
+      "values": {
+        "ar": "عذرًا، لم أسمع ذلك بوضوح.",
+        "de": "Entschuldige, das habe ich nicht verstanden.",
+        "en": "Sorry, I didn't catch that.",
+        "es": "Perdona, no te he entendido.",
+        "fr": "Pardon, je n’ai pas bien entendu.",
+        "hi": "माफ़ कीजिए, ठीक से सुनाई नहीं दिया।",
+        "id": "Maaf, tadi kurang terdengar.",
+        "ja": "すみません、聞き取れませんでした。",
+        "ko": "죄송해요, 잘 못 들었어요.",
+        "pt-BR": "Desculpe, não entendi.",
+        "ru": "Извините, не удалось расслышать.",
+        "th": "ขออภัย ฟังไม่ค่อยชัด",
+        "tr": "Kusura bakmayın, anlayamadım.",
+        "vi": "Xin lỗi, mình nghe chưa rõ.",
+        "zh-Hans": "抱歉，没听清。",
+        "zh-Hant": "抱歉，沒聽清楚。"
+      }
+    },
+    "voice_conversation_prompt_approval_needed": {
+      "intent": "Spoken aloud once when a tool action needs the user's confirmation on the approval card in the chat.",
+      "maxChars": null,
+      "values": {
+        "ar": "يُرجى التأكيد على الشاشة.",
+        "de": "Bitte bestätige das auf dem Bildschirm.",
+        "en": "Please confirm on the screen.",
+        "es": "Confírmalo en la pantalla, por favor.",
+        "fr": "Merci de confirmer à l’écran.",
+        "hi": "कृपया स्क्रीन पर पुष्टि करें।",
+        "id": "Silakan konfirmasi di layar.",
+        "ja": "画面で確認してください。",
+        "ko": "화면에서 확인해 주세요.",
+        "pt-BR": "Confirme na tela, por favor.",
+        "ru": "Подтвердите на экране, пожалуйста.",
+        "th": "กรุณายืนยันบนหน้าจอ",
+        "tr": "Lütfen ekrandan onaylayın.",
+        "vi": "Bạn hãy xác nhận trên màn hình nhé.",
+        "zh-Hans": "请在屏幕上确认。",
+        "zh-Hant": "請在螢幕上確認。"
+      }
+    },
+    "voice_conversation_notification_title": {
+      "intent": "Android ongoing notification title while a voice conversation runs (screen may be locked).",
+      "platforms": [
+        "android"
+      ],
+      "maxChars": 40,
+      "values": {
+        "ar": "محادثة صوتية جارية",
+        "de": "Sprachgespräch läuft",
+        "en": "Voice conversation in progress",
+        "es": "Conversación por voz en curso",
+        "fr": "Conversation vocale en cours",
+        "hi": "बोलकर बातचीत चल रही है",
+        "id": "Percakapan suara sedang berlangsung",
+        "ja": "音声会話中",
+        "ko": "음성 대화 중",
+        "pt-BR": "Conversa por voz em andamento",
+        "ru": "Идёт голосовой диалог",
+        "th": "กำลังสนทนาด้วยเสียง",
+        "tr": "Sesli sohbet sürüyor",
+        "vi": "Đang trò chuyện bằng giọng nói",
+        "zh-Hans": "语音对话进行中",
+        "zh-Hant": "語音對話進行中"
+      }
+    },
+    "voice_conversation_notification_end": {
+      "intent": "Action button on that notification that ends the voice conversation. Button label.",
+      "platforms": [
+        "android"
+      ],
+      "maxChars": 12,
+      "values": {
+        "ar": "إنهاء",
+        "de": "Beenden",
+        "en": "End",
+        "es": "Terminar",
+        "fr": "Terminer",
+        "hi": "बंद करें",
+        "id": "Akhiri",
+        "ja": "終了",
+        "ko": "종료",
+        "pt-BR": "Encerrar",
+        "ru": "Завершить",
+        "th": "จบ",
+        "tr": "Bitir",
+        "vi": "Kết thúc",
+        "zh-Hans": "结束",
+        "zh-Hant": "結束"
+      }
+    },
+    "voice_conversation_start_failed_toast": {
+      "intent": "Toast when the voice conversation couldn't start (audio session / recognizer failed). Suggest retrying.",
+      "maxChars": null,
+      "values": {
+        "ar": "تعذّر بدء المحادثة الصوتية. يُرجى المحاولة مرة أخرى.",
+        "de": "Das Sprachgespräch konnte nicht gestartet werden. Versuch es noch einmal.",
+        "en": "Couldn't start the voice conversation. Try again.",
+        "es": "No se pudo iniciar la conversación por voz. Inténtalo de nuevo.",
+        "fr": "Impossible de démarrer la conversation vocale. Réessayez.",
+        "hi": "बोलकर बातचीत शुरू नहीं हो सकी। फिर से कोशिश करें।",
+        "id": "Percakapan suara tidak dapat dimulai. Coba lagi.",
+        "ja": "音声会話を開始できませんでした。もう一度お試しください。",
+        "ko": "음성 대화를 시작하지 못했습니다. 다시 시도해 주세요.",
+        "pt-BR": "Não foi possível iniciar a conversa por voz. Tente de novo.",
+        "ru": "Не удалось начать голосовой диалог. Попробуйте ещё раз.",
+        "th": "เริ่มการสนทนาด้วยเสียงไม่สำเร็จ ลองอีกครั้ง",
+        "tr": "Sesli sohbet başlatılamadı. Tekrar deneyin.",
+        "vi": "Không thể bắt đầu trò chuyện bằng giọng nói. Hãy thử lại.",
+        "zh-Hans": "无法开始语音对话，请重试。",
+        "zh-Hant": "無法開始語音對話，請再試一次。"
+      }
+    },
+    "voice_conversation_background_paused_toast": {
+      "intent": "Android 12 and below with the system recognizer: the conversation pauses while the app is in the background; shown when it pauses / on return.",
+      "platforms": [
+        "android"
+      ],
+      "maxChars": null,
+      "values": {
+        "ar": "أُوقفت المحادثة الصوتية مؤقتًا لأن Oriveo في الخلفية.",
+        "de": "Das Sprachgespräch pausiert, solange Oriveo im Hintergrund ist.",
+        "en": "Voice conversation paused while Oriveo is in the background.",
+        "es": "La conversación por voz se pausa mientras Oriveo está en segundo plano.",
+        "fr": "La conversation vocale est en pause tant qu’Oriveo est en arrière-plan.",
+        "hi": "Oriveo बैकग्राउंड में है, इसलिए बोलकर बातचीत रोक दी गई है।",
+        "id": "Percakapan suara dijeda selama Oriveo berjalan di latar belakang.",
+        "ja": "Oriveo がバックグラウンドに移ったため、音声会話を一時停止しました。",
+        "ko": "Oriveo가 백그라운드에 있는 동안 음성 대화가 일시 중지됩니다.",
+        "pt-BR": "A conversa por voz fica pausada enquanto o Oriveo está em segundo plano.",
+        "ru": "Пока Oriveo работает в фоне, голосовой диалог приостановлен.",
+        "th": "การสนทนาด้วยเสียงจะหยุดชั่วคราวขณะที่ Oriveo อยู่ในเบื้องหลัง",
+        "tr": "Oriveo arka plana alındığı için sesli sohbet duraklatıldı.",
+        "vi": "Trò chuyện bằng giọng nói tạm dừng khi Oriveo chạy nền.",
+        "zh-Hans": "Oriveo 已转到后台，语音对话已暂停。",
+        "zh-Hant": "Oriveo 已移至背景，語音對話已暫停。"
+      }
+    },
+    "voice_conversation_channel_name": {
+      "intent": "Android notification channel name (通知渠道名) for the voice conversation foreground service, shown in system notification settings.",
+      "platforms": [
+        "android"
+      ],
+      "maxChars": null,
+      "values": {
+        "ar": "المحادثة الصوتية",
+        "de": "Sprachgespräch",
+        "en": "Voice conversation",
+        "es": "Conversación por voz",
+        "fr": "Conversation vocale",
+        "hi": "बोलकर बातचीत",
+        "id": "Percakapan suara",
+        "ja": "音声会話",
+        "ko": "음성 대화",
+        "pt-BR": "Conversa por voz",
+        "ru": "Голосовой диалог",
+        "th": "สนทนาด้วยเสียง",
+        "tr": "Sesli sohbet",
+        "vi": "Trò chuyện bằng giọng nói",
+        "zh-Hans": "语音对话",
+        "zh-Hant": "語音對話"
+      }
+    },
+    "voice_settings_header": {
+      "intent": "Settings › Voice page header: nothing needs changing; dictation, read aloud and voice conversation all use the device's built-in voice for free; switch to a connected provider for accuracy or a nicer voice.",
+      "maxChars": null,
+      "values": {
+        "ar": "لا حاجة إلى تغيير أي شيء هنا: الإملاء والقراءة بصوت عالٍ والمحادثة الصوتية تستخدم صوت جهازك المدمج مجانًا. وللحصول على دقة أعلى أو صوت أجمل، يمكن التبديل إلى مزوّد متصل لديك.",
+        "de": "Hier musst du nichts ändern: Diktieren, Vorlesen und Sprachgespräche nutzen kostenlos die integrierte Stimme deines Geräts. Für mehr Genauigkeit oder eine schönere Stimme wechsle zu einem verbundenen Anbieter.",
+        "en": "You don't need to change anything here: dictation, read aloud, and voice conversations use your device's built-in voice at no cost. For better accuracy or a nicer voice, switch to a provider you've connected.",
+        "es": "No necesitas cambiar nada aquí: el dictado, la lectura en voz alta y las conversaciones por voz usan gratis la voz integrada de tu dispositivo. Si quieres más precisión o una voz más agradable, cambia a un proveedor que hayas conectado.",
+        "fr": "Rien à changer ici : la dictée, la lecture à voix haute et les conversations vocales utilisent gratuitement la voix intégrée de votre appareil. Pour plus de précision ou une voix plus agréable, passez à un fournisseur que vous avez connecté.",
+        "hi": "यहाँ कुछ बदलने की ज़रूरत नहीं है: बोलकर लिखना, पढ़कर सुनाना और बोलकर बातचीत आपके डिवाइस की बिल्ट-इन आवाज़ से मुफ़्त में चलते हैं। ज़्यादा सटीक पहचान या बेहतर आवाज़ के लिए अपने कनेक्ट किए गए किसी प्रोवाइडर पर स्विच करें।",
+        "id": "Anda tidak perlu mengubah apa pun di sini: dikte, fitur Bacakan, dan percakapan suara memakai suara bawaan perangkat tanpa biaya. Untuk hasil yang lebih akurat atau suara yang lebih enak didengar, beralihlah ke penyedia yang sudah Anda hubungkan.",
+        "ja": "ここは変更しなくても使えます。音声入力、読み上げ、音声会話はデバイス内蔵の音声で、料金はかかりません。より正確に、またはより自然な声にしたいときは、接続済みのプロバイダーに切り替えてください。",
+        "ko": "여기서 아무것도 바꾸지 않아도 됩니다. 받아쓰기, 소리 내어 읽기, 음성 대화는 기기에 내장된 음성을 무료로 사용합니다. 더 정확한 인식이나 더 좋은 목소리를 원하면 연결한 제공업체로 바꾸세요.",
+        "pt-BR": "Você não precisa mudar nada aqui: o ditado, a leitura em voz alta e as conversas por voz usam a voz integrada do seu dispositivo, sem custo. Para mais precisão ou uma voz mais agradável, troque para um provedor que você conectou.",
+        "ru": "Здесь можно ничего не менять: диктовка, чтение вслух и голосовой диалог бесплатно работают на встроенном голосе устройства. Для большей точности или более приятного голоса переключитесь на подключённого провайдера.",
+        "th": "ไม่ต้องเปลี่ยนอะไรที่นี่ก็ใช้ได้: การพิมพ์ด้วยเสียง การอ่านออกเสียง และการสนทนาด้วยเสียงใช้เสียงในตัวของอุปกรณ์โดยไม่มีค่าใช้จ่าย หากต้องการความแม่นยำมากขึ้นหรือเสียงที่ฟังดีกว่า ให้เปลี่ยนไปใช้ผู้ให้บริการที่คุณเชื่อมต่อไว้",
+        "tr": "Burada hiçbir şeyi değiştirmeniz gerekmez: dikte, sesli okuma ve sesli sohbet, cihazınızın yerleşik sesini ücretsiz kullanır. Daha doğru tanıma ya da daha hoş bir ses için bağladığınız bir sağlayıcıya geçin.",
+        "vi": "Bạn không cần thay đổi gì ở đây: đọc chính tả, đọc to và trò chuyện bằng giọng nói đều dùng giọng có sẵn trên thiết bị, miễn phí. Muốn chính xác hơn hoặc giọng hay hơn, hãy chuyển sang nhà cung cấp bạn đã kết nối.",
+        "zh-Hans": "不改这里也能用：听写、朗读和语音对话都交给系统，不花钱。想要更准或更好听，再换成你已连接的供应商。",
+        "zh-Hant": "不改這裡也能用：聽寫、朗讀和語音對話都交給系統，不花錢。想要更準或更好聽，再換成你已設定連線的供應商。"
+      }
+    },
+    "voice_dictation_footer_cloud": {
+      "intent": "Dictation section footer when a cloud engine is selected (iOS + Android, same text): existing text + 'Voice conversations listen with this engine too.'",
+      "maxChars": null,
+      "values": {
+        "ar": "تُرسَل التسجيلات إلى المزوّد الذي تختاره فقط. إذا فشل التحويل إلى نص، يبقى التسجيل على هذا الجهاز لمدة تصل إلى 7 أيام. وتستخدم المحادثة الصوتية هذا المحرّك أيضًا للاستماع.",
+        "de": "Aufnahmen gehen nur an den gewählten Anbieter. Schlägt die Transkription fehl, bleibt die Aufnahme bis zu 7 Tage auf diesem Gerät. Auch Sprachgespräche nutzen diese Engine zur Spracherkennung.",
+        "en": "Recordings are sent only to the provider you choose. If transcription fails, the recording stays on this device for up to 7 days. Voice conversations listen with this engine too.",
+        "es": "Las grabaciones solo se envían al proveedor que elijas. Si la transcripción falla, la grabación se queda en este dispositivo hasta 7 días. Las conversaciones por voz también usan este motor para escucharte.",
+        "fr": "Les enregistrements sont envoyés uniquement au fournisseur choisi. Si la transcription échoue, l’enregistrement reste sur cet appareil jusqu’à 7 jours. Les conversations vocales utilisent aussi ce moteur pour vous écouter.",
+        "hi": "रिकॉर्डिंग सिर्फ़ आपके चुने हुए प्रोवाइडर को भेजी जाती है। टेक्स्ट न बन पाने पर रिकॉर्डिंग इस डिवाइस पर 7 दिन तक रहती है। बोलकर बातचीत में भी आपकी बात इसी इंजन से सुनी जाती है।",
+        "id": "Rekaman hanya dikirim ke penyedia yang Anda pilih. Jika transkripsi gagal, rekaman disimpan di perangkat ini hingga 7 hari. Percakapan suara juga memakai mesin ini untuk mendengarkan.",
+        "ja": "録音は選んだプロバイダーにだけ送信されます。文字起こしに失敗した録音は、このデバイスに最長 7 日間保存されます。音声会話でも、この認識エンジンで聞き取ります。",
+        "ko": "녹음은 선택한 제공업체에만 전송됩니다. 텍스트 변환에 실패한 녹음은 이 기기에 최대 7일 동안 보관됩니다. 음성 대화에서도 이 엔진으로 말을 알아듣습니다.",
+        "pt-BR": "As gravações são enviadas apenas ao provedor que você escolher. Se a transcrição falhar, a gravação fica neste dispositivo por até 7 dias. As conversas por voz também usam este mecanismo para ouvir você.",
+        "ru": "Записи отправляются только выбранному провайдеру. Если распознать запись не удалось, она хранится на этом устройстве до 7 дней. Голосовой диалог тоже распознаёт речь этим движком.",
+        "th": "เสียงที่บันทึกจะส่งไปยังผู้ให้บริการที่คุณเลือกเท่านั้น หากแปลงเป็นข้อความไม่สำเร็จ เสียงที่บันทึกไว้จะเก็บอยู่ในเครื่องนี้นานสูงสุด 7 วัน การสนทนาด้วยเสียงก็ใช้เครื่องมือนี้ฟังเสียงพูดของคุณด้วย",
+        "tr": "Kayıtlar yalnızca seçtiğiniz sağlayıcıya gönderilir. Metne dökülemezse kayıt bu cihazda en fazla 7 gün kalır. Sesli sohbet de sizi bu motorla dinler.",
+        "vi": "Bản ghi âm chỉ được gửi đến nhà cung cấp bạn chọn. Nếu chuyển thành chữ thất bại, bản ghi được giữ trên thiết bị này tối đa 7 ngày. Trò chuyện bằng giọng nói cũng dùng công cụ này để nghe bạn.",
+        "zh-Hans": "录音只发给所选供应商。转写失败的录音在本机最多保留 7 天。语音对话也用这个引擎听你说话。",
+        "zh-Hant": "錄音只傳給所選供應商。轉寫失敗的錄音在本機最多保留 7 天。語音對話也用這個引擎聽你說話。"
+      }
+    },
+    "voice_dictation_footer_system_ios": {
+      "intent": "iOS dictation section footer when System is selected: existing text (mentions Apple) + 'Voice conversations listen with this engine too.'",
+      "platforms": [
+        "ios"
+      ],
+      "maxChars": null,
+      "values": {
+        "ar": "قد تعالج Apple إملاء النظام. إذا فشل التحويل إلى نص، يبقى التسجيل على هذا الجهاز لمدة تصل إلى 7 أيام. وتستخدم المحادثة الصوتية هذا المحرّك أيضًا للاستماع.",
+        "de": "Die Diktierfunktion des Systems kann von Apple verarbeitet werden. Schlägt die Transkription fehl, bleibt die Aufnahme bis zu 7 Tage auf diesem Gerät. Auch Sprachgespräche nutzen diese Engine zur Spracherkennung.",
+        "en": "System dictation may be processed by Apple. If transcription fails, the recording stays on this device for up to 7 days. Voice conversations listen with this engine too.",
+        "es": "El dictado del sistema puede procesarlo Apple. Si la transcripción falla, la grabación se queda en este dispositivo hasta 7 días. Las conversaciones por voz también usan este motor para escucharte.",
+        "fr": "La dictée système peut être traitée par Apple. Si la transcription échoue, l’enregistrement reste sur cet appareil jusqu’à 7 jours. Les conversations vocales utilisent aussi ce moteur pour vous écouter.",
+        "hi": "सिस्टम से बोलकर लिखने पर Apple इसे प्रोसेस कर सकता है। टेक्स्ट न बन पाने पर रिकॉर्डिंग इस डिवाइस पर 7 दिन तक रहती है। बोलकर बातचीत में भी आपकी बात इसी इंजन से सुनी जाती है।",
+        "id": "Dikte sistem mungkin diproses oleh Apple. Jika transkripsi gagal, rekaman disimpan di perangkat ini hingga 7 hari. Percakapan suara juga memakai mesin ini untuk mendengarkan.",
+        "ja": "システムの音声入力は Apple によって処理される場合があります。文字起こしに失敗した録音は、このデバイスに最長 7 日間保存されます。音声会話でも、この認識エンジンで聞き取ります。",
+        "ko": "시스템 받아쓰기는 Apple이 처리할 수 있습니다. 텍스트 변환에 실패한 녹음은 이 기기에 최대 7일 동안 보관됩니다. 음성 대화에서도 이 엔진으로 말을 알아듣습니다.",
+        "pt-BR": "O ditado do sistema pode ser processado pela Apple. Se a transcrição falhar, a gravação fica neste dispositivo por até 7 dias. As conversas por voz também usam este mecanismo para ouvir você.",
+        "ru": "Системная диктовка может обрабатываться Apple. Если распознать запись не удалось, она хранится на этом устройстве до 7 дней. Голосовой диалог тоже распознаёт речь этим движком.",
+        "th": "การพิมพ์ด้วยเสียงของระบบอาจประมวลผลโดย Apple หากแปลงเป็นข้อความไม่สำเร็จ เสียงที่บันทึกไว้จะเก็บอยู่ในเครื่องนี้นานสูงสุด 7 วัน การสนทนาด้วยเสียงก็ใช้เครื่องมือนี้ฟังเสียงพูดของคุณด้วย",
+        "tr": "Sistem dikte özelliği Apple tarafından işlenebilir. Metne dökülemezse kayıt bu cihazda en fazla 7 gün kalır. Sesli sohbet de sizi bu motorla dinler.",
+        "vi": "Đọc chính tả của hệ thống có thể do Apple xử lý. Nếu chuyển thành chữ thất bại, bản ghi được giữ trên thiết bị này tối đa 7 ngày. Trò chuyện bằng giọng nói cũng dùng công cụ này để nghe bạn.",
+        "zh-Hans": "系统听写可能由 Apple 处理。转写失败的录音在本机最多保留 7 天。语音对话也用这个引擎听你说话。",
+        "zh-Hant": "系統聽寫可能由 Apple 處理。轉寫失敗的錄音在本機最多保留 7 天。語音對話也用這個引擎聽你說話。"
+      }
+    },
+    "voice_dictation_footer_system_android": {
+      "intent": "Android dictation section footer when System is selected: existing text (mentions Google / manufacturer) + 'Voice conversations listen with this engine too.'",
+      "platforms": [
+        "android"
+      ],
+      "maxChars": null,
+      "values": {
+        "ar": "تتولى خدمة التعرّف على الكلام في هذا الجهاز معالجة إملاء النظام، وقد تمر عبر Google أو الشركة المصنّعة للجهاز. إذا فشل التحويل إلى نص، يبقى التسجيل المحفوظ على هذا الجهاز لمدة تصل إلى 7 أيام. وتستخدم المحادثة الصوتية هذا المحرّك أيضًا للاستماع.",
+        "de": "Die Diktierfunktion des Systems wird vom Spracherkennungsdienst dieses Geräts verarbeitet, möglicherweise über Google oder den Gerätehersteller. Schlägt die Transkription fehl, bleibt die gespeicherte Aufnahme bis zu 7 Tage auf diesem Gerät. Auch Sprachgespräche nutzen diese Engine zur Spracherkennung.",
+        "en": "System dictation is handled by this device's speech recognition service, which may go through Google or your device manufacturer. If transcription fails, the saved recording stays on this device for up to 7 days. Voice conversations listen with this engine too.",
+        "es": "El dictado del sistema lo procesa el servicio de reconocimiento de voz de este dispositivo, que puede pasar por Google o por el fabricante del dispositivo. Si la transcripción falla, la grabación guardada se queda en este dispositivo hasta 7 días. Las conversaciones por voz también usan este motor para escucharte.",
+        "fr": "La dictée système est traitée par le service de reconnaissance vocale de cet appareil, qui peut passer par Google ou par le fabricant de l’appareil. Si la transcription échoue, l’enregistrement sauvegardé reste sur cet appareil jusqu’à 7 jours. Les conversations vocales utilisent aussi ce moteur pour vous écouter.",
+        "hi": "सिस्टम से बोलकर लिखने को इस डिवाइस की आवाज़ पहचान सेवा प्रोसेस करती है, जो Google या डिवाइस बनाने वाली कंपनी के ज़रिए हो सकती है। टेक्स्ट न बन पाने पर सहेजी गई रिकॉर्डिंग इस डिवाइस पर 7 दिन तक रहती है। बोलकर बातचीत में भी आपकी बात इसी इंजन से सुनी जाती है।",
+        "id": "Dikte sistem diproses oleh layanan pengenalan ucapan di perangkat ini, yang mungkin melalui Google atau produsen perangkat. Jika transkripsi gagal, rekaman yang tersimpan tetap ada di perangkat ini hingga 7 hari. Percakapan suara juga memakai mesin ini untuk mendengarkan.",
+        "ja": "システムの音声入力は、このデバイスの音声認識サービスで処理され、Google またはデバイスのメーカーを経由する場合があります。文字起こしに失敗した録音は、このデバイスに最長 7 日間保存されます。音声会話でも、この認識エンジンで聞き取ります。",
+        "ko": "시스템 받아쓰기는 이 기기의 음성 인식 서비스가 처리하며, Google이나 기기 제조사를 거칠 수 있습니다. 텍스트 변환에 실패하면 저장된 녹음은 이 기기에 최대 7일 동안 보관됩니다. 음성 대화에서도 이 엔진으로 말을 알아듣습니다.",
+        "pt-BR": "O ditado do sistema é processado pelo serviço de reconhecimento de fala deste dispositivo, que pode passar pelo Google ou pelo fabricante do aparelho. Se a transcrição falhar, a gravação salva fica neste dispositivo por até 7 dias. As conversas por voz também usam este mecanismo para ouvir você.",
+        "ru": "Системную диктовку обрабатывает служба распознавания речи на этом устройстве — возможно, через Google или производителя устройства. Если распознать не удалось, сохранённая запись хранится на этом устройстве до 7 дней. Голосовой диалог тоже распознаёт речь этим движком.",
+        "th": "การพิมพ์ด้วยเสียงของระบบประมวลผลโดยบริการรู้จำเสียงพูดของอุปกรณ์นี้ ซึ่งอาจผ่าน Google หรือผู้ผลิตอุปกรณ์ หากแปลงเป็นข้อความไม่สำเร็จ เสียงที่บันทึกไว้จะเก็บอยู่ในเครื่องนี้นานสูงสุด 7 วัน การสนทนาด้วยเสียงก็ใช้เครื่องมือนี้ฟังเสียงพูดของคุณด้วย",
+        "tr": "Sistem dikte özelliği bu cihazın konuşma tanıma hizmeti tarafından işlenir ve Google ya da cihaz üreticisi üzerinden geçebilir. Metne dökülemezse kaydedilen ses kaydı bu cihazda en fazla 7 gün kalır. Sesli sohbet de sizi bu motorla dinler.",
+        "vi": "Đọc chính tả của hệ thống do dịch vụ nhận dạng giọng nói trên thiết bị này xử lý, có thể thông qua Google hoặc nhà sản xuất thiết bị. Nếu chuyển thành chữ thất bại, bản ghi đã lưu được giữ trên thiết bị này tối đa 7 ngày. Trò chuyện bằng giọng nói cũng dùng công cụ này để nghe bạn.",
+        "zh-Hans": "系统听写由本机的语音识别服务处理，可能经由 Google 或设备厂商。转写失败时，已保存的录音在本机最多保留 7 天。语音对话也用这个引擎听你说话。",
+        "zh-Hant": "系統聽寫由本機的語音辨識服務處理，可能經由 Google 或裝置廠商。轉寫失敗時，已儲存的錄音在本機最多保留 7 天。語音對話也用這個引擎聽你說話。"
+      }
+    },
+    "voice_read_aloud_footer": {
+      "intent": "Read-aloud section footer (iOS + Android, same text): existing text + 'Voice conversations speak with this voice and speed too.'",
+      "maxChars": null,
+      "values": {
+        "ar": "تتخطى القراءة بصوت عالٍ خطوات التفكير والشيفرة. إذا لم يتوفر الصوت السحابي، يتولى صوت النظام القراءة. وتتحدث المحادثة الصوتية بهذا الصوت وهذه السرعة أيضًا.",
+        "de": "Beim Vorlesen werden Denkschritte und Code übersprungen. Ist die Cloud-Stimme nicht verfügbar, übernimmt die Systemstimme. Auch Sprachgespräche antworten mit dieser Stimme und diesem Tempo.",
+        "en": "Read aloud skips thinking and code. If the cloud voice is unavailable, the system voice takes over. Voice conversations speak with this voice and speed too.",
+        "es": "La lectura en voz alta omite el razonamiento y el código. Si la voz en la nube no está disponible, la voz del sistema toma el relevo. Las conversaciones por voz también responden con esta voz y velocidad.",
+        "fr": "La lecture à voix haute ignore le raisonnement et le code. Si la voix cloud n’est pas disponible, la voix du système prend le relais. Les conversations vocales répondent aussi avec cette voix et cette vitesse.",
+        "hi": "पढ़कर सुनाते समय सोचने की प्रक्रिया और कोड छोड़ दिए जाते हैं। क्लाउड आवाज़ उपलब्ध न होने पर सिस्टम की आवाज़ इस्तेमाल होती है। बोलकर बातचीत में भी जवाब इसी आवाज़ और गति में सुनाए जाते हैं।",
+        "id": "Fitur Bacakan melewati proses berpikir dan kode. Jika suara cloud tidak tersedia, suara sistem yang dipakai. Percakapan suara juga menjawab dengan suara dan kecepatan ini.",
+        "ja": "読み上げでは思考プロセスとコードを飛ばします。クラウドの声が使えないときはシステムの声に切り替わります。音声会話の返答も、この声と速度で話します。",
+        "ko": "소리 내어 읽기는 생각 과정과 코드를 건너뜁니다. 클라우드 음성을 쓸 수 없으면 시스템 음성으로 바뀝니다. 음성 대화의 답변도 이 음성과 속도로 말합니다.",
+        "pt-BR": "A leitura em voz alta pula o raciocínio e o código. Se a voz na nuvem não estiver disponível, a voz do sistema assume. As conversas por voz também respondem com esta voz e velocidade.",
+        "ru": "При чтении вслух пропускаются рассуждения и код. Если облачный голос недоступен, читает системный голос. Голосовой диалог отвечает тем же голосом и с той же скоростью.",
+        "th": "การอ่านออกเสียงจะข้ามกระบวนการคิดและโค้ด หากเสียงบนคลาวด์ใช้ไม่ได้ จะเปลี่ยนไปใช้เสียงของระบบแทน การสนทนาด้วยเสียงก็ตอบด้วยเสียงและความเร็วนี้เช่นกัน",
+        "tr": "Sesli okuma düşünme adımlarını ve kodu atlar. Bulut sesi kullanılamazsa sistem sesi devreye girer. Sesli sohbet de bu ses ve hızla yanıt verir.",
+        "vi": "Đọc to sẽ bỏ qua phần suy nghĩ và mã. Nếu giọng trên đám mây không dùng được, giọng hệ thống sẽ đọc thay. Trò chuyện bằng giọng nói cũng trả lời bằng giọng và tốc độ này.",
+        "zh-Hans": "朗读会跳过思考过程和代码；云端音色不可用时改用系统音色。语音对话也用这里的音色和语速回答。",
+        "zh-Hant": "朗讀會略過思考過程和程式碼；雲端音色無法使用時改用系統音色。語音對話也用這裡的音色和語速回答。"
+      }
+    }
+  },
+  "settingsKeyMap": {
+    "ios": {
+      "voice_settings_header": "You don't need to change anything here: dictation and read aloud use your device's built-in voice at no cost. For better accuracy or a nicer voice, switch to a provider you've connected.",
+      "voice_dictation_footer_cloud": "Recordings are sent only to the provider you choose. If transcription fails, the recording stays on this device for up to 7 days.",
+      "voice_dictation_footer_system_ios": "System dictation may be processed by Apple. If transcription fails, the recording stays on this device for up to 7 days.",
+      "voice_read_aloud_footer": "Read aloud skips thinking and code. If the cloud voice is unavailable, the system voice takes over.",
+      "voice_dictation_footer_system_android": "n/a (Android only; iOS uses voice_dictation_footer_system_ios)",
+      "_note": "Voice.xcstrings keys are the English source text; replacing means adding a key with the new en text and removing the old key, then updating the L10n.tr call sites."
+    },
+    "android": {
+      "voice_settings_header": "voice_settings_header",
+      "voice_dictation_footer_cloud": "voice_dictation_footer_cloud",
+      "voice_dictation_footer_system_android": "voice_dictation_footer_system",
+      "voice_read_aloud_footer": "voice_read_aloud_footer",
+      "voice_dictation_footer_system_ios": "n/a (iOS only)",
+      "_note": "strings_voice.xml in values/ plus 15 values-<qualifier>/ dirs (id = values-in, zh-Hans = zh-rCN, zh-Hant = zh-rTW); escape apostrophes as \\' when writing back."
+    }
+  }
+}

@@ -1,0 +1,2284 @@
+{
+ "schema": "oriveo.voice.realtime-recording",
+ "version": 1,
+ "$comment": "Real gemini-3.8-live barge-in, recorded from a live session (Chinese TTS: long-story request, then 1.0 s into the reply a second utterance asking for a joke). Sanitized like gemini-live-home-two-turn. Observed: interrupted and the barge-in ACTIVITY_START arrive in the same millisecond, turnComplete follows 47 ms later with no model output in between; the barge-in inputTranscription arrives 3.35 s after turnComplete, right before the new reply. The client closed before the second turnComplete; the last message (ms 13360, turnComplete) is appended and is the only synthetic one. Replay through the production mapper, reducer and sink; never re-derive with a real request.",
+ "provider": "gemini_live",
+ "model": "gemini-3.8-live",
+ "expectedMessages": [
+  {
+   "role": "user",
+   "text": "给我讲一个三分钟的长故事, 讲得详细一点。"
+  },
+  {
+   "role": "assistant",
+   "text": "好，听我慢慢给你讲一个关于勇气与坚持的故事。在一个被迷雾笼罩的古"
+  },
+  {
+   "role": "user",
+   "text": "停, 换成讲个笑话。"
+  },
+  {
+   "role": "assistant",
+   "text": "没问题！有一天小明去买烤地瓜，老板问他要大的还是小的。小明想了想说：老板，我要大的，而且里面要填满金条！老板笑了笑说：年轻人，你买的是地瓜，不是童话故事啊。"
+  }
+ ],
+ "messages": [
+  {
+   "conn": 1,
+   "ms": 1012,
+   "msg": {
+    "setupComplete": {}
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 1012,
+   "msg": {
+    "sessionResumptionUpdate": {
+     "newHandle": "<redacted>",
+     "resumable": true
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 1251,
+   "msg": {
+    "voiceActivity": {
+     "audioOffset": "0.160s",
+     "type": "ACTIVITY_START"
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 6484,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 6487,
+   "msg": {
+    "serverContent": {
+     "inputTranscription": {
+      "text": "给我讲一个三分钟的长故事, 讲得详细一点。"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 6487,
+   "msg": {
+    "voiceActivity": {
+     "audioOffset": "5.400s",
+     "type": "ACTIVITY_END"
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 6488,
+   "msg": {
+    "serverContent": {}
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 6488,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 6488,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 6490,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 6490,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 6490,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 2
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "好，听我慢慢给你讲"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 6492,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 11520
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 6493,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 7680
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 6493,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 7680
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 6498,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 6500,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 7680
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 6529,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 6536,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 1920
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 6651,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 6693,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 19200
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {}
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 6693,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 6732,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 19200
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 6733,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 6747,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 9600
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 6874,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 6877,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 28800
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "一个关于勇"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 6944,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 6946,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 6946,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 6947,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 3840
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 7013,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 7015,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "气与坚持"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 7090,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 7091,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 7174,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 7175,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 13440
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 7292,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 7293,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 26880
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "的故事。在"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 7387,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 7387,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 7387,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 19200
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 7387,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 1920
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 7575,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 7578,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 28800
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "一个被"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 7582,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 7582,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 7585,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 7585,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 3840
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 7665,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 7668,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "迷雾笼罩的古"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 7698,
+   "msg": {
+    "voiceActivity": {
+     "audioOffset": "6.600s",
+     "type": "ACTIVITY_START"
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 7698,
+   "msg": {
+    "serverContent": {
+     "interrupted": true
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 7745,
+   "msg": {
+    "serverContent": {
+     "turnComplete": true
+    },
+    "usageMetadata": {
+     "promptTokenCount": 745,
+     "promptTokensDetails": [
+      {
+       "modality": "TEXT",
+       "tokenCount": 438
+      },
+      {
+       "modality": "AUDIO",
+       "tokenCount": 280
+      }
+     ],
+     "responseTokenCount": 159,
+     "responseTokensDetails": [
+      {
+       "modality": "AUDIO",
+       "tokenCount": 159
+      }
+     ],
+     "thoughtsTokenCount": 61,
+     "totalTokenCount": 904
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11090,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11090,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11090,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11091,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11091,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11091,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11092,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11092,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11092,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11092,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11093,
+   "msg": {
+    "serverContent": {
+     "inputTranscription": {
+      "text": "停, 换成讲个笑话。"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11095,
+   "msg": {
+    "voiceActivity": {
+     "audioOffset": "10s",
+     "type": "ACTIVITY_END"
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11095,
+   "msg": {
+    "serverContent": {}
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11095,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 2880
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "没问题！有一天小明"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11096,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 7680
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11097,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 9600
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11099,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 7680
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11099,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 7680
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11099,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 1920
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11099,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 9600
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {}
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11102,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 7680
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11102,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 7680
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11134,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11136,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11148,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11151,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 5760
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11291,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11291,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11291,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 30720
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "去买"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11292,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11353,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11355,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 23040
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "烤地瓜，老板"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11395,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11396,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11429,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11433,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 9600
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11564,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11564,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11566,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "问他要大的"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11567,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11568,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11568,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11637,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11640,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 24960
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "还是小的。小明"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11678,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11683,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11690,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11692,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 5760
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11747,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11749,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "想了想"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11794,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11799,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11843,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11848,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11914,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11932,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 24960
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "说：老板，"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11957,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11959,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 11972,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 11974,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 7680
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12047,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12049,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 23040
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "我要大的，"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12087,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12090,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12102,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12105,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 9600
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12235,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12235,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12238,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "而且里"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12240,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12253,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12255,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12324,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12324,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 26880
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "面要填满金条！"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12382,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12385,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 21120
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12456,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12457,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 23040
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "老板"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12500,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12505,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12514,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12516,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 7680
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12654,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12654,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12657,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 28800
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "笑了笑说："
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12657,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12674,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12676,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 1920
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12742,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12742,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 23040
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "年轻人，你买"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12783,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12783,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12793,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12796,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 7680
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12848,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12851,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "的是地瓜，"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12892,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12895,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12925,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 12930,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 12997,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 13000,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 21120
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "不是童话"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 13040,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 13048,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 13184,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 13184,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 13189,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 28800
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     },
+     "outputTranscription": {
+      "text": "故事啊。"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 13189,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 13221,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 13224,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 13272,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 13274,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 17280
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 13303,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 13306,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 15360
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 13321,
+   "msg": {}
+  },
+  {
+   "conn": 1,
+   "ms": 13325,
+   "msg": {
+    "serverContent": {
+     "modelTurn": {
+      "parts": [
+       {
+        "inlineData": {
+         "data": {
+          "audioBytes": 3840
+         },
+         "mimeType": "audio/pcm;rate=24000"
+        }
+       }
+      ],
+      "role": "model"
+     }
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 13344,
+   "msg": {
+    "serverContent": {
+     "generationComplete": true
+    }
+   }
+  },
+  {
+   "conn": 1,
+   "ms": 13360,
+   "msg": {
+    "serverContent": {
+     "turnComplete": true
+    }
+   }
+  }
+ ]
+}

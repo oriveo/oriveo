@@ -8,7 +8,7 @@ import UIKit
 /// The context page-family screenshots read the shared manifest `shared/test-fixtures/shots/context.v1.json`: the page-name set matches this platform's page-name table,
 /// the three ring pages produce 38 / 76 / ! via production `ContextUsageSummary`, the empty-conversation page shows no ring; the two confirm-dialog pages produce
 /// overCap / priceLine via production `prompt`, the two picker pages produce sliderIndex via production picker state, and the unknown-window panel takes the dashed branch.
-@Suite("Screenshot manifest - context page family")
+@Suite("Screenshot manifest - context page family", .sharedProcessState)
 @MainActor
 struct ContextShotsManifestTests {
     typealias Shots = ContextShots
@@ -274,6 +274,12 @@ struct ContextShotsManifestTests {
         try await Self.expectSettingsPageTopBar(
             route: .contextSettings, title: L10n.tr("settings_context_title", table: .settings)
         )
+    }
+
+    /// The Voice sub-page has the same problem as Context: the route hides the system navigation bar, so setting only navigationTitle leaves no title and no back button.
+    @Test("voiceSettingsHasNavigationTitle: Settings > Voice has a title and a back button")
+    func voiceSettingsHasNavigationTitle() async throws {
+        try await Self.expectSettingsPageTopBar(route: .voiceSettings, title: L10n.tr("Voice", table: .voice))
     }
 
     /// Goes through the production root view, navigates the Settings tab to the route, and finds the header title and back button in the accessibility tree.
