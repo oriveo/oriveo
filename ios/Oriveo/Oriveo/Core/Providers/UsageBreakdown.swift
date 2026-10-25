@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated struct UsageBreakdown: Equatable, Sendable {
+nonisolated struct UsageBreakdown: Codable, Equatable, Sendable {
     var promptTokens: Int
     var cachedInputTokens: Int
     var cacheCreation5mTokens: Int
@@ -43,4 +43,15 @@ nonisolated enum CostSource: String, Codable, Sendable, Equatable {
     case localEstimate
     case unknown
     case subscription
+}
+
+/// The only non-USD part of a message's cost: the original currency amount, never converted.
+/// `estimatedCost` always holds the USD part only; when a second non-USD currency shows up in one
+/// message it is recorded as {first currency, 0, `.unknown`} (the amount is unusable).
+nonisolated struct NonUsdCost: Codable, Sendable, Hashable {
+    /// Upper-case ISO 4217.
+    var currencyCode: String
+    var amount: Double
+    /// Describes the source of this part only.
+    var costSource: CostSource
 }

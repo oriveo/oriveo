@@ -148,7 +148,9 @@ enum CatalogModelBuilder {
             enriched.toolCall = metadata.toolCall
             enriched.libraryAgentic = metadata.libraryAgentic
         } else {
-            enriched.toolCall = metadata.toolCall ?? model.toolCall
+            // A missing version / v1 cannot tell a missing field from an authoritative withdrawal, so libraryAgentic keeps the old compatible semantics;
+            // toolCall no longer falls back to the old local value (official tool_call trusts only catalog evidence).
+            enriched.toolCall = metadata.toolCall
             enriched.libraryAgentic = metadata.libraryAgentic ?? model.libraryAgentic
         }
 
@@ -156,12 +158,14 @@ enum CatalogModelBuilder {
     }
 
     nonisolated static func pricePresentation(
-        from metadata: MetadataClient.ResolvedModelMetadata?
+        from metadata: MetadataClient.ResolvedModelMetadata?,
+        labelLocale: Locale? = nil
     ) -> (priceTier: String, promptPrice: Double?, completionPrice: Double?) {
         guard let metadata else {
             return ("", nil, nil)
         }
 
+        let currency = CostCalculator.currencyCode(of: metadata)
         switch metadata.pricingStatus {
         case "priced":
             if metadata.pricingUnit != "per_token" {
@@ -169,8 +173,14 @@ enum CatalogModelBuilder {
             }
             let effectivePrice = metadata.promptPerToken.flatMap { $0 > 0 ? $0 : nil }
                 ?? metadata.completionPerToken.flatMap { $0 > 0 ? $0 : nil }
+            let tier: (Double) -> String = { price in
+                if let labelLocale {
+                    return CostFormatter.formatPerMillion(price, currencyCode: currency, locale: labelLocale)
+                }
+                return currency == CostCalculator.usd ? CostFormatter.formatPerMillion(price) : ""
+            }
             return (
-                effectivePrice.map(CostFormatter.formatPerMillion) ?? "",
+                effectivePrice.map(tier) ?? "",
                 metadata.promptPerToken,
                 metadata.completionPerToken
             )
@@ -179,6 +189,41 @@ enum CatalogModelBuilder {
         default:
             return (L10n.tr("Price unknown"), nil, nil)
         }
+    }
+
+    /// The only price-selection entry for the price label, using the same selection as billing: the catalog price (for Relay, the official model matched across providers)
+    /// goes through `RegionPricingSelector.select`, and the price fields are refilled from the selected price together with its currency. When no region entry is chosen and the selected currency is USD,
+    /// the model is returned as-is (the stored model-level USD price, no regression); when the catalog cannot be found (for example a Relay model with a hand-entered price, or metadata has not arrived on a cold start)
+    /// it is also returned as-is and the stored string covers it. Relay / custom endpoints do not pick a region, and the currency comes from the model-level price.
+    /// Not cached: the catalog is queried at display time, and the row view recomputes when its metadataGeneration changes after metadata arrives or rolls over.
+    /// A cn-only model on a non-cn connection falls back to the model level (price unknown) and shows "price unknown" instead of $0.
+    static func connectionPriced(
+        _ model: AIModel,
+        provider: Provider,
+        metadataClient: MetadataClient = .shared,
+        locale: Locale = AppLocalization.currentLocale
+    ) -> AIModel {
+        guard let catalog = ChatDeliveryAccounting.catalogModel(
+            model: model, provider: provider, metadata: metadataClient
+        ) else { return model }
+        let selection = RegionPricingSelector.select(catalog, provider: provider)
+        let selected = selection.pricing
+        let currency = CostCalculator.currencyCode(of: selected)
+        if !selection.regionEntryChosen && currency == CostCalculator.usd { return model }
+
+        let pricing = pricePresentation(from: selected, labelLocale: locale)
+        var priced = model
+        priced.priceTier = pricing.priceTier
+        priced.promptPrice = pricing.promptPrice
+        priced.completionPrice = pricing.completionPrice
+        priced.pricingUnit = selected.pricingUnit
+        priced.costPerUnit = selected.costPerUnit
+        priced.cacheReadInputPerMToken = selected.cacheReadInputPerMToken
+        priced.cacheCreationInputPerMToken = selected.cacheCreationInputPerMToken
+        priced.cacheWrite5mPerMToken = selected.cacheWrite5mPerMToken
+        priced.cacheWrite1hPerMToken = selected.cacheWrite1hPerMToken
+        priced.priceCurrencyCode = currency
+        return priced
     }
 
     nonisolated static func enrichProvider(

@@ -3,6 +3,41 @@
 import Foundation
 
 enum RelayOfficialCatalogResolver {
+    /// The only function that matches a Relay model to the official catalog (canonicalModelId of the model first, otherwise id);
+    /// shared by capability inheritance, delivery pricing and the price label. `modelID` overrides the key used when matching by id (a hand-entered model passes the normalized remote id).
+    static func officialMatch(
+        for model: AIModel,
+        provider: Provider,
+        metadata: MetadataClient,
+        modelID: String? = nil
+    ) -> MetadataClient.RelayCatalogMatchResult? {
+        officialMatch(
+            modelID: modelID ?? model.id,
+            canonicalModelId: model.canonicalModelId,
+            transportPriority: RelayRuntimeSupport.transportProviderKind(for: provider, model: model),
+            metadata: metadata
+        )
+    }
+
+    /// Matching by key: canonicalModelId is used first only when it is non-empty after trimming, then id; the Service layer, which only has a model id and canonical, also goes through here.
+    static func officialMatch(
+        modelID: String,
+        canonicalModelId: String?,
+        transportPriority: ProviderKind?,
+        metadata: MetadataClient
+    ) -> MetadataClient.RelayCatalogMatchResult? {
+        let canonical = canonicalModelId
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap { $0.isEmpty || $0 == modelID ? nil : $0 }
+        for key in [canonical, modelID].compactMap({ $0 }) {
+            if let match = metadata.syncResolveCatalogModelAcrossProvidersWithProvider(
+                modelID: key, transportPriority: transportPriority
+            ) {
+                return match
+            }
+        }
+        return nil
+    }
     static func enrich(
         localModel: AIModel,
         provider: Provider,
@@ -21,11 +56,7 @@ enum RelayOfficialCatalogResolver {
         let envelope = RelayRuntimeSupport.envelopeKey(for: provider, model: localModel)
             .flatMap { runtimeConfig.transportEnvelopes[$0] }
 
-        let priority = RelayRuntimeSupport.transportProviderKind(for: provider, model: localModel)
-        guard let match = metadata.syncResolveCatalogModelAcrossProvidersWithProvider(
-            modelID: localModel.id,
-            transportPriority: priority
-        ) else {
+        guard let match = officialMatch(for: localModel, provider: provider, metadata: metadata) else {
             return localModel
         }
 
@@ -56,7 +87,7 @@ enum RelayOfficialCatalogResolver {
             reasoningModeAvailable: effectiveCaps.contains(.reasoning) && reasoningProfile != nil,
             isAvailable: localModel.isAvailable,
             isDefault: localModel.isDefault,
-            priceTier: pricing.priceTier.isEmpty ? localModel.priceTier : pricing.priceTier,
+            priceTier: storedPriceTier(pricing.priceTier, match: match, localModel: localModel),
             summary: localModel.summary ?? CatalogModelBuilder.compactContextText(match.metadata.contextLength),
             contextLength: match.metadata.contextLength ?? localModel.contextLength,
             groupKey: match.metadata.uiHints.groupKey ?? localModel.groupKey,
@@ -91,10 +122,8 @@ enum RelayOfficialCatalogResolver {
             localModel.id,
             providerKind: provider.kind
         )
-        let priority = RelayRuntimeSupport.transportProviderKind(for: provider, model: localModel)
-        guard let match = metadata.syncResolveCatalogModelAcrossProvidersWithProvider(
-            modelID: remoteModelID,
-            transportPriority: priority
+        guard let match = officialMatch(
+            for: localModel, provider: provider, metadata: metadata, modelID: remoteModelID
         ) else {
             return localModel
         }
@@ -120,7 +149,7 @@ enum RelayOfficialCatalogResolver {
         enriched.pdfNativeDefault = nativeFile.pdfNativeDefault
         enriched.attachmentExtraction = nativeFile.extraction
         enriched.canonicalModelId = match.canonicalModelId
-        enriched.priceTier = pricing.priceTier.isEmpty ? localModel.priceTier : pricing.priceTier
+        enriched.priceTier = storedPriceTier(pricing.priceTier, match: match, localModel: localModel)
         enriched.promptPrice = pricing.promptPrice ?? localModel.promptPrice
         enriched.completionPrice = pricing.completionPrice ?? localModel.completionPrice
         enriched.billingSku = match.metadata.billingSku ?? localModel.billingSku
@@ -150,6 +179,18 @@ enum RelayOfficialCatalogResolver {
         return provider.catalogModels.map { local in
             enrich(localModel: local, provider: provider, runtimeConfig: runtimeConfig, metadata: metadata)
         }
+    }
+
+    /// Stored string: when the catalog has a price, store it (USD uses the "$" form, non-USD stores empty); the local hand-entered string is kept only when the catalog has no price label and the currency is USD.
+    /// A non-USD price keeps no local string: display reads the catalog price and currency through `CatalogModelBuilder.connectionPriced`.
+    private static func storedPriceTier(
+        _ catalogTier: String,
+        match: MetadataClient.RelayCatalogMatchResult,
+        localModel: AIModel
+    ) -> String {
+        guard catalogTier.isEmpty,
+              CostCalculator.currencyCode(of: match.metadata) == CostCalculator.usd else { return catalogTier }
+        return localModel.priceTier
     }
 
     // MARK: - Native File Allowlist
