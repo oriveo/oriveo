@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("Capability execution truth")
+@Suite("Capability execution truth", .sharedProcessState)
 struct CapabilityExecutionRuntimeTests {
     @Test("final JSON encoding gates requested and only the bound parser signal observes")
     func requestedAndObservedAreSeparate() throws {

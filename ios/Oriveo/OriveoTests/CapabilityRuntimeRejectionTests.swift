@@ -4,7 +4,7 @@ import Testing
 
 /// Exact runtime rejection contract. The durable cache is discriminated by source and exact
 /// runtime identity; recipe recovery filters only the located requestOp pointers.
-@Suite("Capability runtime rejection", .serialized)
+@Suite("Capability runtime rejection", .serialized, .sharedProcessState)
 struct CapabilityRuntimeRejectionTests {
     private func identity(
         connectionID: String = "p1",

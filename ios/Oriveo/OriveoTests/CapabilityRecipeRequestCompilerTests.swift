@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("Provider recipe request compiler")
+@Suite("Provider recipe request compiler", .sharedProcessState)
 struct CapabilityRecipeRequestCompilerTests {
     @Test("shared cases compile registry recipes into redacted semantic deltas")
     func sharedCases() throws {

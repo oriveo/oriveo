@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("Production Capability Snapshot Tests", .serialized)
+@Suite("Production Capability Snapshot Tests", .serialized, .sharedProcessState)
 struct ProductionCapabilitySnapshotTests {
     private static let capabilities = ["web", "reasoning"]
 

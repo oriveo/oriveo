@@ -282,7 +282,7 @@ private func corpusEvidence(
     return result
 }
 
-@Suite("MetadataClient index + per-provider catalog", .serialized)
+@Suite("MetadataClient index + per-provider catalog", .serialized, .sharedProcessState)
 struct MetadataCatalogSplitTests {
 
     private func makeClient(recorder: CatalogDiagnosticRecorder? = nil) -> MetadataClient {

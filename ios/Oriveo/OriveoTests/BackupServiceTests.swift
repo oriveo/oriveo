@@ -5,7 +5,7 @@ import ZIPFoundation
 @testable import Oriveo
 
 
-@Suite("BackupService", .serialized)
+@Suite("BackupService", .serialized, .sharedProcessState)
 struct BackupServiceTests {
 
     @Test("Relay Backup Excludes Portable Credentials")
