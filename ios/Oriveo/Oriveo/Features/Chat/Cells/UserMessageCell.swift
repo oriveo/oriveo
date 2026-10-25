@@ -112,6 +112,7 @@ private final class UserBubbleTextHost: UIView {
         super.init(frame: frame)
         textView.translatesAutoresizingMaskIntoConstraints = true
         textView.autoresizingMask = []
+        textView.accessibilityIdentifier = "chat_message_user"
         addSubview(textView)
         // The mask only changes opacity, so the faded text reveals the bubble's own diagonal gradient; a solid
         // overlay could not match the colors at both ends.
@@ -250,6 +251,10 @@ final class UserMessageCell: UICollectionViewCell {
     private let fullTextButtonRow = UIView()
     private let fullTextButton = UIButton(type: .system)
     private let savedNoteReferenceButton = UIButton(type: .system)
+    private let notSentRow = UIView()
+    private let notSentLabel = UILabel()
+    private var notSentLeadingConstraint: NSLayoutConstraint!
+    private var notSentTrailingConstraint: NSLayoutConstraint!
     private let avatarView = UIKitAvatarView()
     /// Compaction separator row: at the top of the cell, above the bubble; hidden when absent, and the bubble goes back to sitting at topPadding.
     private let compactionSeparatorView = ContextCompactionSeparatorView()
@@ -337,6 +342,7 @@ final class UserMessageCell: UICollectionViewCell {
         textHost.isHidden = false
         textHost.foldedTextHeight = nil
         fullTextButtonRow.isHidden = true
+        notSentRow.isHidden = true
         tearDownAttachmentHost()
         tearDownQuoteHost()
     }
@@ -351,7 +357,8 @@ final class UserMessageCell: UICollectionViewCell {
         onOpenNoteReferences: (() -> Void)? = nil,
         onOpenCompactionDetail: (() -> Void)? = nil,
         onAcceptDirectiveSuggestion: (() -> Void)? = nil,
-        onIgnoreDirectiveSuggestion: (() -> Void)? = nil
+        onIgnoreDirectiveSuggestion: (() -> Void)? = nil,
+        visionInput: CapabilityEvidenceFacade.InputCapabilityProjection? = nil
     ) {
         boundMessageID = model.messageID
         self.parentViewController = parentViewController
@@ -510,11 +517,38 @@ final class UserMessageCell: UICollectionViewCell {
         } else {
             tearDownAttachmentHost()
         }
+        applyNotSentCaption(
+            Self.showsNotSentToModel(attachments: attachments, visionInput: visionInput),
+            immersiveHero: isImmersiveHero
+        )
 
         savedNoteReferenceButton.isHidden = onOpenNoteReferences == nil || model.noteReferences.isEmpty
     }
 
     var bubbleFrameForTesting: CGRect { shadowHost.frame }
+
+    /// The "not sent to this model" caption text when shown; nil when hidden.
+    var notSentToModelCaptionForTesting: String? { notSentRow.isHidden ? nil : notSentLabel.text }
+
+    /// Caption shows only when the message carries an image and the current model's vision projection
+    /// strips it to a placeholder; the local message itself is never changed.
+    nonisolated static func showsNotSentToModel(
+        attachments: [Attachment],
+        visionInput: CapabilityEvidenceFacade.InputCapabilityProjection?
+    ) -> Bool {
+        guard let visionInput, visionInput.outbound == .placeholder else { return false }
+        return attachments.contains { $0.kind == .image }
+    }
+
+    private func applyNotSentCaption(_ shown: Bool, immersiveHero: Bool) {
+        notSentRow.isHidden = !shown
+        guard shown else { return }
+        notSentLabel.text = InputCapabilityCopy.bubbleNotSentToModel
+        // Immersive hero has no stack padding; keep the caption inset like the text below it.
+        let inset = immersiveHero ? OriveoTheme.Spacing.lg : 0
+        notSentLeadingConstraint.constant = inset
+        notSentTrailingConstraint.constant = -inset
+    }
 
     // MARK: - Setup
 
@@ -558,6 +592,23 @@ final class UserMessageCell: UICollectionViewCell {
         // required the constraints have no solution and UIKit breaks one at random.
         textHost.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         textHost.setContentHuggingPriority(.required, for: .vertical)
+        notSentLabel.font = UIFont.preferredFont(forTextStyle: .caption2)
+        notSentLabel.adjustsFontForContentSizeCategory = true
+        notSentLabel.textColor = UIColor.white.withAlphaComponent(0.82)
+        notSentLabel.textAlignment = .natural
+        notSentLabel.numberOfLines = 0
+        notSentLabel.translatesAutoresizingMaskIntoConstraints = false
+        notSentRow.addSubview(notSentLabel)
+        notSentLeadingConstraint = notSentLabel.leadingAnchor.constraint(equalTo: notSentRow.leadingAnchor)
+        notSentTrailingConstraint = notSentLabel.trailingAnchor.constraint(equalTo: notSentRow.trailingAnchor)
+        NSLayoutConstraint.activate([
+            notSentLabel.topAnchor.constraint(equalTo: notSentRow.topAnchor),
+            notSentLabel.bottomAnchor.constraint(equalTo: notSentRow.bottomAnchor),
+            notSentLeadingConstraint,
+            notSentTrailingConstraint,
+        ])
+        notSentRow.isHidden = true
+        bubbleStack.addArrangedSubview(notSentRow)
         bubbleStack.addArrangedSubview(textHost)
 
         var fullTextConfig = UIButton.Configuration.filled()

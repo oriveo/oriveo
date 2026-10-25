@@ -175,6 +175,7 @@ final class AssistantMessageCell: UICollectionViewCell {
     override init(frame: CGRect) {
         super.init(frame: frame)
         setupViews()
+        textView.accessibilityIdentifier = "chat_message_assistant"
         pacer.delegate = self
         chunkFader.textStorageProvider = { [weak self] in self?.textView.textStorage }
         blockWriter.textViewProvider = { [weak self] in self?.textView }

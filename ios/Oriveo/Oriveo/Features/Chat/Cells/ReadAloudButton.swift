@@ -36,8 +36,16 @@ final class ReadAloudButton: UIView {
         self.text = text
         self.isEligible = isEligible
         isHidden = !isEligible || !hasSpeakableContent(text)
+        #if DEBUG
+        if !isHidden { Self.debugLastEligible = (messageID, text) }
+        #endif
         render(controller.state)
     }
+
+    #if DEBUG
+    /// Sample shots only: the last message whose read-aloud control was shown.
+    static var debugLastEligible: (messageID: UUID, text: String)?
+    #endif
 
     /// Resets on cell reuse: hides the button and clears the message.
     func reset() {
@@ -134,6 +142,11 @@ final class ReadAloudButton: UIView {
 
     @objc private func handleTap() {
         guard let messageID else { return }
+        if VoiceConversationSession.shared.isRealtime { return }
+        if let conversation = VoiceConversationSession.shared.controller {
+            conversation.playMessage(id: messageID.uuidString, text: text)
+            return
+        }
         controller.toggle(messageID: messageID, text: text)
     }
 }

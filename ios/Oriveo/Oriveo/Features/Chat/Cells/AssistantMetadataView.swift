@@ -83,7 +83,7 @@ final class AssistantMetadataView: UIStackView {
         modelLabel.text = modelName
         updateLeadingInset(leadingInset)
 
-        let showCost = model.message.estimatedCost > 0 && model.message.state == .delivered
+        let showCost = model.message.hasDisplayableCost && model.message.state == .delivered
         dot2.isHidden = !showCost
         costLabel.isHidden = !showCost
         if showCost {
@@ -209,8 +209,8 @@ final class AssistantMetadataView: UIStackView {
             label.numberOfLines = 1
             label.lineBreakMode = .byTruncatingTail
         }
-        dot1.text = "•"
-        dot2.text = "•"
+        dot1.text = "·"
+        dot2.text = "·"
         dot2.isHidden = true
         costLabel.isHidden = true
         dot3.text = "·"
@@ -537,7 +537,7 @@ final class AssistantMetadataView: UIStackView {
         return execution.states.keys.sorted().compactMap { owner in
             guard let state = execution.states[owner] else { return nil }
             return "\(localizedCapabilityOwner(owner)): \(localizedCapabilityExecutionState(state))"
-        }.joined(separator: " • ")
+        }.joined(separator: " · ")
     }
 
     private static func capabilityExecutionImage(_ state: RequestResultState) -> String {
@@ -681,6 +681,7 @@ nonisolated struct MessageTokenUsageSnapshot: Equatable, Sendable {
     var cacheWriteTokens: Int?
     var estimatedCost: Double
     var costSource: CostSource?
+    var nonUsdCost: NonUsdCost?
     var isPlatformPaid: Bool
 
     nonisolated init(
@@ -690,6 +691,7 @@ nonisolated struct MessageTokenUsageSnapshot: Equatable, Sendable {
         cacheWriteTokens: Int? = nil,
         estimatedCost: Double = 0,
         costSource: CostSource? = nil,
+        nonUsdCost: NonUsdCost? = nil,
         isPlatformPaid: Bool = false
     ) {
         self.inputTokens = inputTokens
@@ -698,6 +700,7 @@ nonisolated struct MessageTokenUsageSnapshot: Equatable, Sendable {
         self.cacheWriteTokens = cacheWriteTokens
         self.estimatedCost = estimatedCost
         self.costSource = costSource
+        self.nonUsdCost = nonUsdCost
         self.isPlatformPaid = isPlatformPaid
     }
 
@@ -709,6 +712,7 @@ nonisolated struct MessageTokenUsageSnapshot: Equatable, Sendable {
             cacheWriteTokens: message.cacheCreationInputTokens,
             estimatedCost: message.estimatedCost,
             costSource: message.costSource,
+            nonUsdCost: message.nonUsdCost,
             isPlatformPaid: false
         )
     }
@@ -720,7 +724,10 @@ nonisolated struct MessageTokenUsageSnapshot: Equatable, Sendable {
 
     /// A cost deserves its own line only when it is not platform-paid and a positive value was actually computed.
     nonisolated var showsCost: Bool {
-        !isPlatformPaid && estimatedCost > CostFormatter.costEpsilon
+        guard !isPlatformPaid else { return false }
+        if estimatedCost > CostFormatter.costEpsilon { return true }
+        guard let nonUsdCost else { return false }
+        return nonUsdCost.costSource == .unknown || nonUsdCost.amount > CostFormatter.costEpsilon
     }
 
     nonisolated var isCostEstimated: Bool {
@@ -852,7 +859,7 @@ private struct MessageTokenUsageContent: View {
 
     private var cost: some View {
         let title = L10n.tr("Cost", table: .chat)
-        let value = CostFormatter.format(usage.estimatedCost)
+        let value = CostFormatter.messageText(estimatedCost: usage.estimatedCost, nonUsdCost: usage.nonUsdCost)
         let estimatedTag = usage.isCostEstimated ? L10n.tr("Estimated", table: .chat) : nil
         return HStack(spacing: 8) {
             Text(title)

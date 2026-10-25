@@ -5,6 +5,10 @@ enum MessageRecoveryActionKind: Equatable {
     case editMessage
     case regenerate
     case switchModel
+    case resendWithoutImages
+    case resendWithoutFiles
+    case resendWithoutVideos
+    case resendWithoutParameter
     /// The relay's current key was judged unauthorized while another key lists this model: open the key-switch sheet, do not resend.
     case switchKey
     case showTechnicalDetails
@@ -54,6 +58,18 @@ private func baseMessageRecoveryCardActionLayout(
             || recoveryPrimaryAction == relayFileUnsupportedRecoveryAction {
             return .init(primary: .switchModel, secondary: nil, tertiary: nil)
         }
+        switch recoveryPrimaryAction {
+        case officialImageRejectedRecoveryAction:
+            return .init(primary: .resendWithoutImages, secondary: .switchModel, tertiary: nil)
+        case officialFileRejectedRecoveryAction:
+            return .init(primary: .resendWithoutFiles, secondary: .switchModel, tertiary: nil)
+        case officialVideoRejectedRecoveryAction:
+            return .init(primary: .resendWithoutVideos, secondary: .switchModel, tertiary: nil)
+        case officialParameterRejectedRecoveryAction:
+            return .init(primary: .resendWithoutParameter, secondary: .switchModel, tertiary: nil)
+        default:
+            break
+        }
         // The send was stopped locally because the attachments do not fit the model's limit: retrying as is
         // would be stopped again, so editing the message comes first.
         if isAttachmentOverLimit {
@@ -80,15 +96,62 @@ private func baseMessageRecoveryCardActionLayout(
 /// "Switch Model". Images get no text fallback and are never resent automatically.
 let relayImageUnsupportedRecoveryAction = "relay_image_unsupported"
 
+/// An official connection's image was rejected by the upstream by signature before any output: a negative cache entry is recorded and nothing is retried automatically.
+/// The recovery card's primary action is "resend without images" (a tap is a plain resend: the outbound projection strips the image and writes a placeholder, the local message is unchanged), with "Switch Model" second.
+let officialImageRejectedRecoveryAction = "official_image_rejected"
+/// Same as above, for a rejected file / video: the primary action is "resend without files" / "resend without videos", with "Switch Model" second.
+let officialFileRejectedRecoveryAction = "official_file_rejected"
+let officialVideoRejectedRecoveryAction = "official_video_rejected"
+/// An official connection's request parameter was rejected by the upstream by signature (param_rejected): a `param:<name>` negative cache entry is recorded and nothing is retried automatically.
+/// The recovery card's primary action is "resend without this parameter" (a plain resend: the outbound request drops the parameter per the negative cache), with "Switch Model" second.
+let officialParameterRejectedRecoveryAction = "official_parameter_rejected"
+
+/// The rejected key a failed message recorded for itself → recovery action marker: the three input keys each give resend-without-that-media,
+/// `param:<name>` gives resend-without-this-parameter; any other key gives nil (the recovery card stays as before).
+func officialInputRejectedRecoveryAction(capabilityKey: String) -> String? {
+    switch capabilityKey {
+    case CapabilityEvidenceFacade.visionInputKey: officialImageRejectedRecoveryAction
+    case CapabilityEvidenceFacade.fileInputKey: officialFileRejectedRecoveryAction
+    case CapabilityEvidenceFacade.videoInputKey: officialVideoRejectedRecoveryAction
+    default:
+        capabilityKey.hasPrefix(InputRejectionFlow.parameterCapabilityKey(""))
+            ? officialParameterRejectedRecoveryAction(
+                parameter: String(capabilityKey.dropFirst(InputRejectionFlow.parameterCapabilityKey("").count))
+            )
+            : nil
+    }
+}
+
+/// A parameter-rejected marker with the parameter name: shown on the same card as the bare value.
+func officialParameterRejectedRecoveryAction(parameter: String) -> String {
+    parameter.isEmpty ? officialParameterRejectedRecoveryAction : officialParameterRejectedRecoveryAction + ":" + parameter
+}
+
+/// The rejected parameter name inside a parameter-rejected marker; nil when there is none.
+func officialRejectedParameterName(recoveryAction: String?) -> String? {
+    let prefix = officialParameterRejectedRecoveryAction + ":"
+    guard let recoveryAction, recoveryAction.hasPrefix(prefix) else { return nil }
+    let name = String(recoveryAction.dropFirst(prefix.count))
+    return name.isEmpty ? nil : name
+}
+
 /// Marker written locally when a request carrying native file blocks was rejected first and the fallback chain also
 /// failed: the card body becomes "doesn't support these files" and the primary action reuses "Switch Model".
 /// The error shown is still the first one.
 let relayFileUnsupportedRecoveryAction = "relay_file_unsupported"
 
-/// Where the primary action of a failure card comes from. Only the local relay markers are read here;
+/// Where the primary action of a failure card comes from. Only the local markers (relay and official input rejections) are read here;
 /// every other failure uses the default layout.
 func recoveryPrimaryAction(for message: ChatMessage) -> String? {
+    // The parameter-rejected marker with a parameter name shows on the same card as the bare value.
+    if message.recoveryPrimaryAction?.hasPrefix(officialParameterRejectedRecoveryAction + ":") == true {
+        return officialParameterRejectedRecoveryAction
+    }
     if message.recoveryPrimaryAction == relayImageUnsupportedRecoveryAction
+        || message.recoveryPrimaryAction == officialImageRejectedRecoveryAction
+        || message.recoveryPrimaryAction == officialFileRejectedRecoveryAction
+        || message.recoveryPrimaryAction == officialVideoRejectedRecoveryAction
+        || message.recoveryPrimaryAction == officialParameterRejectedRecoveryAction
         || message.recoveryPrimaryAction == relayFileUnsupportedRecoveryAction {
         return message.recoveryPrimaryAction
     }
@@ -141,6 +204,14 @@ func localizedMessageRecoveryActionTitle(
         return L10n.tr("Regenerate", table: .chat)
     case .switchModel:
         return L10n.tr("Switch Model")
+    case .resendWithoutImages:
+        return InputCapabilityCopy.resendWithout(.image)
+    case .resendWithoutFiles:
+        return InputCapabilityCopy.resendWithout(.file)
+    case .resendWithoutVideos:
+        return InputCapabilityCopy.resendWithout(.video)
+    case .resendWithoutParameter:
+        return L10n.tr("Retry without this setting", table: .chat)
     case .switchKey:
         return L10n.tr(RelaySwitchKey.buttonKey, table: .providers)
     case .showTechnicalDetails:
@@ -215,6 +286,7 @@ enum AssistantMessageRecoveryBuilder {
         let actionRouter: (MessageRecoveryActionKind) -> Void = { action in
             switch action {
             case .retry: onRetry()
+            case .resendWithoutImages, .resendWithoutFiles, .resendWithoutVideos, .resendWithoutParameter: onRetry()
             case .editMessage: onEditMessage()
             case .regenerate: onRegenerate()
             case .switchModel: onSwitchModelRequested()
