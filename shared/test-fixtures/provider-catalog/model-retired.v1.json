@@ -1,0 +1,315 @@
+{
+  "$comment": "Retired-model state. Applies to official BYOK providers; relay connections keep relay/model-selection.v1.json (removed banner). Catalog shape per provider: models[] (id, displayName, lifecycle?), retiredModels[] (tombstones {id, displayName, retiredAt, routedTo}), resolveMap, defaultModelId. userModels = the connection's enabled model ids (custom ids included). Conversation status for modelId M, first match wins: (1) catalog null (not loaded) -> available; (2) M in retiredModels -> retired, successorId = routedTo when routedTo is an id in models[] that is itself available at `now`, else null; (3) M in models[] with lifecycle.state deprecated and shutdownAt <= now -> retired, successorId = lifecycle.routedTo under the same rule, else null; (4) M in models[] -> available; (5) M in userModels -> available (hand-entered id); (6) resolveMap[M] is in models[] -> available (canonical alias); (7) else missing, successorId null. retired and missing both show banner.model_retired and block sending; available never does. The conversation modelId is never rewritten and nothing is synced outward until the user acts (modelIdAfter == modelId in every case). Display name, first non-empty wins: storedName -> models[] displayName for M -> tombstone displayName -> M. newChatCases (no conversation yet): preferredModelId (last used / user default) if available and in userModels; else the enabled model that the metadata defaultModelId matches (iOS ModelResolver.matchingModel, among userModels that are available; return the enabled id, not the catalog id): tier 1 exact — query candidates in order [id, id without the end's own manual-model prefix, id without date suffix, both], case-insensitive, compared to the enabled id; tier 2 alias — first enabled model (list order) whose canonical id (userModelCanonicalIds, else its id), its id, its id without date suffix or its canonical without date suffix equals any candidate; date suffix = -YYYYMMDD or -YYYY-MM-DD at the end only (-MMDD, -latest, @date are not dates); no prefix or substring matching; an enabled model whose own id is retired (tombstone, or deprecated past shutdownAt) is skipped even when its canonical id is available — the canonical is consulted only when its own id is missing from the catalog; relay connections are out of scope here (literal id, relay/model-selection.v1.json); else first id of userModels that is available; hint = last_used_retired exactly when preferredModelId was non-null and not used (shown once per device per provider+model). Test names: RETIRED-<id> (iOS/Android function names contain RETIRED_<id>).",
+  "version": 1,
+  "now": "2026-10-19T00:00:00Z",
+  "pendingUntil": {},
+  "conversationCases": [
+    {
+      "id": "tombstone_with_successor",
+      "catalog": {
+        "models": [{ "id": "deepseek-flash", "displayName": "DeepSeek Flash" }, { "id": "deepseek-v4-pro", "displayName": "DeepSeek V4 Pro" }],
+        "retiredModels": [{ "id": "deepseek-chat", "displayName": "DeepSeek Chat", "retiredAt": "2026-07-24T00:00:00Z", "routedTo": "deepseek-flash" }],
+        "resolveMap": { "deepseek-chat": "deepseek-flash" },
+        "defaultModelId": "deepseek-flash"
+      },
+      "userModels": ["deepseek-flash"],
+      "conversation": { "modelId": "deepseek-chat", "storedName": null },
+      "expect": { "status": "retired", "successorId": "deepseek-flash", "displayName": "DeepSeek Chat", "sendBlocked": true, "modelIdAfter": "deepseek-chat" }
+    },
+    {
+      "id": "tombstone_without_retired_at",
+      "$comment": "Retirement date unknown: the server omits retiredAt (never sends null). Banner and send block are unchanged.",
+      "catalog": {
+        "models": [{ "id": "deepseek-ai/DeepSeek-V4-Flash", "displayName": "DeepSeek V4 Flash" }],
+        "retiredModels": [{ "id": "deepseek-ai/DeepSeek-V4-Flash-Vision-Exp", "displayName": "DeepSeek V4 Flash Vision Exp", "routedTo": "deepseek-ai/DeepSeek-V4-Flash" }],
+        "resolveMap": {},
+        "defaultModelId": "deepseek-ai/DeepSeek-V4-Flash"
+      },
+      "userModels": ["deepseek-ai/DeepSeek-V4-Flash"],
+      "conversation": { "modelId": "deepseek-ai/DeepSeek-V4-Flash-Vision-Exp", "storedName": null },
+      "expect": { "status": "retired", "successorId": "deepseek-ai/DeepSeek-V4-Flash", "displayName": "DeepSeek V4 Flash Vision Exp", "sendBlocked": true, "modelIdAfter": "deepseek-ai/DeepSeek-V4-Flash-Vision-Exp" }
+    },
+    {
+      "id": "tombstone_without_successor",
+      "catalog": {
+        "models": [{ "id": "mistral-medium-latest", "displayName": "Mistral Medium" }],
+        "retiredModels": [{ "id": "magistral-medium-2507", "displayName": "Magistral Medium", "retiredAt": "2026-07-31T00:00:00Z", "routedTo": null }],
+        "resolveMap": {},
+        "defaultModelId": "mistral-medium-latest"
+      },
+      "userModels": ["mistral-medium-latest"],
+      "conversation": { "modelId": "magistral-medium-2507", "storedName": null },
+      "expect": { "status": "retired", "successorId": null, "displayName": "Magistral Medium", "sendBlocked": true, "modelIdAfter": "magistral-medium-2507" }
+    },
+    {
+      "id": "tombstone_successor_not_in_catalog",
+      "catalog": {
+        "models": [{ "id": "deepseek-v4-pro", "displayName": "DeepSeek V4 Pro" }],
+        "retiredModels": [{ "id": "deepseek-reasoner", "displayName": "DeepSeek Reasoner", "retiredAt": "2026-07-24T00:00:00Z", "routedTo": "deepseek-flash" }],
+        "resolveMap": {},
+        "defaultModelId": "deepseek-v4-pro"
+      },
+      "userModels": ["deepseek-v4-pro"],
+      "conversation": { "modelId": "deepseek-reasoner", "storedName": null },
+      "expect": { "status": "retired", "successorId": null, "displayName": "DeepSeek Reasoner", "sendBlocked": true, "modelIdAfter": "deepseek-reasoner" }
+    },
+    {
+      "id": "stored_name_wins",
+      "catalog": {
+        "models": [{ "id": "mistral-medium-latest", "displayName": "Mistral Medium" }],
+        "retiredModels": [{ "id": "magistral-small-2507", "displayName": "Magistral Small", "retiredAt": "2026-07-31T00:00:00Z", "routedTo": null }],
+        "resolveMap": {},
+        "defaultModelId": "mistral-medium-latest"
+      },
+      "userModels": ["mistral-medium-latest"],
+      "conversation": { "modelId": "magistral-small-2507", "storedName": "My Magistral" },
+      "expect": { "status": "retired", "successorId": null, "displayName": "My Magistral", "sendBlocked": true, "modelIdAfter": "magistral-small-2507" }
+    },
+    {
+      "id": "deprecated_past_shutdown",
+      "catalog": {
+        "models": [
+          { "id": "gpt-legacy", "displayName": "GPT Legacy", "lifecycle": { "state": "deprecated", "shutdownAt": "2026-10-01T00:00:00Z", "routedTo": "gpt-next" } },
+          { "id": "gpt-next", "displayName": "GPT Next" }
+        ],
+        "retiredModels": [],
+        "resolveMap": {},
+        "defaultModelId": "gpt-next"
+      },
+      "userModels": ["gpt-legacy", "gpt-next"],
+      "conversation": { "modelId": "gpt-legacy", "storedName": null },
+      "expect": { "status": "retired", "successorId": "gpt-next", "displayName": "GPT Legacy", "sendBlocked": true, "modelIdAfter": "gpt-legacy" }
+    },
+    {
+      "id": "deprecated_future_shutdown",
+      "catalog": {
+        "models": [{ "id": "gpt-legacy", "displayName": "GPT Legacy", "lifecycle": { "state": "deprecated", "shutdownAt": "2026-12-01T00:00:00Z", "routedTo": null } }],
+        "retiredModels": [],
+        "resolveMap": {},
+        "defaultModelId": "gpt-legacy"
+      },
+      "userModels": ["gpt-legacy"],
+      "conversation": { "modelId": "gpt-legacy", "storedName": null },
+      "expect": { "status": "available", "successorId": null, "displayName": "GPT Legacy", "sendBlocked": false, "modelIdAfter": "gpt-legacy" }
+    },
+    {
+      "id": "missing_from_catalog",
+      "catalog": {
+        "models": [{ "id": "glm-5", "displayName": "GLM-5" }],
+        "retiredModels": [],
+        "resolveMap": {},
+        "defaultModelId": "glm-5"
+      },
+      "userModels": ["glm-5"],
+      "conversation": { "modelId": "glm-4-air", "storedName": null },
+      "expect": { "status": "missing", "successorId": null, "displayName": "glm-4-air", "sendBlocked": true, "modelIdAfter": "glm-4-air" }
+    },
+    {
+      "id": "hand_entered_model",
+      "catalog": {
+        "models": [{ "id": "glm-5", "displayName": "GLM-5" }],
+        "retiredModels": [],
+        "resolveMap": {},
+        "defaultModelId": "glm-5"
+      },
+      "userModels": ["glm-5", "glm-5-private-preview"],
+      "conversation": { "modelId": "glm-5-private-preview", "storedName": null },
+      "expect": { "status": "available", "successorId": null, "displayName": "glm-5-private-preview", "sendBlocked": false, "modelIdAfter": "glm-5-private-preview" }
+    },
+    {
+      "id": "canonical_alias_resolves",
+      "catalog": {
+        "models": [{ "id": "gpt-4o", "displayName": "GPT-4o" }],
+        "retiredModels": [],
+        "resolveMap": { "gpt-4o-2024-08-06": "gpt-4o" },
+        "defaultModelId": "gpt-4o"
+      },
+      "userModels": ["gpt-4o"],
+      "conversation": { "modelId": "gpt-4o-2024-08-06", "storedName": null },
+      "expect": { "status": "available", "successorId": null, "displayName": "gpt-4o-2024-08-06", "sendBlocked": false, "modelIdAfter": "gpt-4o-2024-08-06" }
+    },
+    {
+      "id": "catalog_not_loaded",
+      "catalog": null,
+      "userModels": ["deepseek-flash"],
+      "conversation": { "modelId": "deepseek-chat", "storedName": "DeepSeek Chat" },
+      "expect": { "status": "available", "successorId": null, "displayName": "DeepSeek Chat", "sendBlocked": false, "modelIdAfter": "deepseek-chat" }
+    },
+    {
+      "id": "active_model",
+      "catalog": {
+        "models": [{ "id": "deepseek-flash", "displayName": "DeepSeek Flash" }],
+        "retiredModels": [{ "id": "deepseek-chat", "displayName": "DeepSeek Chat", "retiredAt": "2026-07-24T00:00:00Z", "routedTo": "deepseek-flash" }],
+        "resolveMap": { "deepseek-chat": "deepseek-flash" },
+        "defaultModelId": "deepseek-flash"
+      },
+      "userModels": ["deepseek-flash"],
+      "conversation": { "modelId": "deepseek-flash", "storedName": null },
+      "expect": { "status": "available", "successorId": null, "displayName": "DeepSeek Flash", "sendBlocked": false, "modelIdAfter": "deepseek-flash" }
+    }
+  ],
+  "newChatCases": [
+    {
+      "id": "preferred_available",
+      "catalog": {
+        "models": [{ "id": "deepseek-flash", "displayName": "DeepSeek Flash" }, { "id": "deepseek-v4-pro", "displayName": "DeepSeek V4 Pro" }],
+        "retiredModels": [],
+        "resolveMap": {},
+        "defaultModelId": "deepseek-flash"
+      },
+      "userModels": ["deepseek-flash", "deepseek-v4-pro"],
+      "preferredModelId": "deepseek-v4-pro",
+      "expect": { "modelId": "deepseek-v4-pro", "hint": null }
+    },
+    {
+      "id": "preferred_retired_falls_to_default",
+      "catalog": {
+        "models": [{ "id": "deepseek-flash", "displayName": "DeepSeek Flash" }, { "id": "deepseek-v4-pro", "displayName": "DeepSeek V4 Pro" }],
+        "retiredModels": [{ "id": "deepseek-chat", "displayName": "DeepSeek Chat", "retiredAt": "2026-07-24T00:00:00Z", "routedTo": "deepseek-flash" }],
+        "resolveMap": { "deepseek-chat": "deepseek-flash" },
+        "defaultModelId": "deepseek-flash"
+      },
+      "userModels": ["deepseek-chat", "deepseek-v4-pro", "deepseek-flash"],
+      "preferredModelId": "deepseek-chat",
+      "expect": { "modelId": "deepseek-flash", "hint": "last_used_retired" }
+    },
+    {
+      "id": "default_not_enabled_falls_to_first_available",
+      "catalog": {
+        "models": [
+          { "id": "gpt-legacy", "displayName": "GPT Legacy", "lifecycle": { "state": "deprecated", "shutdownAt": "2026-10-01T00:00:00Z", "routedTo": null } },
+          { "id": "gpt-next", "displayName": "GPT Next" },
+          { "id": "gpt-mini", "displayName": "GPT Mini" }
+        ],
+        "retiredModels": [],
+        "resolveMap": {},
+        "defaultModelId": "gpt-mini"
+      },
+      "userModels": ["gpt-legacy", "gpt-next"],
+      "preferredModelId": "gpt-legacy",
+      "expect": { "modelId": "gpt-next", "hint": "last_used_retired" }
+    },
+    {
+      "id": "no_preferred_uses_default",
+      "catalog": {
+        "models": [{ "id": "deepseek-flash", "displayName": "DeepSeek Flash" }, { "id": "deepseek-v4-pro", "displayName": "DeepSeek V4 Pro" }],
+        "retiredModels": [],
+        "resolveMap": {},
+        "defaultModelId": "deepseek-flash"
+      },
+      "userModels": ["deepseek-v4-pro", "deepseek-flash"],
+      "preferredModelId": null,
+      "expect": { "modelId": "deepseek-flash", "hint": null }
+    },
+    {
+      "id": "alias_dated_default_matches_undated_enabled",
+      "catalog": {
+        "models": [{ "id": "gpt-4o-2024-08-06", "displayName": "GPT-4o" }, { "id": "gpt-4o-mini", "displayName": "GPT-4o mini" }],
+        "retiredModels": [],
+        "resolveMap": {},
+        "defaultModelId": "gpt-4o-2024-08-06"
+      },
+      "userModels": ["gpt-4o-mini", "gpt-4o"],
+      "preferredModelId": null,
+      "expect": { "modelId": "gpt-4o", "hint": null }
+    },
+    {
+      "id": "alias_undated_default_matches_dated_enabled",
+      "catalog": {
+        "models": [{ "id": "claude-sonnet-4-5", "displayName": "Claude Sonnet 4.5" }, { "id": "claude-haiku-4-5", "displayName": "Claude Haiku 4.5" }],
+        "retiredModels": [],
+        "resolveMap": {},
+        "defaultModelId": "claude-sonnet-4-5"
+      },
+      "userModels": ["claude-haiku-4-5", "claude-sonnet-4-5-20250929"],
+      "preferredModelId": null,
+      "expect": { "modelId": "claude-sonnet-4-5-20250929", "hint": null }
+    },
+    {
+      "id": "alias_canonical_matches_enabled",
+      "catalog": {
+        "models": [{ "id": "gpt-5.4-nano", "displayName": "GPT-5.4 Nano" }, { "id": "gpt-5.4-mini", "displayName": "GPT-5.4 Mini" }],
+        "retiredModels": [],
+        "resolveMap": {},
+        "defaultModelId": "gpt-5.4-nano"
+      },
+      "userModels": ["gpt-5.4-mini", "gpt-5.4-nano-preview"],
+      "userModelCanonicalIds": { "gpt-5.4-nano-preview": "gpt-5.4-nano" },
+      "preferredModelId": null,
+      "expect": { "modelId": "gpt-5.4-nano-preview", "hint": null }
+    },
+    {
+      "id": "alias_exact_undated_beats_other_snapshot",
+      "catalog": {
+        "models": [{ "id": "gpt-4o-2024-11-20", "displayName": "GPT-4o" }, { "id": "gpt-4o-mini", "displayName": "GPT-4o mini" }],
+        "retiredModels": [],
+        "resolveMap": {},
+        "defaultModelId": "gpt-4o-2024-11-20"
+      },
+      "userModels": ["gpt-4o-2024-08-06", "gpt-4o"],
+      "preferredModelId": null,
+      "expect": { "modelId": "gpt-4o", "hint": null }
+    },
+    {
+      "id": "alias_case_insensitive",
+      "catalog": {
+        "models": [{ "id": "gpt-4o", "displayName": "GPT-4o" }, { "id": "gpt-4o-mini", "displayName": "GPT-4o mini" }],
+        "retiredModels": [],
+        "resolveMap": {},
+        "defaultModelId": "gpt-4o"
+      },
+      "userModels": ["gpt-4o-mini", "GPT-4o"],
+      "preferredModelId": null,
+      "expect": { "modelId": "GPT-4o", "hint": null }
+    },
+    {
+      "id": "alias_prefix_near_miss_not_matched",
+      "catalog": {
+        "models": [{ "id": "gpt-4o", "displayName": "GPT-4o" }, { "id": "gpt-4o-mini", "displayName": "GPT-4o mini" }, { "id": "gpt-5-mini", "displayName": "GPT-5 mini" }],
+        "retiredModels": [],
+        "resolveMap": {},
+        "defaultModelId": "gpt-4o"
+      },
+      "userModels": ["gpt-5-mini", "gpt-4o-mini"],
+      "preferredModelId": null,
+      "expect": { "modelId": "gpt-5-mini", "hint": null }
+    },
+    {
+      "id": "alias_compact_mmdd_suffix_not_matched",
+      "catalog": {
+        "models": [{ "id": "deepseek-v4p1-flash-1017", "displayName": "DeepSeek V4.1 Flash 1017" }, { "id": "deepseek-v4p1-flash", "displayName": "DeepSeek V4.1 Flash" }, { "id": "deepseek-v4-pro", "displayName": "DeepSeek V4 Pro" }],
+        "retiredModels": [],
+        "resolveMap": {},
+        "defaultModelId": "deepseek-v4p1-flash-1017"
+      },
+      "userModels": ["deepseek-v4-pro", "deepseek-v4p1-flash"],
+      "preferredModelId": null,
+      "expect": { "modelId": "deepseek-v4-pro", "hint": null }
+    },
+    {
+      "id": "alias_match_retired_enabled_skipped",
+      "catalog": {
+        "models": [{ "id": "gpt-4o", "displayName": "GPT-4o" }, { "id": "gpt-4o-mini", "displayName": "GPT-4o mini" }],
+        "retiredModels": [{ "id": "gpt-4o-2024-05-13", "displayName": "GPT-4o (2024-05-13)", "retiredAt": "2026-07-24T00:00:00Z", "routedTo": "gpt-4o" }],
+        "resolveMap": {},
+        "defaultModelId": "gpt-4o"
+      },
+      "userModels": ["gpt-4o-2024-05-13", "gpt-4o-mini"],
+      "preferredModelId": null,
+      "expect": { "modelId": "gpt-4o-mini", "hint": null }
+    },
+    {
+      "id": "alias_match_retired_enabled_with_canonical_skipped",
+      "catalog": {
+        "models": [{ "id": "gpt-4o", "displayName": "GPT-4o" }, { "id": "gpt-4o-mini", "displayName": "GPT-4o mini" }],
+        "retiredModels": [{ "id": "gpt-4o-2024-05-13", "displayName": "GPT-4o (2024-05-13)", "retiredAt": "2026-07-24T00:00:00Z", "routedTo": "gpt-4o" }],
+        "resolveMap": {},
+        "defaultModelId": "gpt-4o"
+      },
+      "userModels": ["gpt-4o-2024-05-13", "gpt-4o-mini"],
+      "userModelCanonicalIds": { "gpt-4o-2024-05-13": "gpt-4o" },
+      "preferredModelId": null,
+      "expect": { "modelId": "gpt-4o-mini", "hint": null }
+    }
+  ]
+}
