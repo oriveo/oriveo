@@ -1,0 +1,351 @@
+{
+  "schema": "oriveo.metadata-payload-decode-cases/v1",
+  "contract": "model catalog and capability truth, section 7",
+  "validatedBy": "shared/model-contracts/metadata_payload.v2.schema.json",
+  "notes": "Four-end decode cases for metadata schema 2. Validate the data envelope with every models / providers map emptied, then each provider (its models removed) against $defs/provider, then each model against $defs/model. A bad model is dropped and reported with code model_entry_invalid; a bad envelope rejects the whole response and keeps the previous usable cache. Revision cases compare data.metadataRevision with the cached one. Catalog models usually reference shared tables (capabilityControlsRef -> tables.capabilityControls[ref]); validate each model after its refs are expanded. A ref that does not resolve, or resolves to an entry that fails $defs/model, drops only the models using it.",
+  "pendingUntil": {
+    "web": "P1·U5",
+    "android": "P1·U7",
+    "ios": "P1·U9",
+    "desktop": "P1·U11"
+  },
+  "reportCode": "model_entry_invalid",
+  "catalogCases": [
+    {
+      "name": "valid_models_all_kept",
+      "data": {
+        "view": "catalog",
+        "provider": "deepseek",
+        "metadataSchema": 2,
+        "metadataRevision": 7,
+        "generatedAt": "2026-10-19T00:00:00Z",
+        "catalogRevision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "models": {
+          "m-a": {
+            "displayName": "A",
+            "capabilityControls": {
+              "vision_input": {
+                "state": "auto_available",
+                "wireFamily": "openai_chat.image_url",
+                "sourceRefs": [
+                  "s1"
+                ]
+              }
+            }
+          },
+          "m-b": {
+            "displayName": "B",
+            "lifecycle": {
+              "state": "deprecated",
+              "shutdownAt": "2026-12-01T00:00:00Z",
+              "signal": "upstream_shutdown_date"
+            }
+          }
+        }
+      },
+      "expect": {
+        "envelope": "accept",
+        "keptModels": [
+          "m-a",
+          "m-b"
+        ],
+        "droppedModels": []
+      }
+    },
+    {
+      "name": "unknown_keys_are_additive",
+      "data": {
+        "view": "catalog",
+        "provider": "deepseek",
+        "metadataSchema": 2,
+        "metadataRevision": 7,
+        "generatedAt": "2026-10-19T00:00:00Z",
+        "catalogRevision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "futureTopLevel": {
+          "x": 1
+        },
+        "models": {
+          "m-a": {
+            "displayName": "A",
+            "futureField": [
+              1,
+              2
+            ],
+            "capabilityControls": {
+              "vision_input": {
+                "state": "unknown",
+                "futureVerdictField": true
+              }
+            }
+          }
+        }
+      },
+      "expect": {
+        "envelope": "accept",
+        "keptModels": [
+          "m-a"
+        ],
+        "droppedModels": []
+      }
+    },
+    {
+      "name": "bad_verdict_state_drops_only_that_model",
+      "data": {
+        "view": "catalog",
+        "provider": "deepseek",
+        "metadataSchema": 2,
+        "metadataRevision": 7,
+        "generatedAt": "2026-10-19T00:00:00Z",
+        "catalogRevision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "models": {
+          "m-a": {
+            "displayName": "A"
+          },
+          "m-bad": {
+            "displayName": "Bad",
+            "capabilityControls": {
+              "vision_input": {
+                "state": "maybe"
+              }
+            }
+          }
+        }
+      },
+      "expect": {
+        "envelope": "accept",
+        "keptModels": [
+          "m-a"
+        ],
+        "droppedModels": [
+          "m-bad"
+        ]
+      }
+    },
+    {
+      "name": "missing_display_name_drops_model",
+      "data": {
+        "view": "catalog",
+        "provider": "deepseek",
+        "metadataSchema": 2,
+        "metadataRevision": 7,
+        "generatedAt": "2026-10-19T00:00:00Z",
+        "catalogRevision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "models": {
+          "m-a": {
+            "displayName": "A"
+          },
+          "m-nameless": {
+            "contextLength": 1000
+          }
+        }
+      },
+      "expect": {
+        "envelope": "accept",
+        "keptModels": [
+          "m-a"
+        ],
+        "droppedModels": [
+          "m-nameless"
+        ]
+      }
+    },
+    {
+      "name": "bad_lifecycle_state_drops_model",
+      "data": {
+        "view": "catalog",
+        "provider": "deepseek",
+        "metadataSchema": 2,
+        "metadataRevision": 7,
+        "generatedAt": "2026-10-19T00:00:00Z",
+        "catalogRevision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "models": {
+          "m-a": {
+            "displayName": "A"
+          },
+          "m-life": {
+            "displayName": "L",
+            "lifecycle": {
+              "state": "sunset"
+            }
+          }
+        }
+      },
+      "expect": {
+        "envelope": "accept",
+        "keptModels": [
+          "m-a"
+        ],
+        "droppedModels": [
+          "m-life"
+        ]
+      }
+    },
+    {
+      "name": "envelope_missing_revision_rejected",
+      "data": {
+        "view": "catalog",
+        "provider": "deepseek",
+        "metadataSchema": 2,
+        "generatedAt": "2026-10-19T00:00:00Z",
+        "catalogRevision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "models": {
+          "m-a": {
+            "displayName": "A"
+          }
+        }
+      },
+      "expect": {
+        "envelope": "reject"
+      }
+    },
+    {
+      "name": "envelope_bad_catalog_revision_rejected",
+      "data": {
+        "view": "catalog",
+        "provider": "deepseek",
+        "metadataSchema": 2,
+        "metadataRevision": 7,
+        "generatedAt": "2026-10-19T00:00:00Z",
+        "catalogRevision": "md5:abc",
+        "models": {
+          "m-a": {
+            "displayName": "A"
+          }
+        }
+      },
+      "expect": {
+        "envelope": "reject"
+      }
+    },
+    {
+      "name": "bad_ref_table_entry_drops_its_referrers",
+      "data": {
+        "view": "catalog",
+        "provider": "anthropic",
+        "metadataSchema": 2,
+        "metadataRevision": 7,
+        "generatedAt": "2026-10-19T00:00:00Z",
+        "catalogRevision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "tables": {
+          "capabilityControls": {
+            "good": {
+              "vision_input": {
+                "state": "auto_available",
+                "wireFamily": "anthropic.image",
+                "sourceRefs": [
+                  "s1"
+                ]
+              }
+            },
+            "bad": {
+              "vision_input": {
+                "state": "maybe"
+              }
+            }
+          }
+        },
+        "models": {
+          "m-a": {
+            "displayName": "A",
+            "capabilityControlsRef": "good"
+          },
+          "m-b": {
+            "displayName": "B",
+            "capabilityControlsRef": "bad"
+          },
+          "m-c": {
+            "displayName": "C",
+            "capabilityControlsRef": "bad"
+          }
+        }
+      },
+      "expect": {
+        "envelope": "accept",
+        "keptModels": [
+          "m-a"
+        ],
+        "droppedModels": [
+          "m-b",
+          "m-c"
+        ]
+      }
+    },
+    {
+      "name": "unresolved_ref_drops_only_that_model",
+      "data": {
+        "view": "catalog",
+        "provider": "anthropic",
+        "metadataSchema": 2,
+        "metadataRevision": 7,
+        "generatedAt": "2026-10-19T00:00:00Z",
+        "catalogRevision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "tables": {
+          "capabilityControls": {
+            "good": {
+              "vision_input": {
+                "state": "unknown"
+              }
+            }
+          }
+        },
+        "models": {
+          "m-a": {
+            "displayName": "A",
+            "capabilityControlsRef": "good"
+          },
+          "m-lost": {
+            "displayName": "Lost",
+            "capabilityControlsRef": "missing"
+          }
+        }
+      },
+      "expect": {
+        "envelope": "accept",
+        "keptModels": [
+          "m-a"
+        ],
+        "droppedModels": [
+          "m-lost"
+        ]
+      }
+    }
+  ],
+  "revisionCases": [
+    {
+      "name": "no_cache_accepts",
+      "cached": null,
+      "incoming": 3,
+      "expect": "accept"
+    },
+    {
+      "name": "bundled_zero_then_live_accepts",
+      "cached": 0,
+      "incoming": 1,
+      "expect": "accept"
+    },
+    {
+      "name": "newer_accepts",
+      "cached": 5,
+      "incoming": 6,
+      "expect": "accept"
+    },
+    {
+      "name": "equal_is_unchanged",
+      "cached": 5,
+      "incoming": 5,
+      "expect": "unchanged"
+    },
+    {
+      "name": "older_rejected_keeps_cache",
+      "cached": 5,
+      "incoming": 4,
+      "expect": "reject"
+    },
+    {
+      "name": "bundled_zero_then_zero_accepts",
+      "cached": 0,
+      "incoming": 0,
+      "expect": "accept"
+    }
+  ]
+}
