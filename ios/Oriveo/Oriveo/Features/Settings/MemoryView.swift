@@ -60,6 +60,29 @@ struct MemoryViewPresentation: Equatable, Sendable {
     }
 }
 
+/// Memo of the memory list presentation: body asks for the list on every evaluation, so it is recomputed only when the items / folder names / deviceId change.
+/// It only caches a derived value and is not observed, so mutating it does not trigger a redraw.
+@MainActor
+private final class MemoryListPresentationMemo {
+    private struct Inputs: Equatable {
+        let items: [MemoryItem]
+        let deviceId: String
+        let folderNames: [String: String]
+    }
+
+    private var inputs: Inputs?
+    private var cached: MemoryItemListPresentation?
+
+    func presentation(items: [MemoryItem], deviceId: String, folderNames: [String: String]) -> MemoryItemListPresentation {
+        let current = Inputs(items: items, deviceId: deviceId, folderNames: folderNames)
+        if let cached, inputs == current { return cached }
+        let resolved = MemoryItemListPresentation.resolve(items: items, deviceId: deviceId, folderNames: folderNames)
+        inputs = current
+        cached = resolved
+        return resolved
+    }
+}
+
 struct MemoryView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
@@ -94,10 +117,11 @@ struct MemoryView: View {
     @State private var deviceId: String = Self.initialDeviceId
     /// Count for the "Memory suggestions" entry row: reloaded when entering the page and when returning from the candidate inbox.
     @State private var inbox = MemoryInboxModel()
+    @State private var listMemo = MemoryListPresentationMemo()
 
     /// The list reads from the in-memory item cache (no tombstones, list order) and never reads the database on the main thread.
     private var listPresentation: MemoryItemListPresentation {
-        MemoryItemListPresentation.resolve(
+        listMemo.presentation(
             items: appState.memoryItemsCache.items,
             deviceId: deviceId,
             folderNames: folderNames
@@ -668,8 +692,11 @@ struct MemoryView: View {
             handleAction(action)
         } label: {
             HStack(spacing: 12) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 17, weight: .semibold))
+                PhosphorIcon.sparkle.image(.regular)
+                    .resizable()
+                    .renderingMode(.template)
+                    .scaledToFit()
+                    .frame(width: 17, height: 17)
                     .foregroundStyle(OriveoTheme.Palette.primary)
                     .accessibilityHidden(true)
                 Text(actionTitle(for: action))

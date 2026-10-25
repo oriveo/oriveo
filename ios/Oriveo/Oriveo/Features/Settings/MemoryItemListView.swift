@@ -78,41 +78,66 @@ struct MemoryConflictPair: Equatable, Identifiable, Sendable {
 
 /// Sort time of an L3 (episodic) item: occurredAt, or createdAt when missing; unparseable ones go last.
 enum MemoryEpisodicTime {
-    static func date(of item: MemoryItem) -> Date? {
+    typealias Parser = (String?) -> Date?
+
+    /// Formatters are built once: every list recompute walks all L3 items.
+    nonisolated(unsafe) private static let fractionalFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    nonisolated(unsafe) private static let plainFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    nonisolated(unsafe) private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    static func date(of item: MemoryItem, parse: Parser = MemoryEpisodicTime.parse) -> Date? {
         parse(item.occurredAt) ?? parse(item.createdAt)
     }
 
     /// RFC 3339 to Date, with or without milliseconds.
     static func parse(_ raw: String?) -> Date? {
         guard let raw else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: raw) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: raw)
+        return fractionalFormatter.date(from: raw) ?? plainFormatter.date(from: raw)
     }
 
     /// Newest first; for equal times the larger id comes first.
     static func isNewer(_ lhs: MemoryItem, than rhs: MemoryItem) -> Bool {
-        let left = date(of: lhs) ?? .distantPast
-        let right = date(of: rhs) ?? .distantPast
+        isNewer(lhs, date(of: lhs), than: rhs, date(of: rhs))
+    }
+
+    static func isNewer(_ lhs: MemoryItem, _ lhsDate: Date?, than rhs: MemoryItem, _ rhsDate: Date?) -> Bool {
+        let left = lhsDate ?? .distantPast
+        let right = rhsDate ?? .distantPast
         if left != right { return left > right }
         return lhs.id.lowercased() > rhs.id.lowercased()
     }
 
-    /// UTC date `YYYY-MM-DD`; an empty string when there is no time.
-    static func dayLabel(of item: MemoryItem) -> String {
-        guard let date = date(of: item) else { return "" }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+    /// Newest-first sort: each item's time is parsed once up front instead of inside the comparator, and the parsed date is returned for the date column.
+    static func sortedNewestFirst(_ items: [MemoryItem], parse: Parser = MemoryEpisodicTime.parse) -> [(item: MemoryItem, date: Date?)] {
+        items
+            .map { (item: $0, date: date(of: $0, parse: parse)) }
+            .sorted { isNewer($0.item, $0.date, than: $1.item, $1.date) }
     }
 
-    /// The `MM-DD` used in conflict pairs.
-    static func monthDayLabel(of item: MemoryItem) -> String {
-        String(dayLabel(of: item).dropFirst(5))
+    /// UTC date `YYYY-MM-DD`; an empty string when there is no time.
+    static func dayLabel(of item: MemoryItem) -> String {
+        dayLabel(date(of: item))
+    }
+
+    static func dayLabel(_ date: Date?) -> String {
+        guard let date else { return "" }
+        return dayFormatter.string(from: date)
     }
 }
 
@@ -249,17 +274,17 @@ struct MemoryItemListPresentation: Equatable, Sendable {
         )
     }
 
-    private static func episodicSection(_ items: [MemoryItem], folderNames: [String: String]) -> MemoryEpisodicSection {
-        let rows = items
-            .filter { $0.layer == .episodic && ($0.status == .active || $0.status == .paused) }
-            .sorted { MemoryEpisodicTime.isNewer($0, than: $1) }
-            .map {
-                MemoryEpisodicRow(
-                    item: $0,
-                    dateLabel: MemoryEpisodicTime.dayLabel(of: $0),
-                    scopeLabel: MemoryEpisodicRow.scopeLabel($0.scope, folderNames: folderNames)
-                )
-            }
+    static func episodicSection(
+        _ items: [MemoryItem], folderNames: [String: String], parse: MemoryEpisodicTime.Parser = MemoryEpisodicTime.parse
+    ) -> MemoryEpisodicSection {
+        let episodic = items.filter { $0.layer == .episodic && ($0.status == .active || $0.status == .paused) }
+        let rows = MemoryEpisodicTime.sortedNewestFirst(episodic, parse: parse).map { entry in
+            MemoryEpisodicRow(
+                item: entry.item,
+                dateLabel: MemoryEpisodicTime.dayLabel(entry.date),
+                scopeLabel: MemoryEpisodicRow.scopeLabel(entry.item.scope, folderNames: folderNames)
+            )
+        }
         return MemoryEpisodicSection(rows: rows)
     }
 
@@ -270,12 +295,14 @@ struct MemoryItemListPresentation: Equatable, Sendable {
             guard let key = item.conflictGroupId?.lowercased() else { continue }
             members[key, default: []].append(item)
         }
-        return members.compactMap { key, pair -> MemoryL3ConflictPair? in
+        let pairs = members.compactMap { key, pair -> (pair: MemoryL3ConflictPair, date: Date?)? in
             guard pair.count == 2 else { return nil }
-            let sorted = pair.sorted { MemoryEpisodicTime.isNewer($0, than: $1) }
-            return MemoryL3ConflictPair(id: key, newer: sorted[0], older: sorted[1])
+            let sorted = MemoryEpisodicTime.sortedNewestFirst(pair)
+            return (MemoryL3ConflictPair(id: key, newer: sorted[0].item, older: sorted[1].item), sorted[0].date)
         }
-        .sorted { MemoryEpisodicTime.isNewer($0.newer, than: $1.newer) }
+        return pairs
+            .sorted { MemoryEpisodicTime.isNewer($0.pair.newer, $0.date, than: $1.pair.newer, $1.date) }
+            .map(\.pair)
     }
 }
 
