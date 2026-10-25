@@ -46,6 +46,9 @@ nonisolated struct ChatRequestAssemblyContext: Sendable, Equatable {
     var memoryFallback: Bool = true
     /// On overflow-recovery trial runs, purpose chat also produces the compaction snapshot material (B taken as in the fallback: plan.budget.B ?? overflowFallbackB).
     var overflowCompactionInputs: Bool = false
+    /// Manual compaction: the snapshot only takes history before the first message carrying media (image / video / a file with original data);
+    /// that message and everything after it is kept as is and counted in fixedTokens. Same as false when no message carries media.
+    var compactionStopsAtMedia: Bool = false
     /// oldSummary of the deterministic fallback: the non-empty summary of the latestValid winner; nil if none.
     var fallbackOldSummary: String? = nil
 }
@@ -102,7 +105,7 @@ nonisolated enum ChatRequestBuilder {
             compactionInputs: compactionRequired || (isChat && assembly.overflowCompactionInputs)
                 ? compactionInputs(
                     input.input, plan: base, sources: input.sources, window: assembly.window,
-                    fallbackB: assembly.overflowFallbackB
+                    fallbackB: assembly.overflowFallbackB, stopsAtMedia: assembly.compactionStopsAtMedia
                 )
                 : nil
         )
@@ -138,11 +141,28 @@ nonisolated enum ChatRequestBuilder {
         plan: ContextPlan,
         sources: AssemblySources,
         window: ContextWindowInput,
-        fallbackB: Int? = nil
+        fallbackB: Int? = nil,
+        stopsAtMedia: Bool = false
     ) -> ChatCompactionInputs? {
         guard let B = plan.budget.B ?? fallbackB, B > 0 else { return nil }
         let rhoHi = input.rhoHi
-        let messages = input.history.map { message in
+        let firstMediaIndex = stopsAtMedia
+            ? input.history.firstIndex { message in
+                message.attachments.contains { ref in
+                    guard let attachment = sources.attachments[ref.id] else { return false }
+                    switch attachment.kind {
+                    case .image, .video: return true
+                    // Only files with original data (native send) count as media; files injected as plain text can be summarized.
+                    case .file: return attachment.originalBase64Data?.isEmpty == false
+                    }
+                }
+            }
+            : nil
+        let summarizable = input.history[..<(firstMediaIndex ?? input.history.count)]
+        let keptRawTokens = input.history[(firstMediaIndex ?? input.history.count)...].reduce(0) {
+            $0 + ContextBudget.estimateMessage($1.text, rhoHi: rhoHi)
+        }
+        let messages = summarizable.map { message in
             ContextCheckpoint.Message(
                 id: message.id,
                 role: message.role,
@@ -153,7 +173,7 @@ nonisolated enum ChatRequestBuilder {
             )
         }
         var attachments: [String: [ContextCompactor.Attachment]] = [:]
-        for message in input.history where !message.attachments.isEmpty {
+        for message in summarizable where !message.attachments.isEmpty {
             attachments[message.id] = message.attachments.compactMap { ref in
                 sources.attachments[ref.id].map { attachment in
                     ContextCompactor.Attachment(kind: attachment.kind == .image ? .image : .file, name: attachment.fileName)
@@ -172,7 +192,7 @@ nonisolated enum ChatRequestBuilder {
             U: ContextBudget.window(window).U ?? B,
             rhoHi: rhoHi,
             prefixTokens: systemTokens,
-            fixedTokens: systemTokens + ContextBudget.estimateMessage(currentText, rhoHi: rhoHi),
+            fixedTokens: systemTokens + ContextBudget.estimateMessage(currentText, rhoHi: rhoHi) + keptRawTokens,
             system: system
         )
     }
@@ -361,13 +381,13 @@ nonisolated enum ChatRequestBuilder {
         return parameters
     }
 
-    private struct AssemblySources {
+    struct AssemblySources {
         var messages: [String: ChatMessage] = [:]
         var attachments: [String: Attachment] = [:]
     }
 
     /// The purpose is decided by the send path: `.send` is chat (toolLoopLeg when toolSafety is present), `.continueResponse` is continue.
-    private static func assembleInput(
+    static func assembleInput(
         _ snapshot: ChatRequestSnapshot,
         assembly: ChatRequestAssemblyContext,
         toolSafety: String? = nil
@@ -425,7 +445,7 @@ nonisolated enum ChatRequestBuilder {
     /// Items are filtered by `MemoryItems.injectable` (conversation id, folder id, now), standing section first and memory section after,
     /// keeping list order within a section; status / layer / scope are already filtered here, so the assembler no longer gets those fields.
     /// Conversation / folder ids use `uuidString`, the same as the stored document ids.
-    private static func injectableMemory(
+    static func injectableMemory(
         _ items: [MemoryItem],
         conversation: ChatRequestConversationSnapshot?,
         now: Date
@@ -495,7 +515,7 @@ nonisolated enum ChatRequestBuilder {
         )
     }
 
-    private static func contextMessage(_ message: ChatMessage) -> ContextMessage {
+    static func contextMessage(_ message: ChatMessage) -> ContextMessage {
         let state: ContextMessageState = switch message.state {
         case .delivered: .delivered
         case .generating: .generating
